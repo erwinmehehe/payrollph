@@ -1,0 +1,48 @@
+name: Independent Payroll Change Review Gate (P0-3)
+
+# Never execute PR-head code with pull_request_target privileges.
+# Read GitHub pull request files and reviews using a read-scoped token,
+# from the TRUSTED DEFAULT BRANCH only.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review, converted_to_draft]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: independent-payroll-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  require-independent-payroll-review:
+    name: Require independent payroll change approval
+    if: github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Use trusted main policy only (never PR-head code)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Node 22 for read-only policy
+        uses: actions/setup-node@49933ea5288ca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Verify independent-review policy using synthetic cases
+        run: node --test tests/independent-pr-review-gate.test.mjs
+      - name: Assess exact PR head, complete file list, human approvals and pilot freeze
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PAYROLL_INDEPENDENT_REVIEWERS: ${{ vars.PAYROLL_INDEPENDENT_REVIEWERS }}
+          PILOT_HCM_WFM_STARTED: ${{ vars.PILOT_HCM_WFM_STARTED }}
+          PILOT_START_EVIDENCE_REF: ${{ vars.PILOT_START_EVIDENCE_REF }}
+        run: node scripts/check-independent-pr-review.mjs

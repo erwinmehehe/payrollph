@@ -55,7 +55,7 @@ test("2316 issuance stays distinct from annual Alphalist validation in product r
   assert.match(guide.notes, /separate from the annual Alphalist/);
   assert.match(guide.acceptanceChecklist.join(" "), /January 31/);
   assert.equal(findFilingForm("BIR", "2316"), null, "Form 2316 must not be advertised as a monthly import workflow");
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   assert.ok(readiness.includes('label: "BIR annual Alphalist / ADES acceptance (Form 2316 tracked separately)"'));
   assert.ok(!readiness.includes("BIR Alphalist / 2316 validated in ADES"));
   assert.ok(readiness.includes("Alphalist status never proves its issuance or signatures"));

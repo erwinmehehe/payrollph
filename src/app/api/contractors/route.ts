@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     rateType: body.rateType ? String(body.rateType).slice(0, 20) : "monthly",
     tin: encryptGovernmentId(
       body.tin ? String(body.tin).trim() : null,
-      { required: process.env.NODE_ENV === "production" },
+      { required: true },
     ),
     withholdingAtc,
     withholdingRate: withholdingRate === null ? null : withholdingRate.toFixed(3),
@@ -142,7 +142,7 @@ export async function PATCH(request: Request) {
   if (body.tin !== undefined) {
     updates.tin = encryptGovernmentId(
       body.tin ? String(body.tin).trim() : null,
-      { required: process.env.NODE_ENV === "production" },
+      { required: true },
     );
   }
   if (body.withholdingAtc !== undefined) {
