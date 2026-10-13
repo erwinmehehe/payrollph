@@ -12,6 +12,7 @@ import { purgeExpiredPunchPhotos } from "@/lib/workforce-punch-retention";
 import { drainMarketingLeadNotifications } from "@/lib/marketing-leads";
 import { runScheduledStatutoryRemittanceSync } from "@/lib/statutory-remittance-actions";
 import { runScheduledContributionCaseEscalations } from "@/lib/statutory-contribution-case-escalations";
+import { runDueHrCaseSlaEscalations } from "@/lib/hr-case-sla-escalation";
 import { runScheduledHcmDocumentExpiry } from "@/lib/hcm-documents";
 import { runScheduledCompensationGovernance } from "@/lib/hcm-compensation";
 import { drainCompensationAutomationIntents } from "@/lib/compensation-automation-outbox";
@@ -147,6 +148,8 @@ async function runScheduledJobs(
   const contributionCaseEscalations = await runScheduledContributionCaseEscalations({
     actor: "System scheduler",
   });
+  await assertLeaseOwnership();
+  const hrCaseSlaEscalations = await runDueHrCaseSlaEscalations(now);
   await assertLeaseOwnership();
   const automationResumes = await resumeDueAutomationExecutions(now, 25);
   await assertLeaseOwnership();
@@ -391,6 +394,7 @@ async function runScheduledJobs(
     punchPhotoPurge,
     statutoryRemittanceActions,
     contributionCaseEscalations,
+    hrCaseSlaEscalations,
     automationResumes,
     automationTemporalEvents,
     hcmDocumentExpiry,
