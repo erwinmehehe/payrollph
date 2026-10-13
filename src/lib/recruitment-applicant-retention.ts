@@ -1,7 +1,8 @@
-import { and, eq, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, not, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { applicantPrivacyEvidence, auditEvents, jobApplicants } from "@/db/schema";
 import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
+import { applicantRetainedCopyHoldSql } from "@/lib/recruitment-applicant-copy-hold";
 import {
   applicantPiiEraseValues, rejectedApplicantCanPurge, sixCalendarMonthsBefore,
 } from "@/lib/recruitment-applicant-privacy";
@@ -34,6 +35,7 @@ export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
     eq(applicantPrivacyEvidence.legalHold, false),
     isNull(applicantPrivacyEvidence.purgedAt),
     lte(applicantPrivacyEvidence.rejectedAt, cutoff),
+    not(applicantRetainedCopyHoldSql(jobApplicants.id, jobApplicants.organizationId)),
   )).orderBy(applicantPrivacyEvidence.id).limit(limit);
   let purged = 0;
   for (const candidate of due) {
@@ -61,6 +63,8 @@ export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
         rejectedAt: privacy.rejectedAt, legalHold: privacy.legalHold,
         purgedAt: privacy.purgedAt, resumeUrl: applicant.resumeUrl,
       }, now)) return false;
+      const copies = await tx.execute(sql`SELECT ${applicantRetainedCopyHoldSql(candidate.applicantId, candidate.organizationId)} AS held`);
+      if (copies.rows[0]?.held === true) return false;
       await tx.update(jobApplicants).set(applicantPiiEraseValues(candidate.applicantId))
         .where(and(eq(jobApplicants.id, candidate.applicantId),
           eq(jobApplicants.organizationId, candidate.organizationId)));

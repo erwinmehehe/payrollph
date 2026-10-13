@@ -4,6 +4,7 @@ import { applicantPrivacyEvidence, auditEvents, jobApplicants } from "@/db/schem
 import { assertOrganizationRole, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
+import { applicantRetainedCopyHoldSql } from "@/lib/recruitment-applicant-copy-hold";
 import {
   applicantPiiEraseValues, applicantErasureIndependentlyApproved, applicantPrivacyId, validApplicantPrivacyDecision,
 } from "@/lib/recruitment-applicant-privacy";
@@ -131,6 +132,8 @@ export async function PATCH(request: Request) {
     if (!applicant || !privacy) return "not_found";
     if (privacy.purgedAt) return "already_erased";
     if (applicant.hiredEmployeeId !== null || applicant.hiredAt !== null || applicant.stage === "hired" || privacy.legalHold) return "retention_hold";
+    const copies = await tx.execute(sql`SELECT ${applicantRetainedCopyHoldSql(applicantId, organizationId)} AS held`);
+    if (copies.rows[0]?.held === true) return "retained_evidence_hold";
     const now = new Date();
     if (action === "request_delete") {
       // A new maker request invalidates any older review.

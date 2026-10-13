@@ -28,7 +28,7 @@ test("bounded six-month purge skips retained resumes without starving eligible r
     restorers.push(() => { require.cache[id]!.exports = original; });
   }
   try {
-    for (const table of ["organizations", "users", "job_requisitions", "job_applicants", "audit_events"]) {
+    for (const table of ["organizations", "users", "job_requisitions", "job_applicants", "audit_events", "hcm_business_process_instances"]) {
       await pool.query(`CREATE TABLE ${schema}.${table} (LIKE public.${table} INCLUDING DEFAULTS INCLUDING CONSTRAINTS)`);
       await pool.query(`ALTER TABLE ${schema}.${table} ADD PRIMARY KEY (id)`);
     }
@@ -163,6 +163,11 @@ test("bounded six-month purge skips retained resumes without starving eligible r
     await db.update(jobApplicants).set({ hiredAt: oldDate }).where(eq(jobApplicants.id, held.id));
     await db.update(applicantPrivacyEvidence).set({ legalHold: false }).where(eq(applicantPrivacyEvidence.applicantId, held.id));
     assert.equal((await route.PATCH(mutate("request_delete", alpha.id, held.id))).status, 409, "Historic hired linkage survives employee FK removal");
+    await db.insert(auditEvents).values({ organizationId: alpha.id, actor: "Synthetic legacy audit",
+      action: "Candidate received", resource: "Synthetic retained candidate name", metadata: { applicantId: unresolvedResume.id } });
+    await db.update(jobApplicants).set({ resumeUrl: null }).where(eq(jobApplicants.id, unresolvedResume.id));
+    assert.equal((await purgeExpiredRejectedApplicants(now)).purged, 0, "Named immutable audit evidence blocks incomplete erasure");
+    assert.equal((await route.PATCH(mutate("request_delete", alpha.id, unresolvedResume.id))).status, 409);
   } finally {
     for (const restore of restorers.reverse()) restore();
     if (oldFlag == null) delete process.env.APPLICANT_PRIVACY_CONTROLS_ENABLED;

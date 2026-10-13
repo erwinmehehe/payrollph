@@ -539,7 +539,7 @@ export async function POST(request: Request) {
       organizationId,
       actor: user.name,
       action: "Candidate application received",
-      resource: `${fullName} -> ${createdOrResponse.requisitionTitle}`,
+      resource: consent ? "Applicant #" + createdOrResponse.created.id : `${fullName} -> ${createdOrResponse.requisitionTitle}`,
       metadata: { applicantId: createdOrResponse.created.id, requisitionId, positionId: linkedPosition?.id ?? null },
     });
 
@@ -765,14 +765,14 @@ export async function PATCH(request: Request) {
     organizationId: applicant.organizationId,
     actor: user.name,
     action: stage ? `Candidate moved to stage: ${stage}` : "Candidate profile updated",
-    resource: applicant.fullName,
+    resource: applicantPrivacyControlsEnabled() ? "Applicant #" + applicantId : applicant.fullName,
     metadata: {
       applicantId,
       requisitionId: req.id,
       positionId: linkedPosition?.id ?? null,
       previousStage: updatedOrResponse.previousStage,
       stage: stage || updatedOrResponse.previousStage,
-      offeredSalary,
+      ...(applicantPrivacyControlsEnabled() ? {} : { offeredSalary }),
     },
   });
 
