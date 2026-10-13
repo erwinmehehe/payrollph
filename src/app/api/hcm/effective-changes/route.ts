@@ -14,6 +14,8 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { effectiveHcmSourceDrift, effectiveHcmTargetDrift } from "@/lib/hcm-effective-source-integrity";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { applyWorkerEffectiveChange, philippineBusinessDate } from "@/lib/hcm-effective-changes";
 import {
   cancelHcmBusinessProcessForSourceTx,
@@ -59,6 +61,13 @@ async function assertCompanyWidePeople(userId: number, organizationId: number) {
   );
   if (denied) return { error: denied };
   const access = await getAccess(userId, organizationId);
+  const entityScope = await resolveMultiEntityContext({ userId, organizationId });
+  if (!entityScope.ok) return { error: entityScope.response };
+  if (entityScope.context.enabled && !entityScope.context.group) {
+    return { error: Response.json({
+      error: "Entity-scoped users must use the approved legal-employer transfer process and their own scoped People views.",
+    }, { status: 403 }) };
+  }
   if (!access?.companyWide) {
     return { error: Response.json({
       error: "Scheduled effective-dated employment changes require company-wide People access.",
@@ -242,6 +251,16 @@ export async function POST(request: Request) {
       isNull(positionAssignments.effectiveUntil),
     )).limit(1);
     if (incumbent) return Response.json({ error: "The target position already has an active incumbent." }, { status: 409 });
+  }
+  if (criticalReleaseFlagEnabled("multiEntity") && (
+    movementType === "legal_employer_change"
+    || owns(changes, "legalEntityId")
+    || (targetPosition?.legalEntityId != null && targetPosition.legalEntityId !== employee.legalEntityId)
+  )) {
+    return Response.json({
+      error: "Legal-employer moves require the effective-dated transfer maker-checker process.",
+      code: "ENTITY_TRANSFER_REQUIRES_APPROVAL",
+    }, { status: 409 });
   }
 
   const integerTargets: Array<[string, unknown]> = [
