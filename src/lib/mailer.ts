@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { db } from "@/db";
 import { auditEvents, outbox } from "@/db/schema";
@@ -692,6 +692,9 @@ export async function drainOutboxRetries(limit = 25) {
     .where(and(
       inArray(outbox.purpose, ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case", "approval-chain-escalation"]),
       inArray(outbox.status, ["queued", "failed"]),
+      // Permanently cancelled advisories must not consume the oldest-first
+      // retry batch and starve legitimate payroll or statutory notices.
+      gt(outbox.maxAttempts, 0),
     ))
     .orderBy(asc(outbox.id))
     .limit(limit);
