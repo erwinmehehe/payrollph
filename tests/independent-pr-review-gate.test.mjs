@@ -121,6 +121,51 @@ test("a current approval is not release authority, and draft sensitive PRs stay 
   assert.equal(draft.ok, false);
 });
 
+test("development WFM-12 verification is reviewable without faking a pilot start", () => {
+  const files = [
+    { filename: "scripts/wfm-pilot-synthetic-evidence.mjs", status: "modified" },
+    { filename: "tests/wfm-roster-scale-postgres.test.ts", status: "modified" },
+  ];
+  const accepted = review(files);
+  assert.equal(accepted.scope.hcmWfmFrozen, true);
+  assert.equal(accepted.scope.wfm12DevVerification, true);
+  assert.equal(accepted.scope.requiresIndependentHuman, true);
+  assert.equal(accepted.ok, true, "a real independent human can review a test-only change");
+  assert.equal(accepted.releaseAuthorized, false);
+  const noHuman = review(files, { reviews: [], reviewerAllowlist: "", permissions: {} });
+  assert.equal(noHuman.ok, false);
+  assert.ok(noHuman.blockers.includes("NAMED_REVIEWER_NOT_CONFIGURED"));
+  assert.ok(noHuman.blockers.includes("CURRENT_HEAD_INDEPENDENT_APPROVAL_REQUIRED"));
+  assert.equal(review(files, {
+    reviews: [human("reviewer", { commit_id: prior })],
+  }).ok, false, "stale commit approval cannot unfreeze even a test");
+  assert.equal(review(files, { pr: pr(files, { draft: true }) }).ok, false);
+});
+
+test("any runtime file, migration, extra test or non-modification keeps WFM freeze", () => {
+  const exact = [
+    { filename: "scripts/wfm-pilot-synthetic-evidence.mjs", status: "modified" },
+    { filename: "tests/wfm-roster-scale-postgres.test.ts", status: "modified" },
+  ];
+  const variants = [
+    exact.slice(0, 1),
+    [...exact, { filename: "src/lib/workforce-roster-scale.ts", status: "modified" }],
+    [...exact, { filename: "drizzle/0118_wfm_roster_scale_rules.sql", status: "modified" }],
+    [...exact, { filename: "tests/wfm-new-feature.test.ts", status: "added" }],
+    exact.map((f, index) => index === 1 ? { ...f, status: "added" } : f),
+    exact.map((f, index) => index === 1 ? { ...f, status: "removed" } : f),
+    exact.map((f, index) => index === 1
+      ? { ...f, status: "renamed", previous_filename: "tests/workforce-roster-scale.test.ts" } : f),
+    [exact[0], exact[0]],
+  ];
+  for(const changed of variants){
+    const decision = review(changed);
+    assert.equal(decision.scope.wfm12DevVerification, false);
+    assert.equal(decision.ok, false);
+    assert.ok(decision.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+  }
+});
+
 test("HCM/WFM/compensation remain frozen even when independently approved", () => {
   for (const path of [
     "src/lib/hcm-compensation.ts",
