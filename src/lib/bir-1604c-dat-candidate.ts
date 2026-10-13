@@ -86,12 +86,17 @@ export type Bir1604CCandidateInput = {
 };
 
 const amount = (v: unknown, field: string) => {
-  if (v === null || v === undefined || v === "") throw new Error(`Missing reviewed 1604-C field ${field}; never substitute zero.`);
-  const n = Number(v);
-  if (!Number.isFinite(n) || n < 0 || n > 99_999_999_999.99) {
-    throw new Error(`Invalid non-negative BIR 1604-C amount in ${field}.`);
-  }
-  return Math.round(n * 100) / 100;
+  if (v === null || v === undefined || v === "")
+    throw new Error("Missing reviewed 1604-C field " + field + "; never substitute zero.");
+  if (typeof v !== "string" && typeof v !== "number")
+    throw new Error("Invalid numeric BIR 1604-C amount in " + field + ".");
+  const raw = String(v);
+  // Never silently round three-decimal or exponential numeric inputs.
+  if (!/^(0|[1-9][0-9]{0,10})(\.[0-9]{1,2})?$/.test(raw))
+    throw new Error("Invalid non-negative BIR 1604-C amount in " + field + ".");
+  const parts = raw.split(".");
+  const centavos = Number(parts[0]) * 100 + Number((parts[1] ?? "").padEnd(2, "0"));
+  return centavos / 100;
 };
 function escapeValue(value: string) {
   if (!/^[\x20-\x7E]*$/.test(value) || /[\r\n]/.test(value)) {
@@ -170,7 +175,11 @@ function controlRow(
   const fields = schedule === "D1" ? BIR_1604C_C1_FIELDS : BIR_1604C_C2_FIELDS;
   const sums: Record<string, number> = {};
   for (const field of fields.slice(5)) {
-    sums[field] = detail.reduce((sum, row) => sum + amount(row.fields[field], field), 0);
+    const centavos = detail.reduce((sum, row) =>
+      sum + Math.round(amount(row.fields[field], field) * 100), 0);
+    if (!Number.isSafeInteger(centavos) || centavos > 9_999_999_999_999)
+      throw new Error("1604-C control total exceeds the prescribed 14-character width for " + field + ".");
+    sums[field] = centavos / 100;
   }
   const fixed = [schedule === "D1" ? "C1" : "C2", "1604C", employerTin, employerBranch, returnPeriod];
   return [fixed[0], escapeValue(fixed[1]), escapeValue(fixed[2]), escapeValue(fixed[3]), returnPeriod,

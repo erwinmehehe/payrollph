@@ -29,6 +29,7 @@ export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
   )).where(and(
     eq(jobApplicants.stage, "rejected"),
     isNull(jobApplicants.hiredEmployeeId),
+    isNull(jobApplicants.hiredAt),
     isNull(jobApplicants.resumeUrl),
     eq(applicantPrivacyEvidence.legalHold, false),
     isNull(applicantPrivacyEvidence.purgedAt),
@@ -40,6 +41,9 @@ export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
       await tx.execute(sql`SELECT id FROM job_applicants
         WHERE id = ${candidate.applicantId} AND organization_id = ${candidate.organizationId}
         FOR UPDATE`);
+      await tx.execute(sql`SELECT id FROM applicant_privacy_evidence
+        WHERE applicant_id = ${candidate.applicantId} AND organization_id = ${candidate.organizationId}
+        FOR UPDATE`);
       const [applicant] = await tx.select().from(jobApplicants).where(and(
         eq(jobApplicants.id, candidate.applicantId),
         eq(jobApplicants.organizationId, candidate.organizationId),
@@ -50,13 +54,17 @@ export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
       )).limit(1);
       if (!applicant || !privacy || !rejectedApplicantCanPurge({
         stage: applicant.stage, hiredEmployeeId: applicant.hiredEmployeeId,
+        hiredAt: applicant.hiredAt,
         rejectedAt: privacy.rejectedAt, legalHold: privacy.legalHold,
         purgedAt: privacy.purgedAt, resumeUrl: applicant.resumeUrl,
       }, now)) return false;
       await tx.update(jobApplicants).set(applicantPiiEraseValues(candidate.applicantId))
         .where(and(eq(jobApplicants.id, candidate.applicantId),
           eq(jobApplicants.organizationId, candidate.organizationId)));
-      await tx.update(applicantPrivacyEvidence).set({ purgedAt: now })
+      await tx.update(applicantPrivacyEvidence).set({
+        purgedAt: now, deletionReason: null,
+        sourceEvidenceReference: "erased", deletionReviewEvidenceReference: null,
+      })
         .where(and(eq(applicantPrivacyEvidence.applicantId, candidate.applicantId),
           eq(applicantPrivacyEvidence.organizationId, candidate.organizationId)));
       await tx.insert(auditEvents).values({
@@ -67,7 +75,7 @@ export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
         metadata: {
           applicantId: candidate.applicantId,
           cutoff: cutoff.toISOString().slice(0, 10),
-          retainedAnonymousAudit: true,
+          retainedPseudonymousAudit: true,
         },
       });
       return true;

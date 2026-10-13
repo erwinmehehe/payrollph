@@ -155,5 +155,9 @@ test("enterprise and payout UIs expose treasury separation without blocking dry-
   assert.ok(treasury.includes("operatorUserIds"));
   assert.ok(exportsUi.includes("data-treasury-separation-active"));
   assert.ok(exportsUi.includes("canGenerateLiveBankFile"));
-  assert.ok(exportsUi.includes("Run PayMongo preflight"));
+  assert.ok(exportsUi.includes("<XenditPayoutPanel"));
+  const xenditUi = read("src/components/workspace/xendit-payout-panel.tsx");
+  assert.ok(xenditUi.includes("Run Xendit preflight"));
+  assert.ok(xenditUi.includes("selectedProvider === \"xendit\""));
+  assert.ok(xenditUi.includes("!hasUncertain"));
 });

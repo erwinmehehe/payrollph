@@ -22,7 +22,81 @@ const ALWAYS_SENSITIVE = [
   /^tests\/.*(?:payroll|payout|bank|financial|review|approval|migration|scheduler).*\.test\.(?:ts|mjs)$/,
 ];
 
+// One narrow development-only source-evidence lane for WFM-12. This does NOT
+// permit runtime behavior, new tests, migrations, operational pilot activation,
+// environment flags, or payroll release. Every GitHub file must be MODIFIED.
+const WFM12_DEV_EVIDENCE_FILES = new Set([
+  "scripts/wfm-pilot-synthetic-evidence.mjs",
+  "tests/wfm-roster-scale-postgres.test.ts",
+]);
+function isExactWfm12DevelopmentEvidence(files) {
+  if (files.length !== WFM12_DEV_EVIDENCE_FILES.size) return false;
+  const actual = new Set(files.map(file => file.filename));
+  return actual.size === WFM12_DEV_EVIDENCE_FILES.size
+    && files.every(file => file.status === "modified"
+      && WFM12_DEV_EVIDENCE_FILES.has(file.filename));
+}
+
+// One additional exact development acceptance artifact, reviewed as immutable
+// content rather than trusting filenames. Any changed byte or added file must
+// return to P0-3's pilot freeze; this is never runtime/payout authorization.
+const WFM5_DEV_PINNED_BLOBS = new Map([
+  [".github/workflows/wfm-five-worker-dev-acceptance.yml", "f925a4d6e14ca02676b9a381a3f35dd5a52fd2eb"],
+  ["docs/wfm-five-worker-development-acceptance.md", "2bdb7bf9f9f92855f6ce04323af531f0d4a1f96a"],
+  ["scripts/qa/wfm-five-worker-dev-acceptance.ts", "fea3ed7ad0d2142a2828cdfdf0725aacc92c489c"],
+]);
+function isPinnedWfmFiveWorkerDevEvidence(files) {
+  if (files.length !== WFM5_DEV_PINNED_BLOBS.size) return false;
+  const uniquePaths = new Set(files.map(file => file.filename));
+  return uniquePaths.size === WFM5_DEV_PINNED_BLOBS.size
+    && files.every(file => file.status === "added"
+      && typeof file.sha === "string"
+      && WFM5_DEV_PINNED_BLOBS.get(file.filename) === file.sha);
+}
+
+// Reviewed exact-blob exception PROPOSAL for #969: offline WFM-691 witness
+// packet only. No flags, runtime, DB, live device, human signoff or release.
+// The original files must be ADDED unchanged; extra paths fail closed.
+const WFM691_WITNESS_PINNED_BLOBS = new Map([
+  ["docs/qa/wfm-691-independent-witness-handoff.md", "4cbcc7bb09e21e0d836f4d52fb17750273bdd2bc"],
+  ["scripts/qa/wfm-independent-witness.mjs", "ed923d4bead1dab6f98583b59435fc494a773d1b"],
+  ["tests/wfm-independent-witness.test.mjs", "5dbfc80577b30365cf17573c1d19693cdb9ce3a0"],
+]);
+function isPinnedWfm691WitnessDevEvidence(files) {
+  if (files.length !== WFM691_WITNESS_PINNED_BLOBS.size) return false;
+  const unique = new Set(files.map(file => file.filename));
+  return unique.size === WFM691_WITNESS_PINNED_BLOBS.size
+    && files.every(file => file.status === "added"
+      && typeof file.sha === "string"
+      && WFM691_WITNESS_PINNED_BLOBS.get(file.filename) === file.sha);
+}
+
+/**
+ * Exact, development-only source fixture exception proposal for #965.
+ * This is a three-file TEST correction for the already-split CSV import.
+ * Every tracked Git blob must match the independently inspected PR #965 HEAD.
+ * Any runtime, schema, extra test, changed byte or Git rename remains frozen.
+ */
+const HCM_INTAKE_REGRESSIONS_PINNED_BLOBS = new Map([
+  ["tests/hcm-direct-route-policy-races.test.ts", "c986dc63f7e490a4e8ec3360f56d2f0a49525539"],
+  ["tests/hcm-governed-intake.test.ts", "94f9523c257a3b603ab726f61b5b80b11ff6e212"],
+  ["tests/hcm-legacy-write-integration.test.ts", "ba929f96c369fc9db00e414ae360bf7ee2c4e4ea"],
+]);
+function isPinnedHcmIntakeRegressionDevEvidence(files) {
+  if (files.length !== HCM_INTAKE_REGRESSIONS_PINNED_BLOBS.size) return false;
+  const unique = new Set(files.map(file => file.filename));
+  return unique.size === HCM_INTAKE_REGRESSIONS_PINNED_BLOBS.size
+    && files.every(file => file.status === "modified"
+      && typeof file.sha === "string"
+      && HCM_INTAKE_REGRESSIONS_PINNED_BLOBS.get(file.filename) === file.sha);
+}
+
 const FROZEN_LANES = [
+  // Treat every component of the exact #969 offline witness set as frozen.
+  // Otherwise dropping the test file leaves the docs and QA script outside
+  // the existing WFM path classifiers and bypasses the three-file guarantee.
+  /^docs\/qa\/wfm-691-independent-witness-handoff\.md$/,
+  /^scripts\/qa\/wfm-independent-witness\.mjs$/,
   /^src\/lib\/(?:hcm-|workforce-|wfm-|compensation-|performance-)/,
   /^src\/app\/api\/(?:hcm|workforce|recruitment|talent|compensation|performance|planning)\//,
   /^src\/components\/(?:hcm-|wfm-|workforce-|compensation-|performance-)/,
@@ -57,6 +131,19 @@ export function classifyReviewScope(files) {
   }
   const list = [...paths];
   const frozenPaths = list.filter(path => FROZEN_LANES.some(regex => regex.test(path)));
+  // Owner-approved #888 compatibility correction, not new HCM functionality.
+  // Only this exact modified blob may cross the freeze; any other frozen path,
+  // rename, changed byte, absent SHA or duplicate restores the normal hold.
+  const legacyEvidencePath = "src/app/api/hcm/employment-term-decisions/[id]/evidence/route.ts";
+  const legacyEvidenceFiles = files.filter(file => file.filename === legacyEvidencePath);
+  const hrDocumentLegacyCompatibility = frozenPaths.length === 1 &&
+    frozenPaths[0] === legacyEvidencePath && legacyEvidenceFiles.length === 1 &&
+    legacyEvidenceFiles[0].status === "modified" &&
+    legacyEvidenceFiles[0].sha === "49957255191041ee83440bd7f24ea5cfd72d491c";
+  const wfm12DevEvidence = isExactWfm12DevelopmentEvidence(files);
+  const wfmFiveWorkerDevEvidence = isPinnedWfmFiveWorkerDevEvidence(files);
+  const wfm691WitnessDevEvidence = isPinnedWfm691WitnessDevEvidence(files);
+  const hcmIntakeRegressionDevEvidence = isPinnedHcmIntakeRegressionDevEvidence(files);
   const sensitivePaths = list.filter(path =>
     ALWAYS_SENSITIVE.some(regex => regex.test(path)) ||
     ["T2", "T3"].includes(tierForPath(path)));
@@ -64,6 +151,11 @@ export function classifyReviewScope(files) {
     fileCount: files.length,
     requiresIndependentHuman: sensitivePaths.length > 0,
     hcmWfmFrozen: frozenPaths.length > 0,
+    wfm12DevEvidence,
+    wfmFiveWorkerDevEvidence,
+    wfm691WitnessDevEvidence,
+    hcmIntakeRegressionDevEvidence,
+    hrDocumentLegacyCompatibility,
     sensitiveFileCount: sensitivePaths.length,
     frozenFileCount: frozenPaths.length,
   };
@@ -119,7 +211,9 @@ export function evaluateIndependentReview({
   }
   const scope = classifyReviewScope(files);
   const blockers = [];
-  if (scope.hcmWfmFrozen &&
+  if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
+      !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
+       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {

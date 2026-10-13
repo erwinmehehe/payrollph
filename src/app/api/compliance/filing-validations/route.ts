@@ -8,6 +8,7 @@ import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { FILING_FORMS, findFilingForm } from "@/lib/filing-evidence";
 import { officialFilingGuidance } from "@/lib/ph-filing-portal-guidance";
 import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
+import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
 import { listFilingValidations, recordGeneratedFiling } from "@/lib/filing-evidence-store";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 
@@ -34,6 +35,10 @@ export async function GET(request: Request) {
       organizationId,
       legalEntityId: requestedLegalEntityId || null,
     });
+    const context = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+    if (!context.ok) return context.response;
+    const deniedEntity = assertEntityResource(context.context, legalEntity.id);
+    if (deniedEntity) return deniedEntity;
     return Response.json({
       forms: FILING_FORMS.map((definition) => ({
         ...definition,
@@ -98,6 +103,10 @@ export async function POST(request: Request) {
     "This payroll run is outside your assigned organization unit.",
   );
   if (scopeDenied) return scopeDenied;
+  const context = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!context.ok) return context.response;
+  const deniedEntity = assertEntityResource(context.context, run.legalEntityId);
+  if (deniedEntity) return deniedEntity;
 
   try {
     const { record, created } = await recordGeneratedFiling({

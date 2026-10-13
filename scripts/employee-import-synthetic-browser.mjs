@@ -52,7 +52,15 @@ try {
           await administration.waitFor({ timeout: 60000 });
           if (!(await administration.getAttribute("open"))) await administration.locator("summary").click();
           if (state === "before") {
-            await page.getByRole("heading", { name: "Import employees from a spreadsheet" }).waitFor();
+            // Flag-off preserves the existing employer CSV upload and validation
+            // workflow. The opt-in atomic preview remains separately gated.
+            const legacy = page.getByRole("heading", { name: "Import employees from a spreadsheet" });
+            await legacy.waitFor();
+            const container = legacy.locator("xpath=ancestor::article[1]");
+            await container.getByRole("link", { name: /Template/i }).waitFor();
+            await container.getByRole("button", { name: "Import CSV" }).click();
+            await container.getByRole("button", { name: "Validate only" }).waitFor();
+            await container.getByRole("button", { name: "Import employees", exact: true }).waitFor();
             assert.equal(await page.getByRole("region", { name: "Employee CSV import preview" }).count(), 0);
           } else {
             const panel = page.getByRole("region", { name: "Employee CSV import preview" });

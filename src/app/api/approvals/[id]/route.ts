@@ -1,9 +1,10 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforceTimesheets, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
+import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforceTimesheets, workforcePlanningScenarios, workforcePlans, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
+import { payrollMakerCheckerDecision } from "@/lib/approval-human-separation";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
 import {
   frozenGovernedHandoffEvidence,
@@ -20,6 +21,9 @@ import { checkEmployeeLeaveEligibility } from "@/lib/hcm-leave-employment";
 import { loadCurrentHcmSeparation } from "@/lib/hcm-work-period-guard";
 import { advanceApprovalChainAfterDecisionTx } from "@/lib/approval-chains";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
+import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
+import { resolveMultiEntityContext, assertEntityResource, type MultiEntityContext } from "@/lib/multi-entity-server";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
 import {
   advanceHcmBusinessProcessAfterApprovalTx,
@@ -39,17 +43,41 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json({ error: "A valid task and decision are required." }, { status: 400 });
   }
 
-  const [task] = await db.select().from(approvalTasks).where(eq(approvalTasks.id, taskId));
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  // Do not probe task status or disclose a foreign tenant's approval ID before
+  // authentication and ACTIVE tenant membership. A foreign task is identical
+  // to a nonexistent ID; independent entity-resource guards follow below.
+  const [visibleTask] = await db.select({ task: approvalTasks })
+    .from(approvalTasks).innerJoin(userOrganizations, and(
+      eq(userOrganizations.organizationId, approvalTasks.organizationId),
+      eq(userOrganizations.userId, sessionUser.id),
+      eq(userOrganizations.active, true),
+    )).where(eq(approvalTasks.id, taskId)).limit(1);
+  const task = visibleTask?.task;
   if (!task) return Response.json({ error: "Approval task not found." }, { status: 404 });
+  const deniedOrg = await assertMembership(sessionUser.id, task.organizationId);
+  if (deniedOrg) return deniedOrg;
   if (task.status !== "Pending") {
     return Response.json({ error: `This task was already ${task.status.toLowerCase()}.` }, { status: 409 });
   }
-
-  const sessionUser = await getSessionUser();
-  if (!sessionUser) return Response.json({ error: "Authentication required." }, { status: 401 });
   const sharedDemo = isPublicDemoIdentity(sessionUser.email);
-  const deniedOrg = await assertMembership(sessionUser.id, task.organizationId);
-  if (deniedOrg) return deniedOrg;
+  let approvalEntityScope: MultiEntityContext | null = null;
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    // The group_hr principal may read authorized employer history, but may
+    // NEVER approve leave, payroll, effective changes or arbitrary tasks through
+    // a legacy approval chain/delegation. Check this for ALL approval types.
+    const entity = await resolveMultiEntityContext({
+      userId: sessionUser.id, organizationId: task.organizationId, request,
+    });
+    if (!entity.ok) return entity.response;
+    if (entity.context.group) return Response.json({
+      error: "Group HR is read-only and cannot decide approvals.",
+      code: "GROUP_ENTITY_READ_ONLY",
+    }, { status: 403 });
+    approvalEntityScope = entity.context;
+  }
   const actor = sessionUser.name;
 
   const [hcmBusinessProcessApproval] = await db.select({
@@ -76,12 +104,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }, { status: 409 });
     }
     if (hcmBusinessProcessApproval.employeeId != null) {
-      const [worker] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
+      const [worker] = await db.select({
+        orgUnitId: employees.orgUnitId, legalEntityId: employees.legalEntityId,
+      }).from(employees).where(and(
         eq(employees.id, hcmBusinessProcessApproval.employeeId),
         eq(employees.organizationId, task.organizationId),
       )).limit(1);
       if (!worker) {
         return Response.json({ error: "The HCM business process no longer has a valid employee." }, { status: 409 });
+      }
+      if (approvalEntityScope?.enabled) {
+        const entityDenied = assertEntityResource(approvalEntityScope, worker.legalEntityId);
+        if (entityDenied) return entityDenied;
       }
       const scopeDenied = await assertOrganizationUnitAccess(
         sessionUser.id, task.organizationId, worker.orgUnitId,
@@ -207,6 +241,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!payrollRun || payrollRun.organizationId !== task.organizationId) {
       return Response.json({ error: "The payroll approval is not linked to a valid run in this workspace." }, { status: 409 });
     }
+    const entityDenied = await requireRunEmployer({
+      request, userId: sessionUser.id, organizationId: payrollRun.organizationId,
+      legalEntityId: payrollRun.legalEntityId,
+      requireConfirmation: status === "Approved",
+      confirmation: typeof body.confirmLegalEntityName === "string" ? body.confirmLegalEntityName : "",
+    });
+    if (entityDenied) return entityDenied;
     if (payrollRun.status !== "Pending approval") {
       return Response.json({
         error: `This payroll is not awaiting approval (currently ${payrollRun.status}). Recalculate or submit it for review again.`,
@@ -243,6 +284,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         error: "Maker-checker control: the person who submitted this payroll cannot approve it.",
         maker: submission.actor,
       }, { status: 403 });
+    }
+    if (criticalReleaseFlagEnabled("approvalChainEscalations")) {
+      const separation = payrollMakerCheckerDecision({
+        makerUserId: metadata.makerUserId,
+        checkerUserId: sessionUser.id,
+        declaredApproverUserId: Number.isSafeInteger(assignedApproverUserId)
+          ? assignedApproverUserId : null,
+        namedApproverUsed: actor.toLowerCase() === task.approver.toLowerCase(),
+      });
+      if (!separation.ok) {
+        return Response.json({
+          error: "Payroll approval requires two distinct identified human users.",
+          code: separation.code,
+        }, { status: 403 });
+      }
     }
 
     if (

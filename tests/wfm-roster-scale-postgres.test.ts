@@ -61,6 +61,38 @@ test("WFM-12: 1000 real assignment rows page without skipping or including anoth
       organizationId:b.id,employeeId:tenantBEmployee.id,patternId:patternB.id,
       effectiveFrom:"2026-01-01",anchorDate:"2026-01-01",reason:"Synthetic tenant-isolation sentinel",
     });
+    // Exercise the exact 20-worker sort/limit/offset query used by the
+    // authenticated team-roster GET. This verifies DB page completeness,
+    // not HTTP authentication, UI rendering, or browser switching.
+    const pageSize=20;
+    const displayedIds:number[]=[];
+    for(let page=1;page<=50;page++){
+      const rosterPage=await db.select({
+        id:employees.id,employeeNo:employees.employeeNo,
+        organizationId:employees.organizationId,
+      }).from(employees)
+        .where(eq(employees.organizationId,a.id))
+        .orderBy(asc(employees.employeeNo),asc(employees.id))
+        .limit(pageSize).offset((page-1)*pageSize);
+      assert.equal(rosterPage.length,pageSize,
+        "every 20-worker tenant-scoped roster page must be filled");
+      assert.ok(rosterPage.every(row=>row.organizationId===a.id),
+        "a tenant-B employee must never appear on the A roster");
+      displayedIds.push(...rosterPage.map(row=>row.id));
+    }
+    assert.equal(displayedIds.length,1000);
+    assert.equal(new Set(displayedIds).size,1000,
+      "all 1,000 visible employee IDs must be unique across 50 pages");
+    assert.deepEqual([...displayedIds].sort((left,right)=>left-right),
+      [...employeeIds].sort((left,right)=>left-right),
+      "no authorized employee may be silently omitted");
+    const emptyRosterPage=await db.select({id:employees.id}).from(employees)
+      .where(eq(employees.organizationId,a.id))
+      .orderBy(asc(employees.employeeNo),asc(employees.id))
+      .limit(pageSize).offset(1000);
+    assert.equal(emptyRosterPage.length,0,
+      "page 51 must be empty rather than leaking another tenant");
+
     const result=await scanActiveRosterAssignments({
       fetchPage:async(afterId,limit)=>db.select({
         id:employeeScheduleAssignments.id,employeeId:employeeScheduleAssignments.employeeId,

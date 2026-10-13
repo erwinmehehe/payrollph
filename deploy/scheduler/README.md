@@ -36,7 +36,7 @@ themselves.
    pass database or webhook secrets as build arguments, copy `.env` into an
    image, or upload them to CI logs.
 3. Provision the worker host's private `deploy/scheduler/worker.env` or managed
-   secret-store entries: `DATABASE_URL`, `NODE_ENV=production`,
+   secret-store entries: `DATABASE_URL`, a dedicated `PII_ENCRYPTION_KEY`, `NODE_ENV=production`,
    `WORKER_ENABLED`, `CENTRAL_SCHEDULER_ENABLED`, and optionally
    `WORKER_POLL_MS=3000`. The tracked example is deliberately **OFF**.
    `WORKER_ENABLED=true` permits processing already-queued **payroll jobs**.

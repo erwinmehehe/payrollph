@@ -118,6 +118,8 @@ export async function PATCH(request: Request) {
   const result = await db.transaction(async tx => {
     await tx.execute(sql`SELECT id FROM job_applicants WHERE id = ${applicantId}
       AND organization_id = ${organizationId} FOR UPDATE`);
+    await tx.execute(sql`SELECT id FROM applicant_privacy_evidence WHERE applicant_id = ${applicantId}
+      AND organization_id = ${organizationId} FOR UPDATE`);
     const [applicant] = await tx.select().from(jobApplicants).where(and(
       eq(jobApplicants.id, applicantId), eq(jobApplicants.organizationId, organizationId),
     )).limit(1);
@@ -127,7 +129,7 @@ export async function PATCH(request: Request) {
     )).limit(1);
     if (!applicant || !privacy) return "not_found";
     if (privacy.purgedAt) return "already_erased";
-    if (applicant.hiredEmployeeId !== null || privacy.legalHold) return "retention_hold";
+    if (applicant.hiredEmployeeId !== null || applicant.hiredAt !== null || applicant.stage === "hired" || privacy.legalHold) return "retention_hold";
     const now = new Date();
     if (action === "request_delete") {
       // A new maker request invalidates any older review.
@@ -141,7 +143,7 @@ export async function PATCH(request: Request) {
       await tx.insert(auditEvents).values({
         organizationId, actor: user.name, action: "Candidate PII deletion requested",
         resource: "Applicant #" + applicantId,
-        metadata: { applicantId, requesterUserId: user.id, reason },
+        metadata: { applicantId, requesterUserId: user.id },
       });
       return "requested";
     }
@@ -158,8 +160,7 @@ export async function PATCH(request: Request) {
         resource: "Applicant #" + applicantId,
         metadata: {
           applicantId, requesterUserId: privacy.deletionRequestedByUserId,
-          reviewerUserId: user.id, reviewEvidenceReference: evidence,
-          approvalReason: String(body.approvalReason).trim(),
+          reviewerUserId: user.id,
         },
       });
       return "reviewed";
@@ -174,6 +175,8 @@ export async function PATCH(request: Request) {
       .where(and(eq(jobApplicants.id, applicantId), eq(jobApplicants.organizationId, organizationId)));
     await tx.update(applicantPrivacyEvidence).set({
       purgedAt: now, purgedByUserId: user.id, rejectedAt: privacy.rejectedAt ?? now,
+      deletionReason: null, sourceEvidenceReference: "erased",
+      deletionReviewEvidenceReference: null,
     }).where(and(eq(applicantPrivacyEvidence.organizationId, organizationId),
       eq(applicantPrivacyEvidence.applicantId, applicantId)));
     await tx.insert(auditEvents).values({
@@ -183,8 +186,7 @@ export async function PATCH(request: Request) {
         applicantId, erasedByUserId: user.id,
         requesterUserId: privacy.deletionRequestedByUserId,
         independentReviewerUserId: privacy.deletionReviewedByUserId,
-        reviewEvidenceReference: privacy.deletionReviewEvidenceReference,
-        retainedAnonymousRecord: true,
+        retainedPseudonymousRecord: true,
       },
     });
     return "erased";

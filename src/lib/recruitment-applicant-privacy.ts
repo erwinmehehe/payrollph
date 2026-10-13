@@ -31,6 +31,7 @@ export function requireApplicantConsent(input: {
 export type RejectedApplicantRetention = {
   stage: string;
   hiredEmployeeId: number | null;
+  hiredAt?: Date | null;
   rejectedAt: Date | null;
   legalHold: boolean;
   purgedAt: Date | null;
@@ -38,7 +39,7 @@ export type RejectedApplicantRetention = {
 };
 
 export function rejectedApplicantCanPurge(input: RejectedApplicantRetention, now: Date): boolean {
-  return input.stage === "rejected" && input.hiredEmployeeId == null &&
+  return input.stage === "rejected" && input.hiredEmployeeId == null && input.hiredAt == null &&
     input.rejectedAt instanceof Date && Number.isFinite(input.rejectedAt.getTime()) &&
     input.rejectedAt.getTime() <= sixCalendarMonthsBefore(now).getTime() &&
     input.legalHold === false && input.purgedAt === null &&
