@@ -44,6 +44,23 @@ async function main() {
 
   const readinessWithoutToken = await request("/api/readiness");
   assert.equal(readinessWithoutToken.status, 401, "production readiness must not be public");
+  for (const [path, status] of [
+    ["/api/capabilities", 404], ["/api/readiness/billing", 404],
+    ["/api/readiness/deployment", 404], ["/api/readiness/pilot-status", 404],
+    ["/api/readiness/workspace", 401], ["/api/billing", 401],
+    ["/api/billing/subscription", 401],
+  ] as const) {
+    const anonymous = await request(path);
+    assert.equal(anonymous.status, status, `${path}: anonymous access must be denied`);
+    const payload = await anonymous.json() as Record<string, unknown>;
+    assert.ok(Object.keys(payload).every(key => key === "error" || key === "code"), `${path}: denial must not include operational data`);
+    console.log(`PASS anonymous visibility ${path}`);
+  }
+  const publicStatus = await request("/api/status");
+  assert.equal(publicStatus.status, 200);
+  const publicPayload = await publicStatus.json() as Record<string, unknown>;
+  assert.deepEqual(Object.keys(publicPayload), ["ok"], "public status exposes only up/down");
+  assert.equal(typeof publicPayload.ok, "boolean");
 
   const readinessWithToken = await request("/api/readiness", {
     headers: { "x-readiness-token": readinessToken },

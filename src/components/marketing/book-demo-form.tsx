@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PrivacyConsentFields } from "@/components/marketing/privacy-consent-fields";
 import { AlertTriangle, ArrowRight, CalendarDays, Check, LoaderCircle } from "lucide-react";
 import { readMarketingAttribution } from "@/lib/marketing-attribution-client";
+import { obtainIntakeProof } from "@/lib/public-intake-proof-client";
 
 type Result = { leadId: number; recorded: boolean };
 
@@ -33,10 +34,11 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
     setError("");
 
     try {
+      const intakeProof = await obtainIntakeProof(form.email);
       const response = await fetch("/api/demo-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, notes: variant === "contact" ? `[Contact: ${topic}] ${form.notes}` : form.notes, sourcePath: variant === "contact" ? "/contact" : "/book-demo", requestType: "demo", privacyConsent, website, attribution: readMarketingAttribution() }),
+        body: JSON.stringify({ ...form, intakeProof, notes: variant === "contact" ? `[Contact: ${topic}] ${form.notes}` : form.notes, sourcePath: variant === "contact" ? "/contact" : "/book-demo", requestType: "demo", privacyConsent, website, attribution: readMarketingAttribution() }),
       });
       const payload = await response.json().catch(() => ({}));
 

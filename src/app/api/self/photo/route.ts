@@ -99,7 +99,7 @@ export async function POST(request: Request) {
 
   let sealedPhoto: string;
   try {
-    sealedPhoto = encryptProfilePhoto(bytes);
+    sealedPhoto = encryptProfilePhoto(bytes, process.env, { required: true });
   } catch {
     return Response.json({ error: "Secure profile photo encryption is not configured." }, { status: 503 });
   }

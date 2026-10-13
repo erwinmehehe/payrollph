@@ -51,10 +51,13 @@ jobs:
         run: |
           bank_key=$(openssl rand -hex 32)
           totp_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
           echo "::add-mask::$bank_key"
           echo "::add-mask::$totp_key"
+          echo "::add-mask::$pii_key"
           echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
           echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - run: npm run db:push
       - run: npx tsx scripts/core-modules-synthetic-fixture.ts
       - run: npm run build
