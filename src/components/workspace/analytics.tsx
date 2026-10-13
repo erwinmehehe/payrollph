@@ -48,6 +48,11 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [result, setResult] = useState<ReportResult | null>(null);
   const [error, setError] = useState("");
+  // A report response is reusable only for the exact tenant, selected legal
+  // employer, role, report, date window and reload revision that produced it.
+  // Deriving visibility here prevents a one-render flash of the last employer's
+  // rows during a React prop change, before an effect can start refetching.
+  const [resolvedScopeKey, setResolvedScopeKey] = useState<string | null>(null);
   const [peopleAsOf, setPeopleAsOf] = useState("");
   const [peopleWindowDays, setPeopleWindowDays] = useState<30 | 90 | 180 | 365>(90);
 
@@ -60,6 +65,19 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
   const supportedEmployerReports: ReportKey[] = ["headcount", "cost", "turnover", "assurance"];
   const safeActive: ReportKey = employerScoped && !supportedEmployerReports.includes(active)
     ? "headcount" : active;
+  const requestScopeKey = JSON.stringify({
+    organizationId,
+    enabled: data.multiEntity?.enabled === true,
+    legalEntityId: data.multiEntity?.enabled ? data.multiEntity.legalEntityId : null,
+    role: data.multiEntity?.enabled ? data.multiEntity.role : "legacy",
+    report: safeActive,
+    peopleAsOf,
+    peopleWindowDays,
+    nonce,
+  });
+  const visibleResult = resolvedScopeKey === requestScopeKey ? result : null;
+  const visibleState = resolvedScopeKey === requestScopeKey ? state : "loading";
+  const visibleError = resolvedScopeKey === requestScopeKey ? error : "";
 
   // The fetch lives in the effect and every state update happens after an
   // await, so switching report or client never cascades a synchronous render.
@@ -78,23 +96,30 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         const payload = await response.json().catch(() => ({}));
         if (!alive) return;
         if (!response.ok) {
+          setResult(null);
           setError(payload.error ?? `The report service returned ${response.status}.`);
           setState("error");
+          setResolvedScopeKey(requestScopeKey);
           return;
         }
         setResult(payload as ReportResult);
         setError("");
         setState("ready");
+        setResolvedScopeKey(requestScopeKey);
       } catch {
         if (!alive) return;
+        setResult(null);
         setError("Could not reach the report service.");
         setState("error");
+        setResolvedScopeKey(requestScopeKey);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [organizationId, safeActive, nonce, peopleAsOf, peopleWindowDays, data.multiEntity?.enabled, data.multiEntity?.role]);
+  }, [organizationId, safeActive, nonce, peopleAsOf, peopleWindowDays,
+    data.multiEntity?.enabled, data.multiEntity?.role, data.multiEntity?.legalEntityId,
+    requestScopeKey]);
 
   const reload = useCallback(() => {
     setState("loading");
@@ -138,7 +163,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         title="Reports"
         copy="Explore payroll, people and workforce records. Preview a report before exporting."
         actions={
-          <button className="secondary-button" onClick={reload} disabled={state === "loading"}>
+          <button className="secondary-button" onClick={reload} disabled={visibleState === "loading"}>
             <RefreshCw size={15} className="i-blue" /> Refresh
           </button>
         }
@@ -246,8 +271,8 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         </article>
       )}
 
-      {safeActive === "people" && state === "ready" && result?.peopleIntelligence && (
-        <PeopleIntelligenceOverview report={result.peopleIntelligence} />
+      {safeActive === "people" && visibleState === "ready" && visibleResult?.peopleIntelligence && (
+        <PeopleIntelligenceOverview report={visibleResult.peopleIntelligence} />
       )}
 
       <article className="card table-card">
@@ -256,14 +281,14 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
             <div className="card-kicker">Result</div>
             <h2>{REPORTS.find((report) => report.key === safeActive)?.name}</h2>
             <p>
-              {state === "ready" && result
-                ? `${result.rows.length} row${result.rows.length === 1 ? "" : "s"} returned${result.generatedAt ? ` · generated ${new Date(result.generatedAt).toLocaleTimeString("en-PH")}` : ""}`
+              {visibleState === "ready" && visibleResult
+                ? `${visibleResult.rows.length} row${visibleResult.rows.length === 1 ? "" : "s"} returned${visibleResult.generatedAt ? ` · generated ${new Date(visibleResult.generatedAt).toLocaleTimeString("en-PH")}` : ""}`
                 : "Running the aggregate query…"}
             </p>
           </div>
           <button
             className="secondary-button"
-            disabled={state !== "ready" || !result?.rows.length}
+            disabled={visibleState !== "ready" || !visibleResult?.rows.length}
             onClick={() => {
               const query = new URLSearchParams({
                 organizationId: String(organizationId), key: safeActive, format: "csv",
@@ -280,13 +305,13 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
           </button>
         </div>
 
-        {state === "loading" && <TableSkeleton rows={5} label="Running report" />}
+        {visibleState === "loading" && <TableSkeleton rows={5} label="Running report" />}
 
-        {state === "error" && <ErrorState title="That report could not run" detail={error} onRetry={reload} />}
+        {visibleState === "error" && <ErrorState title="That report could not run" detail={visibleError} onRetry={reload} />}
 
-        {state === "ready" && result && (
+        {visibleState === "ready" && visibleResult && (
           <>
-            {result.rows.length === 0 ? (
+            {visibleResult.rows.length === 0 ? (
               <EmptyState icon={<FileBarChart2 size={20} className="i-teal" />} title="No rows matched">
                 This client has no data for that report yet. It fills in as payroll runs and employee records accumulate.
               </EmptyState>
@@ -295,7 +320,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
                 <table className="data-table">
                   <thead>
                     <tr>
-                      {result.columns.map((column) => (
+                      {visibleResult.columns.map((column) => (
                         <th key={column} className={isNumericColumn(column) ? "right" : undefined}>
                           {column}
                         </th>
@@ -303,10 +328,10 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
                     </tr>
                   </thead>
                   <tbody>
-                    {result.rows.map((row, index) => (
+                    {visibleResult.rows.map((row, index) => (
                       <tr key={index}>
                         {row.map((cell, cellIndex) => {
-                          const column = result.columns[cellIndex] ?? "";
+                          const column = visibleResult.columns[cellIndex] ?? "";
                           const numeric = isNumericColumn(column);
                           return (
                             <td key={cellIndex} className={numeric ? "right num" : undefined}>
