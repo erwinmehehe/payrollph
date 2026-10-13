@@ -2075,7 +2075,7 @@ export const documents = pgTable("documents", {
   index("documents_org_employee_source_idx").on(table.organizationId, table.employeeId, table.sourceType, table.createdAt),
   uniqueIndex("documents_object_storage_key_unique").on(table.objectStorageKey).where(sql`${table.objectStorageKey} is not null`),
   // Composite parent key prevents a COE in another employer from being attached to an HR case.
-  unique("documents_org_id_hr_cases_unique").on(table.organizationId, table.id),
+  unique("documents_org_employee_id_hr_cases_unique").on(table.organizationId, table.employeeId, table.id),
   check("documents_source_type_check", sql`${table.sourceType} in ('upload','generated')`),
 ]);
 
@@ -3068,8 +3068,8 @@ export const employeeHrCases = pgTable("employee_hr_cases", {
   }).onDelete("cascade"),
   foreignKey({
     name: "employee_hr_cases_coe_document_tenant_fk",
-    columns: [table.organizationId, table.coeDocumentId],
-    foreignColumns: [documents.organizationId, documents.id],
+    columns: [table.organizationId, table.employeeId, table.coeDocumentId],
+    foreignColumns: [documents.organizationId, documents.employeeId, documents.id],
   }),
   index("employee_hr_cases_sla_idx").on(table.organizationId, table.status, table.slaDueAt),
   check("employee_hr_cases_status_check", sql`${table.status} in ('open','in_progress','waiting_employee','resolved','closed')`),
