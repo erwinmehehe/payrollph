@@ -40,9 +40,9 @@ async function navigateCompliance(page, width) {
     if (await navButton.isVisible()) await navButton.click();
   }
   const nav = page.locator('[data-nav-name="Compliance"]').first();
-  if (!(await nav.count())) {
+  if (!(await nav.isVisible())) {
     const more = page.locator(".nav-more-toggle").first();
-    if (await more.count()) await more.click();
+    if (await more.isVisible()) await more.click();
   }
   await nav.waitFor({ timeout: 60000 });
   await nav.click();
