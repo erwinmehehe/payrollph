@@ -23,6 +23,7 @@ const today = () => new Intl.DateTimeFormat("en-CA", {
 
 export function HcmReportBuilderPanel({ organizationId }: { organizationId: number }) {
   const [fieldsAvailable, setFieldsAvailable] = useState<Field[]>([]);
+  const [capabilitiesOrganizationId, setCapabilitiesOrganizationId] = useState<number | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [retrieving, setRetrieving] = useState(false);
   const [dataset, setDataset] = useState<Dataset>("people");
@@ -46,17 +47,19 @@ export function HcmReportBuilderPanel({ organizationId }: { organizationId: numb
       if (signal?.aborted) return;
       // A 404 is the default-off contract. Never flash a new card on the
       // legacy workspace while checking a disabled release-critical feature.
-      if (response.status === 404) { setEnabled(false); return; }
+      if (response.status === 404) { setEnabled(false); setCapabilitiesOrganizationId(null); return; }
       const payload = await response.json().catch(() => ({}));
       if (signal?.aborted) return;
       if (!response.ok) throw new Error(String(payload.error ?? "Report builder could not open."));
       if (!Array.isArray(payload.fields)) throw new Error("Report fields are unavailable.");
       setFieldsAvailable(payload.fields as Field[]);
+      setCapabilitiesOrganizationId(organizationId);
       setEnabled(true);
     } catch (err) {
       if (!signal?.aborted) {
         setEnabled(true);
         setFieldsAvailable([]);
+        setCapabilitiesOrganizationId(organizationId);
         setError(err instanceof Error ? err.message : "Report builder is unavailable.");
       }
     } finally {
@@ -70,9 +73,12 @@ export function HcmReportBuilderPanel({ organizationId }: { organizationId: numb
     return () => { controller.abort(); generation.current += 1; };
   }, [loadCapabilities]);
 
-  const options = fieldsAvailable.filter((field) => field.dataset === dataset);
-  const visibleFields = selectedAuthorizedReportFields(dataset, fields, fieldsAvailable);
-  const queryKey = reportPreviewKey({ dataset, fields: visibleFields, groupBy: groupBy || null,
+  // Capabilities are valid only for the employer that issued them. During
+  // employer switching, the previous employer must contribute no field list.
+  const activeCapabilities = capabilitiesOrganizationId === organizationId ? fieldsAvailable : [];
+  const options = activeCapabilities.filter((field) => field.dataset === dataset);
+  const visibleFields = selectedAuthorizedReportFields(dataset, fields, activeCapabilities);
+  const queryKey = reportPreviewKey({ organizationId, dataset, fields: visibleFields, groupBy: groupBy || null,
     departmentFilter, startDate, endDate });
   const preview = currentReportPreview(previewReceipt, queryKey);
 
@@ -138,7 +144,9 @@ export function HcmReportBuilderPanel({ organizationId }: { organizationId: numb
 
   // The parent Analytics view still mounts this component when the feature is
   // disabled. Its 404 response must result in exactly zero visible UI.
-  if (!enabled) return null;
+  // A previous employer's report and capabilities are never rendered while
+  // a new employer is being loaded, even when filters happen to be identical.
+  if (!enabled || capabilitiesOrganizationId !== organizationId) return null;
 
   const formInputStyle = { width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" as const };
   const formLabelStyle = { display: "grid", gap: 5, minWidth: 0 };

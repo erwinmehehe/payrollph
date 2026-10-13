@@ -4,6 +4,7 @@
  * allowed-field list and POST's role/tenant checks can authorize a report.
  */
 export type ReportPreviewSelection = Readonly<{
+  organizationId: number;
   dataset: "people" | "time" | "payroll";
   fields: readonly string[];
   groupBy: string | null;
@@ -26,6 +27,7 @@ export function selectedAuthorizedReportFields(
 /** Stable identity of the actual API query, never of a similarly labeled view. */
 export function reportPreviewKey(input: ReportPreviewSelection): string {
   return JSON.stringify({
+    organizationId: input.organizationId,
     dataset: input.dataset,
     fields: [...input.fields],
     groupBy: input.groupBy || null,

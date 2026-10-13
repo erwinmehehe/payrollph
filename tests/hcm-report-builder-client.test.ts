@@ -6,6 +6,7 @@ import {
 } from "../src/lib/hcm-report-builder-client";
 
 const base: ReportPreviewSelection = {
+  organizationId: 1,
   dataset: "people",
   fields: ["department", "headcount"],
   groupBy: "department",
@@ -19,6 +20,7 @@ test("report preview becomes invalid after each query-affecting edit", () => {
   const response = { key, result: { rows: [{ department: "Finance", headcount: 5 }] } };
   assert.deepEqual(currentReportPreview(response, key), response.result);
   const changes: ReportPreviewSelection[] = [
+    { ...base, organizationId: 2 },
     { ...base, dataset: "time" },
     { ...base, fields: ["department", "turnover"] },
     { ...base, groupBy: null },
