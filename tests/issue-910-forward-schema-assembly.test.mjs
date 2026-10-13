@@ -52,7 +52,7 @@ test("#910: composed candidate cannot mutate worker/payroll history or own a tra
   assert.match(sql, /GENERATED REVIEW-ONLY FORWARD SCHEMA CANDIDATE/);
   assert.match(sql, /DO NOT APPLY ON NEON/);
   assert.doesNotMatch(executable,
-    /\b(?:INSERT\s+INTO|UPDATE\s+\S+\s+SET|DELETE\s+FROM|TRUNCATE|DROP\s+TABLE|MERGE\s+INTO)\b/i);
+    /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE|DROP\s+TABLE|MERGE\s+INTO|EXECUTE)\b/i);
   assert.doesNotMatch(executable, /\b(?:COMMIT|ROLLBACK)\s*;/i);
   assert.doesNotMatch(sql, /SET "legal_entity_id" = e\."legal_entity_id"/);
 });
