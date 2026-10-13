@@ -112,7 +112,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: Ephemeral bank and PII keys for isolated synthetic CI
+      - name: Ephemeral bank key for synthetic database only
         shell: bash
         run: |
           bank_key=$(openssl rand -hex 32)
@@ -144,6 +144,21 @@ jobs:
           done
           echo "Synthetic HRIS app failed to start"
           exit 1
+      - name: Diagnose synthetic app startup (redacted, failures only)
+        if: failure()
+        shell: bash
+        run: |
+          echo "Synthetic isolated environment; no live database or worker tokens."
+          printf "App readiness HTTP status: "
+          curl --max-time 5 -sS -o /dev/null -w '%{http_code}\\n' "http://127.0.0.1:3000/api/health" || true
+          printf "Login page HTTP status: "
+          curl --max-time 5 -sS -o /dev/null -w '%{http_code}\\n' "http://127.0.0.1:3000/login" || true
+          if [ -f /tmp/hris-journey-local.log ]; then
+            echo "Redacted matching application error lines:"
+            grep -Ei 'error|failed|digest|GET /login|relation|column|code:|query:' /tmp/hris-journey-local.log |
+              sed -E 's#postgres(ql)?://[^[:space:]]+#postgresql://[redacted]#g; s/[A-Za-z0-9_-]{40,}/[redacted]/g' |
+              tail -n 80 || true
+          fi
       - name: Test HR Home, Employee 360, My Team, onboarding and approvals
         run: node scripts/hris-journey-synthetic-browser.mjs
       - name: Add fictional self-serve owner after HRIS acceptance

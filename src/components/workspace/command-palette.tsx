@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Building2, CornerDownLeft, Search, UsersRound, Zap } from "lucide-react";
-import { ALL_ITEMS, type NavItem } from "./nav";
+import { ALL_ITEMS, MODULE_NAV_ITEMS, type NavItem } from "./nav";
 import type { Employee, Organization } from "./types";
 import { Avatar } from "./ui";
 
@@ -57,7 +57,7 @@ function PaletteDialog({
     const needle = query.trim().toLowerCase();
     const matches = (haystack: string) => !needle || haystack.toLowerCase().includes(needle);
 
-    const pageRows: Row[] = ALL_ITEMS.filter((item) => pages.includes(item.name))
+    const pageRows: Row[] = [...ALL_ITEMS, ...MODULE_NAV_ITEMS].filter((item) => pages.includes(item.name))
       .filter((item) => matches(`${item.name} ${item.hint}`))
       .map((item) => ({ kind: "page", key: `page:${item.name}`, item }));
 

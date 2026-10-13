@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { LinawMark } from "@/components/linaw-mark";
+import { SchedulerAdminBanner } from "./scheduler-admin-banner";
 import {
   Bell,
   Check,
@@ -18,7 +19,7 @@ import {
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
-import { FREELANCER_HIDDEN, NAVIGATION, groupOf } from "./nav";
+import { FREELANCER_HIDDEN, tenantNavigationGroups, groupOf } from "./nav";
 import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
@@ -39,7 +40,9 @@ const WORKSPACE_LABELS: Record<string, string> = {
   Analytics: "Reports",
 };
 
-function workspaceLabel(page: string, role?: string | null) {
+function workspaceLabel(page: string, role?: string | null, core = false) {
+  if (core && page === "People") return "People";
+  if (core && page === "Time & attendance") return "Time";
   if (role === "owner" && page === "Analytics") return "Reports";
   if (role === "owner" && page === "People") return "Employees";
   if (role === "payroll" && page === "Overview") return "Dashboard";
@@ -88,7 +91,7 @@ export function WorkspaceShell({
   displayRole?: DemoRoleId | null;
   allowClientSwitch?: boolean;
   headerExtras?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   const [rail, setRail] = useState(false);
   const [drawer, setDrawer] = useState(false);
@@ -105,10 +108,9 @@ export function WorkspaceShell({
   const avatarRole = displayRole ?? data.user?.role ?? "member";
   const profileAvatarIndex = ({ owner: 0, admin: 0, hr: 1, payroll: 2, checker: 3, bookkeeper: 4, employee: 5 } as Record<string, number>)[avatarRole] ?? 0;
   const defaultPage = visiblePages?.[0] ?? "Overview";
-  const allowedItems = NAVIGATION
-    .flatMap((group) => group.items)
-    .filter((item) => !(isFreelancer && FREELANCER_HIDDEN.has(item.name)))
-    .filter((item) => !visiblePages || visiblePages.includes(item.name));
+  const coreModules = data.coreModuleNavigationEnabled === true && data.selectedOrganization.moduleNavigationMode === "core" && !isFreelancer;
+  const tenantGroups = tenantNavigationGroups({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, companyWide: data.access?.companyWide, canManageModules: ["owner", "admin", "bookkeeper"].includes(workspaceRole ?? "") });
+  const allowedItems = tenantGroups.flatMap(group => group.items).filter(item => !visiblePages || visiblePages.includes(item.name));
   const primarySet = new Set(primaryPages ?? allowedItems.map((item) => item.name));
   const settingsAvailable = allowedItems.some((item) => item.name === "Settings");
   // Navigation only reorders already-permitted pages; it never expands access.
@@ -122,7 +124,7 @@ export function WorkspaceShell({
     ...primaryItems.filter((item) => !mobilePreferred.includes(item.name)),
   ].slice(0, 4);
   const navigationGroups = [{ label: "", items: primaryItems }];
-  const secondaryGroups = NAVIGATION
+  const secondaryGroups = tenantGroups
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => secondaryItems.some((secondary) => secondary.name === item.name)),
@@ -227,7 +229,7 @@ export function WorkspaceShell({
                       <span className={`nav-icon t-${item.tone}`} aria-hidden>
                         <Icon size={14} strokeWidth={active ? 2.3 : 2} />
                       </span>
-                      <span>{workspaceLabel(item.name, workspaceRole)}</span>
+                      <span>{workspaceLabel(item.name, workspaceRole, coreModules)}</span>
                       {badge && <b>{badge}</b>}
                     </button>
                   );
@@ -273,7 +275,7 @@ export function WorkspaceShell({
                             <span className={`nav-icon t-${item.tone}`} aria-hidden>
                               <Icon size={14} strokeWidth={active ? 2.3 : 2} />
                             </span>
-                            <span>{workspaceLabel(item.name, workspaceRole)}</span>
+                            <span>{workspaceLabel(item.name, workspaceRole, coreModules)}</span>
                             {badge && <b>{badge}</b>}
                           </button>
                         );
@@ -392,7 +394,7 @@ export function WorkspaceShell({
               <ChevronRight size={14} />
               <button onClick={() => go(defaultPage)}>{groupOf(page)}</button>
               <ChevronRight size={14} />
-              <span aria-current="page">{workspaceLabel(page, workspaceRole)}</span>
+              <span aria-current="page">{workspaceLabel(page, workspaceRole, coreModules)}</span>
             </nav>
           </div>
 
@@ -515,6 +517,9 @@ export function WorkspaceShell({
         </header>
 
         <main className="content-area" id="workspace-main">
+          {data.access?.companyWide && ["owner", "admin"].includes(data.access.role) && page === "Overview" && (
+            <SchedulerAdminBanner organizationId={data.selectedOrganization.id} />
+          )}
           {children}
         </main>
       </div>
@@ -535,7 +540,7 @@ export function WorkspaceShell({
               <span className={`nav-icon t-${item.tone}`} aria-hidden>
                 <Icon size={16} strokeWidth={active ? 2.3 : 2} />
               </span>
-              <span>{workspaceLabel(item.name, workspaceRole)}</span>
+              <span>{workspaceLabel(item.name, workspaceRole, coreModules)}</span>
             </button>
           );
         })}
