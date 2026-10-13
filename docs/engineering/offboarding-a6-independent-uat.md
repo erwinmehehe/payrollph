@@ -14,6 +14,8 @@
 | IT external grants exist and remain active | IT operator | fail closed, even if IT equipment waiver exists | NOT_RUN |
 | Zero external grants without inventory evidence | IT operator | fail closed until independent inventory attestation | NOT_RUN |
 | Employee ESS/linked worker memberships after effective last day | IT + HR | only separated employer access revoked in same transaction, other employer membership remains | NOT_RUN |
+| Independent last-day **local** access cutoff before final-pay release | company-wide HR/admin other than preparer, MFA | cutoff evidence ref, employee still Separating, final-pay still draft/approved, original sessions revoked, other employer preserved | NOT_RUN |
+| Premature and self-approved local cutoff denial | HR/security reviewer | 409 before PH last day, maker denial, no access or payroll changes | NOT_RUN |
 | Simulated final-pay audit insert failure | Finance/DBA | employee status, ESS logins, sessions and final-pay release all roll back | NOT_RUN |
 | Different-tenant access revocation attempt | Security/QA | denied, zero cross-tenant audit changes | NOT_RUN |
 | COE delivery proof, physical assets & external IdP/SSO/MDM revocation | HR + IT | actual independent provider evidence, no false audit attestation | NOT_RUN |
@@ -44,3 +46,36 @@ The global employeeId is cleared in the same transaction for a surviving
 cross-employer login, preventing self-service routes from dereferencing the
 separated employee after a fresh sign-in. Linking the surviving employer's
 employee record requires separate HR/identity review. No external IdP/SSO/MDM access is claimed revoked.
+
+## Default-off local application cutoff path (source candidate)
+
+`OFFBOARDING_CLEARANCE_ENABLED` must stay OFF until independent acceptance.
+When enabled on a disposable synthetic test environment, company-wide
+owner/admin/HR reviewers other than the recorded final-pay preparer can use
+the Separation page's **Revoke local access for this employer** control,
+with current MFA and an 8-200 character evidence reference. The endpoint is
+`PATCH /api/separation` with `{"id":<separationId>,"action":"revoke_local_access","localAccessEvidenceReference":"<private-evidence-id>"}`.
+Only an eligible `draft` or `approved` separation at or after its Philippine
+last-day calendar cutoff may proceed. The DB locks the separation and worker,
+revokes the departed employer's local memberships and existing sessions,
+preserves surviving other-employer identities, and records an audited scope
+of **local application access only**. Neither the worker's payroll status nor
+the final-pay package's approval/release state is advanced; no payout occurs.
+
+This is **an explicit human-initiated control, not a scheduled cutoff**.
+A missed HR/IT action still leaves an exposure after the effective last day;
+the operational owner must demonstrate an independently monitored due-date
+procedure, and independent QA must test original-session denial plus a fresh
+login attempt using real assigned test roles. Automated eligibility and
+disposable PostgreSQL tests do not prove timely real-world deprovisioning.
+If unattended effective-date enforcement is required, design and accept
+a separate independently reviewed worker/identity scheduler; do not tie the
+access cutoff to payout or enable `FINAL_PAY_MANUAL_RELEASE_ENABLED` to solve it.
+
+Neither a successful local cutoff, zero local membership counts, a cleared IT
+checkbox, nor locally tracked `it_access_grants.state=revoked` proves that
+SSO, IdP, MDM or external application sessions and grants are gone.
+Obtain independently witnessed provider-side evidence and confirm no access
+via those providers before live activation. The API response explicitly says
+`externalProviderCallsMade=false`, `externalAccessVerified=false`, and
+`finalPayReleased=false`. No production account may be used for this rehearsal.
