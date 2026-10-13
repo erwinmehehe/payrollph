@@ -113,7 +113,7 @@ export async function POST(request: Request) {
   const effectiveDate = String(body.effectiveDate ?? "");
   if (effectiveDate !== manilaCalendarDate())
     return errorResponse("Only today's Manila effective date is supported until version activation scheduling is reviewed.", 422);
-  const [employer] = await db.select({ id: legalEntities.id, updatedAt: legalEntities.updatedAt })
+  const [employer] = await db.select({ id: legalEntities.id })
     .from(legalEntities).where(and(
       eq(legalEntities.id, legalEntityId), eq(legalEntities.organizationId, organizationId),
       eq(legalEntities.active, true),
@@ -125,7 +125,18 @@ export async function POST(request: Request) {
     const [record] = await db.transaction(async tx => {
       await tx.execute(sql`select pg_advisory_xact_lock(4288, ${legalEntityId})`);
       const [newRecord] = await tx.insert(legalEntityProfileChangeRequests).values({
-        organizationId, legalEntityId, expectedEntityUpdatedAt: employer.updatedAt,
+        organizationId, legalEntityId,
+        // PostgreSQL now() timestamps can contain microseconds. A JavaScript
+        // Date drops those last digits, causing a false stale-version 409 in
+        // the approval UPDATE even when the employer has not changed.
+        // Capture the exact source timestamp INSIDE PostgreSQL. Never round
+        // the approval comparison, which must still detect real concurrent edits.
+        expectedEntityUpdatedAt: sql<Date>`(
+          SELECT ${legalEntities.updatedAt} FROM ${legalEntities}
+          WHERE ${legalEntities.id} = ${legalEntityId}
+            AND ${legalEntities.organizationId} = ${organizationId}
+            AND ${legalEntities.active} = true
+        )`,
         effectiveDate, profileEnvelope: envelope, changedFields: validation.changedFields,
         reason, requestedByUserId: user.id,
       }).returning();
