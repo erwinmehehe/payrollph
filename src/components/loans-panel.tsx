@@ -307,10 +307,10 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
           <p>Original authorization: <strong>{selectedLoan.deductionAuthorizationReference ?? "Legacy record — unverified"}</strong></p>
           {scheduleEnabled && <section aria-label="Loan payment schedule" className="card" style={{ padding: 12, boxShadow: "none" }}>
             <h4>Repayment schedule and recorded payments</h4>
-            <p>Recorded payments below come from the loan ledger. Future installments are an illustration of the current balance and configured monthly amount, not an authorized payroll deduction or an agency schedule.</p>
+            <p>Recorded payments below come from the loan ledger. Illustrative months start no earlier than the current Philippine calendar month (or a future loan start month). These are not confirmed due dates, authorized payroll deductions or an agency repayment schedule.</p>
             <div style={{ overflowX: "auto" }}>
               <table className="data-table">
-                <thead><tr><th>Installment</th><th>Illustrative date</th><th>Amount</th><th>Balance after</th></tr></thead>
+                <thead><tr><th>Installment</th><th>Illustrative month</th><th>Amount</th><th>Balance after</th></tr></thead>
                 <tbody>{loanDisplaySchedule({
                   balance: selectedLoan.remainingBalance, installment: selectedLoan.monthlyAmortization,
                   startsOn: selectedLoan.startDate, status: selectedLoan.status,

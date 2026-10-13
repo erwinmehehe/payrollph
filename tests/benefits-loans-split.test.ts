@@ -21,6 +21,35 @@ test("illustrative centavo-only loan schedule preserves remaining balance and ex
  assert.deepEqual(loanDisplaySchedule({balance:1000,installment:100,startsOn:"2026-02-30",status:"active"}),[]);
 });
 
+test("current-balance loan illustrations never restart at historical months", () => {
+ const at = new Date("2026-10-14T01:00:00.000Z");
+ const historic = loanDisplaySchedule({
+  balance:"450.03", installment:"200.01", startsOn:"2025-01-31", status:"active", asOf:at,
+ });
+ assert.deepEqual(historic.map(x=>x.date),["2026-10","2026-11","2026-12"]);
+ assert.deepEqual(historic.map(x=>x.amount),[200.01,200.01,50.01]);
+ assert.equal(historic.at(-1)?.projectedBalance,0);
+ const future = loanDisplaySchedule({
+  balance:200, installment:100, startsOn:"2027-01-31", status:"active", asOf:at,
+ });
+ assert.deepEqual(future.map(x=>x.date),["2027-01","2027-02"]);
+ const phBoundary = loanDisplaySchedule({
+  balance:100, installment:100, startsOn:"2026-01-01",status:"active",
+  asOf:new Date("2026-09-30T16:01:00.000Z"),
+ });
+ assert.equal(phBoundary[0]?.date,"2026-10");
+});
+test("no projection for paused/unapproved loans, invalid clocks or non-centavo amounts",()=>{
+ const example={balance:"100.00", installment:"33.33",startsOn:"2026-01-15",asOf:new Date("2026-10-14T00:00:00Z")};
+ for(const status of ["paused","pending_approval","rejected","ended"]){
+  assert.deepEqual(loanDisplaySchedule({...example,status}),[]);
+ }
+ for(const balance of ["100.001","NaN","Infinity","1e3","-100.00"]){
+  assert.deepEqual(loanDisplaySchedule({...example,balance,status:"active"}),[]);
+ }
+ assert.deepEqual(loanDisplaySchedule({...example,status:"active",asOf:new Date("invalid")}),[]);
+});
+
 test("large illustration cannot produce unbounded rows or authorize payroll deductions",()=>{
  const rows=loanDisplaySchedule({balance:"10000000.00",installment:"1.00",startsOn:"2026-01-15",status:"active"});
  assert.ok(rows.length<=120);
