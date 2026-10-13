@@ -15,6 +15,7 @@ assert.ok(["127.0.0.1", "localhost"].includes(url.hostname) &&
   url.pathname === "/app_db" && (url.port === "5432" || url.port === ""),
   "Only a disposable local PostgreSQL app_db is allowed");
 
+async function main() {
 const client = new Client({ connectionString: url.toString() });
 await client.connect();
 try {
@@ -67,3 +68,11 @@ try {
   await client.query("ROLLBACK").catch(() => {});
   await client.end();
 }
+
+}
+
+// tsx emits CommonJS in this repository; top-level await is unsupported.
+void main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
