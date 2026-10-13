@@ -1,4 +1,4 @@
-import { count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -17,6 +17,7 @@ import {
   jobRequisitions,
   leaveConversions,
   leaveRequests,
+  legalEntities,
   loanPayments,
   minWageOrders,
   organizations,
@@ -31,6 +32,7 @@ import {
   users,
 } from "@/db/schema";
 import { ensureLifecycleProvisioning } from "@/lib/provisioning";
+import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { NATIONAL_HOLIDAYS_2026, WAGE_ORDERS } from "@/lib/wage-orders";
 import { ensureSubscription } from "@/lib/billing";
 import { DEFAULT_PRICING_PLANS } from "@/lib/pricing-catalog";
@@ -78,6 +80,7 @@ export async function ensureSeedData() {
     // stays unavailable until a dedicated demo database is provisioned.
     if (!demoOrgs.some((org) => org.name === "Loom & Local")) return;
 
+    await ensureDemoLegalEmployerLinks();
     await ensureDemoUser(demoOrgs.map((org) => org.id));
     await ensureExtendedSeed();
     return;
@@ -127,6 +130,8 @@ export async function ensureSeedData() {
       startDate: `202${(index % 4) + 1}-0${(index % 8) + 1}-15`,
     })));
   }
+
+  await ensureDemoLegalEmployerLinks();
 
   const loomPeople = await db.select().from(employees).where(eq(employees.organizationId, loom.id));
   const punchRows = loomPeople.flatMap((employee, index) => {
@@ -280,6 +285,78 @@ export async function ensureSeedData() {
   await ensureExtendedSeed();
   void draftRun;
   void releasedRun;
+}
+
+
+/**
+ * Repair the *fixed* fictional companies' original test workers on a dedicated
+ * non-production demo DB only. Never assign an arbitrary customer/extra worker
+ * to a legal employer based on the organization name alone.
+ *
+ * This intentionally fails closed when the seed identity has drifted (another
+ * company/employee, changed legal names, custom legal entities), rather than
+ * backfilling a mixed customer database. Existing established legalEntityId
+ * values are never replaced.
+ */
+async function ensureDemoLegalEmployerLinks() {
+  if (!DEMO_MODE) return;
+  const specs = [
+    { name: "Loom & Local", legalName: "Loom & Local Philippines Inc.", prefix: "LL", people: 8 },
+    { name: "Mantra Studio", legalName: "Mantra Studio Co.", prefix: "MS", people: 7 },
+    { name: "Santos Retail Group", legalName: "Santos Retail Group Inc.", prefix: "SR", people: 8 },
+    { name: "Mika, self-employed", legalName: "Mika Ramos", prefix: "", people: 0 },
+  ] as const;
+  const allOrganizations = await db.select({
+    id: organizations.id, name: organizations.name, legalName: organizations.legalName,
+  }).from(organizations);
+  if (allOrganizations.length !== specs.length) return;
+  const orgByName = new Map(allOrganizations.map((row) => [row.name, row]));
+  if (specs.some((spec) => orgByName.get(spec.name)?.legalName !== spec.legalName)) return;
+
+  const orgIds = allOrganizations.map((row) => row.id);
+  const seededEmployees = await db.select({
+    organizationId: employees.organizationId,
+    employeeNo: employees.employeeNo,
+    firstName: employees.firstName,
+    lastName: employees.lastName,
+  }).from(employees).where(inArray(employees.organizationId, orgIds));
+  if (seededEmployees.length !== specs.reduce((sum, spec) => sum + spec.people, 0)) return;
+  for (const spec of specs) {
+    const organizationId = orgByName.get(spec.name)!.id;
+    const staff = seededEmployees.filter((employee) => employee.organizationId === organizationId);
+    if (staff.length !== spec.people) return;
+    for (let index = 0; index < staff.length; index++) {
+      const expectedNo = `${spec.prefix}-${String(index + 101).padStart(3, "0")}`;
+      const [firstName, lastName] = people[index];
+      if (!staff.some((employee) =>
+        employee.employeeNo === expectedNo &&
+        employee.firstName === firstName &&
+        employee.lastName === lastName
+      )) return;
+    }
+  }
+
+  // Do not infer a "primary" company from customized multi-entity customers.
+  const existingEntities = await db.select({
+    organizationId: legalEntities.organizationId, code: legalEntities.code,
+  }).from(legalEntities).where(inArray(legalEntities.organizationId, orgIds));
+  if (existingEntities.some((entity) => entity.code !== "PRIMARY")) return;
+
+  for (const spec of specs) {
+    const organizationId = orgByName.get(spec.name)!.id;
+    const primary = await ensurePrimaryLegalEntity(organizationId);
+    if (!primary || primary.organizationId !== organizationId || primary.code !== "PRIMARY") {
+      throw new Error("Default fictional demo legal employer could not be resolved.");
+    }
+    if (!spec.people) continue;
+    const expectedNumbers = Array.from({ length: spec.people }, (_, index) =>
+      `${spec.prefix}-${String(index + 101).padStart(3, "0")}`);
+    await db.update(employees).set({ legalEntityId: primary.id }).where(and(
+      eq(employees.organizationId, organizationId),
+      isNull(employees.legalEntityId),
+      inArray(employees.employeeNo, expectedNumbers),
+    ));
+  }
 }
 
 async function ensureReferenceData() {
