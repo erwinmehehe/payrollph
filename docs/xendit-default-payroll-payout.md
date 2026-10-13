@@ -2,7 +2,7 @@
 
 # Xendit default Philippine payroll disbursements — controlled release
 
-**Status:** implemented on draft PR #813; source only. `PAYROLL_PAYOUT_PROVIDER` defaults to existing PayMongo while `XENDIT_PAYOUTS_ENABLED` is off; when explicitly enabled for an approved pilot, Xendit becomes the preferred provider for new batches. **No live money movement is authorized by a source merge**. Keep `XENDIT_PAYOUTS_ENABLED=false` and `XENDIT_PAYOUTS_LIVE_APPROVED=false` until independent acceptance.
+**Status (2026-10-13):** source implementation on PR #813, ready for exact-head CI and source review. `PAYROLL_PAYOUT_PROVIDER` defaults to existing PayMongo while `XENDIT_PAYOUTS_ENABLED` is off; when explicitly enabled for an approved pilot, Xendit becomes the preferred provider for new batches. **No live money movement is authorized by a source merge**. Keep `XENDIT_PAYOUTS_ENABLED=false` and `XENDIT_PAYOUTS_LIVE_APPROVED=false` until provider and treasury acceptance.
 
 ## Implemented
 
@@ -75,7 +75,11 @@ Set a public HTTPS Xendit payout webhook URL to `https://<your-app-host>/api/web
 
 Official Xendit contracts: https://docs.xendit.co/apidocs/create-payout-v3 ; https://docs.xendit.co/apidocs/get-payout-v3-by-id ; https://docs.xendit.co/apidocs/payout-v3-webhook .
 
-**Verification:** check `npm run lint`, `npx tsc --noEmit`, `npm test`, source isolation, pilot QA, and all payroll golden suites from PR CI. No GitHub merge, deployment, real credentials, or real payouts were performed by the assistant.
+**Verification:** check `npm run lint`, `npx tsc --noEmit`, `TZ=Asia/Manila npm test`, source isolation, pilot QA, and all payroll golden suites from the exact PR head. Source merge status is recorded on GitHub; it is not production activation evidence.
+
+The October 13 regression suite executes the real React payout components and export route. With an absent or false server-delivered Xendit flag, the original PayMongo actions, copy and method options remain available and no Xendit status request is made. A previously stored Xendit method is shown as a disabled choice during rollback rather than silently rerouted. The export route authorizes employer/unit access and MFA before reading payout claims or provider readiness. Disposable PostgreSQL tests deny an unrelated employer before exposing its ledger metadata.
+
+`node scripts/payout-ui-browser-qa.mjs` captures desktop and 390px disabled, loading, error, retry and empty-ledger states, and verifies HR cannot render the payout panel. This uses actual components with intercepted synthetic local API responses; it does not certify deployed authentication or provider settlement. CI uploads the screenshots as `payout-ui-components-desktop-390`. No production SQL, real credentials, environment activation or money movement was performed for these source fixes.
 
 
 ## Superseded migration-number history
