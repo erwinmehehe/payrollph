@@ -24,6 +24,19 @@ enabled and enforced by a repository administrator.
   and planning lanes remain **frozen** until a genuine documented first-pilot
   start is approved. Merely merging the source check does not lift this freeze.
   Core Payroll/People/Time bug fixes remain eligible for independent review.
+- **Bounded pre-pilot core Time retention maintenance:** The reviewer-first
+  selfie/photo-retention boundary defect can be submitted to *independent human
+  source review* before optional WFM pilot activation, but only when a PR
+  modifies exactly the four existing canonical retention/evidence code and
+  regression-test files. No added/renamed/deleted/extra files qualify; a
+  partial/no-test change remains frozen. The exception does **not** waive the
+  named reviewer allowlist, contributor permission, exact-head `APPROVED`
+  review, or passing checks. The PR author, maintainer self-review and bots
+  still cannot approve it. This is a fix to the contradiction between the
+  stated "core Time bug fixes" policy and the generic WFM filename freeze,
+  **not** a pilot-start authorization and **not** permission to collect selfies.
+  Any different pre-pilot WFM change requires a separately reviewed policy
+  decision. The maintainer must review the actual diff, not merely filenames.
 - Source approval is **not** employer payroll authorization, a bank release,
   encryption/migration acceptance, or production feature activation. Actual
   payroll continues to require separate employer maker/checker/releaser,
