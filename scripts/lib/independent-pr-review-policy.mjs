@@ -22,6 +22,20 @@ const ALWAYS_SENSITIVE = [
   /^tests\/.*(?:payroll|payout|bank|financial|review|approval|migration|scheduler).*\.test\.(?:ts|mjs)$/,
 ];
 
+// Narrow development test-only exception for #936. This does NOT authorize
+// a pilot, application-side workforce changes, SQL, photo capture or payroll.
+// Every changed file must already exist and both named files must be modified.
+const WFM12_DEV_VERIFICATION_FILES = new Set([
+  "scripts/wfm-pilot-synthetic-evidence.mjs",
+  "tests/wfm-roster-scale-postgres.test.ts",
+]);
+function isWfm12DevVerification(files) {
+  return files.length === WFM12_DEV_VERIFICATION_FILES.size &&
+    new Set(files.map(file => file.filename)).size === files.length &&
+    files.every(file => file.status === "modified" &&
+      WFM12_DEV_VERIFICATION_FILES.has(file.filename));
+}
+
 const FROZEN_LANES = [
   /^src\/lib\/(?:hcm-|workforce-|wfm-|compensation-|performance-)/,
   /^src\/app\/api\/(?:hcm|workforce|recruitment|talent|compensation|performance|planning)\//,
@@ -60,10 +74,13 @@ export function classifyReviewScope(files) {
   const sensitivePaths = list.filter(path =>
     ALWAYS_SENSITIVE.some(regex => regex.test(path)) ||
     ["T2", "T3"].includes(tierForPath(path)));
+  const wfm12DevVerification = isWfm12DevVerification(files);
   return {
     fileCount: files.length,
-    requiresIndependentHuman: sensitivePaths.length > 0,
+    // Force actual non-author human review even if the changed script is T1.
+    requiresIndependentHuman: sensitivePaths.length > 0 || wfm12DevVerification,
     hcmWfmFrozen: frozenPaths.length > 0,
+    wfm12DevVerification,
     sensitiveFileCount: sensitivePaths.length,
     frozenFileCount: frozenPaths.length,
   };
@@ -119,7 +136,7 @@ export function evaluateIndependentReview({
   }
   const scope = classifyReviewScope(files);
   const blockers = [];
-  if (scope.hcmWfmFrozen &&
+  if (scope.hcmWfmFrozen && !scope.wfm12DevVerification &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {
