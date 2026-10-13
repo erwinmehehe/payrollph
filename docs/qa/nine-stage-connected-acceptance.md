@@ -1,6 +1,6 @@
 # #853 — Connected nine-stage first-payroll development acceptance
 
-This workflow uses the **same fictional worker and same Manila calendar day** for actual
+This workflow uses the **same fictional worker and same *simulated* Manila calendar day** for actual
 Web Bundy capture, independently reviewed source correction, WFM timecard, calculated
 payroll, record release and four draft filing worksheets. It must never pass because
 unrelated stage tests succeeded. It explicitly reports FAIL/NOT_RUN when a stage fails.
@@ -14,11 +14,21 @@ handoff is removed before artifact upload. The browser job uses 375px/390px
 Chromium, not a real mobile device.
 
 The historical September QA in `scripts/pilot-payroll-qa.ts` is useful regression
-evidence but its *live* Web Bundy punch occurs outside its historical payroll period.
-It must not be represented as one time-connected workflow. This harness uses a fresh
-same-day source punch instead. Prior-payroll, overnight, holiday, rest-day, and OT
-premiums are covered by other existing synthetic suites, **not** automatically
-certified by this new one-worker live-capture journey.
+evidence but its live Web Bundy punch falls outside its seeded September payroll period.
+This harness instead uses real authenticated Web Bundy IN/OUT HTTP operations under a
+**guarded virtual Manila clock of September 30, 2026 at 16:00**, so the punch, timesheet,
+final monthly cutoff, released ledger, and draft BIR/SSS/PhilHealth/Pag-IBIG worksheets
+share the same *simulated* payroll work date. The API-created punch is not seeded.
+It is **not actual October 13 wall-clock attendance or a real device event**.
+The virtual clock applies only to the localhost Next.js process and the connected test
+process, never the browser, Postgres server, other CI checks or production.
+The preload refuses anything except GitHub CI with a local empty PG16 database, payout
+flags OFF and provider keys absent. Its time advances monotonically to retain ordering.
+
+Final-month statutory drafts are intentionally NOT generated for a mid-month cutoff,
+and the existing filing guard is not modified. Prior-payroll, overnight, holiday,
+rest-day, and OT premium tests run separately and do not certify that those scenarios
+occurred in this particular source-connected one-worker journey.
 
 Individual PASS here is only synthetic engineering evidence. Independent employer
 operator UAT, 14 WFM human/device scenarios, real employer centavo reconciliation,
