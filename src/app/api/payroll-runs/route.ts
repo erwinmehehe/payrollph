@@ -11,6 +11,8 @@ import { isCanonicalPhSemiMonthlyPeriod } from "@/lib/payroll-calendar";
 import { loadTimesheetPayrollGate } from "@/lib/workforce-timesheet-server";
 import { loadAttendanceCutoffGate } from "@/lib/workforce-attendance-lock";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
+import { entityConfirmationMatches } from "@/lib/multi-entity-policy";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { statutoryRuleVersionsForDate } from "@/lib/ph-statutory-rule-packs";
 import { nationalHolidayCalendarForDate } from "@/lib/wage-orders";
@@ -30,7 +32,7 @@ export async function GET(request: Request) {
   // Job-status and register lookups are resource-addressed, so they are checked
   // against the run's own organization rather than trusting the query string.
   if (runId > 0) {
-    const [target] = await db.select({ organizationId: payrollRuns.organizationId, scopeOrgUnitId: payrollRuns.scopeOrgUnitId })
+    const [target] = await db.select({ organizationId: payrollRuns.organizationId, scopeOrgUnitId: payrollRuns.scopeOrgUnitId, legalEntityId: payrollRuns.legalEntityId })
       .from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
     if (!target) return Response.json({ error: "Payroll run not found" }, { status: 404 });
     const deniedJob = await assertOrganizationRole(
@@ -47,6 +49,10 @@ export async function GET(request: Request) {
       "This payroll run is outside your assigned organization unit.",
     );
     if (scopeDenied) return scopeDenied;
+    const entityAccess = await resolveMultiEntityContext({ userId: sessionUser.id, organizationId: target.organizationId, request });
+    if (!entityAccess.ok) return entityAccess.response;
+    const entityDenied = assertEntityResource(entityAccess.context, target.legalEntityId);
+    if (entityDenied) return entityDenied;
 
     // The workspace loads one run's register at a time, so it asks for the run
     // it is actually showing instead of relying on the dashboard's single set.
@@ -74,14 +80,16 @@ export async function GET(request: Request) {
   if (deniedRuns) return deniedRuns;
   const access = await getAccess(sessionUser.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  const entityAccess = await resolveMultiEntityContext({ userId: sessionUser.id, organizationId, request });
+  if (!entityAccess.ok) return entityAccess.response;
 
   const runs = await db.select().from(payrollRuns)
-    .where(access.companyWide
-      ? eq(payrollRuns.organizationId, organizationId)
-      : and(
-          eq(payrollRuns.organizationId, organizationId),
-          eq(payrollRuns.scopeOrgUnitId, access.orgUnitId!),
-        ))
+    .where(and(
+      eq(payrollRuns.organizationId, organizationId),
+      entityAccess.context.enabled && entityAccess.context.legalEntityId !== null
+        ? eq(payrollRuns.legalEntityId, entityAccess.context.legalEntityId) : undefined,
+      !access.companyWide ? eq(payrollRuns.scopeOrgUnitId, access.orgUnitId!) : undefined,
+    ))
     .orderBy(desc(payrollRuns.id));
   return Response.json({ runs });
 }
@@ -181,11 +189,20 @@ export async function POST(request: Request) {
     eq(legalEntities.organizationId, organizationId),
     eq(legalEntities.active, true),
   ));
+  const entityAccess = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!entityAccess.ok) return entityAccess.response;
   const legalEntity = requestedLegalEntityId
     ? legalEntityRows.find((entity) => entity.id === requestedLegalEntityId)
-    : legalEntityRows.find((entity) => entity.primaryEntity) ?? legalEntityRows[0];
+    : entityAccess.context.enabled && entityAccess.context.legalEntityId !== null
+      ? legalEntityRows.find((entity) => entity.id === entityAccess.context.legalEntityId)
+      : legalEntityRows.find((entity) => entity.primaryEntity) ?? legalEntityRows[0];
   if (!legalEntity) {
     return Response.json({ error: "Create an active legal employer before starting payroll." }, { status: 422 });
+  }
+  const entityDenied = assertEntityResource(entityAccess.context, legalEntity.id);
+  if (entityDenied) return entityDenied;
+  if (entityAccess.context.enabled && !entityConfirmationMatches(legalEntity.legalName, String(body.confirmLegalEntityName ?? ""))) {
+    return Response.json({ error: "Type the exact legal employer name before starting payroll.", code: "ENTITY_CONFIRMATION_REQUIRED" }, { status: 422 });
   }
 
   if (

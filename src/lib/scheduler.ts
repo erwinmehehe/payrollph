@@ -16,6 +16,7 @@ import { runScheduledHcmDocumentExpiry } from "@/lib/hcm-documents";
 import { runScheduledCompensationGovernance } from "@/lib/hcm-compensation";
 import { drainCompensationAutomationIntents } from "@/lib/compensation-automation-outbox";
 import { runScheduledWorkerEffectiveChanges } from "@/lib/hcm-effective-changes";
+import { multiEntityHcmDeferred } from "@/lib/multi-entity-hcm-hold";
 import { runScheduledEmploymentTerms } from "@/lib/hcm-employment-terms";
 import { runScheduledEmploymentTermDecisions } from "@/lib/hcm-employment-term-decisions";
 import { runScheduledHcmLifecycleNotifications } from "@/lib/hcm-lifecycle-notifications";
@@ -160,11 +161,15 @@ async function runScheduledJobs(
     : null;
 
   await assertLeaseOwnership();
-  const hcmEffectiveChanges = await runScheduledWorkerEffectiveChanges({
-    actor: "System scheduler",
-    now,
-    limit: 50,
-  });
+  // Defer scheduled effective HCM mutations while the multi-entity HCM
+  // freeze is active. Legacy feature-OFF scheduling is unchanged.
+  const hcmEffectiveChanges = multiEntityHcmDeferred()
+    ? [{ status: "skipped", reason: "ENTITY_HCM_DEFERRED" }]
+    : await runScheduledWorkerEffectiveChanges({
+        actor: "System scheduler",
+        now,
+        limit: 50,
+      });
 
   await assertLeaseOwnership();
   const hcmEmploymentTerms = await runScheduledEmploymentTerms({

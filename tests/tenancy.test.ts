@@ -83,10 +83,11 @@ test("the CSV template is served as CSV, not as JSON", () => {
   const route = read("src/app/api/employees/import/template/route.ts");
   assert.ok(route.includes("text/csv"), "template endpoint must return CSV");
   assert.ok(route.includes("TEMPLATE_CSV"));
-  // The main import route returns JSON, so the UI must not link to it for downloads.
-  const ui = read("src/components/import-panel.tsx");
+  const wrapper = read("src/components/import-panel.tsx");
+  const ui = read("src/components/employee-import-preview-panel.tsx");
+  assert.ok(wrapper.includes("<EmployeeImportPreviewPanel"), "flagged import wrapper must render the governed panel");
   assert.ok(ui.includes("/api/employees/import/template"));
-  assert.ok(!ui.includes('href="/api/employees/import?organizationId='), "template button must not point at the JSON endpoint");
+  assert.ok(!ui.includes('href="/api/employees/import?organizationId='), "template link must not point at the JSON endpoint");
 });
 
 test("payroll authority separates preparation, approval, release and live disbursement", () => {
@@ -267,7 +268,8 @@ test("tenant-wide imports privacy and recruitment reject unit-scoped administrat
 test("dashboard and approval discovery do not expose cross-unit payroll data", () => {
   const dashboard = read("src/lib/dashboard-data.ts");
   assert.ok(dashboard.includes("eq(payrollRuns.scopeOrgUnitId, access.orgUnitId!)"));
-  assert.ok(dashboard.includes("const canViewAudit = access.companyWide"));
+  assert.ok(dashboard.includes("allEmployeesVisible = access.companyWide && selectedEntityId === null"));
+  assert.ok(dashboard.includes("const canViewAudit = allEmployeesVisible"));
   assert.ok(dashboard.includes("delegation.fromApprover.toLowerCase() === sessionUser.name.toLowerCase()"));
 
   const approvers = read("src/app/api/organizations/[id]/payroll-approvers/route.ts");

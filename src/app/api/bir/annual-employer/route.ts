@@ -5,6 +5,7 @@ import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib
 import { getSessionUser } from "@/lib/auth";
 import { loadBirAnnualEmployerSource } from "@/lib/bir-annual-employer-source";
 import { requireSensitiveActionMfa } from "@/lib/security-request";
+import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,8 @@ export async function GET(request: Request) {
   }
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!scope.ok) return scope.response;
 
   if (mode === "employers") {
     const options = await db.select({
@@ -40,6 +43,8 @@ export async function GET(request: Request) {
     }).from(legalEntities).where(and(
       eq(legalEntities.organizationId, organizationId),
       eq(legalEntities.active, true),
+      scope.context.enabled && scope.context.legalEntityId !== null
+        ? eq(legalEntities.id, scope.context.legalEntityId) : undefined,
     ));
     return Response.json({ employers: options }, {
       headers: { "Cache-Control": "no-store, private", "X-Content-Type-Options": "nosniff" },
@@ -51,6 +56,17 @@ export async function GET(request: Request) {
   if (!Number.isSafeInteger(legalEntityId) || legalEntityId <= 0) {
     return Response.json({ error: "Select the exact legal employer before reconciling BIR compensation." }, { status: 400 });
   }
+  const [employer] = await db.select({
+    id: legalEntities.id, code: legalEntities.code, legalName: legalEntities.legalName,
+  }).from(legalEntities).where(and(
+    eq(legalEntities.id, legalEntityId),
+    eq(legalEntities.organizationId, organizationId),
+    eq(legalEntities.active, true),
+  )).limit(1);
+  if (!employer) return Response.json({ error: "Legal employer not found in this organization." }, { status: 404 });
+  const entityDenied = assertEntityResource(scope.context, employer.id);
+  if (entityDenied) return entityDenied;
+
   const source = await loadBirAnnualEmployerSource(organizationId, legalEntityId, taxYear);
   if (!source) return Response.json({ error: "Legal employer not found in this organization." }, { status: 404 });
 

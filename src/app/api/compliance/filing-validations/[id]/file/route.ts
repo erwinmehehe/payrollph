@@ -2,6 +2,7 @@ import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { getFilingValidation, regenerateRecordedFile } from "@/lib/filing-evidence-store";
+import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const record = await getFilingValidation(organizationId, id);
   if (!record) return Response.json({ error: "Filing record not found." }, { status: 404 });
+  const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!scope.ok) return scope.response;
+  const entityDenied = assertEntityResource(scope.context, record.legalEntityId);
+  if (entityDenied) return entityDenied;
 
   let file;
   try {

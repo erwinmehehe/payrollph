@@ -1,0 +1,112 @@
+name: WFM Five-Worker Development Acceptance (No Money)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/qa/wfm-five-worker-dev-acceptance.ts"
+      - "docs/wfm-five-worker-development-acceptance.md"
+      - ".github/workflows/wfm-five-worker-dev-acceptance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/qa/wfm-five-worker-dev-acceptance.ts"
+      - ".github/workflows/wfm-five-worker-dev-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  five-fictional-workers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      QA_URL: http://127.0.0.1:3000
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      WFM_ROSTER_SCALE_RULES_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      SETUP_TOKEN: wfm5-only-ci-setup-token-000000000000000000000000
+      READINESS_TOKEN: wfm5-only-ci-readiness-token-000000000000
+      WORKER_TOKEN: wfm5-only-ci-worker-token-000000000000000000
+      TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      # Authorized only inside this fresh fictional GitHub-hosted CI database.
+      REQUIRE_PRIVILEGED_MFA: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Generate throwaway encrypted fixture keys
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - name: Provision disposable PG16 schema (guarded local database only)
+        run: npm run db:push
+      - name: Apply isolated audit-0109 DB controls
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Build exact-commit application
+        run: npm run build
+      - name: Start localhost application for authenticated role/API tests
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/wfm5-server.log 2>&1 &
+          echo $! > /tmp/wfm5-server.pid
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 5 http://127.0.0.1:3000/login > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Local application failed to start"
+          exit 1
+      - name: Execute five-person roster through no-release payroll preview
+        run: npx tsx scripts/qa/wfm-five-worker-dev-acceptance.ts
+      - name: Show local server failure tail
+        if: failure()
+        run: tail -n 100 /tmp/wfm5-server.log || true
+      - name: Upload synthetic-only redacted report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wfm-five-worker-dev-acceptance-report
+          path: qa-artifacts/wfm-five-worker-dev-report.json
+          if-no-files-found: warn
+          retention-days: 14

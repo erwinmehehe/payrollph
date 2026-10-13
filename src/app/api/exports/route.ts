@@ -1,4 +1,5 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, and } from "drizzle-orm";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { db } from "@/db";
 import { auditEvents, employees, organizations, payrollRuns } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
@@ -9,6 +10,7 @@ import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { maskGovernmentId } from "@/lib/government-id-crypto";
 import { requireSensitiveActionMfa } from "@/lib/security-request";
 import { escapeCsvCell } from "@/lib/csv";
+import { parseCompanyExportKind } from "@/lib/company-export-kind";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +22,8 @@ export async function GET(request: Request) {
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  const kind = searchParams.get("kind") ?? "all";
+  const kind = parseCompanyExportKind(searchParams.get("kind"));
+  if (kind === null) return Response.json({ error: "Unsupported company export kind." }, { status: 400 });
   const allowedRoles =
     kind === "employees"
       ? ["owner", "admin", "bookkeeper", "hr"]
@@ -36,6 +39,13 @@ export async function GET(request: Request) {
   if (deniedOrg) return deniedOrg;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  const resolved = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!resolved.ok) return resolved.response;
+  const scope = resolved.context;
+  if (scope.enabled && (kind === "audit" || kind === "all") && !scope.group)
+    return Response.json({ error: "Tenant-wide exports require a group role." }, { status: 403 });
+  if (scope.enabled && (kind === "audit" || kind === "all") && scope.legalEntityId !== null)
+    return Response.json({ error: "Select All entities for tenant-wide audit or JSON export." }, { status: 409 });
   if (kind === "all" || kind === "audit") {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
@@ -47,8 +57,16 @@ export async function GET(request: Request) {
   if (!organization) return Response.json({ error: "Organization not found" }, { status: 404 });
 
   const [allEmployeeRows, payrollRows, auditRows] = await Promise.all([
-    db.select().from(employees).where(eq(employees.organizationId, organizationId)).orderBy(asc(employees.id)),
-    db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, organizationId)).orderBy(asc(payrollRuns.id)),
+    db.select().from(employees).where(and(
+      eq(employees.organizationId, organizationId),
+      scope.enabled && scope.legalEntityId !== null
+        ? eq(employees.legalEntityId, scope.legalEntityId) : undefined,
+    )).orderBy(asc(employees.id)),
+    db.select().from(payrollRuns).where(and(
+      eq(payrollRuns.organizationId, organizationId),
+      scope.enabled && scope.legalEntityId !== null
+        ? eq(payrollRuns.legalEntityId, scope.legalEntityId) : undefined,
+    )).orderBy(asc(payrollRuns.id)),
     db.select().from(auditEvents).where(eq(auditEvents.organizationId, organizationId)).orderBy(asc(auditEvents.id)),
   ]);
 
