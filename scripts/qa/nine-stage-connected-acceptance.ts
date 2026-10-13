@@ -268,16 +268,23 @@ async function main() {
     });
     assignmentId = Number(assigned.assignment?.id);
     assert.ok(assignmentId);
-    const roster = await manager.ok("/api/workforce/team-roster?organizationId=" + orgA
-      + "&startDate=" + workDate + "&page=1");
+    // Default-off roster-scale mode does not grant this manager People-admin
+    // roster reads. HR publishes the supported schedule; do not activate flags
+    // or grant a manager broader permissions to turn the test green.
+    const rosterUrl = "/api/workforce/team-roster?organizationId=" + orgA
+      + "&startDate=" + workDate + "&page=1";
+    const roster = await hr.ok(rosterUrl);
     assert.ok(roster.rows?.some((r: any) => Number(r.employee?.id) === worker));
+    const managerDenied = await manager.json(rosterUrl);
+    denied(403, managerDenied.status,
+      "flag-off manager cannot read People-admin roster");
     const attempted = await manager.json("/api/workforce/schedules", "POST", {
       organizationId: orgA, action: "create_shift", code: "ESCALATE",
       name: "Unauthorized Manager Definition", startTime: "09:00", endTime: "18:00",
       breakMinutes: 0,
     });
     denied(403, attempted.status, "manager may review roster but not create company-wide shift");
-    evidence.push("HR assigned source WFM schedule; scoped manager saw same worker in roster");
+    evidence.push("HR-authorized schedule visible in HR roster; manager roster privilege denied with default-off flags");
   });
   await stage(3, async evidence => {
     const inEvent = await employee.ok("/api/web-bundy", "POST", {
