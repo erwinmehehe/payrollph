@@ -710,7 +710,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
               <strong>Local application access cutoff (independent of final pay)</strong>
               <p style={{ fontSize: 12 }}>
                 After the verified last working day, an independent HR/IT reviewer can
-                revoke this employer's local memberships and existing sessions.
+                revoke this employer&apos;s local memberships and existing sessions.
                 No external SSO/MDM provider calls are made. Final-pay approval,
                 release, and money movement remain separate.
               </p>
