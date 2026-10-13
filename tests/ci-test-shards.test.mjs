@@ -31,3 +31,10 @@ test("CI keeps the required check job conditional on all shard results", () => {
   assert.match(source, /run: node scripts\/run-sharded-tests\.mjs/);
   assert.match(source, /postgres:\s*\n\s*image: postgres:16/);
 });
+
+test("sharded CI checkout and Node setup remain immutable-action pinned", () => {
+  const source = readFileSync(".github/workflows/ci.yml", "utf8");
+  assert.doesNotMatch(source, /uses: actions\/(?:checkout|setup-node)@v\d+\b/);
+  assert.match(source, /uses: actions\/checkout@[a-f0-9]{40}/);
+  assert.match(source, /uses: actions\/setup-node@[a-f0-9]{40}/);
+});
