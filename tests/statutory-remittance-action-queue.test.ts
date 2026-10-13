@@ -72,7 +72,9 @@ test("remittance changes trigger queue resynchronization and payroll exposes the
 
 
 test("dashboard exposes compliance actions only to company-wide payroll operators", () => {
-  assert.ok(dashboardData.includes("canViewComplianceActions = access.companyWide"));
+  assert.ok(dashboardData.includes("allEmployeesVisible = access.companyWide && selectedEntityId === null"));
+  assert.ok(dashboardData.includes("canViewComplianceActions = allEmployeesVisible"));
+  assert.ok(dashboardData.includes("roleAllowed(access.role, PAYROLL_OPERATOR_ROLES)"));
   assert.ok(dashboardData.includes("PAYROLL_OPERATOR_ROLES"));
   assert.ok(dashboardData.includes("complianceActions,"));
   assert.ok(dashboardTypes.includes("complianceActions?: ComplianceActionTask[]"));

@@ -1,5 +1,6 @@
 import { cronAuthorization } from "@/lib/scheduler-cron-auth";
 import { isCentralSchedulerEnabled } from "@/lib/scheduler-activation";
+import { checkPayrollWorkerDispatchGate } from "@/lib/payroll-worker-dispatch-gate";
 import { tickScheduler } from "@/lib/scheduler";
 import { logSchedulerOps, newOperationalRequestId, type SchedulerOpsState } from "@/lib/ops-telemetry";
 
@@ -29,6 +30,12 @@ export async function GET(request: Request) {
   if (!isCentralSchedulerEnabled()) {
     emit("cron-disabled");
     return Response.json({ ok: false, scheduler: "disabled" }, { status: 503, headers });
+  }
+  const worker = await checkPayrollWorkerDispatchGate();
+  if (!worker.ok) {
+    emit("cron-skipped");
+    return Response.json({ ok: false, scheduler: "payroll-worker-unhealthy" },
+      { status: 503, headers });
   }
   try {
     emit("cron-started");

@@ -4,6 +4,7 @@ import { orgUnits, userOrganizations } from "@/db/schema";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { roleGateAllowed, type RoleGatePermission } from "@/lib/permissions";
 import { manilaCalendarDate } from "@/lib/payroll-period-ui";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 
 export type AccessScope = {
   organizationId: number;
@@ -26,6 +27,11 @@ export async function getAccess(userId: number, organizationId: number): Promise
   )).limit(1);
 
   if (!membership) return null;
+  // group_hr exists only for the flagged, TENANT-wide read-only capability.
+  // A feature-OFF or unit-scoped group membership must never fall through to
+  // old companyWide authorizers and become a broader legacy read privilege.
+  if (membership.role === "group_hr" &&
+      (!criticalReleaseFlagEnabled("multiEntity") || membership.orgUnitId !== null)) return null;
   // A manager without a supervisor-unit assignment is NOT a company-wide
   // administrator. Fail closed for every route that resolves effective access.
   if (membership.role === "manager" &&
@@ -138,6 +144,13 @@ export async function assertMembership(userId: number, organizationId: number): 
     ))
     .limit(1);
   if (!row) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  // Generic membership is NOT a grant for the dedicated cross-employer
+  // group_hr role, even when enabled. Group HR may read only through routes
+  // that explicitly resolve the tenant, group scope and read-only capability.
+  // Otherwise legacy member-only API endpoints become accidental data paths.
+  if (row.role === "group_hr") {
+    return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  }
   // Enforce the same manager unit gate for APIs that use membership directly
   // instead of resolving access through getAccess().
   if (row.role === "manager") {

@@ -63,12 +63,26 @@ test("simultaneous competing scheduler starts admit exactly one owner", async ()
   }
 });
 
+function assertConditionalHcmWorkerLeaseFence(source: string) {
+  const call = "await runScheduledWorkerEffectiveChanges(";
+  const callIndex = source.indexOf(call);
+  assert.ok(callIndex > 0 && source.indexOf(call, callIndex + call.length) === -1,
+    "HCM worker must have exactly one scheduler call site");
+  const lastLease = source.lastIndexOf("await assertLeaseOwnership();", callIndex);
+  assert.ok(lastLease >= 0 && callIndex - lastLease < 550,
+    "Deferred HCM worker call requires an immediately preceding live lease fence");
+  const guarded = source.slice(lastLease, callIndex);
+  assert.match(guarded, /const hcmEffectiveChanges = multiEntityHcmDeferred\(\)/);
+  assert.match(guarded, /\? \[\{ status: "skipped", reason: "ENTITY_HCM_DEFERRED" \}\]/);
+  assert.match(guarded, /:\s*$/, "Only the feature-OFF branch may invoke the worker");
+}
+
 test("the central scheduler revalidates lease ownership before financial transitions", async () => {
   const { readFileSync } = await import("node:fs");
   const source = readFileSync("src/lib/scheduler.ts", "utf8");
   assert.ok(source.includes("leaseLost || !(await refreshSchedulerLease(ownerToken))"));
+  assertConditionalHcmWorkerLeaseFence(source);
   for (const method of [
-    "runScheduledWorkerEffectiveChanges",
     "runScheduledEmploymentTerms",
     "runScheduledEmploymentTermDecisions",
     "runScheduledCompensationGovernance",
@@ -80,6 +94,7 @@ test("the central scheduler revalidates lease ownership before financial transit
 test("lease ownership is checked before every separately invoked high-impact scheduler task", async () => {
   const { readFileSync } = await import("node:fs");
   const source = readFileSync("src/lib/scheduler.ts", "utf8");
+  assertConditionalHcmWorkerLeaseFence(source);
   for (const functionName of [
     "drainWebhookRetries",
     "drainOutboxRetries",
@@ -88,7 +103,6 @@ test("lease ownership is checked before every separately invoked high-impact sch
     "runScheduledContributionCaseEscalations",
     "resumeDueAutomationExecutions",
     "runScheduledAutomationTemporalEvents",
-    "runScheduledWorkerEffectiveChanges",
     "runScheduledEmploymentTerms",
     "runScheduledEmploymentTermDecisions",
     "runScheduledCompensationGovernance",

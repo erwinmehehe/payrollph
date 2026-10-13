@@ -53,6 +53,7 @@ type EntityProfile = {
 type Payload = {
   profiles: EntityProfile[];
   adapters: Adapter[];
+  xenditEnabled?: boolean;
 };
 
 type FormState = {
@@ -216,15 +217,29 @@ function ScopedPayoutProfiles({ organizationId, setNotice }: {
           </div>
 
           {selected && <PayoutProfileEditor key={selected.legalEntity.id} organizationId={organizationId}
-            selected={selected} adapters={payload.adapters} setNotice={setNotice} reload={reload}/>}
+            selected={selected} adapters={payload.adapters} xenditEnabled={data?.xenditEnabled === true} setNotice={setNotice} reload={reload}/>}
         </article>
       </div>
     </section>
   );
 }
 
-function PayoutProfileEditor({ organizationId, selected, adapters, setNotice, reload }: {
+export function PayoutMethodOptions({ xenditEnabled = false, currentMethod = "bank_file" }: {
+  xenditEnabled?: boolean; currentMethod?: string;
+}) {
+  return <>
+    <option value="bank_file">Bank file / portal</option>
+    {xenditEnabled === true && <option value="xendit">Xendit payroll (requires treasury enablement)</option>}
+    {!xenditEnabled && currentMethod === "xendit" &&
+      <option value="xendit" disabled>Xendit disabled — review existing profile</option>}
+    <option value="paymongo">{xenditEnabled === true ? "PayMongo PESONet/InstaPay (legacy)" : "PayMongo PESONet/InstaPay"}</option>
+    <option value="manual">Manual bank workflow</option>
+  </>;
+}
+
+function PayoutProfileEditor({ organizationId, selected, adapters, xenditEnabled, setNotice, reload }: {
   organizationId: number; selected: EntityProfile; adapters: Adapter[];
+  xenditEnabled: boolean;
   setNotice: (message: string) => void; reload: () => Promise<void>;
 }) {
   const [form, setForm] = useState<FormState>(() => fromProfile(selected.profile));
@@ -289,9 +304,7 @@ function PayoutProfileEditor({ organizationId, selected, adapters, setNotice, re
       <div className="setting-form">
         <label>Default payout method
           <select value={form.defaultMethod} onChange={(e) => setForm({ ...form, defaultMethod: e.target.value })}>
-            <option value="bank_file">Bank file / portal</option>
-            <option value="paymongo">PayMongo PESONet/InstaPay</option>
-            <option value="manual">Manual bank workflow</option>
+            <PayoutMethodOptions xenditEnabled={xenditEnabled} currentMethod={form.defaultMethod} />
           </select>
         </label>
 

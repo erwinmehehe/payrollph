@@ -21,6 +21,6 @@ export async function GET(request: Request) {
   if (access.role === "manager" && deriveMyTeamScope(access)?.kind !== "unit") {
     return Response.json({ error: "Assign a supervisory unit before opening the manager dashboard." }, { status: 403 });
   }
-  const data = await getDashboardData(Number.isFinite(organizationId) && organizationId > 0 ? organizationId : undefined);
+  const data = await getDashboardData(Number.isFinite(organizationId) && organizationId > 0 ? organizationId : undefined, request);
   return Response.json(data);
 }

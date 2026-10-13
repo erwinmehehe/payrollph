@@ -1,11 +1,12 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalChainPolicies, dynamicWorkerGroups } from "@/db/schema";
+import { approvalChainPolicies, approvalChainInstances, dynamicWorkerGroups } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
-import { freezeDynamicGroupApprovalSteps, validateApprovalChainSteps } from "@/lib/approval-chains";
+import { approvalEscalationSnapshotHeld, freezeDynamicGroupApprovalSteps, validateApprovalChainSteps } from "@/lib/approval-chains";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "Approval-chain administration requires company-wide access." }, { status: 403 });
   }
 
-  const [policies, groups] = await Promise.all([
+  const [policies, groups, pendingInstances] = await Promise.all([
     db.select().from(approvalChainPolicies)
       .where(eq(approvalChainPolicies.organizationId, organizationId))
       .orderBy(approvalChainPolicies.code),
@@ -46,8 +47,26 @@ export async function GET(request: Request) {
       eq(dynamicWorkerGroups.organizationId, organizationId),
       eq(dynamicWorkerGroups.active, true),
     )).orderBy(dynamicWorkerGroups.name),
+    db.select({ id: approvalChainInstances.id, policyCode: approvalChainInstances.policyCode,
+      currentStepIndex: approvalChainInstances.currentStepIndex,
+      policyVersion: approvalChainInstances.policyVersion,
+      createdAt: approvalChainInstances.createdAt,
+      stepsSnapshot: approvalChainInstances.stepsSnapshot,
+    }).from(approvalChainInstances).where(and(
+      eq(approvalChainInstances.organizationId, organizationId),
+      eq(approvalChainInstances.status, "pending"),
+    )).orderBy(desc(approvalChainInstances.createdAt)).limit(100),
   ]);
-  return Response.json({ policies, dynamicGroups: groups });
+  // Only administratively safe instance IDs/step numbers are disclosed. Do
+  // not surface employee/source keys or confidential approval details here.
+  const heldEscalationInstances = pendingInstances
+    .filter(row => approvalEscalationSnapshotHeld(row.stepsSnapshot))
+    .map(row => ({ id: row.id, policyCode: row.policyCode,
+      policyVersion: row.policyVersion, currentStepIndex: row.currentStepIndex,
+      createdAt: row.createdAt }));
+  return Response.json({ policies, dynamicGroups: groups, heldEscalationInstances,
+    recoveryInventoryLimited: pendingInstances.length === 100,
+    approvalEscalationsEnabled: criticalReleaseFlagEnabled("approvalChainEscalations") });
 }
 
 export async function POST(request: Request) {
