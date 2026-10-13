@@ -1,0 +1,119 @@
+name: Multi-Entity Browser and HTTP Acceptance (Synthetic Only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/lib/multi-entity-*.ts"
+      - "src/app/api/multi-entity/**"
+      - "src/components/workspace/multi-entity-ui.tsx"
+      - "src/components/linaw-workspace.tsx"
+      - "src/lib/critical-release-flags.ts"
+      - "src/lib/dashboard-data.ts"
+      - "src/db/schema.ts"
+      - "tests/multi-entity-*.test.ts"
+      - "scripts/multi-entity-synthetic-*"
+      - ".github/workflows/multi-entity-browser-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  multi-entity-browser:
+    name: isolated-multi-entity-browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      MULTI_ENTITY_QA_MODE: synthetic-postgres-only
+      MULTI_ENTITY_ENABLED: "true"
+      MULTI_ENTITY_REGISTRATIONS_ENABLED: "false"
+      MULTI_ENTITY_TRANSFERS_ENABLED: "false"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3001
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+      TOTP_ENCRYPTION_KEY: "4444444444444444444444444444444444444444444444444444444444444444"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral synthetic encryption keys (never print key material)
+        shell: bash
+        run: |
+          echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL schema, never production
+        run: npm run db:push
+      - name: Seed fictional two-tenant/two-employer roles, workers and draft runs
+        run: npx tsx scripts/multi-entity-synthetic-fixture.ts
+      - name: Build actual protected Next.js workspace
+        run: npm run build
+      - name: Install pinned Chromium for end-to-end verification
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start flag-ON localhost-only app
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/multi-entity-on-ci.log 2>&1 &
+          for attempt in {1..45}; do
+            if curl -fsS "http://127.0.0.1:3000/login" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Disposable multi-entity app did not start"
+          exit 1
+      - name: Start independent flag-OFF localhost-only app
+        shell: bash
+        env:
+          MULTI_ENTITY_ENABLED: "false"
+          APP_BASE_URL: http://127.0.0.1:3001
+          TRUSTED_APP_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3001
+        run: |
+          nohup npm start -- -p 3001 -H 127.0.0.1 > /tmp/multi-entity-off-ci.log 2>&1 &
+          for attempt in {1..45}; do
+            if curl -fsS "http://127.0.0.1:3001/login" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Disposable flag-off app did not start"
+          exit 1
+      - name: Verify real authenticated UI, scoped API denials, role controls and mobile widths
+        run: node scripts/multi-entity-synthetic-browser.mjs
+      - name: Preserve before/after synthetic screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: multi-entity-authenticated-synthetic-screenshots
+          path: qa-artifacts/multi-entity/*.png
+          if-no-files-found: ignore
+          retention-days: 7
