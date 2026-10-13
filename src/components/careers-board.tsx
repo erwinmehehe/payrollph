@@ -44,6 +44,11 @@ export function CareersBoard({ organizationId, organizationName, jobs, privacyNo
     <header className="mb-8"><p className="text-sm font-semibold uppercase tracking-wider">Careers</p>
       <h1 className="text-3xl font-bold">{organizationName}</h1>
       <p>Current published opportunities. Only roles intentionally published by this employer appear here.</p>
+      {privacyNoticeVersion && privacyNoticeUrl && (
+        <p className="mt-3 text-sm">Before applying, review the{" "}
+          <a className="underline" href={privacyNoticeUrl} target="_blank" rel="noopener noreferrer">recruitment privacy notice</a>{" "}
+          (version {privacyNoticeVersion}).</p>
+      )}
     </header>
     {jobs.length === 0 && <section className="rounded-xl border p-6" role="status">No published openings at this time.</section>}
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
