@@ -31,3 +31,7 @@
 | Production feature activation | Release owner | NOT_AUTHORIZED |
 
 No payroll transfers, production migrations, live employee files or real customer emails may be used in automated checks.
+
+## Synthetic CI emulator registry correction (October 13, 2026)
+
+The former `quay.io/minio/minio:latest` image became inaccessible to anonymous GitHub Actions runners (`unauthorized`, Docker exit 125). Both synthetic S3 acceptance workflows use the public Chainguard MinIO Docker Hub image `chainguard/minio:latest` instead, without changing the offline-only binding, synthetic test credentials, runtime S3 API contract or protected production feature flags. The new exact-head workflow runs must execute and pass; this source correction is not proof of actual private S3 or scanner acceptance. Pin a reviewed digest after the accessible image is confirmed in CI. No production image or bucket is changed.
