@@ -127,6 +127,7 @@ test('read-only deployed heartbeat evaluator rejects overdue, failed, missing le
 test('workflow is automated read-only and never enables runtime or mutating dispatch',()=>{
   const flow=readFileSync('.github/workflows/scheduler-scheduled-run-observer.yml','utf8');
   assert.match(flow,/schedule:/);
+  assert.match(flow,/github.event_name == 'push'/);
   assert.match(flow,/pull_request:/);
   assert.match(flow,/actions: read/);
   assert.match(flow,/observe-scheduler-run-provenance\.mjs/);
