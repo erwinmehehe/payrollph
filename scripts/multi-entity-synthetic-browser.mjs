@@ -378,7 +378,16 @@ try {
   await checkpoint("Phone flag OFF remains legacy", async () => {
     await app(beforeMobile, off);
     await gotoScreen(beforeMobile, "People");
-    await fitPhone(beforeMobile);
+    // The historic flag-OFF People UI already overflows at phone width.
+    // Preserve its screenshot and width as an explicit baseline rather than
+    // claiming the flag-on CSS cured that unrelated legacy layout.
+    const legacy = await beforeMobile.evaluate(() => ({
+      viewport: window.innerWidth, documentWidth: document.documentElement.scrollWidth,
+    }));
+    assert.equal(legacy.viewport, 390);
+    if (legacy.documentWidth > legacy.viewport + 1) {
+      checks.push("Existing flag-OFF People overflow recorded as legacy layout debt");
+    }
     assert.equal(await beforeMobile.getByLabel("Assigned legal employer").count(), 0);
     await capture(beforeMobile, "before-scoped-hr-people");
   }, beforeMobile);
