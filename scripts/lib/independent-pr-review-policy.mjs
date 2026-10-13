@@ -72,6 +72,11 @@ function isPinnedWfm691WitnessDevEvidence(files) {
 }
 
 const FROZEN_LANES = [
+  // Treat every component of the exact #969 offline witness set as frozen.
+  // Otherwise dropping the test file leaves the docs and QA script outside
+  // the existing WFM path classifiers and bypasses the three-file guarantee.
+  /^docs\/qa\/wfm-691-independent-witness-handoff\.md$/,
+  /^scripts\/qa\/wfm-independent-witness\.mjs$/,
   /^src\/lib\/(?:hcm-|workforce-|wfm-|compensation-|performance-)/,
   /^src\/app\/api\/(?:hcm|workforce|recruitment|talent|compensation|performance|planning)\//,
   /^src\/components\/(?:hcm-|wfm-|workforce-|compensation-|performance-)/,
