@@ -127,16 +127,60 @@ try {
     report.checks.push(width + "px failure/retry and owner switch A -> B -> A; disjoint tenant employee records");
     await context.close();
 
-    const restricted = await browser.newContext({viewport:{width,height:844}});
-    const employeeLogin = await restricted.request.post(base + "/api/auth/login",{
-      data:{email:auth.employee,password:auth.password},
-      headers:{origin:base,"sec-fetch-site":"same-origin"}
+    // Verify an actual authenticated *browser* employee session before
+    // asserting the cross-tenant 403. APIRequestContext's cookie jar is not
+    // a substitute for an authenticated browser when server session dates
+    // are deliberately virtualized for a synthetic September payroll.
+    const restricted = await browser.newContext({
+      viewport:{width,height:844}, timezoneId:"Asia/Manila",
     });
-    assert.equal(employeeLogin.status(),200);
-    const denied = await restricted.request.get(base + "/api/employees?organizationId="
-      + auth.otherOrganizationId);
-    assert.equal(denied.status(),403);
-    report.checks.push(width + "px distinct employee cannot read tenant B");
+    await restricted.addInitScript(({epoch, anchor}) => {
+      const RealDate = Date;
+      const now = () => epoch + (RealDate.now() - anchor);
+      globalThis.Date = new Proxy(RealDate, {
+        apply() { return new RealDate(now()).toString(); },
+        construct(target, args, newTarget) {
+          return Reflect.construct(target, args.length ? args : [now()], newTarget);
+        },
+        get(target, key, receiver) {
+          return key === "now" ? now : Reflect.get(target, key, receiver);
+        },
+      });
+    }, {epoch:syntheticEpoch,anchor:realAnchor});
+    const employeePage = await restricted.newPage();
+    const employeeErrors = [];
+    employeePage.on("pageerror", err =>
+      employeeErrors.push(String(err.message).slice(0,100)));
+    await employeePage.goto(base + "/login", {waitUntil:"domcontentloaded"});
+    const employeeLogin = await employeePage.evaluate(async credentials => {
+      const response = await fetch("/api/auth/login", {
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        credentials:"same-origin",
+        body:JSON.stringify(credentials),
+      });
+      return {status:response.status,body:await response.json()};
+    }, {email:auth.employee,password:auth.password});
+    assert.equal(employeeLogin.status,200, "Employee browser sign-in failed");
+    assert.equal(employeeLogin.body?.user?.email,auth.employee,
+      "Employee login must return the actual fictional worker account");
+    const session = await employeePage.evaluate(async () => {
+      const response = await fetch("/api/auth/me",{credentials:"same-origin"});
+      return {status:response.status,body:await response.json()};
+    });
+    assert.equal(session.status,200);
+    assert.equal(session.body?.user?.email,auth.employee,
+      "Do not accept 401 as cross-tenant protection: the employee must have a live session");
+    const denied = await employeePage.evaluate(async organizationId => {
+      const response = await fetch("/api/employees?organizationId=" + organizationId,
+        {credentials:"same-origin",cache:"no-store"});
+      return {status:response.status};
+    }, auth.otherOrganizationId);
+    assert.equal(denied.status,403,
+      "An authenticated employee must receive 403 for another employer's directory");
+    assert.deepEqual(employeeErrors,[],
+      "Employee browser must not generate hydration or page errors");
+    report.checks.push(width + "px verified employee session and cross-tenant 403");
     await restricted.close();
   }
   report.result = "PASS";
