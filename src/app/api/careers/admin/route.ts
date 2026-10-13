@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { jobRequisitions } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -6,10 +6,12 @@ import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/acc
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { workflowEntityHold } from "@/lib/workflow-entity-hold";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
-import { recordAuditEvent } from "@/lib/audit";
+import { auditEvents } from "@/db/schema";
+import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
+import { enforceSensitiveActionRateLimit } from "@/lib/security-request";
 
 export async function PATCH(request: Request) {
-  if (!criticalReleaseFlagEnabled("recruitmentJourney"))
+  if (!criticalReleaseFlagEnabled("recruitmentJourney") || !applicantPrivacyControlsEnabled() || !criticalReleaseFlagEnabled("publicIntakeProof"))
     return Response.json({ error: "Careers publishing disabled." }, { status: 404 });
   const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
@@ -26,6 +28,8 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "Company-wide recruitment editor required." }, { status: 403 });
   const mfa = requireSensitiveActionMfa(user);
   if (mfa) return mfa;
+  const rate = await enforceSensitiveActionRateLimit(request, { userId: user.id, action: "careers-publish", resourceId: organizationId, limit: 8 });
+  if (rate) return rate;
   const [job] = await db.select().from(jobRequisitions).where(and(
     eq(jobRequisitions.organizationId, organizationId), eq(jobRequisitions.id, requisitionId),
   )).limit(1);
@@ -33,10 +37,17 @@ export async function PATCH(request: Request) {
   if (body.published && (job.positionId === null || ["filled","cancelled"].includes(job.status))) {
     return Response.json({ error: "Only active position-governed jobs can be published." }, { status: 409 });
   }
-  const [updated] = await db.update(jobRequisitions).set({ careersPublished: body.published })
-    .where(and(eq(jobRequisitions.id, job.id), eq(jobRequisitions.organizationId, organizationId))).returning();
-  await recordAuditEvent({ organizationId, actor: user.name,
-    action: updated.careersPublished ? "Careers requisition published" : "Careers requisition unpublished",
-    resource: String(updated.id), metadata: { requestedByUserId: user.id, requisitionId: updated.id } });
+  const updated = await db.transaction(async tx => {
+    const [row] = await tx.update(jobRequisitions).set({ careersPublished: body.published })
+      .where(and(eq(jobRequisitions.id, job.id), eq(jobRequisitions.organizationId, organizationId),
+        ...(body.published ? [sql`${jobRequisitions.positionId} is not null`, sql`${jobRequisitions.status} in ('open', 'interviewing')`] : [])))
+      .returning();
+    if (!row) return null;
+    await tx.insert(auditEvents).values({ organizationId, actor: user.name,
+      action: row.careersPublished ? "Careers requisition published" : "Careers requisition unpublished",
+      resource: String(row.id), metadata: { requestedByUserId: user.id, requisitionId: row.id } });
+    return row;
+  });
+  if (!updated) return Response.json({ error: "Requisition status changed; reload." }, { status: 409 });
   return Response.json({ id: updated.id, published: updated.careersPublished });
 }

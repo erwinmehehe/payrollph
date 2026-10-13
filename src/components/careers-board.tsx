@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { obtainIntakeProof } from "@/lib/public-intake-proof-client";
 
 type Job = { id: number; title: string; department: string; employmentType: string; description: string | null };
 
-export function CareersBoard({ organizationId, organizationName, jobs }: {
+export function CareersBoard({ organizationId, organizationName, jobs, privacyNoticeVersion, privacyNoticeUrl }: {
   organizationId: number; organizationName: string; jobs: Job[];
+  privacyNoticeVersion?: string; privacyNoticeUrl?: string;
 }) {
   const [selected, setSelected] = useState<Job | null>(null);
   const [fullName, setFullName] = useState("");
@@ -21,11 +23,13 @@ export function CareersBoard({ organizationId, organizationName, jobs }: {
     if (!selected || !consent) return;
     setStatus("sending"); setError("");
     try {
+      const intakeProof = await obtainIntakeProof(email);
+      if (!intakeProof) throw new Error("Security check unavailable.");
       const response = await fetch("/api/careers", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           organizationId, requisitionId: selected.id, fullName, email, phone,
-          notes, consent, website: "",
+          notes, consent, intakeProof, privacyNoticeVersion, website: "",
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -65,10 +69,10 @@ export function CareersBoard({ organizationId, organizationName, jobs }: {
         <label className="grid gap-2 sm:col-span-2">Message (optional)
           <textarea maxLength={1000} rows={4} className="rounded border p-2" value={notes} onChange={e=>setNotes(e.target.value)}/>
         </label>
-        <label className="hidden" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off"/></label>
+        <label className="sr-only" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" name="website"/></label>
         <label className="flex items-start gap-2 sm:col-span-2">
           <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} required/>
-          <span>I consent to this employer processing my application details for recruitment.</span>
+          <span>I consent to this employer processing my application details for recruitment under the <a className="underline" href={privacyNoticeUrl || "#"} target="_blank" rel="noopener noreferrer">recruitment privacy notice</a> (version {privacyNoticeVersion || "not configured"}).</span>
         </label>
         {error && <p role="alert" className="sm:col-span-2">{error}</p>}
         <div className="flex flex-wrap gap-3 sm:col-span-2">
