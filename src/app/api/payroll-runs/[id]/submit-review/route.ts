@@ -14,6 +14,7 @@ import { buildPayrollReleaseChecklist } from "@/lib/payroll-release-checklist";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { managedPayrollRunFingerprint } from "@/lib/managed-payroll";
+import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 
 const SUBMITTABLE = ["Needs review", "Processed"];
 
@@ -48,6 +49,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     "This payroll run is outside your assigned organization unit.",
   );
   if (scopeDenied) return scopeDenied;
+  const entityDenied = await requireRunEmployer({
+    request, userId: user.id, organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+  });
+  if (entityDenied) return entityDenied;
 
   if (run.status === "Released") {
     return Response.json({ error: "Released payroll cannot be submitted again." }, { status: 409 });

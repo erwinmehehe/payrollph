@@ -38,6 +38,9 @@ test("legacy hosted demo schema supports the current launch and workspace models
       const helper = readFileSync(path, "utf8").split("export async function ensureEmployeePayProfiles")[0];
       for (const match of helper.matchAll(/await client\.query\(`([\s\S]*?)`\);/g)) await client.query(match[1]);
     }
+    // Module columns are installed by the ordered release migration, never
+    // by a request-time compatibility helper. Rehearse the documented upgrade.
+    await client.query(readFileSync("drizzle/0122_tenant_module_disclosure.sql", "utf8"));
     const models = [schema.organizations, schema.orgUnits, schema.employees, schema.holidays,
       schema.leaveBalances, schema.leavePolicies, schema.leaveRequests, schema.approvalTasks,
       schema.auditEvents, schema.payrollRuns, schema.payrollEntries, schema.subscriptions,
@@ -63,7 +66,11 @@ test("legacy hosted demo schema supports the current launch and workspace models
     await client.query("SELECT id, employee_id, separation_type, notice_date, last_day, status FROM separation_records LIMIT 0");
     for (const model of models) {
       const config = getTableConfig(model);
-      const columns = config.columns.map(column => `"${column.name}"`).join(", ");
+      // This fixture deliberately excludes new, feature-flagged employer
+      // attribution columns. Runtime compatibility must NOT synthesize a
+      // production legal_entity_id or attempt a schema write.
+      const columns = config.columns.filter(column => column.name !== "legal_entity_id")
+        .map(column => `"${column.name}"`).join(", ");
       await client.query(`SELECT ${columns} FROM "${config.name}" LIMIT 0`);
     }
   } finally {

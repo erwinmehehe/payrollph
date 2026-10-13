@@ -1,0 +1,158 @@
+name: Multi-Entity Browser and HTTP Acceptance (Synthetic Only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/lib/multi-entity-*.ts"
+      - "src/app/api/multi-entity/**"
+      - "src/components/workspace/multi-entity-ui.tsx"
+      - "src/components/linaw-workspace.tsx"
+      - "src/lib/critical-release-flags.ts"
+      - "src/lib/dashboard-data.ts"
+      - "src/db/schema.ts"
+      - "tests/multi-entity-*.test.ts"
+      - "scripts/multi-entity-synthetic-*"
+      - "scripts/multi-entity-registration-synthetic-http.mjs"
+      - "scripts/multi-entity-loopback-https.mjs"
+      - ".github/workflows/multi-entity-browser-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  multi-entity-browser:
+    name: isolated-multi-entity-browser
+    # Playwright 1.55 supports Ubuntu 24.04; ubuntu-latest may advance to 26.04.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      MULTI_ENTITY_QA_MODE: synthetic-postgres-only
+      TRUSTED_PROXY_HOPS: "1" # Disposable localhost CI only: distinguish synthetic login clients
+      MULTI_ENTITY_ENABLED: "true"
+      MULTI_ENTITY_REGISTRATIONS_ENABLED: "false"
+      MULTI_ENTITY_TRANSFERS_ENABLED: "false"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: https://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: https://127.0.0.1:3000,https://127.0.0.1:3001
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Generate masked test keys and temporary loopback TLS certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value="$(openssl rand -hex 32)"
+            printf '::add-mask::%s\n' "$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+            unset value
+          done
+          key_file="$RUNNER_TEMP/multi-entity-qa-key.pem"
+          cert_file="$RUNNER_TEMP/multi-entity-qa-cert.pem"
+          openssl req -new -x509 -nodes -newkey rsa:2048 -days 1 \
+            -keyout "$key_file" -out "$cert_file" -subj "/CN=127.0.0.1" \
+            -addext "subjectAltName=IP:127.0.0.1" >/dev/null 2>&1
+          chmod 600 "$key_file"
+          printf 'MULTI_ENTITY_QA_TLS_KEY=%s\n' "$key_file" >> "$GITHUB_ENV"
+          printf 'MULTI_ENTITY_QA_TLS_CERT=%s\n' "$cert_file" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL schema, never production
+        run: npm run db:push
+      - name: Seed fictional two-tenant/two-employer roles, workers and draft runs
+        run: npx tsx scripts/multi-entity-synthetic-fixture.ts
+      - name: Build actual protected Next.js workspace
+        run: npm run build
+      - name: Install pinned Chromium for end-to-end verification
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start synthetic-only HTTPS loopback transport
+        shell: bash
+        run: |
+          nohup node scripts/multi-entity-loopback-https.mjs > /tmp/multi-entity-https-ci.log 2>&1 &
+      - name: Start flag-ON localhost-only app
+        shell: bash
+        run: |
+          nohup npm start -- -p 3100 -H 127.0.0.1 > /tmp/multi-entity-on-ci.log 2>&1 &
+          for attempt in {1..45}; do
+            if curl --insecure -fsS "https://127.0.0.1:3000/login" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Disposable multi-entity app did not start"
+          exit 1
+      - name: Start independent flag-OFF localhost-only app
+        shell: bash
+        env:
+          MULTI_ENTITY_ENABLED: "false"
+          APP_BASE_URL: https://127.0.0.1:3001
+          TRUSTED_APP_ORIGINS: https://127.0.0.1:3000,https://127.0.0.1:3001
+        run: |
+          nohup npm start -- -p 3101 -H 127.0.0.1 > /tmp/multi-entity-off-ci.log 2>&1 &
+          for attempt in {1..45}; do
+            if curl --insecure -fsS "https://127.0.0.1:3001/login" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Disposable flag-off app did not start"
+          exit 1
+      - name: Verify real authenticated UI, scoped API denials, role controls and mobile widths
+        run: node scripts/multi-entity-synthetic-browser.mjs
+      - name: Start independently-gated registration localhost server (disposable DB)
+        shell: bash
+        env:
+          MULTI_ENTITY_REGISTRATIONS_ENABLED: "true"
+          MULTI_ENTITY_TRANSFERS_ENABLED: "false"
+          APP_BASE_URL: https://127.0.0.1:3002
+          TRUSTED_APP_ORIGINS: https://127.0.0.1:3002
+        run: |
+          nohup npm start -- -p 3102 -H 127.0.0.1 > /tmp/multi-entity-registration-ci.log 2>&1 &
+          for attempt in {1..45}; do
+            if curl --insecure -fsS "https://127.0.0.1:3002/login" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Disposable registration instance did not start"
+          exit 1
+      - name: Exercise encrypted registrations with two actual authenticated actors
+        env:
+          MULTI_ENTITY_REGISTRATIONS_ENABLED: "true"
+        run: node scripts/multi-entity-registration-synthetic-http.mjs
+      - name: Preserve before/after synthetic screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: multi-entity-authenticated-synthetic-screenshots
+          path: qa-artifacts/multi-entity/*.png
+          if-no-files-found: ignore
+          retention-days: 7

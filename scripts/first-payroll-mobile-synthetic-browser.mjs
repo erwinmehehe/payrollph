@@ -55,8 +55,8 @@ try {
     }
     assert.equal(await card.locator(".first-payroll-grid").count(), 0);
     assert.ok((await card.innerText()).includes("does not certify payroll or authorize payment"));
-    // One worker lacks payout fields: neither calculation nor release may be offered.
-    assert.equal(await card.getByRole("button", { name: /Start first payroll|Prepare payroll|Review approvals/ }).count(), 0);
+    // A blocked tenant may open the step, but must not create a payroll run from a preview.
+    assert.equal(await card.getByRole("button", { name: /Create actual draft payroll/ }).count(), 0);
     assert.ok((await steps.nth(4).innerText()).includes("Upcoming"));
     assert.ok((await steps.nth(6).innerText()).includes("Upcoming"));
     const bounds = await card.evaluate(element => {
@@ -67,17 +67,19 @@ try {
     assert.ok(bounds.left >= -1 && bounds.right <= bounds.width + 1, role + " card leaves phone viewport");
     assert.ok(bounds.scrollWidth <= bounds.clientWidth + 1, role + " card content overflows");
     await card.getByRole("button", { name: "Open people", exact: true }).click();
-    await page.locator('[data-workspace-page="People"]').waitFor({ timeout: 60000 });
-    await page.locator(".people-layout .data-table")
-      .getByText("AlphaPrivate Worker", { exact: true }).waitFor();
-    assert.ok(!(await page.locator('[data-workspace-page="People"]').innerText()).includes("BetaPrivate"));
+    // The new contract is inline; no route change or hidden cross-employer roster.
+    assert.equal(await page.locator('[data-workspace-page="Overview"]').count(), 1);
+    const peoplePanel = card.locator('[aria-label="people inline setup"]');
+    await peoplePanel.waitFor({ timeout: 60000 });
+    assert.ok((await peoplePanel.innerText()).includes("Add employee inline"));
+    assert.ok(!(await peoplePanel.innerText()).includes("BetaPrivate"));
     if (role === "owner") {
       const inbox = await browserGet("/api/hcm/people-operations-inbox?organizationId=1");
       assert.equal(inbox.status, 200);
       assert.equal(inbox.body.organizationId, 1, "People inbox must identify its authorized employer");
       assert.equal(await page.getByText("The People Operations Inbox returned an unexpected employer scope.", { exact: true }).count(), 0);
     }
-    report.checkpoints.push(role + ": seven steps, blocked incomplete setup, phone fit and People handoff");
+    report.checkpoints.push(role + ": seven steps, blocked incomplete setup, phone fit and inline People step");
 
     if (role === "owner") {
       await page.locator(".company-switcher").click();

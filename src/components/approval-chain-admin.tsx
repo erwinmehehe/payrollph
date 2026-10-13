@@ -10,6 +10,8 @@ type ChainStep = {
   priority?: string;
   minimumAmount?: number;
   dynamicGroupCode?: string;
+  escalationAfterDays?: number;
+  escalationRecipient?: string;
 };
 
 type ChainPolicy = {
@@ -37,6 +39,8 @@ function normalizedSteps(value: unknown): ChainStep[] {
       priority: String(row.priority ?? "Normal"),
       minimumAmount: Number(row.minimumAmount ?? 0),
       dynamicGroupCode: String(row.dynamicGroupCode ?? ""),
+      escalationAfterDays: row.escalationAfterDays == null ? undefined : Number(row.escalationAfterDays),
+      escalationRecipient: String(row.escalationRecipient ?? ""),
     }];
   });
 }
@@ -53,6 +57,11 @@ export function ApprovalChainAdmin({
   const [policies, setPolicies] = useState<ChainPolicy[]>([]);
   const [dynamicGroups, setDynamicGroups] = useState<Array<{ id: number; code: string; name: string; version: number }>>([]);
   const [loading, setLoading] = useState(true);
+  const [approvalEscalationsEnabled, setApprovalEscalationsEnabled] = useState(false);
+  const [heldEscalationInstances, setHeldEscalationInstances] = useState<Array<{
+    id: number; policyCode: string; policyVersion: number; currentStepIndex: number;
+  }>>([]);
+  const [recoveryInventoryLimited, setRecoveryInventoryLimited] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [code, setCode] = useState("");
@@ -70,6 +79,10 @@ export function ApprovalChainAdmin({
       if (!response.ok) throw new Error(payload.error ?? "Could not load approval chains.");
       setPolicies(Array.isArray(payload.policies) ? payload.policies : []);
       setDynamicGroups(Array.isArray(payload.dynamicGroups) ? payload.dynamicGroups : []);
+      setApprovalEscalationsEnabled(payload.approvalEscalationsEnabled === true);
+      setHeldEscalationInstances(Array.isArray(payload.heldEscalationInstances)
+        ? payload.heldEscalationInstances : []);
+      setRecoveryInventoryLimited(payload.recoveryInventoryLimited === true);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not load approval chains.");
     } finally {
@@ -178,6 +191,19 @@ export function ApprovalChainAdmin({
           <span>Chain changes require company-wide admin, MFA, same-origin, rate-limit, and audit controls. Steps keep their named approver or role:hr, role:finance, role:manager or role:owner authority. An optional Dynamic Group adds a live worker-membership requirement; it never grants approvals or bypasses delegation, maker-checker or payroll controls. Group identity and version are frozen when a request starts.</span>
         </div>
 
+        {heldEscalationInstances.length > 0 && (
+          <div className="notice notice-slate" role="status" style={{ marginBottom: 14 }}>
+            <ShieldCheck size={15} />
+            <div>
+              <strong>{heldEscalationInstances.length} in-flight approval chain(s) held after escalation rollback.</strong>
+              <p>These approvals require review and reissue under the current policy; they cannot be silently decided as legacy tasks. This list contains no worker or payroll details.</p>
+              <ul>{heldEscalationInstances.map(row => (
+                <li key={row.id}>Chain #{row.id} · {row.policyCode} v{row.policyVersion} · stage {row.currentStepIndex + 1}</li>
+              ))}</ul>
+              {recoveryInventoryLimited && <p>Only the newest 100 pending chains were inspected. Export or page the full inventory before declaring recovery complete.</p>}
+            </div>
+          </div>
+        )}
         <div className="setting-form">
           <label>Chain code
             <input
@@ -220,6 +246,21 @@ export function ApprovalChainAdmin({
                 </label>
                 <label>Starts at (PHP)<input type="number" min="0" step="0.01" disabled={index === 0} value={step.minimumAmount ?? 0} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, minimumAmount: Number(event.target.value) } : row))} /></label>
                 <label>Priority<select value={step.priority ?? "Normal"} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, priority: event.target.value } : row))}><option>Normal</option><option>High</option></select></label>
+                {approvalEscalationsEnabled && <>
+                  <label>Escalate after days (1–30)
+                    <input type="number" min="1" max="30" step="1"
+                      value={step.escalationAfterDays ?? ""}
+                      onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? {
+                        ...row, escalationAfterDays: event.target.value === "" ? undefined : Number(event.target.value),
+                      } : row))} placeholder="Off" />
+                  </label>
+                  <label>Advisory recipient (not a new approver)
+                    <input value={step.escalationRecipient ?? ""} placeholder="role:hr, role:owner or user:123"
+                      onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? {
+                        ...row, escalationRecipient: event.target.value,
+                      } : row))}/>
+                  </label>
+                </>}
                 <button type="button" className="icon-button" disabled={steps.length === 1} onClick={() => setSteps((rows) => rows.filter((_, i) => i !== index))}><Trash2 size={15} /></button>
               </div>
             </div>

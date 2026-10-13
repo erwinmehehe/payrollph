@@ -1,4 +1,5 @@
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { birWithholdingRemittanceBatches, employees, historicalPayrollEntries, legalEntities, organizations, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
@@ -21,6 +22,10 @@ const requiresAnnualEmployerScope = (format: string) =>
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  if (criticalReleaseFlagEnabled("multiEntity")) return Response.json({
+    error: "Tenant-wide year-end reporting and annualization are held until legal-employer scoping is reviewed.",
+    code: "ENTITY_YEAR_END_DEFERRED",
+  }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
 
   const { searchParams } = new URL(request.url);
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
@@ -370,6 +375,10 @@ export async function POST(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  if (criticalReleaseFlagEnabled("multiEntity")) return Response.json({
+    error: "Tenant-wide year-end reporting and annualization are held until legal-employer scoping is reviewed.",
+    code: "ENTITY_YEAR_END_DEFERRED",
+  }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);

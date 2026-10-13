@@ -32,3 +32,13 @@
 Independent HR and IT attestations, Finance/payment reviewer, DBA approval of *new uniquely numbered* schema and restore evidence, DPO privacy/legal-hold review, security/tenant isolation sign-off. Store named operator, timestamp, SHA, accepted/failed outcome, and hashed supporting evidence privately. No placeholders above count as approvals.
 
 No production Neon DDL, real employee action, bank transfer or live account deprovisioning is authorized by this document.
+
+## Cross-employer identity security reconciliation (synthetic)
+
+The offboarding transaction revokes only the separated employer's memberships,
+invalidates all existing sessions, and preserves a still-active account for a
+different employer. An account with no surviving employer is disabled. Legacy
+membership rows without workerEmployeeId are included in the revocation.
+The attached disposable PostgreSQL test checks both employee membership scopes.
+Re-linking a global employeeId for the surviving employer remains a separate
+HR/identity review. No external IdP/SSO/MDM access is claimed revoked.

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employees, sessions, users, userOrganizations } from "@/db/schema";
 
@@ -37,9 +37,32 @@ export async function revokeSeparatedEmployeeAccessTx(tx: DbTransaction, input: 
     eq(users.role, "employee"),
   ));
   const employeeUserIds = linked.map(row => row.id);
-  const disabled = employeeUserIds.length
+  // Revoke every employer-A membership tied to the separated employee,
+  // including historical linked-logins without a populated workerEmployeeId.
+  const scopedMemberships = await tx.update(userOrganizations).set({ active: false })
+    .where(and(
+      eq(userOrganizations.organizationId, input.organizationId),
+      eq(userOrganizations.active, true),
+      or(
+        eq(userOrganizations.workerEmployeeId, input.employeeId),
+        ...(employeeUserIds.length ? [inArray(userOrganizations.userId, employeeUserIds)] : []),
+      ),
+    )).returning({ id: userOrganizations.id });
+  const otherEmployerMemberships = employeeUserIds.length
+    ? await tx.select({ userId: userOrganizations.userId }).from(userOrganizations)
+        .where(and(
+          inArray(userOrganizations.userId, employeeUserIds),
+          ne(userOrganizations.organizationId, input.organizationId),
+          eq(userOrganizations.active, true),
+        ))
+    : [];
+  const retainedLogins = new Set(otherEmployerMemberships.map(row => row.userId));
+  const disableIds = employeeUserIds.filter(id => !retainedLogins.has(id));
+  // Only disable the login if it no longer serves another employer.
+  // All existing sessions must reauthenticate regardless of membership.
+  const disabled = disableIds.length
     ? await tx.update(users).set({ active: false, localPasswordEnabled: false })
-        .where(and(inArray(users.id, employeeUserIds), eq(users.role, "employee")))
+        .where(and(inArray(users.id, disableIds), eq(users.role, "employee")))
         .returning({ id: users.id })
     : [];
   const revoked = employeeUserIds.length
@@ -47,12 +70,6 @@ export async function revokeSeparatedEmployeeAccessTx(tx: DbTransaction, input: 
         inArray(sessions.userId, employeeUserIds), isNull(sessions.revokedAt),
       )).returning({ id: sessions.id })
     : [];
-  const scopedMemberships = await tx.update(userOrganizations).set({ active: false })
-    .where(and(
-      eq(userOrganizations.organizationId, input.organizationId),
-      eq(userOrganizations.workerEmployeeId, input.employeeId),
-      eq(userOrganizations.active, true),
-    )).returning({ id: userOrganizations.id });
 
   // Append access evidence to the same atomic commit. A failed audit write
   // also rolls back session revocation, memberships, and final-pay release.

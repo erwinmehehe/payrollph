@@ -157,3 +157,61 @@ test("separated worker access revocation is tenant-scoped and rollback-atomic", 
     await db.delete(users).where(eq(users.id, actor.id));
   }
 });
+
+test("offboarding preserves other employer login but revokes original sessions and employer A membership", async () => {
+  const suffix = randomUUID();
+  const [orgA, orgB] = await db.insert(organizations).values([
+    { name: "A6 Identity A " + suffix, legalName: "A6 Identity A", plan: "Core" },
+    { name: "A6 Identity B " + suffix, legalName: "A6 Identity B", plan: "Core" },
+  ]).returning();
+  const [reviewer] = await db.insert(users).values({
+    email: "a6-cross-review-" + suffix + "@example.invalid",
+    name: "Fictional A6 Reviewer", passwordHash: "qa", role: "owner",
+  }).returning();
+  let loginId: number | null = null;
+  try {
+    const [worker] = await db.insert(employees).values({
+      organizationId: orgA.id, employeeNo: "A6-DUAL-" + orgA.id,
+      firstName: "Fictional", lastName: "Dual Membership", title: "Staff",
+      avatarInitials: "FM", basicRate: "25000.00", startDate: "2026-01-01",
+      status: "Separated",
+    }).returning();
+    const [login] = await db.insert(users).values({
+      email: "a6-cross-employee-" + suffix + "@example.invalid",
+      name: "Fictional A6 Employee", passwordHash: "qa", role: "employee",
+      employeeId: worker.id,
+    }).returning();
+    loginId = login.id;
+    const memberships = await db.insert(userOrganizations).values([
+      { userId: login.id, organizationId: orgA.id, role: "employee", workerEmployeeId: null },
+      { userId: login.id, organizationId: orgB.id, role: "employee" },
+    ]).returning();
+    const [session] = await db.insert(sessions).values({
+      userId: login.id, tokenHash: "a6-dual-" + suffix,
+      expiresAt: new Date("2030-01-01T00:00:00Z"),
+    }).returning();
+    await db.transaction(async tx => {
+      const revoked = await revokeSeparatedEmployeeAccessTx(tx, {
+        organizationId: orgA.id, employeeId: worker.id, separationId: 9001,
+        actorUserId: reviewer.id, actorName: reviewer.name,
+      });
+      assert.deepEqual(revoked.disabledEmployeeLoginIds, []);
+      assert.equal(revoked.revokedSessionCount, 1);
+      assert.equal(revoked.revokedEmployerMembershipIds.length, 1);
+    });
+    const [saved] = await db.select().from(users).where(eq(users.id, login.id));
+    assert.equal(saved.active, true, "Employer B identity must remain usable");
+    assert.equal(saved.localPasswordEnabled, true);
+    const [oldSession] = await db.select().from(sessions).where(eq(sessions.id, session.id));
+    assert.ok(oldSession.revokedAt, "Existing sessions must reauthenticate");
+    const persisted = await db.select().from(userOrganizations)
+      .where(eq(userOrganizations.userId, login.id));
+    assert.equal(persisted.find(m => m.id === memberships[0].id)?.active, false);
+    assert.equal(persisted.find(m => m.id === memberships[1].id)?.active, true);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, orgA.id));
+    await db.delete(organizations).where(eq(organizations.id, orgB.id));
+    if (loginId !== null) await db.delete(users).where(eq(users.id, loginId));
+    await db.delete(users).where(eq(users.id, reviewer.id));
+  }
+});

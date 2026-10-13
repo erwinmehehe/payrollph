@@ -58,6 +58,26 @@ async function workspace(page, orgId) {
   });
   assert.equal(response?.status(), 200, "Cannot enter synthetic employer workspace");
   await page.locator('[data-workspace-page="Overview"]').waitFor({ timeout: 60000 });
+  // Server-rendered inputs are visible before their React listeners attach.
+  // In this isolated app, wait for the initial scripts/data to settle before
+  // entering text; otherwise fill() can change the DOM without React state.
+  await page.waitForLoadState("networkidle");
+}
+
+/** A hydrated controlled input is needed before synthetic browser typing.
+ * SSR may show a focusable searchbox while React has not yet attached its
+ * change handler. Merely waiting for networkidle does not prove hydration.
+ * The actual authorized/no-match search checks remain unchanged.
+ */
+async function hydratedEmployeeSearch(page) {
+  const input = page.getByRole("searchbox", { name: "Find an employee" });
+  await input.waitFor();
+  await page.waitForFunction(() => {
+    const node = document.getElementById("hris-employee-quick-find");
+    return node instanceof HTMLInputElement &&
+      Object.keys(node).some(key => key.startsWith("__reactProps$"));
+  }, null, { timeout: 60000 });
+  return input;
 }
 
 async function checkpoint(page, name, fn) {
@@ -89,7 +109,7 @@ try {
     const moreTools = page.locator("details").filter({ has: additional });
     assert.equal(await moreTools.evaluate(node => node.open), false,
       "Secondary HR navigation should not crowd the everyday experience");
-    const quickFind = page.getByRole("searchbox", { name: "Find an employee" });
+    const quickFind = await hydratedEmployeeSearch(page);
     await quickFind.fill("BetaPrivate");
     await page.getByText("No matching employee in your authorized directory.").waitFor();
     await quickFind.fill("AlphaPrivate Worker");
@@ -156,6 +176,93 @@ try {
     assert.equal(await page.getByText("AlphaPrivate note", { exact: true }).count(), 0);
   });
 
+  await checkpoint(page, "ESS HR cases: employer-scoped messages, internal-note privacy and blocked COE issuance", async () => {
+    await workspace(page, 1);
+    const ess = await browser.newContext({ viewport: { width: 375, height: 812 } });
+    await signIn(ess, "hcm-employee@example.test");
+    const ep = await ess.newPage();
+    try {
+      await ep.goto(base + "/login", { waitUntil: "domcontentloaded" });
+      const created = await browserRequest(ep, "/api/hr-cases", "POST", {
+        caseType: "general", subject: "Synthetic staff support",
+        description: "A fictional worker requests an HR update for disposable QA.",
+      });
+      assert.equal(created.status, 201, "ESS case creation failed");
+      const id = created.body?.case?.id;
+      assert.ok(Number.isSafeInteger(id) && id > 0);
+      const employeeOwn = await browserRequest(ep, "/api/hr-cases?organizationId=1");
+      assert.equal(employeeOwn.status, 200);
+      assert.ok(employeeOwn.body?.cases?.some(row => row.id === id));
+
+      const staff = await browserRequest(page, "/api/hr-cases?organizationId=1");
+      assert.equal(staff.status, 200);
+      assert.ok(staff.body?.cases?.some(row => row.id === id));
+      const internal = await browserRequest(page, "/api/hr-cases", "PATCH", {
+        id, action: "internal_note", message: "HR_PRIVATE_SYNTHETIC_ONLY",
+      });
+      assert.equal(internal.status, 200);
+      const afterInternal = await browserRequest(ep, "/api/hr-cases?organizationId=1");
+      assert.equal(afterInternal.status, 200);
+      assert.equal(JSON.stringify(afterInternal.body).includes("HR_PRIVATE_SYNTHETIC_ONLY"), false,
+        "ESS cannot receive internal HR notes");
+      const forbidden = await browserRequest(ep, "/api/hr-cases", "PATCH", {
+        id, action: "internal_note", message: "Trying to add an internal note",
+      });
+      assert.equal(forbidden.status, 403);
+
+      const waiting = await browserRequest(page, "/api/hr-cases", "PATCH", {
+        id, action: "status", status: "waiting_employee",
+      });
+      assert.equal(waiting.status, 200);
+      const reply = await browserRequest(ep, "/api/hr-cases", "PATCH", {
+        id, action: "reply", message: "Synthetic worker reply",
+      });
+      assert.equal(reply.status, 200);
+      assert.equal(reply.body?.case?.status, "in_progress");
+
+      const other = await browserRequest(page, "/api/hr-cases?organizationId=2");
+      assert.equal(other.status, 200);
+      assert.equal(other.body?.cases?.some(row => row.id === id), false,
+        "An A-employer case must never appear under B");
+
+      const coe = await browserRequest(ep, "/api/hr-cases", "POST", {
+        caseType: "coe", subject: "Synthetic COE request",
+        description: "Request fictional certificate with private vault disabled.",
+      });
+      assert.equal(coe.status, 201);
+      const reject = await browserRequest(page, "/api/hr-cases", "PATCH", {
+        id: coe.body.case.id, action: "approve_coe",
+      });
+      assert.equal(reject.status, 503,
+        "COE may not issue when the private document vault is not active");
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(base + "/hcm/hr-cases?organizationId=1");
+        const inbox = page.getByRole("region", { name: "Employee HR case inbox" });
+        await inbox.getByText("Synthetic staff support", { exact: true }).waitFor();
+        const bounds = await inbox.boundingBox();
+        assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width + 1);
+        await page.screenshot({ path: "qa-artifacts/hr-cases-staff-" + width + ".png", fullPage: true });
+        await ep.setViewportSize({ width, height: 900 });
+        await ep.goto(base + "/app");
+        if (width < 600) {
+          await ep.getByRole("button", { name: "More employee pages", exact: true }).click();
+          await ep.getByRole("region", { name: "Additional employee pages" })
+            .getByRole("button", { name: "Documents", exact: true }).click();
+        } else {
+          await ep.locator(".employee-side-nav").getByRole("button", { name: "Documents", exact: true }).click();
+        }
+        const requests = ep.getByRole("region", { name: "HR requests", exact: true });
+        await requests.getByText("Synthetic staff support", { exact: true }).waitFor();
+        assert.equal(await requests.getByText("HR_PRIVATE_SYNTHETIC_ONLY").count(), 0);
+        await requests.screenshot({ path: "qa-artifacts/hr-cases-employee-" + width + ".png" });
+      }
+      await page.setViewportSize({ width: 1440, height: 900 });
+    } finally {
+      await ess.close();
+    }
+  });
+
   // Verify the same task-first surface at phone width and after the actual
   // employer-switching control reloads the selected tenant. Test data is local.
   const mobileHr = await browser.newContext({
@@ -182,7 +289,7 @@ try {
     const teamLink = mobilePage.getByRole("link", { name: /Review team/ });
     assert.equal(await teamLink.getAttribute("href"), "/hcm/my-team?organizationId=1");
     assert.equal(await hub.locator("details").first().evaluate(node => node.open), false);
-    const quickFind = mobilePage.getByRole("searchbox", { name: "Find an employee" });
+    const quickFind = await hydratedEmployeeSearch(mobilePage);
     await quickFind.fill("BetaPrivate");
     await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
 
@@ -194,7 +301,7 @@ try {
     assert.equal(await mobilePage.getByRole("link", { name: /Review team/ }).getAttribute("href"),
       "/hcm/my-team?organizationId=2",
       "Review team must not retain the previous employer ID");
-    const betaFind = mobilePage.getByRole("searchbox", { name: "Find an employee" });
+    const betaFind = await hydratedEmployeeSearch(mobilePage);
     await betaFind.fill("AlphaPrivate");
     await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
     await betaFind.fill("BetaPrivate");

@@ -58,11 +58,37 @@ export function assertScheduleSwappable(snapshot: ScheduleSwapSnapshot) {
   }
 }
 
+/**
+ * PostgreSQL jsonb reorders object keys when a submitted snapshot is stored.
+ * Comparing JSON.stringify(stored) to JSON.stringify(fresh) therefore rejects
+ * an unchanged roster. Compare every field recursively, ignoring ONLY object
+ * key insertion order. Arrays (shift segment order), extra/missing fields,
+ * types and every payroll-relevant field must still match exactly.
+ */
+function equalSnapshotJson(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object") {
+    return false;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right)
+      && left.length === right.length
+      && left.every((value, index) => equalSnapshotJson(value, right[index]));
+  }
+  const leftFields = left as Record<string, unknown>;
+  const rightFields = right as Record<string, unknown>;
+  const keys = Object.keys(leftFields);
+  return keys.length === Object.keys(rightFields).length
+    && keys.every((key) =>
+      Object.prototype.hasOwnProperty.call(rightFields, key)
+      && equalSnapshotJson(leftFields[key], rightFields[key]));
+}
+
 export function scheduleSwapSnapshotsMatch(
   expected: ScheduleSwapSnapshot,
   current: ScheduleSwapSnapshot,
 ) {
-  return JSON.stringify(expected) === JSON.stringify(current);
+  return equalSnapshotJson(expected, current);
 }
 
 export function scheduleSwapOverrideValues(

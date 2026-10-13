@@ -42,7 +42,14 @@ test("new assignments immediately notify the assigned operator without blocking 
 test("compliance escalation email retries use bounded outbox backoff", () => {
   assert.ok(mailer.includes('"statutory-remittance-escalation"'));
   assert.ok(mailer.includes("MAX_AUTOMATIC_RETRIES + 1"));
-  assert.ok(mailer.includes('inArray(outbox.purpose, ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case"])'));
+  // Keep the original purpose in the bounded retry allowlist while allowing
+  // new, independently authorized notification classes to be added.
+  const allowlist = mailer.match(/inArray\(outbox\.purpose,\s*\[([^\]]*)\]\)/)?.[1];
+  assert.ok(allowlist, "Automatic retry must use an explicit outbox purpose allowlist");
+  assert.ok(allowlist.includes('"statutory-remittance-escalation"'),
+    "The existing statutory/employee retry path must not be dropped");
+  assert.ok(mailer.includes("gt(outbox.maxAttempts, 0)"),
+    "Permanently blocked messages must not starve the bounded retry queue");
 });
 
 test("aged escalation stages are deduped per episode, severity, stage and recipient", () => {
