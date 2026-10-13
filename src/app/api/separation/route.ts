@@ -330,6 +330,8 @@ export async function GET(request: Request) {
     offboardingClearanceEnabled: offboardingEnabled,
     canAuthorizeClearanceWaivers: offboardingEnabled && access.companyWide &&
       ["owner", "admin"].includes(access.role),
+    canRevokeLocalAccess: offboardingEnabled && access.companyWide &&
+      ["owner", "admin", "hr"].includes(access.role),
     separations: records.map(({ sep, employee }) => ({
       waivedDepartments: offboardingEnabled ? offboardingClearanceStatus(sep, waiverRows).waived : [],
       clearanceReady: offboardingEnabled
