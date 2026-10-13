@@ -75,6 +75,7 @@ test("advisory destination writes one tenant-bound outbox receipt; inactive and 
     assert.equal(messages.length, 1);
     assert.equal(messages[0].recipient, actor.email);
     assert.equal(messages[0].status, "queued");
+    assert.equal(messages[0].maxAttempts, 4, "Advisory notices must participate in the bounded automatic retry worker");
     assert.ok(!messages[0].body.includes("Synthetic approval"));
     assert.ok(!messages[0].body.includes("Synthetic fixture"));
     const betaOutbox = await db.select().from(outbox)
@@ -105,6 +106,11 @@ test("advisory destination writes one tenant-bound outbox receipt; inactive and 
     assert.equal(staleRetry.ok, false);
     assert.equal(staleRetry.httpStatus, 409,
       "A revoked recipient must not receive a previously queued advisory");
+    const [tombstone] = await db.select().from(outbox).where(eq(outbox.id, messages[0].id));
+    assert.equal(tombstone.status, "failed");
+    assert.equal(tombstone.deliveryStatus, "blocked");
+    assert.equal(tombstone.maxAttempts, 0,
+      "A revoked advisory must never be retried later, even after reactivation");
     await runDueApprovalChainEscalations(new Date(now.getTime() + 60_000));
     const replay = await db.select().from(outbox)
       .where(eq(outbox.organizationId, alpha.id));
