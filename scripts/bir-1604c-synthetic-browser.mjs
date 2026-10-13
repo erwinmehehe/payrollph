@@ -165,7 +165,7 @@ try {
     const root = page.locator('[data-bir-1604c-candidate]');
     assert.ok(await root.getByText("1604-C reviewed DAT candidate", { exact: false }).isVisible());
     assert.ok((await root.locator('[data-bir-v70-validation-status]').textContent()).includes("not run"));
-    await root.screenshot({ path: outDir + "/year-end-bir-" + width + ".png" });
+    await page.screenshot({ path: outDir + "/year-end-bir-" + width + ".png", fullPage: true });
     const bounding = await root.evaluate(el => ({
       left: el.getBoundingClientRect().left, right: el.getBoundingClientRect().right,
       viewport: window.innerWidth,
