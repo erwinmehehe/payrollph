@@ -154,7 +154,7 @@ async function run() {
   ];
   const roleUsers = await db.insert(users).values(roleSpec.map((item, index) => ({
     name: "Fictional " + item.key,
-    email: item.key + ".wfm5@linaw.test",
+    email: item.key.toLowerCase() + ".wfm5@linaw.test",
     passwordHash: hashPassword(QA_PASSWORD),
     role: item.role,
     employeeId: item.role === "employee" ? staff[index - 4].id : null,
@@ -167,7 +167,7 @@ async function run() {
     orgUnitId: null,
   })));
   const actors: Record<string, Client> = {};
-  for (const item of roleSpec) actors[item.key] = await signIn(item.key + ".wfm5@linaw.test");
+  for (const item of roleSpec) actors[item.key] = await signIn(item.key.toLowerCase() + ".wfm5@linaw.test");
   evidence("distinct-synthetic-manager-hr-payroll-employee-and-tenant-B-logins");
 
   const denyTenant = await actors.tenantB.json(
@@ -217,7 +217,7 @@ async function run() {
   assert.equal(Number(roster.totalEmployees), 5);
   assert.equal(roster.rows?.length, 5);
   assert.deepEqual(
-    new Set(roster.rows.map((entry:any) => Number(entry.employeeId))),
+    new Set(roster.rows.map((entry:any) => Number(entry.employee?.id))),
     new Set(staff.map(entry => entry.id)),
   );
   evidence("authenticated-seven-day-roster-five-matching-worker-identities");
