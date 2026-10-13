@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { BIR_1604C_LAYOUT, type Bir1604CReviewedRecord } from "../src/lib/bir-1604c-pre-export";
 import {
-  bindBir1604cReviewToEmployer, type Bir1604cSourceSnapshot,
+  bindBir1604cReviewToEmployer, buildBir1604cReviewTemplate,
+  type Bir1604cSourceSnapshot,
 } from "../src/lib/bir-1604c-source-review";
 
 const digest = "a".repeat(64);
@@ -113,4 +114,27 @@ test("wrong employee identity or nationality cannot be supplied only via uploade
   row.fields.NATIONALITY = "INDIAN";
   assert.ok(has(check(row), "EMPLOYEE_NAME_MISMATCH"));
   assert.ok(has(check(row), "NATIONALITY_MISMATCH"));
+});
+
+test("operator template maps only recorded TIN/name/year-end tax and leaves unknowns null", () => {
+  const template = buildBir1604cReviewTemplate(source(), 2026);
+  assert.ok(template);
+  assert.equal(template!.status, "DRAFT-REVIEW-REQUIRED");
+  assert.equal(template!.sourceDigest, digest);
+  const row = template!.records[0];
+  assert.equal(row.schedule, "D1");
+  assert.equal(row.fields.TIN, "333222111");
+  assert.equal(row.fields.FIRST_NAME, "MARIA");
+  assert.equal(row.fields.ACTUAL_AMT_WTHLD, "5000.00");
+  assert.equal(row.fields.NET_TAXABLE_COMP_INCOME, "500000.00");
+  assert.equal(row.fields.REGION_NUM, null);
+  assert.equal(row.fields.PRES_NONTAX_13TH_MONTH, null);
+  assert.equal(row.fields.PREV_TAX_WTHLD, null);
+  assert.equal(row.priorEmployerReview, "");
+  assert.equal(row.reviewedBy, "");
+  assert.ok(row.missingManualFields.includes("REGION_NUM"));
+  const mwe = buildBir1604cReviewTemplate(source(true), 2026);
+  assert.equal(mwe?.records[0].schedule, "D2");
+  assert.equal(mwe?.records[0].fields.PRES_NONTAX_NIGHT_DIFF, null);
+  assert.equal(mwe?.records[0].fields.FACTOR_USED, null);
 });
