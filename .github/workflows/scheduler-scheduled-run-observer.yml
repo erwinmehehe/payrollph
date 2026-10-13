@@ -42,7 +42,7 @@ jobs:
         run: node --test tests/scheduler-schedule-provenance.test.mjs tests/scheduler-staging-health.test.mjs
 
   collect-github-schedule-evidence:
-    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref == 'refs/heads/main'
     needs: observer-unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
