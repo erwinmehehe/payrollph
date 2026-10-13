@@ -30,11 +30,16 @@ if (
 const epoch = RealDate.parse("2026-09-30T08:00:00.000Z");
 const start = process.hrtime.bigint();
 const now = () => epoch + Number((process.hrtime.bigint() - start) / 1000000n);
-class IsolatedQADate extends RealDate {
-  constructor(...args) {
-    if (args.length === 0) super(now());
-    else super(...args);
-  }
-  static now() { return now(); }
-}
-globalThis.Date = IsolatedQADate;
+// Preserve Date()'s callable form, Date.parse/UTC, instanceof checks and
+// constructor overloads. Only no-argument construction and now() are virtual.
+globalThis.Date = new Proxy(RealDate, {
+  apply() {
+    return new RealDate(now()).toString();
+  },
+  construct(target, args, newTarget) {
+    return Reflect.construct(target, args.length === 0 ? [now()] : args, newTarget);
+  },
+  get(target, key, receiver) {
+    return key === "now" ? now : Reflect.get(target, key, receiver);
+  },
+});
