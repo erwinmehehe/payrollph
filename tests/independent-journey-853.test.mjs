@@ -56,3 +56,16 @@ test("unsafe claims always rejected independently of populated evidence",()=>{
   const m=sample();m.safety[k]=true;assert.throws(()=>assess(m),/Unsafe external claim/);
  }
 });
+test("all six journey personas must be separate humans, not only checker and payroll", () => {
+ const m = sample();
+ m.stages["JOURNEY-03"].operatorRef = people.HR;
+ m.stages["JOURNEY-05"].operatorRef = people.HR;
+ assert.equal(assess(m).completeForPrivateReview, false);
+ assert.ok(assess(m).reasons.some(reason => reason.includes("HR and MANAGER")));
+});
+test("cross-cutting observation operators must also be journey operators", () => {
+ const m = sample();
+ m.checks.NO_DEVELOPER_ASSISTANCE.operatorRef = "PERSON-UNVERIFIED07";
+ assert.equal(assess(m).completeForPrivateReview, false);
+ assert.ok(assess(m).reasons.some(reason => reason.includes("operator is not a recorded journey operator")));
+});
