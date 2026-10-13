@@ -38,6 +38,14 @@ The inspected Vercel Hobby project `erwinmehehe-payrollph` has the custom produc
 
 Current `vercel.json` permits automatic Git deployments for `main` but disables preview/staging branches. Staging acceptance therefore needs a **separate isolated Vercel project/custom environment with synthetic PostgreSQL and no production secrets**, or another explicitly isolated runtime. Do not use the production database for staged tick tests.
 
+## Vercel production deployment hold — verified cause (October 13)
+
+Vercel's audit event `project-ignored-build-step-updated` on October 11, 2026 shows that `commandForIgnoringBuildStep` was set to `exit 0`. In Vercel an ignored build step returning zero skips deployment. This is the verified cause of the large series of CANCELED main builds, **not evidence that recent code failed to compile**.
+
+Keep the deliberate production hold until current-head source checks, schema readiness and release authorization are complete. On the Vercel project, remove the unconditional ignore command **only when a specific commit has been approved for deployment**. Safer operational pattern: use the release hold to block unreviewed commits, then stage exactly the authorized commit with explicit SHA and reviewed release evidence. Do not flip the hold just because CI passes; production may have unapplied SQL migrations. After release, confirm the custom-domain alias resolves the approved SHA, not just a READY ephemeral build.
+
+An attempt to create a separate Neon project in the connected Vercel-managed Neon organization returned `action restricted; organization is managed by Vercel`. Do not copy production PostgreSQL into staging or use a parent-copy Neon branch for synthetic tests. Provision a **new isolated staging PostgreSQL database** through an authorized Vercel integration or separate Neon account with synthetic data only. Configure the staging Vercel project's database URL manually through its protected settings, never with production values.
+
 ## Required acceptance before turning on
 
 1. Identify exact actual PayrollPH web deployment/host, Git SHA, tenant environment and dedicated database. Do not assume this GitHub repository is linked to the correct Vercel project.
