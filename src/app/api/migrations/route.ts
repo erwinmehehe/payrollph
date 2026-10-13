@@ -415,11 +415,11 @@ export async function POST(request: Request) {
       for (const row of importRows as MigratedEmployee[]) {
         if (!employeeByNo.has(row.employeeNo.trim().toLowerCase()) && !row.startDate) continue;
         protectedGovernmentIds.set(row.employeeNo.trim().toLowerCase(), {
-          tin: encryptGovernmentId(row.tin, { required: process.env.NODE_ENV === "production" }),
-          tinBranchCode: encryptGovernmentId(row.tinBranchCode, { required: process.env.NODE_ENV === "production" }),
-          sssNo: encryptGovernmentId(row.sssNo, { required: process.env.NODE_ENV === "production" }),
-          philHealthNo: encryptGovernmentId(row.philHealthNo, { required: process.env.NODE_ENV === "production" }),
-          pagIbigNo: encryptGovernmentId(row.pagIbigNo, { required: process.env.NODE_ENV === "production" }),
+          tin: encryptGovernmentId(row.tin, { required: true }),
+          tinBranchCode: encryptGovernmentId(row.tinBranchCode, { required: true }),
+          sssNo: encryptGovernmentId(row.sssNo, { required: true }),
+          philHealthNo: encryptGovernmentId(row.philHealthNo, { required: true }),
+          pagIbigNo: encryptGovernmentId(row.pagIbigNo, { required: true }),
         });
       }
     } catch {

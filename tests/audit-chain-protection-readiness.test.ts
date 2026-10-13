@@ -21,7 +21,7 @@ test("audit chain production readiness requires every distinct verified DB contr
 });
 
 test("readiness and rollout both fail closed on unverified audit database protection", () => {
-  const route = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const route = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   const pilot = readFileSync("src/app/api/readiness/pilot-status/route.ts", "utf8");
   const rollout = readFileSync("scripts/live-production-readiness.ts", "utf8");
   const probe = readFileSync("src/lib/audit-chain-protection-readiness.ts", "utf8");

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PrivacyConsentFields } from "@/components/marketing/privacy-consent-fields";
 import { AlertTriangle, ArrowRight, Check, LoaderCircle, Send } from "lucide-react";
 import { readMarketingAttribution } from "@/lib/marketing-attribution-client";
+import { obtainIntakeProof } from "@/lib/public-intake-proof-client";
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#0877ff] focus:ring-4 focus:ring-[#0877ff]/10";
@@ -30,11 +31,13 @@ export function AccessRequestForm() {
     setError("");
 
     try {
+      const intakeProof = await obtainIntakeProof(form.email);
       const response = await fetch("/api/demo-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          intakeProof,
           requestType: "trial-access",
           privacyConsent,
           website,

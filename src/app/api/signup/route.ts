@@ -11,6 +11,8 @@ import { queueMessage } from "@/lib/mailer";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 import { canonicalAppOrigin, enforceSameOriginMutation } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
+import { enforceIntakeProof } from "@/lib/public-intake-proof-server";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +44,12 @@ export async function POST(request: Request) {
     ...(!acceptTerms ? ["Accept the subscription billing terms to continue."] : []),
   ];
   if (problems.length) return Response.json({ error: "Check your registration details.", problems }, { status: 422 });
+  const proofDenied = await enforceIntakeProof(body, email);
+  if (proofDenied) return proofDenied;
+  if (criticalReleaseFlagEnabled("publicIntakeProof")) {
+    const byDomain = await rateLimitDistributed("signup-domain:" + sha256(email.split("@")[1]), { limit: 50, windowMs: 24 * 60 * 60_000 });
+    if (!byDomain.allowed) return Response.json({ error: "Too many registration requests. Please try later." }, { status: 429 });
+  }
 
   const byEmail = await rateLimitDistributed("signup-email:" + sha256(email), { limit: 3, windowMs: 24 * 60 * 60_000 });
   if (!byEmail.allowed) return Response.json({ error: "Too many registration requests. Please try later." }, { status: 429 });
