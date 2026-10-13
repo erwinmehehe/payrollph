@@ -1,102 +1,37 @@
-# PayrollPH change-risk, independent-review and release policy
+# PayrollPH change-risk and merge policy
 
-**Purpose:** separate *source merge*, *deployment/feature activation* and
-*real-employer payroll or money movement*. A passing source test is not
-business authorization to pay employees or initiate transfers. This policy
-implements P0-3 from the October 10/12 panel re-audit.
+Purpose: move verified source fixes quickly without confusing **merging code**, **enabling a deployed feature**, and **executing real payroll or money movement**. This policy deliberately has **no blanket independent GitHub review/approval requirement** for pull requests. The repository owner/authorized maintainer may review and merge their own change when its actual merge checks and acceptance criteria pass.
 
-## PR risk tiers and source merge requirements
+## Merge requirements by change risk
 
-| Tier | Scope | Required source-merge checks | Real-environment activation |
+| Tier | Scope | Code merge gate | Activation / live operations gate |
 | --- | --- | --- | --- |
-| **T0** | Public copy and non-executable documentation | Maintainer review, applicable CI, queue gate; self-review allowed | Ordinary release controls |
-| **T1** | Non-sensitive UI and general application logic | Current-head applicable tests and maintainer review; self-review allowed | Smoke test and rollback if deployed |
-| **T2** | Payroll calculations, approval logic, HR security, employee data, scheduler and WFM | Current-head CI, focused financial/tenant/security tests, **one named independent human approval** on exact SHA, queue gate | Explicit feature-flag and, for live employer work, business/operational acceptance |
-| **T3** | Payout, bank/PII encryption, provider integrations, schema changes, financial ledger and money release | Current-head CI, golden/DB/integration/security evidence, migration/rollback plan, **one named independent human approval** on exact SHA, queue gate | Separate DBA/treasury/employer maker-checker-release authorization; never from code merge |
+| T0 — low | Documentation, copy, non-executable assets | Owner decision; applicable checks; no outside reviewer | Ordinary release process |
+| T1 — standard | UI and non-sensitive application logic | Current-head CI, relevant behavior tests, owner diff check; **no mandatory independent reviewer** | Functional smoke/rollback if deployed |
+| T2 — sensitive | Payroll/WFM calculations, identity, privacy, worker workflows, AI automation | Current-head CI, applicable CodeQL/security/domain tests, focused owner diff check and recorded rollback; **no automatic second-person PR approval** | For pre-client HCM/WFM: disposable synthetic CI and authorized feature-flag controls; dedicated remote staging is optional. Real-employer activation remains subject to domain-specific acceptance. |
+| T3 — financial/structural | Bank/payout, financial ledger, compensation controls, DB schemas/migrations and recovery | Current-head CI, isolation/golden/security/DB tests as applicable, owner diff check, dependency and migration plan; **no blanket independent GitHub approval** | Authorized rollout/restore evidence; live migration, historical encryption backfill, provider billing, payroll release or transfer requires its own documented operator/financial controls |
 
-The automated classifier is **conservative but not exhaustive**: high-risk
-behavior hidden in a differently named file is still high-risk. The
-read-only workflow `Independent Payroll Change Review Gate (P0-3)` also
-checks explicit payroll/payout/approvals/bank/scheduler/SQL/workflow paths,
-including old paths of renamed files. A PR must not be reclassified
-downward merely to bypass a reviewer. Draft high-risk PRs do not pass
-review acceptance.
+Automated classification is advisory and may be raised when the *behavior* is riskier than the filenames. Do not silently bypass failed checks or reclassify dangerous code to T0/T1 to merge it.
 
-A named independent reviewer must be a *real GitHub human* with
-`write`, `maintain` or `admin` repo permission, be included in the
-owner-managed `PAYROLL_INDEPENDENT_REVIEWERS` allowlist, **not be the PR
-author**, and approve the exact current commit after all changes. Old-head
-approvals, dismissed reviews, changes requested, AI or bot accounts,
-and an empty reviewer roster fail closed. The reviewer must check the
-actual code, golden cases and business effect, not merely press Approve.
+## A code merge is not live payroll approval
 
-## Pilot freeze
+1. **Source merge:** Maintainer can self-review and merge a PR after required current-head checks pass and its incremental diff, dependencies and overlap are understood. External review is optional unless a specific legal, contractual or environment requirement actually applies. Do not invent a review, screenshot or staging result.
+2. **Feature enablement:** For pre-client HCM/WFM development, verify synthetic tenants, role/authorization boundaries, feature-off recovery and operator-visible flows using isolated CI and local test databases. A separate Vercel staging project, remote staging database or staging attestation is **not** a condition of source merge. New payroll, HR, scheduler, provider and AI capabilities remain disabled by default in deployed environments until specifically authorized.
+3. **Production payroll or payout:** Preserve strict business maker/checker/releaser separation where the application requires it. Employer authorization, bank/provider acceptance, statutory/financial reconciliations and operational recovery evidence cannot be replaced by a self-reviewed PR or green CI.
+4. **SQL/bank migration:** A merge must never automatically apply live schema changes, decrypt/re-encrypt existing private bank records, run a live financial recovery, or turn on money movement. DBA/migration owner must validate the applied journal, isolated restore/recovery evidence and migration runbook before execution.
+5. **Source evidence:** Record PR SHA, risk tier, relevant checks, tests, overlapping/dependent PRs, intended flags and rollback. Name external reviewers only when a review truly occurred; do **not** require a reviewer field for every PR.
+6. **Recheck new heads:** Any rebase, merge conflict resolution or additional commit invalidates old-head green evidence. Rerun applicable CI and inspect the changed behavior.
 
-Until a first real employer pilot is independently accepted to start, do
-**not merge optional HCM or WFM source lanes**, including talent, Worker 360,
-planning, compensation and performance, WFM coverage/smart recovery and
-their associated API, scripts, tests and migrations. The enforcement gate
-keeps these paths frozen unless a separate `PILOT_HCM_WFM_STARTED=true`
-flag and `PILOT_START_EVIDENCE_REF` are configured by authorized
-operators after real recorded acceptance. A pair of variables does not
-itself certify the evidence. Core People, Time, Payroll, Leave, Payslip,
-Approvals, Exports, Audit and Compliance fixes remain eligible when they
-pass independent review and current-head checks.
+## Current integration priorities
 
-## Three review-ready PRs maximum
+- **#741 client-IP limits:** Test Vercel/proxy provenance and rate-limit behavior, then merge when current-head checks and maintainer diff verification pass; no blanket independent approval.
+- **#740 scheduler cron:** Source may be merged following applicable CI; keep scheduler disabled until authorized secret provisioning, synthetic staging tick/heartbeat and rollout proof.
+- **#723 followed by #724 bank encryption and payment snapshots:** Resolve dependency order, protected-payroll isolation, exact-head tests and changed write paths before source merge. **Never** treat code merge as proof historical stores are encrypted or as authorization for real payout.
+- **#720/#721/#739 financial overlaps, #743 payroll-money rules, #745 provider-event inbox:** Review integration diffs, unique SQL migration reservation and behavioral/golden test effects. Never bulk-merge overlapping implementations or use a draft PR as a substitute for operational certification.
+- **HCM/WFM pilots:** Pre-client source work may merge with current-head CI, synthetic tenant/role/browser evidence and maintainer diff review. A dedicated staging project or remote staging sign-off is not required. Keep default-off deployed feature flags and separate real-employer/payroll controls; an unmerged/deferred branch is not delivered code.
 
-`PR Integration Queue Gate` continues to cap **review-ready PRs at 3**.
-Extra candidates stay draft, so reviewers can finish and verify meaningful
-changes instead of accumulating overlapping financial and schema patches.
-Reserve new SQL sequence numbers across open PRs and independently confirm
-live applied migration receipts before executing any schema change.
-Never renumber already applied SQL or batch-merge conflicting financial PRs.
+## Workflow enforcement
 
-## Source merge is not authorization for real money
+GitHub's branch ruleset is currently absent. The PR Queue Gate enforces a maximum of three *review-ready* PRs and checks SQL reservations; it **does not require external reviewers**. Use branch protection primarily for current-head CI, CodeQL, security/isolation checks and safe changes to main, rather than a universal approval-count gate.
 
-1. **Source:** Preserve exact PR SHA, independent review link for T2/T3,
-   source diff, dependency chain, CI/golden/security tests, staged flags,
-   rollback/repair plan and queue status. A later commit requires a fresh
-   approval. Never fabricate a human review.
-2. **Activate:** The owner/operator separately verifies which deployment
-   SHA and isolated staging DB are being used, and obtains security,
-   application, DBA and payroll acceptance for the feature being enabled.
-   All new scheduler, AI, provider and high-risk modules remain default-OFF
-   until the applicable staging and operational gates are completed.
-3. **Real payroll:** Employer authorization, two real parallel payroll
-   months, centavo-level reconciliation with an independent checker, official
-   agency import acceptance, bank UAT and release committee sign-off remain
-   mandatory. A source approval or CI run does **not** release payroll records
-   or bank funds.
-4. **Database/bank data:** An independently approved DBA process must
-   inspect actual production schema receipts, encryption keys, backups,
-   audited backfill and restore evidence *before* applying SQL or altering
-   confidential data. A PR must not implicitly trigger live migrations.
-5. **Main protection:** Use an enforced GitHub ruleset requiring independent
-   approvals and selected status checks. Do not bypass failures by direct
-   push, owner's self-merge, a temporary ruleset disablement or a fake bot
-   account. A documented emergency break-glass action still requires
-   a second recorded human approver and post-incident review.
-
-## What is implemented vs still pending
-
-The new source policy is `scripts/lib/independent-pr-review-policy.mjs`
-with GitHub metadata verification in
-`scripts/check-independent-pr-review.mjs` and a trusted-default-branch
-`pull_request_target` workflow. Its code does **not** create reviewer
-accounts, change repo permissions, approve/merge a PR, deploy to Vercel,
-move money or activate production flags.
-
-As of October 12, 2026, the GitHub ruleset **Protect main** was visible
-but set to `disabled` with zero required approvals/status checks.
-GitHub administrator action, a named real reviewer, active branch
-protection and an independently witnessed failing/passing PR rehearsal
-are required before P0-3 can be closed. The present GitHub integration
-cannot edit the ruleset. For the exact setup and tests, see
-[Independent Review Gate](independent-review-gate.md).
-
-The existing `.github/workflows/pr-change-risk.yml` is an advisory
-source classifier; the `PR Integration Queue Gate` checks review WIP
-and migration reservations. Neither can by itself authorize live
-payroll. The standalone independent-review check must become a **required
-branch check** to prevent merges without human approval.
+`.github/workflows/pr-change-risk.yml` remains a read-only advisory classifier. Neither that job nor the queue job grants or fabricates approval. Live payroll authorizations remain separate from PR operations.

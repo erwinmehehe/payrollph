@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  independentSourceReview: {
+    env: "INDEPENDENT_SOURCE_REVIEW_REQUIRED",
+    owner: "Repository Maintainer",
+    risk: "Optional independent source-review CI policy; no payroll release authority",
+    approval: "Owner policy selection; exact-head checks remain required",
+  },
   workPeriodWageScreen: {
     env: "WORK_PERIOD_WAGE_SCREEN_ENABLED",
     owner: "Philippine Payroll",

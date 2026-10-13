@@ -102,6 +102,16 @@ export async function checkIndependentReview(env, fetcher = fetch) {
     refuse("FULL_DIFF_NOT_AVAILABLE");
   }
   const scope = classifyReviewScope(files);
+  if (pr.state !== "open" || pr.base?.ref !== "main" || pr.head?.sha !== head) {
+    refuse("PR_HEAD_OR_FILE_SET_UNVERIFIED");
+  }
+  // Repository-owner source policy: a solo maintainer reviews source merges.
+  // This result validates the exact diff; it never fabricates a human review
+  // and never authorizes payroll, migrations, deployments or money movement.
+  if (env.INDEPENDENT_SOURCE_REVIEW_REQUIRED !== "true") {
+    return { ok: true, scope, approvalCount: 0, blockers: [],
+      releaseAuthorized: false, mode: "solo-maintainer" };
+  }
   const reviewers = scope.requiresIndependentHuman
     ? allowedHumanReviewerLogins(env.PAYROLL_INDEPENDENT_REVIEWERS ?? "")
     : [];
@@ -129,6 +139,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     // Do not print reviewer identities, branch payloads or any secret.
     const result = {
       name: "independent-payroll-pr-review",
+      mode: verdict.mode ?? "independent-review-required",
       state: verdict.ok ? "PASS" : "BLOCKED",
       requiresIndependentHuman: verdict.scope.requiresIndependentHuman,
       hcmWfmFreezeScope: verdict.scope.hcmWfmFrozen,

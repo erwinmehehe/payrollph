@@ -147,6 +147,7 @@ test("HCM/WFM/compensation remain frozen even when independently approved", () =
 });
 
 const env = {
+  INDEPENDENT_SOURCE_REVIEW_REQUIRED: "true",
   GITHUB_REPOSITORY: "erwinmehehe/payrollph",
   GITHUB_TOKEN: "synthetic-read-only-token-not-real",
   PR_NUMBER: "100",
@@ -186,6 +187,27 @@ function fakeGithub({ files = [moneyFile], reviews = [human()], permission = "wr
     },
   };
 }
+
+test("solo source mode validates the actual head without inventing independent approval", async () => {
+  for (const value of [undefined, "", "false", "TRUE"]) {
+    const api = fakeGithub();
+    const verdict = await checkIndependentReview({ ...env,
+      INDEPENDENT_SOURCE_REVIEW_REQUIRED: value,
+      PAYROLL_INDEPENDENT_REVIEWERS: "" }, api.fetcher);
+    assert.equal(verdict.ok, true);
+    assert.equal(verdict.mode, "solo-maintainer");
+    assert.equal(verdict.approvalCount, 0);
+    assert.equal(verdict.releaseAuthorized, false);
+    assert.equal(api.calls.length, 2, "no review or collaborator impersonation");
+  }
+  const stale = fakeGithub({ mismatch: true });
+  await assert.rejects(checkIndependentReview({ ...env,
+    INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false" }, stale.fetcher),
+    /REVIEW_GATE_PR_HEAD_OR_FILE_SET_UNVERIFIED/);
+  const strict = fakeGithub({ reviews: [] });
+  const verdict = await checkIndependentReview(env, strict.fetcher);
+  assert.equal(verdict.ok, false, "explicit strict mode retains current-head review");
+});
 
 test("live gate uses GitHub API GET only, with read-only token and current-head review", async () => {
   const mock = fakeGithub();
