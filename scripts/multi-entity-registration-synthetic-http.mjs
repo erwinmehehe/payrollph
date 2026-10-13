@@ -60,17 +60,39 @@ function list(ctx, legalEntityId) {
   return request(ctx, "/api/multi-entity/registration-changes?organizationId=1&legalEntityId=" + legalEntityId);
 }
 async function routeToEntities(page) {
-  const res = await page.goto(base + "/app?organizationId=1", { waitUntil: "domcontentloaded", timeout: 60000 });
+  const res = await page.goto(base + "/app?organizationId=1", { waitUntil: "load", timeout: 60000 });
   assert.equal(res?.status(), 200);
   await page.locator('[data-workspace-page="Overview"]').waitFor({ timeout: 60000 });
   if ((page.viewportSize()?.width ?? 1000) < 550) {
-    await page.getByRole("button", { name: "Open navigation" }).click();
+    // The drawer is client-controlled. SSR content may paint before its click
+    // handler hydrates: require a real drawer-open transition before continuing.
+    const trigger = page.getByRole("button", { name: "Open navigation" });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await trigger.click();
+      try {
+        await page.locator(".app-shell.drawer-open").waitFor({ timeout: 3500 });
+        break;
+      } catch (error) {
+        if (attempt === 2) throw error;
+      }
+    }
   }
+  const entityLink = page.locator('.sidebar [data-nav-name="Entities"]');
   const more = page.locator(".sidebar .nav-more-toggle");
-  await more.click();
-  await page.locator('.sidebar [data-nav-name="Entities"]').click();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (await entityLink.isVisible()) break;
+    await more.click();
+    try {
+      await entityLink.waitFor({ state: "visible", timeout: 3500 });
+      break;
+    } catch (error) {
+      if (attempt === 2) throw error;
+    }
+  }
+  await entityLink.click();
   await page.locator('[data-workspace-page="Entities"]').waitFor({ timeout: 30000 });
-  await page.getByRole("heading", { name: "Propose a new employer registration version" }).waitFor({ timeout: 30000 });
+  await page.getByRole("heading", { name: "Propose a new employer registration version" })
+    .waitFor({ timeout: 30000 });
 }
 
 try {

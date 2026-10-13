@@ -2709,11 +2709,6 @@
   display: none;
 }
 
-/* The flagged Entities review surface must remain reachable from Overview,
-   including the mobile navigation drawer. Flag OFF has no Entities item. */
-.app-shell[data-workspace-page="Overview"] .side-navigation .nav-item[data-nav-name="Entities"] {
-  display: flex !important;
-}
 
 .app-shell[data-workspace-page="Overview"] .side-navigation .nav-group:has(.nav-item[data-nav-name="Overview"]) > p {
   display: none;
