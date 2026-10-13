@@ -209,6 +209,36 @@ test("solo source mode validates the actual head without inventing independent a
   assert.equal(verdict.ok, false, "explicit strict mode retains current-head review");
 });
 
+test("solo-maintainer source policy keeps the HCM/WFM pilot freeze intact", async () => {
+  const frozen = { filename: "src/lib/wfm-roster.ts", status: "modified" };
+  const api = fakeGithub({ files: [frozen], reviews: [] });
+  const blocked = await checkIndependentReview({
+    ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
+    PILOT_START_EVIDENCE_REF: "",
+  }, api.fetcher);
+  assert.equal(blocked.ok, false);
+  assert.deepEqual(blocked.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+  assert.equal(blocked.approvalCount, 0);
+  assert.equal(blocked.releaseAuthorized, false);
+  assert.equal(api.calls.length, 2);
+
+  const allowed = await checkIndependentReview({
+    ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "true",
+    PILOT_START_EVIDENCE_REF: "PILOT-START-REVIEW-2026-10",
+  }, fakeGithub({ files: [frozen], reviews: [] }).fetcher);
+  assert.equal(allowed.ok, true);
+  assert.equal(allowed.releaseAuthorized, false);
+
+  const unverified = await checkIndependentReview({
+    ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "true",
+    PILOT_START_EVIDENCE_REF: "bad",
+  }, fakeGithub({ files: [frozen], reviews: [] }).fetcher);
+  assert.equal(unverified.ok, false);
+});
+
 test("live gate uses GitHub API GET only, with read-only token and current-head review", async () => {
   const mock = fakeGithub();
   const verdict = await checkIndependentReview(env, mock.fetcher);
