@@ -4,7 +4,44 @@ import { eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
 import { employees, organizations, payrollEntries, payrollJobs, payrollRuns, timePunches } from "../../src/db/schema";
 import { enqueuePayrollRun } from "../../src/lib/payroll-engine";
-import { assertIsolatedSchedulerRehearsal } from "../../tests/helpers/scheduler-isolated-guard";
+
+/**
+ * Recovery-rehearsal tests intentionally forbid running the central scheduler.
+ * This *different* end-to-end proof explicitly runs it only inside an
+ * auto-triggered GitHub workflow and disposable local PostgreSQL. Do NOT
+ * weaken assertIsolatedSchedulerRehearsal to allow the scheduler globally.
+ */
+function assertDisposableUnattendedSeed(env: NodeJS.ProcessEnv) {
+  assert.equal(env.CI, "true");
+  assert.equal(env.GITHUB_ACTIONS, "true");
+  assert.ok(env.GITHUB_EVENT_NAME === "pull_request" || env.GITHUB_EVENT_NAME === "push");
+  assert.ok(env.GITHUB_RUN_ID, "Only automatic GitHub CI runs may seed test payroll");
+  assert.equal(env.SCHEDULER_REHEARSAL_MODE, "isolated-ci-only");
+  assert.equal(env.UNATTENDED_SCHEDULER_SYNTHETIC_PROOF, "true");
+  assert.equal(env.CENTRAL_SCHEDULER_ENABLED, "true", "Central scheduler may run ONLY in disposable CI");
+  assert.equal(env.WORKER_ENABLED, "false", "App payroll worker must be separate");
+  assert.equal(env.PAYROLL_SCHEDULER_DISPATCH_ENABLED, "false");
+  assert.equal(env.DEMO_MODE, "false");
+  assert.match(env.VERCEL_GIT_COMMIT_SHA ?? "", /^[0-9a-f]{40}$/);
+  assert.ok((env.WORKER_TOKEN ?? "").length >= 32);
+  const target = new URL(env.DATABASE_URL ?? "");
+  assert.ok(target.protocol === "postgres:" || target.protocol === "postgresql:");
+  assert.equal(target.hostname, "127.0.0.1");
+  assert.equal(target.port, "5432");
+  assert.equal(target.pathname, "/app_db");
+  assert.equal(target.username, "postgres");
+  assert.equal(target.password, "postgres");
+  assert.equal(target.search, "");
+  assert.equal(target.hash, "");
+  for (const flag of [
+    "PAYMONGO_DISBURSEMENTS_ENABLED", "XENDIT_PAYOUTS_ENABLED",
+    "XENDIT_PAYOUTS_LIVE_APPROVED",
+  ]) assert.equal(env[flag], "false", flag + " must be explicitly disabled");
+  for (const key of [
+    "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "RESEND_API_KEY",
+    "POSTMARK_SERVER_TOKEN", "OPENAI_API_KEY",
+  ]) assert.equal(env[key] ?? "", "", key + " must be absent");
+}
 
 /**
  * Creates one fictional, unreleased payroll. No API call processes this job.
@@ -12,15 +49,7 @@ import { assertIsolatedSchedulerRehearsal } from "../../tests/helpers/scheduler-
  * scheduled-tick acceptance workflow.
  */
 async function main() {
-  assertIsolatedSchedulerRehearsal(process.env);
-  assert.equal(process.env.UNATTENDED_SCHEDULER_SYNTHETIC_PROOF, "true");
-  assert.equal(process.env.DEMO_MODE, "false");
-  for (const flag of ["PAYMONGO_DISBURSEMENTS_ENABLED", "XENDIT_PAYOUTS_ENABLED", "XENDIT_PAYOUTS_LIVE_APPROVED"]) {
-    assert.notEqual(process.env[flag], "true", flag + " must remain OFF");
-  }
-  for (const key of ["PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "RESEND_API_KEY", "POSTMARK_SERVER_TOKEN", "OPENAI_API_KEY"]) {
-    assert.equal(process.env[key] ?? "", "", key + " must not exist in synthetic acceptance");
-  }
+  assertDisposableUnattendedSeed(process.env);
 
   const [org] = await db.insert(organizations).values({
     name: "CI Scheduler Fictional Employer",
