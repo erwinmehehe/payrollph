@@ -15,7 +15,11 @@ test("the default CI regression runner includes both .test.ts and .test.mjs file
   const mjs = files.filter((name) => name.endsWith(".test.mjs"));
   assert.ok(ts.length > 0, "TypeScript tests must exist");
   assert.ok(mjs.length > 0, "Operational JavaScript tests must exist");
-  // The regression entrypoint is used by .github/workflows/ci.yml, ensuring
-  // both types run on the same exact PR head.
-  assert.match(readFileSync(".github/workflows/ci.yml", "utf8"), /npm test/);
+  // Each CI shard uses an independent disposable PostgreSQL service. The
+  // required check job cannot succeed unless every matrix shard passes.
+  const ci = readFileSync(".github/workflows/ci.yml", "utf8");
+  assert.match(ci, /needs: test-shard/);
+  assert.match(ci, /shard: \[0, 1, 2, 3\]/);
+  assert.match(ci, /node scripts\/run-sharded-tests\.mjs/);
+  assert.match(ci, /DATABASE_URL: postgresql:\/\/postgres/);
 });

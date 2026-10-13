@@ -9,6 +9,8 @@ import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_OPERATOR_
 import { loadTimesheetPayrollGate } from "@/lib/workforce-timesheet-server";
 import { loadAttendanceCutoffGate } from "@/lib/workforce-attendance-lock";
 import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
+import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(_request);
@@ -38,6 +40,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     "This payroll run is outside your assigned organization unit.",
   );
   if (deniedUnit) return deniedUnit;
+  const entityDenied = await requireRunEmployer({
+    request: _request, userId: user.id, organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+  });
+  if (entityDenied) return entityDenied;
 
   if (run.status === "Released" || run.status === "Releasing") {
     return Response.json({ error: "Released or releasing payroll is immutable and cannot be recalculated." }, { status: 409 });
@@ -50,12 +57,16 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     run.scopeOrgUnitId == null
       ? and(
           eq(employees.organizationId, run.organizationId),
+          criticalReleaseFlagEnabled("multiEntity") && run.legalEntityId !== null
+            ? eq(employees.legalEntityId, run.legalEntityId) : undefined,
           eq(employees.status, "Active"),
           lte(employees.startDate, run.periodEnd),
         )
       : and(
           eq(employees.organizationId, run.organizationId),
           eq(employees.orgUnitId, run.scopeOrgUnitId),
+          criticalReleaseFlagEnabled("multiEntity") && run.legalEntityId !== null
+            ? eq(employees.legalEntityId, run.legalEntityId) : undefined,
           eq(employees.status, "Active"),
           lte(employees.startDate, run.periodEnd),
         ),

@@ -31,6 +31,7 @@ export async function prepareInitialPayoutBatch(input: {
   organizationId: number;
   payrollRunId: number;
   intents: readonly PayoutIntent[];
+  provider?: "paymongo" | "xendit";
 }): Promise<PreparedInitialPayoutBatch> {
   if (!Number.isSafeInteger(input.organizationId) || input.organizationId <= 0
     || !Number.isSafeInteger(input.payrollRunId) || input.payrollRunId <= 0) {
@@ -39,7 +40,10 @@ export async function prepareInitialPayoutBatch(input: {
   const intents = canonicalPayoutIntents(input.intents);
   const totalAmountCents = intents.reduce((sum, row) => sum + row.amountCents, 0);
   const requestHash = payoutBatchFingerprint(intents);
-  const idempotencyKey = initialPayoutBatchKey(input.payrollRunId);
+  const provider = input.provider ?? "paymongo";
+  const idempotencyKey = provider === "xendit"
+    ? `xendit-payroll-run-${input.payrollRunId}`
+    : initialPayoutBatchKey(input.payrollRunId);
 
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT id FROM payroll_runs WHERE id = ${input.payrollRunId} FOR UPDATE`);
@@ -60,9 +64,18 @@ export async function prepareInitialPayoutBatch(input: {
           "Payroll payout submitted via PayMongo",
           "Payroll payout retry submitted via PayMongo",
           "Payroll payout completed via PayMongo",
+          "Payroll payout submitted via Xendit",
+          "Payroll payout completed via Xendit",
           "Payroll payout completed manually",
+          "PayMongo transfer webhook received",
+          "bank export generated",
         ]),
         sql`${auditEvents.metadata} ->> 'runId' = ${String(input.payrollRunId)}`,
+        // Dry-run validation has not created an external payment instruction;
+        // final bank files may already have been uploaded outside the app.
+        sql`(${auditEvents.action} <> 'bank export generated'
+          OR (${auditEvents.metadata} ->> 'kind' = 'bank'
+            AND COALESCE(${auditEvents.metadata} ->> 'dryRun', 'false') <> 'true'))`,
       )).limit(1);
     if (priorProvider.length > 0) throw new Error("PAYOUT_EXISTING_LEGACY_PAYMENT_REQUIRES_RECONCILIATION");
 
@@ -110,7 +123,7 @@ export async function prepareInitialPayoutBatch(input: {
     const [batch] = await tx.insert(payoutBatches).values({
       organizationId: input.organizationId,
       payrollRunId: run.id,
-      provider: "paymongo",
+      provider,
       idempotencyKey,
       requestHash,
       transferCount: intents.length,
@@ -147,6 +160,7 @@ export async function prepareInitialPayoutBatch(input: {
         transferCount: intents.length,
         totalAmountCents,
         requestHash,
+        provider,
         moneyMovedByLinaw: false,
       },
     });

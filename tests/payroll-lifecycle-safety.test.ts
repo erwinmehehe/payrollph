@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildPayrollHandoff, employeePayStatusLabel } from "../src/lib/payroll-handoff";
 import { derivePayrollPayoutState } from "../src/lib/payroll-payout-state";
+import { payrollPayoutProviderForReleaseReceipt } from "../src/lib/payroll-payout-provider";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -103,7 +104,8 @@ test("release completion and payroll failure states are explicit and recoverable
 
   for (const marker of [
     "Payroll release receipt",
-    "PayMongo is the primary payout rail",
+    "Xendit is the selected payout rail.",
+    "PayMongo is selected for this employer.",
     "Run the no-money PayMongo preflight",
     "releasedAt",
     "missingEmail",
@@ -182,7 +184,7 @@ test("released payroll payout completion is audit-derived and ordered", () => {
   assert.equal(state.payout.reference, "BDO-BATCH-004821");
 });
 
-test("payout completion UX is PayMongo-first while manual bank completion remains fallback-only", () => {
+test("payout completion UX keeps Xendit opt-in and preserves historical PayMongo and bank fallback", () => {
   const route = read("src/app/api/payroll-runs/[id]/exports/route.ts");
   const exportsView = read("src/components/workspace/exports.tsx");
   const payrollView = read("src/components/workspace/payroll-run.tsx");
@@ -200,9 +202,8 @@ test("payout completion UX is PayMongo-first while manual bank completion remain
 
   for (const marker of [
     "PAYOUT COMPLETION",
-    "Primary payout: PayMongo",
-    "Run PayMongo preflight",
-    "Submit via PayMongo",
+    "Xendit is an opt-in salary payout rail",
+    "<XenditPayoutPanel",
     'data-payout-stage="paymongo-preflight"',
     'data-payout-stage="completed"',
   ]) {
@@ -214,7 +215,7 @@ test("payout completion UX is PayMongo-first while manual bank completion remain
 });
 
 
-test("release receipt starts at PayMongo preflight and keeps bank files optional", () => {
+test("release receipt records selected payout provider and keeps bank files optional", () => {
   const releaseRoute = read("src/app/api/payroll-runs/[id]/release/route.ts");
   const payrollView = read("src/components/workspace/payroll-run.tsx");
   const types = read("src/components/workspace/types.ts");
@@ -222,7 +223,49 @@ test("release receipt starts at PayMongo preflight and keeps bank files optional
   assert.ok(releaseRoute.includes('status: "waiting" as const'));
   assert.ok(releaseRoute.includes('status: "awaiting-preflight" as const'));
   assert.ok(releaseRoute.includes("Optional fallback: no final bank file has been generated."));
-  assert.ok(releaseRoute.includes("PayMongo is the primary payout rail"));
+  // Execute the same selection used to build the post-commit receipt:
+  // bad configuration may be reported, but cannot throw after release.
+  assert.equal(payrollPayoutProviderForReleaseReceipt({}), "paymongo");
+  assert.equal(payrollPayoutProviderForReleaseReceipt({
+    PAYROLL_PAYOUT_PROVIDER: "xendit",
+  }), null);
+  assert.equal(payrollPayoutProviderForReleaseReceipt({
+    PAYROLL_PAYOUT_PROVIDER: "xendit", XENDIT_PAYOUTS_ENABLED: "true",
+  }), "xendit");
+  assert.equal(payrollPayoutProviderForReleaseReceipt({
+    PAYROLL_PAYOUT_PROVIDER: "unsupported",
+  }), null);
   assert.ok(payrollView.includes('data-payout-status={visibleReleaseReceipt.payout.status}'));
   assert.ok(types.includes('"awaiting-preflight" | "ready" | "submitted" | "completed"'));
+});
+
+
+test("provider-specific payout controls preserve ledger ownership and forbid duplicate bank files", () => {
+  const exportsRoute = read("src/app/api/payroll-runs/[id]/exports/route.ts");
+  const xenditRoute = read("src/app/api/payroll-runs/[id]/xendit-payout/route.ts");
+  const operations = read("src/lib/xendit-payroll-operations.ts");
+  const exportsUi = read("src/components/workspace/exports.tsx");
+  const panel = read("src/components/workspace/xendit-payout-panel.tsx");
+
+  assert.ok(exportsRoute.includes("PAYROLL_PAYOUT_LEDGER_ALREADY_CLAIMED"));
+  assert.ok(exportsRoute.includes('if (kind === "bank" && !dryRun)'));
+  assert.ok(exportsRoute.includes("eq(payoutBatches.payrollRunId, run.id)"));
+  assert.ok(operations.includes("XENDIT_PREVIOUS_PAYOUT_OR_BANK_FILE_UNCERTAIN"));
+  assert.ok(operations.includes("await assertNoPriorPayrollDisbursement(run);"));
+  assert.ok(xenditRoute.includes("claimedProvider: existing?.provider ?? null"));
+  assert.ok(xenditRoute.includes('existing?.provider === "paymongo"'));
+  assert.ok(xenditRoute.includes('action === "reconcile" || action === "resolve-unknown"'));
+  assert.ok(panel.includes('status?.selectedProvider === "paymongo" && !status.claimedProvider && allowPaymongoActions'));
+  assert.ok(panel.includes("Run PayMongo preflight"));
+  assert.ok(panel.includes("Submit via PayMongo"));
+  assert.ok(panel.includes('status?.selectedProvider === "xendit" && !claimedByPaymongo'));
+  for (const marker of [
+    "onPaymongoPreflight={runPaymongoPreflight}",
+    "onPaymongoSubmit={submitPaymongoPayout}",
+    "canSubmitPaymongo={payoutState?.payout.method",
+    "paymongoPreflighting={preflightingPayout}",
+    "paymongoSubmitting={submittingPayout}",
+  ]) {
+    assert.ok(exportsUi.includes(marker), "Missing selected-provider control: " + marker);
+  }
 });

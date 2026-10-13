@@ -8,6 +8,7 @@ import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { findFilingForm, parseFilingOutcome } from "@/lib/filing-evidence";
 import { getFilingValidation, recordFilingOutcome } from "@/lib/filing-evidence-store";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
+import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const existing = await getFilingValidation(organizationId, id);
   if (!existing) return Response.json({ error: "Filing record not found." }, { status: 404 });
+  const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!scope.ok) return scope.response;
+  const entityDenied = assertEntityResource(scope.context, existing.legalEntityId);
+  if (entityDenied) return entityDenied;
   if (existing.status !== "generated") {
     return Response.json({
       error: `This record is already ${existing.status} and cannot be changed. Generate a new record to file again.`,

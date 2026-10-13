@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { inArray } from "drizzle-orm";
+import { mkdir, writeFile } from "node:fs/promises";
 import { db } from "../src/db";
 import { hashPassword } from "../src/lib/crypto";
 import { organizations, subscriptions, userOrganizations, users } from "../src/db/schema";
@@ -6,6 +8,7 @@ import { saasSignupVerifications } from "../src/lib/saas-billing-schema";
 
 async function main() {
   assert.equal(process.env.CI, "true");
+  assert.equal(process.env.GITHUB_ACTIONS, "true");
   assert.equal(process.env.HRIS_JOURNEY_ACCEPTANCE_MODE, "synthetic-postgres-only");
   assert.equal(process.env.OPENAI_API_KEY ?? "", "");
   const address = new URL(process.env.DATABASE_URL ?? "");
@@ -30,6 +33,38 @@ async function main() {
     expiresAt: new Date(Date.now() + 86400000), verifiedAt: new Date(),
   });
   await db.insert(subscriptions).values({ organizationId: 1, status: "active", plan: "Core" });
-  console.log("Fictional first-payroll owner seeded; no billing provider contacted.");
+  // A truly empty self-serve third tenant is added ONLY after earlier HRIS
+  // legacy-tenant browser tests, so those regression snapshots stay unchanged.
+  const [gamma] = await db.insert(organizations).values({
+    name: "Synthetic Gamma First Payroll", legalName: "Synthetic Gamma First Payroll",
+    plan: "Core", payrollCalendarMode: "flexible",
+  }).returning({ id: organizations.id });
+  const colleagues = await db.select({ id: users.id, email: users.email, role: users.role })
+    .from(users).where(inArray(users.email, [
+      "hcm-hr@example.test", "hcm-payroll@example.test", "hcm-checker@example.test",
+    ]));
+  assert.equal(colleagues.length, 3, "Role recipients must be real synthetic users");
+  // Signup verification uniquely binds one owner to one self-serve employer.
+  // Model Gamma as a separate customer, not a second signup for Alpha's owner.
+  const [gammaOwner] = await db.insert(users).values({
+    email: "first-payroll-gamma-owner@example.test",
+    name: "Synthetic Gamma Onboarding Owner", role: "owner",
+    passwordHash: hashPassword("Synthetic-HCM-QA-Password-Only-2026!"),
+  }).returning({ id: users.id });
+  assert.ok(gammaOwner?.id && gammaOwner.id !== owner.id,
+    "Each synthetic self-serve employer needs a distinct verified signup owner");
+  await db.insert(userOrganizations).values([
+    { userId: gammaOwner.id, organizationId: gamma.id, role: "owner", active: true },
+    ...colleagues.map(user => ({ userId: user.id, organizationId: gamma.id, role: user.role, active: true })),
+  ]);
+  await db.insert(saasSignupVerifications).values({
+    organizationId: gamma.id, userId: gammaOwner.id, tokenHash: "b".repeat(64),
+    expiresAt: new Date(Date.now() + 86400000), verifiedAt: new Date(),
+  });
+  await db.insert(subscriptions).values({ organizationId: gamma.id, status: "active", plan: "Core" });
+  await mkdir("qa-artifacts", { recursive: true });
+  await writeFile("qa-artifacts/first-payroll-zero-tenant.json",
+    JSON.stringify({ organizationId: gamma.id, label: "disposable-synthetic-only" }));
+  console.log("Fictional self-serve owner and zero-employee tenant seeded; no billing provider contacted.");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -55,7 +55,12 @@ jobs:
       - name: Initialize disposable PG16 and generated test encryption only
         shell: bash
         run: |
-          echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
           npm run db:push
       - name: Source pagination, PH late sync, privacy, two-tenant correction tests
         run: npx tsx --test --test-concurrency=1 tests/workforce-loyverse-pos.test.ts tests/workforce-loyverse-pos-db.test.ts
