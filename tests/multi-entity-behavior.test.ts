@@ -305,7 +305,7 @@ test("flagged multi-entity blocks every legacy employer creation, update, primar
 test("employer transfer history totals retain every centavo over many source cutoffs", () => {
   const tinyPeriods = Array.from({ length: 1001 }, () => "0.01");
   assert.equal(sumPayrollAmounts(tinyPeriods), "10.01");
-  assert.equal(sumPayrollAmounts([...tinyPeriods, "-0.02", "123456789.99"]), "123456800.00");
+  assert.equal(sumPayrollAmounts([...tinyPeriods, "-0.02", "123456789.99"]), "123456799.98");
   assert.throws(() => sumPayrollAmounts(["100.00", "0.001"]), /sub-centavo/);
   // The transfer stores these exact summed decimal strings as review-only
   // evidence and does not change released payroll calculations.
