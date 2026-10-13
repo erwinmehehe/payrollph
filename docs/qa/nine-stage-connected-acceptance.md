@@ -51,3 +51,7 @@ checks negative acceptance cases and skips artifact conformance without
 claiming any pass. Only the dedicated workflow sets
 `NINE_STAGE_EVIDENCE_REQUIRED=true`; there, missing, failed, wrong-commit,
 or incomplete connected evidence **must fail**.
+
+## Development-run finding (2026-10-13)
+
+The first exact-head connected synthetic run passed Hire through Release Payroll Records (8/9) and generated all four draft files, but the ninth stage failed on an **incorrect expected HTTP status** in the test harness. The post-release correction is already covered by an active payroll-cutoff lock, so `decide_request` returns HTTP **423** with `ATTENDANCE_PERIOD_LOCKED` before the separate immutable-payroll-run 409 guard. The harness currently expects 409. Correct the test expectation and assert the lock-specific response; do **not** weaken the application authorization or remove the cutoff lock. Re-run exact-head CI and capture mobile checks. No human/customer acceptance is claimed by these initial results.
