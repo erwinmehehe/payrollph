@@ -42,6 +42,7 @@ import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 import { buildFirstPayrollReadiness } from "@/lib/first-payroll-readiness";
+import { canReadFirstPayrollProgress } from "@/lib/first-payroll-progress";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 
@@ -69,11 +70,12 @@ export async function getDashboardData(organizationId?: number) {
     throw new Error("This account is not a member of any workspace.");
   }
 
-  const orgs = await db
+  const storedOrganizations = await db
     .select()
     .from(organizations)
     .where(inArray(organizations.id, organizationIds))
     .orderBy(asc(organizations.id));
+  const orgs = storedOrganizations;
 
   // The optional 0122 columns are not part of the shared Drizzle organization model.
   // Never select them on a flag-off / pre-migration database; existing workspaces
@@ -331,7 +333,7 @@ export async function getDashboardData(organizationId?: number) {
   const canViewFirstPayrollReadiness =
     accountType !== "freelancer"
     && access.companyWide
-    && ["owner", "admin", "bookkeeper", "payroll"].includes(access.role);
+    && canReadFirstPayrollProgress(access.role);
   const firstPayrollMemberships = canViewFirstPayrollReadiness
     ? await db
         .select({ role: userOrganizations.role })
@@ -346,7 +348,7 @@ export async function getDashboardData(organizationId?: number) {
         workspaceName: selectedOrganization.legalName || selectedOrganization.name,
         employees: employeeRows,
         memberships: firstPayrollMemberships,
-        payrollStatuses: runRows.map((run) => run.status),
+        payrollStatuses: (canViewPayroll ? runRows : handoffRunRows).map((run) => run.status),
       })
     : null;
 
