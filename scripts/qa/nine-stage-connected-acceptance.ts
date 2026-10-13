@@ -26,6 +26,8 @@ const report = {
   schemaVersion: 1, sourceSha: process.env.PR_HEAD_SHA ?? "local",
   generatedAt: new Date().toISOString(), result: "BLOCKED",
   scope: "synthetic-local-postgres16-only", independentHumanUat: "NOT_RUN",
+  clock: { mode: "CI_GUARDED_VIRTUAL_MANILA_MONTH_END", manilaWorkDate: "2026-09-30",
+    realWallClockAttendance: false, actualApiCapture: true },
   bankOrPaymentSubmission: "PROHIBITED", officialAgencySubmission: "NOT_RUN",
   physicalDeviceUat: "NOT_RUN", realEmployerReconciliation: "NOT_RUN",
   stages, negativeControls: [] as string[],
@@ -138,6 +140,9 @@ async function main() {
     "Never run connected fixture against a populated database");
   const now = new Date();
   const workDate = dateInManila(now);
+  assert.equal(process.env.NINE_STAGE_SYNTHETIC_CLOCK, "2026-09-30");
+  assert.equal(workDate, "2026-09-30",
+    "Connected filing tests require the authorized virtual final cutoff, not a manufactured mid-month BIR worksheet");
   // One real browser clock IN and OUT with a reviewer-corrected synthetic shift.
   // No application clock overrides, future punches, or historical inserts.
   assert.ok(localMinutes(now) >= 75, "BLOCKED: run after 01:15 Manila time for same-day clock correction");
@@ -313,7 +318,7 @@ async function main() {
     assert.equal(persisted.workDate, periodStart);
     assert.equal(persisted.source, "web_bundy");
     report.lineage.sourcePunchId = punchId;
-    evidence.push("genuine Web Bundy IN/OUT for SAME worker, tenant and payroll date (not seeded)");
+    evidence.push("authenticated Web Bundy IN/OUT for SAME worker and virtual Manila month-end (no seeded punch)");
   });
   await stage(4, async evidence => {
     const requested = await employee.ok("/api/self/workforce", "POST", {
