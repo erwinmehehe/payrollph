@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { buildReviewOnlyForwardSchema } from "../scripts/issue-910-build-forward-schema.mjs";
 
 const path = "drizzle/0123_multi_entity_forward_schema_repair.sql";
 const candidate = readFileSync(new URL("../" + path, import.meta.url), "utf8");
@@ -26,44 +27,29 @@ test("#910 0123 remains the next forward-only numbered SQL, with no row changes"
   assert.ok(candidate.includes("NOT standalone"));
 });
 
-test("#910 0123 contains exact reviewed source fragments and SHA-256 of the true source bytes", () => {
-  const canonicalMarkers = [];
-  const sourceBodies = [];
-  for (const { key, path: sourcePath, start, end } of sourceParts) {
-    const raw = readFileSync(new URL("../" + sourcePath, import.meta.url), "utf8");
+test("#910 0123 matches the canonical exact-byte source builder after its six numbered header lines", () => {
+  // The #958 builder is already merged into main. Use it as one source of
+  // truth for all three reviewed bodies, SHA-256 markers and preflight text;
+  // duplicated per-stage parsing here could silently drift from the builder.
+  const generated = buildReviewOnlyForwardSchema();
+  assert.equal(generated.manifest.source_only, true);
+  assert.equal(generated.manifest.production_applied, "UNPROVEN");
+  assert.equal(generated.manifest.includes_historical_backfill, false);
+  assert.deepEqual(generated.manifest.parts.map(p => p.key),
+    sourceParts.map(p => p.key));
+  const numberedHeader = candidate.split("\n").slice(0, 6);
+  assert.equal(numberedHeader.length, 6);
+  const expected = [...numberedHeader, ...generated.sql.split("\n").slice(6)].join("\n");
+  assert.equal(candidate, expected,
+    "Numbered 0123 DDL and every provenance SHA marker must match the merged source-only #958 builder byte-for-byte");
+  for (const { path: sourcePath, key } of sourceParts) {
+    const raw = readFileSync(new URL("../" + sourcePath, import.meta.url));
     const sha256 = createHash("sha256").update(raw).digest("hex");
-    const markerPrefix = "-- ISSUE910 SOURCE " + key + " [" + sourcePath + "] SHA256 ";
-    const marker = markerPrefix + sha256;
-    const candidateLines = candidate.split("\n").filter(line => line.startsWith(markerPrefix));
-    assert.equal(candidateLines.length, 1, "Expected one source marker for " + key +
-      "; observed candidate markers: " + candidateLines.join(" | "));
-    assert.equal(candidateLines[0], marker,
-      "Source hash mismatch for " + key + ". Rebuild 0123 from this checkout's exact reviewed raw SQL bytes; " +
-      "never relax the source checksum assertion.");
-    let body;
-    if (start && end) {
-      const beginning = raw.indexOf(start), ending = raw.lastIndexOf(end);
-      assert.ok(beginning >= 0 && ending > beginning, "Source boundaries: " + sourcePath);
-      body = raw.slice(beginning + start.length, ending).trim();
-    } else {
-      assert.ok(raw.startsWith("-- ISSUE #910"));
-      body = raw.trim();
-    }
-    assert.ok(body.length > 500);
-    canonicalMarkers.push(marker);
-    sourceBodies.push(body);
-  }
-  const indexes = canonicalMarkers.map(marker => candidate.indexOf("\n" + marker + "\n"));
-  assert.ok(indexes.every((n, i) => n >= 0 && (i === 0 || n > indexes[i-1])),
-    "Exact source SHA markers must appear in fixed DDL dependency order");
-  for (let index = 0; index < canonicalMarkers.length; index += 1) {
-    const start = candidate.indexOf("\n" + canonicalMarkers[index] + "\n") +
-      canonicalMarkers[index].length + 2;
-    const end = index + 1 < canonicalMarkers.length
-      ? candidate.indexOf("\n" + canonicalMarkers[index+1] + "\n")
-      : candidate.length;
-    assert.equal(candidate.slice(start, end).trim(), sourceBodies[index],
-      "Canonical DDL must match exact reviewed source stage " + sourceParts[index].key);
+    const part = generated.manifest.parts.find(p => p.key === key);
+    assert.equal(part?.source_sha256, sha256, "Source file changed since builder hash: " + sourcePath);
+    assert.equal(candidate.split(
+      "-- ISSUE910 SOURCE " + key + " [" + sourcePath + "] SHA256 " + sha256
+    ).length, 2, "Unique exact-file checksum marker required for: " + key);
   }
 });
 
