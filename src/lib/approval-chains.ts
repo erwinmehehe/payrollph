@@ -18,6 +18,8 @@ export type ApprovalChainStepDefinition = {
   priority?: string;
   minimumAmount?: number;
   escalationAfterDays?: number;
+  // Advisory recipient only: cannot approve, delegate or change checker authority.
+  escalationRecipient?: string;
   // A group narrows the existing named/role approver; it never replaces one.
   dynamicGroupCode?: string;
   // Frozen when an approval request starts; never accepted from policy input.
@@ -42,6 +44,11 @@ function normalizeApprovalChainSteps(value: unknown): ApprovalChainStepDefinitio
     const minimumRaw = row.minimumAmount == null || row.minimumAmount === "" ? 0 : Number(row.minimumAmount);
     const escalationDays = row.escalationAfterDays == null || row.escalationAfterDays === ""
       ? null : Number(row.escalationAfterDays);
+    const escalationRecipient = row.escalationRecipient == null ? "" : String(row.escalationRecipient).trim().toLowerCase();
+    if (escalationRecipient && (escalationDays === null ||
+      !/^(?:role:(?:hr|finance|owner|manager)|user:[1-9][0-9]{0,9})$/.test(escalationRecipient))) return null;
+    if (escalationRecipient.startsWith("user:") &&
+      !Number.isSafeInteger(Number(escalationRecipient.slice(5)))) return null;
     if (escalationDays !== null &&
       (!Number.isSafeInteger(escalationDays) || escalationDays < 1 || escalationDays > 30)) return null;
     if (!label || !approver || !Number.isFinite(minimumRaw) || minimumRaw < 0 || minimumRaw > 999_999_999_999.99) {
@@ -58,6 +65,7 @@ function normalizeApprovalChainSteps(value: unknown): ApprovalChainStepDefinitio
       priority: priority.slice(0, 32) || "Normal",
       minimumAmount,
       ...(escalationDays !== null ? { escalationAfterDays: escalationDays } : {}),
+      ...(escalationRecipient ? { escalationRecipient } : {}),
       ...(dynamicGroupCode ? { dynamicGroupCode } : {}),
     });
   }
@@ -118,7 +126,7 @@ export function approvalEscalationSnapshotHeld(
   // chain after the feature is rolled back. An invalid snapshot needs an
   // independent recovery decision before any human approval is committed.
   if (!steps) return true;
-  return steps.some(step => step.escalationAfterDays !== undefined);
+  return steps.some(step => step.escalationAfterDays !== undefined || step.escalationRecipient !== undefined);
 }
 
 export function validateApprovalChainSteps(
@@ -128,7 +136,7 @@ export function validateApprovalChainSteps(
   const steps = normalizeApprovalChainSteps(value);
   // A newly submitted policy must never silently persist a gated extension
   // while the capability is OFF. Normal approval policies remain unchanged.
-  if (!escalationEnabled && steps?.some(step => step.escalationAfterDays !== undefined)) return null;
+  if (!escalationEnabled && steps?.some(step => step.escalationAfterDays !== undefined || step.escalationRecipient !== undefined)) return null;
   return steps;
 }
 
