@@ -102,7 +102,7 @@ async function peopleReview(state, width, pending = false) {
   });
   if (width < 600) {
     await page.getByRole("navigation", { name: "Mobile workspace navigation" })
-      .getByRole("button", { name: "People", exact: true }).click();
+      .getByRole("button", { name: "Employees", exact: true }).click();
   } else {
     await page.locator('[data-nav-name="People"]:visible').first().click();
   }
