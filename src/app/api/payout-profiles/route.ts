@@ -115,6 +115,7 @@ export async function GET(request: Request) {
       },
       profile: profileByEntity.get(entity.id) ?? null,
     })),
+    xenditEnabled: criticalReleaseFlagEnabled("xenditPayrollPayouts"),
     adapters: adapters.map((adapter) => {
       const portalValidated = acceptedKeys.has(evidenceKey(adapter.name, adapter.version));
       return {

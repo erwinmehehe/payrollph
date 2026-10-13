@@ -33,6 +33,7 @@ export function XenditPayoutPanel({
   paymongoSubmitting: boolean;
 }) {
   const [status, setStatus] = useState<Status | null>(null);
+  const [statusError, setStatusError] = useState(false);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
@@ -40,6 +41,7 @@ export function XenditPayoutPanel({
   const [reconcileCursor, setReconcileCursor] = useState(0);
 
   async function refresh() {
+    setStatusError(false);
     const response = await fetch(`/api/payroll-runs/${runId}/xendit-payout`,
       { cache: "no-store" });
     const data = await response.json().catch(() => ({}));
@@ -53,9 +55,10 @@ export function XenditPayoutPanel({
       { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
-        if (active && response.ok) setStatus(data as Status);
+        if (!response.ok) throw new Error("Payout status unavailable");
+        if (active) setStatus(data as Status);
       })
-      .catch(() => {});
+      .catch(() => { if (active && !controller.signal.aborted) setStatusError(true); });
     return () => { active = false; controller.abort(); };
   }, [runId]);
 
@@ -170,6 +173,15 @@ export function XenditPayoutPanel({
         </span>
       </div>
       <div className="card-body" style={{ display: "grid", gap: 12 }}>
+        {!status && !statusError && <p role="status">Loading payout status…</p>}
+        {statusError && <div role="alert" className="notice notice-red">
+          <span>Payout status could not be loaded. Retry to verify the current state.</span>
+          <button type="button" className="secondary-button" disabled={Boolean(busy)}
+            onClick={() => {
+              setBusy("refresh");
+              void refresh().catch(() => setStatusError(true)).finally(() => setBusy(""));
+            }}>Retry payout status</button>
+        </div>}
         {status?.selectedProvider === "paymongo" && (
           <div className="notice notice-amber">This deployment explicitly selected PayMongo. Xendit payouts are inactive here.</div>
         )}

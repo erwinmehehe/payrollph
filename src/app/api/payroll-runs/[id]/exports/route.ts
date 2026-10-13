@@ -297,16 +297,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
-  const [existingXenditBatch] = await db.select({ provider: payoutBatches.provider })
-    .from(payoutBatches)
-    .where(and(eq(payoutBatches.organizationId, run.organizationId),
-      eq(payoutBatches.payrollRunId, run.id))).limit(1);
-  if (existingXenditBatch?.provider === "xendit") {
-    return Response.json({
-      error: "This payroll run has an Xendit payout ledger. PayMongo submission and manual bank-file payout confirmation are blocked to prevent duplicate salaries. Reconcile the original Xendit payments.",
-      code: "XENDIT_PAYOUT_LEDGER_ALREADY_EXISTS",
-    }, { status: 409 });
-  }
   const body = await request.json().catch(() => ({}));
   const mode =
     body.mode === "preflight"
@@ -315,25 +305,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         ? "complete-manual"
         : "disburse";
 
-  // Xendit is the default selected rail. The legacy PayMongo payment endpoint
-  // must never move funds merely because its credentials are present.
-  // Xendit V3 transfers use one request per employee and require a separately
-  // reviewed durable settlement path; until then fail closed, not fall back.
-  if (mode !== "complete-manual" && configuredPayrollPayoutProvider() === "xendit") {
-    const readiness = xenditPayrollLiveReadiness({
-      organizationId: run.organizationId,
-      legalEntityId: run.legalEntityId,
-    });
-    return Response.json({
-      error: "This legacy PayMongo payout endpoint is not fully configured for Xendit salary transfers. Use the treasury-protected Xendit payout workflow instead. No money moved, and Linaw will never reroute a released payroll to PayMongo automatically.",
-      code: "XENDIT_DEFAULT_PAYROLL_PAYOUT_NOT_ACTIVATED",
-      provider: "xendit",
-      providerConfigured: readiness.ready,
-      blockers: readiness.blockers,
-      moneyMoved: false,
-      manualWorkaround: "A bank-validated manual payout remains available after independent treasury authorization.",
-    }, { status: 501 });
-  }
 
   let treasuryEvidence: TreasuryEvidence | null = null;
   if (mode === "preflight") {
@@ -364,6 +335,38 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (scopeDenied) return scopeDenied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  // Authorize before revealing any provider claim or employer readiness.
+  const [existingXenditBatch] = await db.select({ provider: payoutBatches.provider })
+    .from(payoutBatches)
+    .where(and(eq(payoutBatches.organizationId, run.organizationId),
+      eq(payoutBatches.payrollRunId, run.id))).limit(1);
+  if (existingXenditBatch?.provider === "xendit") {
+    return Response.json({
+      error: "This payroll run has an Xendit payout ledger. PayMongo submission and manual bank-file payout confirmation are blocked to prevent duplicate salaries. Reconcile the original Xendit payments.",
+      code: "XENDIT_PAYOUT_LEDGER_ALREADY_EXISTS",
+    }, { status: 409 });
+  }
+
+  // Xendit is the default selected rail. The legacy PayMongo payment endpoint
+  // must never move funds merely because its credentials are present.
+  // Xendit V3 transfers use one request per employee and require a separately
+  // reviewed durable settlement path; until then fail closed, not fall back.
+  if (mode !== "complete-manual" && configuredPayrollPayoutProvider() === "xendit") {
+    const readiness = xenditPayrollLiveReadiness({
+      organizationId: run.organizationId,
+      legalEntityId: run.legalEntityId,
+    });
+    return Response.json({
+      error: "This legacy PayMongo payout endpoint is not fully configured for Xendit salary transfers. Use the treasury-protected Xendit payout workflow instead. No money moved, and Linaw will never reroute a released payroll to PayMongo automatically.",
+      code: "XENDIT_DEFAULT_PAYROLL_PAYOUT_NOT_ACTIVATED",
+      provider: "xendit",
+      providerConfigured: readiness.ready,
+      blockers: readiness.blockers,
+      moneyMoved: false,
+      manualWorkaround: "A bank-validated manual payout remains available after independent treasury authorization.",
+    }, { status: 501 });
+  }
+
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,
     action: mode === "preflight" ? "payout-preflight" : "payout-submit",

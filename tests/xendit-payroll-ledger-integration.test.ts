@@ -197,7 +197,7 @@ test("Xendit reconciliation advances across multiple provider pages without doub
         };
         assert.equal(sent.payout_details.source_amount, 1550123);
         sends += 1;
-        const payoutId = `po-00000000-0000-0000-0000-${String(sends).padStart(12, "0")}`;
+        const payoutId = `po-${String(f.run.id).padStart(8, "0")}-0000-4000-8000-${String(sends).padStart(12, "0")}`;
         byPayoutId.set(payoutId, sent.reference_id);
         return Response.json({
           payout_id: payoutId, reference_id: sent.reference_id,
