@@ -1,0 +1,139 @@
+name: P0-1 Unattended Synthetic Payroll Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/unattended-scheduler-payroll-acceptance.yml"
+      - "scripts/qa/seed-unattended-scheduler-payroll.ts"
+      - "scripts/qa/prove-unattended-scheduler-payroll.mjs"
+      - "tests/unattended-scheduler-payroll-proof.test.mjs"
+      - "scripts/run-external-scheduler-tick.mjs"
+      - "scripts/worker.ts"
+      - "src/lib/scheduler.ts"
+      - "src/lib/scheduler-lease.ts"
+      - "src/lib/payroll-engine.ts"
+      - "src/app/api/jobs/tick/**"
+      - "src/app/api/jobs/dispatch-readiness/**"
+      - "docs/engineering/external-scheduler-production-rollout.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/unattended-scheduler-payroll-acceptance.yml"
+      - "scripts/qa/seed-unattended-scheduler-payroll.ts"
+      - "scripts/qa/prove-unattended-scheduler-payroll.mjs"
+      - "scripts/run-external-scheduler-tick.mjs"
+      - "src/lib/scheduler.ts"
+      - "src/lib/payroll-engine.ts"
+      - "src/app/api/jobs/tick/**"
+      - "src/app/api/jobs/dispatch-readiness/**"
+
+# An automatic PR/push regression test, NOT production activation.
+permissions:
+  contents: read
+
+concurrency:
+  group: p0-1-unattended-synthetic-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-unattended-payroll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+      UNATTENDED_SCHEDULER_SYNTHETIC_PROOF: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      # Scheduler only ON inside disposable local CI; payroll worker starts
+      # as a separate process AFTER the API tick completion receipt.
+      CENTRAL_SCHEDULER_ENABLED: "true"
+      WORKER_ENABLED: "false"
+      VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+      PAYROLL_SCHEDULER_DISPATCH_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      OPENAI_API_KEY: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      RESEND_API_KEY: ""
+      POSTMARK_SERVER_TOKEN: ""
+      REQUIRE_PRIVILEGED_MFA: "true"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Provide distinct ephemeral test-only secrets
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          totp_key=$(openssl rand -hex 32)
+          worker_token=$(openssl rand -hex 32)
+          for secret in "$bank_key" "$pii_key" "$totp_key" "$worker_token"; do
+            echo "::add-mask::$secret"
+          done
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+          echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
+          echo "WORKER_TOKEN=$worker_token" >> "$GITHUB_ENV"
+      - name: Test isolated dispatcher adapter and no-remote guard
+        run: node --test tests/unattended-scheduler-payroll-proof.test.mjs tests/run-external-scheduler-tick.test.mjs
+      - name: Create disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Apply audited 0109 chain functions on EMPTY isolated PostgreSQL only
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Build real Next.js routes against disposable schema
+        run: npm run build
+      - name: Start isolated Next.js server without payroll worker
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/p0-1-app.log 2>&1 &
+          echo $! > /tmp/p0-1-app.pid
+          for attempt in {1..45}; do
+            if curl --fail --silent http://127.0.0.1:3000/ > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Synthetic Next.js application did not become ready (details suppressed)."
+          exit 1
+      - name: Seed unreleased fictional payroll (NO payroll processing call)
+        run: npx tsx scripts/qa/seed-unattended-scheduler-payroll.ts
+      - name: Automatic external dispatcher, lease heartbeat and autonomous payroll proof
+        run: node scripts/qa/prove-unattended-scheduler-payroll.mjs
+      - name: Upload sanitized scheduler and payroll completion evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p0-1-unattended-scheduler-synthetic-proof
+          path: |
+            qa-artifacts/p0-1-unattended-scheduler-proof.json
+            qa-artifacts/p0-1-unattended-seed.json
+          retention-days: 14
+          if-no-files-found: warn
