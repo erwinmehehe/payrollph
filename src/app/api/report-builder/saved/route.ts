@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertMembership } from "@/lib/access";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { workflowEntityHold } from "@/lib/workflow-entity-hold";
 import { recordAuditEvent } from "@/lib/audit";
 
 const keys = new Set(["headcount","cost","turnover","compliance","assurance","workforce","lifecycle","people"]);
@@ -29,6 +30,7 @@ async function authorized(organizationId: number, userId: number) {
 }
 export async function GET(request: Request) {
   if (!criticalReleaseFlagEnabled("reportBuilder")) return disabled();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in required." }, { status: 401 });
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
@@ -41,6 +43,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   if (!criticalReleaseFlagEnabled("reportBuilder")) return disabled();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in required." }, { status: 401 });
@@ -59,6 +62,7 @@ export async function POST(request: Request) {
 }
 export async function PATCH(request: Request) {
   if (!criticalReleaseFlagEnabled("reportBuilder")) return disabled();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in required." }, { status: 401 });
@@ -80,6 +84,7 @@ export async function PATCH(request: Request) {
 }
 export async function DELETE(request: Request) {
   if (!criticalReleaseFlagEnabled("reportBuilder")) return disabled();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in required." }, { status: 401 });
