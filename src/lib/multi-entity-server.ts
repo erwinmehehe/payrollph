@@ -19,6 +19,10 @@ export type EntityResult = { ok: true; context: MultiEntityContext } | { ok: fal
 
 const denied = (message = "Legal employer is not available to this account.") =>
   Response.json({ error: message, code: "ENTITY_ACCESS_DENIED" }, { status: 403 });
+const primaryReconciliationRequired = () => Response.json({
+  error: "Legal-employer primary attribution requires independent reconciliation.",
+  code: "ENTITY_PRIMARY_RECONCILIATION_REQUIRED",
+}, { status: 409 });
 
 /** No reads from the new tables while the release flag is off. */
 export async function resolveMultiEntityContext(input: {
@@ -47,7 +51,8 @@ export async function resolveMultiEntityContext(input: {
 
   const [entities, grants, preference] = await Promise.all([
     db.select({ id: legalEntities.id, legalName: legalEntities.legalName,
-      displayName: legalEntities.displayName, code: legalEntities.code })
+      displayName: legalEntities.displayName, code: legalEntities.code,
+      primaryEntity: legalEntities.primaryEntity })
       .from(legalEntities).where(and(
         eq(legalEntities.organizationId, input.organizationId),
         eq(legalEntities.active, true),
@@ -63,6 +68,13 @@ export async function resolveMultiEntityContext(input: {
         eq(userEntityPreferences.userId, input.userId),
       )).limit(1),
   ]);
+  // The flag must not activate against a partially migrated tenant. One
+  // ACTIVE PRIMARY is mandatory; selecting the first record or assuming the
+  // employee's current legal employer would misattribute historic payroll.
+  // Read-only metadata check; never silently create/backfill ownership here.
+  if (entities.filter(entity => entity.primaryEntity).length !== 1) {
+    return { ok: false, response: primaryReconciliationRequired() };
+  }
   const explicit = input.requested !== undefined
     ? input.requested
     : input.request?.headers.get("x-legal-entity-id")
@@ -89,14 +101,16 @@ export async function resolveMultiEntityContext(input: {
       ? "An administrator must assign exactly one legal employer to this role."
       : undefined,
   ) };
+  const safeEntities = entities.map(({ id, legalName, displayName, code }) =>
+    ({ id, legalName, displayName, code }));
   return { ok: true, context: {
     enabled: true, group: decision.group,
     canSwitch: !decision.group && decision.allowedEntityIds.length > 1,
     legalEntityId: decision.selectedEntityId,
     organizationId: input.organizationId, role: access.role,
     entities: decision.group
-      ? entities
-      : entities.filter(entity => decision.allowedEntityIds.includes(entity.id)),
+      ? safeEntities
+      : safeEntities.filter(entity => decision.allowedEntityIds.includes(entity.id)),
   } };
 }
 

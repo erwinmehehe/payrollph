@@ -10,6 +10,7 @@ import {
 } from "../src/db/schema";
 import { resolveMultiEntityContext, assertEntityResource } from "../src/lib/multi-entity-server";
 import { assertMembership, getAccess } from "../src/lib/access";
+import { ensurePrimaryLegalEntity } from "../src/lib/legal-entity";
 import { employeeScopePredicate } from "../src/lib/multi-entity-personnel-scope";
 import { encryptBankAccount } from "../src/lib/bank-account-crypto";
 import { encryptGovernmentId } from "../src/lib/government-id-crypto";
@@ -266,6 +267,25 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     });
     assert.equal(ownerAllEvenWithTwoGrants.ok, false);
 
+    // An active tenant without exactly one PRIMARY is an unreconciled schema
+    // state. The scope resolver must not silently choose A1 or a new payer.
+    await db.update(legalEntities).set({ primaryEntity: false })
+      .where(eq(legalEntities.id, a1.id));
+    try {
+      const noPrimary = await resolveMultiEntityContext({
+        userId: people[3].id, organizationId: tenantA.id, requested: a1.id,
+      });
+      assert.equal(noPrimary.ok, false);
+      if (!noPrimary.ok) {
+        assert.equal(noPrimary.response.status, 409);
+        const payload = await noPrimary.response.json() as Record<string, unknown>;
+        assert.equal(payload.code, "ENTITY_PRIMARY_RECONCILIATION_REQUIRED");
+      }
+    } finally {
+      await db.update(legalEntities).set({ primaryEntity: true })
+        .where(eq(legalEntities.id, a1.id));
+    }
+
     const group = await resolveMultiEntityContext({
       userId: people[1].id, organizationId: tenantA.id, requested: "all",
     });
@@ -350,5 +370,26 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     if (members.length) await db.delete(users).where(inArray(users.id, members));
     if (previous === undefined) delete process.env.MULTI_ENTITY_ENABLED;
     else process.env.MULTI_ENTITY_ENABLED = previous;
+  }
+});
+
+// Every tenant must bootstrap a single PRIMARY and replay idempotently.
+// Synthetic database only; this is NOT a historical Neon backfill rehearsal.
+test("an empty tenant gets exactly one active PRIMARY under repeated bootstrap", async () => {
+  const [tenant] = await db.insert(organizations).values({
+    name: "Bootstrap " + randomUUID().slice(0, 12),
+    legalName: "Bootstrap Legal",
+  }).returning();
+  try {
+    const created = await ensurePrimaryLegalEntity(tenant.id);
+    assert.ok(created?.primaryEntity && created.active);
+    const again = await ensurePrimaryLegalEntity(tenant.id);
+    assert.equal(again?.id, created?.id);
+    const all = await db.select().from(legalEntities)
+      .where(eq(legalEntities.organizationId, tenant.id));
+    assert.equal(all.length, 1);
+    assert.equal(all.filter(row => row.primaryEntity && row.active).length, 1);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, tenant.id));
   }
 });
