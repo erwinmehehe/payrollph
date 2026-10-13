@@ -13,10 +13,34 @@ assert.equal(process.env.CI, "true");
 assert.equal(process.env.GITHUB_ACTIONS, "true");
 assert.equal(process.env.QA_URL, base);
 assert.equal(new URL(process.env.DATABASE_URL).hostname, "127.0.0.1");
+assert.equal(process.env.NINE_STAGE_SYNTHETIC_CLOCK, "2026-09-30");
+assert.equal(process.env.DEMO_MODE, "false");
+// The CI server preloads the isolated virtual September cutoff. Chromium must
+// render the same fictional calendar, or its first hydration sees October
+// while server markup was generated in September (React hydration error #418).
+const syntheticEpoch = Date.parse("2026-09-30T08:00:00.000Z");
 const browser = await chromium.launch({headless:true});
 try {
   for(const width of [375,390]) {
-    const context = await browser.newContext({ viewport:{ width,height:844 } });
+    const context = await browser.newContext({
+      viewport:{ width,height:844 }, timezoneId:"Asia/Manila",
+    });
+    await context.addInitScript(epoch => {
+      // Test page only: match the guarded localhost server's monotonic clock.
+      // Preserve Date.parse/UTC, constructor overloads and instanceof behavior.
+      const RealDate = Date;
+      const started = performance.now();
+      const now = () => epoch + Math.floor(performance.now() - started);
+      globalThis.Date = new Proxy(RealDate, {
+        apply() { return new RealDate(now()).toString(); },
+        construct(target, args, newTarget) {
+          return Reflect.construct(target, args.length ? args : [now()], newTarget);
+        },
+        get(target, key, receiver) {
+          return key === "now" ? now : Reflect.get(target, key, receiver);
+        },
+      });
+    }, syntheticEpoch);
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", err => errors.push(String(err.message).slice(0,100)));
