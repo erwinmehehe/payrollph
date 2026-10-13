@@ -263,7 +263,7 @@ function statusTone(status: string) {
   return "neutral";
 }
 
-export function SelfServicePortal() {
+export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?: boolean } = {}) {
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demoRole") === "employee";
   const [language, setLanguage] = useState<EssLanguage>("en");
@@ -1080,7 +1080,7 @@ export function SelfServicePortal() {
       {tab === "documents" && data.employer && (
         <>
           <EmployeeDocumentsPanel organizationId={data.employer.id} language={language} />
-          <EmployeeHrCasesPanel language={language} />
+          <EmployeeHrCasesPanel language={language} enabled={hrCasesEnabled} />
         </>
       )}
 

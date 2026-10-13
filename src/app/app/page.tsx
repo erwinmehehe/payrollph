@@ -36,7 +36,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       const denied = await assertOrganizationSessionPolicy(user.id, employeeOrganizationId);
       if (denied) redirect("/login?ssoRequired=1");
     }
-    return <SelfServicePortal />;
+    return <SelfServicePortal hrCasesEnabled={criticalReleaseFlagEnabled("employeeHrCases")} />;
   }
 
   const { organizationId: requestedValue, focusEmployeeId: requestedEmployeeId, workspacePage: requestedWorkspacePage } = await searchParams;
@@ -57,7 +57,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       const denied = await assertOrganizationSessionPolicy(user.id, employeeOrganizationId);
       if (denied) redirect("/login?ssoRequired=1");
     }
-    return <SelfServicePortal />;
+    return <SelfServicePortal hrCasesEnabled={criticalReleaseFlagEnabled("employeeHrCases")} />;
   }
 
   // Newly self-registered company owners must authorize a successful
