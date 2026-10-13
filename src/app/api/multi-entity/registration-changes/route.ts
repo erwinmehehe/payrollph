@@ -1,7 +1,8 @@
+import { registeredLegalEntities as legalEntities } from "@/lib/multi-entity-registration-storage";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  auditEvents, legalEntities, legalEntityProfileChangeRequests,
+  auditEvents, legalEntityProfileChangeRequests,
   legalEntityStatutoryRegistrations,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";

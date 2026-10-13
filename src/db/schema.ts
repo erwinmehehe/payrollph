@@ -86,7 +86,6 @@ export const legalEntities = pgTable(
     displayName: varchar("display_name", { length: 160 }).notNull(),
     birTin: varchar("bir_tin", { length: 16 }),
     birBranchCode: varchar("bir_branch_code", { length: 4 }),
-    registeredAddress: text("registered_address"),
     sssEmployerNo: varchar("sss_employer_no", { length: 24 }),
     philHealthEmployerNo: varchar("philhealth_employer_no", { length: 24 }),
     pagIbigEmployerNo: varchar("pagibig_employer_no", { length: 24 }),
@@ -1158,9 +1157,7 @@ export const managedPayrollRunApprovals = pgTable(
 );
 
 export const payrollEntries = pgTable("payroll_entries", {
-  id: serial("id").primaryKey(),
-  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
-  payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
+  id: serial("id").primaryKey(),  payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   grossPay: numeric("gross_pay", { precision: 12, scale: 2 }).notNull(),
   deductions: numeric("deductions", { precision: 12, scale: 2 }).notNull(),
@@ -1182,9 +1179,7 @@ export const payoutBatches = pgTable(
   "payout_batches",
   {
     id: serial("id").primaryKey(),
-    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "restrict" }),
-    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
-    payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "restrict" }),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "restrict" }),    payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "restrict" }),
     provider: varchar("provider", { length: 24 }).notNull().default("paymongo"),
     idempotencyKey: varchar("idempotency_key", { length: 160 }).notNull(),
     requestHash: varchar("request_hash", { length: 64 }).notNull(),
@@ -1212,9 +1207,7 @@ export const payoutTransfers = pgTable(
   "payout_transfers",
   {
     id: serial("id").primaryKey(),
-    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "restrict" }),
-    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
-    payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "restrict" }),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "restrict" }),    payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "restrict" }),
     payrollEntryId: integer("payroll_entry_id").notNull().references(() => payrollEntries.id, { onDelete: "restrict" }),
     employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
     referenceNumber: varchar("reference_number", { length: 120 }).notNull(),
@@ -1255,9 +1248,7 @@ export const payoutBatchTransfers = pgTable(
 );
 
 export const payrollJobs = pgTable("payroll_jobs", {
-  id: serial("id").primaryKey(),
-  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
-  payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
+  id: serial("id").primaryKey(),  payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   status: varchar("status", { length: 32 }).notNull().default("queued"),
   chunkIndex: integer("chunk_index").notNull().default(0),
@@ -1272,9 +1263,7 @@ export const payrollJobs = pgTable("payroll_jobs", {
 });
 
 export const payslips = pgTable("payslips", {
-  id: serial("id").primaryKey(),
-  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
-  payrollEntryId: integer("payroll_entry_id").notNull().references(() => payrollEntries.id, { onDelete: "cascade" }),
+  id: serial("id").primaryKey(),  payrollEntryId: integer("payroll_entry_id").notNull().references(() => payrollEntries.id, { onDelete: "cascade" }),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   periodLabel: varchar("period_label", { length: 80 }).notNull(),
@@ -1398,9 +1387,7 @@ export const bankFileValidations = pgTable(
   "bank_file_validations",
   {
     id: serial("id").primaryKey(),
-    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
-    payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),    payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
     templateName: varchar("template_name", { length: 100 }).notNull(),
     templateVersion: varchar("template_version", { length: 32 }).notNull(),
     fileName: varchar("file_name", { length: 180 }).notNull(),
@@ -1625,9 +1612,7 @@ export const webhookDeliveries = pgTable("webhook_deliveries", {
 
 export const yearEndAdjustments = pgTable("year_end_adjustments", {
   id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
-  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   taxYear: integer("tax_year").notNull(),
   grossCompensation: numeric("gross_compensation", { precision: 14, scale: 2 }).notNull(),
   thirteenthMonth: numeric("thirteenth_month", { precision: 14, scale: 2 }).notNull().default("0"),
@@ -2273,7 +2258,6 @@ export const importBatches = pgTable("import_batches", {
 export const historicalPayrollEntries = pgTable("historical_payroll_entries", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   importBatchId: integer("import_batch_id").references(() => importBatches.id, { onDelete: "set null" }),
   sourceSystem: varchar("source_system", { length: 64 }).notNull().default("generic"),
@@ -3045,9 +3029,7 @@ export const jobApplicants = pgTable("job_applicants", {
 
 export const separationRecords = pgTable("separation_records", {
   id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
-  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   separationType: varchar("separation_type", { length: 32 }).notNull(), // "resignation", "retirement", "authorized_cause", "just_cause", "end_of_contract"
   noticeDate: date("notice_date").notNull(),
   lastDay: date("last_day").notNull(),

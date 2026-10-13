@@ -171,7 +171,7 @@ export async function POST(request: Request) {
       gte(payrollRuns.periodEnd, effectiveDate.slice(0, 4) + "-01-01"),
       lte(payrollRuns.periodEnd, previousDate(effectiveDate))));
   const importedHistory = await db.select({
-    legalEntityId: historicalPayrollEntries.legalEntityId,
+    legalEntityId: sql<number | null>`${historicalPayrollEntries}."legal_entity_id"`,
     basicSalary: historicalPayrollEntries.basicSalary,
     thirteenthMonth: historicalPayrollEntries.thirteenthMonth,
   }).from(historicalPayrollEntries).where(and(

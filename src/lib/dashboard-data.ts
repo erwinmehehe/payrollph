@@ -1,3 +1,4 @@
+import { sql as entityStorageSql } from "drizzle-orm";
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { loadTenantModulePreferences, type TenantModulePreferences } from "./tenant-modules";
 import { organizationModuleSettings, tenantModuleStorageAvailable } from "@/lib/tenant-module-storage";
@@ -231,7 +232,7 @@ export async function getDashboardData(organizationId?: number, request?: Reques
           status: separationRecords.status,
         }).from(separationRecords).where(and(
           eq(separationRecords.organizationId, selectedOrganization.id),
-          selectedEntityId === null ? undefined : eq(separationRecords.legalEntityId, selectedEntityId),
+          selectedEntityId === null ? undefined : entityStorageSql`${separationRecords}."legal_entity_id" = ${selectedEntityId}`,
         ))
       : Promise.resolve([]),
   ]);

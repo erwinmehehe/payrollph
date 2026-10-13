@@ -20,6 +20,17 @@ async function main() {
   assert.equal(process.env.PAYMONGO_DISBURSEMENTS_ENABLED, "false");
   assert.equal(process.env.XENDIT_PAYOUTS_ENABLED, "false");
 
+  // The registration-only column is deliberately absent from legacy ORM
+  // tables. Add it only inside this verified disposable acceptance fixture.
+  await db.execute(sql`ALTER TABLE legal_entities ADD COLUMN IF NOT EXISTS registered_address text`);
+  // Only feature-on SQL needs these proposed attribution columns. The
+  // shared ORM remains usable before their separately reviewed migration.
+  for (const table of ["payroll_entries", "payroll_jobs", "payslips",
+    "payout_batches", "payout_transfers", "bank_file_validations",
+    "year_end_adjustments", "historical_payroll_entries", "separation_records"]) {
+    await db.execute(sql.raw(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS legal_entity_id integer`));
+  }
+
   const [tenantA, tenantB] = await db.insert(organizations).values([
     { name: "Synthetic Group A", legalName: "Synthetic Group A", plan: "Core" },
     { name: "Synthetic Tenant B", legalName: "Synthetic Tenant B", plan: "Core" },
