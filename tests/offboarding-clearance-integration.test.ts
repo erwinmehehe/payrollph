@@ -217,3 +217,60 @@ test("offboarding preserves other employer login but revokes original sessions a
     await db.delete(users).where(eq(users.id, reviewer.id));
   }
 });
+
+
+test("worker-only tenant membership revokes its login sessions without harming another employer", async () => {
+  const suffix = randomUUID();
+  const [orgA, orgB] = await db.insert(organizations).values([
+    { name: "A6 Membership-only A " + suffix, legalName: "A6 Membership-only A", plan: "Core" },
+    { name: "A6 Membership-only B " + suffix, legalName: "A6 Membership-only B", plan: "Core" },
+  ]).returning();
+  const [actor, workerLogin, employeeLogin] = await db.insert(users).values([
+    { email: "a6-member-actor-" + suffix + "@example.invalid", name: "Fictional Reviewer", passwordHash: "qa", role: "owner" },
+    { email: "a6-member-worker-" + suffix + "@example.invalid", name: "Fictional Worker", passwordHash: "qa", role: "employee" },
+    { email: "a6-member-single-" + suffix + "@example.invalid", name: "Fictional Single", passwordHash: "qa", role: "employee" },
+  ]).returning();
+  try {
+    const [worker] = await db.insert(employees).values({
+      organizationId: orgA.id, employeeNo: "A6-MEMBER-" + orgA.id,
+      firstName: "Fictional", lastName: "Membership Only", title: "QA",
+      avatarInitials: "FM", basicRate: "25000.00", startDate: "2026-01-01",
+      status: "Separated",
+    }).returning();
+    await db.insert(userOrganizations).values([
+      { userId: workerLogin.id, organizationId: orgA.id, role: "employee", workerEmployeeId: worker.id },
+      { userId: workerLogin.id, organizationId: orgB.id, role: "employee" },
+      { userId: employeeLogin.id, organizationId: orgA.id, role: "employee" },
+    ]);
+    // The first worker has no global employeeId, and a second login has no
+    // worker link: the second login is unrelated and must not be revoked.
+    const [affectedSession, unrelatedSession] = await db.insert(sessions).values([
+      { userId: workerLogin.id, tokenHash: "a6-member-" + suffix, expiresAt: new Date("2030-01-01T00:00:00Z") },
+      { userId: employeeLogin.id, tokenHash: "a6-member-other-" + suffix, expiresAt: new Date("2030-01-01T00:00:00Z") },
+    ]).returning();
+    await db.transaction(async tx => {
+      const outcome = await revokeSeparatedEmployeeAccessTx(tx, {
+        organizationId: orgA.id, employeeId: worker.id,
+        separationId: 9002, actorUserId: actor.id, actorName: actor.name,
+      });
+      assert.deepEqual(outcome.disabledEmployeeLoginIds, []);
+      assert.equal(outcome.revokedSessionCount, 1);
+      assert.equal(outcome.revokedEmployerMembershipIds.length, 1);
+    });
+    const [affected] = await db.select().from(users).where(eq(users.id, workerLogin.id));
+    assert.equal(affected.active, true, "second employer's account remains active");
+    const [revoked] = await db.select().from(sessions).where(eq(sessions.id, affectedSession.id));
+    const [untouched] = await db.select().from(sessions).where(eq(sessions.id, unrelatedSession.id));
+    assert.ok(revoked.revokedAt, "membership-only linked worker must lose pre-release sessions");
+    assert.equal(untouched.revokedAt, null, "unrelated login must retain its session");
+    const all = await db.select().from(userOrganizations).where(eq(userOrganizations.userId, workerLogin.id));
+    assert.equal(all.find(item => item.organizationId === orgA.id)?.active, false);
+    assert.equal(all.find(item => item.organizationId === orgB.id)?.active, true);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, orgA.id));
+    await db.delete(organizations).where(eq(organizations.id, orgB.id));
+    await db.delete(users).where(eq(users.id, actor.id));
+    await db.delete(users).where(eq(users.id, workerLogin.id));
+    await db.delete(users).where(eq(users.id, employeeLogin.id));
+  }
+});
