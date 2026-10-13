@@ -47,7 +47,6 @@ export function FirstPayrollInlinePanel({
  const [draftId,setDraftId]=useState<number|null>(null);
  useEffect(()=>{
   let cancelled=false;
-  setProgressLoading(true);
   void fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"})
    .then(async r=>{if(!r.ok)throw Error("Cannot load step progress");return r.json();})
    .then(x=>{if(cancelled)return;const p=x.progress as Progress|null;setProgress(p);
@@ -62,7 +61,6 @@ export function FirstPayrollInlinePanel({
  useEffect(()=>{
   if(step!=="company")return;
   let cancelled=false;
-  setCompanyLoading(true);
   void fetch("/api/legal-entities?organizationId="+organizationId,{cache:"no-store"})
    .then(async r=>{const body=await r.json();if(!r.ok)throw Error(body.error??"Could not load legal employer");return body;})
    .then(result=>{if(cancelled)return;const entries=(result.legalEntities??[]) as LegalEmployer[];
