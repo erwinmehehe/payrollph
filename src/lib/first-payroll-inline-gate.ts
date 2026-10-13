@@ -13,6 +13,9 @@ export async function firstPayrollInlineAvailable(
   reader: Pick<typeof db, "select"> = db,
 ): Promise<boolean> {
   if (!criticalReleaseFlagEnabled("firstPayrollInline", env)) return false;
+  // This journey's preview/progress is tenant-wide. Until it has explicit
+  // legal-employer scope, do not expose it to entity-scoped operators.
+  if (criticalReleaseFlagEnabled("multiEntity", env)) return false;
   try {
     await reader.select({ organizationId: firstPayrollJourneyProgress.organizationId })
       .from(firstPayrollJourneyProgress).limit(1);
