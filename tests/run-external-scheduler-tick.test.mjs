@@ -119,6 +119,7 @@ test("workflow is main-only, least-privileged, serial and commit-pinned", () => 
   const workflow = readFileSync(".github/workflows/production-scheduler-tick.yml", "utf8");
   assert.match(workflow, /cron:\s*"2-59\/5 \* \* \* \*"/);
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /vars\.PAYROLL_SCHEDULER_DISPATCH_ENABLED == 'true'/);
   assert.match(workflow, /environment: payroll-scheduler-production/);
   assert.match(workflow, /contents: read/);
   assert.match(workflow, /cancel-in-progress: false/);

@@ -16,7 +16,9 @@ concurrency:
 
 jobs:
   tick:
-    if: github.repository == 'erwinmehehe/payrollph' && github.ref == 'refs/heads/main'
+    # Skip runner allocation until repository-scoped dispatch variable is exactly true.
+    # The dispatcher independently validates the flag, origin and deployed SHA.
+    if: github.repository == 'erwinmehehe/payrollph' && github.ref == 'refs/heads/main' && vars.PAYROLL_SCHEDULER_DISPATCH_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 4
     environment: payroll-scheduler-production

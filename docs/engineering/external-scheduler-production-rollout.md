@@ -26,6 +26,8 @@ The production-targeted **development** app now has explicit flags `CENTRAL_SCHE
 4. On the existing deployed development application, verify `CENTRAL_SCHEDULER_ENABLED=false` and `WORKER_ENABLED=false` remain enforced. The GitHub scheduled workflow must continue producing `dispatch-disabled` until explicitly activated. Confirm that admin-status reports disabled without triggering jobs.
 5. Reconcile PR #934 against the moving `main` branch, review current-head GitHub CI, and verify the deployed application SHA. GitHub Actions schedules are **best-effort** and can be delayed/dropped; use independent alerting when actual unattended execution becomes an acceptance requirement.
 
+**Runner allocation gate:** The scheduled job is skipped unless the **repository-scoped** configuration variable `PAYROLL_SCHEDULER_DISPATCH_ENABLED` is exactly `true`. Environment-scoped variables alone do not satisfy this job-level gate. The dispatcher repeats its exact-true check after runner allocation and the deployed application requires `CENTRAL_SCHEDULER_ENABLED=true` before any work. Keep the repository flag OFF/unset for source integration; activation is a separately authorized, monitored change.
+
 ## Eventual development-only scheduler exercise
 
 A full automatic tick is **not** safe to test by simply turning the scheduler on against the app's shared database: the scheduler runs more than payroll (retention cleanup, notifications, reminders and other background tasks). Even with zero employee records, unrelated development test data, mail or external integrations could be affected.

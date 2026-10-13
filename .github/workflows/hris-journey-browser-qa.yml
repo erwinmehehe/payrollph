@@ -112,7 +112,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: Provision separate bank and PII keys for disposable CI
+      - name: Ephemeral bank key for synthetic database only
         shell: bash
         run: |
           bank_key=$(openssl rand -hex 32)
