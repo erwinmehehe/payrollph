@@ -100,24 +100,14 @@ async function peopleReview(state, width, pending = false) {
   await page.goto(BASE + "/app?organizationId=" + fixture.organizationA, {
     waitUntil: "domcontentloaded", timeout: 60_000,
   });
-  // Wait for hydration before choosing navigation. A sidebar item in a
-  // transform-hidden mobile drawer still matches Playwright's :visible, so
-  // clicking it before the drawer opens times out outside the viewport.
-  const peopleLink = page.locator('.sidebar [data-nav-name="People"]');
-  await peopleLink.waitFor({ state: "visible", timeout: 60_000 });
-  if (width <= 768) {
-    // Use the real phone bottom-navigation affordance, not a hidden sidebar
-    // shortcut or force-click. Also verify the drawer opened successfully.
-    await page.getByRole("button", { name: "More navigation options", exact: true })
-      .click();
-    await page.locator(".app-shell.drawer-open").waitFor({ state: "visible" });
-  } else if (width <= 980) {
-    await page.getByRole("button", { name: "Open navigation", exact: true }).click();
-    await page.locator(".app-shell.drawer-open").waitFor({ state: "visible" });
+  // On phones use the actual visible Employees workspace control. A
+  // transform-hidden sidebar item is not a valid click target at 390px.
+  if (width < 600) {
+    await page.getByRole("navigation", { name: "Mobile workspace navigation" })
+      .getByRole("button", { name: "Employees", exact: true }).click();
+  } else {
+    await page.locator('[data-nav-name="People"]:visible').first().click();
   }
-  // Playwright waits for the drawer animation and a clickable viewport box.
-  // Retain a real user navigation action; no force-click or direct page state.
-  await peopleLink.click();
   await page.locator('.app-shell[data-workspace-page="People"]')
     .waitFor({ state: "visible", timeout: 60_000 });
   const disclosure = page.locator("details").filter({
