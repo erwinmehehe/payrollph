@@ -4,7 +4,6 @@ import { documentObjectIdentityMatches } from "../src/lib/employee-document-vaul
 import { documentObjectKey, documentStorageConfig, deleteDocumentObject, putDocumentObject, signedDocumentObjectUrl } from "../src/lib/document-object-storage";
 import { scanUpload } from "../src/lib/storage";
 
-async function main() {
 // No real storage, customer records, credentials, or production endpoint allowed.
 async function main() {
 assert.equal(process.env.CI, "true");
