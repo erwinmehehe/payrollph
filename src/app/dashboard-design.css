@@ -1117,6 +1117,11 @@
    entire document; keep every header control interactive and visible. */
 @media (max-width: 480px) {
   .app-shell.clean-shell .topbar {
+    /* A constrained first grid track makes the organization selector shrink
+       before notification/account controls leave a 375px phone viewport. */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    align-items: center;
     gap: 8px;
     padding-inline: 12px;
   }
