@@ -1,3 +1,4 @@
+import { BIR_1604C_D1_FIELDS, BIR_1604C_D2_FIELDS } from "./bir-1604c-dat-candidate";
 import {
   validateBir1604cPreExport, type Bir1604CReviewedRecord,
   type Bir1604CPreExportIssue,
@@ -164,5 +165,69 @@ export function bindBir1604cReviewToEmployer(
       expectedActualWithheld: source.reconciliation.totals.payrollActualWithheld,
       records: ordered,
     },
+  };
+}
+
+
+const GENERATED_BIR_FIELDS = new Set([
+  "SCHEDULE_NUM", "FTYPE_CODE", "TIN_EMPYR",
+  "BRANCH_CODE_EMPLYR", "RETRN_PERIOD", "SEQ_NUM",
+]);
+
+/**
+ * Review worksheet JSON for authorized payroll operators. Known identity/tax
+ * fields are copied from their actual employer/year source. Every unknown
+ * legally required component is NULL, NEVER a fabricated numeric zero.
+ * A returned worksheet is incomplete until a human verifies and fills it.
+ */
+export function buildBir1604cReviewTemplate(
+  source: Bir1604cSourceSnapshot, taxYear: number,
+) {
+  if (!Number.isInteger(taxYear) || source.reconciliation.totals.employees <= 0 ||
+      source.reconciliation.rows.length !== source.reconciliation.totals.employees)
+    return null;
+  const byNo = new Map(source.employeeSources.map(e => [e.employeeNo.toUpperCase(), e]));
+  const records = [];
+  const seen = new Set<string>();
+  for (const ledger of [...source.reconciliation.rows].sort((a, b) =>
+    a.employeeNo.localeCompare(b.employeeNo))) {
+    const no = ledger.employeeNo.toUpperCase();
+    const employee = byNo.get(no);
+    if (!employee || seen.has(no)) return null;
+    seen.add(no);
+    const schedule = ledger.mwe ? "D2" as const : "D1" as const;
+    const names = schedule === "D1" ? BIR_1604C_D1_FIELDS : BIR_1604C_D2_FIELDS;
+    const fields: Record<string, string | null> = {};
+    for (const name of names) {
+      if (!GENERATED_BIR_FIELDS.has(name)) fields[name] = null;
+    }
+    const verified: Record<string, string | null> = {
+      TIN: /^[0-9]{9}$/.test(employee.tin) ? employee.tin : null,
+      BRANCH_CODE: /^[0-9]{4}$/.test(employee.branch) ? employee.branch : null,
+      LAST_NAME: employee.lastName.toUpperCase(),
+      FIRST_NAME: employee.firstName.toUpperCase(),
+      MIDDLE_NAME: employee.middleName.toUpperCase(),
+      NATIONALITY: employee.nationality.toUpperCase(),
+      NET_TAXABLE_COMP_INCOME: employee.taxableIncome,
+      TAX_DUE: employee.taxDue,
+      ACTUAL_AMT_WTHLD: ledger.payrollActualWithheld,
+    };
+    Object.assign(fields, verified);
+    records.push({
+      employeeNo: ledger.employeeNo, schedule,
+      fields,
+      priorEmployerReview: "", // reviewer must attest no prior employer or verify Form 2316
+      priorEmployerEvidenceReference: "",
+      mwePremiumEvidenceReference: "", // required separately for D2
+      reviewedBy: "",
+      sourceReference: "",
+      missingManualFields: Object.keys(fields).filter(name => fields[name] === null),
+    });
+  }
+  return {
+    taxYear, sourceDigest: source.reconciliation.sourceDigest,
+    status: "DRAFT-REVIEW-REQUIRED" as const,
+    instructions: "Verify the source, fill every null with reviewed evidence, delete missingManualFields before import, and never invent zeroes.",
+    records,
   };
 }
