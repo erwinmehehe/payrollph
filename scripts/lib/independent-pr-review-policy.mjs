@@ -37,6 +37,23 @@ function isExactWfm12DevelopmentEvidence(files) {
       && WFM12_DEV_EVIDENCE_FILES.has(file.filename));
 }
 
+// One additional exact development acceptance artifact, reviewed as immutable
+// content rather than trusting filenames. Any changed byte or added file must
+// return to P0-3's pilot freeze; this is never runtime/payout authorization.
+const WFM5_DEV_PINNED_BLOBS = new Map([
+  [".github/workflows/wfm-five-worker-dev-acceptance.yml", "f925a4d6e14ca02676b9a381a3f35dd5a52fd2eb"],
+  ["docs/wfm-five-worker-development-acceptance.md", "2bdb7bf9f9f92855f6ce04323af531f0d4a1f96a"],
+  ["scripts/qa/wfm-five-worker-dev-acceptance.ts", "fea3ed7ad0d2142a2828cdfdf0725aacc92c489c"],
+]);
+function isPinnedWfmFiveWorkerDevEvidence(files) {
+  if (files.length !== WFM5_DEV_PINNED_BLOBS.size) return false;
+  const uniquePaths = new Set(files.map(file => file.filename));
+  return uniquePaths.size === WFM5_DEV_PINNED_BLOBS.size
+    && files.every(file => file.status === "added"
+      && typeof file.sha === "string"
+      && WFM5_DEV_PINNED_BLOBS.get(file.filename) === file.sha);
+}
+
 const FROZEN_LANES = [
   /^src\/lib\/(?:hcm-|workforce-|wfm-|compensation-|performance-)/,
   /^src\/app\/api\/(?:hcm|workforce|recruitment|talent|compensation|performance|planning)\//,
@@ -73,6 +90,7 @@ export function classifyReviewScope(files) {
   const list = [...paths];
   const frozenPaths = list.filter(path => FROZEN_LANES.some(regex => regex.test(path)));
   const wfm12DevEvidence = isExactWfm12DevelopmentEvidence(files);
+  const wfmFiveWorkerDevEvidence = isPinnedWfmFiveWorkerDevEvidence(files);
   const sensitivePaths = list.filter(path =>
     ALWAYS_SENSITIVE.some(regex => regex.test(path)) ||
     ["T2", "T3"].includes(tierForPath(path)));
@@ -81,6 +99,7 @@ export function classifyReviewScope(files) {
     requiresIndependentHuman: sensitivePaths.length > 0,
     hcmWfmFrozen: frozenPaths.length > 0,
     wfm12DevEvidence,
+    wfmFiveWorkerDevEvidence,
     sensitiveFileCount: sensitivePaths.length,
     frozenFileCount: frozenPaths.length,
   };
@@ -137,6 +156,7 @@ export function evaluateIndependentReview({
   const scope = classifyReviewScope(files);
   const blockers = [];
   if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
+      !scope.wfmFiveWorkerDevEvidence &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {
