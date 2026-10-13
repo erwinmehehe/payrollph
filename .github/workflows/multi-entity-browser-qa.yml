@@ -27,7 +27,8 @@ concurrency:
 jobs:
   multi-entity-browser:
     name: isolated-multi-entity-browser
-    runs-on: ubuntu-latest
+    # Playwright 1.55 supports Ubuntu 24.04; ubuntu-latest may advance to 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       CI: "true"
