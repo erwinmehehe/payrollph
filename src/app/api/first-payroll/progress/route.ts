@@ -3,6 +3,7 @@ import { assertMembership, getAccess } from "@/lib/access";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { firstPayrollInlineAvailable } from "@/lib/first-payroll-inline-gate";
 import { canReadFirstPayrollProgress, isJourneyKey, readJourneyProgress, saveJourneyProgress } from "@/lib/first-payroll-progress";
+import { publicFirstPayrollProgressError } from "@/lib/first-payroll-public-errors";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   if (!(await firstPayrollInlineAvailable()))
@@ -45,6 +46,6 @@ export async function PATCH(request: Request) {
     });
     return Response.json({progress:await readJourneyProgress(organizationId)});
   } catch (error) {
-    return Response.json({error:error instanceof Error?error.message:"Could not update journey"},{status:422});
+    return Response.json({error:publicFirstPayrollProgressError(error)},{status:422});
   }
 }

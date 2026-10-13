@@ -5,6 +5,7 @@ import { loadReadOnlyFirstPayrollPreview } from "@/lib/first-payroll-preview";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { firstPayrollInlineAvailable } from "@/lib/first-payroll-inline-gate";
+import { publicFirstPayrollPreviewError } from "@/lib/first-payroll-public-errors";
 export const dynamic="force-dynamic";
 
 /** Read-only first-payroll preview. Deliberately GET-only, never a payroll-run mutation. */
@@ -32,6 +33,6 @@ export async function GET(request:Request){
   });
   return Response.json(data,{headers:{"Cache-Control":"private, no-store"}});
  }catch(e){
-  return Response.json({error:e instanceof Error?e.message:"Preview unavailable."},{status:422});
+  return Response.json({error:publicFirstPayrollPreviewError(e)},{status:422});
  }
 }
