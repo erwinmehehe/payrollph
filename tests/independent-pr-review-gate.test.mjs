@@ -283,6 +283,106 @@ test("the exact 3 added WFM-5 development evidence blobs alone are eligible, wit
   }
 });
 
+test("only exact unchanged #965 HCM import regression blobs may pass source freeze", async () => {
+  const files = [
+    {filename: "tests/hcm-direct-route-policy-races.test.ts", status: "modified",
+      sha: "c986dc63f7e490a4e8ec3360f56d2f0a49525539"},
+    {filename: "tests/hcm-governed-intake.test.ts", status: "modified",
+      sha: "94f9523c257a3b603ab726f61b5b80b11ff6e212"},
+    {filename: "tests/hcm-legacy-write-integration.test.ts", status: "modified",
+      sha: "ba929f96c369fc9db00e414ae360bf7ee2c4e4ea"},
+  ];
+  const scope = classifyReviewScope(files);
+  assert.equal(scope.hcmWfmFrozen, true);
+  assert.equal(scope.hcmIntakeRegressionDevEvidence, true);
+  assert.equal(review(files).ok, true);
+  assert.equal(review(files).releaseAuthorized, false);
+
+  const soloEnv = {...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
+    PILOT_START_EVIDENCE_REF: ""};
+  const allowed = await checkIndependentReview(soloEnv,
+    fakeGithub({files, reviews: []}).fetcher);
+  assert.equal(allowed.ok, true);
+  assert.equal(allowed.mode, "solo-maintainer");
+  assert.equal(allowed.approvalCount, 0);
+  assert.equal(allowed.releaseAuthorized, false);
+
+  const badSets = [
+    files.slice(0, 2),
+    [files[2]],
+    [files[0], files[0], files[2]],
+    files.map((x, i) => i === 0 ? {...x, sha: "c".repeat(40)} : x),
+    files.map((x, i) => i === 1 ? {...x, sha: null} : x),
+    files.map((x, i) => i === 2 ? {...x, status: "added"} : x),
+    files.map((x, i) => i === 2 ? {...x, status: "removed"} : x),
+    files.map((x, i) => i === 1 ? {...x, status: "renamed",
+      previous_filename: "tests/hcm-old-regression.test.ts"} : x),
+    [...files, {filename: "src/lib/hcm-governance.ts", status: "modified", sha: "c".repeat(40)}],
+    [...files, {filename: "drizzle/0123_hcm_new.sql", status: "added", sha: "c".repeat(40)}],
+    [...files, {filename: "tests/hcm-new-runtime.test.ts", status: "added", sha: "c".repeat(40)}],
+    [...files, {filename: "scripts/qa/wfm-independent-witness.mjs",
+      status: "added", sha: "c".repeat(40)}],
+    [...files, {filename: ".github/workflows/payout.yml", status: "added", sha: "c".repeat(40)}],
+  ];
+  for (const changed of badSets) {
+    assert.equal(classifyReviewScope(changed).hcmIntakeRegressionDevEvidence, false);
+    const strict = review(changed);
+    assert.equal(strict.ok, false);
+    assert.ok(strict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+    const solo = await checkIndependentReview(soloEnv,
+      fakeGithub({files: changed, reviews: []}).fetcher);
+    assert.equal(solo.ok, false);
+    assert.deepEqual(solo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+    assert.equal(solo.releaseAuthorized, false);
+  }
+});
+
+test("WFM-691 offline witness packet permits only exact immutable #969 blobs, with no acceptance or release authority", async () => {
+  const files = [
+    {filename:"docs/qa/wfm-691-independent-witness-handoff.md",status:"added",sha:"4cbcc7bb09e21e0d836f4d52fb17750273bdd2bc"},
+    {filename:"scripts/qa/wfm-independent-witness.mjs",status:"added",sha:"ed923d4bead1dab6f98583b59435fc494a773d1b"},
+    {filename:"tests/wfm-independent-witness.test.mjs",status:"added",sha:"5dbfc80577b30365cf17573c1d19693cdb9ce3a0"},
+  ];
+  const scope = classifyReviewScope(files);
+  assert.equal(scope.hcmWfmFrozen, true);
+  assert.equal(scope.wfm691WitnessDevEvidence, true);
+  assert.equal(review(files).ok, true);
+  assert.equal(review(files).releaseAuthorized, false);
+  const soloEnv = { ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
+    PILOT_START_EVIDENCE_REF: "" };
+  const authorizedSourceOnly = await checkIndependentReview(soloEnv,
+    fakeGithub({files,reviews:[]}).fetcher);
+  assert.equal(authorizedSourceOnly.ok,true);
+  assert.equal(authorizedSourceOnly.mode,"solo-maintainer");
+  assert.equal(authorizedSourceOnly.approvalCount,0);
+  assert.equal(authorizedSourceOnly.releaseAuthorized,false);
+
+  const rejected = [
+    files.slice(0,2),
+    [files[2]],
+    [...files, {filename:"src/lib/wfm-roster.ts",status:"added",sha:"c".repeat(40)}],
+    [...files, {filename:"drizzle/0123_wfm_new.sql",status:"added",sha:"c".repeat(40)}],
+    [...files, {filename:".github/workflows/wfm-new-feature.yml",status:"added",sha:"c".repeat(40)}],
+    files.map((x,i)=>i===0?{...x,sha:"c".repeat(40)}:x),
+    files.map((x,i)=>i===1?{...x,sha:null}:x),
+    files.map((x,i)=>i===2?{...x,status:"modified"}:x),
+    files.map((x,i)=>i===1?{...x,status:"renamed",previous_filename:"scripts/qa/wfm-old.mjs"}:x),
+    [files[0], files[0], files[2]],
+  ];
+  for (const altered of rejected) {
+    assert.equal(classifyReviewScope(altered).wfm691WitnessDevEvidence,false);
+    assert.equal(review(altered).ok,false);
+    assert.ok(review(altered).blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+    const check=await checkIndependentReview(soloEnv,
+      fakeGithub({files:altered,reviews:[]}).fetcher);
+    assert.equal(check.ok,false);
+    assert.deepEqual(check.blockers,["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+    assert.equal(check.releaseAuthorized,false);
+  }
+});
+
 test("solo source mode validates the actual head without inventing independent approval", async () => {
   for (const value of [undefined, "", "false", "TRUE"]) {
     const api = fakeGithub();
@@ -334,17 +434,6 @@ test("solo-maintainer source policy keeps the HCM/WFM pilot freeze intact", asyn
   assert.equal(unverified.ok, false);
 });
 
-test("live gate uses GitHub API GET only, with read-only token and current-head review", async () => {
-  const mock = fakeGithub();
-  const verdict = await checkIndependentReview(env, mock.fetcher);
-  assert.equal(verdict.ok, true);
-  assert.equal(verdict.releaseAuthorized, false);
-  assert.ok(mock.calls.every(x => x.request.method === "GET"));
-  assert.ok(mock.calls.every(x => x.request.redirect === "error"));
-  assert.ok(mock.calls.every(x => x.url.startsWith("https://api.github.com/repos/erwinmehehe/payrollph/")));
-  assert.ok(mock.calls.every(x => x.request.headers.Authorization.includes("synthetic-read-only")));
-});
-
 test("solo source gate admits the approved legacy blob but not changed or additional frozen code", async () => {
   const file = { filename: "src/app/api/hcm/employment-term-decisions/[id]/evidence/route.ts",
     status: "modified", sha: "49957255191041ee83440bd7f24ea5cfd72d491c" };
@@ -359,6 +448,17 @@ test("solo source gate admits the approved legacy blob but not changed or additi
     assert.equal(blocked.ok, false);
     assert.ok(blocked.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
   }
+});
+
+test("live gate uses GitHub API GET only, with read-only token and current-head review", async () => {
+  const mock = fakeGithub();
+  const verdict = await checkIndependentReview(env, mock.fetcher);
+  assert.equal(verdict.ok, true);
+  assert.equal(verdict.releaseAuthorized, false);
+  assert.ok(mock.calls.every(x => x.request.method === "GET"));
+  assert.ok(mock.calls.every(x => x.request.redirect === "error"));
+  assert.ok(mock.calls.every(x => x.url.startsWith("https://api.github.com/repos/erwinmehehe/payrollph/")));
+  assert.ok(mock.calls.every(x => x.request.headers.Authorization.includes("synthetic-read-only")));
 });
 
 test("stale API PR head, unreadable permissions and insufficient scope fail closed", async () => {
