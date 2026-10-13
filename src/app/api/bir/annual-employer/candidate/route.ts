@@ -5,7 +5,8 @@ import { getSessionUser } from "@/lib/auth";
 import { loadBirAnnualEmployerSource } from "@/lib/bir-annual-employer-source";
 import { buildReviewedBir1604cCandidate } from "@/lib/bir-1604c-pre-export";
 import {
-  bindBir1604cReviewToEmployer, type Bir1604cReviewedPayload,
+  bindBir1604cReviewToEmployer, buildBir1604cReviewTemplate,
+  type Bir1604cReviewedPayload,
 } from "@/lib/bir-1604c-source-review";
 import { BirReviewBodyError, readBirReviewBody } from "@/lib/bir-1604c-review-request";
 import {
@@ -25,7 +26,7 @@ const disabled = () => Response.json({
 type CandidateRequest = Bir1604cReviewedPayload & {
   organizationId: number;
   legalEntityId: number;
-  mode: "check" | "download";
+  mode: "template" | "check" | "download";
 };
 function parseRequest(raw: unknown): CandidateRequest | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -35,7 +36,7 @@ function parseRequest(raw: unknown): CandidateRequest | null {
       !Number.isSafeInteger(value.taxYear) || Number(value.taxYear) < 2018 || Number(value.taxYear) > 2100 ||
       !Array.isArray(value.records) || value.records.length > 500 ||
       typeof value.sourceDigest !== "string" ||
-      (value.mode !== "check" && value.mode !== "download")) return null;
+      (value.mode !== "check" && value.mode !== "download" && value.mode !== "template")) return null;
   return value as CandidateRequest;
 }
 
@@ -90,6 +91,35 @@ export async function POST(request: Request) {
   if (!source) return Response.json({
     error: "Selected legal employer is missing or is outside this workspace.",
   }, { status: 404, headers: PRIVATE });
+  if (body.mode === "template") {
+    if (body.sourceDigest !== source.reconciliation.sourceDigest)
+      return Response.json({
+        code: "STALE_SOURCE", error: "Payroll or employee identity changed; reconcile before downloading a new review template.",
+      }, { status: 409, headers: PRIVATE });
+    const template = buildBir1604cReviewTemplate(source, body.taxYear);
+    if (!template) return Response.json({
+      code: "INCOMPLETE_POPULATION",
+      error: "The selected employer has no uniquely attributable released-payroll population.",
+    }, { status: 409, headers: PRIVATE });
+    const file = JSON.stringify(template, null, 2) + "\n";
+    const templateSha256 = createHash("sha256").update(file, "utf8").digest("hex");
+    await recordAuditEvent({
+      organizationId: body.organizationId, actor: "user:" + user.id,
+      action: "bir1604c.review-template.downloaded",
+      resource: "legal-entity:" + body.legalEntityId + ":year:" + body.taxYear,
+      metadata: {
+        sourceDigest: source.reconciliation.sourceDigest,
+        templateSha256, employeeCount: template.records.length,
+        status: "DRAFT-REVIEW-REQUIRED",
+      },
+    });
+    return new Response(file, { headers: {
+      ...PRIVATE, "Content-Type": "application/json; charset=utf-8",
+      "Content-Disposition": 'attachment; filename="BIR-1604C-REVIEW-' +
+        body.taxYear + '-EMPLOYER-' + body.legalEntityId + '.json"',
+    } });
+  }
+
   const review = bindBir1604cReviewToEmployer(body, source, body.legalEntityId);
   if (!review.ok) return Response.json({
     code: "BIR_REVIEW_BLOCKED", issues: review.issues,
