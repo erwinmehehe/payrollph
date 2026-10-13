@@ -29,7 +29,7 @@ export function otlpErrorEnvelope(input: SafeOperationalError, now = Date.now())
   return { resourceLogs: [{
     resource: { attributes: [attr("service.name", "linaw-payrollph")] },
     scopeLogs: [{ scope: { name: "linaw.sanitized-errors" }, logRecords: [{
-      timeUnixNano: (BigInt(Math.trunc(now)) * 1_000_000n).toString(),
+      timeUnixNano: (BigInt(Date.parse(record.timestamp)) * BigInt(1_000_000)).toString(),
       severityNumber: 17, severityText: "ERROR",
       body: { stringValue: record.event },
       attributes: [
