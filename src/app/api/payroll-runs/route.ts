@@ -1,4 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { formatPayrollPeriodLabel } from "@/lib/payroll-period-ui";
 import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, legalEntities, organizations, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
@@ -99,25 +100,6 @@ function inclusivePeriodDays(periodStart: string, periodEnd: string) {
   const start = Date.parse(`${periodStart}T00:00:00Z`);
   const end = Date.parse(`${periodEnd}T00:00:00Z`);
   return Math.floor((end - start) / DAY_MS) + 1;
-}
-
-function periodLabelFromDates(periodStart: string, periodEnd: string) {
-  const start = new Date(`${periodStart}T12:00:00Z`);
-  const end = new Date(`${periodEnd}T12:00:00Z`);
-  const sameMonth = start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth();
-  const startLabel = start.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    ...(sameMonth ? {} : { year: "numeric" as const }),
-    timeZone: "UTC",
-  });
-  const endLabel = end.toLocaleDateString("en-US", {
-    month: sameMonth ? undefined : "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-  return `${startLabel}–${endLabel}`;
 }
 
 export async function POST(request: Request) {
@@ -322,7 +304,7 @@ export async function POST(request: Request) {
     }, { status: 422 });
   }
 
-  const periodLabel = periodLabelFromDates(periodStart, periodEnd);
+  const periodLabel = formatPayrollPeriodLabel(periodStart, periodEnd);
   const [run] = await db.transaction(async (tx) => {
     const [created] = await tx.insert(payrollRuns).values({
       organizationId,
