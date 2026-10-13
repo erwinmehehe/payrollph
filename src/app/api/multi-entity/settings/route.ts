@@ -1,6 +1,7 @@
+import { registeredLegalEntities as legalEntities } from "@/lib/multi-entity-registration-storage";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, legalEntities } from "@/db/schema";
+import { auditEvents } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, ORG_ADMIN_ROLES } from "@/lib/access";
 import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";

@@ -16,16 +16,22 @@ export function NewHireModal({
   onClose,
   onCreated,
   multiEntity,
+  inline = false,
 }: {
   organizationId: number;
   onClose: () => void;
   onCreated: () => void;
   multiEntity?: DashboardData["multiEntity"];
+  inline?: boolean;
 }) {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
     email: "",
+    tin: "",
+    sssNo: "",
+    philHealthNo: "",
+    pagIbigNo: "",
     bankAccount: "",
     bankCode: "",
     mobile: "",
@@ -79,9 +85,8 @@ export function NewHireModal({
     }
   }
 
-  return (
-    <div className="modal-backdrop linaw-dialog" role="presentation">
-      <section className="modal large" role="dialog" aria-modal="true" aria-label="Add employee">
+  const panel = (
+      <section className={inline ? "card p-4" : "modal large"} role={inline ? undefined : "dialog"} aria-modal={inline ? undefined : true} aria-label="Add employee">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Layers size={22} className="i-teal" /></div>
         <div className="card-kicker">NEW HIRE</div>
@@ -95,6 +100,10 @@ export function NewHireModal({
             <label>First name<input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></label>
             <label>Last name<input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></label>
             <label>Work email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="for payslip delivery" /></label>
+            <label>BIR TIN (9 digits)<input inputMode="numeric" pattern="[0-9]{9}" maxLength={9} value={form.tin} onChange={e=>setForm({...form,tin:e.target.value.replace(/\D/g,"")})} placeholder="Required before payroll preview" autoComplete="off" /></label>
+            <label>SSS number<input value={form.sssNo} onChange={e=>setForm({...form,sssNo:e.target.value})} autoComplete="off" /></label>
+            <label>PhilHealth number<input value={form.philHealthNo} onChange={e=>setForm({...form,philHealthNo:e.target.value})} autoComplete="off" /></label>
+            <label>Pag-IBIG number<input value={form.pagIbigNo} onChange={e=>setForm({...form,pagIbigNo:e.target.value})} autoComplete="off" /></label>
             <label>Job title<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
             {multiEntity?.enabled && <label>Legal entity
               <select aria-label="Employee legal entity" required value={chosenEntity}
@@ -171,6 +180,6 @@ export function NewHireModal({
           </div>
         </form>
       </section>
-    </div>
   );
+  return inline ? panel : <div className="modal-backdrop linaw-dialog" role="presentation">{panel}</div>;
 }

@@ -122,3 +122,9 @@ Capture *actual authenticated running app*, flag OFF (before) and ON (after), at
 4. Obtain HR, Philippine payroll and security/privacy signoffs for transfer liability and statutory report boundaries.
 5. Enable exact env `MULTI_ENTITY_ENABLED=true` on an allowlisted staging/pilot environment, then perform the above browser acceptance. **Do not enable in production until all tests and evidence are complete.**
 6. Roll back application behavior by reverting the flag to OFF. Keep additive SQL and immutable history intact; never reset or silently reassign money evidence.
+# Legacy database compatibility (October 13)
+
+Shared payroll, payout, payslip, bank validation, year-end, historical payroll and separation ORM tables do not declare the proposed attribution columns. Registration address storage is isolated in `multi-entity-registration-storage.ts`, imported only by gated employer endpoints. Entity-specific separation/history SQL runs only on the enabled entity path. No payroll-engine math was changed.
+
+`tests/multi-entity-legacy-schema.test.ts` executes real PostgreSQL SELECT, INSERT/RETURNING and subsequent reads against ten connection-local table copies with the proposed columns absent. These copies contain no public data and disappear on commit. All four golden suites also remain required. Feature-on browser fixture setup adds proposed columns only after its disposable-loopback database and disabled-provider assertions. This is not a production migration or permission to enable multi-entity features.
+
