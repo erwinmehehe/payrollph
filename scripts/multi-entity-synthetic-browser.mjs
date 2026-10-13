@@ -200,6 +200,11 @@ try {
       assert.equal(denied.status, 403, "Multi-entity HCM must fail closed: " + path);
       assert.equal(denied.data?.code, "ENTITY_HCM_DEFERRED");
     }
+    const protectedPage = await request(owner, on, "/hcm/action-center?organizationId=1");
+    assert.equal(protectedPage.status, 403, "Protected HCM page must not SSR cross-employer data");
+    assert.equal(protectedPage.data?.code, "ENTITY_HCM_DEFERRED");
+    const publicHcmMarketing = await request(owner, on, "/hcm");
+    assert.equal(publicHcmMarketing.status, 200, "Public HCM marketing page must remain available");
     const mutation = await request(owner, on, "/api/hcm/effective-changes", "POST", {
       organizationId: 1,
     });
