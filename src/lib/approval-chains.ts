@@ -112,8 +112,13 @@ export function approvalEscalationSnapshotHeld(
 ): boolean {
   // Detect an in-flight extension created while enabled; disabling the flag
   // must hold it rather than silently resuming it as an ordinary approval.
+  if (escalationEnabled) return false;
   const steps = normalizeApprovalChainSteps(value);
-  return !escalationEnabled && Boolean(steps?.some(step => step.escalationAfterDays !== undefined));
+  // Never interpret corrupted/unknown frozen approval evidence as a legacy
+  // chain after the feature is rolled back. An invalid snapshot needs an
+  // independent recovery decision before any human approval is committed.
+  if (!steps) return true;
+  return steps.some(step => step.escalationAfterDays !== undefined);
 }
 
 export function validateApprovalChainSteps(
