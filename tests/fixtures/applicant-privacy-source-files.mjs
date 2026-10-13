@@ -6,6 +6,11 @@ export const files = [
     "sha": "1554b2c899f1606941a81de6fe4320e9c23f85e2"
   },
   {
+    "filename": "scripts/qa/nine-stage-mobile-browser.mjs",
+    "status": "modified",
+    "sha": "22d7208a9bcf632b4a88ae97a06360535478b74f"
+  },
+  {
     "filename": "src/app/api/recruitment/hire/route.ts",
     "status": "modified",
     "sha": "c9cd681a0ae23a35188c42a853647400957f9d87"

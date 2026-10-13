@@ -6,11 +6,11 @@ keeping production activation, migrations and the rest of the HCM/WFM freeze
 unchanged. This records owner policy authorization, not an invented independent
 review or a human privacy/UAT certification.
 
-Reviewed source: `abda45e4504b9df4a3c3eb59eff364e28ce8526b`. The policy pins the
-entire thirteen-file changed-file list: each path, added/modified status and Git
+Reviewed source: `2b0c93f768f72541ecf7ecec38d01694ef8dc147`. The policy pins the
+entire fourteen-file changed-file list: each path, added/modified status and Git
 blob SHA must match. Missing, duplicate, renamed, changed or additional files
 restore the normal freeze, including changes to schema, default-OFF flag,
-recruiting APIs, SQL proposal, retention, audit-copy hold and behavior tests.
+recruiting APIs, SQL proposal, retention, audit-copy hold and behavior tests and the connected browser session-reuse correction.
 
 The complete independently captured list is in
 `tests/fixtures/applicant-privacy-source-files.mjs`. Tests execute the read-only
