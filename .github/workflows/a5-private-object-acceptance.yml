@@ -43,7 +43,7 @@ jobs:
             -p 127.0.0.1:9000:9000 \
             -e MINIO_ROOT_USER="$AWS_ACCESS_KEY_ID" \
             -e MINIO_ROOT_PASSWORD="$AWS_SECRET_ACCESS_KEY" \
-            quay.io/minio/minio:latest server /data >/dev/null
+            chainguard/minio:latest server /data >/dev/null
           for i in $(seq 1 50); do
             if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then exit 0; fi
             sleep 2
