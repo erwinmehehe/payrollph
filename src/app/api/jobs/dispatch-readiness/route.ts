@@ -1,5 +1,6 @@
 import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { isCentralSchedulerEnabled } from "@/lib/scheduler-activation";
+import { checkPayrollWorkerDispatchGate } from "@/lib/payroll-worker-dispatch-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,11 @@ export async function GET(request: Request) {
   const deploymentSha = process.env.VERCEL_GIT_COMMIT_SHA?.trim().toLowerCase();
   if (!deploymentSha || !/^[0-9a-f]{40}$/.test(deploymentSha)) {
     return Response.json({ ok: false, state: "deployment-sha-unavailable" }, { status: 503, headers });
+  }
+  const worker = await checkPayrollWorkerDispatchGate();
+  if (!worker.ok) {
+    return Response.json({ ok: false, state: "payroll-worker-unhealthy" },
+      { status: 503, headers });
   }
   return Response.json({ ok: true, scheduler: "enabled", deploymentSha }, { headers });
 }
