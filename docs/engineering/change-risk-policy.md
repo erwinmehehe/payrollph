@@ -13,6 +13,8 @@ Purpose: move verified source fixes quickly without confusing **merging code**, 
 
 Automated classification is advisory and may be raised when the *behavior* is riskier than the filenames. Do not silently bypass failed checks or reclassify dangerous code to T0/T1 to merge it.
 
+**Scope of this change:** waiving a second-person PR review does not itself remove an existing HCM/WFM pilot freeze, optional-feature activation gates, payroll authorization, schema cutover controls or the requirement to fix failing CI. The source review checker continues to reject frozen-lane PRs without a valid pilot acceptance reference.
+
 ## A code merge is not live payroll approval
 
 1. **Source merge:** Maintainer can self-review and merge a PR after required current-head checks pass and its incremental diff, dependencies and overlap are understood. External review is optional unless a specific legal, contractual or environment requirement actually applies. Do not invent a review, screenshot or staging result.
