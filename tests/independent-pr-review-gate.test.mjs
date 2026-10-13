@@ -283,6 +283,51 @@ test("the exact 3 added WFM-5 development evidence blobs alone are eligible, wit
   }
 });
 
+test("WFM-691 offline witness packet permits only exact immutable #969 blobs, with no acceptance or release authority", async () => {
+  const files = [
+    {filename:"docs/qa/wfm-691-independent-witness-handoff.md",status:"added",sha:"4cbcc7bb09e21e0d836f4d52fb17750273bdd2bc"},
+    {filename:"scripts/qa/wfm-independent-witness.mjs",status:"added",sha:"ed923d4bead1dab6f98583b59435fc494a773d1b"},
+    {filename:"tests/wfm-independent-witness.test.mjs",status:"added",sha:"5dbfc80577b30365cf17573c1d19693cdb9ce3a0"},
+  ];
+  const scope = classifyReviewScope(files);
+  assert.equal(scope.hcmWfmFrozen, true);
+  assert.equal(scope.wfm691WitnessDevEvidence, true);
+  assert.equal(review(files).ok, true);
+  assert.equal(review(files).releaseAuthorized, false);
+  const soloEnv = { ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
+    PILOT_START_EVIDENCE_REF: "" };
+  const authorizedSourceOnly = await checkIndependentReview(soloEnv,
+    fakeGithub({files,reviews:[]}).fetcher);
+  assert.equal(authorizedSourceOnly.ok,true);
+  assert.equal(authorizedSourceOnly.mode,"solo-maintainer");
+  assert.equal(authorizedSourceOnly.approvalCount,0);
+  assert.equal(authorizedSourceOnly.releaseAuthorized,false);
+
+  const rejected = [
+    files.slice(0,2),
+    [files[2]],
+    [...files, {filename:"src/lib/wfm-roster.ts",status:"added",sha:"c".repeat(40)}],
+    [...files, {filename:"drizzle/0123_wfm_new.sql",status:"added",sha:"c".repeat(40)}],
+    [...files, {filename:".github/workflows/wfm-new-feature.yml",status:"added",sha:"c".repeat(40)}],
+    files.map((x,i)=>i===0?{...x,sha:"c".repeat(40)}:x),
+    files.map((x,i)=>i===1?{...x,sha:null}:x),
+    files.map((x,i)=>i===2?{...x,status:"modified"}:x),
+    files.map((x,i)=>i===1?{...x,status:"renamed",previous_filename:"scripts/qa/wfm-old.mjs"}:x),
+    [files[0], files[0], files[2]],
+  ];
+  for (const altered of rejected) {
+    assert.equal(classifyReviewScope(altered).wfm691WitnessDevEvidence,false);
+    assert.equal(review(altered).ok,false);
+    assert.ok(review(altered).blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+    const check=await checkIndependentReview(soloEnv,
+      fakeGithub({files:altered,reviews:[]}).fetcher);
+    assert.equal(check.ok,false);
+    assert.deepEqual(check.blockers,["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+    assert.equal(check.releaseAuthorized,false);
+  }
+});
+
 test("solo source mode validates the actual head without inventing independent approval", async () => {
   for (const value of [undefined, "", "false", "TRUE"]) {
     const api = fakeGithub();

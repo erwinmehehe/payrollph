@@ -57,3 +57,27 @@ The former mandatory-independent-review policy introduced by #884 is
 superseded by the owner's explicit instruction. Production safeguards are
 not waived. This change does not close first-paying-customer operational
 acceptance or certify a live pilot.
+
+## Proposed #691 immutable offline witness packet exception (owner decision required)
+
+**Draft proposal only: no current source-freeze waiver until an authorized merge of
+this policy change.** The exact already-reviewed #969 evidence tooling would be
+eligible for source integration only if GitHub reports precisely three added files
+with these Git blob identifiers:
+
+- `docs/qa/wfm-691-independent-witness-handoff.md`: `4cbcc7bb09e21e0d836f4d52fb17750273bdd2bc`
+- `scripts/qa/wfm-independent-witness.mjs`: `ed923d4bead1dab6f98583b59435fc494a773d1b`
+- `tests/wfm-independent-witness.test.mjs`: `5dbfc80577b30365cf17573c1d19693cdb9ce3a0`
+
+The policy rejects a changed byte, duplicate, changed status, renamed path,
+omission, extra file, runtime/API/SQL/workflow addition or new money capability.
+P0-3 must continue reading the policy from trusted main; no PR may make its own
+head authoritative. This exception would allow only a **local offline evidence
+recording tool**, never real operator UAT, independent signature verification,
+WFM-14 hardware certification, production activation, migration, payment,
+government filing or actual #579 employer reconciliation.
+
+Follow the repository's solo-maintainer source policy and current-head CI,
+CodeQL and queue gates when reviewing this exact proposal. The owner must
+decide deliberately whether #969 merits source integration or should stay
+deferred; do not set a false `PILOT_HCM_WFM_STARTED` value.

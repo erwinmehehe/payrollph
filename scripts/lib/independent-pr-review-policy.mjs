@@ -54,6 +54,23 @@ function isPinnedWfmFiveWorkerDevEvidence(files) {
       && WFM5_DEV_PINNED_BLOBS.get(file.filename) === file.sha);
 }
 
+// Reviewed exact-blob exception PROPOSAL for #969: offline WFM-691 witness
+// packet only. No flags, runtime, DB, live device, human signoff or release.
+// The original files must be ADDED unchanged; extra paths fail closed.
+const WFM691_WITNESS_PINNED_BLOBS = new Map([
+  ["docs/qa/wfm-691-independent-witness-handoff.md", "4cbcc7bb09e21e0d836f4d52fb17750273bdd2bc"],
+  ["scripts/qa/wfm-independent-witness.mjs", "ed923d4bead1dab6f98583b59435fc494a773d1b"],
+  ["tests/wfm-independent-witness.test.mjs", "5dbfc80577b30365cf17573c1d19693cdb9ce3a0"],
+]);
+function isPinnedWfm691WitnessDevEvidence(files) {
+  if (files.length !== WFM691_WITNESS_PINNED_BLOBS.size) return false;
+  const unique = new Set(files.map(file => file.filename));
+  return unique.size === WFM691_WITNESS_PINNED_BLOBS.size
+    && files.every(file => file.status === "added"
+      && typeof file.sha === "string"
+      && WFM691_WITNESS_PINNED_BLOBS.get(file.filename) === file.sha);
+}
+
 const FROZEN_LANES = [
   /^src\/lib\/(?:hcm-|workforce-|wfm-|compensation-|performance-)/,
   /^src\/app\/api\/(?:hcm|workforce|recruitment|talent|compensation|performance|planning)\//,
@@ -91,6 +108,7 @@ export function classifyReviewScope(files) {
   const frozenPaths = list.filter(path => FROZEN_LANES.some(regex => regex.test(path)));
   const wfm12DevEvidence = isExactWfm12DevelopmentEvidence(files);
   const wfmFiveWorkerDevEvidence = isPinnedWfmFiveWorkerDevEvidence(files);
+  const wfm691WitnessDevEvidence = isPinnedWfm691WitnessDevEvidence(files);
   const sensitivePaths = list.filter(path =>
     ALWAYS_SENSITIVE.some(regex => regex.test(path)) ||
     ["T2", "T3"].includes(tierForPath(path)));
@@ -100,6 +118,7 @@ export function classifyReviewScope(files) {
     hcmWfmFrozen: frozenPaths.length > 0,
     wfm12DevEvidence,
     wfmFiveWorkerDevEvidence,
+    wfm691WitnessDevEvidence,
     sensitiveFileCount: sensitivePaths.length,
     frozenFileCount: frozenPaths.length,
   };
@@ -156,7 +175,7 @@ export function evaluateIndependentReview({
   const scope = classifyReviewScope(files);
   const blockers = [];
   if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
-      !scope.wfmFiveWorkerDevEvidence &&
+      !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {
