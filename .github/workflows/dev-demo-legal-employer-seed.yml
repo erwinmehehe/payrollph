@@ -4,12 +4,14 @@ on:
     paths:
       - "src/db/seed.ts"
       - "tests/demo-legal-employer-seed.test.ts"
+      - "scripts/qa/verify-demo-payroll-draft.mjs"
       - ".github/workflows/dev-demo-legal-employer-seed.yml"
   push:
     branches: [main]
     paths:
       - "src/db/seed.ts"
       - "tests/demo-legal-employer-seed.test.ts"
+      - "scripts/qa/verify-demo-payroll-draft.mjs"
       - ".github/workflows/dev-demo-legal-employer-seed.yml"
   workflow_dispatch:
 
@@ -63,3 +65,22 @@ jobs:
         run: npm run db:push
       - name: Verify legal-employer links, idempotence and foreign-company denial
         run: npx tsx --test --test-concurrency=1 tests/demo-legal-employer-seed.test.ts
+      - name: Verify Owner can create a fictional payroll Draft via the real API
+        shell: bash
+        run: |
+          npm run dev -- -H 127.0.0.1 > /tmp/demo-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 5 http://127.0.0.1:3000/login > /dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != "true" ]; then
+            echo 'Development application did not start on loopback.'
+            exit 1
+          fi
+          node scripts/qa/verify-demo-payroll-draft.mjs
