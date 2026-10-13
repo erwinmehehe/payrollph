@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
@@ -17,8 +17,13 @@ import { loadHcmLifecyclePolicy } from "@/lib/hcm-lifecycle-policy";
 export async function loadEmploymentLifecycleReadiness(
   organizationId: number,
   today = philippineBusinessDate(),
+  legalEntityId: number | null = null,
 ) {
   const policy = await loadHcmLifecyclePolicy(organizationId);
+  const entityEmployees = db.select({ id: employees.id }).from(employees).where(and(
+    eq(employees.organizationId, organizationId),
+    legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId),
+  ));
   const [employeeRows, termRows, decisionRows, separationRows] = await Promise.all([
     db.select({
       id: employees.id,
@@ -27,13 +32,16 @@ export async function loadEmploymentLifecycleReadiness(
       lastName: employees.lastName,
       status: employees.status,
     }).from(employees)
-      .where(eq(employees.organizationId, organizationId))
+      .where(and(eq(employees.organizationId, organizationId),
+        legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId)))
       .orderBy(employees.lastName, employees.firstName, employees.id),
     db.select().from(hcmEmploymentTerms)
-      .where(eq(hcmEmploymentTerms.organizationId, organizationId))
+      .where(and(eq(hcmEmploymentTerms.organizationId, organizationId),
+        legalEntityId === null ? undefined : inArray(hcmEmploymentTerms.employeeId, entityEmployees)))
       .orderBy(desc(hcmEmploymentTerms.effectiveFrom), desc(hcmEmploymentTerms.id)),
     db.select().from(hcmEmploymentTermDecisions)
-      .where(eq(hcmEmploymentTermDecisions.organizationId, organizationId))
+      .where(and(eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+        legalEntityId === null ? undefined : inArray(hcmEmploymentTermDecisions.employeeId, entityEmployees)))
       .orderBy(desc(hcmEmploymentTermDecisions.id)),
     db.select({
       id: separationRecords.id,
@@ -41,7 +49,8 @@ export async function loadEmploymentLifecycleReadiness(
       status: separationRecords.status,
       lastDay: separationRecords.lastDay,
     }).from(separationRecords)
-      .where(eq(separationRecords.organizationId, organizationId))
+      .where(and(eq(separationRecords.organizationId, organizationId),
+        legalEntityId === null ? undefined : inArray(separationRecords.employeeId, entityEmployees)))
       .orderBy(desc(separationRecords.id)),
   ]);
 
