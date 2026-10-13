@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { openSync, closeSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import pg from "pg";
 import { dispatchSchedulerTick } from "../run-external-scheduler-tick.mjs";
@@ -105,7 +105,6 @@ export async function proveUnattendedPayroll(env = process.env) {
   const client = new pg.Client({ connectionString: env.DATABASE_URL });
   await client.connect();
   let worker;
-  let logFd;
   try {
     const queued = await readState(client, seed.runId);
     assert.equal(queued.runs.length, 1);
@@ -148,14 +147,16 @@ export async function proveUnattendedPayroll(env = process.env) {
     // existing dedicated payroll worker independently consumes payroll_jobs.
     // GitHub CI starts it unattended (NO direct processing function call).
     mkdirSync("qa-artifacts", { recursive: true });
-    logFd = openSync("/tmp/payrollph-unattended-worker.log", "w");
     worker = spawn("npm", ["run", "worker"], {
       cwd: resolve("."),
       env: {
         ...env, WORKER_ENABLED: "true", CENTRAL_SCHEDULER_ENABLED: "false",
         WORKER_POLL_MS: "1000",
       },
-      stdio: ["ignore", logFd, logFd],
+      // The synthetic worker handles only disposable payroll. Do not create
+      // predictable log files in /tmp or capture any potentially sensitive
+      // process output; database status and the sanitized JSON proof suffice.
+      stdio: ["ignore", "ignore", "ignore"],
       shell: false,
     });
     const completed = await waitForCompletedPayroll(client, seed.runId, worker, Date.now() + MAX_WAIT_MS);
@@ -191,7 +192,6 @@ export async function proveUnattendedPayroll(env = process.env) {
     process.stdout.write("PASS P0-1: automated external dispatch + fenced heartbeat + autonomous fictional payroll worker; no manual trigger, no payment\n");
   } finally {
     await terminate(worker);
-    if (logFd !== undefined) closeSync(logFd);
     await client.end();
   }
 }
