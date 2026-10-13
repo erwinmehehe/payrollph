@@ -144,10 +144,11 @@ export async function assertMembership(userId: number, organizationId: number): 
     ))
     .limit(1);
   if (!row) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
-  // Some legacy endpoints use membership directly without consulting
-  // resolveMultiEntityContext(). They must not activate group HR while OFF.
-  if (row.role === "group_hr" &&
-      (!criticalReleaseFlagEnabled("multiEntity") || row.orgUnitId !== null)) {
+  // Generic membership is NOT a grant for the dedicated cross-employer
+  // group_hr role, even when enabled. Group HR may read only through routes
+  // that explicitly resolve the tenant, group scope and read-only capability.
+  // Otherwise legacy member-only API endpoints become accidental data paths.
+  if (row.role === "group_hr") {
     return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   }
   // Enforce the same manager unit gate for APIs that use membership directly

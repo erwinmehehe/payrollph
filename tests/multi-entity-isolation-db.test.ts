@@ -285,6 +285,9 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
       process.env.MULTI_ENTITY_ENABLED = "true";
     }
     assert.equal((await getAccess(people[1].id, tenantA.id))?.role, "group_hr");
+    // Sanctioned resolver allows group reports, but blanket tenant membership
+    // must not authorize unrelated legacy/API reads for the new group role.
+    assert.equal((await assertMembership(people[1].id, tenantA.id))?.status, 403);
     // Executed regression: a dedicated group_hr role with an org-unit
     // restriction is NOT a tenant-wide cross-entity principal. It cannot
     // enumerate All or explicitly name another employer while narrowed.
