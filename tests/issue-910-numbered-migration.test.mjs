@@ -32,8 +32,14 @@ test("#910 0123 contains exact reviewed source fragments and SHA-256 of the true
   for (const { key, path: sourcePath, start, end } of sourceParts) {
     const raw = readFileSync(new URL("../" + sourcePath, import.meta.url), "utf8");
     const sha256 = createHash("sha256").update(raw).digest("hex");
-    const marker = "-- ISSUE910 SOURCE " + key + " [" + sourcePath + "] SHA256 " + sha256;
-    assert.equal(candidate.split(marker).length, 2, "Expected exactly one exact-SHA marker: " + key);
+    const markerPrefix = "-- ISSUE910 SOURCE " + key + " [" + sourcePath + "] SHA256 ";
+    const marker = markerPrefix + sha256;
+    const candidateLines = candidate.split("\n").filter(line => line.startsWith(markerPrefix));
+    assert.equal(candidateLines.length, 1, "Expected one source marker for " + key +
+      "; observed candidate markers: " + candidateLines.join(" | "));
+    assert.equal(candidateLines[0], marker,
+      "Source hash mismatch for " + key + ". Rebuild 0123 from this checkout's exact reviewed raw SQL bytes; " +
+      "never relax the source checksum assertion.");
     let body;
     if (start && end) {
       const beginning = raw.indexOf(start), ending = raw.lastIndexOf(end);
