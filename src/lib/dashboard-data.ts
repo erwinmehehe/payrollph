@@ -427,6 +427,7 @@ export async function getDashboardData(organizationId?: number, request?: Reques
     employeeImportPreviewEnabled: criticalReleaseFlagEnabled("employeeImportPreview"),
     xenditPayoutsEnabled: criticalReleaseFlagEnabled("xenditPayrollPayouts"),
     bir1604cCandidateEnabled: criticalReleaseFlagEnabled("bir1604cReviewedCandidate"),
+    compactMobileHeaderEnabled: criticalReleaseFlagEnabled("compactMobileHeader"),
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     ...(entityContext.enabled ? { multiEntity: {
