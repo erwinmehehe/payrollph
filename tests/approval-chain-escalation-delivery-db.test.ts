@@ -8,6 +8,7 @@ import {
   approvalTasks, auditEvents, organizations, outbox, userOrganizations, users,
 } from "../src/db/schema";
 import { runDueApprovalChainEscalations } from "../src/lib/approval-chain-escalation-server";
+import { retryOutboxMessage } from "../src/lib/mailer";
 
 test("advisory destination writes one tenant-bound outbox receipt; inactive and foreign recipients are blocked", async () => {
   const prevFlag = process.env.APPROVAL_CHAIN_ESCALATIONS_ENABLED;
@@ -97,6 +98,13 @@ test("advisory destination writes one tenant-bound outbox receipt; inactive and 
 
     await db.update(userOrganizations).set({ active: false })
       .where(eq(userOrganizations.id, membership.id));
+    const staleRetry = await retryOutboxMessage({
+      id: messages[0].id, organizationId: alpha.id,
+      actor: "Synthetic scheduler", trigger: "manual",
+    });
+    assert.equal(staleRetry.ok, false);
+    assert.equal(staleRetry.httpStatus, 409,
+      "A revoked recipient must not receive a previously queued advisory");
     await runDueApprovalChainEscalations(new Date(now.getTime() + 60_000));
     const replay = await db.select().from(outbox)
       .where(eq(outbox.organizationId, alpha.id));
