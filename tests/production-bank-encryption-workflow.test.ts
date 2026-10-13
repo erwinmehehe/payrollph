@@ -135,3 +135,36 @@ test("production backfill cannot use unreviewed branches or generic CI secret fa
   assert.ok(!workflow.includes("|| secrets.BANK_DATA_ENCRYPTION_KEY"));
   assert.ok(!workflow.includes("|| secrets.TOTP_ENCRYPTION_KEY"));
 });
+
+
+test("P0-2 adds current-key authentication before any bank write and an independent read-only post-apply proof", () => {
+  const dry = workflow.indexOf("- name: Authenticate existing bank envelopes using current key (read-only)");
+  const encrypt = workflow.indexOf("- name: Encrypt legacy bank data");
+  const post = workflow.indexOf("- name: Independent SELECT-only current-key four-store proof");
+  const readiness = workflow.indexOf("- name: Verify live readiness sees encrypted bank data");
+  assert.ok(dry > 0 && dry < encrypt);
+  assert.ok(post > encrypt && post < readiness);
+
+  const dryNextStep = workflow.indexOf("\n      - name: ", dry + 10);
+  const drySection = workflow.slice(dry, dryNextStep);
+  const postSection = workflow.slice(post, readiness);
+  assert.match(drySection, /if: \${{ inputs\.mode == 'dry-run' }}/);
+  assert.match(postSection, /if: \${{ inputs\.mode == 'apply' }}/);
+  for (const section of [drySection, postSection]) {
+    assert.match(section, /DATABASE_URL: \${{ secrets\.PRODUCTION_BANK_AUDIT_DATABASE_URL }}/);
+    assert.match(section, /BANK_DATA_ENCRYPTION_KEY: \${{ secrets\.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}/);
+    assert.doesNotMatch(section, /DATABASE_URL: \${{ secrets\.PRODUCTION_DATABASE_URL }}/);
+  }
+  assert.ok(drySection.includes("scripts/audit-bank-envelopes-readonly.mjs --inventory"));
+  assert.ok(postSection.includes("scripts/audit-bank-envelopes-readonly.mjs --require-zero"));
+
+  const script = readFileSync("scripts/audit-bank-envelopes-readonly.mjs", "utf8");
+  const library = readFileSync("scripts/lib/bank-envelope-audit.mjs", "utf8");
+  assert.ok(script.includes('bankEncryptionKeySource(currentKey) !== "dedicated"'));
+  assert.ok(script.includes("classifyStoredBankEnvelope(value, currentKey)"));
+  assert.ok(library.includes("REPEATABLE READ, READ ONLY"));
+  assert.ok(library.includes("SET LOCAL row_security = off"));
+  assert.ok(library.includes("hasWritePrivileges"));
+  assert.ok(library.includes("verificationSucceeded: plaintext === 0 && unreadable === 0"));
+  assert.equal((library.match(/id: "(?:employees|payroll_payment_snapshots|legal_entity_disbursement_accounts|payout_change_proposals)"/g) ?? []).length, 4);
+});

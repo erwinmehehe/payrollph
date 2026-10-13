@@ -1,14 +1,10 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { parseBankEncryptionKey } from "@/lib/bank-account-crypto";
 
 const PREFIX = "enc:govid:v1:";
 const KEY_ENV = "PII_ENCRYPTION_KEY";
 const PREVIOUS_KEY_ENV = "PII_ENCRYPTION_KEY_PREVIOUS";
-const BANK_KEY_ENV = "BANK_DATA_ENCRYPTION_KEY";
-const PREVIOUS_BANK_KEY_ENV = "BANK_DATA_ENCRYPTION_KEY_PREVIOUS";
-const MASTER_KEY_ENV = "TOTP_ENCRYPTION_KEY";
-const PREVIOUS_MASTER_KEY_ENV = "TOTP_ENCRYPTION_KEY_PREVIOUS";
-const DERIVATION_LABEL = "linaw:government-identifiers:v1";
 
 function configuredKey(env: NodeJS.ProcessEnv = process.env): Buffer | null {
   const direct = env[KEY_ENV]?.trim();
@@ -18,13 +14,7 @@ function configuredKey(env: NodeJS.ProcessEnv = process.env): Buffer | null {
     return key;
   }
 
-  const parentRaw = env[BANK_KEY_ENV]?.trim() || env[MASTER_KEY_ENV]?.trim();
-  if (!parentRaw) return null;
-  const parent = parseBankEncryptionKey(parentRaw);
-  if (!parent) {
-    throw new Error(`${env[BANK_KEY_ENV] ? BANK_KEY_ENV : MASTER_KEY_ENV} must be 32 bytes, as 64 hex characters or base64.`);
-  }
-  return createHmac("sha256", parent).update(DERIVATION_LABEL).digest();
+  return null;
 }
 
 function configuredPreviousKey(env: NodeJS.ProcessEnv = process.env): Buffer | null {
@@ -35,15 +25,7 @@ function configuredPreviousKey(env: NodeJS.ProcessEnv = process.env): Buffer | n
     return key;
   }
 
-  const parentRaw = env[PREVIOUS_BANK_KEY_ENV]?.trim() || env[PREVIOUS_MASTER_KEY_ENV]?.trim();
-  if (!parentRaw) return null;
-  const parent = parseBankEncryptionKey(parentRaw);
-  if (!parent) {
-    throw new Error(
-      `${env[PREVIOUS_BANK_KEY_ENV] ? PREVIOUS_BANK_KEY_ENV : PREVIOUS_MASTER_KEY_ENV} must be 32 bytes, as 64 hex characters or base64.`,
-    );
-  }
-  return createHmac("sha256", parent).update(DERIVATION_LABEL).digest();
+  return null;
 }
 
 export function governmentIdPreviousKeyConfigured(env: NodeJS.ProcessEnv = process.env) {
@@ -79,7 +61,7 @@ export function encryptGovernmentId(
   if (!key) {
     if (options.required) {
       throw new Error(
-        `${KEY_ENV} (or a valid ${BANK_KEY_ENV}/${MASTER_KEY_ENV} fallback) is required before government identifiers can be stored in production.`,
+        `${KEY_ENV} is required before government identifiers can be stored.`,
       );
     }
     return plain;
@@ -103,7 +85,10 @@ export function decryptGovernmentId(
 
   const currentKey = configuredKey(env);
   const previousKey = configuredPreviousKey(env);
-  const keys = [currentKey, previousKey].filter((key): key is Buffer => Boolean(key));
+  const legacyRaw = criticalReleaseFlagEnabled("piiLegacyRead", env) ? env.PII_LEGACY_GOVERNMENT_ID_KEY : undefined;
+  const legacyKey = legacyRaw ? parseBankEncryptionKey(legacyRaw) : null;
+  if (legacyRaw && !legacyKey) throw new Error("Invalid legacy government identifier key.");
+  const keys = [currentKey, previousKey, legacyKey].filter((key): key is Buffer => Boolean(key));
   if (keys.length === 0) throw new Error("Government identifier encryption key is not configured.");
 
   const [iv, tag, ciphertext] = stored.slice(PREFIX.length).split(":");
@@ -149,7 +134,7 @@ export function rotateGovernmentIdEncryption(
   if (value == null || !value.trim()) return null;
   const env = options.env ?? process.env;
   if (!configuredKey(env)) {
-    throw new Error(`${KEY_ENV} (or a current ${BANK_KEY_ENV}/${MASTER_KEY_ENV} fallback) is required before rotation.`);
+    throw new Error(`${KEY_ENV} is required before rotation.`);
   }
   const plain = decryptGovernmentId(value, env);
   return encryptGovernmentId(plain, { ...options, required: true, env });
