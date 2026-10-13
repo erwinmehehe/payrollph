@@ -23,8 +23,9 @@ const listing = (organizationId: number) => and(
   sql`${jobRequisitions.positionId} is not null`,
 );
 export async function GET(request: Request) {
-  if (!applicationReady()) return unavailable();
+  if (!criticalReleaseFlagEnabled("recruitmentJourney")) return unavailable();
   const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
+  if (!applicationReady()) return unavailable();
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0)
     return Response.json({ error: "Valid employer required." }, { status: 400 });
@@ -41,8 +42,9 @@ export async function GET(request: Request) {
   });
 }
 export async function POST(request: Request) {
-  if (!applicationReady()) return unavailable();
+  if (!criticalReleaseFlagEnabled("recruitmentJourney")) return unavailable();
   const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
+  if (!applicationReady()) return unavailable();
   const denied = enforceSameOriginMutation(request);
   if (denied) return denied;
   const body = await request.json().catch(() => ({}));

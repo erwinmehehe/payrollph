@@ -15,6 +15,7 @@ export function CareersBoard({ organizationId, organizationName, jobs, privacyNo
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
+  const [website, setWebsite] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [error, setError] = useState("");
 
@@ -29,7 +30,7 @@ export function CareersBoard({ organizationId, organizationName, jobs, privacyNo
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           organizationId, requisitionId: selected.id, fullName, email, phone,
-          notes, consent, intakeProof, privacyNoticeVersion, website: "",
+          notes, consent, intakeProof, privacyNoticeVersion, website,
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -69,7 +70,7 @@ export function CareersBoard({ organizationId, organizationName, jobs, privacyNo
         <label className="grid gap-2 sm:col-span-2">Message (optional)
           <textarea maxLength={1000} rows={4} className="rounded border p-2" value={notes} onChange={e=>setNotes(e.target.value)}/>
         </label>
-        <label className="sr-only" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" name="website"/></label>
+        <label className="sr-only" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" name="website" value={website} onChange={event=>setWebsite(event.target.value)}/></label>
         <label className="flex items-start gap-2 sm:col-span-2">
           <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} required/>
           <span>I consent to this employer processing my application details for recruitment under the <a className="underline" href={privacyNoticeUrl || "#"} target="_blank" rel="noopener noreferrer">recruitment privacy notice</a> (version {privacyNoticeVersion || "not configured"}).</span>

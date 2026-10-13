@@ -36,3 +36,34 @@ test("public and admin careers deny disabled and multi-entity requests before DB
   if(prev[1]===undefined)delete process.env.MULTI_ENTITY_ENABLED;else process.env.MULTI_ENTITY_ENABLED=prev[1];
  }
 });
+
+test("careers API fails closed without independently enabled applicant privacy", async () => {
+ const saved = [process.env.RECRUITMENT_JOURNEY_UI_ENABLED, process.env.MULTI_ENTITY_ENABLED,
+  process.env.APPLICANT_PRIVACY_CONTROLS_ENABLED, process.env.PUBLIC_INTAKE_PROOF_ENABLED];
+ try {
+  process.env.RECRUITMENT_JOURNEY_UI_ENABLED = "true";
+  process.env.MULTI_ENTITY_ENABLED = "false";
+  process.env.APPLICANT_PRIVACY_CONTROLS_ENABLED = "false";
+  process.env.PUBLIC_INTAKE_PROOF_ENABLED = "true";
+  const pub = await import("../src/app/api/careers/route");
+  const admin = await import("../src/app/api/careers/admin/route");
+  const request = new Request("https://example.test/api/careers?organizationId=1");
+  assert.equal((await pub.GET(request)).status, 404);
+  assert.equal((await pub.POST(new Request(request.url, {method:"POST",body:"{}",headers:{"content-type":"application/json"}}))).status, 404);
+  assert.equal((await admin.PATCH(new Request("https://example.test/api/careers/admin",{method:"PATCH",body:"{}",headers:{"content-type":"application/json"}}))).status, 404);
+ } finally {
+  for(const [index,key] of ["RECRUITMENT_JOURNEY_UI_ENABLED","MULTI_ENTITY_ENABLED",
+   "APPLICANT_PRIVACY_CONTROLS_ENABLED","PUBLIC_INTAKE_PROOF_ENABLED"].entries()){
+   if(saved[index]===undefined) delete process.env[key]; else process.env[key]=saved[index];
+  }
+ }
+});
+test("careers UI visibly links notice version for documented consent",()=>{
+ const html=renderToStaticMarkup(createElement(CareersBoard,{organizationId:1,
+  organizationName:"Synthetic Employer",jobs:[{id:4,title:"Payroll Analyst",
+  department:"Finance",employmentType:"Full-time",description:"Test role"}],
+  privacyNoticeVersion:"v1-2026",privacyNoticeUrl:"https://example.test/privacy"}));
+ assert.match(html,/recruitment privacy notice/);
+ assert.match(html,/v1-2026/);
+ assert.match(html,/https:\/\/example.test\/privacy/);
+});

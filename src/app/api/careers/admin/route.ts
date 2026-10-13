@@ -11,9 +11,13 @@ import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-pri
 import { enforceSensitiveActionRateLimit } from "@/lib/security-request";
 
 export async function PATCH(request: Request) {
-  if (!criticalReleaseFlagEnabled("recruitmentJourney") || !applicantPrivacyControlsEnabled() || !criticalReleaseFlagEnabled("publicIntakeProof"))
+  if (!criticalReleaseFlagEnabled("recruitmentJourney"))
     return Response.json({ error: "Careers publishing disabled." }, { status: 404 });
   const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
+  if (!applicantPrivacyControlsEnabled() || !criticalReleaseFlagEnabled("publicIntakeProof") ||
+      !/^[A-Za-z0-9._-]{2,64}$/.test(process.env.CAREERS_PRIVACY_NOTICE_VERSION ?? "") ||
+      !/^https:\/\/[^\s]+$/.test(process.env.CAREERS_PRIVACY_NOTICE_URL ?? ""))
+    return Response.json({ error: "Careers publishing requires approved privacy controls." }, { status: 404 });
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in required." }, { status: 401 });
