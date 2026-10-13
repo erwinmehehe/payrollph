@@ -122,16 +122,24 @@ export function FirstPayrollInlinePanel({
    ? new Date(value).toLocaleString("en-PH",{timeZone:"Asia/Manila",dateStyle:"short",timeStyle:"short"})
    : "—";
  const reviewed=progress?.completedSteps?.time;
- const reviewersCanEdit=["owner","admin"].includes(data.access?.role??"");
+ const activeRole=data.access?.role??"";
+ const companyWide=data.access?.companyWide===true;
+ const reviewersCanEdit=companyWide&&["owner","admin"].includes(activeRole);
+ const canAddPeople=companyWide&&["owner","admin","bookkeeper","hr"].includes(activeRole);
+ const canPreviewPayroll=companyWide&&["owner","admin","bookkeeper","payroll","checker"].includes(activeRole);
+ const canDraftPayroll=companyWide&&["owner","admin","bookkeeper","payroll"].includes(activeRole);
+ const currentOwner=progress?.stepOwners?.[step]??defaultOwner;
+ const canHandoff=companyWide&&(reviewersCanEdit||currentOwner===activeRole);
  const handoff=<div className="mt-4 flex flex-wrap items-center gap-2">
    <label>Responsible role <select value={target} onChange={e=>setTarget(e.target.value)}>
      {permittedOwners.map(r=><option key={r} value={r}>{r}</option>)}
    </select></label>
-   <button type="button" className="secondary-button" disabled={busy}
+   <button type="button" className="secondary-button" disabled={busy||progressLoading||!canHandoff}
      onClick={()=>void send("/api/first-payroll/progress","PATCH",{key:step,action:"handoff",targetRole:target},"Handoff recorded for the selected role.")}>
      Send to {target}
    </button>
-   <small>Current owner: {progress?.stepOwners?.[step]??defaultOwner}</small>
+   <small>Current owner: {currentOwner}</small>
+   {!canHandoff&&<small>Only the responsible role or a company administrator can reassign this step.</small>}
  </div>;
  return <div className="mt-3 min-w-0 max-w-full rounded-xl border p-4" aria-label={step+" inline setup"}
    aria-busy={progressLoading||companyLoading||busy}>
@@ -170,11 +178,12 @@ export function FirstPayrollInlinePanel({
      </div>
      {peopleMode==="add"&&<div className="mt-3">
        <p>Create the employee and their pay profile using the same governed hire endpoint as People.</p>
-       <button type="button" className="primary-button" onClick={()=>setShowHire(v=>!v)}>{showHire?"Close employee form":"Add employee inline"}</button>
-       {showHire&&<NewHireModal inline organizationId={organizationId} onClose={()=>setShowHire(false)}
+       <button type="button" className="primary-button" disabled={!canAddPeople} onClick={()=>setShowHire(v=>!v)}>{showHire?"Close employee form":"Add employee inline"}</button>
+       {showHire&&canAddPeople&&<NewHireModal inline organizationId={organizationId} onClose={()=>setShowHire(false)}
          onCreated={()=>{setShowHire(false);void onRefresh();}}/>}
      </div>}
-     {peopleMode==="import"&&(data.employeeImportPreviewEnabled
+     {peopleMode==="import"&&!canAddPeople&&<p role="status">Ask an authorized People administrator to import employees.</p>}
+     {peopleMode==="import"&&canAddPeople&&(data.employeeImportPreviewEnabled
        ?<EmployeeImportPreviewPanel organizationId={organizationId} onImported={()=>void onRefresh()}/>
        :<p role="alert">Employee CSV preview is not enabled. Individual employee creation remains available; unsafe direct import is not exposed here.</p>)}
    </div>}
@@ -232,7 +241,8 @@ export function FirstPayrollInlinePanel({
      <label>Period start<input type="date" value={start} onChange={e=>{setStart(e.target.value);setPreview(null);setDraftId(null);}}/></label>
      <label>Period end<input type="date" value={end} onChange={e=>{setEnd(e.target.value);setPreview(null);setDraftId(null);}}/></label>
      <label>Pay date<input type="date" value={payDate} onChange={e=>{setPayDate(e.target.value);setPreview(null);setDraftId(null);}}/></label>
-     <button type="button" className="primary-button" disabled={busy||!start||!end||!payDate} onClick={()=>void dryRun()}>Preview first payroll (no writes)</button>
+     <button type="button" className="primary-button" disabled={busy||!canPreviewPayroll||!start||!end||!payDate} onClick={()=>void dryRun()}>Preview first payroll (no writes)</button>
+     {!canPreviewPayroll&&<p role="status">Only company-wide payroll viewers can inspect calculated preview amounts.</p>}
      {preview&&<>
        <p role="status">{preview.previewReady?"Preview ready for reconciliation":"Preview has blockers"}</p>
        {preview.blockers.map((b,i)=><p key={i} role="alert">{b}</p>)}
@@ -241,9 +251,10 @@ export function FirstPayrollInlinePanel({
        <tbody>{preview.rows.map(row=><tr key={row.employeeId}>
          <td>{row.name}</td>{[row.gross,row.sss,row.philHealth,row.pagIbig,row.withholding,row.net].map((n,i)=><td key={i}>{n==null?"—":n.toFixed(2)}</td>)}
          <td>{row.blockers.join("; ")||"None"}</td></tr>)}</tbody></table></div>
-       {preview.previewReady&&<button type="button" className="secondary-button" disabled={busy||draftId!==null} onClick={()=>void send("/api/payroll-runs","POST",{
+       {preview.previewReady&&<button type="button" className="secondary-button" disabled={busy||!canDraftPayroll||draftId!==null} onClick={()=>void send("/api/payroll-runs","POST",{
          periodStart:start,periodEnd:end,payDate,processNow:false,
        },"A draft payroll record was created. It is not calculated, approved or released.")}>Create actual draft payroll (writes a draft record)</button>}
+       {preview.previewReady&&!canDraftPayroll&&<p role="status">A payroll operator must create the draft. Preview access does not grant maker privileges.</p>}
        {draftId&&<p role="status">Draft run #{draftId} created. Existing independent calculation and approval gates still apply.</p>}
      </>}
    </div>}
