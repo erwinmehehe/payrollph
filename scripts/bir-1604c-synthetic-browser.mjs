@@ -181,26 +181,35 @@ try {
     const root = page.locator('[data-bir-1604c-candidate]');
     assert.ok(await root.getByText("1604-C reviewed DAT candidate", { exact: false }).isVisible());
     assert.ok((await root.locator('[data-bir-v70-validation-status]').textContent()).includes("not run"));
-    await root.evaluate(el => el.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" }));
-    await page.waitForTimeout(200);
+    // The Year-End panel is taller than a 900px viewport. Scroll to the
+    // heading itself: asserting the root's top is on-screen is incorrect once
+    // its internal content overflows the viewport vertically.
+    const heading = root.locator("h3").first();
+    await heading.scrollIntoViewIfNeeded();
     const bounding = await root.evaluate(el => {
       const rect = el.getBoundingClientRect();
       const descendants = [...el.querySelectorAll("*")];
       return {
-        left: rect.left, right: rect.right, top: rect.top,
-        viewport: window.innerWidth, documentWidth: document.documentElement.scrollWidth,
+        left: rect.left, right: rect.right,
+        viewport: window.innerWidth,
         childMaxRight: Math.max(rect.right, ...descendants.map(node => node.getBoundingClientRect().right)),
       };
     });
+    const headingBounds = await heading.boundingBox();
     assert.equal(bounding.viewport, width, "Expected exact mobile/desktop browser viewport");
     assert.ok(bounding.left >= -2 && bounding.right <= width + 2 &&
       bounding.childMaxRight <= width + 2,
       "BIR panel or child overflows " + width + "px viewport");
-    assert.ok(bounding.top < 900 && bounding.top > -850,
-      "BIR candidate panel must be visible in screenshot viewport");
+    assert.ok(headingBounds && headingBounds.y >= -2 &&
+      headingBounds.y + headingBounds.height <= 902,
+      "BIR heading must actually be visible in the captured viewport");
     await page.screenshot({ path: outDir + "/year-end-bir-" + width + ".png", fullPage: false });
     const status = root.locator('[data-bir-v70-validation-status]');
-    await status.evaluate(el => el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" }));
+    await status.scrollIntoViewIfNeeded();
+    const statusBounds = await status.boundingBox();
+    assert.ok(statusBounds && statusBounds.y >= -2 &&
+      statusBounds.y + statusBounds.height <= 902,
+      "BIR validator status must actually be visible in its screenshot");
     await page.screenshot({ path: outDir + "/year-end-bir-status-" + width + ".png", fullPage: false });
     results.push({ checkpoint: "compliance-year-end-" + width + "px", result: "pass", synthetic: true });
     await context.close();
