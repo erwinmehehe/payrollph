@@ -52,10 +52,23 @@ async function login(context, base, email) {
   assert.equal(r.status(), 200, "Disposable login must work for " + email);
 }
 async function request(context, base, path, method = "GET", data = undefined) {
+  // In Next production mode the login cookie is Secure. Playwright's
+  // APIRequestContext retains it but DOES NOT send it over the HTTP 127.0.0.1
+  // synthetic transport (unlike a real production HTTPS browser session).
+  // Explicitly forward only this freshly minted fake-login cookie to the
+  // strictly pinned localhost test app; do not relax the production cookie.
+  assert.equal(process.env.MULTI_ENTITY_QA_MODE, "synthetic-postgres-only");
+  assert.ok([on, off, "http://127.0.0.1:3002"].includes(base));
+  const cookie = (await context.cookies(base)).find(c =>
+    c.name === "__Host-linaw_session" || c.name === "linaw_session");
+  assert.ok(cookie, "Synthetic login must mint an actual session cookie before API acceptance");
   const response = await context.request.fetch(base + path, {
     method,
-    headers: method === "GET" ? undefined : {
-      "Content-Type": "application/json", Origin: base, "sec-fetch-site": "same-origin",
+    headers: {
+      Cookie: cookie.name + "=" + cookie.value,
+      ...(method === "GET" ? {} : {
+        "Content-Type": "application/json", Origin: base, "sec-fetch-site": "same-origin",
+      }),
     },
     data, failOnStatusCode: false,
   });
