@@ -63,7 +63,20 @@ async function fit(page, label) {
       })
       .filter(box => box.width > 0 && box.right > window.innerWidth + 1 && box.left < window.innerWidth)
       .sort((a, b) => b.right - a.right).slice(0, 14));
-    console.error("ESS_MOBILE_OVERFLOW", JSON.stringify({ label, ...rect, offenders }));
+const surfaces = await page.evaluate(() => [...document.querySelectorAll(
+      "html, body, .app-shell, .topbar, .content-area, .people-layout, .card, .panel-disclosure, .data-table-wrap, .mobile-bottom-nav, .tabs, .topbar-actions"
+    )].map(node => {
+      const box = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return {
+        tag: node.tagName.toLowerCase(),
+        classes: typeof node.className === "string" ? node.className.slice(0, 80) : "",
+        x: Math.round(box.x), right: Math.round(box.right), width: Math.round(box.width),
+        client: node.clientWidth, scroll: node.scrollWidth, minWidth: style.minWidth,
+        overflowX: style.overflowX, display: style.display
+      };
+    }).filter(item => item.width || item.scroll).slice(0, 55));
+    console.error("ESS_MOBILE_OVERFLOW", JSON.stringify({ label, ...rect, offenders, surfaces }));
     await page.screenshot({ path: "qa-artifacts/ess-profile/overflow-diagnostic-390.png", fullPage: true });
   }
   assert.ok(rect.scrollWidth <= rect.visibleWidth + 1, label + " horizontal overflow");
