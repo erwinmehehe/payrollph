@@ -1,5 +1,5 @@
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
-import { loadTenantModulePreferences } from "./tenant-modules";
+import { loadTenantModulePreferences, type TenantModulePreferences } from "./tenant-modules";
 import { organizationModuleSettings, tenantModuleStorageAvailable } from "@/lib/tenant-module-storage";
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { maskGovernmentId } from "@/lib/government-id-crypto";
@@ -80,7 +80,7 @@ export async function getDashboardData(organizationId?: number) {
   // must continue to function before the controlled DBA migration.
   const coreModuleNavigationEnabled = criticalReleaseFlagEnabled("coreModuleNavigation")
     && await tenantModuleStorageAvailable();
-  const modulePreferenceById = coreModuleNavigationEnabled
+  const modulePreferenceById: Map<number, TenantModulePreferences> = coreModuleNavigationEnabled
     ? await loadTenantModulePreferences(organizationIds, () => db.select({
         id: organizationModuleSettings.id,
         mode: organizationModuleSettings.moduleNavigationMode,
