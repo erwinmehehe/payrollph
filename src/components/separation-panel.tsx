@@ -404,6 +404,14 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       setLocalAccessEvidenceReference("");
       setSelectedRecord(null);
       reload();
+    } catch {
+      // A transport failure after commit has an unknown outcome. Do not
+      // claim revocation succeeded or failed; retain the evidence reference.
+      setNotice(
+        "Local access cutoff outcome is unknown because the request could not be confirmed. "
+        + "Refresh the separation and audit evidence before retrying.",
+      );
+      reload();
     } finally {
       setLocalAccessBusy(false);
     }
