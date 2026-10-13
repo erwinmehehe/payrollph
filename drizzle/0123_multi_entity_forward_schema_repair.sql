@@ -643,7 +643,7 @@ END $checks$;
 -- Existing entity-scoped staff receive ONE conservative initial grant.
 -- Group-wide owner/admin/bookkeeper are resolved at runtime, not here.
 
--- ISSUE910 SOURCE post-0121-tenant-integrity [docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql] SHA256 74ce275d51f8f7db627d13451fa8675a8abde8af2d09c8969ac0a1505bb4b8d
+-- ISSUE910 SOURCE post-0121-tenant-integrity [docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql] SHA256 74ce275d51f8f7fdb627d13451fa8675a8abde8af2d09c8969ac0a1505bb4b8d
 -- ISSUE #910 — REVIEW-ONLY post-0121 tenant/entity integrity proposal.
 -- UNNUMBERED. DO NOT APPLY on Neon, staging, a real employer clone, or production.
 -- Existing historical migration files remain immutable. 0121 predecessor evidence
