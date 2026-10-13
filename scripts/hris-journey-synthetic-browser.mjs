@@ -58,6 +58,10 @@ async function workspace(page, orgId) {
   });
   assert.equal(response?.status(), 200, "Cannot enter synthetic employer workspace");
   await page.locator('[data-workspace-page="Overview"]').waitFor({ timeout: 60000 });
+  // Server-rendered inputs are visible before their React listeners attach.
+  // In this isolated app, wait for the initial scripts/data to settle before
+  // entering text; otherwise fill() can change the DOM without React state.
+  await page.waitForLoadState("networkidle");
 }
 
 async function checkpoint(page, name, fn) {
