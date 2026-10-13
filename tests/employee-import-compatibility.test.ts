@@ -25,7 +25,7 @@ test("500-row preview identifies exactly 20 seeded errors without admitting them
     Array.from({ length: 20 }, (_, i) => i + 2));
   assert.equal(result.rows[0].reasons.some(reason => reason.includes("Bad TIN")), true);
   const errors = employeeImportErrorCsv(result);
-  assert.equal(errors.split("\n").filter(line => line.includes(",error,")).length, 20);
+  assert.equal(errors.split("\n").slice(1).filter(line => line.includes(",\"error\",")).length, 20);
   const skipLines = Array.from({ length: 20 }, (_, i) => i + 2);
   const skipped = previewEmployeeImport(csv, { ...context, skipLines });
   assert.equal(skipped.errorCount, 20);
