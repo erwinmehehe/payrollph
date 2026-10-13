@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertMembership, getAccess } from "@/lib/access";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { workflowEntityHold } from "@/lib/workflow-entity-hold";
 import { rateLimitDistributed } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,7 @@ async function scopedCase(organizationId: number, id: number,
 }
 export async function GET(request: Request) {
   if (!criticalReleaseFlagEnabled("employeeCases")) return unavailable();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const user = await getSessionUser();
   if (!user) return error("Sign in required.", 401);
   const url = new URL(request.url);
@@ -83,6 +85,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   if (!criticalReleaseFlagEnabled("employeeCases")) return unavailable();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return error("Sign in required.",401);
@@ -114,6 +117,7 @@ export async function POST(request: Request) {
 }
 export async function PATCH(request: Request) {
   if (!criticalReleaseFlagEnabled("employeeCases")) return unavailable();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return error("Sign in required.",401);
@@ -152,6 +156,7 @@ export async function PATCH(request: Request) {
 }
 export async function PUT(request: Request) {
   if (!criticalReleaseFlagEnabled("employeeCases")) return unavailable();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return error("Sign in required.",401);
