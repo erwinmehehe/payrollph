@@ -14,6 +14,7 @@ import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { documentObjectKey, deleteDocumentObject, putDocumentObject } from "@/lib/document-object-storage";
 import { canStaffOpenEmployeeVault, validExpiryCalendarDate } from "@/lib/employee-document-vault";
+import { legacyVisibleDocumentWhere } from "@/lib/document-schema-compat";
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
       // Turning the A-5 flag back off must NOT reveal confidential 201-file
       // metadata to bookkeeper/legacy People roles. The object-backed row
       // remains private even during feature rollback.
-      canStaffOpenEmployeeVault(access.role) ? undefined : isNull(documents.objectStorageKey),
+      canStaffOpenEmployeeVault(access.role) ? undefined : legacyVisibleDocumentWhere,
     ))
     .orderBy(desc(documents.id));
 

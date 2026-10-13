@@ -14,6 +14,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { canStaffOpenEmployeeVault, documentObjectIdentityMatches } from "@/lib/employee-document-vault";
 import { documentStorageConfig, signedDocumentObjectUrl } from "@/lib/document-object-storage";
+import { compatibleDocumentColumns } from "@/lib/document-schema-compat";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export async function GET(
     return Response.json({ error: "A valid document id is required." }, { status: 400 });
   }
 
-  const [document] = await db.select().from(documents).where(eq(documents.id, documentId)).limit(1);
+  const [document] = await db.select(compatibleDocumentColumns).from(documents).where(eq(documents.id, documentId)).limit(1);
   if (!document) return Response.json({ error: "Document not found." }, { status: 404 });
 
   if (user.role === "employee") {

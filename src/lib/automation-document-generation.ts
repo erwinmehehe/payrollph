@@ -11,6 +11,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { documentObjectKey, putDocumentObject, deleteDocumentObject } from "@/lib/document-object-storage";
+import { compatibleDocumentColumns } from "@/lib/document-schema-compat";
 import {
   getAutomationDocumentTemplate,
   type AutomationDocumentSnapshot,
@@ -71,7 +72,7 @@ export async function generateAutomationEmployeeDocument(input: {
   const sourceKey = input.sourceKey.trim().slice(0, 160);
   if (!sourceKey) throw new AutomationDocumentGenerationError("A stable document generation source key is required.");
 
-  const [existing] = await db.select().from(documents).where(and(
+  const [existing] = await db.select(compatibleDocumentColumns).from(documents).where(and(
     eq(documents.organizationId, input.organizationId),
     eq(documents.sourceKey, sourceKey),
   )).limit(1);
@@ -183,9 +184,9 @@ export async function generateAutomationEmployeeDocument(input: {
   }
   // Retain sourceKey idempotency under concurrent generation. Any orphan
   // object written before a rejected SQL insert is cleaned up best-effort.
-  let created: typeof documents.$inferSelect | undefined;
+  let createdId: number | null = null;
   try {
-    [created] = await db.insert(documents).values({
+    const [created] = await db.insert(documents).values({
     organizationId: input.organizationId,
     employeeId: employee.id,
     kind: template.kind,
@@ -201,18 +202,19 @@ export async function generateAutomationEmployeeDocument(input: {
     uploadedBy: input.actor ?? "Automation Studio",
     content: vaultEnabled ? "" : bytes.toString("base64"),
     ...(storageKey ? { objectStorageKey: storageKey } : {}),
-  }).onConflictDoNothing().returning();
+  }).onConflictDoNothing().returning({ id: documents.id });
+    createdId = created?.id ?? null;
   } catch (error) {
     if (storageKey) {
       await (input.objectStore?.delete ?? deleteDocumentObject)(storageKey).catch(() => {});
     }
     throw error;
   }
-  if (storageKey && !created) {
+  if (storageKey && createdId === null) {
     await (input.objectStore?.delete ?? deleteDocumentObject)(storageKey).catch(() => {});
   }
 
-  const document = created ?? (await db.select().from(documents).where(and(
+  const document = (await db.select(compatibleDocumentColumns).from(documents).where(and(
     eq(documents.organizationId, input.organizationId),
     eq(documents.sourceKey, sourceKey),
   )).limit(1))[0];
@@ -231,7 +233,7 @@ export async function generateAutomationEmployeeDocument(input: {
   }
 
   let auditWarning: string | null = null;
-  if (created) {
+  if (createdId !== null) {
     try {
       await recordAuditEvent({
         organizationId: input.organizationId,
@@ -253,5 +255,5 @@ export async function generateAutomationEmployeeDocument(input: {
     }
   }
 
-  return { document, idempotent: !created, auditWarning };
+  return { document, idempotent: createdId === null, auditWarning };
 }

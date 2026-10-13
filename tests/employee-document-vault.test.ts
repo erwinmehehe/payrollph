@@ -150,5 +150,19 @@ test("rollout rollback still restricts private HR document metadata to People/HR
   // excludes object-backed rows for non-HR People roles after flag rollback.
   const source = readFileSync("src/app/api/documents/route.ts", "utf8");
   assert.match(source,
-    /canStaffOpenEmployeeVault\(access\.role\) \? undefined : isNull\(documents\.objectStorageKey\)/);
+    /canStaffOpenEmployeeVault\(access\.role\) \? undefined : legacyVisibleDocumentWhere/);
+});
+
+test("A-5 reads and generated documents remain compatible with old columns", () => {
+  const compat = readFileSync("src/lib/document-schema-compat.ts", "utf8");
+  const download = readFileSync("src/app/api/documents/[id]/route.ts", "utf8");
+  const generated = readFileSync("src/lib/automation-document-generation.ts", "utf8");
+  const list = readFileSync("src/app/api/documents/route.ts", "utf8");
+  assert.match(compat, /to_jsonb/);
+  assert.match(compat, /object_storage_key/);
+  assert.match(download, /db\.select\(compatibleDocumentColumns\)\.from\(documents\)/);
+  assert.match(generated, /db\.select\(compatibleDocumentColumns\)\.from\(documents\)/);
+  assert.match(generated, /\.returning\(\{ id: documents\.id \}\)/);
+  assert.doesNotMatch(generated, /\.returning\(\);/);
+  assert.match(list, /legacyVisibleDocumentWhere/);
 });
