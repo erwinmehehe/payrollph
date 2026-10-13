@@ -6,6 +6,20 @@ import { chromium } from "playwright";
 // It does not grant production MFA, DBA, bank or legal approvals.
 const base = "http://127.0.0.1:3002";
 const password = "Synthetic-Entity-QA-2026-Only!";
+// Reserved TEST-NET addresses represent distinct fictional remote test users.
+// Only the disposable localhost runner trusts this single synthetic proxy hop.
+const syntheticLoginIp = email => {
+  const personas = [
+    "entity-group@example.test", "entity-group-unit@example.test",
+    "entity-owner@example.test", "entity-hr@example.test",
+    "entity-payroll@example.test", "entity-nogrant@example.test",
+    "entity-foreign@example.test", "entity-checker@example.test",
+  ];
+  const index = personas.indexOf(email);
+  assert.notEqual(index, -1, "Unknown synthetic login persona");
+  return "198.51.100." + (index + 11);
+};
+
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.MULTI_ENTITY_QA_MODE, "synthetic-postgres-only");
 assert.equal(process.env.MULTI_ENTITY_ENABLED, "true");
@@ -20,7 +34,7 @@ const browser = await chromium.launch({ headless: true });
 const checks = [];
 async function login(context, email) {
   const response = await context.request.post(base + "/api/auth/login", {
-    headers: { Origin: base, "content-type": "application/json", "sec-fetch-site": "same-origin" },
+    headers: { Origin: base, "content-type": "application/json", "sec-fetch-site": "same-origin", "x-forwarded-for": syntheticLoginIp(email) },
     data: { email, password }, failOnStatusCode: false,
   });
   assert.equal(response.status(), 200, "Synthetic account login failed for " + email);

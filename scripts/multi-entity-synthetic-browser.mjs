@@ -9,6 +9,20 @@ import { chromium } from "playwright";
 const on = "http://127.0.0.1:3000";
 const off = "http://127.0.0.1:3001";
 const password = "Synthetic-Entity-QA-2026-Only!";
+// Reserved TEST-NET addresses represent distinct fictional remote test users.
+// Only the disposable localhost runner trusts this single synthetic proxy hop.
+const syntheticLoginIp = email => {
+  const personas = [
+    "entity-group@example.test", "entity-group-unit@example.test",
+    "entity-owner@example.test", "entity-hr@example.test",
+    "entity-payroll@example.test", "entity-nogrant@example.test",
+    "entity-foreign@example.test", "entity-checker@example.test",
+  ];
+  const index = personas.indexOf(email);
+  assert.notEqual(index, -1, "Unknown synthetic login persona");
+  return "198.51.100." + (index + 11);
+};
+
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.MULTI_ENTITY_QA_MODE, "synthetic-postgres-only");
 assert.equal(process.env.OPENAI_API_KEY ?? "", "");
@@ -32,7 +46,7 @@ async function capture(page, name) {
 }
 async function login(context, base, email) {
   const r = await context.request.post(base + "/api/auth/login", {
-    headers: { "content-type": "application/json", origin: base, "sec-fetch-site": "same-origin" },
+    headers: { "content-type": "application/json", origin: base, "sec-fetch-site": "same-origin", "x-forwarded-for": syntheticLoginIp(email) },
     data: { email, password }, failOnStatusCode: false,
   });
   assert.equal(r.status(), 200, "Disposable login must work for " + email);

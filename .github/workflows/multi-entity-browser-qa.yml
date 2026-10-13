@@ -33,6 +33,7 @@ jobs:
       CI: "true"
       TZ: Asia/Manila
       MULTI_ENTITY_QA_MODE: synthetic-postgres-only
+      TRUSTED_PROXY_HOPS: "1" # Disposable localhost CI only: distinguish synthetic login clients
       MULTI_ENTITY_ENABLED: "true"
       MULTI_ENTITY_REGISTRATIONS_ENABLED: "false"
       MULTI_ENTITY_TRANSFERS_ENABLED: "false"
