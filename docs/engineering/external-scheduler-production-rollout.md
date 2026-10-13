@@ -46,6 +46,13 @@ Keep the deliberate production hold until current-head source checks, schema rea
 
 An attempt to create a separate Neon project in the connected Vercel-managed Neon organization returned `action restricted; organization is managed by Vercel`. Do not copy production PostgreSQL into staging or use a parent-copy Neon branch for synthetic tests. Provision a **new isolated staging PostgreSQL database** through an authorized Vercel integration or separate Neon account with synthetic data only. Configure the staging Vercel project's database URL manually through its protected settings, never with production values.
 
+## October 13 access checks
+
+- **Vercel release hold confirmed and preserved:** ignored-build-step audit history shows unconditional `exit 0` since October 11. The deliberate hold is now annotated `exit 0 # Release hold: do not deploy without verified migrations and approval`; exit code remains zero, so production is not reopened by this change.
+- **Vercel staging creation blocked by RBAC:** an authorized attempt to create `payrollph-scheduler-synthetic-staging` within team `payrollph` returned HTTP 403 `You don't have permission to create the project`. The workspace owner/team administrator must grant project-creation rights or provision an isolated project.
+- **Neon synthetic staging project creation blocked by provider ownership:** Vercel-managed Neon organization returned `action restricted; organization is managed by Vercel`. A Neon branch of production would replicate sensitive production rows and is **not** an acceptable substitute for synthetic staging.
+- **Required operator action:** obtain isolated Vercel/Neon staging project rights (or have an authorized admin provision them), configure dedicated synthetic PostgreSQL connection only, then run CI-backed acceptance on the isolated target. Production worker/scheduler flags remain OFF; do not trigger release automation to work around the permissions.
+
 ## Required acceptance before turning on
 
 1. Identify exact actual PayrollPH web deployment/host, Git SHA, tenant environment and dedicated database. Do not assume this GitHub repository is linked to the correct Vercel project.
