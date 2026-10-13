@@ -50,6 +50,10 @@ export const CRITICAL_RELEASE_FLAGS = {
     env: "OPERATIONAL_STATUS_DETAILS_ENABLED", owner: "Security",
     risk: "Authenticated operational status details", approval: "Endpoint visibility acceptance",
   },
+  sanitizedErrorTelemetry: {
+    env: "SAFE_OTEL_ERRORS_ENABLED", owner: "Security / Operations",
+    risk: "Optional remote sanitized error events", approval: "Collector/DPO review and synthetic error payload acceptance",
+  },
   configurableLeadRetention: {
     env: "CONFIGURABLE_LEAD_RETENTION_ENABLED", owner: "Privacy",
     risk: "Public enquiry retention period", approval: "Approved notice and purge acceptance",
