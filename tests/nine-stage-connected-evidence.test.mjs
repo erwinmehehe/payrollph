@@ -14,6 +14,12 @@ test("stage identities and no-money status are explicit and consistent", () => {
   assert.equal(r.officialAgencySubmission,"NOT_RUN");
   assert.equal(r.independentHumanUat,"NOT_RUN");
   assert.equal(r.realEmployerReconciliation,"NOT_RUN");
+  assert.equal(r.clock?.mode,"CI_GUARDED_VIRTUAL_MANILA_MONTH_END");
+  assert.equal(r.clock?.manilaWorkDate,"2026-09-30");
+  assert.equal(r.clock?.realWallClockAttendance,false);
+  assert.equal(r.clock?.actualApiCapture,true);
+  assert.match(String(r.virtualGeneratedAt),/^2026-09-30T/);
+  assert.ok(String(r.githubRunId).length > 0);
   assert.ok(r.stages.every(s=>["PASS","FAIL","BLOCKED","NOT_RUN"].includes(s.status)));
   if(r.result === "PASS") {
     assert.ok(r.stages.every(s=>s.status==="PASS"));
