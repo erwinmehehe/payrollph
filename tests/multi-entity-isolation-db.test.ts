@@ -11,8 +11,6 @@ import {
 import { resolveMultiEntityContext, assertEntityResource } from "../src/lib/multi-entity-server";
 import { assertMembership, getAccess } from "../src/lib/access";
 import { ensurePrimaryLegalEntity } from "../src/lib/legal-entity";
-import { loadPeopleOperationsInbox } from "../src/lib/hcm-people-operations-inbox-server";
-import { loadEmploymentLifecycleReadiness } from "../src/lib/hcm-lifecycle-readiness-server";
 import { employeeScopePredicate } from "../src/lib/multi-entity-personnel-scope";
 import { encryptBankAccount } from "../src/lib/bank-account-crypto";
 import { encryptGovernmentId } from "../src/lib/government-id-crypto";
@@ -358,21 +356,16 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
       }));
     assert.deepEqual(inScope.map(row => row.id), [worker1.id]);
     assert.ok(!inScope.some(row => row.id === worker2.id || row.id === foreignWorker.id));
-    // Real SQL regression for the People Operations worklist and lifecycle
-    // endpoint: an HR grant for A1 must not reveal A2 or another tenant.
-    const scopedInbox = await loadPeopleOperationsInbox(tenantA.id, { pageSize: 50 },
-      "2026-10-13", a1.id);
-    assert.ok(scopedInbox.rows.length > 0);
-    assert.ok(scopedInbox.rows.every(row => row.employeeId === worker1.id));
-    assert.ok(!JSON.stringify(scopedInbox).includes("Beta Staff"));
-    const scopedLifecycle = await loadEmploymentLifecycleReadiness(
-      tenantA.id, "2026-10-13", a1.id);
-    assert.ok(scopedLifecycle.rows.length > 0);
-    assert.ok(scopedLifecycle.rows.every(row => row.employeeId === worker1.id));
-    const otherInbox = await loadPeopleOperationsInbox(tenantA.id, { pageSize: 50 },
-      "2026-10-13", a2.id);
-    assert.ok(otherInbox.rows.every(row => row.employeeId === worker2.id));
-    assert.ok(!JSON.stringify(otherInbox).includes("Alpha Staff"));
+    // SQL predicate and HTTP isolation remain in this core PR; direct HCM
+    // worklist/lifecycle service acceptance is preserved in stacked draft #963.
+    // Those service signatures are deliberately unavailable in core while the
+    // HCM API/SSR and scheduler holds remain active.
+    const otherEmployer = await db.select({ id: employees.id }).from(employees)
+      .where(employeeScopePredicate({
+        organizationId: tenantA.id, legalEntityId: a2.id, orgUnitId: null,
+      }));
+    assert.deepEqual(otherEmployer.map(row => row.id), [worker2.id]);
+    assert.ok(!otherEmployer.some(row => row.id === worker1.id || row.id === foreignWorker.id));
     // The same predicate is used by the real workspace loader. Group HR may
     // see both employers inside one tenant, NEVER the other tenant's rows.
     const inGroup = await db.select({ id: employees.id }).from(employees)
