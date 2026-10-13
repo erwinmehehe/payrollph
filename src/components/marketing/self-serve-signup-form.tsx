@@ -1,4 +1,5 @@
 "use client";
+import { obtainIntakeProof } from "@/lib/public-intake-proof-client";
 
 import { useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
@@ -41,10 +42,12 @@ export function SelfServeSignupForm({ plans, initialPlan }: { plans: PlanView[];
     if (values.password !== values.confirm) return setError("Passwords do not match.");
     setBusy(true);
     try {
+      const intakeProof = await obtainIntakeProof(values.email);
       const response = await fetch("/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          intakeProof,
           name: values.name,
           email: values.email,
           company: values.company,

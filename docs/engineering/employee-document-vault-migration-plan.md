@@ -25,3 +25,14 @@ Other `content` columns include policies/audit evidence containing text, not nec
 ## Gates
 
 Flag defaults OFF; object store credentials and malware scanner must be server-only, HTTPS, least-privilege, private, and verified by independent reviewers. Issued URL expiration 60 seconds; every employee document view must produce tenant-bound audit evidence before responding. Scheduler alerts at 30/14/7 calendar-day thresholds must remain private to People admins. Retention is **review-only**, not automatic deletion.
+
+## Reconciliation with merged A-3 #888 (2026-10-13)
+
+The integrated branch preserves the mainline HR case and COE controls,
+documentBytesMayBeReleased (including scanned-object protection on flag
+rollback), and the tenant-bound COE composite parent constraint. A-5 adds
+the separate expiry notice ledger to the preexisting document fields.
+The old physical-column writer retains legacyDocumentInsertTable, and
+scripts/check-a5-legacy-document-schema.ts verifies unmigrated PostgreSQL
+INSERT/SELECT compatibility and protected rollback visibility. No actual
+production database migration, storage provider, or scanner activation.

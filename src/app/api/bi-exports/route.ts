@@ -4,6 +4,7 @@ import { legalEntities, orgUnits } from "@/db/schema";
 import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
   BI_EXPORT_DEFINITIONS,
   biExportDefinition,
@@ -45,6 +46,19 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access?.companyWide) {
     return Response.json({ error: "BI exports require company-wide access." }, { status: 403 });
+  }
+
+  // Company-wide membership is scoped to an org unit, NOT a grant for every
+  // legal employer. This legacy BI pipeline allows an optional entity filter
+  // and could otherwise enumerate or export another entity's rows. Neither
+  // metadata discovery nor filtered exports are entity-grant certified.
+  // Fail closed for all legacy datasets while multi-entity mode is on.
+  // Feature-OFF retains the existing company-wide + MFA-gated behavior.
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    return Response.json({
+      error: "Legacy BI exports are unavailable while multi-entity isolation is enabled. Use the certified employer reports.",
+      code: "ENTITY_BI_EXPORT_NOT_YET_CERTIFIED",
+    }, { status: 409, headers: { "Cache-Control": "no-store" } });
   }
 
   const key = String(url.searchParams.get("key") ?? "");

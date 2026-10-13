@@ -166,3 +166,18 @@ test("A-5 reads and generated documents remain compatible with old columns", () 
   assert.doesNotMatch(generated, /\.returning\(\);/);
   assert.match(list, /legacyVisibleDocumentWhere/);
 });
+
+test("merged HR document protection rejects unscanned private objects after flag rollback", async () => {
+  const { documentBytesMayBeReleased } = await import("../src/lib/employee-document-vault");
+  const proof = { scannedClean: false, isProduction: false, vaultEnabled: false, hasPrivateObject: true };
+  assert.equal(documentBytesMayBeReleased(proof), false);
+  assert.equal(documentBytesMayBeReleased({ ...proof, isProduction: true, hasPrivateObject: false }), false);
+  assert.equal(documentBytesMayBeReleased({ ...proof, vaultEnabled: true, hasPrivateObject: false }), false);
+  assert.equal(documentBytesMayBeReleased({ ...proof, hasPrivateObject: false }), true);
+  assert.equal(documentBytesMayBeReleased({ ...proof, scannedClean: true }), true);
+  const route = readFileSync("src/app/api/documents/[id]/route.ts", "utf8");
+  assert.ok(route.includes("documentBytesMayBeReleased"));
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  assert.ok(schema.includes("documents_org_employee_id_hr_cases_unique"),
+    "A-3 tenant-bound COE parent constraint must survive the A-5 reconciliation");
+});

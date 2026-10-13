@@ -96,6 +96,23 @@ export function impossibleTravel(previous: LocationSample | null, next: Location
   const km = 6371.0088 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
   return km > 10 && (hours <= 0 || km / hours > maxKph);
 }
+/** Query one extra non-sensitive ID to distinguish a full final page from
+ * an actual remaining backlog. A batch with exactly 'limit' due photos has
+ * finished; it must not falsely fail the scheduler on the final allowed batch.
+ * No encrypted image bytes are loaded into scheduler memory.
+ */
+export function selectPunchPhotoPurgePage(
+  rows: readonly { id: string }[], limit: number,
+): { ids: string[]; remainingPossiblyDue: boolean } {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 250 || rows.length > limit + 1) {
+    throw new Error("Invalid bounded photo retention page.");
+  }
+  return {
+    ids: rows.slice(0, limit).map(row => row.id),
+    remainingPossiblyDue: rows.length > limit,
+  };
+}
+
 /** Drain a bounded number of photo batches under the scheduler lease.
  * If the limit is exhausted, fail the scheduled run so operations can retry
  * and alert instead of recording a false 90-day purge success.

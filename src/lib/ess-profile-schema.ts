@@ -1,4 +1,5 @@
-import { index, integer, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check, index, integer, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import { employees, organizations, users } from "../db/schema";
 
 /** Photos are separate from employee directory records to avoid bulk-reading portraits. */
@@ -10,7 +11,11 @@ export const essEmployeePhotos = pgTable("ess_employee_photos", {
   sealedPhoto: text("sealed_photo").notNull(),
   contentSha256: varchar("content_sha256", { length: 64 }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [index("ess_employee_photos_org_idx").on(table.organizationId)]);
+}, (table) => [
+  index("ess_employee_photos_org_idx").on(table.organizationId),
+  check("ess_employee_photos_mime_type_check", sql`${table.mimeType} IN ('image/jpeg', 'image/png')`),
+  check("ess_employee_photos_byte_size_check", sql`${table.byteSize} > 0 AND ${table.byteSize} <= 524288`),
+]);
 
 /** Values supplied by employees do not become authoritative until HR reviews. */
 export const essIdentifierRequests = pgTable("ess_identifier_requests", {
@@ -28,6 +33,10 @@ export const essIdentifierRequests = pgTable("ess_identifier_requests", {
 }, (table) => [
   index("ess_identifier_requests_employee_idx").on(table.employeeId, table.requestedAt),
   index("ess_identifier_requests_org_status_idx").on(table.organizationId, table.status, table.requestedAt),
+  // Mirror the reviewed 0105 migration: only one pending request per employee and kind.
+  uniqueIndex("ess_identifier_requests_one_pending").on(table.employeeId, table.kind)
+    .where(sql`${table.status} = 'pending'`),
+  check("ess_identifier_requests_status_check", sql`${table.status} IN ('pending', 'approved', 'rejected')`),
 ]);
 
 /** Optional credentials are not part of payroll or statutory calculation inputs. */

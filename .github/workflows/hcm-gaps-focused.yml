@@ -34,18 +34,18 @@ jobs:
     env:
       TZ: Asia/Manila
       CI: "true"
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hcm_test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: hcm_test
+          POSTGRES_DB: app_db
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d hcm_test"
+          --health-cmd "pg_isready -U postgres -d app_db"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -58,7 +58,13 @@ jobs:
       - run: npm ci
       - name: Provision synthetic CI bank encryption key
         shell: bash
-        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Prepare isolated test schema
         run: npm run db:push
       - name: HCM focused behavioral tests
@@ -79,18 +85,18 @@ jobs:
     env:
       TZ: Asia/Manila
       CI: "true"
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hcm_build
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: hcm_build
+          POSTGRES_DB: app_db
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d hcm_build"
+          --health-cmd "pg_isready -U postgres -d app_db"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -103,7 +109,13 @@ jobs:
       - run: npm ci
       - name: Provision synthetic build bank key
         shell: bash
-        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Prepare isolated build database
         run: npm run db:push
       - name: Build production Next.js application
@@ -115,18 +127,18 @@ jobs:
     env:
       TZ: Asia/Manila
       CI: "true"
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hcm_golden
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: hcm_golden
+          POSTGRES_DB: app_db
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d hcm_golden"
+          --health-cmd "pg_isready -U postgres -d app_db"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -139,7 +151,13 @@ jobs:
       - run: npm ci
       - name: Provision synthetic CI bank encryption key
         shell: bash
-        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Prepare isolated golden certification schema
         run: npm run db:push
       - name: Certify statutory payroll golden cases

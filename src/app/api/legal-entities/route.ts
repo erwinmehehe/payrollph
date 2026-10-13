@@ -20,6 +20,8 @@ import {
 } from "@/lib/bank-account-crypto";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import {
   enforceSameOriginMutation,
   requireSensitiveActionMfa,
@@ -85,7 +87,15 @@ export async function GET(request: Request) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
 
-  await ensurePrimaryLegalEntity(organizationId);
+  // This legacy all-employer directory exposes employee and bank metadata
+  // without explicit legal-employer grants. New multi-entity mode uses scoped
+  // resource endpoints instead; the old unscoped directory fails closed.
+  if (criticalReleaseFlagEnabled("multiEntity") && !selectorMode) {
+    return Response.json({
+      error: "Use the authorized legal-employer settings view for this workspace.",
+      code: "ENTITY_ACCESS_DENIED",
+    }, { status: 403 });
+  }
 
   if (selectorMode) {
     const denied = await assertOrganizationRole(
@@ -95,6 +105,12 @@ export async function GET(request: Request) {
       "Only payroll operators can select a legal employer for payroll.",
     );
     if (denied) return denied;
+    // Do not create/update a tenant's default legal employer before authenticating
+    // membership. A GET from an unassigned user must never mutate that tenant.
+    const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+    if (!scope.ok) return scope.response;
+    // A selector is read-only; a payroll operator may not bootstrap a legal
+    // employer with a GET before an administrator has configured the tenant.
     const entities = await db.select({
       id: legalEntities.id,
       code: legalEntities.code,
@@ -105,6 +121,8 @@ export async function GET(request: Request) {
       .where(and(
         eq(legalEntities.organizationId, organizationId),
         eq(legalEntities.active, true),
+        scope.context.enabled && scope.context.legalEntityId !== null
+          ? eq(legalEntities.id, scope.context.legalEntityId) : undefined,
       ))
       .orderBy(asc(legalEntities.id));
     return Response.json({ legalEntities: entities });
@@ -112,6 +130,9 @@ export async function GET(request: Request) {
 
   const denied = await requireAdmin(user.id, organizationId);
   if (denied) return denied;
+  // Maintain the legacy admin-only bootstrap for existing clients. The role
+  // check must precede this write-capable compatibility operation.
+  await ensurePrimaryLegalEntity(organizationId);
 
   const [entities, employeeRows, runRows] = await Promise.all([
     db.select().from(legalEntities)
@@ -170,6 +191,12 @@ export async function POST(request: Request) {
   if (denied) return denied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    return Response.json({
+      error: "Legal employer creation and legacy profile changes need a versioned, independently reviewed registration workflow.",
+      code: "VERSIONED_REGISTRATION_REQUIRED",
+    }, { status: 409 });
+  }
 
   try {
     const entityCode = code(body.code);
@@ -267,8 +294,20 @@ export async function PATCH(request: Request) {
   if (denied) return denied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    return Response.json({
+      error: "Legal employer creation and legacy profile changes need a versioned, independently reviewed registration workflow.",
+      code: "VERSIONED_REGISTRATION_REQUIRED",
+    }, { status: 409 });
+  }
 
   if (action === "assign_employee") {
+    if (criticalReleaseFlagEnabled("multiEntity")) {
+      return Response.json({
+        error: "Legal employer changes require independently approved, effective-dated transfer.",
+        code: "ENTITY_TRANSFER_REQUIRES_APPROVAL",
+      }, { status: 409 });
+    }
     const employeeId = Number(body.employeeId);
     const legalEntityId = Number(body.legalEntityId);
     if (!Number.isInteger(employeeId) || !Number.isInteger(legalEntityId)) {

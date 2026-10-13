@@ -1,0 +1,39 @@
+name: Production Scheduler Tick (External, Default OFF)
+
+on:
+  schedule:
+    - cron: "2-59/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A late Actions schedule or retry must never create a second concurrent caller
+# from this workflow. The PostgreSQL lease additionally fences workers and API ticks.
+concurrency:
+  group: payrollph-production-scheduler-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    # Skip runner allocation until repository-scoped dispatch variable is exactly true.
+    # The dispatcher independently validates the flag, origin and deployed SHA.
+    if: github.repository == 'erwinmehehe/payrollph' && github.ref == 'refs/heads/main' && vars.PAYROLL_SCHEDULER_DISPATCH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    environment: payroll-scheduler-production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Dispatch one protected production scheduler tick
+        env:
+          PAYROLL_SCHEDULER_DISPATCH_ENABLED: ${{ vars.PAYROLL_SCHEDULER_DISPATCH_ENABLED }}
+          PAYROLL_SCHEDULER_ORIGIN: ${{ vars.PAYROLL_SCHEDULER_ORIGIN }}
+          PAYROLL_SCHEDULER_EXPECTED_HOST: ${{ vars.PAYROLL_SCHEDULER_EXPECTED_HOST }}
+          PAYROLL_SCHEDULER_EXPECTED_DEPLOYMENT_SHA: ${{ github.sha }}
+          PAYROLL_SCHEDULER_WORKER_TOKEN: ${{ secrets.PAYROLL_SCHEDULER_WORKER_TOKEN }}
+        run: node scripts/run-external-scheduler-tick.mjs

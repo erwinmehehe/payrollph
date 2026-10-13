@@ -36,6 +36,12 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run db:push
+      - name: Ephemeral dedicated PII key for the disposable build
+        shell: bash
+        run: |
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$pii_key"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - run: npx tsc --noEmit
       - run: npm run source:size:check
       - name: Test schedule reminders and governed Automation Studio

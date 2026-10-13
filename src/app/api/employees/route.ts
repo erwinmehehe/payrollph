@@ -14,6 +14,7 @@ import {
   auditEvents,
   compensationProposals,
   employeePayProfiles,
+  employeeEntityAssignments,
   employeePayRevisions,
   employeeRestDayRevisions,
   employeePayRetroAdjustments,
@@ -35,6 +36,8 @@ import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automation";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
 import { requireSaasPaidWrites, isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { getEntitlements, seatUsage } from "@/lib/billing";
@@ -70,10 +73,14 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
+  const entityAccess = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!entityAccess.ok) return entityAccess.response;
   await ensureEmployeePayProfiles(organizationId);
   const [rows, payProfiles] = await Promise.all([
     db.select().from(employees)
-      .where(eq(employees.organizationId, organizationId))
+      .where(and(eq(employees.organizationId, organizationId),
+        entityAccess.context.enabled && entityAccess.context.legalEntityId !== null
+          ? eq(employees.legalEntityId, entityAccess.context.legalEntityId) : undefined))
       .orderBy(asc(employees.id)),
     db.select().from(employeePayProfiles)
       .where(eq(employeePayProfiles.organizationId, organizationId)),
@@ -183,12 +190,18 @@ export async function POST(request: Request) {
     eq(legalEntities.organizationId, organizationId),
     eq(legalEntities.active, true),
   ));
+  const entityAccess = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!entityAccess.ok) return entityAccess.response;
   const selectedLegalEntity = requestedLegalEntityId
     ? entityRows.find((entity) => entity.id === requestedLegalEntityId)
-    : entityRows.find((entity) => entity.primaryEntity) ?? entityRows[0];
+    : entityAccess.context.enabled && entityAccess.context.legalEntityId !== null
+      ? entityRows.find((entity) => entity.id === entityAccess.context.legalEntityId)
+      : entityRows.find((entity) => entity.primaryEntity) ?? entityRows[0];
   if (!selectedLegalEntity) {
     return Response.json({ error: "Create an active legal employer before adding employees." }, { status: 422 });
   }
+  const entityDenied = assertEntityResource(entityAccess.context, selectedLegalEntity.id);
+  if (entityDenied) return entityDenied;
 
   let payProfile;
   try {
@@ -255,18 +268,26 @@ export async function POST(request: Request) {
     bankAccount: encryptBankAccount(bankAccount),
     bankCode: bankCode || null,
     mobile: mobile || null,
-    tin: encryptGovernmentId(String(body.tin ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
+    tin: encryptGovernmentId(String(body.tin ?? "").trim() || null, { required: true }),
     tinBranchCode: encryptGovernmentId(
       String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
-      { required: process.env.NODE_ENV === "production" },
+      { required: true },
     ),
-    sssNo: encryptGovernmentId(String(body.sssNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
-    philHealthNo: encryptGovernmentId(String(body.philHealthNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
-    pagIbigNo: encryptGovernmentId(String(body.pagIbigNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
+    sssNo: encryptGovernmentId(String(body.sssNo ?? "").trim() || null, { required: true }),
+    philHealthNo: encryptGovernmentId(String(body.philHealthNo ?? "").trim() || null, { required: true }),
+    pagIbigNo: encryptGovernmentId(String(body.pagIbigNo ?? "").trim() || null, { required: true }),
     pagIbigVoluntaryMonthly: pagIbigVoluntaryMonthly.toFixed(2),
     nationality: String(body.nationality ?? "Filipino").trim() || "Filipino",
     startDate,
   }).returning();
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    await tx.insert(employeeEntityAssignments).values({
+      organizationId,
+      employeeId: created.id,
+      legalEntityId: selectedLegalEntity.id,
+      effectiveFrom: created.startDate,
+    });
+  }
 
   await tx.insert(employeePayProfiles).values({
     employeeId: created.id,
@@ -418,6 +439,13 @@ export async function PATCH(request: Request) {
     ))
     .limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
+  const entityAccess = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!entityAccess.ok) return entityAccess.response;
+  const entityDenied = assertEntityResource(entityAccess.context, employee.legalEntityId);
+  if (entityDenied) return entityDenied;
+  if (criticalReleaseFlagEnabled("multiEntity") && body.legalEntityId !== undefined) {
+    return Response.json({ error: "Use the governed legal employer transfer request.", code: "ENTITY_TRANSFER_REQUIRES_APPROVAL" }, { status: 409 });
+  }
   const access = await getAccess(user.id, organizationId);
   const scope = assertScope(access, employee.orgUnitId);
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
@@ -758,22 +786,22 @@ export async function PATCH(request: Request) {
     middleName: clean(body.middleName),
     tin: body.tin === undefined
       ? undefined
-      : encryptGovernmentId(clean(body.tin), { required: process.env.NODE_ENV === "production" }),
+      : encryptGovernmentId(clean(body.tin), { required: true }),
     tinBranchCode: body.tinBranchCode === undefined
       ? undefined
       : encryptGovernmentId(
           String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
-          { required: process.env.NODE_ENV === "production" },
+          { required: true },
         ),
     sssNo: body.sssNo === undefined
       ? undefined
-      : encryptGovernmentId(clean(body.sssNo), { required: process.env.NODE_ENV === "production" }),
+      : encryptGovernmentId(clean(body.sssNo), { required: true }),
     philHealthNo: body.philHealthNo === undefined
       ? undefined
-      : encryptGovernmentId(clean(body.philHealthNo), { required: process.env.NODE_ENV === "production" }),
+      : encryptGovernmentId(clean(body.philHealthNo), { required: true }),
     pagIbigNo: body.pagIbigNo === undefined
       ? undefined
-      : encryptGovernmentId(clean(body.pagIbigNo), { required: process.env.NODE_ENV === "production" }),
+      : encryptGovernmentId(clean(body.pagIbigNo), { required: true }),
     pagIbigVoluntaryMonthly: nextPagIbigVoluntaryMonthly,
     nationality: body.nationality === undefined ? undefined : String(body.nationality ?? "").trim() || "Filipino",
     restDay: changedRestDay ? nextRestDay : undefined,

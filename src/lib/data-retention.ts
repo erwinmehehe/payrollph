@@ -1,5 +1,7 @@
 import { and, inArray, isNotNull, lt, or } from "drizzle-orm";
 import { db } from "@/db";
+import { leadRetentionCutoff } from "./lead-retention-policy";
+import { sweepPendingCoeObjects } from "@/lib/hr-case-coe-object-reconciliation";
 import {
   emailChangeTokens,
   marketingLeads,
@@ -116,7 +118,7 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
   const authCutoff = daysAgo(RETENTION_POLICY.authenticationArtifacts.retentionDaysAfterExpiry, now);
   const messageCutoff = daysAgo(RETENTION_POLICY.messageDeliveryRecords.retentionDays, now);
   const webhookCutoff = daysAgo(RETENTION_POLICY.webhookDeliveryRecords.retentionDays, now);
-  const marketingLeadCutoff = daysAgo(RETENTION_POLICY.marketingLeadRecords.retentionDaysAfterLastUpdate, now);
+  const marketingLeadCutoff = leadRetentionCutoff(now);
   const rateCutoff = hoursAgo(RETENTION_POLICY.rateLimitCounters.retentionHours, now);
 
   const deletedSessions = await db.delete(sessions).where(or(
@@ -150,7 +152,14 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
     .where(lt(marketingLeads.updatedAt, marketingLeadCutoff))
     .returning({ id: marketingLeads.id });
 
+  // A pending private COE is unreadable until signed off. After a crash or
+  // ambiguous storage timeout, the retention scheduler retries cleanup even
+  // when HR/vault feature flags have been rolled back. This is guarded by a
+  // read-only schema prerequisite check for pre-A5 databases.
+  const pendingCoeObjectRecovery = await sweepPendingCoeObjects(new Date(now));
+
   return {
+    pendingCoeObjectRecovery,
     sessions: deletedSessions.length,
     passwordResetTokens: deletedPasswordTokens.length,
     emailChangeTokens: deletedEmailTokens.length,

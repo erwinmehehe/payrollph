@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GET } from "../src/app/api/readiness/route";
+import { buildReadinessPayload } from "../src/lib/operational-readiness";
 
 // Some launch-blocking gates (billing, bank submission, government filing)
 // have a legitimate manual workaround for a pilot SME launch: manual
@@ -12,14 +12,14 @@ import { GET } from "../src/app/api/readiness/route";
 // rather than reporting one flat pass/fail.
 
 test("readiness reports which launch blockers have a manual workaround", async () => {
-  const response = await GET(new Request("http://localhost/api/readiness"));
-  const body = await response.json();
+  const body = await buildReadinessPayload();
 
   const billing = body.gates.find((g: { key: string }) => g.key === "billing");
   const bank = body.gates.find((g: { key: string }) => g.key === "bank-validation");
   const gov = body.gates.find((g: { key: string }) => g.key === "gov-bir-alphalist");
   const monthlyBir = body.gates.find((g: { key: string }) => g.key === "gov-bir-1601c");
   const email = body.gates.find((g: { key: string }) => g.key === "email-delivery");
+  assert.ok(billing && bank && gov && monthlyBir && email, "required readiness gates must be present");
 
   assert.ok(billing.manualWorkaround?.includes("manual-activate-subscription"));
   assert.ok(bank.manualWorkaround?.toLowerCase().includes("upload"));

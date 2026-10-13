@@ -1,0 +1,94 @@
+name: Issue 910 - Numbered 0123 Disposable PostgreSQL Rehearsal
+on:
+  pull_request:
+    paths:
+      - "drizzle/0123_multi_entity_forward_schema_repair.sql"
+      - "tests/issue-910-numbered-migration.test.mjs"
+      - "tests/issue-910-numbered-migration-postgres.test.mjs"
+      - "docs/engineering/issue-910-0123-forward-migration-draft.md"
+      - ".github/workflows/issue-910-0123-numbered-rehearsal.yml"
+      - "docs/sql/issue-910-review-only-forward-predecessor.sql"
+      - "docs/sql/issue-910-review-only-0121-schema.sql"
+      - "docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql"
+permissions:
+  contents: read
+
+jobs:
+  source:
+    name: Pin 0123 exact SQL byte provenance (no database)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact PR source without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Validate numbered SQL source and unchanged approved stage bytes
+        run: |
+          node --check tests/issue-910-numbered-migration.test.mjs
+          node --test tests/issue-910-numbered-migration.test.mjs
+          mkdir -p qa-artifacts/issue-910-0123
+          sha256sum drizzle/0123_multi_entity_forward_schema_repair.sql > qa-artifacts/issue-910-0123/source-only.sha256
+          printf 'source-only\nnot-applied-to-production\n' > qa-artifacts/issue-910-0123/deployment-state.txt
+      - name: Preserve source-only SHA-256 (NOT a production execution receipt)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: issue-910-0123-source-only-not-applied
+          path: qa-artifacts/issue-910-0123
+          retention-days: 14
+          if-no-files-found: error
+
+  disposable-postgres:
+    name: Rehearse 0123 on disposable PostgreSQL ${{ matrix.postgres }} (ROLLBACK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      ISSUE_910_REHEARSAL: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      MULTI_ENTITY_ENABLED: "false"
+      MULTI_ENTITY_REGISTRATIONS_ENABLED: "false"
+      MULTI_ENTITY_TRANSFERS_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout exact reviewed PR source without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Provision fictional localhost schema (db:push production guard enforced)
+        run: npm run db:push
+      - name: Run exact numbered 0123 with synthetic employer data, negative cases, replay and final rollback
+        run: |
+          node --check tests/issue-910-numbered-migration-postgres.test.mjs
+          node --test tests/issue-910-numbered-migration-postgres.test.mjs
