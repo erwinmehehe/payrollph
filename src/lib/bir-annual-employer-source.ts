@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -100,11 +101,19 @@ export async function loadBirAnnualEmployerSource(
     legalEntityId: row.employeeLegalEntityId,
   }));
 
+  // Bind the review to protected employee identities as well as payroll.
+  // A name, TIN, branch or nationality change invalidates a prior preview.
+  const sourceDigest = createHash("sha256").update(JSON.stringify({
+    ledger: reconciliation.sourceDigest,
+    employerTin: normalizedDigits(employer.birTin),
+    employerBranch: normalizedDigits(employer.birBranchCode),
+    employees: [...employeeSources].sort((a, b) => a.employeeId - b.employeeId),
+  })).digest("hex");
   return {
     employer: { id: employer.id, code: employer.code, legalName: employer.legalName },
     employerTin: normalizedDigits(employer.birTin),
     employerBranch: normalizedDigits(employer.birBranchCode),
-    reconciliation,
+    reconciliation: { ...reconciliation, sourceDigest },
     employeeSources,
   };
 }
