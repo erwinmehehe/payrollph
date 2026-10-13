@@ -30,8 +30,8 @@ async function login(role) {
 function request(scope, mode, records, sourceDigest) {
   return { ...scope, mode, sourceDigest, records };
 }
-async function navigateCompliance(page, width) {
-  await page.goto("https://127.0.0.1:3443/app?organizationId=" + fixture.organizationId, {
+async function navigateCompliance(page, width, base = "https://127.0.0.1:3443", enabled = true) {
+  await page.goto(base + "/app?organizationId=" + fixture.organizationId, {
     waitUntil: "domcontentloaded",
   });
   await page.locator(".app-shell").waitFor({ timeout: 60000 });
@@ -46,8 +46,11 @@ async function navigateCompliance(page, width) {
   }
   await nav.waitFor({ timeout: 60000 });
   await nav.click();
-  await page.locator('[data-bir-1604c-candidate]').waitFor({ timeout: 60000 });
-  await page.locator('[data-bir-v70-validation-status]').waitFor({ timeout: 60000 });
+  await page.getByRole("heading", { name: "December tax adjustment (BIR 2316)" }).waitFor({ timeout: 60000 });
+  if (enabled) {
+    await page.locator('[data-bir-1604c-candidate]').waitFor({ timeout: 60000 });
+    await page.locator('[data-bir-v70-validation-status]').waitFor({ timeout: 60000 });
+  }
 }
 
 const scope = { organizationId: fixture.organizationId, legalEntityId: fixture.legalEntityId, taxYear: 2025 };
@@ -200,6 +203,23 @@ try {
     await status.evaluate(el => el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" }));
     await page.screenshot({ path: outDir + "/year-end-bir-status-" + width + ".png", fullPage: false });
     results.push({ checkpoint: "compliance-year-end-" + width + "px", result: "pass", synthetic: true });
+    await context.close();
+  }
+  for (const width of [1280, 390]) {
+    const context = await browser.newContext({ viewport: { width, height: 900 },
+      ignoreHTTPSErrors: true, storageState: await owner.storageState() });
+    page = await context.newPage();
+    const evidenceRequests = [];
+    page.on("request", request => {
+      if (request.url().includes("/api/bir/annual-employer/module-evidence")) evidenceRequests.push(request.url());
+    });
+    const legacyLoaded = page.waitForResponse(response => response.url().includes("/api/year-end?") && response.request().method() === "GET");
+    await navigateCompliance(page, width, "https://127.0.0.1:3444", false);
+    await legacyLoaded;
+    assert.equal(await page.locator('[data-bir-1604c-candidate]').count(), 0);
+    assert.equal(evidenceRequests.length, 0, "Disabled panel must not read new evidence endpoints");
+    await page.screenshot({ path: outDir + "/year-end-flag-off-" + width + ".png", fullPage: false });
+    results.push({ checkpoint: "flag-off-legacy-year-end-" + width + "px", result: "pass", evidenceRequests: 0 });
     await context.close();
   }
   await owner.close();
