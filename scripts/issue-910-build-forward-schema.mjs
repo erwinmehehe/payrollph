@@ -67,7 +67,7 @@ export function buildReviewOnlyForwardSchema() {
     const body = extractBody({ key }, raw);
     if (body.length < 500) throw new Error("Incomplete forward schema source: " + path);
     const executable = body.replace(/--[^\n]*/g, "");
-    if (/\b(?:INSERT\s+INTO|UPDATE\s+\S+\s+SET|DELETE\s+FROM|TRUNCATE|DROP\s+TABLE|MERGE\s+INTO)\b/i.test(executable))
+    if (/\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE|DROP\s+TABLE|MERGE\s+INTO|EXECUTE)\b/i.test(executable))
       throw new Error("Data mutation forbidden in review-only schema source: " + path);
     if (/\b(?:COMMIT|ROLLBACK)\s*;/i.test(executable))
       throw new Error("Source owns transaction boundary: " + path);
