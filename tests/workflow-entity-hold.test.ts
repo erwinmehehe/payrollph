@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { workflowEntityHold } from "../src/lib/workflow-entity-hold";
+import { resolveWorkflowUiFlags } from "../src/lib/workflow-ui-flags";
 
 test("legacy workflow hold is strict flag-on, fail-closed, private and never grants access", async () => {
   for (const value of [undefined, "", "false", "TRUE", "true ", "1"]) {
@@ -87,4 +88,20 @@ test("all new unscoped draft APIs deny multi-entity reads and writes before DB/u
       else process.env[key] = value;
     }
   }
+});
+
+
+test("all ten draft UI controls disappear when multi-entity is enabled, even if their own env flags are true", () => {
+  const flags = {
+    FIRST_PAYROLL_INLINE_UI_ENABLED: "true", IMPORT_REVIEW_UI_ENABLED: "true",
+    CORE_ONLY_NAV_UI_ENABLED: "true", FACE_OFFLINE_PUNCH_UI_ENABLED: "true",
+    ROSTER_PUBLISH_UI_ENABLED: "true", APPROVAL_BUILDER_UI_ENABLED: "true",
+    REPORT_BUILDER_UI_ENABLED: "true", BENEFITS_LOANS_UI_ENABLED: "true",
+    RECRUITMENT_JOURNEY_UI_ENABLED: "true", EMPLOYEE_CASES_UI_ENABLED: "true",
+  };
+  const legacy = resolveWorkflowUiFlags({ ...flags, MULTI_ENTITY_ENABLED: "false" });
+  assert.ok(Object.values(legacy).every(Boolean));
+  const entityScoped = resolveWorkflowUiFlags({ ...flags, MULTI_ENTITY_ENABLED: "true" });
+  assert.ok(Object.values(entityScoped).every(value => value === false));
+  assert.equal(resolveWorkflowUiFlags({ MULTI_ENTITY_ENABLED: "true" }).employeeCases, false);
 });
