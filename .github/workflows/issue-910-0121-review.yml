@@ -28,6 +28,9 @@ on:
   push:
     branches: [main]
     paths:
+      - "docs/engineering/issue-910-provenance-live-catalog-20261013.md"
+      - "scripts/issue-910-source-manifest.mjs"
+      - "tests/issue-910-source-manifest.test.mjs"
       - "docs/sql/issue-910-review-only-0121-*.sql"
       - "tests/issue-910-0121-review.test.mjs"
       - "tests/issue-910-0121-postgres.test.mjs"
@@ -65,7 +68,14 @@ jobs:
           node --test tests/issue-910-0121-review.test.mjs
           node --test tests/issue-910-source-manifest.test.mjs
           node --test tests/issue-910-readonly-catalog-probe.test.mjs
-          node scripts/issue-910-source-manifest.mjs --json > /dev/null
+          node scripts/issue-910-source-manifest.mjs --json > issue-910-source-only-sha256.json
+      - name: Retain source-only SHA-256 manifest (NOT an applied migration receipt)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: issue-910-source-only-sha256
+          path: issue-910-source-only-sha256.json
+          retention-days: 14
+          if-no-files-found: error
 
   rehearsal-pg:
     name: Synthetic 0121 and predecessor rollback PostgreSQL ${{ matrix.postgres }}
