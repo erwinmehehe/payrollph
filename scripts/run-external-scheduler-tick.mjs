@@ -12,7 +12,8 @@ export function schedulerDispatchConfig(env = process.env) {
   const originText = env.PAYROLL_SCHEDULER_ORIGIN?.trim();
   const expectedHost = env.PAYROLL_SCHEDULER_EXPECTED_HOST?.trim();
   const token = env.PAYROLL_SCHEDULER_WORKER_TOKEN;
-  if (!originText || !expectedHost || !token) {
+  const expectedSha = env.PAYROLL_SCHEDULER_EXPECTED_DEPLOYMENT_SHA;
+  if (!originText || !expectedHost || !token || !expectedSha) {
     throw new Error("Enabled scheduler requires an approved origin, exact host and worker token.");
   }
   if (!/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/i.test(expectedHost) || !expectedHost.includes(".")) {
@@ -34,18 +35,40 @@ export function schedulerDispatchConfig(env = process.env) {
   if (token !== token.trim() || /[\r\n]/.test(token) || Buffer.byteLength(token, "utf8") < 32) {
     throw new Error("Scheduler worker credential must be a dedicated 32+ byte secret.");
   }
-  return { url: origin.origin + "/api/jobs/tick", token };
+  if (!/^[0-9a-f]{40}$/.test(expectedSha)) {
+    throw new Error("Scheduler requires the exact approved 40-character deployment revision.");
+  }
+  return { origin: origin.origin, url: origin.origin + "/api/jobs/tick", token, expectedSha };
 }
 
 export async function dispatchSchedulerTick({ env = process.env, fetchImpl = fetch } = {}) {
   const config = schedulerDispatchConfig(env);
   if (!config) return { outcome: "dispatch-disabled" };
 
-  // One request only: no automatic replay after a timeout or uncertain side effects.
-  // Lease fencing and downstream financial idempotency are independent safeguards.
+  // Fail closed when the actual deployed app is not the approved GitHub SHA.
+  // This also blocks old applications that lack the read-only preflight route.
+  const preflight = await fetchImpl(config.origin + "/api/jobs/dispatch-readiness", {
+    method: "GET",
+    headers: { "x-worker-token": config.token, accept: "application/json" },
+    redirect: "error",
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!preflight.ok ||
+    !(preflight.headers.get("content-type") ?? "").includes("application/json")) {
+    throw new Error("Scheduler deployment readiness could not be verified.");
+  }
+  const readiness = await preflight.json();
+  if (readiness?.ok !== true || readiness?.scheduler !== "enabled" ||
+    readiness?.deploymentSha !== config.expectedSha) {
+    throw new Error("Scheduler deployed revision does not match the reviewed source.");
+  }
+
+  // At most one mutating POST: no automatic replay after timeout or uncertain
+  // side effects. The POST also carries its expected SHA to fence alias races.
   const response = await fetchImpl(config.url, {
     method: "POST",
-    headers: { "x-worker-token": config.token, accept: "application/json" },
+    headers: { "x-worker-token": config.token, "x-scheduler-deployment-sha": config.expectedSha, accept: "application/json" },
     redirect: "error",
     cache: "no-store",
     signal: AbortSignal.timeout(150_000),
