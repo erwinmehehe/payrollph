@@ -1,5 +1,6 @@
 import { and, inArray, isNotNull, lt, or } from "drizzle-orm";
 import { db } from "@/db";
+import { purgeExpiredRejectedApplicants } from "@/lib/recruitment-applicant-retention";
 import { leadRetentionCutoff } from "./lead-retention-policy";
 import { sweepPendingCoeObjects } from "@/lib/hr-case-coe-object-reconciliation";
 import {
@@ -152,13 +153,11 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
     .where(lt(marketingLeads.updatedAt, marketingLeadCutoff))
     .returning({ id: marketingLeads.id });
 
-  // A pending private COE is unreadable until signed off. After a crash or
-  // ambiguous storage timeout, the retention scheduler retries cleanup even
-  // when HR/vault feature flags have been rolled back. This is guarded by a
-  // read-only schema prerequisite check for pre-A5 databases.
+  const applicantPrivacy = await purgeExpiredRejectedApplicants(new Date(now));
+  // Preserve main's flag-rollback cleanup of unreadable pending COE objects.
   const pendingCoeObjectRecovery = await sweepPendingCoeObjects(new Date(now));
-
   return {
+    ...(applicantPrivacy.enabled ? { applicantPrivacyPurged: applicantPrivacy.purged } : {}),
     pendingCoeObjectRecovery,
     sessions: deletedSessions.length,
     passwordResetTokens: deletedPasswordTokens.length,
