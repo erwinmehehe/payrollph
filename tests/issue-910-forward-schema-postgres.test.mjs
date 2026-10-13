@@ -119,6 +119,27 @@ test("#910: composed predecessor+0121 schema-only migration is atomic, safe to r
     )).rows.map(x => x.id);
     const moneyBeforeDDL = await summary(db);
 
+    // Membership collisions must fail closed before installing composite
+    // authorization indexes. Some base schemas already have a unique key;
+    // either that DB-level rejection or the source preflight is acceptable.
+    await db.query("SAVEPOINT duplicate_membership");
+    let insertedDuplicate = false;
+    try {
+      await db.query("INSERT INTO user_organizations(organization_id,user_id,role)" +
+        "VALUES($1,$2,'hr')", [a, staffA]);
+      insertedDuplicate = true;
+    } catch (error) {
+      assert.equal(error.code, "23505", "existing unique membership rule must reject duplicates");
+    }
+    if (insertedDuplicate) {
+      await assert.rejects(() => db.query(sql), error =>
+        error.code === "P0001" &&
+        error.message.includes("ISSUE910_DUPLICATE_USER_ORGANIZATION_MEMBERSHIP"));
+    }
+    await db.query("ROLLBACK TO SAVEPOINT duplicate_membership");
+    await db.query("RELEASE SAVEPOINT duplicate_membership");
+    assert.deepEqual(await summary(db), moneyBeforeDDL);
+
     await db.query(sql);
     for (const table of [...missingPredecessors, "entity_transfer_requests",
       "employee_entity_assignments", "user_legal_entity_grants", "user_entity_preferences"]) {
