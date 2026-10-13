@@ -47,7 +47,13 @@ jobs:
       - run: npm ci
       - name: Ephemeral encryption key for isolated synthetic tests
         shell: bash
-        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Initialize disposable PostgreSQL schema
         run: npm run db:push
       - name: Lint and baseline warning budget

@@ -90,10 +90,28 @@ async function enter(email){
 try{
   const owner=await enter("first-payroll-gamma-owner@example.test");
   assert.match(await owner.card.innerText(),/Add active employees|Add people and payout details/);
-  const outsiderEntity = await contexts[0].request.get(base + "/api/legal-entities?organizationId=1");
-  assert.equal(outsiderEntity.status(), 403, "Unrelated tenant's employer data must be denied");
-  const outsiderProgress = await contexts[0].request.get(base + "/api/first-payroll/progress?organizationId=1");
-  assert.equal(outsiderProgress.status(), 403, "An owner is not a global cross-tenant reader");
+  // Use the signed-in Chromium session. Production cookies stay Secure even
+  // in localhost CI; APIRequestContext does not prove a browser is signed in.
+  // Require a successful same-tenant control before testing tenant isolation.
+  const browserGet = (path) => active.evaluate(async (url) => {
+    const response = await fetch(url, { credentials: "same-origin", cache: "no-store" });
+    return response.status;
+  }, path);
+  const sessionOwner = await active.evaluate(async () => {
+    const response = await fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" });
+    const payload = await response.json();
+    return response.ok ? payload.user?.email : null;
+  });
+  assert.equal(sessionOwner, "first-payroll-gamma-owner@example.test",
+    "Cross-tenant checks require the signed-in synthetic owner, not an anonymous 401");
+  assert.equal(await browserGet("/api/legal-entities?organizationId=" + fixture.organizationId), 200,
+    "Authorized owner must read only their own employer's legal entities");
+  assert.equal(await browserGet("/api/first-payroll/progress?organizationId=" + fixture.organizationId), 200,
+    "Authorized owner must read their own journey progress");
+  assert.equal(await browserGet("/api/legal-entities?organizationId=1"), 403,
+    "Unrelated tenant's legal entities must be denied to a signed-in owner");
+  assert.equal(await browserGet("/api/first-payroll/progress?organizationId=1"), 403,
+    "A signed-in owner is not a global cross-tenant reader");
   report.steps.push("owner: unrelated employer and progress routes deny tenant crossover");
 
   const employerStep=owner.steps.nth(0);
