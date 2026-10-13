@@ -4,12 +4,14 @@ import { jobRequisitions } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { workflowEntityHold } from "@/lib/workflow-entity-hold";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
 
 export async function PATCH(request: Request) {
   if (!criticalReleaseFlagEnabled("recruitmentJourney"))
     return Response.json({ error: "Careers publishing disabled." }, { status: 404 });
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in required." }, { status: 401 });
