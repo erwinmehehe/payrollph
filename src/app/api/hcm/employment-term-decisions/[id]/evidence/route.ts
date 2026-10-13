@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  documents,
   hcmEmploymentDecisionDocuments,
   hcmEmploymentDecisionEvents,
   hcmEmploymentDecisionNotes,
@@ -10,6 +9,7 @@ import {
   positionAssignments,
   positions,
 } from "@/db/schema";
+import { legacyDocumentInsertTable as documents } from "@/lib/document-schema-compat";
 import {
   assertOrganizationRole,
   getAccess,
