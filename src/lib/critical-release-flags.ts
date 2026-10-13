@@ -152,6 +152,10 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 anonymous employee feedback and small-cohort inference",
     approval: "Minimum cohort privacy tests, consent and retention review",
   },
+  coreModuleNavigation: {
+    env: "CORE_MODULE_NAVIGATION_ENABLED", owner: "Product",
+    risk: "P2 tenant module disclosure", approval: "New and existing tenant navigation snapshots",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",
