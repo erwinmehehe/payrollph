@@ -184,5 +184,5 @@ function cli() {
   throw new Error('Usage: node scripts/qa/wfm-independent-witness.mjs template <40-hex-sha> | verify <PRIVATE_PACKET_JSON>');
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  try { cli(); } catch (err) { console.error(err instanceof Error ? err.message : 'Witness packet invalid'); process.exitCode = 2; }
+  try { cli(); } catch { console.error('Witness packet check failed; check private input and command locally.'); process.exitCode = 2; }
 }
