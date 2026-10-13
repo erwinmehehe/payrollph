@@ -65,7 +65,7 @@ test("preflights reviewed live commit before exactly one authenticated mutating 
       assert.equal(options.method, "POST");
       assert.equal(options.headers["x-scheduler-deployment-sha"], sha);
       assert.equal(options.headers.accept, "application/json");
-      return accepted({ skipped: false });
+      return accepted({ skipped: false, at: "2026-10-13T00:00:00.000Z" });
     },
   });
   assert.deepEqual(calls.map(x => x.options.method), ["GET", "POST"]);
@@ -105,6 +105,8 @@ test("one permitted skip is acknowledged; no failed or unexpected tick is a succ
     accepted({ skipped: true, reason: "scheduler-disabled" }, 503),
     accepted({ skipped: true, reason: "scheduler-disabled" }),
     accepted({ skipped: true, reason: "unknown" }),
+    accepted({ skipped: false }),
+    accepted({ skipped: false, at: "unparseable" }),
     response({ ok: true }),
     response({ scheduler: "worker-triggered", result: {} }, 200, "text/html"),
   ]) await assert.rejects(dispatchSchedulerTick({
