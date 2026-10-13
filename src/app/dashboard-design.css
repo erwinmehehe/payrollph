@@ -1116,7 +1116,7 @@
    Allow the client switcher to shrink and ellipsize instead of scrolling the
    entire document; keep every header control interactive and visible. */
 @media (max-width: 480px) {
-  .app-shell.clean-shell .topbar {
+  .app-shell.clean-shell[data-compact-mobile-header="true"] .topbar {
     /* A constrained first grid track makes the organization selector shrink
        before notification/account controls leave a 375px phone viewport. */
     display: grid;
@@ -1126,32 +1126,32 @@
     padding-inline: 12px;
   }
 
-  .app-shell.clean-shell .topbar-left {
+  .app-shell.clean-shell[data-compact-mobile-header="true"] .topbar-left {
     min-width: 0;
     gap: 8px;
   }
 
-  .app-shell.clean-shell .topbar-left .mobile-menu {
+  .app-shell.clean-shell[data-compact-mobile-header="true"] .topbar-left .mobile-menu {
     flex: 0 0 32px;
   }
 
-  .app-shell.clean-shell .topbar-left .client-switcher-wrap {
+  .app-shell.clean-shell[data-compact-mobile-header="true"] .topbar-left .client-switcher-wrap {
     min-width: 0;
     flex: 1 1 0;
   }
 
-  .app-shell.clean-shell .topbar-left .client-switcher-wrap .company-switcher {
+  .app-shell.clean-shell[data-compact-mobile-header="true"] .topbar-left .client-switcher-wrap .company-switcher {
     width: 100%;
     max-width: 100%;
     min-width: 0;
   }
 
-  .app-shell.clean-shell .topbar-left .client-switcher-wrap .company-switcher > span:nth-child(2) {
+  .app-shell.clean-shell[data-compact-mobile-header="true"] .topbar-left .client-switcher-wrap .company-switcher > span:nth-child(2) {
     flex: 1 1 auto;
     min-width: 0;
   }
 
-  .app-shell.clean-shell .topbar-actions {
+  .app-shell.clean-shell[data-compact-mobile-header="true"] .topbar-actions {
     flex: 0 0 auto;
     gap: 4px;
   }

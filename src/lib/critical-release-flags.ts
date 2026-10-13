@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  compactMobileHeader: {
+    env: "COMPACT_MOBILE_HEADER_ENABLED",
+    owner: "Product / Accessibility",
+    risk: "Small-screen organization switcher and account control layout",
+    approval: "Desktop/375/390px authenticated browser and default-off rendering parity",
+  },
   bir1604cReviewedCandidate: {
     env: "BIR_1604C_DAT_CANDIDATE_ENABLED",
     owner: "Philippine Payroll / Tax",

@@ -7,7 +7,7 @@ const auth = JSON.parse(readFileSync("qa-artifacts/.nine-stage-browser-auth.json
 const report = {
   sourceSha: process.env.PR_HEAD_SHA ?? "local",
   result: "FAIL", mode: "synthetic Chromium, no physical device",
-  widths: [375,390], checks: [], independentHumanUat: false,
+  widths: [1440,375,390], checks: [], independentHumanUat: false,
 };
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.GITHUB_ACTIONS, "true");
@@ -25,7 +25,7 @@ assert.ok(Number.isSafeInteger(realAnchor) && anchorAge >= 0 && anchorAge < 30 *
 const syntheticEpoch = Date.parse("2026-09-30T08:00:00.000Z");
 const browser = await chromium.launch({headless:true});
 try {
-  for(const width of [375,390]) {
+  for(const width of [1440,375,390]) {
     const context = await browser.newContext({
       viewport:{ width,height:844 }, timezoneId:"Asia/Manila",
     });
@@ -124,7 +124,18 @@ try {
     assert.ok(widthAudit.document <= widthAudit.viewport + 1,
       "Round-trip employer switch mobile screen overflows: " + JSON.stringify(widthAudit));
     assert.deepEqual(errors,[]);
+    assert.equal(await page.locator('.app-shell').getAttribute('data-compact-mobile-header'), 'true');
+    await page.screenshot({path:'qa-artifacts/nine-stage-layout-on-' + width + '.png',fullPage:false});
     report.checks.push(width + "px failure/retry and owner switch A -> B -> A; disjoint tenant employee records");
+    await page.goto('http://127.0.0.1:3001/app?organizationId=' + auth.organizationId,
+      {waitUntil:'domcontentloaded'});
+    const offShell = page.locator('.app-shell');
+    await offShell.waitFor({timeout:60000});
+    assert.equal(await offShell.getAttribute('data-compact-mobile-header'),null);
+    assert.equal(await page.locator('.topbar').evaluate(el => getComputedStyle(el).display),'flex',
+      'Disabled header retains legacy flex layout');
+    await page.screenshot({path:'qa-artifacts/nine-stage-layout-off-' + width + '.png',fullPage:false});
+    report.checks.push(width + 'px default-off marker absent and legacy flex layout unchanged');
     await context.close();
 
     // Verify an actual authenticated *browser* employee session before
