@@ -1,5 +1,4 @@
 import { and, eq, isNull, lte, sql } from "drizzle-orm";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -356,9 +355,6 @@ export async function applyWorkerEffectiveChange(
         if (hasChange(changes, "employeeStatus")) nextStatus = nullableText(changes.employeeStatus) ?? employee.status;
       }
 
-      if (criticalReleaseFlagEnabled("multiEntity") && nextLegalEntityId !== employee.legalEntityId) {
-        throw new Error("ENTITY_TRANSFER_REQUIRES_APPROVAL: use the independently reviewed transfer workflow.");
-      }
       const [updatedEmployee] = await tx.update(employees).set({
         orgUnitId: nextOrgUnitId,
         legalEntityId: nextLegalEntityId,

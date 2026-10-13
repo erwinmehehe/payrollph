@@ -4,7 +4,6 @@ import {
   PEOPLE_ADMIN_ROLES,
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { loadPeopleOperationsInbox } from "@/lib/hcm-people-operations-inbox-server";
 import { PEOPLE_OPS_TEAMS, type PeopleOpsCategory, type PeopleOpsPriority, type PeopleOpsDueWindow, type PeopleOpsTeam } from "@/lib/hcm-people-operations-inbox";
 
@@ -49,13 +48,6 @@ export async function GET(request: Request) {
     return Response.json({ error: "The People Operations Inbox requires company-wide HR access." }, { status: 403 });
   }
 
-  const entityAccess = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
-  if (!entityAccess.ok) return entityAccess.response;
-  const legalEntityId = entityAccess.context.enabled ? entityAccess.context.legalEntityId : null;
-  if (entityAccess.context.enabled && legalEntityId === null) {
-    return Response.json({ error: "Select one legal employer to view personnel operations." }, { status: 403 });
-  }
-
   const payload = await loadPeopleOperationsInbox(organizationId, {
     page, pageSize,
     category: category as PeopleOpsCategory | "all",
@@ -63,7 +55,7 @@ export async function GET(request: Request) {
     dueWindow: dueWindow as PeopleOpsDueWindow,
     team: team as PeopleOpsTeam | "all",
     search,
-  }, undefined, legalEntityId);
+  });
 
   // The client binds every result to the requested employer before display.
   // Preserve that fail-closed check by returning the authorized scope.

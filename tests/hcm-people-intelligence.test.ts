@@ -193,7 +193,7 @@ test("audit report is explicitly company-wide, with same as-of scope in CSV and 
   assert.match(api, /PEOPLE_PAYROLL_ROLES/);
   assert.match(api, /!access\?\.companyWide/);
   assert.match(api, /hcmAnalyticsDate\(/);
-  assert.match(api, /runReport\(key, organizationId, \{ asOf, windowDays, legalEntityId: scope.context.legalEntityId \}\)/);
+  assert.match(api, /runReport\(key, organizationId, \{ asOf, windowDays \}\)/);
   assert.match(api, /metadata: \{ format: "csv", rows: report.rows.length, \...\(key === "people"/);
   assert.match(reports, /key === "people"/);
   for (const ledger of ["workerEmploymentEvents", "separationRecords", "positionAssignments", "jobRequisitions", "compensationProposals", "payrollRuns"]) {
