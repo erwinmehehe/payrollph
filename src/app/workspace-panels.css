@@ -235,23 +235,20 @@
   :is(.app-shell.clean-shell, .linaw-dialog) *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
-/* People workspace: wide employee tables scroll inside their cards on phones.
-   Keep the document at viewport width and retain horizontal table access. */
+/* Mobile workspace search retains its action and accessible label, but the
+   desktop-width search text must not make the 390px HR top bar overflow. */
 @media (max-width: 760px) {
-  .app-shell.clean-shell[data-workspace-page="People"] .content-area,
-  .app-shell.clean-shell[data-workspace-page="People"] .content-area > .card,
-  .app-shell.clean-shell[data-workspace-page="People"] .people-layout,
-  .app-shell.clean-shell[data-workspace-page="People"] .people-layout > .card {
-    min-width: 0;
-    max-width: 100%;
+  .app-shell.clean-shell .topbar .topbar-actions .palette-trigger {
+    flex: 0 0 44px;
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    padding: 0;
   }
 
-  .app-shell.clean-shell[data-workspace-page="People"] .data-table-wrap {
-    display: block;
-    min-width: 0;
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
+  .app-shell.clean-shell .topbar .topbar-actions .palette-trigger > :is(span, kbd) {
+    display: none;
   }
 }
