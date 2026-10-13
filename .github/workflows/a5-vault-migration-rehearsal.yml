@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "src/db/schema.ts"
+      - "src/lib/document-schema-compat.ts"
+      - "scripts/check-a5-legacy-document-schema.ts"
       - "src/lib/employee-document-vault.ts"
       - "src/lib/hcm-documents.ts"
       - "src/app/api/documents/**"
@@ -46,5 +48,7 @@ jobs:
       - run: npm ci
       - name: Create isolated fresh Drizzle schema
         run: npm run db:push
+      - name: Test legacy document schema reads, writes and flag rollback (disposable PG)
+        run: npx tsx scripts/check-a5-legacy-document-schema.ts
       - name: Reapply proposed A-5 SQL in rollback-only transaction
         run: node scripts/rehearse-employee-document-vault-migration.cjs

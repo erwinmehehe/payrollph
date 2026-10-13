@@ -11,7 +11,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { documentObjectKey, putDocumentObject, deleteDocumentObject } from "@/lib/document-object-storage";
-import { compatibleDocumentColumns } from "@/lib/document-schema-compat";
+import { compatibleDocumentColumns, legacyDocumentInsertTable } from "@/lib/document-schema-compat";
 import {
   getAutomationDocumentTemplate,
   type AutomationDocumentSnapshot,
@@ -186,7 +186,8 @@ export async function generateAutomationEmployeeDocument(input: {
   // object written before a rejected SQL insert is cleaned up best-effort.
   let createdId: number | null = null;
   try {
-    const [created] = await db.insert(documents).values({
+    const docValues = {
+
     organizationId: input.organizationId,
     employeeId: employee.id,
     kind: template.kind,
@@ -201,8 +202,12 @@ export async function generateAutomationEmployeeDocument(input: {
     generationMetadata: metadata,
     uploadedBy: input.actor ?? "Automation Studio",
     content: vaultEnabled ? "" : bytes.toString("base64"),
-    ...(storageKey ? { objectStorageKey: storageKey } : {}),
-  }).onConflictDoNothing().returning({ id: documents.id });
+    };
+    const [created] = storageKey
+      ? await db.insert(documents).values({ ...docValues, objectStorageKey: storageKey })
+          .onConflictDoNothing().returning({ id: documents.id })
+      : await db.insert(legacyDocumentInsertTable).values(docValues)
+          .onConflictDoNothing().returning({ id: legacyDocumentInsertTable.id });
     createdId = created?.id ?? null;
   } catch (error) {
     if (storageKey) {
