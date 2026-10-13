@@ -390,6 +390,20 @@ export async function retryOutboxMessage(input: {
     };
   }
 
+  if (row.purpose === "approval-chain-escalation") {
+    // A queued reminder is NOT an authorization. Revoked, changed-employer,
+    // decided, or flag-rolled-back tasks must never be delivered later.
+    const { approvalEscalationRetryAllowed } = await import("@/lib/approval-escalation-notifications");
+    if (!await approvalEscalationRetryAllowed({
+      organizationId: row.organizationId,
+      recipient: row.recipient,
+      metadata: row.metadata,
+    })) {
+      return { ok: false as const, httpStatus: 409,
+        error: "This advisory escalation is no longer authorized for delivery." };
+    }
+  }
+
   const providerName = provider();
   if (providerName === "none") {
     if (row.status !== "queued") {
