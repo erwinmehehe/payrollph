@@ -1,10 +1,11 @@
-name: Independent Journey #853 Receipt Integrity (Offline)
+name: "Independent Journey #853 Receipt Integrity (Offline)"
 on:
   push:
     branches: [main]
     paths:
       - "scripts/qa/independent-journey-853.mjs"
       - "tests/independent-journey-853.test.mjs"
+      - "docs/qa/independent-journey-853.md"
       - ".github/workflows/independent-journey-853-qa.yml"
   pull_request:
     branches: [main]
