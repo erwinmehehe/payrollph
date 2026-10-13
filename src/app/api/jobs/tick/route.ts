@@ -28,6 +28,21 @@ export async function POST(request: Request) {
     if (!user) return Response.json({ error: "Authentication or a valid worker token is required." }, { status: 401 });
   }
 
+  // An external dispatcher that preflighted one release must never execute
+  // against a different deployment after a production alias change.
+  // Existing internal workers remain compatible when this header is absent.
+  const claimedSha = request.headers.get("x-scheduler-deployment-sha");
+  if (process.env.NODE_ENV === "production" && claimedSha) {
+    const deployedSha = process.env.VERCEL_GIT_COMMIT_SHA?.trim().toLowerCase();
+    if (!/^[0-9a-f]{40}$/.test(claimedSha) || !deployedSha ||
+      !/^[0-9a-f]{40}$/.test(deployedSha) ||
+      !constantTimeSecretEqual(claimedSha, deployedSha)) {
+      return Response.json({ error: "Scheduler deployment changed; refresh readiness." }, {
+        status: 503, headers: { "Cache-Control": "no-store" },
+      });
+    }
+  }
+
   const result = await tickScheduler(true);
   if (result.skipped && result.reason === "scheduler-disabled") {
     // A 200 response would misleadingly imply that an authenticated cron
