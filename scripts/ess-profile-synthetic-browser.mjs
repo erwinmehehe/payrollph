@@ -100,9 +100,13 @@ async function peopleReview(state, width, pending = false) {
   await page.goto(BASE + "/app?organizationId=" + fixture.organizationA, {
     waitUntil: "domcontentloaded", timeout: 60_000,
   });
-  const mobileNav = page.getByRole("button", { name: "Open navigation", exact: true });
-  if (await mobileNav.isVisible()) await mobileNav.click();
-  await page.locator('[data-nav-name="People"]:visible').first().click();
+  if (width < 600) {
+    await page.getByRole("navigation", { name: "Mobile workspace navigation" })
+      .getByRole("button", { name: "People", exact: true }).click();
+  } else {
+    await page.locator('[data-nav-name="People"]:visible').first().click();
+  }
+  await page.locator('.app-shell[data-workspace-page="People"]').waitFor();
   const disclosure = page.locator("details").filter({
     has: page.locator("summary").filter({ hasText: "Government ID verification" }),
   }).first();
