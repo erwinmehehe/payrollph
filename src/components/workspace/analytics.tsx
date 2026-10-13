@@ -184,8 +184,15 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         </article>
       )}
 
-      <EnterpriseBiExportPanel organizationId={organizationId} notify={notify} />
-      <HcmReportBuilderPanel key={organizationId} organizationId={organizationId} />
+      {/* The legacy BI/HCM builders are not certified for employer-specific
+          permissions. Hide both when multi-entity isolation is enabled;
+          API authorization is enforced independently of this UI guard. */}
+      {!data.multiEntity?.enabled && (
+        <>
+          <EnterpriseBiExportPanel organizationId={organizationId} notify={notify} />
+          <HcmReportBuilderPanel key={organizationId} organizationId={organizationId} />
+        </>
+      )}
 
       <div className="report-grid">
         {REPORTS.filter(report => !employerScoped || supportedEmployerReports.includes(report.key)).map((report) => {
