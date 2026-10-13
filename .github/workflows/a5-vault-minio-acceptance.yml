@@ -30,13 +30,15 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Build pinned upstream source for the disposable emulator
+        run: docker build -f tests/fixtures/minio/Dockerfile -t payrollph-a5-minio:ci .
       - name: Run disposable local private S3-compatible object service
         run: |
           docker run -d --name a5-minio --rm \
             -p 127.0.0.1:9000:9000 \
             -e MINIO_ROOT_USER="$DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID" \
             -e MINIO_ROOT_PASSWORD="$DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY" \
-            quay.io/minio/minio:latest server /data --address :9000
+            payrollph-a5-minio:ci server /data --address :9000
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then exit 0; fi
             sleep 2

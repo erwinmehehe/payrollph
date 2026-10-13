@@ -8,6 +8,7 @@ on:
       - "src/lib/storage.ts"
       - "scripts/a5-local-private-object-acceptance.ts"
       - ".github/workflows/a5-private-object-acceptance.yml"
+      - "tests/fixtures/minio/Dockerfile"
   workflow_dispatch:
 permissions:
   contents: read
@@ -37,13 +38,15 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Build pinned upstream source for the disposable emulator
+        run: docker build -f tests/fixtures/minio/Dockerfile -t payrollph-a5-minio:ci .
       - name: Launch isolated localhost-only S3 emulator
         run: |
           docker run -d --rm --name a5-minio \
             -p 127.0.0.1:9000:9000 \
             -e MINIO_ROOT_USER="$AWS_ACCESS_KEY_ID" \
             -e MINIO_ROOT_PASSWORD="$AWS_SECRET_ACCESS_KEY" \
-            quay.io/minio/minio:latest server /data >/dev/null
+            payrollph-a5-minio:ci server /data >/dev/null
           for i in $(seq 1 50); do
             if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then exit 0; fi
             sleep 2
