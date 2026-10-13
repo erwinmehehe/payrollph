@@ -246,7 +246,7 @@ test("the gap explanation names weaker evidence without counting it", () => {
 });
 
 test("readiness reads recorded evidence and no longer trusts an environment flag", () => {
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   assert.ok(readiness.includes("filingEvidenceSummaries"));
   assert.ok(!readiness.includes('enabled("SSS_R3_VALIDATED")'), "SSS_R3_VALIDATED must not decide readiness any more");
   assert.ok(!readiness.includes('enabled("BIR_ALPHALIST_VALIDATED")'), "BIR_ALPHALIST_VALIDATED must not decide readiness any more");

@@ -312,7 +312,7 @@ export async function PATCH(request: Request) {
     if ("education" in correction) patch.education = clean(correction.education, 120);
 
     const sealGovernmentId = (value: unknown) =>
-      encryptGovernmentId(clean(value, 80), { required: process.env.NODE_ENV === "production" });
+      encryptGovernmentId(clean(value, 80), { required: true });
     if ("tin" in correction) patch.tin = sealGovernmentId(correction.tin);
     if ("tinBranchCode" in correction) patch.tinBranchCode = sealGovernmentId(correction.tinBranchCode);
     if ("sssNo" in correction) patch.sssNo = sealGovernmentId(correction.sssNo);

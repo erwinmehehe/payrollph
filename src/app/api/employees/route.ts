@@ -268,14 +268,14 @@ export async function POST(request: Request) {
     bankAccount: encryptBankAccount(bankAccount),
     bankCode: bankCode || null,
     mobile: mobile || null,
-    tin: encryptGovernmentId(String(body.tin ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
+    tin: encryptGovernmentId(String(body.tin ?? "").trim() || null, { required: true }),
     tinBranchCode: encryptGovernmentId(
       String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
-      { required: process.env.NODE_ENV === "production" },
+      { required: true },
     ),
-    sssNo: encryptGovernmentId(String(body.sssNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
-    philHealthNo: encryptGovernmentId(String(body.philHealthNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
-    pagIbigNo: encryptGovernmentId(String(body.pagIbigNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
+    sssNo: encryptGovernmentId(String(body.sssNo ?? "").trim() || null, { required: true }),
+    philHealthNo: encryptGovernmentId(String(body.philHealthNo ?? "").trim() || null, { required: true }),
+    pagIbigNo: encryptGovernmentId(String(body.pagIbigNo ?? "").trim() || null, { required: true }),
     pagIbigVoluntaryMonthly: pagIbigVoluntaryMonthly.toFixed(2),
     nationality: String(body.nationality ?? "Filipino").trim() || "Filipino",
     startDate,
@@ -786,22 +786,22 @@ export async function PATCH(request: Request) {
     middleName: clean(body.middleName),
     tin: body.tin === undefined
       ? undefined
-      : encryptGovernmentId(clean(body.tin), { required: process.env.NODE_ENV === "production" }),
+      : encryptGovernmentId(clean(body.tin), { required: true }),
     tinBranchCode: body.tinBranchCode === undefined
       ? undefined
       : encryptGovernmentId(
           String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
-          { required: process.env.NODE_ENV === "production" },
+          { required: true },
         ),
     sssNo: body.sssNo === undefined
       ? undefined
-      : encryptGovernmentId(clean(body.sssNo), { required: process.env.NODE_ENV === "production" }),
+      : encryptGovernmentId(clean(body.sssNo), { required: true }),
     philHealthNo: body.philHealthNo === undefined
       ? undefined
-      : encryptGovernmentId(clean(body.philHealthNo), { required: process.env.NODE_ENV === "production" }),
+      : encryptGovernmentId(clean(body.philHealthNo), { required: true }),
     pagIbigNo: body.pagIbigNo === undefined
       ? undefined
-      : encryptGovernmentId(clean(body.pagIbigNo), { required: process.env.NODE_ENV === "production" }),
+      : encryptGovernmentId(clean(body.pagIbigNo), { required: true }),
     pagIbigVoluntaryMonthly: nextPagIbigVoluntaryMonthly,
     nationality: body.nationality === undefined ? undefined : String(body.nationality ?? "").trim() || "Filipino",
     restDay: changedRestDay ? nextRestDay : undefined,
