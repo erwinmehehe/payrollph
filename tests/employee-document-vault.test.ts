@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { canIssueExpiryNotice, documentExpiryMilestone, documentObjectIdentityMatches, expiryDaysRemaining, manilaDateOnly, validExpiryCalendarDate } from "../src/lib/employee-document-vault";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 
@@ -142,4 +143,12 @@ test("private object uploads refuse overwrites and fail closed on storage precon
   if(previous===undefined)delete process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED;
   else process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED=previous;
  }
+});
+
+test("rollout rollback still restricts private HR document metadata to People/HR roles", () => {
+  // Pure role guard is tested above; this checks the actual list SQL also
+  // excludes object-backed rows for non-HR People roles after flag rollback.
+  const source = readFileSync("src/app/api/documents/route.ts", "utf8");
+  assert.match(source,
+    /canStaffOpenEmployeeVault\(access\.role\) \? undefined : isNull\(documents\.objectStorageKey\)/);
 });

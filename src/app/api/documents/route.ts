@@ -81,7 +81,13 @@ export async function GET(request: Request) {
     uploadedBy: documents.uploadedBy,
     createdAt: documents.createdAt,
   }).from(documents)
-    .where(eq(documents.organizationId, organizationId))
+    .where(and(
+      eq(documents.organizationId, organizationId),
+      // Turning the A-5 flag back off must NOT reveal confidential 201-file
+      // metadata to bookkeeper/legacy People roles. The object-backed row
+      // remains private even during feature rollback.
+      canStaffOpenEmployeeVault(access.role) ? undefined : isNull(documents.objectStorageKey),
+    ))
     .orderBy(desc(documents.id));
 
   const staff = await db.select({ id: employees.id, first: employees.firstName, last: employees.lastName, orgUnitId: employees.orgUnitId })
