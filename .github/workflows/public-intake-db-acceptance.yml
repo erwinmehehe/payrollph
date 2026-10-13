@@ -1,0 +1,84 @@
+name: Public Intake PostgreSQL HTTP Acceptance
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  intake-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      PUBLIC_INTAKE_PROOF_ENABLED: "true"
+      NEXT_PUBLIC_PUBLIC_INTAKE_PROOF_ENABLED: "true"
+      DEMO_MODE: "false"
+      WORKER_TOKEN: ci-worker-token-00000000000000000000000000000000
+      READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
+      SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
+      TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
+      MALWARE_SCAN_TOKEN: ci-malware-token-0000000000000000000000000000
+      REQUIRE_PRIVILEGED_MFA: "true"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Create disposable test-only independent secrets
+        run: |
+          pii=$(openssl rand -hex 32)
+          proof=$(openssl rand -hex 32)
+          echo "::add-mask::$pii"
+          echo "::add-mask::$proof"
+          echo "PII_ENCRYPTION_KEY=$pii" >> "$GITHUB_ENV"
+          echo "PUBLIC_INTAKE_PROOF_SECRET=$proof" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - run: npm run build
+      - name: Start production build with isolated PostgreSQL
+        run: |
+          nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/intake-main.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000 >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Failed to start primary acceptance server"
+          exit 1
+      - name: Start server with intentionally unavailable database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:6543/app_db
+          APP_BASE_URL: http://127.0.0.1:3001
+          PG_CONNECTION_TIMEOUT_MS: "1000"
+        run: |
+          nohup npm start -- -H 127.0.0.1 -p 3001 > /tmp/intake-outage.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null http://127.0.0.1:3001; then exit 0; fi
+            sleep 2
+          done
+          echo "Failed to start outage acceptance server"
+          exit 1
+      - name: Run synthetic database-backed HTTP acceptance
+        run: npx tsx scripts/public-intake-db-acceptance.ts
+      - name: Report sanitized logs on failure
+        if: failure()
+        run: |
+          grep -E 'Error:|error:|Failed|ECONNREFUSED|UNAVAILABLE' /tmp/intake-main.log | tail -n 30 || true
+          grep -E 'Error:|error:|Failed|ECONNREFUSED|UNAVAILABLE' /tmp/intake-outage.log | tail -n 30 || true

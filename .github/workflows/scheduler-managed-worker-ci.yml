@@ -1,0 +1,47 @@
+name: P0-1 Managed Worker and Independent Watchdog (Synthetic CI)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/worker.ts"
+      - "scripts/scheduler-watchdog.mjs"
+      - "scripts/lib/scheduler-watchdog.mjs"
+      - "tests/scheduler-watchdog.test.mjs"
+      - "deploy/scheduler/**"
+      - ".github/workflows/scheduler-managed-worker-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/worker.ts"
+      - "scripts/scheduler-watchdog.mjs"
+      - "scripts/lib/scheduler-watchdog.mjs"
+      - "tests/scheduler-watchdog.test.mjs"
+      - "deploy/scheduler/**"
+      - ".github/workflows/scheduler-managed-worker-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  offline-watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      TZ: Asia/Manila
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Parse watchdog code
+        run: |
+          node --check scripts/lib/scheduler-watchdog.mjs
+          node --check scripts/scheduler-watchdog.mjs
+      - name: Exercise failure, stale heartbeat, retry and recovery (no network)
+        run: node --test tests/scheduler-watchdog.test.mjs
+      - name: Build worker and independent watchdog images (never start against a database)
+        run: |
+          docker build -f deploy/scheduler/worker.Dockerfile -t payrollph-worker:ci .
+          docker build -f deploy/scheduler/watchdog.Dockerfile -t payrollph-watchdog:ci .
