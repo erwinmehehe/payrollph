@@ -18,10 +18,6 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 large-roster notification completeness and labor-rule schedule publish",
     approval: "Synthetic 1000-assignment pagination, verified roster publish UAT, payroll review and operational sign-off",
   },
-  coreModuleNavigation: {
-    env: "CORE_MODULE_NAVIGATION_ENABLED", owner: "Product",
-    risk: "P2 tenant module disclosure", approval: "New and existing tenant navigation snapshots",
-  },
   publicIntakeProof: {
     env: "PUBLIC_INTAKE_PROOF_ENABLED", owner: "Security",
     risk: "Public enquiry and signup anti-automation", approval: "Proof replay, limits and accessible intake acceptance",
@@ -102,6 +98,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 consented POS source access and historical aggregate import",
     approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
   },
+  apiV1ExtendedReads: {
+    env: "API_V1_EXTENDED_READS_ENABLED",
+    owner: "Integrations",
+    risk: "P1 additional provider inbox and payroll accounting journal exports",
+    approval: "Entity-scoped API authorization, accounting reconciliation and privacy acceptance",
+  },
   publicApiV1Extended: {
     env: "PUBLIC_API_V1_EXTENDED_ENABLED",
     owner: "Integrations",
@@ -125,6 +127,10 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "People Operations",
     risk: "P1 anonymous employee feedback and small-cohort inference",
     approval: "Minimum cohort privacy tests, consent and retention review",
+  },
+  coreModuleNavigation: {
+    env: "CORE_MODULE_NAVIGATION_ENABLED", owner: "Product",
+    risk: "P2 tenant module disclosure", approval: "New and existing tenant navigation snapshots",
   },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
