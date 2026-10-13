@@ -66,6 +66,43 @@ export function Bir1604cCandidatePanel({
     return () => { active = false; };
   }, [organizationId, legalEntityId, taxYear]);
 
+  async function downloadTemplate() {
+    if (!legalEntityId || !sourceDigest) {
+      setNotice("Reconcile the selected legal employer before downloading a review worksheet.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await fetch("/api/bir/annual-employer/candidate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "template", organizationId, legalEntityId, taxYear,
+          sourceDigest, records: [],
+        }),
+      });
+      if (!response.ok) {
+        const failure = await response.json().catch(() => ({}));
+        setNotice(failure.error ?? "BIR review worksheet download is blocked.");
+        return;
+      }
+      const file = await response.blob();
+      const url = URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "BIR-1604C-REVIEW-" + taxYear + "-EMPLOYER-" + legalEntityId + ".json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setNotice("Private review worksheet downloaded. Every null is a missing evidence-backed BIR field, not a zero.");
+    } catch {
+      setNotice("Could not download the reviewed BIR source worksheet.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function submitCandidate(mode: "check" | "download") {
     if (!reviewFile || !sourceDigest || !legalEntityId) {
       setNotice("Reconcile the legal employer first and select a reviewed JSON schedule file.");
@@ -185,6 +222,11 @@ export function Bir1604cCandidatePanel({
           and MWE premium evidence references where applicable. Missing fields and guessed zeroes are blocked.
           The feature is off by default and never files with BIR.
         </p>
+        <button type="button" className="secondary-button" style={{ justifySelf: "start" }}
+          disabled={!sourceDigest || !legalEntityId || loading}
+          onClick={() => void downloadTemplate()}>
+          Download prefilled review worksheet (unknown fields stay null)
+        </button>
         <label style={labelStyle}>
           Reviewed schedule JSON (stays in this browser until you run the check)
           <input type="file" accept=".json,application/json" aria-label="Reviewed BIR schedule JSON"
@@ -215,7 +257,7 @@ export function Bir1604cCandidatePanel({
         {preview && <div role="status" data-bir-candidate-preview>
           <strong>Local preview: {preview.status}</strong>
           <p style={{ margin: "6px 0" }}>
-            {preview.recordCount} employees · {preview.fileName} · SHA-256: <code>{preview.fileSha256}</code>
+            {preview.recordCount} employees · {preview.fileName} · SHA-256: <code style={{ overflowWrap: "anywhere" }}>{preview.fileSha256}</code>
           </p>
           <small>Official validator: not run. Matching exact bytes and approved employee data are still required.</small>
         </div>}
@@ -239,7 +281,7 @@ export function Bir1604cCandidatePanel({
                 <option value="7.4">v7.4</option>
               </select></label>
             <label style={labelStyle}>Exact DAT SHA-256 (from the downloaded file)
-              <input aria-label="DAT file SHA-256" value={fileSha} maxLength={64}
+              <input aria-label="DAT file SHA-256" value={fileSha} maxLength={64} style={{ width: "100%", minWidth: 0 }}
                 onChange={event => setFileSha(event.target.value)} placeholder="64 hexadecimal characters" />
             </label>
             <label style={labelStyle}>Official module result
