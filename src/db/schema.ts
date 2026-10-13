@@ -2074,6 +2074,8 @@ export const documents = pgTable("documents", {
     .where(sql`${table.sourceKey} is not null`),
   index("documents_org_employee_source_idx").on(table.organizationId, table.employeeId, table.sourceType, table.createdAt),
   uniqueIndex("documents_object_storage_key_unique").on(table.objectStorageKey).where(sql`${table.objectStorageKey} is not null`),
+  // Composite parent key prevents a COE in another employer from being attached to an HR case.
+  unique("documents_org_id_hr_cases_unique").on(table.organizationId, table.id),
   check("documents_source_type_check", sql`${table.sourceType} in ('upload','generated')`),
 ]);
 
@@ -3058,6 +3060,17 @@ export const employeeHrCases = pgTable("employee_hr_cases", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("employee_hr_cases_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+  unique("employee_hr_cases_org_id_unique").on(table.organizationId, table.id),
+  foreignKey({
+    name: "employee_hr_cases_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id],
+  }).onDelete("cascade"),
+  foreignKey({
+    name: "employee_hr_cases_coe_document_tenant_fk",
+    columns: [table.organizationId, table.coeDocumentId],
+    foreignColumns: [documents.organizationId, documents.id],
+  }),
   index("employee_hr_cases_sla_idx").on(table.organizationId, table.status, table.slaDueAt),
   check("employee_hr_cases_status_check", sql`${table.status} in ('open','in_progress','waiting_employee','resolved','closed')`),
 ]);
@@ -3072,6 +3085,11 @@ export const employeeHrCaseMessages = pgTable("employee_hr_case_messages", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("employee_hr_case_messages_case_idx").on(table.organizationId, table.caseId, table.createdAt),
+  foreignKey({
+    name: "employee_hr_case_messages_case_tenant_fk",
+    columns: [table.organizationId, table.caseId],
+    foreignColumns: [employeeHrCases.organizationId, employeeHrCases.id],
+  }).onDelete("cascade"),
   check("employee_hr_case_messages_visibility_check", sql`${table.visibility} in ('employee','internal')`),
 ]);
 
