@@ -84,6 +84,8 @@ test("workflow automatically provisions local Postgres and never activates a pro
   assert.match(flow, /WORKER_ENABLED: "false"/);
   assert.match(flow, /PAYROLL_SCHEDULER_DISPATCH_ENABLED: "false"/);
   assert.match(flow, /node scripts\/qa\/prove-unattended-scheduler-payroll\.mjs/);
+  assert.match(flow, /node scripts\/qa\/apply-audit-0109-isolated\.mjs/);
+  assert.match(source, /auditChainSeal\?\.sealed/);
   assert.match(source, /dispatchSchedulerTick/);
   assert.match(source, /spawn\("npm", \["run", "worker"\]/);
   assert.doesNotMatch(source, /drainPayrollQueue\(|processNextPayrollJob\(|enqueuePayrollRun\(/);
