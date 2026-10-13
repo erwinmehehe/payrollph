@@ -57,6 +57,7 @@ test("both scheduler dispatch paths and read-only monitor fail closed on absent 
     "src/app/api/jobs/dispatch-readiness/route.ts",
     "src/app/api/jobs/cron/route.ts",
     "src/app/api/jobs/status/route.ts",
+    "src/app/api/jobs/tick/route.ts",
   ]) {
     const source = readFileSync(file, "utf8");
     assert.match(source, /await checkPayrollWorkerDispatchGate\(\)/);
@@ -64,4 +65,13 @@ test("both scheduler dispatch paths and read-only monitor fail closed on absent 
   const status = readFileSync("src/app/api/jobs/status/route.ts", "utf8");
   assert.match(status, /status: 503/);
   assert.doesNotMatch(status, /tickScheduler\(/);
+});
+
+test("direct authenticated POST cannot skip required worker preflight", () => {
+  const route = readFileSync("src/app/api/jobs/tick/route.ts", "utf8");
+  const gate = route.indexOf("await checkPayrollWorkerDispatchGate()");
+  const tick = route.indexOf("await tickScheduler(true)");
+  assert.ok(gate > 0 && tick > gate, "worker gate must run before scheduler mutation");
+  assert.match(route, /Payroll worker heartbeat is missing or unhealthy/);
+  assert.match(route, /status: 503/);
 });
