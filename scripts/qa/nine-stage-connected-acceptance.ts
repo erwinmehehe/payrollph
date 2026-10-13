@@ -143,6 +143,10 @@ async function main() {
   assert.ok(localMinutes(now) >= 75, "BLOCKED: run after 01:15 Manila time for same-day clock correction");
   const shiftStart = new Date(now.getTime() - 66 * 60000);
   const shiftEnd = new Date(now.getTime() - 6 * 60000);
+  // Schedule definitions are HH:mm. Precise correction timestamps must have
+  // identical minute boundaries or seconds can fabricate unauthorized OT.
+  shiftStart.setUTCSeconds(0, 0);
+  shiftEnd.setUTCSeconds(0, 0);
   assert.equal(dateInManila(shiftStart), workDate);
   const periodStart = workDate;
   const periodEnd = workDate;
@@ -338,6 +342,11 @@ async function main() {
     });
     currentTimesheetId = Number(submitted.timesheet?.id);
     assert.ok(currentTimesheetId > 0);
+    const firstBlockers = (submitted.timesheet?.snapshot?.days ?? []).flatMap((day: any) =>
+      (day.exceptions ?? []).filter((e: any) => e.severity === "blocker")
+        .map((e: any) => String(e.kind).slice(0, 40)));
+    assert.equal(Number(submitted.timesheet?.blockerCount), 0,
+      "First timecard blocker kinds: " + [...new Set(firstBlockers)].join(","));
     const approved = await manager.ok("/api/workforce/timesheets", "POST", {
       organizationId: orgA, action: "decide",
       timesheetId: currentTimesheetId, decision: "approved",
@@ -348,8 +357,7 @@ async function main() {
     const second = await employee.ok("/api/self/workforce", "POST", {
       action: "request_correction", punchId,
       proposedTimeIn: new Date(shiftStart.getTime() + 60000).toISOString(),
-      proposedTimeOut: new Date(shiftEnd.getTime() + 60000).toISOString(),
-      reason: "Fictional one-minute revision proves prior approval becomes stale",
+      reason: "Fictional one-minute later arrival proves prior approval becomes stale without overtime",
     });
     const secondDecision = await manager.ok("/api/workforce/attendance-corrections", "POST", {
       organizationId: orgA, action: "decide_request", requestId: second.correction.id,
@@ -368,6 +376,11 @@ async function main() {
       organizationId: orgA, action: "submit", employeeId: worker, periodStart, periodEnd,
     });
     assert.ok(Number(replacement.timesheet.version) > Number(stale.version));
+    const secondBlockers = (replacement.timesheet?.snapshot?.days ?? []).flatMap((day: any) =>
+      (day.exceptions ?? []).filter((e: any) => e.severity === "blocker")
+        .map((e: any) => String(e.kind).slice(0, 40)));
+    assert.equal(Number(replacement.timesheet?.blockerCount), 0,
+      "Revised timecard blocker kinds: " + [...new Set(secondBlockers)].join(","));
     const decision = await manager.ok("/api/workforce/timesheets", "POST", {
       organizationId: orgA, action: "decide", timesheetId: replacement.timesheet.id,
       decision: "approved",
