@@ -29,7 +29,7 @@ export const EMPTY_WORKFLOW_UI_FLAGS: Readonly<WorkflowUiFlags> = Object.freeze(
 /** Resolve only on the server. No NEXT_PUBLIC flags or client-side grants. */
 export function resolveWorkflowUiFlags(): WorkflowUiFlags {
   return {
-    firstPayrollInline: criticalReleaseFlagEnabled("firstPayrollInline"),
+    firstPayrollInline: criticalReleaseFlagEnabled("workflowFirstPayrollAdvisory"),
     importReview: criticalReleaseFlagEnabled("importReview"),
     coreOnlyNav: criticalReleaseFlagEnabled("coreOnlyNav"),
     faceOfflinePunch: criticalReleaseFlagEnabled("faceOfflinePunch"),
