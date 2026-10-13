@@ -64,6 +64,22 @@ async function workspace(page, orgId) {
   await page.waitForLoadState("networkidle");
 }
 
+/** A hydrated controlled input is needed before synthetic browser typing.
+ * SSR may show a focusable searchbox while React has not yet attached its
+ * change handler. Merely waiting for networkidle does not prove hydration.
+ * The actual authorized/no-match search checks remain unchanged.
+ */
+async function hydratedEmployeeSearch(page) {
+  const input = page.getByRole("searchbox", { name: "Find an employee" });
+  await input.waitFor();
+  await page.waitForFunction(() => {
+    const node = document.getElementById("hris-employee-quick-find");
+    return node instanceof HTMLInputElement &&
+      Object.keys(node).some(key => key.startsWith("__reactProps$"));
+  }, null, { timeout: 60000 });
+  return input;
+}
+
 async function checkpoint(page, name, fn) {
   try {
     await fn();
@@ -93,7 +109,7 @@ try {
     const moreTools = page.locator("details").filter({ has: additional });
     assert.equal(await moreTools.evaluate(node => node.open), false,
       "Secondary HR navigation should not crowd the everyday experience");
-    const quickFind = page.getByRole("searchbox", { name: "Find an employee" });
+    const quickFind = await hydratedEmployeeSearch(page);
     await quickFind.fill("BetaPrivate");
     await page.getByText("No matching employee in your authorized directory.").waitFor();
     await quickFind.fill("AlphaPrivate Worker");
@@ -186,7 +202,7 @@ try {
     const teamLink = mobilePage.getByRole("link", { name: /Review team/ });
     assert.equal(await teamLink.getAttribute("href"), "/hcm/my-team?organizationId=1");
     assert.equal(await hub.locator("details").first().evaluate(node => node.open), false);
-    const quickFind = mobilePage.getByRole("searchbox", { name: "Find an employee" });
+    const quickFind = await hydratedEmployeeSearch(mobilePage);
     await quickFind.fill("BetaPrivate");
     await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
 
@@ -198,7 +214,7 @@ try {
     assert.equal(await mobilePage.getByRole("link", { name: /Review team/ }).getAttribute("href"),
       "/hcm/my-team?organizationId=2",
       "Review team must not retain the previous employer ID");
-    const betaFind = mobilePage.getByRole("searchbox", { name: "Find an employee" });
+    const betaFind = await hydratedEmployeeSearch(mobilePage);
     await betaFind.fill("AlphaPrivate");
     await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
     await betaFind.fill("BetaPrivate");
