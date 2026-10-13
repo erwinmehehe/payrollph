@@ -22,6 +22,28 @@ const ALWAYS_SENSITIVE = [
   /^tests\/.*(?:payroll|payout|bank|financial|review|approval|migration|scheduler).*\.test\.(?:ts|mjs)$/,
 ];
 
+/**
+ * Core Time safety-maintenance exception for the already shipping
+ * reviewer-first selfie/photo retention code. This permits pre-pilot fixes
+ * to reach a REAL independent reviewer, not blanket WFM feature work.
+ * Only modified versions of all four canonical files qualify; renames,
+ * additions, deletions, partial patches and unrelated files remain frozen.
+ * Classification is NOT an approval of code or a production release.
+ */
+const CORE_TIME_RETENTION_REPAIR_FILES = new Set([
+  "src/lib/workforce-punch-evidence.ts",
+  "src/lib/workforce-punch-retention.ts",
+  "tests/workforce-punch-evidence.test.ts",
+  "tests/workforce-punch-retention-db.test.ts",
+]);
+
+function isCoreTimeRetentionSafetyRepair(files) {
+  return files.length === CORE_TIME_RETENTION_REPAIR_FILES.size &&
+    new Set(files.map(file => file.filename)).size === files.length &&
+    files.every(file => file.status === "modified" &&
+      CORE_TIME_RETENTION_REPAIR_FILES.has(file.filename));
+}
+
 const FROZEN_LANES = [
   /^src\/lib\/(?:hcm-|workforce-|wfm-|compensation-|performance-)/,
   /^src\/app\/api\/(?:hcm|workforce|recruitment|talent|compensation|performance|planning)\//,
@@ -60,10 +82,13 @@ export function classifyReviewScope(files) {
   const sensitivePaths = list.filter(path =>
     ALWAYS_SENSITIVE.some(regex => regex.test(path)) ||
     ["T2", "T3"].includes(tierForPath(path)));
+  const coreTimeRetentionSafetyRepair = isCoreTimeRetentionSafetyRepair(files);
   return {
     fileCount: files.length,
-    requiresIndependentHuman: sensitivePaths.length > 0,
+    // Never let risk-classifier changes weaken the reviewer requirement.
+    requiresIndependentHuman: sensitivePaths.length > 0 || coreTimeRetentionSafetyRepair,
     hcmWfmFrozen: frozenPaths.length > 0,
+    coreTimeRetentionSafetyRepair,
     sensitiveFileCount: sensitivePaths.length,
     frozenFileCount: frozenPaths.length,
   };
@@ -119,7 +144,7 @@ export function evaluateIndependentReview({
   }
   const scope = classifyReviewScope(files);
   const blockers = [];
-  if (scope.hcmWfmFrozen &&
+  if (scope.hcmWfmFrozen && !scope.coreTimeRetentionSafetyRepair &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {
