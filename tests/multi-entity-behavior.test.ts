@@ -301,3 +301,15 @@ test("flagged multi-entity blocks every legacy employer creation, update, primar
     > get.indexOf("if (selectorMode)"),
     "unauthenticated directory GET must never bootstrap a legal employer");
 });
+
+test("employer transfer history totals retain every centavo over many source cutoffs", () => {
+  const tinyPeriods = Array.from({ length: 1001 }, () => "0.01");
+  assert.equal(sumPayrollAmounts(tinyPeriods), "10.01");
+  assert.equal(sumPayrollAmounts([...tinyPeriods, "-0.02", "123456789.99"]), "123456800.00");
+  assert.throws(() => sumPayrollAmounts(["100.00", "0.001"]), /sub-centavo/);
+  // The transfer stores these exact summed decimal strings as review-only
+  // evidence and does not change released payroll calculations.
+  const source = readFileSync("src/app/api/multi-entity/transfers/route.ts", "utf8");
+  assert.match(source, /sourceBasic = sumPayrollAmounts\(basicAmounts\)/);
+  assert.match(source, /source13thPaid = sumPayrollAmounts\(paidThirteenthAmounts\)/);
+});

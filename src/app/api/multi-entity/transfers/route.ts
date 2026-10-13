@@ -11,6 +11,7 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { manilaCalendarDate } from "@/lib/payroll-period-ui";
 import { readBasicAndThirteenth } from "@/lib/final-pay";
+import { sumPayrollAmounts } from "@/lib/multi-entity-money";
 import { canActOnEntityTransfer, summarizeEntityTransfer, type TransferAction } from "@/lib/multi-entity-policy";
 
 export const dynamic = "force-dynamic";
@@ -183,21 +184,28 @@ export async function POST(request: Request) {
     || (row.legalEntityId === worker.legalEntityId && row.basicSalary === null))) {
     return fail("Historical payroll source employer or 13th-month basic salary is unattributed. Reconcile before transfer.", 409);
   }
-  let sourceBasic = 0;
-  let source13thPaid = 0;
+  let sourceBasic = "0.00";
+  let source13thPaid = "0.00";
   try {
+    const basicAmounts: string[] = [];
+    const paidThirteenthAmounts: string[] = [];
     for (const row of history) {
       const source = readBasicAndThirteenth(row.lineItems);
-      sourceBasic += source.basic;
-      source13thPaid += source.thirteenthPaid;
+      basicAmounts.push(String(source.basic));
+      paidThirteenthAmounts.push(String(source.thirteenthPaid));
     }
     for (const row of importedHistory) {
       if (row.legalEntityId !== worker.legalEntityId) continue;
-      sourceBasic += Number(row.basicSalary ?? 0);
-      source13thPaid += Number(row.thirteenthMonth ?? 0);
+      basicAmounts.push(String(row.basicSalary));
+      paidThirteenthAmounts.push(String(row.thirteenthMonth ?? "0.00"));
     }
+    // Employer liability evidence must sum exact stored centavos. Binary
+    // floating point accumulation can drift across many historical cutoffs.
+    // Reject any unexplained sub-centavo import rather than rounding it away.
+    sourceBasic = sumPayrollAmounts(basicAmounts);
+    source13thPaid = sumPayrollAmounts(paidThirteenthAmounts);
   } catch {
-    return fail("Existing payroll adjustment is missing verified year attribution. Reconcile 13th-month evidence before transfer.", 409);
+    return fail("Existing payroll adjustment is missing verified year attribution or centavo precision. Reconcile 13th-month evidence before transfer.", 409);
   }
   try {
     const [created] = await db.transaction(async tx => {
@@ -212,8 +220,8 @@ export async function POST(request: Request) {
             runId: row.payrollRunId, periodStart: row.periodStart,
             periodEnd: row.periodEnd, lineItems: row.lineItems,
           })),
-          sourceBasicSalaryEarned: sourceBasic.toFixed(2),
-          sourceThirteenthPaid: source13thPaid.toFixed(2),
+          sourceBasicSalaryEarned: sourceBasic,
+          sourceThirteenthPaid: source13thPaid,
           sourceLegalEntityId: worker.legalEntityId,
           sourceEmploymentStart: worker.startDate,
           taxYear: Number(effectiveDate.slice(0, 4)),
