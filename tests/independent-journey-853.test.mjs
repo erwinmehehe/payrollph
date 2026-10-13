@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { STAGES, CHECKS, createTemplate, assess, renderSummary } from "../scripts/qa/independent-journey-853.mjs";
-const sha="a".repeat(40), proof="UAT-FICTIONAL001";
+const sha="a".repeat(40);
 const people={HR:"PERSON-HR01",MANAGER:"PERSON-MANAGER01",EMPLOYEE:"PERSON-EMPLOYEE01",PAYROLL:"PERSON-PAYROLL01",CHECKER:"PERSON-CHECKER01",OWNER:"PERSON-OWNER01"};
 function sample(){
  const m=createTemplate(sha);
@@ -68,4 +68,22 @@ test("cross-cutting observation operators must also be journey operators", () =>
  m.checks.NO_DEVELOPER_ASSISTANCE.operatorRef = "PERSON-UNVERIFIED07";
  assert.equal(assess(m).completeForPrivateReview, false);
  assert.ok(assess(m).reasons.some(reason => reason.includes("operator is not a recorded journey operator")));
+});
+
+test("blocked or unexecuted rows must never carry invented proof", () => {
+ const blocked = sample();
+ blocked.checks.OWNER_EMPLOYER_SWITCH = {
+  status: "BLOCKED", operatorRef: null, witnessRef: null,
+  evidenceRef: null, defectRef: null, blockerCode: "DEVICE"
+ };
+ assert.equal(assess(blocked).completeForPrivateReview, false);
+ blocked.checks.OWNER_EMPLOYER_SWITCH.evidenceRef = "UAT-NO-OBSERVATION";
+ assert.throws(() => assess(blocked), /Blocked rows cannot claim observation evidence/);
+ const unexecuted = createTemplate(sha);
+ unexecuted.stages["JOURNEY-01"].evidenceRef = "UAT-FORGED-REF";
+ assert.throws(() => assess(unexecuted), /NOT_RUN cannot contain invented proof/);
+ const failed = sample();
+ failed.stages["JOURNEY-04"].status = "NEEDS_FIX";
+ failed.stages["JOURNEY-04"].defectRef = "BUG-ATTENDANCE01";
+ assert.equal(assess(failed).completeForPrivateReview, false);
 });
