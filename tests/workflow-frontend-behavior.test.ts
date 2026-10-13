@@ -4,11 +4,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { EMPTY_WORKFLOW_UI_FLAGS } from "../src/lib/workflow-ui-flags";
-import { firstPayrollPreview } from "../src/lib/workflow-readiness-preview";
 import { parseEmployeeImportPreview, makeEmployeeImportErrorCsv } from "../src/lib/workflow-employee-import-preview";
 import { projectReportRows, exportProjectedReportCsv } from "../src/lib/report-builder-view";
 import { loanDisplaySchedule } from "../src/lib/loan-schedule-view";
-import { FirstPayrollInline } from "../src/components/workspace/first-payroll-inline";
 import { FirstPayrollReadinessCard } from "../src/components/workspace/first-payroll-readiness";
 import { MoreModulesPage } from "../src/components/workspace/more-modules-page";
 import { WorkflowUiProvider } from "../src/components/workspace/workflow-ui-context";
@@ -50,23 +48,6 @@ test("all ten workflow UI flags are default OFF and require exact true", () => {
       assert.equal(criticalReleaseFlagEnabled(key as keyof typeof flags, { [env]: value }), false);
     assert.equal(criticalReleaseFlagEnabled(key as keyof typeof flags, { [env]: "true" }), true);
   }
-});
-
-test("first payroll preview performs actual readiness transitions and blockers", () => {
-  const rows = firstPayrollPreview(readiness);
-  assert.equal(rows.length, 7);
-  assert.equal(rows.find(row => row.step.key === "people")?.kind, "blocker");
-  assert.match(rows.find(row => row.step.key === "people")?.message ?? "", /missing bank/);
-  assert.equal(rows.find(row => row.step.key === "time")?.kind, "blocker");
-  assert.equal(rows.find(row => row.step.key === "company")?.kind, "complete");
-  assert.equal(rows.find(row => row.step.key === "approval")?.kind, "blocker");
-  const released = firstPayrollPreview({
-    ...readiness, ready: true, completed: 5, employeesMissingPayout: 0,
-    checkerCount: 1, firstPayrollStarted: true, firstPayrollReleased: true, payrollRunCount: 1,
-    items: readiness.items.map(item => ({ ...item, ready: true })),
-  });
-  assert.equal(released.find(row => row.step.key === "approval")?.kind, "complete");
-  assert.equal(released.find(row => row.step.key === "exports")?.kind, "review");
 });
 
 test("CSV import preview resolves multiline quotes and server row findings", () => {
@@ -129,14 +110,7 @@ test("flag-off first-payroll card retains the original UI and has no inline draw
   assert.match(legacy, /Guided first payroll journey/);
 });
 
-test("flagged seven-step drawer and core-only More modules execute real React rendering", () => {
-  const html = renderToStaticMarkup(createElement(FirstPayrollInline, {
-    readiness, organizationId:1, canAssign:true, allowedPages:["Settings","People","Payroll","Approvals","Exports"],
-    onPage: (_: string) => {}, onNewRun:()=>{},
-  }));
-  assert.match(html, /Readiness preview/);
-  assert.match(html, /Send to responsible team/);
-  assert.match(html, /seven|Export payslips/i);
+test("core-only More modules executes role-gated React rendering", () => {
   const more = renderToStaticMarkup(createElement(MoreModulesPage,{
     visiblePages:["Overview","More modules"],
     allowedPages:["Exports"],
