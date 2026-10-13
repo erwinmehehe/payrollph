@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  exactPayrollLoanSettlement: {
+    env: "EXACT_PAYROLL_LOAN_SETTLEMENT_ENABLED",
+    owner: "Payroll / Finance",
+    risk: "P0 release-time employee loan ledger posting",
+    approval: "Exact centavo, transaction rollback and payroll golden acceptance",
+  },
   loanSchedulePreview: {
     env: "LOAN_SCHEDULE_PREVIEW_ENABLED",
     owner: "Philippine Payroll / HR Operations",
