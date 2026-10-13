@@ -3,9 +3,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { LinawWorkspace } from "@/components/linaw-workspace";
 import { SelfServicePortal } from "@/components/self-service-portal";
+import { employeeHrCasesEnabled } from "@/lib/hr-case-activation";
 import { getSessionUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/dashboard-data";
-import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, primaryCompanyOrganizationId, primaryEmployeeOrganizationId } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, PEOPLE_PAYROLL_ROLES, primaryCompanyOrganizationId, primaryEmployeeOrganizationId } from "@/lib/access";
 import { explicitHcmEmployerId, canOpenPeopleHome, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -36,7 +37,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       const denied = await assertOrganizationSessionPolicy(user.id, employeeOrganizationId);
       if (denied) redirect("/login?ssoRequired=1");
     }
-    return <SelfServicePortal />;
+    return <SelfServicePortal hrCasesEnabled={employeeHrCasesEnabled()} />;
   }
 
   const { organizationId: requestedValue, focusEmployeeId: requestedEmployeeId, workspacePage: requestedWorkspacePage } = await searchParams;
@@ -57,7 +58,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       const denied = await assertOrganizationSessionPolicy(user.id, employeeOrganizationId);
       if (denied) redirect("/login?ssoRequired=1");
     }
-    return <SelfServicePortal />;
+    return <SelfServicePortal hrCasesEnabled={employeeHrCasesEnabled()} />;
   }
 
   // Newly self-registered company owners must authorize a successful
@@ -97,6 +98,9 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
     hirePayrollReviewEnabledForEmployer(companyOrganizationId) &&
     !!access?.companyWide && ["owner", "admin", "hr"].includes(access.role) &&
     (await assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_ADMIN_ROLES)) === null;
+  const canSeeHrCases = employeeHrCasesEnabled() &&
+    !!access && ["owner", "admin", "hr", "payroll"].includes(access.role) &&
+    !(await assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_PAYROLL_ROLES));
   const canSeeMyTeam = !pilotFocusEnabled && process.env.HCM_MY_TEAM_ENABLED === "true" &&
     process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true" &&
     !!access && (
@@ -105,6 +109,12 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
     );
   return <>
     <div className="mx-auto flex max-w-7xl flex-wrap justify-end gap-3 px-5 pt-3">
+      {canSeeHrCases && (
+        <Link href={"/hcm/hr-cases?organizationId=" + data.selectedOrganization.id}
+          className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">
+          HR Requests
+        </Link>
+      )}
       {access?.companyWide && ["owner", "admin", "hr"].includes(access.role) && criticalReleaseFlagEnabled("engagementSurvey") && (
         <Link href={`/app/engagement?organizationId=${companyOrganizationId}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">Engagement survey</Link>
       )}
