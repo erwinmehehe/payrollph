@@ -106,7 +106,7 @@ try {
   await login(foreign, "entity-foreign@example.test");
 
   const entities = await request(maker, "/api/multi-entity/context?organizationId=1");
-  assert.equal(entities.status, 200);
+  assert.equal(entities.status, 200, "Initial authorized entity context must load");
   const selected = entities.json.entities.find(e => e.code === "SECOND");
   assert.ok(selected);
   await selection(maker, selected.id);
@@ -150,7 +150,7 @@ try {
   checks.push("Maker cannot approve a sealed source request");
 
   const checkerBefore = await list(checker, selected.id);
-  assert.equal(checkerBefore.status, 200);
+  assert.equal(checkerBefore.status, 200, "Checker must read the pending registration request");
   assert.equal(checkerBefore.json.requests.find(x => x.id === requestId)?.canReview, true);
   const cp = await checker.newPage();
   await routeToEntities(cp);
@@ -159,7 +159,7 @@ try {
   const approved = await request(checker, "/api/multi-entity/registration-changes", "PATCH", {
     organizationId: 1, legalEntityId: selected.id, requestId, action: "approve",
   });
-  assert.equal(approved.status, 200);
+  assert.equal(approved.status, 200, "Independent checker must approve registration request");
   assert.equal(approved.json.status, "approved");
   assert.equal(approved.json.revision, 1);
   assert.equal((await request(checker, "/api/multi-entity/registration-changes", "PATCH", {
@@ -171,7 +171,7 @@ try {
   assert.equal(after.json.requests[0].status, "approved");
   assert.ok(!JSON.stringify(after.json).includes("profileEnvelope"));
   const projected = await request(maker, "/api/multi-entity/settings?organizationId=1");
-  assert.equal(projected.status, 200);
+  assert.equal(projected.status, 200, "Approved legal name must be readable in employer settings");
   assert.equal(projected.json.entities.find(e => e.id === selected.id)?.legalName, "Beta Legal Employer QA Approved");
   checks.push("Two-user maker/checker, immutable version 1, stale replay denial, projection update");
 
@@ -202,7 +202,7 @@ try {
   assert.ok(typeof record.disbursementAccount === "string" && record.disbursementAccount.includes("3456"));
   assert.ok(!JSON.stringify(bankProjection.json).includes(account));
   const groupSettings = await request(group, "/api/multi-entity/settings?organizationId=1");
-  assert.equal(groupSettings.status, 200);
+  assert.equal(groupSettings.status, 200, "Group HR must read redacted employer settings");
   for (const item of groupSettings.json.entities) {
     assert.equal(item.disbursementBankCode, "");
     assert.equal(item.disbursementAccountName, "");
