@@ -15,7 +15,7 @@ const results = [];
 let page = null;
 async function login(role) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-  const base = "http://127.0.0.1:3000";
+  const base = "https://127.0.0.1:3443";
   const response = await context.request.post(base + "/api/auth/login", {
     headers: { origin: base, "sec-fetch-site": "same-origin" },
     data: {
@@ -31,7 +31,7 @@ function request(scope, mode, records, sourceDigest) {
   return { ...scope, mode, sourceDigest, records };
 }
 async function navigateCompliance(page, width) {
-  await page.goto("http://127.0.0.1:3000/app?organizationId=" + fixture.organizationId, {
+  await page.goto("https://127.0.0.1:3443/app?organizationId=" + fixture.organizationId, {
     waitUntil: "domcontentloaded",
   });
   await page.locator(".app-shell").waitFor({ timeout: 60000 });
@@ -53,7 +53,7 @@ async function navigateCompliance(page, width) {
 const scope = { organizationId: fixture.organizationId, legalEntityId: fixture.legalEntityId, taxYear: 2026 };
 try {
   const owner = await login("owner");
-  const get = await owner.request.get("http://127.0.0.1:3000/api/bir/annual-employer?organizationId=" +
+  const get = await owner.request.get("https://127.0.0.1:3443/api/bir/annual-employer?organizationId=" +
     fixture.organizationId + "&legalEntityId=" + fixture.legalEntityId + "&taxYear=2026");
   assert.equal(get.status(), 200, "synthetic employer annual reconciliation GET");
   const report = (await get.json()).reconciliation;
@@ -62,10 +62,10 @@ try {
   assert.equal(report.totals.payrollActualWithheld, "5000.00");
   const sourceDigest = report.sourceDigest;
 
-  const headersOn = { origin: "http://127.0.0.1:3000", "sec-fetch-site": "same-origin" };
-  const headersOff = { origin: "http://127.0.0.1:3001", "sec-fetch-site": "same-origin" };
-  const baseOn = "http://127.0.0.1:3000/api/bir/annual-employer/candidate";
-  const baseOff = "http://127.0.0.1:3001/api/bir/annual-employer/candidate";
+  const headersOn = { origin: "https://127.0.0.1:3443", "sec-fetch-site": "same-origin" };
+  const headersOff = { origin: "https://127.0.0.1:3444", "sec-fetch-site": "same-origin" };
+  const baseOn = "https://127.0.0.1:3443/api/bir/annual-employer/candidate";
+  const baseOff = "https://127.0.0.1:3444/api/bir/annual-employer/candidate";
 
   const templateResponse = await owner.request.post(baseOn, {
     headers: headersOn, data: request(scope, "template", [], sourceDigest),
@@ -150,7 +150,7 @@ try {
   await employeeCtx.close();
   results.push({ checkpoint: "non-payroll-employee-denied", result: "pass" });
 
-  const moduleStatus = await owner.request.get("http://127.0.0.1:3000/api/bir/annual-employer/module-evidence?" +
+  const moduleStatus = await owner.request.get("https://127.0.0.1:3443/api/bir/annual-employer/module-evidence?" +
     "organizationId=" + fixture.organizationId + "&legalEntityId=" + fixture.legalEntityId + "&taxYear=2026");
   assert.equal(moduleStatus.status(), 200);
   assert.equal((await moduleStatus.json()).moduleV70.status, "not run");
