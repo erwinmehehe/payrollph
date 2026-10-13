@@ -165,13 +165,27 @@ try {
     const root = page.locator('[data-bir-1604c-candidate]');
     assert.ok(await root.getByText("1604-C reviewed DAT candidate", { exact: false }).isVisible());
     assert.ok((await root.locator('[data-bir-v70-validation-status]').textContent()).includes("not run"));
-    await page.screenshot({ path: outDir + "/year-end-bir-" + width + ".png", fullPage: true });
-    const bounding = await root.evaluate(el => ({
-      left: el.getBoundingClientRect().left, right: el.getBoundingClientRect().right,
-      viewport: window.innerWidth,
-    }));
-    assert.ok(bounding.left >= -2 && bounding.right <= bounding.viewport + 2,
-      "BIR panel must remain within " + width + "px viewport");
+    await root.evaluate(el => el.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" }));
+    await page.waitForTimeout(200);
+    const bounding = await root.evaluate(el => {
+      const rect = el.getBoundingClientRect();
+      const descendants = [...el.querySelectorAll("*")];
+      return {
+        left: rect.left, right: rect.right, top: rect.top,
+        viewport: window.innerWidth, documentWidth: document.documentElement.scrollWidth,
+        childMaxRight: Math.max(rect.right, ...descendants.map(node => node.getBoundingClientRect().right)),
+      };
+    });
+    assert.equal(bounding.viewport, width, "Expected exact mobile/desktop browser viewport");
+    assert.ok(bounding.left >= -2 && bounding.right <= width + 2 &&
+      bounding.childMaxRight <= width + 2,
+      "BIR panel or child overflows " + width + "px viewport");
+    assert.ok(bounding.top < 900 && bounding.top > -850,
+      "BIR candidate panel must be visible in screenshot viewport");
+    await page.screenshot({ path: outDir + "/year-end-bir-" + width + ".png", fullPage: false });
+    const status = root.locator('[data-bir-v70-validation-status]');
+    await status.evaluate(el => el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" }));
+    await page.screenshot({ path: outDir + "/year-end-bir-status-" + width + ".png", fullPage: false });
     results.push({ checkpoint: "compliance-year-end-" + width + "px", result: "pass", synthetic: true });
     await context.close();
   }
