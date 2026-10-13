@@ -19,7 +19,9 @@ export function projectReportRows(input: {
   return { columns: indexes.map(i => input.columns[i]), rows: filtered.map(row => indexes.map(i => String(row[i] ?? ""))) };
 }
 function quoteCsv(value: string) {
-  return '"' + (/^[\p{Cc}\p{Cf}\p{Zs}\p{Zl}\p{Zp}]*[=+@\-]/u.test(value) ? "'" + value : value).replaceAll('"', '""') + '"';
+  // ES2017-compatible guard against leading invisible/control characters hiding a formula.
+  const potentialFormula = /^[\s\x00-\x1f\x7f-\x9f\u00ad\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]*[=+@\-]/.test(value);
+  return '"' + (potentialFormula ? "'" + value : value).replaceAll('"', '""') + '"';
 }
 export function exportProjectedReportCsv(columns: readonly string[], rows: readonly (readonly string[])[]) {
   return [columns, ...rows].map(row => row.map(quoteCsv).join(",")).join("\r\n") + "\r\n";
