@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { applicantPrivacyEvidence, auditEvents, jobApplicants } from "@/db/schema";
 import { assertOrganizationRole, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
 import {
   applicantPiiEraseValues, applicantErasureIndependentlyApproved, applicantPrivacyId, validApplicantPrivacyDecision,
 } from "@/lib/recruitment-applicant-privacy";
@@ -27,7 +27,7 @@ async function authorize(actorId: number, organizationId: number) {
 
 /** Staff-mediated candidate export after the DPO verifies the data subject's identity. */
 export async function GET(request: Request) {
-  if (!criticalReleaseFlagEnabled("applicantPrivacy")) return unavailable();
+  if (!applicantPrivacyControlsEnabled()) return unavailable();
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const params = new URL(request.url).searchParams;
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
 
 /** Three controlled actions: request -> independent review -> erase. */
 export async function PATCH(request: Request) {
-  if (!criticalReleaseFlagEnabled("applicantPrivacy")) return unavailable();
+  if (!applicantPrivacyControlsEnabled()) return unavailable();
   const origin = enforceSameOriginMutation(request);
   if (origin) return origin;
   const user = await getSessionUser();

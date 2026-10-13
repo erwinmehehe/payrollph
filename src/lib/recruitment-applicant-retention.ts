@@ -1,7 +1,7 @@
 import { and, eq, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { applicantPrivacyEvidence, auditEvents, jobApplicants } from "@/db/schema";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
 import {
   applicantPiiEraseValues, rejectedApplicantCanPurge, sixCalendarMonthsBefore,
 } from "@/lib/recruitment-applicant-privacy";
@@ -14,7 +14,7 @@ import {
  * stored personal data.
  */
 export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
-  if (!criticalReleaseFlagEnabled("applicantPrivacy")) {
+  if (!applicantPrivacyControlsEnabled()) {
     return { purged: 0, enabled: false as const };
   }
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 ||

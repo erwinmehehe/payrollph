@@ -1,3 +1,10 @@
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+
+/** Employer scoping remains deferred with the rest of the multi-entity HCM lane. */
+export function applicantPrivacyControlsEnabled(env: Readonly<Record<string, string | undefined>> = process.env) {
+  return criticalReleaseFlagEnabled("applicantPrivacy", env) && !criticalReleaseFlagEnabled("multiEntity", env);
+}
+
 /** Applicant privacy rules. These are policy gates, not a legal conclusion. */
 export function applicantPrivacyId(value: unknown): number | null {
   if (typeof value !== "number" && (typeof value !== "string" || !/^[1-9]\d*$/.test(value))) return null;

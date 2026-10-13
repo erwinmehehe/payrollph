@@ -157,7 +157,7 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
   // Preserve main's flag-rollback cleanup of unreadable pending COE objects.
   const pendingCoeObjectRecovery = await sweepPendingCoeObjects(new Date(now));
   return {
-    applicantPrivacyPurged: applicantPrivacy.purged,
+    ...(applicantPrivacy.enabled ? { applicantPrivacyPurged: applicantPrivacy.purged } : {}),
     pendingCoeObjectRecovery,
     sessions: deletedSessions.length,
     passwordResetTokens: deletedPasswordTokens.length,

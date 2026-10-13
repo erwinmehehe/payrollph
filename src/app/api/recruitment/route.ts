@@ -23,7 +23,7 @@ import {
   getAccess,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
 import { requireApplicantConsent } from "@/lib/recruitment-applicant-privacy";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { positionControlFingerprint } from "@/lib/hcm-position-business-process";
@@ -433,7 +433,7 @@ export async function POST(request: Request) {
     // This branch does not alter pre-existing HR intake until an approved
     // privacy migration, notice, consent UI and human privacy release enable it.
     let consent: ReturnType<typeof requireApplicantConsent> | null = null;
-    if (criticalReleaseFlagEnabled("applicantPrivacy")) {
+    if (applicantPrivacyControlsEnabled()) {
       try { consent = requireApplicantConsent(body); }
       catch { return Response.json({ error: "Recorded candidate consent, notice version and source evidence are required before intake." }, { status: 422 }); }
     }
@@ -656,6 +656,17 @@ export async function PATCH(request: Request) {
       await tx.execute(sql`select pg_advisory_xact_lock(4102, ${linkedPosition.id})`);
     }
 
+    if (applicantPrivacyControlsEnabled()) {
+      await tx.execute(sql`SELECT id FROM job_applicants WHERE id = ${applicantId}
+        AND organization_id = ${applicant.organizationId} FOR UPDATE`);
+      const [privacy] = await tx.select({ purgedAt: applicantPrivacyEvidence.purgedAt })
+        .from(applicantPrivacyEvidence).where(and(
+          eq(applicantPrivacyEvidence.organizationId, applicant.organizationId),
+          eq(applicantPrivacyEvidence.applicantId, applicantId),
+        )).limit(1);
+      if (privacy?.purgedAt) throw new RecruitmentConflict("An erased candidate record is immutable.");
+    }
+
     const [freshApplicant] = await tx.select({
       stage: jobApplicants.stage,
       hiredEmployeeId: jobApplicants.hiredEmployeeId,
@@ -723,7 +734,7 @@ export async function PATCH(request: Request) {
       .set(updateData)
       .where(eq(jobApplicants.id, applicantId))
       .returning();
-    if (stage === "rejected" && criticalReleaseFlagEnabled("applicantPrivacy")) {
+    if (stage === "rejected" && applicantPrivacyControlsEnabled()) {
       // Only applicants with real consent evidence can enter automatic purge.
       // This never fabricates a rejection timestamp for historic candidates.
       await tx.update(applicantPrivacyEvidence).set({ rejectedAt: new Date() })
