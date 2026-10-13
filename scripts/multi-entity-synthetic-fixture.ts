@@ -42,6 +42,7 @@ async function main() {
     { email: "entity-payroll@example.test", name: "Synthetic Scoped Payroll", role: "payroll", passwordHash },
     { email: "entity-nogrant@example.test", name: "Synthetic Owner Without Grant", role: "owner", passwordHash },
     { email: "entity-foreign@example.test", name: "Synthetic Foreign Owner", role: "owner", passwordHash },
+    { email: "entity-checker@example.test", name: "Synthetic Independent Checker", role: "admin", passwordHash },
   ]).returning();
   await db.insert(userOrganizations).values([
     { userId: members[0].id, organizationId: tenantA.id, role: "group_hr", active: true },
@@ -51,6 +52,7 @@ async function main() {
     { userId: members[4].id, organizationId: tenantA.id, role: "payroll", active: true },
     { userId: members[5].id, organizationId: tenantA.id, role: "owner", active: true },
     { userId: members[6].id, organizationId: tenantB.id, role: "owner", active: true },
+    { userId: members[7].id, organizationId: tenantA.id, role: "admin", active: true },
   ]);
   await db.insert(userLegalEntityGrants).values([
     { organizationId: tenantA.id, userId: members[2].id, legalEntityId: a1.id },
@@ -58,6 +60,8 @@ async function main() {
     { organizationId: tenantA.id, userId: members[3].id, legalEntityId: a1.id },
     { organizationId: tenantA.id, userId: members[4].id, legalEntityId: a1.id },
     { organizationId: tenantB.id, userId: members[6].id, legalEntityId: b1.id },
+    { organizationId: tenantA.id, userId: members[7].id, legalEntityId: a1.id },
+    { organizationId: tenantA.id, userId: members[7].id, legalEntityId: a2.id },
   ]);
   await db.insert(employees).values([
     { organizationId: tenantA.id, legalEntityId: a1.id, employeeNo: "A-01",

@@ -1,0 +1,194 @@
+import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { chromium } from "playwright";
+
+// This is a local-only synthetic review of the sealed registration workflow.
+// It does not grant production MFA, DBA, bank or legal approvals.
+const base = "http://127.0.0.1:3002";
+const password = "Synthetic-Entity-QA-2026-Only!";
+assert.equal(process.env.CI, "true");
+assert.equal(process.env.MULTI_ENTITY_QA_MODE, "synthetic-postgres-only");
+assert.equal(process.env.MULTI_ENTITY_ENABLED, "true");
+assert.equal(process.env.OPENAI_API_KEY ?? "", "");
+assert.equal(process.env.PAYMONGO_DISBURSEMENTS_ENABLED, "false");
+assert.equal(process.env.XENDIT_PAYOUTS_ENABLED, "false");
+const dbUrl = new URL(process.env.DATABASE_URL ?? "");
+assert.ok(["127.0.0.1", "localhost"].includes(dbUrl.hostname) && dbUrl.pathname === "/app_db");
+await mkdir("qa-artifacts/multi-entity", { recursive: true });
+
+const browser = await chromium.launch({ headless: true });
+const checks = [];
+async function login(context, email) {
+  const response = await context.request.post(base + "/api/auth/login", {
+    headers: { Origin: base, "content-type": "application/json", "sec-fetch-site": "same-origin" },
+    data: { email, password }, failOnStatusCode: false,
+  });
+  assert.equal(response.status(), 200, "Synthetic account login failed for " + email);
+}
+async function request(context, path, method = "GET", data = undefined) {
+  const response = await context.request.fetch(base + path, {
+    method,
+    headers: method === "GET" ? undefined :
+      { Origin: base, "Content-Type": "application/json", "sec-fetch-site": "same-origin" },
+    data, failOnStatusCode: false,
+  });
+  return { status: response.status(), json: await response.json().catch(() => null) };
+}
+async function selection(ctx, id) {
+  const r = await request(ctx, "/api/multi-entity/context", "PATCH", { organizationId: 1, legalEntityId: id });
+  assert.equal(r.status, 200, "Explicit employer selection required");
+}
+function list(ctx, legalEntityId) {
+  return request(ctx, "/api/multi-entity/registration-changes?organizationId=1&legalEntityId=" + legalEntityId);
+}
+async function routeToEntities(page) {
+  const res = await page.goto(base + "/app?organizationId=1", { waitUntil: "domcontentloaded", timeout: 60000 });
+  assert.equal(res?.status(), 200);
+  await page.locator('[data-workspace-page="Overview"]').waitFor({ timeout: 60000 });
+  if ((page.viewportSize()?.width ?? 1000) < 550) {
+    await page.getByRole("button", { name: "Open navigation" }).click();
+  }
+  const more = page.locator(".sidebar .nav-more-toggle");
+  await more.click();
+  await page.locator('.sidebar [data-nav-name="Entities"]').click();
+  await page.locator('[data-workspace-page="Entities"]').waitFor({ timeout: 30000 });
+  await page.getByRole("heading", { name: "Propose a new employer registration version" }).waitFor({ timeout: 30000 });
+}
+
+try {
+  const maker = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const checker = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const group = await browser.newContext();
+  const foreign = await browser.newContext();
+  await login(maker, "entity-owner@example.test");
+  await login(checker, "entity-checker@example.test");
+  await login(group, "entity-group@example.test");
+  await login(foreign, "entity-foreign@example.test");
+
+  const entities = await request(maker, "/api/multi-entity/context?organizationId=1");
+  assert.equal(entities.status, 200);
+  const selected = entities.json.entities.find(e => e.code === "SECOND");
+  assert.ok(selected);
+  await selection(maker, selected.id);
+  await selection(checker, selected.id);
+
+  const before = await list(maker, selected.id);
+  assert.equal(before.status, 200);
+  assert.equal(before.json.versions.length, 0);
+  assert.equal(before.json.requests.length, 0);
+  const today = before.json.today;
+  assert.match(today, /^\d{4}-\d{2}-\d{2}$/);
+
+  assert.equal((await list(group, selected.id)).status, 403);
+  assert.equal((await list(foreign, selected.id)).status, 403);
+  checks.push("Dedicated group HR and foreign-tenant identities cannot fetch registration changes");
+
+  const invalid = await request(maker, "/api/multi-entity/registration-changes", "POST", {
+    organizationId: 1, legalEntityId: selected.id, effectiveDate: today,
+    reason: "Synthetic malformed bank proposal",
+    changes: { disbursementAccount: "123456789012" },
+  });
+  assert.equal(invalid.status, 422, "Incomplete bank destination must be rejected");
+  checks.push("Partial bank fields rejected");
+
+  const propose = await request(maker, "/api/multi-entity/registration-changes", "POST", {
+    organizationId: 1, legalEntityId: selected.id, effectiveDate: today,
+    reason: "Synthetic verified legal name change",
+    changes: { legalName: "Beta Legal Employer QA Approved" },
+  });
+  assert.equal(propose.status, 201);
+  const requestId = propose.json.id;
+  assert.ok(Number.isSafeInteger(requestId) && requestId > 0);
+  const makerView = await list(maker, selected.id);
+  assert.equal(makerView.json.requests.length, 1);
+  assert.equal(makerView.json.requests[0].canReview, false);
+  assert.ok(!JSON.stringify(makerView.json).includes("profileEnvelope"));
+  const ownDecision = await request(maker, "/api/multi-entity/registration-changes", "PATCH", {
+    organizationId: 1, legalEntityId: selected.id, requestId, action: "approve",
+  });
+  assert.equal(ownDecision.status, 409, "Maker must not approve their own version");
+  checks.push("Maker cannot approve a sealed source request");
+
+  const checkerBefore = await list(checker, selected.id);
+  assert.equal(checkerBefore.status, 200);
+  assert.equal(checkerBefore.json.requests.find(x => x.id === requestId)?.canReview, true);
+  const cp = await checker.newPage();
+  await routeToEntities(cp);
+  await cp.getByText(new RegExp("Request " + requestId + " . pending_approval")).waitFor({ timeout: 20000 });
+  await cp.screenshot({ path: "qa-artifacts/multi-entity/registration-checker-pending-390.png", fullPage: true });
+  const approved = await request(checker, "/api/multi-entity/registration-changes", "PATCH", {
+    organizationId: 1, legalEntityId: selected.id, requestId, action: "approve",
+  });
+  assert.equal(approved.status, 200);
+  assert.equal(approved.json.status, "approved");
+  assert.equal(approved.json.revision, 1);
+  assert.equal((await request(checker, "/api/multi-entity/registration-changes", "PATCH", {
+    organizationId: 1, legalEntityId: selected.id, requestId, action: "approve",
+  })).status, 409, "Duplicate review must be idempotent and denied");
+  const after = await list(maker, selected.id);
+  assert.equal(after.json.versions.length, 1);
+  assert.equal(after.json.versions[0].revision, 1);
+  assert.equal(after.json.requests[0].status, "approved");
+  assert.ok(!JSON.stringify(after.json).includes("profileEnvelope"));
+  const projected = await request(maker, "/api/multi-entity/settings?organizationId=1");
+  assert.equal(projected.status, 200);
+  assert.equal(projected.json.entities.find(e => e.id === selected.id)?.legalName, "Beta Legal Employer QA Approved");
+  checks.push("Two-user maker/checker, immutable version 1, stale replay denial, projection update");
+
+  const account = "9876543210123456"; // fictional account, never connect to money movement
+  const bankProposal = await request(maker, "/api/multi-entity/registration-changes", "POST", {
+    organizationId: 1, legalEntityId: selected.id, effectiveDate: today,
+    reason: "Synthetic replacement of bank destination",
+    changes: {
+      disbursementBankCode: "BPI", disbursementAccountName: "Synthetic Employer",
+      disbursementAccount: account,
+    },
+  });
+  assert.equal(bankProposal.status, 201);
+  const bankId = bankProposal.json.id;
+  assert.ok(!JSON.stringify(bankProposal.json).includes(account));
+  const queued = await list(checker, selected.id);
+  assert.equal(queued.json.requests.find(x => x.id === bankId)?.canReview, true);
+  assert.ok(!JSON.stringify(queued.json).includes(account));
+  const bankApproved = await request(checker, "/api/multi-entity/registration-changes", "PATCH", {
+    organizationId: 1, legalEntityId: selected.id, requestId: bankId, action: "approve",
+  });
+  assert.equal(bankApproved.status, 200);
+  assert.equal(bankApproved.json.revision, 2);
+  const bankProjection = await request(maker, "/api/multi-entity/settings?organizationId=1");
+  const record = bankProjection.json.entities.find(e => e.id === selected.id);
+  assert.equal(record.disbursementBankCode, "BPI");
+  assert.equal(record.disbursementAccountName, "Synthetic Employer");
+  assert.ok(typeof record.disbursementAccount === "string" && record.disbursementAccount.includes("3456"));
+  assert.ok(!JSON.stringify(bankProjection.json).includes(account));
+  const groupSettings = await request(group, "/api/multi-entity/settings?organizationId=1");
+  assert.equal(groupSettings.status, 200);
+  for (const item of groupSettings.json.entities) {
+    assert.equal(item.disbursementBankCode, "");
+    assert.equal(item.disbursementAccountName, "");
+    assert.equal(item.disbursementAccount, null);
+  }
+  const bankVersions = await list(maker, selected.id);
+  assert.deepEqual(bankVersions.json.versions.map(x => x.revision), [2, 1]);
+  assert.ok(!JSON.stringify(bankVersions.json).includes(account));
+  checks.push("Encrypted fictional bank destination approved into version 2, masked on reads");
+
+  const mp = await maker.newPage();
+  await routeToEntities(mp);
+  await mp.getByText(/Revision 2/).waitFor({ timeout: 20000 });
+  await mp.screenshot({ path: "qa-artifacts/multi-entity/registration-approved-1440.png", fullPage: true });
+  await cp.reload({ waitUntil: "domcontentloaded" });
+  await cp.locator('[data-workspace-page="Overview"]').waitFor({ timeout: 60000 });
+  // Flag-on view retains a visible audited version history; no raw bank digits.
+  console.log(JSON.stringify({
+    result: "PASS", mode: "synthetic-postgres-only", checks,
+    realBankOrPayrollTouched: false, realMfaAccepted: false,
+    protectedCloneMigrationAccepted: false, realHumanApproval: false,
+  }));
+} catch (e) {
+  console.error("Registration synthetic acceptance failed (" +
+    (e instanceof Error ? e.message : "unknown") + ").");
+  process.exitCode = 1;
+} finally {
+  await browser.close();
+}
