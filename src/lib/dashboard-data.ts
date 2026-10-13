@@ -422,6 +422,7 @@ export async function getDashboardData(organizationId?: number, request?: Reques
     firstPayrollReadiness,
     coreModuleNavigationEnabled,
     employeeImportPreviewEnabled: criticalReleaseFlagEnabled("employeeImportPreview"),
+    xenditPayoutsEnabled: criticalReleaseFlagEnabled("xenditPayrollPayouts"),
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     ...(entityContext.enabled ? { multiEntity: {

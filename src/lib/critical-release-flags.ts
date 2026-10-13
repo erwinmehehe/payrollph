@@ -42,6 +42,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 large-roster notification completeness and labor-rule schedule publish",
     approval: "Synthetic 1000-assignment pagination, verified roster publish UAT, payroll review and operational sign-off",
   },
+  xenditPayrollPayouts: {
+    env: "XENDIT_PAYOUTS_ENABLED",
+    owner: "Treasury",
+    risk: "P0 external Xendit salary money movement",
+    approval: "Independent provider/treasury acceptance and exact employer/legal-entity authorization",
+  },
   publicIntakeProof: {
     env: "PUBLIC_INTAKE_PROOF_ENABLED", owner: "Security",
     risk: "Public enquiry and signup anti-automation", approval: "Proof replay, limits and accessible intake acceptance",
