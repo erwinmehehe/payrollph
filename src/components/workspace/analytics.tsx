@@ -111,7 +111,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
           sublabel: `${run.periodLabel} · ${run.employeeCount} people`,
           segments: [
             { key: "net", value: net, color: "var(--brand)" },
-            { key: "deductions", value: Math.max(gross - net, 0), color: "var(--safeActive-bright)" },
+            { key: "deductions", value: Math.max(gross - net, 0), color: "var(--active-bright)" },
           ],
         };
       }),
@@ -177,7 +177,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
             data={costSeries}
             legend={[
               { key: "net", label: "Net pay", color: "var(--brand)" },
-              { key: "deductions", label: "Employee deductions", color: "var(--safeActive-bright)" },
+              { key: "deductions", label: "Employee deductions", color: "var(--active-bright)" },
             ]}
           />
         </article>
