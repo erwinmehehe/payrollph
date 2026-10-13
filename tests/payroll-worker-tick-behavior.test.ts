@@ -4,8 +4,8 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 
 test("authenticated tick executes real heartbeat gate before scheduler mutation", async () => {
-  process.env.DATABASE_URL ??= "postgresql://local:local@127.0.0.1:1/offline";
   const saved = { ...process.env };
+  process.env.DATABASE_URL ??= "postgresql://local:local@127.0.0.1:1/offline";
   const restorers: Array<() => void> = [];
   function patch(path: string, overrides: Record<string, unknown>) {
     const id = require.resolve(path);
@@ -23,7 +23,7 @@ test("authenticated tick executes real heartbeat gate before scheduler mutation"
   } }) }) }) } });
   patch("../src/lib/scheduler", { tickScheduler: async () => { calls++; return { skipped: false }; } });
   try {
-    process.env.NODE_ENV = "production";
+    Object.assign(process.env, { NODE_ENV: "production" });
     process.env.VERCEL_ENV = "production";
     process.env.WORKER_TOKEN = "fictional-worker-token-32-bytes-long";
     process.env.PAYROLL_WORKER_HEARTBEAT_REQUIRED = "true";
