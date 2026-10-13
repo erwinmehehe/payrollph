@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Banknote, Check, DollarSign, Pause, Play, Plus, ReceiptText, ShieldCheck, X } from "lucide-react";
 import { GovernmentLoanRemittancePanel } from "@/components/government-loan-remittance-panel";
 import { SUPPORTED_PAYROLL_LOAN_TYPES } from "@/lib/payroll-loan-approval";
+import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
+import { loanDisplaySchedule } from "@/lib/loan-schedule-view";
 
 type Loan = {
   id: number;
@@ -34,6 +36,7 @@ const peso = (value: string | number) =>
 const LOAN_TYPES = SUPPORTED_PAYROLL_LOAN_TYPES;
 
 export function LoansPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (m: string) => void }) {
+  const scheduleEnabled = useWorkflowUi().benefitsLoans;
   const [loans, setLoans] = useState<Loan[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [summary, setSummary] = useState({ totalActiveLoans: 0, totalPendingApproval: 0, totalOutstanding: 0, totalPaidOff: 0 });
@@ -302,6 +305,28 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
             <button className="icon-button" onClick={() => setSelectedLoan(null)} aria-label="Close loan management"><X size={16} /></button>
           </div>
           <p>Original authorization: <strong>{selectedLoan.deductionAuthorizationReference ?? "Legacy record — unverified"}</strong></p>
+          {scheduleEnabled && <section aria-label="Loan payment schedule" className="card" style={{ padding: 12, boxShadow: "none" }}>
+            <h4>Repayment schedule and recorded payments</h4>
+            <p>Recorded payments below come from the loan ledger. Future installments are an illustration of the current balance and configured monthly amount, not an authorized payroll deduction or an agency schedule.</p>
+            <div style={{ overflowX: "auto" }}>
+              <table className="data-table">
+                <thead><tr><th>Installment</th><th>Illustrative date</th><th>Amount</th><th>Balance after</th></tr></thead>
+                <tbody>{loanDisplaySchedule({
+                  balance: selectedLoan.remainingBalance, installment: selectedLoan.monthlyAmortization,
+                  startsOn: selectedLoan.startDate, status: selectedLoan.status,
+                }).map(row => <tr key={row.installment}><td>{row.installment}</td>
+                  <td>{row.date}</td><td>{peso(row.amount)}</td><td>{peso(row.projectedBalance)}</td></tr>)}</tbody>
+              </table>
+            </div>
+            {loanDisplaySchedule({ balance: selectedLoan.remainingBalance,
+              installment: selectedLoan.monthlyAmortization, startsOn: selectedLoan.startDate,
+              status: selectedLoan.status }).length === 0 && <p>No active repayment schedule is projected. Check approval status and the recorded ledger.</p>}
+            <h4>Recorded repayments</h4>
+            {selectedLoan.payments.length === 0 ? <p>No repayments have been recorded.</p> :
+              <ul>{selectedLoan.payments.map(payment=><li key={payment.id}>
+                {payment.paymentDate}: {peso(payment.amount)} · {payment.reference || "Payroll deduction"}
+              </li>)}</ul>}
+          </section>}
           {viewer.companyWide && (
             <div className="setting-form">
               <label>Reason / reviewer justification
