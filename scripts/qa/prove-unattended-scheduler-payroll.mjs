@@ -139,6 +139,8 @@ export async function proveUnattendedPayroll(env = process.env) {
     const receipt = afterTick.heartbeats.find((row) => row.job_name === "delivery-drain");
     const lease = afterTick.heartbeats.find((row) => row.job_name === "central-scheduler-lease");
     assert.ok(receipt?.last_run_at && receipt?.last_result?.at, "fenced scheduler completion receipt is required");
+    assert.ok(Number.isSafeInteger(receipt.last_result.auditChainSeal?.sealed),
+      "audit chain sealing must succeed; an optional failed task is not a clean scheduler proof");
     assert.equal(lease?.last_result?.status, "completed", "fenced scheduler lease must be released successfully");
     assert.ok(Date.now() - new Date(receipt.last_run_at).getTime() < 120000, "heartbeat must be fresh");
 
@@ -176,6 +178,7 @@ export async function proveUnattendedPayroll(env = process.env) {
       dispatchPosts: counters.POST,
       schedulerReceiptPresent: true,
       schedulerLeaseFinalStatus: lease.last_result.status,
+      auditChainSealResult: "verified",
       syntheticPayrollJobStatus: completed.jobs[0].status,
       syntheticRunStatus: completed.runs[0].status,
       syntheticEntryCount: completed.entries.length,
