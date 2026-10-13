@@ -92,7 +92,7 @@ export function FirstPayrollReadinessCard({
 
       {guided && <ol aria-label="Guided first payroll journey" className="grid gap-3 md:grid-cols-2" style={{ margin: "16px 0", padding: 0, listStyle: "none" }}>
         {journey.map((step, index) => (
-          <li key={step.key} className="rounded-xl border p-4" style={{ borderColor: "var(--line)", background: "var(--canvas-subtle)" }}>
+          <li key={step.key} className="min-w-0 rounded-xl border p-4" style={{ borderColor: "var(--line)", background: "var(--canvas-subtle)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <strong>{index + 1}. {step.title}</strong>
               <span className="text-xs" style={{ marginLeft: "auto", color: "var(--muted)" }}>

@@ -30,6 +30,8 @@ export function FirstPayrollInlinePanel({
  const defaultOwner=firstPayrollStep(step).owner;
  const permittedOwners: readonly string[]=firstPayrollStep(step).allowedOwners;
  const [progress,setProgress]=useState<Progress|null>(null);
+ const [progressLoading,setProgressLoading]=useState(true);
+ const [companyLoading,setCompanyLoading]=useState(step==="company");
  const [error,setError]=useState("");const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);
  const [company,setCompany]=useState(data.selectedOrganization.legalName);
  const [schedule,setSchedule]=useState("ph_semi_monthly");
@@ -45,6 +47,7 @@ export function FirstPayrollInlinePanel({
  const [draftId,setDraftId]=useState<number|null>(null);
  useEffect(()=>{
   let cancelled=false;
+  setProgressLoading(true);
   void fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"})
    .then(async r=>{if(!r.ok)throw Error("Cannot load step progress");return r.json();})
    .then(x=>{if(cancelled)return;const p=x.progress as Progress|null;setProgress(p);
@@ -52,18 +55,21 @@ export function FirstPayrollInlinePanel({
       if(reviewed?.periodStart)setStart(reviewed.periodStart);
       if(reviewed?.periodEnd)setEnd(reviewed.periodEnd);
       const owner=p?.stepOwners?.[step];if(owner&&permittedOwners.includes(owner))setTarget(owner);
-   }).catch(()=>{if(!cancelled)setError("Could not load saved progress for this employer.");});
+   }).catch(()=>{if(!cancelled)setError("Could not load saved progress for this employer.");})
+   .finally(()=>{if(!cancelled)setProgressLoading(false);});
   return ()=>{cancelled=true;};
  },[organizationId,step,permittedOwners]);
  useEffect(()=>{
   if(step!=="company")return;
   let cancelled=false;
+  setCompanyLoading(true);
   void fetch("/api/legal-entities?organizationId="+organizationId,{cache:"no-store"})
    .then(async r=>{const body=await r.json();if(!r.ok)throw Error(body.error??"Could not load legal employer");return body;})
    .then(result=>{if(cancelled)return;const entries=(result.legalEntities??[]) as LegalEmployer[];
      const selected=entries.find(e=>e.active&&e.primaryEntity)??null;
      setEmployer(selected);if(selected){setCompany(selected.legalName);setSchedule(selected.payrollCalendarMode);setRegistrations({birTin:selected.birTin??"",sssEmployerNo:selected.sssEmployerNo??"",philHealthEmployerNo:selected.philHealthEmployerNo??"",pagIbigEmployerNo:selected.pagIbigEmployerNo??""});}
-   }).catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Could not load legal employer");});
+   }).catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Could not load legal employer");})
+   .finally(()=>{if(!cancelled)setCompanyLoading(false);});
   return ()=>{cancelled=true;};
  },[step,organizationId]);
 
@@ -109,6 +115,12 @@ export function FirstPayrollInlinePanel({
   }catch(e){setError(e instanceof Error?e.message:"Preview unavailable");}
   finally{setBusy(false);}
  }
+ const periodPunches=start&&end ? (data.punches??[]).filter(p=>p.workDate>=start&&p.workDate<=end) : [];
+ const periodLeaves=start&&end ? (data.leaveRequests??[]).filter(l=>l.startDate<=end&&l.endDate>=start) : [];
+ const employeeNames=new Map((data.employees??[]).map(person=>[person.id,person.firstName+" "+person.lastName]));
+ const timeLabel=(value:Date|string|null)=>value
+   ? new Date(value).toLocaleString("en-PH",{timeZone:"Asia/Manila",dateStyle:"short",timeStyle:"short"})
+   : "—";
  const reviewed=progress?.completedSteps?.time;
  const reviewersCanEdit=["owner","admin"].includes(data.access?.role??"");
  const handoff=<div className="mt-4 flex flex-wrap items-center gap-2">
@@ -121,7 +133,10 @@ export function FirstPayrollInlinePanel({
    </button>
    <small>Current owner: {progress?.stepOwners?.[step]??defaultOwner}</small>
  </div>;
- return <div className="mt-3 rounded-xl border p-4" aria-label={step+" inline setup"}>
+ return <div className="mt-3 min-w-0 max-w-full rounded-xl border p-4" aria-label={step+" inline setup"}
+   aria-busy={progressLoading||companyLoading||busy}>
+   {(progressLoading||companyLoading)&&<p role="status">Loading saved employer setup…</p>}
+   {busy&&<p role="status">Processing this step…</p>}
    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
    {step==="company"&&<div className="grid gap-3">
      <p>Update the primary legal employer. Its calendar, not the legacy organization projection, governs payroll.</p>
@@ -157,7 +172,31 @@ export function FirstPayrollInlinePanel({
      <p>An authorized HR reviewer must check missing punches, leave, schedule exceptions and the actual pay period. This attestation does not approve timesheets or bypass payroll attendance locks.</p>
      <label>Pay period start<input type="date" value={start} onChange={e=>setStart(e.target.value)}/></label>
      <label>Pay period end<input type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label>
-     <p>Attendance punches in current workspace snapshot: {data.punches?.length??0}</p>
+     {start&&end ? <>
+       <p role="status">{periodPunches.length} recorded attendance punch{periodPunches.length===1?"":"es"} and {periodLeaves.length} leave request{periodLeaves.length===1?"":"s"} overlap this selected period. Review recorded exceptions before attesting. Absence of records does not prove attendance was completed.</p>
+       {periodPunches.length===0
+         ? <p>No time punches are recorded for this period. Confirm the employee schedule and any missing attendance records before reviewing.</p>
+         : <div className="max-w-full overflow-x-auto" role="region" aria-label="Period attendance records" tabIndex={0}>
+           <table className="min-w-[520px]"><caption>Recorded attendance for the selected period (first 50 rows)</caption>
+             <thead><tr><th>Employee</th><th>Work date</th><th>Time in</th><th>Time out</th><th>Status</th></tr></thead>
+             <tbody>{periodPunches.slice(0,50).map(p=><tr key={p.id}>
+               <td>{employeeNames.get(p.employeeId)??"Worker #"+p.employeeId}</td>
+               <td>{p.workDate}</td><td>{timeLabel(p.timeIn)}</td><td>{timeLabel(p.timeOut)}</td><td>{p.status}</td>
+             </tr>)}</tbody>
+           </table>
+         </div>}
+       {periodPunches.length>50&&<p>Additional attendance rows require review in the authoritative time workflow before attestation.</p>}
+       {periodLeaves.length>0&&<div className="max-w-full overflow-x-auto" role="region" aria-label="Period leave records" tabIndex={0}>
+         <table className="min-w-[460px]"><caption>Leave requests overlapping the period (first 50 rows)</caption>
+           <thead><tr><th>Employee</th><th>Dates</th><th>Type</th><th>Status</th></tr></thead>
+           <tbody>{periodLeaves.slice(0,50).map(l=><tr key={l.id}>
+             <td>{employeeNames.get(l.employeeId)??"Worker #"+l.employeeId}</td>
+             <td>{l.startDate} to {l.endDate}</td><td>{l.leaveType}</td><td>{l.status}</td>
+           </tr>)}</tbody>
+         </table>
+       </div>}
+       {periodLeaves.length>50&&<p>Additional leave records require review in the authoritative leave workflow before attestation.</p>}
+     </> : <p>Select a pay period to load recorded attendance and leave context.</p>}
      <label className="flex items-start gap-2"><input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)}/>
        I personally reviewed the time and HR inputs for this period and will resolve any independent approval requirements.</label>
      <button type="button" className="primary-button"
@@ -188,7 +227,7 @@ export function FirstPayrollInlinePanel({
        <p role="status">{preview.previewReady?"Preview ready for reconciliation":"Preview has blockers"}</p>
        {preview.blockers.map((b,i)=><p key={i} role="alert">{b}</p>)}
        {preview.warnings?.map((b,i)=><p key={i}>{b}</p>)}
-       <div className="overflow-x-auto"><table><thead><tr>{["Employee","Gross","SSS","PhilHealth","Pag-IBIG","Withholding","Net","Blockers"].map(h=><th key={h}>{h}</th>)}</tr></thead>
+       <div className="max-w-full overflow-x-auto" role="region" aria-label="First payroll per-employee preview" tabIndex={0}><table className="min-w-[700px]"><thead><tr>{["Employee","Gross","SSS","PhilHealth","Pag-IBIG","Withholding","Net","Blockers"].map(h=><th key={h}>{h}</th>)}</tr></thead>
        <tbody>{preview.rows.map(row=><tr key={row.employeeId}>
          <td>{row.name}</td>{[row.gross,row.sss,row.philHealth,row.pagIbig,row.withholding,row.net].map((n,i)=><td key={i}>{n==null?"—":n.toFixed(2)}</td>)}
          <td>{row.blockers.join("; ")||"None"}</td></tr>)}</tbody></table></div>
