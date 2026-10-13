@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  workPeriodWageScreen: {
+    env: "WORK_PERIOD_WAGE_SCREEN_ENABLED",
+    owner: "Philippine Payroll",
+    risk: "P1 advisory wage-order effective-date warnings",
+    approval: "Cutoff boundary behavior and unchanged payroll golden amounts",
+  },
   wfmGreedyRoster: {
     env: "WFM_GREEDY_ROSTER_ENABLED",
     owner: "WFM Product / PH People Operations",
