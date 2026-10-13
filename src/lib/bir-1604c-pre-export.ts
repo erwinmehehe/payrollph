@@ -11,7 +11,7 @@
 import {
   BIR_1604C_D1_FIELDS, BIR_1604C_D2_FIELDS,
   BIR_1604C_C1_FIELDS, BIR_1604C_C2_FIELDS,
-  type Bir1604CRecord,
+  buildBir1604cDatCandidate, type Bir1604CRecord,
 } from "./bir-1604c-dat-candidate";
 
 export type Bir1604CReviewedRecord = Bir1604CRecord & {
@@ -253,4 +253,36 @@ export function birModuleV70Status(evidence?: {
       evidence.generatedFileSha256.toLowerCase() !== evidence.validatedFileSha256.toLowerCase() ||
       !reviewedString(evidence.evidenceReference)) return "not run";
   return evidence.outcome === "pass" ? "yes" : "no";
+}
+
+/**
+ * Versioned, feature-gated candidate builder for independently reviewed source
+ * payloads. A caller cannot make a claim of official validator acceptance.
+ * This function has no DB writes, tenant side effects or public endpoint.
+ */
+export function buildReviewedBir1604cCandidate(
+  input: Parameters<typeof validateBir1604cPreExport>[0],
+  enabled: boolean = process.env.BIR_1604C_DAT_CANDIDATE_ENABLED === "true",
+) {
+  if (!enabled) return {
+    ok: false as const, validatedAgainstModuleV70: "not run" as const,
+    issues: [{ code: "FEATURE_DISABLED", message: "Reviewed 1604-C DAT candidate export is disabled." }],
+  };
+  const validation = validateBir1604cPreExport(input);
+  if (!validation.canGenerateCandidate) return {
+    ok: false as const, validatedAgainstModuleV70: "not run" as const,
+    issues: validation.issues,
+  };
+  const result = buildBir1604cDatCandidate({
+    employerTin: input.employerTin, employerBranch: input.employerBranch,
+    taxYear: input.taxYear, expectedEmployees: input.expectedEmployees,
+    expectedActualWithheld: input.expectedActualWithheld,
+    records: input.records.map(record => ({
+      schedule: record.schedule, fields: record.fields,
+    })),
+  });
+  return {
+    ok: true as const, validatedAgainstModuleV70: "not run" as const,
+    issues: [], candidate: result,
+  };
 }
