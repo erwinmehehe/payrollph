@@ -107,9 +107,10 @@ export async function GET(request: Request) {
     if (denied) return denied;
     // Do not create/update a tenant's default legal employer before authenticating
     // membership. A GET from an unassigned user must never mutate that tenant.
-    if (!criticalReleaseFlagEnabled("multiEntity")) await ensurePrimaryLegalEntity(organizationId);
     const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
     if (!scope.ok) return scope.response;
+    // A selector is read-only; a payroll operator may not bootstrap a legal
+    // employer with a GET before an administrator has configured the tenant.
     const entities = await db.select({
       id: legalEntities.id,
       code: legalEntities.code,
@@ -129,6 +130,8 @@ export async function GET(request: Request) {
 
   const denied = await requireAdmin(user.id, organizationId);
   if (denied) return denied;
+  // Maintain the legacy admin-only bootstrap for existing clients. The role
+  // check must precede this write-capable compatibility operation.
   await ensurePrimaryLegalEntity(organizationId);
 
   const [entities, employeeRows, runRows] = await Promise.all([

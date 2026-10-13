@@ -30,12 +30,19 @@ test("the workspace routes employee accounts away from admin screens", () => {
   assert.ok(read("src/app/app/page.tsx").includes('role === "employee"'), "employee role must land on the self-service portal");
 });
 
-test("import endpoint enforces the plan and seat limit in this order", () => {
+test("import endpoint enforces the plan before the transactional seat limit", () => {
   const route = read("src/app/api/employees/import/route.ts");
-  const featureAt = route.indexOf('requireFeature(entitlements, "imports")');
-  const seatAt = route.indexOf("seatUsage(organizationId");
-  assert.ok(featureAt > -1, "plan gate must exist");
-  assert.ok(seatAt > featureAt, "seat limit is checked only after the plan gate passes");
+  const batch = read("src/lib/employee-import-batch-server.ts");
+  const featureAt = route.search(/requireFeature\(entitlements,\s*"imports"\)/);
+  const delegateAt = route.indexOf("return handleEmployeeImportPreview(");
+  assert.ok(featureAt > -1, "import plan gate must exist");
+  assert.ok(delegateAt > featureAt, "plan gate must run before the import handler");
+  assert.match(route, /seatLimit:\s*entitlements\.seatLimit/, "current tenant seat limit must be forwarded");
+  assert.match(route, /if\s*\(previewEnabled\)/, "the atomic preview handler must remain feature gated");
+  const lockAt = batch.indexOf("pg_advisory_xact_lock(4212");
+  const seatAt = batch.indexOf("input.seatLimit !== null");
+  assert.ok(lockAt > -1 && seatAt > lockAt, "seat cap must be checked within the locked transaction");
+  assert.ok(batch.includes("context.existingNumbers.length + preview.candidates.length > input.seatLimit"));
 });
 
 
