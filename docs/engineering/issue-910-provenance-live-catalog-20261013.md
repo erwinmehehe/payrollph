@@ -47,7 +47,7 @@ A catalog scan for names containing `migrat`, `receipt`, `journal` and schema `d
 
 ## Source SHA-256 reproducibility
 
-Run `node scripts/issue-910-source-manifest.mjs` at the **exact reviewed Git commit**, or `node scripts/issue-910-source-manifest.mjs --json`. It hashes **file bytes**, not normalized text, for the canonical source list (historical 0022/0050/0051/0052/0110/0112–0114; proposed 0115–0121; and review-only predecessor/tenant-guard candidates). The manifest's `production_applied` field is **UNPROVEN for every entry**. Git blob SHA is not an interchangeable SHA-256 checksum and Git file presence never certifies migration execution. Capture the source commit SHA, each full path, hash and immutable CI artifact in the actual DBA change record when available.
+Run `node scripts/issue-910-source-manifest.mjs` at the **exact reviewed Git commit**, or `node scripts/issue-910-source-manifest.mjs --json`. It hashes **file bytes**, not normalized text, for the canonical source list (historical 0022/0050/0051/0052/0110/0112–0114; proposed 0115–0121; and review-only predecessor/tenant-guard candidates). The manifest also covers `drizzle/0026_statutory_remittance_corrections.sql` and `drizzle/0105_ess_self_service_profile.sql` as plausible source candidates for separately observed catalog drift; their live execution is also **UNPROVEN**. The manifest's `production_applied` field is **UNPROVEN for every entry**. Git blob SHA is not an interchangeable SHA-256 checksum and Git file presence never certifies migration execution. Capture the source commit SHA, each full path, hash and immutable CI artifact in the actual DBA change record when available.
 
 ## What can be done next without modifying Neon
 
@@ -106,3 +106,19 @@ A separate read-only `pg_endpoint` log query on original branch `br-lucky-sound-
 ### Unchanged operational stop
 
 Neon lists **10 branches** against a Free plan allowance of **10**, with the original default branch still `protected=false`, six-hour point-in-time history and a single manual snapshot. No new protected independent clone can be assumed available. Capacity, privacy-eligible clone conditions, safe non-default restore with explicit `finalize=false`, independent DBA/operator permissions and a verified rollback must be approved *before* new restore/branch work. This report only performed reads.
+
+## Read-only ESS drift source narrowing and Vercel observability — 2026-10-13
+
+The three newly observed default-branch ESS tables exactly match the **relation names** defined by `drizzle/0105_ess_self_service_profile.sql`. Fresh SELECT-only `information_schema.columns`, `pg_indexes` and `pg_constraint` inspection observed:
+
+| Live relation | Observed columns | Observed indexes | Relevant source |
+| --- | ---: | ---: | --- |
+| `ess_employee_photos` | 7 | 2 | `drizzle/0105_ess_self_service_profile.sql` |
+| `ess_identifier_requests` | 11 | 4 | `drizzle/0105_ess_self_service_profile.sql` |
+| `ess_other_identifiers` | 7 | 3 | `drizzle/0105_ess_self_service_profile.sql` |
+
+These columns and index names are **structurally consistent** with source 0105, including the JPEG/PNG and byte-size checks on photos, the identifier-request status constraint, and the one-pending identifier index. The existing 18-column `statutory_remittance_correction_requests` relation is similarly consistent with `drizzle/0026_statutory_remittance_corrections.sql`. This makes `0105` and `0026` reasonable source candidates for the observed live table names, but **does not establish** a particular SQL execution actor, date, transaction, exact deployed bytes, or applied migration receipt. The SHA-256 manifest includes both candidate source files under `UNPROVEN`.
+
+A read-only Vercel project runtime-log query for `2026-10-12T05:25:00Z` through `05:38:00Z` returned **HTTP 400**, explicitly stating the Hobby plan does not retain logs for that historical window. The project's Vercel-managed Drains list returned **zero** configured drains. This rules out access to retained history through these particular channels, **not** all independent edge, workforce, or other externally retained telemetry. The failure is not an empty error-free log result and must not be reported as evidence of no downtime, no lost writes, or a certified RPO/RTO.
+
+**#899 status remains UNKNOWN; #910 live migration remains BLOCKED.** Neither code review, exact source-file hashes nor live catalog structure can replace a signed DBA/Philippine payroll/legal and incident-recovery decision.
