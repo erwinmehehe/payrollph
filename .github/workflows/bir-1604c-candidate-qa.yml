@@ -112,6 +112,7 @@ jobs:
         run: |
           mkdir -p qa-artifacts/bir-1604c
           cp docs/payroll-certification/bir-1604c-windows-validation-handoff.md qa-artifacts/bir-1604c/VALIDATE-ON-WINDOWS.md
+          cp scripts/bir-1604c-check-exact-test-dat.ps1 qa-artifacts/bir-1604c/VERIFY-DAT-SHA256.ps1
       - name: Upload only synthetic browser artifacts
         if: always()
         uses: actions/upload-artifact@v7
