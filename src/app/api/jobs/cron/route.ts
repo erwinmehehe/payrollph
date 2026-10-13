@@ -2,6 +2,7 @@ import { cronAuthorization } from "@/lib/scheduler-cron-auth";
 import { isCentralSchedulerEnabled } from "@/lib/scheduler-activation";
 import { tickScheduler } from "@/lib/scheduler";
 import { logSchedulerOps, newOperationalRequestId, type SchedulerOpsState } from "@/lib/ops-telemetry";
+import { emitSafeOtelError } from "@/lib/safe-otel-error";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,7 @@ export async function GET(request: Request) {
     // The monitor provides a separately authenticated liveness signal;
     // never expose job payloads, tenant data or stack traces here.
     emit("cron-error");
+    await emitSafeOtelError({ requestId, subsystem: "scheduler", code: "CRON_TICK_FAILED" });
     return Response.json({ ok: false, error: "Scheduler tick failed." }, { status: 503, headers });
   }
 }
