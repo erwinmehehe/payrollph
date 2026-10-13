@@ -53,6 +53,25 @@ async function navigateCompliance(page, width, base = "https://127.0.0.1:3443", 
   }
 }
 
+async function captureVisibleViewportElement(locator, page, label) {
+  // React reconciles Year-End state after the initial page render. A successful
+  // element lookup can become detached between scrolling and the screenshot.
+  // Re-resolve the locator on each attempt instead of caching a stale node.
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      await locator.waitFor({ state: "visible", timeout: 12000 });
+      await locator.evaluate(element =>
+        element.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" }));
+      const rect = await locator.boundingBox();
+      if (rect && rect.y >= -2 && rect.y + rect.height <= 902) return rect;
+    } catch (error) {
+      if (!/not attached|detached|element is not attached/i.test(String(error))) throw error;
+    }
+    await page.waitForTimeout(200);
+  }
+  throw new Error("Expected " + label + " to be visible after stable Year-End rendering.");
+}
+
 const scope = { organizationId: fixture.organizationId, legalEntityId: fixture.legalEntityId, taxYear: 2025 };
 try {
   const owner = await login("owner");
@@ -185,7 +204,7 @@ try {
     // heading itself: asserting the root's top is on-screen is incorrect once
     // its internal content overflows the viewport vertically.
     const heading = root.locator("h3").first();
-    await heading.scrollIntoViewIfNeeded();
+    const headingBounds = await captureVisibleViewportElement(heading, page, "BIR heading");
     const bounding = await root.evaluate(el => {
       const rect = el.getBoundingClientRect();
       const descendants = [...el.querySelectorAll("*")];
@@ -195,7 +214,7 @@ try {
         childMaxRight: Math.max(rect.right, ...descendants.map(node => node.getBoundingClientRect().right)),
       };
     });
-    const headingBounds = await heading.boundingBox();
+
     assert.equal(bounding.viewport, width, "Expected exact mobile/desktop browser viewport");
     assert.ok(bounding.left >= -2 && bounding.right <= width + 2 &&
       bounding.childMaxRight <= width + 2,
@@ -205,8 +224,7 @@ try {
       "BIR heading must actually be visible in the captured viewport");
     await page.screenshot({ path: outDir + "/year-end-bir-" + width + ".png", fullPage: false });
     const status = root.locator('[data-bir-v70-validation-status]');
-    await status.scrollIntoViewIfNeeded();
-    const statusBounds = await status.boundingBox();
+    const statusBounds = await captureVisibleViewportElement(status, page, "BIR validator status");
     assert.ok(statusBounds && statusBounds.y >= -2 &&
       statusBounds.y + statusBounds.height <= 902,
       "BIR validator status must actually be visible in its screenshot");
