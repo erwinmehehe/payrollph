@@ -19,6 +19,11 @@ export type Bir1604CReviewedRecord = Bir1604CRecord & {
   /** Private reference to independently checked payroll, 2316 or other source. */
   sourceReference: string;
   reviewedBy: string;
+  /** Explicit reviewed confirmation, never inferred from zero previous-employer columns. */
+  priorEmployerReview: "none-confirmed" | "form-2316-verified";
+  priorEmployerEvidenceReference?: string;
+  /** Distinct reviewed holiday / OT / night / hazard schedule for D2 (MWE). */
+  mwePremiumEvidenceReference?: string;
 };
 
 export type Bir1604CPreExportIssue = {
@@ -143,6 +148,17 @@ export function validateBir1604cPreExport(input: {
       add("SOURCE_REFERENCE", "Identify the reviewed Form 2316 or payroll records for this employee.", no, "sourceReference");
     if (!reviewedString(row?.reviewedBy))
       add("REVIEWER", "Identify who reviewed this employee's BIR schedule values.", no, "reviewedBy");
+    if (row?.priorEmployerReview !== "none-confirmed" &&
+        row?.priorEmployerReview !== "form-2316-verified") {
+      add("PRIOR_EMPLOYER_REVIEW", "Confirm no previous employer or record an independently reviewed prior Form 2316.", no);
+    }
+    if (row?.priorEmployerReview === "form-2316-verified" &&
+        !reviewedString(row.priorEmployerEvidenceReference)) {
+      add("PRIOR_EMPLOYER_EVIDENCE", "Identify the separately verified previous-employer Form 2316 evidence.", no);
+    }
+    if (row?.schedule === "D2" && !reviewedString(row?.mwePremiumEvidenceReference)) {
+      add("MWE_PREMIUM_EVIDENCE", "A reviewed MWE premium split is required for holiday, OT, night differential and hazard pay.", no);
+    }
     if (row?.schedule !== "D1" && row?.schedule !== "D2") {
       add("SCHEDULE", "Choose Schedule 1 (D1) or Schedule 2 for an MWE (D2).", no, "schedule");
       continue;
@@ -209,6 +225,13 @@ export function validateBir1604cPreExport(input: {
       const id = employeeTin + ":" + branch;
       if (identifiers.has(id)) add("DUPLICATE_TIN", "The same employee TIN and branch occur on more than one record.", no, "TIN");
       identifiers.add(id);
+    }
+    if (row.priorEmployerReview === "none-confirmed") {
+      for (const field of fieldList.filter(name => name.startsWith("PREV_"))) {
+        const value = parseAmount(values[field]);
+        if (value !== null && value !== 0)
+          add("UNVERIFIED_PREVIOUS_EMPLOYER", "A nonzero prior-employer amount requires a reviewed Form 2316 and its reference.", no, field);
+      }
     }
     const exempt13th = parseAmount(values.PRES_NONTAX_13TH_MONTH);
     const previousExempt13th = parseAmount(values.PREV_NONTAX_13TH_MONTH);
