@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { hashPassword } from "../src/lib/crypto";
 import {
@@ -71,9 +70,6 @@ async function main() {
       basicRate: "88000.00", startDate: "2026-01-01",
     },
   ]).returning();
-  // Real ESS login-to-employee link for isolated HR case acceptance only.
-  await db.update(users).set({ employeeId: alphaWorker.id }).where(eq(users.id, employee.id));
-
   const processes = await db.insert(hcmBusinessProcessInstances).values([
     {
       organizationId: alpha.id, employeeId: alphaWorker.id,
