@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright";
+import pg from "pg";
 
 // This is a local-only synthetic review of the sealed registration workflow.
 // It does not grant production MFA, DBA, bank or legal approvals.
@@ -139,6 +140,29 @@ try {
   assert.equal(propose.status, 201);
   const requestId = propose.json.id;
   assert.ok(Number.isSafeInteger(requestId) && requestId > 0);
+  // Assert the optimistic-lock token is the SAME PostgreSQL timestamp, not
+  // a JavaScript Date round-trip truncated to milliseconds. This test is
+  // restricted above to a disposable localhost database and synthetic users.
+  const localDb = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await localDb.connect();
+  try {
+    const stamp = await localDb.query(`
+      SELECT e.updated_at = r.expected_entity_updated_at AS exact_match,
+        (extract(microseconds FROM e.updated_at)::integer % 1000) AS submillisecond
+      FROM legal_entity_profile_change_requests r
+      JOIN legal_entities e
+        ON e.organization_id = r.organization_id AND e.id = r.legal_entity_id
+      WHERE r.id = $1 AND r.organization_id = $2 AND r.legal_entity_id = $3
+    `, [requestId, 1, selected.id]);
+    assert.equal(stamp.rows.length, 1, "Synthetic source version must exist");
+    assert.equal(stamp.rows[0].submillisecond, 437,
+      "Fixture must exercise PostgreSQL microseconds that a JS Date loses");
+    assert.equal(stamp.rows[0].exact_match, true,
+      "Registration source timestamp must preserve PostgreSQL microseconds");
+    checks.push("Unrounded PostgreSQL optimistic-lock token persisted exactly");
+  } finally {
+    await localDb.end();
+  }
   const makerView = await list(maker, selected.id);
   assert.equal(makerView.json.requests.length, 1);
   assert.equal(makerView.json.requests[0].canReview, false);
