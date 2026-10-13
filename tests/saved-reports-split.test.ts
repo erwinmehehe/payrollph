@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -20,6 +21,27 @@ test("projections use only authorized source columns and reject absent filter fi
  assert.deepEqual(none.rows,[]);
  assert.match(exportProjectedReportCsv(["Name"],[["=cmd"]]),/"'=cmd"/);
 });
+test("saved report mutations commit the definition and audit in the same transaction",()=>{
+ const code=readFileSync("src/app/api/report-builder/saved/route.ts","utf8");
+ assert.equal((code.match(/await db\.transaction\(/g)??[]).length,3);
+ assert.equal((code.match(/await tx\.insert\(auditEvents\)/g)??[]).length,3);
+ assert.doesNotMatch(code,/await recordAuditEvent\(/);
+ assert.match(code,/requestJsonObject\(request\)/);
+});
+test("CSV export neutralizes invisible-character-prefixed spreadsheet formulas",()=>{
+ const csv=exportProjectedReportCsv(["Name","Amount"],[
+  ["\u200b=HYPERLINK(A1)","123"],
+  ["\t+SUM(1,2)","-42"],
+  ["\ufeff@evil","plain"],
+  ["safe, literal",'quoted "value"'],
+ ]);
+ assert.ok(csv.includes('"' + "'" + "\u200b=HYPERLINK(A1)" + '"'));
+ assert.ok(csv.includes('"' + "'" + "\t+SUM(1,2)" + '"'));
+ assert.ok(csv.includes('"' + "'" + "\ufeff@evil" + '"'));
+ assert.ok(csv.includes('"safe, literal"'));
+ assert.ok(csv.includes('"quoted ""value"""'));
+});
+
 test("saved report builder renders loading and empty state without data",()=>{
  const html=renderToStaticMarkup(createElement(CustomReportBuilder,{organizationId:1,active:"headcount",report:null,onReport:()=>{}}));
  assert.match(html,/report/i);assert.doesNotMatch(html,/privates+salarys+record/i);

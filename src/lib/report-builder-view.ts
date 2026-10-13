@@ -19,7 +19,7 @@ export function projectReportRows(input: {
   return { columns: indexes.map(i => input.columns[i]), rows: filtered.map(row => indexes.map(i => String(row[i] ?? ""))) };
 }
 function quoteCsv(value: string) {
-  return '"' + (/^\s*[=+@\-]/.test(value) ? "'" + value : value).replaceAll('"', '""') + '"';
+  return '"' + (/^[\p{Cc}\p{Cf}\p{Zs}\p{Zl}\p{Zp}]*[=+@\-]/u.test(value) ? "'" + value : value).replaceAll('"', '""') + '"';
 }
 export function exportProjectedReportCsv(columns: readonly string[], rows: readonly (readonly string[])[]) {
   return [columns, ...rows].map(row => row.map(quoteCsv).join(",")).join("\r\n") + "\r\n";
