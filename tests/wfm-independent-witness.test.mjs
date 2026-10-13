@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -103,4 +103,27 @@ test('CLI reads local packet and prints redacted summary, not private observatio
     assert.equal(template.status, 0);
     assert.equal(JSON.parse(template.stdout).cases['WFM-14'].status, 'NOT_RUN');
   } finally { rmSync(root, { recursive:true, force:true }); }
+});
+
+
+test('CLI refuses symlink and oversized private packet without exposing paths or content', () => {
+  const script = fileURLToPath(new URL('../scripts/qa/wfm-independent-witness.mjs', import.meta.url));
+  const root = mkdtempSync(join(tmpdir(), 'wfm-private-boundary-'));
+  try {
+    const regular = join(root, 'private-original.json');
+    const symlink = join(root, 'private-link.json');
+    const oversized = join(root, 'oversize-private.json');
+    writeFileSync(regular, JSON.stringify(createWfmWitnessTemplate(SHA)));
+    symlinkSync(regular, symlink);
+    writeFileSync(oversized, 'X'.repeat(256 * 1024 + 1));
+    for (const file of [symlink, oversized]) {
+      const out = spawnSync(process.execPath, [script, 'verify', file], { encoding: 'utf8' });
+      assert.equal(out.status, 2);
+      assert.ok(!out.stderr.includes(root), 'Private evidence directory must never be exposed');
+      assert.match(out.stderr, /Witness packet check failed/);
+      assert.equal(out.stdout, '');
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
