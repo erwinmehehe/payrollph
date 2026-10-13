@@ -37,17 +37,19 @@ test("HR cases, case messages and COE documents must share the same employer in 
       description: "Synthetic request for database isolation.",
       assignedRole: "hr", slaDueAt: new Date("2026-11-01T00:00:00Z"),
     };
-    await assert.rejects(db.insert(employeeHrCases).values({
-      ...base, employeeId: workerB.id,
-    }), "a valid employee ID from another employer cannot satisfy the composite FK");
+    await assert.rejects(async () => {
+      await db.insert(employeeHrCases).values({ ...base, employeeId: workerB.id });
+    }, "a valid employee ID from another employer cannot satisfy the composite FK");
 
     const [owned] = await db.insert(employeeHrCases).values({
       ...base, employeeId: workerA.id,
     }).returning();
-    await assert.rejects(db.insert(employeeHrCaseMessages).values({
-      organizationId: beta.id, caseId: owned.id, actorUserId: actor.id,
-      visibility: "employee", body: "Foreign case injection",
-    }), "a foreign employer cannot attach a case message");
+    await assert.rejects(async () => {
+      await db.insert(employeeHrCaseMessages).values({
+        organizationId: beta.id, caseId: owned.id, actorUserId: actor.id,
+        visibility: "employee", body: "Foreign case injection",
+      });
+    }, "a foreign employer cannot attach a case message");
 
     const [foreignCoe] = await db.insert(documents).values({
       organizationId: beta.id, employeeId: workerB.id,
@@ -55,10 +57,10 @@ test("HR cases, case messages and COE documents must share the same employer in 
       byteSize: 0, sha256: "e".repeat(64), scannedClean: true,
       uploadedBy: "Synthetic reviewer", content: "",
     }).returning();
-    await assert.rejects(db.update(employeeHrCases).set({
-      coeDocumentId: foreignCoe.id,
-    }).where(eq(employeeHrCases.id, owned.id)), 
-    "a case cannot certify a document belonging to another employer");
+    await assert.rejects(async () => {
+      await db.update(employeeHrCases).set({ coeDocumentId: foreignCoe.id })
+        .where(eq(employeeHrCases.id, owned.id));
+    }, "a case cannot certify a document belonging to another employer");
 
     const [unmodified] = await db.select().from(employeeHrCases)
       .where(eq(employeeHrCases.id, owned.id));
