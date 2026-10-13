@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { userOrganizations, users } from "@/db/schema";
+import { approvalChainInstances, approvalTasks, userOrganizations, users } from "@/db/schema";
 import { roleApproverMatchesRole } from "@/lib/delegation";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { queueMessage } from "@/lib/mailer";
 
 /**
@@ -83,4 +84,45 @@ export async function queueApprovalEscalationNotices(input: {
     if (["queued", "pending", "sent"].includes(result.status)) queuedOrSent++;
   }
   return { queuedOrSent };
+}
+
+/** Revalidate queued delivery after feature rollback, membership revocation or
+ * approval completion. Existing outbox mail must never become a stale disclosure.
+ */
+export async function approvalEscalationRetryAllowed(input: {
+  organizationId: number | null;
+  recipient: string;
+  metadata: unknown;
+}): Promise<boolean> {
+  if (!criticalReleaseFlagEnabled("approvalChainEscalations")) return false;
+  if (!Number.isSafeInteger(input.organizationId) || (input.organizationId ?? 0) <= 0 ||
+      typeof input.recipient !== "string" || !input.metadata ||
+      typeof input.metadata !== "object" || Array.isArray(input.metadata)) return false;
+  const data = input.metadata as Record<string, unknown>;
+  const { instanceId, stepIndex, approvalTaskId, recipientUserId } = data;
+  if (typeof instanceId !== "number" || !Number.isSafeInteger(instanceId) || instanceId <= 0 ||
+      typeof stepIndex !== "number" || !Number.isSafeInteger(stepIndex) || stepIndex < 0 ||
+      typeof approvalTaskId !== "number" || !Number.isSafeInteger(approvalTaskId) || approvalTaskId <= 0 ||
+      typeof recipientUserId !== "number" || !Number.isSafeInteger(recipientUserId) || recipientUserId <= 0) return false;
+  const [instance] = await db.select({
+    status: approvalChainInstances.status,
+    stepsSnapshot: approvalChainInstances.stepsSnapshot,
+    currentStepIndex: approvalChainInstances.currentStepIndex,
+  }).from(approvalChainInstances).where(and(
+    eq(approvalChainInstances.id, instanceId),
+    eq(approvalChainInstances.organizationId, input.organizationId!),
+  )).limit(1);
+  const [task] = await db.select({ status: approvalTasks.status }).from(approvalTasks).where(and(
+    eq(approvalTasks.id, approvalTaskId),
+    eq(approvalTasks.organizationId, input.organizationId!),
+    eq(approvalTasks.approvalChainInstanceId, instanceId),
+    eq(approvalTasks.approvalChainStepIndex, stepIndex),
+  )).limit(1);
+  if (!instance || instance.status !== "pending" || instance.currentStepIndex !== stepIndex ||
+      !task || task.status !== "Pending" || !Array.isArray(instance.stepsSnapshot)) return false;
+  const step = instance.stepsSnapshot[stepIndex] as { escalationRecipient?: unknown } | undefined;
+  if (typeof step?.escalationRecipient !== "string") return false;
+  const recipients = await resolveApprovalEscalationRecipients(input.organizationId!, step.escalationRecipient);
+  return recipients.some(row => row.id === recipientUserId &&
+    row.email.toLowerCase() === input.recipient.toLowerCase());
 }
