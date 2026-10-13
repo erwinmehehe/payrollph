@@ -22,9 +22,13 @@ An independent security/operations operator must document the following against 
 - [ ] Trigger an authenticated **synthetic** PostgreSQL cron failure with worker/payout integrations disabled; capture HTTP 503, X-Request-ID, and matching collector event.
 - [ ] Confirm collector records contain no names, free text, error messages, stacks, URL, IP, headers, cookies, employee/tenant IDs, government IDs, bank numbers, or bearer tokens. Inspect the collector's own ingestion/system logs for secret redaction.
 - [ ] Exercise default OFF -> ON -> OFF without a collector delivery when OFF, test unreachable DNS/collector, HTTP 4xx/5xx, timeout, and response timing. Confirm provider failures never change payroll or scheduler outcome.
-- [ ] Record approval from an independent engineering reviewer and independent privacy/DPO reviewer. Do not self-approve.
+- [ ] Record an independent security/privacy or DPO signoff for external collector use and activation. Do not self-approve privacy processing.
 
-Record evidence links and the exact tested SHA in this PR before converting Draft to ready. These are **manual approvals and external telemetry checks**; neither CI nor this document substitutes for them.
+## Source integration versus activation
+
+The repository's owner-selected solo-maintainer policy in `docs/engineering/independent-review-gate.md` permits source-only integration without a second GitHub approver, **provided current-head CI, the maintainer's diff review, rollback planning and any repository merge rules pass**. A-4 may be merged into main only as default-OFF, with no provider, secret, database, migration or payout changes. The synthetic CI hook/cron test must pass before source integration; a documented failure is a merge blocker.
+
+External collector authorization is **separate and remains blocked** until the DPO/security checklist above is independently completed, including a real approved staging collector receipt. Do not enable `SAFE_OTEL_ERRORS_ENABLED=true` in production or allow real personnel/payroll data to be transmitted based on CI alone. Record exact SHA, named approval authority, dated evidence and collector/retention decision before activation. No self-attestation or simulated acceptance may satisfy these steps.
 
 ## Operational limits and rollback
 
