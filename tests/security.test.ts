@@ -346,7 +346,7 @@ test("framework security patch floors cannot regress", () => {
 
 
 test("production readiness diagnostics are token protected and verify known passwords correctly", () => {
-  const source = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const source = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   assert.ok(source.includes("READINESS_TOKEN"));
   assert.ok(source.includes("constantTimeSecretEqual"));
   assert.ok(source.includes('verifyPassword("LinawDemo2026!"'));

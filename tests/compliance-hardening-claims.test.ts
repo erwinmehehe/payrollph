@@ -104,7 +104,7 @@ test("company-wide tax and contractor surfaces reject unit-scoped memberships", 
 
 
 test("launch readiness blocks on plaintext government identifiers", () => {
-  const readiness = read("src/app/api/readiness/route.ts");
+  const readiness = (read("src/app/api/readiness/route.ts") + read("src/lib/operational-readiness.ts"));
   const pilot = read("src/app/api/readiness/pilot-status/route.ts");
   assert.ok(readiness.includes('key: "government-id-encryption"'));
   assert.ok(readiness.includes("governmentIdEncryptionConfigured"));

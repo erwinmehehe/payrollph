@@ -1,7 +1,7 @@
 import { operationalSecret } from "@/lib/operational-secret";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { bankEncryptionKeyFingerprint } from "@/lib/bank-account-crypto";
-import { buildReadinessPayload } from "@/app/api/readiness/route";
+import { buildReadinessPayload } from "@/lib/operational-readiness";
 
 export const dynamic = "force-dynamic";
 

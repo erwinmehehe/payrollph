@@ -11,6 +11,7 @@ import { sha256 } from "@/lib/crypto";
 import { hasMarketingEnquiryConsent, marketingConsentEvidence, marketingHoneypotTripped } from "@/lib/marketing-consent";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { normalizeEmail, validEmail } from "@/lib/validation";
+import { enforceIntakeProof } from "@/lib/public-intake-proof-server";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,8 @@ export async function POST(request: Request) {
   if (!validEmail(email)) problems.push("A valid work email is required.");
   if (company.length < 2) problems.push("Company or practice name is required.");
   if (problems.length) return Response.json({ error: "Validation failed.", problems }, { status: 422 });
+  const proofDenied = await enforceIntakeProof(body, email);
+  if (proofDenied) return proofDenied;
   // These limits survive attacker-controlled/rotating proxy headers.
   const emailDomain = email.split("@")[1] ?? "";
   const [perEmail, perDomain] = await Promise.all([
