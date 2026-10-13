@@ -12,6 +12,7 @@ import { purgeExpiredPunchPhotos } from "@/lib/workforce-punch-retention";
 import { drainMarketingLeadNotifications } from "@/lib/marketing-leads";
 import { runScheduledStatutoryRemittanceSync } from "@/lib/statutory-remittance-actions";
 import { runScheduledContributionCaseEscalations } from "@/lib/statutory-contribution-case-escalations";
+import { runDueHrCaseSlaEscalations } from "@/lib/hr-case-sla-escalation";
 import { runScheduledHcmDocumentExpiry } from "@/lib/hcm-documents";
 import { runScheduledCompensationGovernance } from "@/lib/hcm-compensation";
 import { drainCompensationAutomationIntents } from "@/lib/compensation-automation-outbox";
@@ -26,6 +27,7 @@ import { runScheduledPerformanceEvidenceSealing } from "@/lib/hcm-performance-ev
 import { resumeDueAutomationExecutions } from "@/lib/automation";
 import { runScheduledAutomationTemporalEvents } from "@/lib/automation-temporal-events";
 import { sealAuditEvents } from "@/lib/audit-chain";
+import { runDueApprovalChainEscalations } from "@/lib/approval-chain-escalation-server";
 import { runScheduledComplianceDeadlineAlerts } from "@/lib/compliance-deadline-alerts";
 
 const MIN_INTERVAL_MS = 30_000;
@@ -137,6 +139,8 @@ async function runScheduledJobs(
     }
   }
   await assertLeaseOwnership();
+  const approvalEscalations = await runDueApprovalChainEscalations(now);
+  await assertLeaseOwnership();
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
     actor: "System scheduler",
   });
@@ -144,6 +148,8 @@ async function runScheduledJobs(
   const contributionCaseEscalations = await runScheduledContributionCaseEscalations({
     actor: "System scheduler",
   });
+  await assertLeaseOwnership();
+  const hrCaseSlaEscalations = await runDueHrCaseSlaEscalations(now);
   await assertLeaseOwnership();
   const automationResumes = await resumeDueAutomationExecutions(now, 25);
   await assertLeaseOwnership();
@@ -384,9 +390,11 @@ async function runScheduledJobs(
     mailRetries: mailRetried.length,
     marketingLeadNotifications: marketingLeadResults.filter((item) => item.notified).length,
     retentionPurge: retention,
+    approvalEscalations,
     punchPhotoPurge,
     statutoryRemittanceActions,
     contributionCaseEscalations,
+    hrCaseSlaEscalations,
     automationResumes,
     automationTemporalEvents,
     hcmDocumentExpiry,

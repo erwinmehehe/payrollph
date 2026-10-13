@@ -45,6 +45,7 @@ import {
 import { AccountPanel } from "@/components/account-panel";
 import { StatutoryRemittancePanel } from "@/components/workspace/statutory-remittance-panel";
 import { ComplianceCalendarPanel } from "@/components/workspace/compliance-calendar-panel";
+import { Bir1604cCandidatePanel } from "@/components/workspace/bir-1604c-candidate-panel";
 import { LaborInspectionReadinessPanel } from "@/components/workspace/labor-inspection-readiness-panel";
 import { LaborInspectionDrillPanel } from "@/components/workspace/labor-inspection-drill-panel";
 import { PayrollMonthClosePanel } from "@/components/workspace/payroll-month-close-panel";
@@ -529,7 +530,7 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
         </section>
       )}
 
-      <YearEndPanel organizationId={data.selectedOrganization.id} setNotice={setNotice} />
+      <YearEndPanel key={[data.user?.id, data.selectedOrganization.id, data.multiEntity?.enabled ? data.multiEntity.legalEntityId ?? "all" : "legacy", data.access?.role].join(":")} organizationId={data.selectedOrganization.id} setNotice={setNotice} birCandidateEnabled={data.bir1604cCandidateEnabled === true} />
       <DoleThirteenthMonthReportPanel
         organizationId={data.selectedOrganization.id}
         notify={(message) => setNotice(message)}
@@ -556,7 +557,7 @@ type BirAnnualPreflight = {
   warnings: Array<{ code: string; message: string; employeeNo?: string }>;
 };
 
-function YearEndPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (message: string) => void }) {
+function YearEndPanel({ organizationId, setNotice, birCandidateEnabled }: { organizationId: number; setNotice: (message: string) => void; birCandidateEnabled?: boolean }) {
   const [taxYear, setTaxYear] = useState(2026);
   const [summary, setSummary] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -766,6 +767,15 @@ function YearEndPanel({ organizationId, setNotice }: { organizationId: number; s
           )}
         </div>
       </section>
+      <Bir1604cCandidatePanel
+        enabled={birCandidateEnabled}
+        key={organizationId + ":" + birEntityId + ":" + taxYear + ":" + (birEntityReport?.sourceDigest ?? "")}
+        organizationId={organizationId}
+        legalEntityId={birEntityId}
+        taxYear={taxYear}
+        sourceDigest={birEntityReport?.sourceDigest ?? null}
+        setNotice={setNotice}
+      />
       {summary?.rows?.length ? (
         <>
           <div className="run-stats">

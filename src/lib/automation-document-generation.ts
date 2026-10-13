@@ -2,12 +2,12 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  documents,
   employees,
   legalEntities,
   organizations,
   orgUnits,
 } from "@/db/schema";
+import { legacyDocumentInsertTable as documents } from "@/lib/document-schema-compat";
 import { recordAuditEvent } from "@/lib/audit";
 import {
   getAutomationDocumentTemplate,

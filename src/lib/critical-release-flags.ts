@@ -6,6 +6,18 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  payrollWorkerHeartbeatRequired: {
+    env: "PAYROLL_WORKER_HEARTBEAT_REQUIRED",
+    owner: "Payroll / Operations",
+    risk: "Scheduler refuses work without a fresh dedicated-worker heartbeat",
+    approval: "Synthetic liveness and independently approved worker hosting; no payout authority",
+  },
+  bir1604cReviewedCandidate: {
+    env: "BIR_1604C_DAT_CANDIDATE_ENABLED",
+    owner: "Philippine Payroll / Tax",
+    risk: "Reviewed draft annual employer DAT and private validation evidence",
+    approval: "Exact-source, role/MFA, maker-checker and official-module acceptance; no filing authority",
+  },
   independentSourceReview: {
     env: "INDEPENDENT_SOURCE_REVIEW_REQUIRED",
     owner: "Repository Maintainer",
@@ -185,6 +197,24 @@ export const CRITICAL_RELEASE_FLAGS = {
   coreModuleNavigation: {
     env: "CORE_MODULE_NAVIGATION_ENABLED", owner: "Product",
     risk: "P2 tenant module disclosure", approval: "New and existing tenant navigation snapshots",
+  },
+  approvalChainEscalations: {
+    env: "APPROVAL_CHAIN_ESCALATIONS_ENABLED",
+    owner: "People Governance",
+    risk: "P1 overdue approval escalation and stricter payroll maker-checker identity gate",
+    approval: "Delegation expiry, distinct-human and scheduler idempotency UAT",
+  },
+  employeeDocumentVault: {
+    env: "EMPLOYEE_DOCUMENT_VAULT_ENABLED",
+    owner: "Security and Privacy",
+    risk: "P1 private employee documents in signed object storage",
+    approval: "Object storage, migration reconciliation, malware scanning and view auditing accepted",
+  },
+  employeeHrCases: {
+    env: "EMPLOYEE_HR_CASES_ENABLED",
+    owner: "People Operations",
+    risk: "P1 confidential employee HR requests and COE approvals",
+    approval: "Scoped HR and ESS acceptance, SLA operations and independently signed COE review",
   },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
