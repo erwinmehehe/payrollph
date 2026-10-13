@@ -12,6 +12,8 @@ export type Organization = {
   id: number;
   name: string;
   legalName: string;
+  moduleNavigationMode?: string;
+  enabledModules?: string[];
   accountType: string;
   plan: string;
   employeeCount: number;
@@ -344,6 +346,7 @@ export type FreelancerProfile = {
 } | null;
 
 export type DashboardData = {
+  coreModuleNavigationEnabled?: boolean;
   employeeImportPreviewEnabled?: boolean;
   firstPayrollReadiness?: FirstPayrollReadiness | null;
   user: SessionUser | null;

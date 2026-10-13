@@ -1,0 +1,92 @@
+name: Scheduler Lease and Crash-Recovery Rehearsal (Disposable PostgreSQL)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/scheduler-postgres-rehearsal.yml"
+      - "scripts/qa/bootstrap-scheduler-rehearsal-db.ts"
+      - "tests/scheduler-postgres-ci-config.test.mjs"
+      - "tests/scheduler-lease.test.ts"
+      - "tests/scheduler-process-recovery.test.ts"
+      - "tests/helpers/scheduler-lease-process.ts"
+      - "tests/helpers/scheduler-isolated-guard.ts"
+      - "tests/scheduler-activation.test.ts"
+      - "tests/scheduler-cron-auth.test.ts"
+      - "src/lib/scheduler-lease.ts"
+      - "src/lib/scheduler.ts"
+      - "src/lib/scheduler-activation.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/scheduler-postgres-rehearsal.yml"
+      - "scripts/qa/bootstrap-scheduler-rehearsal-db.ts"
+      - "tests/scheduler-postgres-ci-config.test.mjs"
+      - "tests/scheduler-lease.test.ts"
+      - "tests/scheduler-process-recovery.test.ts"
+      - "tests/helpers/scheduler-lease-process.ts"
+      - "tests/helpers/scheduler-isolated-guard.ts"
+      - "src/lib/scheduler-lease.ts"
+      - "src/lib/scheduler.ts"
+      - "src/lib/scheduler-activation.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduler-disposable-pg-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scheduler-postgres:
+    name: isolated-lease-and-process-recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      CI: "true"
+      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      WORKER_ENABLED: "false"
+      PAYROLL_SCHEDULER_DISPATCH_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify no external activation or unsafe CI configuration
+        run: node --test tests/scheduler-postgres-ci-config.test.mjs
+      - name: Create only the minimal synthetic scheduler lease schema
+        run: npx tsx scripts/qa/bootstrap-scheduler-rehearsal-db.ts bootstrap
+      - name: Exercise real PostgreSQL lease contention, process crash and recovery
+        run: >-
+          npx tsx --test --test-concurrency=1
+          tests/scheduler-lease.test.ts
+          tests/scheduler-process-recovery.test.ts
+          tests/scheduler-activation.test.ts
+          tests/scheduler-cron-auth.test.ts
+      - name: Confirm receipts cleaned and no employer tables exist
+        if: success()
+        run: npx tsx scripts/qa/bootstrap-scheduler-rehearsal-db.ts verify
