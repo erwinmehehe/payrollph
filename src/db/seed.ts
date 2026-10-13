@@ -338,9 +338,14 @@ async function ensureDemoLegalEmployerLinks() {
 
   // Do not infer a "primary" company from customized multi-entity customers.
   const existingEntities = await db.select({
-    organizationId: legalEntities.organizationId, code: legalEntities.code,
+    organizationId: legalEntities.organizationId,
+    code: legalEntities.code,
+    active: legalEntities.active,
+    primaryEntity: legalEntities.primaryEntity,
   }).from(legalEntities).where(inArray(legalEntities.organizationId, orgIds));
-  if (existingEntities.some((entity) => entity.code !== "PRIMARY")) return;
+  if (existingEntities.some((entity) =>
+    entity.code !== "PRIMARY" || !entity.active || !entity.primaryEntity
+  )) return;
 
   for (const spec of specs) {
     const organizationId = orgByName.get(spec.name)!.id;
