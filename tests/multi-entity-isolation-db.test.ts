@@ -6,7 +6,7 @@ import { db } from "../src/db";
 import {
   employeeEntityBankAccounts, employeeEntityAssignments, employees, legalEntities, legalEntityProfileChangeRequests,
   legalEntityStatutoryRegistrations, legalEntityTransferLiabilityEvidence, entityTransferRequests,
-  organizations, userEntityPreferences, userLegalEntityGrants, userOrganizations, users,
+  organizations, orgUnits, userEntityPreferences, userLegalEntityGrants, userOrganizations, users,
 } from "../src/db/schema";
 import { resolveMultiEntityContext, assertEntityResource } from "../src/lib/multi-entity-server";
 import { employeeScopePredicate } from "../src/lib/multi-entity-personnel-scope";
@@ -271,6 +271,35 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     assert.equal(group.ok, true);
     if (!group.ok) throw new Error("unexpected deny");
     assert.deepEqual(group.context.entities.map(e=>e.id).sort((a,b)=>a-b), [a1.id,a2.id]);
+    // Executed regression: a dedicated group_hr role with an org-unit
+    // restriction is NOT a tenant-wide cross-entity principal. It cannot
+    // enumerate All or explicitly name another employer while narrowed.
+    const [restrictedUnit] = await db.insert(orgUnits).values({
+      organizationId: tenantA.id, code: "GR" + suffix.slice(0, 6),
+      name: "Restricted " + suffix, type: "department",
+    }).returning();
+    await db.update(userOrganizations).set({ orgUnitId: restrictedUnit.id })
+      .where(and(eq(userOrganizations.organizationId, tenantA.id),
+        eq(userOrganizations.userId, people[1].id)));
+    for (const requested of ["all", a1.id, a2.id]) {
+      const restrictedGroup = await resolveMultiEntityContext({
+        userId: people[1].id, organizationId: tenantA.id, requested,
+      });
+      assert.equal(restrictedGroup.ok, false, "org-unit group_hr cannot gain whole-entity access");
+      if (!restrictedGroup.ok) {
+        assert.equal(restrictedGroup.response.status, 403);
+        const payload = await restrictedGroup.response.json() as Record<string, unknown>;
+        assert.equal(payload.code, "ENTITY_ACCESS_DENIED");
+        assert.equal(JSON.stringify(payload).includes("A2"), false);
+      }
+    }
+    await db.update(userOrganizations).set({ orgUnitId: null })
+      .where(and(eq(userOrganizations.organizationId, tenantA.id),
+        eq(userOrganizations.userId, people[1].id)));
+    const restoredGroup = await resolveMultiEntityContext({
+      userId: people[1].id, organizationId: tenantA.id, requested: "all",
+    });
+    assert.equal(restoredGroup.ok, true, "only tenant-wide group HR may read both employers");
     const foreignEntity = await resolveMultiEntityContext({
       userId: people[1].id, organizationId: tenantA.id, requested: b1.id,
     });
