@@ -209,7 +209,10 @@ export async function PATCH(request: Request) {
       if (!member) throw new Error("Employer missing");
       // DB-native, microsecond-precise comparison rejects genuinely stale
       // proposals without weakening the entity-version concurrency guard.
-      if (!member.sourceMatches) throw new Error("Stale source version");
+      // Rejection changes only the request state: permit an independent checker
+      // to close an obsolete proposal so it cannot hold the pending slot forever.
+      // Approval must still match the unrounded PostgreSQL source version.
+      if (action === "approve" && !member.sourceMatches) throw new Error("Stale source version");
       let revision: number | null = null;
       if (action === "approve") {
         if (pending.effectiveDate !== manilaCalendarDate()) throw new Error("Expired effective date");

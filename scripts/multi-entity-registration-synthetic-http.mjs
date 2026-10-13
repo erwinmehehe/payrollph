@@ -101,10 +101,13 @@ try {
   const checker = await newSyntheticContext({ viewport: { width: 390, height: 844 } });
   const group = await newSyntheticContext();
   const foreign = await newSyntheticContext();
+  const ungranted = await newSyntheticContext();
+  const anonymous = await newSyntheticContext();
   await login(maker, "entity-owner@example.test");
   await login(checker, "entity-checker@example.test");
   await login(group, "entity-group@example.test");
   await login(foreign, "entity-foreign@example.test");
+  await login(ungranted, "entity-nogrant@example.test");
 
   const entities = await request(maker, "/api/multi-entity/context?organizationId=1");
   assert.equal(entities.status, 200, "Initial authorized entity context must load");
@@ -120,9 +123,25 @@ try {
   const today = before.json.today;
   assert.match(today, /^\d{4}-\d{2}-\d{2}$/);
 
+  assert.equal((await list(anonymous, selected.id)).status, 401);
   assert.equal((await list(group, selected.id)).status, 403);
   assert.equal((await list(foreign, selected.id)).status, 403);
-  checks.push("Dedicated group HR and foreign-tenant identities cannot fetch registration changes");
+  assert.equal((await list(ungranted, selected.id)).status, 403);
+  const unauthorizedProposal = {
+    organizationId: 1, legalEntityId: selected.id, effectiveDate: today,
+    reason: "Synthetic forbidden registration change",
+    changes: { legalName: "Must Never Apply Unauthorized Change" },
+  };
+  for (const actor of [group, foreign, ungranted]) {
+    assert.equal((await request(actor, "/api/multi-entity/registration-changes",
+      "POST", unauthorizedProposal)).status, 403,
+      "Unprivileged, ungranted and foreign-tenant users must not propose changes");
+    assert.equal((await request(actor, "/api/multi-entity/registration-changes",
+      "PATCH", { organizationId: 1, legalEntityId: selected.id,
+        requestId: 1, action: "approve" })).status, 403,
+      "Unprivileged, ungranted and foreign-tenant users must not decide changes");
+  }
+  checks.push("Anonymous, group HR, foreign-tenant and ungranted registration reads and mutations denied");
 
   const invalid = await request(maker, "/api/multi-entity/registration-changes", "POST", {
     organizationId: 1, legalEntityId: selected.id, effectiveDate: today,
@@ -180,6 +199,12 @@ try {
   await routeToEntities(cp);
   await cp.getByText(new RegExp("Request " + requestId + " . pending_approval")).waitFor({ timeout: 20000 });
   await cp.screenshot({ path: "qa-artifacts/multi-entity/registration-checker-pending-390.png", fullPage: true });
+  for (const width of [320, 375, 430]) {
+    await cp.setViewportSize({ width, height: 844 });
+    await cp.screenshot({ path: `qa-artifacts/multi-entity/registration-checker-pending-${width}.png`,
+      fullPage: true });
+  }
+  await cp.setViewportSize({ width: 390, height: 844 });
   const approved = await request(checker, "/api/multi-entity/registration-changes", "PATCH", {
     organizationId: 1, legalEntityId: selected.id, requestId, action: "approve",
   });
@@ -241,6 +266,12 @@ try {
   await routeToEntities(mp);
   await mp.getByText(/Revision 2/).waitFor({ timeout: 20000 });
   await mp.screenshot({ path: "qa-artifacts/multi-entity/registration-approved-1440.png", fullPage: true });
+  for (const width of [320, 375, 390, 430]) {
+    await mp.setViewportSize({ width, height: 844 });
+    await mp.screenshot({ path: `qa-artifacts/multi-entity/registration-approved-${width}.png`,
+      fullPage: true });
+  }
+  checks.push("Pending and approved registration screens captured at 320/375/390/430px");
   await cp.reload({ waitUntil: "domcontentloaded" });
   await cp.locator('[data-workspace-page="Overview"]').waitFor({ timeout: 60000 });
 
@@ -279,6 +310,38 @@ try {
   assert.equal(deniedProjection.json.entities.find(e => e.id === selected.id)?.legalName,
     "Beta Legal Employer QA Approved", "Stale approval must not change the legal identity");
   checks.push("Concurrent sub-millisecond employer update fails closed without a new version");
+
+  // A stale proposal must remain unapprovable, but a separately authorized
+  // checker must be able to reject it and release the unique pending slot.
+  const staleRejected = await request(checker, "/api/multi-entity/registration-changes", "PATCH", {
+    organizationId: 1, legalEntityId: selected.id,
+    requestId: staleProposal.json.id, action: "reject",
+  });
+  assert.equal(staleRejected.status, 200, "Independent checker must be able to reject a stale request");
+  assert.equal(staleRejected.json.status, "rejected");
+  assert.equal(staleRejected.json.revision, null);
+  const rejectedHistory = await list(maker, selected.id);
+  assert.equal(rejectedHistory.json.requests.find(x => x.id === staleProposal.json.id)?.status, "rejected");
+  assert.deepEqual(rejectedHistory.json.versions.map(x => x.revision), [2, 1]);
+  const replacement = await request(maker, "/api/multi-entity/registration-changes", "POST", {
+    organizationId: 1, legalEntityId: selected.id, effectiveDate: today,
+    reason: "Synthetic replacement after stale rejection",
+    changes: { legalName: "Not Yet Approved Replacement" },
+  });
+  assert.equal(replacement.status, 201, "Rejected stale proposal must release unique pending index");
+  const replacementRejected = await request(checker,
+    "/api/multi-entity/registration-changes", "PATCH", {
+      organizationId: 1, legalEntityId: selected.id,
+      requestId: replacement.json.id, action: "reject",
+    });
+  assert.equal(replacementRejected.status, 200);
+  assert.equal(replacementRejected.json.status, "rejected");
+  const finalHistory = await list(maker, selected.id);
+  assert.deepEqual(finalHistory.json.versions.map(x => x.revision), [2, 1]);
+  const finalProjection = await request(maker, "/api/multi-entity/settings?organizationId=1");
+  assert.equal(finalProjection.json.entities.find(e => e.id === selected.id)?.legalName,
+    "Beta Legal Employer QA Approved");
+  checks.push("Independent stale rejection releases pending lock without changing approved identity");
 
   // Flag-on view retains a visible audited version history; no raw bank digits.
   console.log(JSON.stringify({
