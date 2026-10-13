@@ -51,3 +51,21 @@ Fix A (prior-year retro and year-specific 13th-month final-pay base) is already 
 Previously attempted second-project provisioning was rejected (Vercel HTTP 403; Vercel-managed Neon organization denied direct project creation). This is **not a blocker to this development-stage workflow**. Revisit only if realistic environment isolation becomes needed before launch.
 
 Related: #637, #744, #112, #579, #630.
+
+
+## P0-1 unattended synthetic payroll acceptance (CI only)
+
+The new automatic workflow .github/workflows/unattended-scheduler-payroll-acceptance.yml is triggered by relevant pull requests and main pushes, not workflow_dispatch. It requires no human-sent HTTP request. Its Postgres 16 service and localhost Next.js server are disposable: this is not a Vercel/Neon production test or a separate staging project.
+
+### Executed acceptance requirements
+
+1. The harness refuses a remote database, missing explicit CI test mode, manually dispatched GitHub events, and any payment/mail/AI provider key. It generates separate ephemeral PII, bank, TOTP and worker secrets.
+2. Seed exactly one fictional employee, punches and an unreleased queued payroll job. Assert there are no payroll entries or scheduler completion receipts yet.
+3. Execute the SAME dispatchSchedulerTick client used by the GitHub scheduled dispatcher, using a test-only in-memory transport adapter that maps a synthetic HTTPS host to the isolated localhost server. Real Next.js preflight and tick HTTP handlers must authorize the worker, verify the exact synthetic deployment SHA, and commit a PostgreSQL scheduler lease/completion receipt. Demand exactly one authenticated mutating POST and zero retries.
+4. Confirm the central scheduler has NOT processed the queued payroll. Start the existing dedicated payroll worker automatically as a background process with WORKER_ENABLED=true and CENTRAL_SCHEDULER_ENABLED=false in that child only. The proof runner never calls drainPayrollQueue, processNextPayrollJob or any manual payroll API.
+5. Poll for payroll_jobs.status=completed, payroll_runs.status=Needs review, one matching payroll entry, a fresh scheduler_state completion and a released lease. Any failed job, missing heartbeat, invalid auth, unexpected worker exit or timeout fails CI.
+6. Collect sanitized JSON in qa-artifacts/p0-1-unattended-scheduler-proof.json. A completed green GitHub run at the exact PR head is necessary before claiming synthetic acceptance.
+
+### What this cannot certify
+
+This PR/push automation tests the real scheduler *code path* and independent payroll worker using localhost transport. It does NOT establish that GitHub's real five-minute schedule has triggered the deployed Vercel target, that an always-on remote payroll worker is hosted, or that a third-party missed-tick monitor has fired. Keep production deployment, GitHub dispatch and all banking/statutory provider switches OFF until separate time-separated schedule-run provenance, hosted liveness/alert tests, and operator review are recorded. No payroll release, money movement, or agency filing is authorized.
