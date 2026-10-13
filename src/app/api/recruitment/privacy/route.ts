@@ -116,6 +116,7 @@ export async function PATCH(request: Request) {
   }
 
   const result = await db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(4101, ${applicantId})`);
     await tx.execute(sql`SELECT id FROM job_applicants WHERE id = ${applicantId}
       AND organization_id = ${organizationId} FOR UPDATE`);
     await tx.execute(sql`SELECT id FROM applicant_privacy_evidence WHERE applicant_id = ${applicantId}

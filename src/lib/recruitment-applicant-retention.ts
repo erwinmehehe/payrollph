@@ -38,6 +38,9 @@ export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
   let purged = 0;
   for (const candidate of due) {
     const didPurge = await db.transaction(async tx => {
+      // Share Hire / recruiting's existing candidate lock so an approved Hire
+      // cannot convert a stale, concurrently erased candidate snapshot.
+      await tx.execute(sql`select pg_advisory_xact_lock(4101, ${candidate.applicantId})`);
       await tx.execute(sql`SELECT id FROM job_applicants
         WHERE id = ${candidate.applicantId} AND organization_id = ${candidate.organizationId}
         FOR UPDATE`);
