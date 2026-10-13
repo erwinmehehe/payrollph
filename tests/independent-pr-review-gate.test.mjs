@@ -188,6 +188,53 @@ function fakeGithub({ files = [moneyFile], reviews = [human()], permission = "wr
   };
 }
 
+test("only the exact two already-modified WFM-12 evidence files bypass pilot-start source freeze", async () => {
+  const evidence = [
+    { filename: "scripts/wfm-pilot-synthetic-evidence.mjs", status: "modified" },
+    { filename: "tests/wfm-roster-scale-postgres.test.ts", status: "modified" },
+  ];
+  const scope = classifyReviewScope(evidence);
+  assert.equal(scope.hcmWfmFrozen, true);
+  assert.equal(scope.wfm12DevEvidence, true);
+  assert.equal(review(evidence).ok, true, "strict-mode pilot freeze exception is test-only");
+  assert.equal(review(evidence).releaseAuthorized, false);
+
+  const fromSolo = await checkIndependentReview({
+    ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
+    PILOT_START_EVIDENCE_REF: "",
+  }, fakeGithub({ files: evidence, reviews: [] }).fetcher);
+  assert.equal(fromSolo.ok, true, "repo's approved solo-maintainer policy can accept development evidence");
+  assert.equal(fromSolo.mode, "solo-maintainer");
+  assert.equal(fromSolo.approvalCount, 0);
+  assert.equal(fromSolo.releaseAuthorized, false);
+
+  const variants = [
+    [evidence[0]],
+    [evidence[1]],
+    [...evidence, { filename: "src/lib/workforce-roster-scale.ts", status: "modified" }],
+    [...evidence, { filename: "drizzle/0118_wfm_roster_scale_rules.sql", status: "modified" }],
+    [...evidence, { filename: "tests/wfm-new-runtime.test.ts", status: "added" }],
+    evidence.map((file, i) => i === 1 ? { ...file, status: "added" } : file),
+    evidence.map((file, i) => i === 1 ? { ...file, status: "removed" } : file),
+    evidence.map((file, i) => i === 1 ? { ...file, status: "renamed", previous_filename: "tests/wfm-old.test.ts" } : file),
+    [evidence[0], evidence[0]],
+  ];
+  for (const changed of variants) {
+    assert.equal(classifyReviewScope(changed).wfm12DevEvidence, false);
+    const strict = review(changed);
+    assert.equal(strict.ok, false);
+    assert.ok(strict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+    const solo = await checkIndependentReview({
+      ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+      PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
+      PILOT_START_EVIDENCE_REF: "",
+    }, fakeGithub({ files: changed, reviews: [] }).fetcher);
+    assert.equal(solo.ok, false);
+    assert.deepEqual(solo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+  }
+});
+
 test("solo source mode validates the actual head without inventing independent approval", async () => {
   for (const value of [undefined, "", "false", "TRUE"]) {
     const api = fakeGithub();
