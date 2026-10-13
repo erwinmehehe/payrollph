@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/isolated-month-end-clock.cjs"
       - "scripts/qa/nine-stage-mobile-browser.mjs"
       - "tests/nine-stage-connected-evidence.test.mjs"
       - "docs/qa/nine-stage-connected-acceptance.md"
@@ -25,6 +26,7 @@ jobs:
     env:
       CI: "true"
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      NINE_STAGE_SYNTHETIC_CLOCK: "2026-09-30"
       TZ: Asia/Manila
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       QA_URL: http://127.0.0.1:3000
@@ -99,7 +101,7 @@ jobs:
       - name: Start localhost application
         shell: bash
         run: |
-          nohup npm start -- -H 127.0.0.1 > /tmp/nine-stage-app.log 2>&1 &
+          nohup env NODE_OPTIONS="--require=$(pwd)/scripts/qa/isolated-month-end-clock.cjs" npm start -- -H 127.0.0.1 > /tmp/nine-stage-app.log 2>&1 &
           for attempt in $(seq 1 60); do
             if curl -fsS --max-time 5 http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
             sleep 2
@@ -107,7 +109,7 @@ jobs:
           echo "Isolated localhost server unavailable"
           exit 1
       - name: Run SAME-source nine-stage connected workflow
-        run: npx tsx scripts/qa/nine-stage-connected-acceptance.ts
+        run: NODE_OPTIONS="--require=$(pwd)/scripts/qa/isolated-month-end-clock.cjs" npx tsx scripts/qa/nine-stage-connected-acceptance.ts
       - name: Install pinned Chromium
         run: |
           npm install --no-save --ignore-scripts playwright@1.55.0
