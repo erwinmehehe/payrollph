@@ -39,10 +39,12 @@ test("configured 0117 progress storage can enable only the gated inline journey"
 test("multi-entity mode holds tenant-wide onboarding before any storage access", async () => {
   process.env.DATABASE_URL ??= "postgresql://local:local@127.0.0.1:1/offline";
   const { firstPayrollInlineAvailable } = await import("../src/lib/first-payroll-inline-gate");
-  const forbidden = { select() { throw new Error("Tenant-wide query must not execute"); } } as unknown as Pick<typeof db, "select">;
+  let reads = 0;
+  const forbidden = { select() { reads++; throw new Error("Tenant-wide query must not execute"); } } as unknown as Pick<typeof db, "select">;
   assert.equal(await firstPayrollInlineAvailable({
     FIRST_PAYROLL_INLINE_ENABLED: "true", MULTI_ENTITY_ENABLED: "true",
   }, forbidden), false);
+  assert.equal(reads, 0, "Entity-scoped onboarding must be held before table lookup");
 });
 
 test("real preview and progress handlers cannot expose unscoped onboarding in multi-entity mode", async () => {
