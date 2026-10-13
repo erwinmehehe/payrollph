@@ -66,7 +66,7 @@ test("mail provider reports honestly when unconfigured", () => {
 
 
 test("readiness cannot treat credentials alone as proof of external integrations", () => {
-  const source = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const source = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   assert.ok(source.includes("const storageIntegrated = false"), "bucket configuration alone must not make object storage green");
   assert.ok(source.includes("malwareScannerConfigured()"), "malware readiness must use the scanner integration helper");
   assert.ok(source.includes("const samlIntegrated = false"), "SAML metadata alone must not claim SSO exists");
@@ -74,7 +74,7 @@ test("readiness cannot treat credentials alone as proof of external integrations
 });
 
 test("manual confirmed payments can prove billing without pretending an online processor was used", () => {
-  const source = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const source = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   assert.ok(
     source.includes("const billingProven = paidInvoices > 0 || activeSubs > 0"),
     "paid ledger state must be sufficient proof for a legitimate manual payment",
@@ -85,7 +85,7 @@ test("manual confirmed payments can prove billing without pretending an online p
 test("production documents fail closed unless malware scanning reports clean", () => {
   const documents = readFileSync("src/app/api/documents/route.ts", "utf8");
   const storage = readFileSync("src/lib/storage.ts", "utf8");
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   assert.ok(documents.includes("await scanUpload("));
   assert.ok(documents.includes("MALWARE_SCAN_UNAVAILABLE"));
   assert.ok(documents.includes("MALWARE_DETECTED"));
@@ -111,7 +111,7 @@ test("dedicated worker runs payroll and the leased central scheduler", () => {
 
 
 test("production readiness blocks launch until employee bank data is encrypted at rest", () => {
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   const crypto = readFileSync("src/lib/bank-account-crypto.ts", "utf8");
   assert.ok(readiness.includes('key: "bank-data-encryption"'));
   assert.ok(readiness.includes('blocks: bankDataProtected ? "none" : "launch"'));
@@ -122,7 +122,7 @@ test("production readiness blocks launch until employee bank data is encrypted a
 
 
 test("bank-data readiness covers both employee rows and payroll snapshots", () => {
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   assert.ok(readiness.includes("plaintextBankAccounts"));
   assert.ok(readiness.includes("plaintextBankSnapshots"));
   assert.ok(readiness.includes("bankEncryptionKeySource"));
@@ -187,7 +187,7 @@ test("production bank migration refuses to encrypt with a key that does not matc
 test("production document uploads are opt-in and cannot weaken malware safety", () => {
   const storage = readFileSync("src/lib/storage.ts", "utf8");
   const documents = readFileSync("src/app/api/documents/route.ts", "utf8");
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
 
   const flagRegistry = readFileSync("src/lib/critical-release-flags.ts", "utf8");
   assert.ok(flagRegistry.includes('env: "DOCUMENT_UPLOADS_ENABLED"'));
@@ -200,7 +200,7 @@ test("production document uploads are opt-in and cannot weaken malware safety", 
 });
 
 test("full launch requires a real independently reconciled production payroll pilot", () => {
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   const signoff = readFileSync("src/app/api/payroll-runs/[id]/pilot-signoff/route.ts", "utf8");
 
   assert.ok(readiness.includes('key: "production-pilot-signoff"'));
@@ -249,7 +249,7 @@ test("owners can record production pilot evidence without a developer-only workf
 
 
 test("production readiness upgrades additive schema before querying new readiness columns", () => {
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
   assert.ok(readiness.includes("await ensureCoreCompatibilitySchema()"));
   for (const marker of [
@@ -263,7 +263,7 @@ test("production readiness upgrades additive schema before querying new readines
 });
 
 test("launch email proof requires a provider-confirmed delivery, not only an accepted send", () => {
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   assert.ok(readiness.includes('eq(outbox.deliveryStatus, "delivered")'));
   assert.ok(readiness.includes("provider-confirmed delivered"));
   assert.ok(readiness.includes("no provider-confirmed delivered webhook event yet"));
@@ -281,7 +281,7 @@ test("capability report requires provider-confirmed email delivery before callin
 
 
 test("monthly BIR 1601-C readiness requires recorded agency acknowledgement, not a generated worksheet", () => {
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   assert.ok(readiness.includes('key: "gov-bir-1601c"'));
   assert.ok(readiness.includes("bir1601Evidence?.operationallyProven"));
   assert.ok(readiness.includes("monthly eBIRForms/eFPS filing workflow"));
