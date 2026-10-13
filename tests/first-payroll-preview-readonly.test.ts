@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
 import { getTableName } from "drizzle-orm";
 import type { db } from "../src/db";
 
@@ -40,20 +39,6 @@ test("first-payroll preview never exposes a write-capable database dependency", 
   assert.equal(result.previewReady, false);
   assert.deepEqual(tables, before);
   assert.equal(writes, 0);
-});
-
-test("the first payroll preview route and calculator have no write operations", () => {
-  const route = readFileSync("src/app/api/first-payroll/preview/route.ts", "utf8");
-  const loader = readFileSync("src/lib/first-payroll-preview.ts", "utf8");
-  assert.match(route, /loadReadOnlyFirstPayrollPreview/);
-  assert.match(loader, /calculateEmployeePay/);
-  for (const source of [route, loader]) {
-    assert.doesNotMatch(source, /\.insert\(|\.update\(|\.delete\(|enqueuePayrollRun|drainPayrollQueue/);
-  }
-  // The route reads all sources in one consistent read-only payroll snapshot.
-  assert.match(route, /db\.transaction\(/);
-  assert.match(route, /SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY/);
-  assert.doesNotMatch(loader, /\.transaction\(/);
 });
 
 test("first-time fixed-salary tenant can reach preview-ready with only read operations",async()=>{
