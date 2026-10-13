@@ -5,7 +5,6 @@ import { approvalChainInstances, approvalTasks, auditEvents, automationExecution
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { payrollMakerCheckerDecision } from "@/lib/approval-human-separation";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
 import {
   frozenGovernedHandoffEvidence,
