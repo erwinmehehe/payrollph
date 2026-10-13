@@ -235,6 +235,23 @@ try {
       });
       assert.equal(reject.status, 503,
         "COE may not issue when the private document vault is not active");
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(base + "/hcm/hr-cases?organizationId=1");
+        const inbox = page.getByRole("region", { name: "Employee HR case inbox" });
+        await inbox.getByText("Synthetic staff support", { exact: true }).waitFor();
+        const bounds = await inbox.boundingBox();
+        assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width + 1);
+        await page.screenshot({ path: "qa-artifacts/hr-cases-staff-" + width + ".png", fullPage: true });
+        await ep.setViewportSize({ width, height: 900 });
+        await ep.goto(base + "/app");
+        await ep.getByRole("button", { name: "Documents", exact: true }).first().click();
+        const requests = ep.getByRole("region", { name: "HR requests", exact: true });
+        await requests.getByText("Synthetic staff support", { exact: true }).waitFor();
+        assert.equal(await requests.getByText("HR_PRIVATE_SYNTHETIC_ONLY").count(), 0);
+        await requests.screenshot({ path: "qa-artifacts/hr-cases-employee-" + width + ".png" });
+      }
+      await page.setViewportSize({ width: 1440, height: 900 });
     } finally {
       await ess.close();
     }

@@ -203,3 +203,11 @@ jobs:
           path: qa-artifacts/hris-journey-failed.png
           if-no-files-found: ignore
           retention-days: 7
+      - name: Upload fictional HR-case desktop and phone screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hr-case-role-screenshots
+          path: qa-artifacts/hr-cases-*.png
+          if-no-files-found: ignore
+          retention-days: 7
