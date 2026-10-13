@@ -91,6 +91,12 @@ test("workflow automatically provisions local Postgres and never activates a pro
   assert.match(source, /stdio: \["ignore", "ignore", "ignore"\]/);
   assert.doesNotMatch(source, /openSync\(|closeSync\(|\/tmp\/payrollph-unattended-worker/);
   assert.doesNotMatch(source, /drainPayrollQueue\(|processNextPayrollJob\(|enqueuePayrollRun\(/);
+  const seed = readFileSync("scripts/qa/seed-unattended-scheduler-payroll.ts", "utf8");
+  assert.match(seed, /assertDisposableUnattendedSeed\(process\.env\)/);
+  assert.match(seed, /env\.CENTRAL_SCHEDULER_ENABLED, "true"/);
+  assert.match(seed, /env\.GITHUB_ACTIONS, "true"/);
+  assert.match(seed, /target\.hostname, "127\.0\.0\.1"/);
+  assert.doesNotMatch(seed, /assertIsolatedSchedulerRehearsal\(process\.env\)/);
   assert.match(source, /syntheticRunStatus/);
   assert.match(source, /statutoryFilingSubmitted: false/);
   assert.match(source, /actualGitHubScheduledProductionTickProven: false/);
