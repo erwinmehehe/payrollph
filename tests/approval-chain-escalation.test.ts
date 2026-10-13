@@ -50,6 +50,20 @@ test("escalation-after-days policy validates finite 1-30 day window",()=>{
  assert.equal(approvalEscalationSnapshotHeld(candidate, true), false);
  assert.equal(approvalEscalationSnapshotHeld([base], false), false);
 });
+test("disabled extension holds corrupted frozen evidence instead of treating it as legacy", () => {
+ const base={label:"Review",approver:"role:hr",minimumAmount:0};
+ for (const snapshot of [
+   [], null, {}, [{...base,escalationAfterDays:"unknown"}],
+   [{...base,escalationAfterDays:31}], [{...base,minimumAmount:-1}],
+ ]) {
+   assert.equal(approvalEscalationSnapshotHeld(snapshot, false), true,
+     "An invalid persisted approval snapshot must not silently bypass rollback");
+ }
+ assert.equal(approvalEscalationSnapshotHeld([base], false), false,
+   "Valid legacy approvals remain decidable when extensions are OFF");
+ assert.equal(approvalEscalationSnapshotHeld([base], true), false);
+});
+
 test("overdue pending action is escalated once without deciding it",()=>{
  const createdAt=new Date("2026-10-01T00:00:00Z");
  const rule={createdAt,days:3,taskStatus:"Pending",stepStatus:"pending",priority:"Normal"};
