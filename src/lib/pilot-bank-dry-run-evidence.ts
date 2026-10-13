@@ -65,7 +65,8 @@ export function isValidPilotBankDryRunEvidence(
     const data = part as Record<string, unknown>;
     const cents = nonNegativeCents(data.totalNet);
     if (typeof data.filename !== "string" || !data.filename.trim()
-      || /[\\/\\\\\\r\\n]/.test(data.filename)
+      || data.filename.includes("/") || data.filename.includes("\\")
+      || data.filename.includes("\n") || data.filename.includes("\r")
       || data.filename === "." || data.filename === ".."
       || partFilenames.has(data.filename)
       || !positiveInteger(data.rowCount) || cents === null) return false;
