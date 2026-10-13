@@ -24,12 +24,18 @@ if (
   || env.PAYMONGO_SECRET_KEY || env.XENDIT_SECRET_KEY
 ) throw new Error("Isolated virtual month-end clock refused non-disposable environment");
 
-// 16:00 Philippine time on the fictional final monthly cutoff.
-// Advance monotonically so rate limits, timestamps and session expiry continue
-// behaving as intervals, instead of freezing time or replaying static IDs.
+// 16:00 Philippine time on the fictional final monthly cutoff. GitHub CI
+// supplies one fresh wall-clock anchor shared by the app and Chromium. Keep
+// server time monotonic (hrtime) but align its initial offset to that anchor;
+// otherwise React would hydrate September 30 HTML against October browser time.
 const epoch = RealDate.parse("2026-09-30T08:00:00.000Z");
+const realAnchor = Number(env.NINE_STAGE_SYNTHETIC_REAL_ANCHOR);
+const anchorAgeMs = RealDate.now() - realAnchor;
+if (!Number.isSafeInteger(realAnchor) || anchorAgeMs < 0 || anchorAgeMs > 30 * 60_000) {
+  throw new Error("Isolated virtual month-end clock requires a fresh shared CI anchor");
+}
 const start = process.hrtime.bigint();
-const now = () => epoch + Number((process.hrtime.bigint() - start) / 1000000n);
+const now = () => epoch + anchorAgeMs + Number((process.hrtime.bigint() - start) / 1000000n);
 // Preserve Date()'s callable form, Date.parse/UTC, instanceof checks and
 // constructor overloads. Only no-argument construction and now() are virtual.
 globalThis.Date = new Proxy(RealDate, {
