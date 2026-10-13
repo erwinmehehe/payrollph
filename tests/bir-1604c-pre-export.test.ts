@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   BIR_1604C_LAYOUT, validateBir1604cPreExport, birModuleV70Status,
+  buildReviewedBir1604cCandidate,
   type Bir1604CReviewedRecord,
 } from "../src/lib/bir-1604c-pre-export";
 
@@ -128,4 +129,21 @@ test("BIR v7.0 status requires matching file digest and explicit external eviden
   assert.equal(birModuleV70Status({ ...evidence, outcome: "fail" }), "no");
   assert.equal(birModuleV70Status({ ...evidence, validatedFileSha256: "b".repeat(64) }), "not run");
   assert.equal(birModuleV70Status({ ...evidence, moduleVersion: "7.4" }), "not run");
+});
+
+test("default-off flag blocks DAT even for reviewed fixtures", () => {
+  const row = employee();
+  const request = {
+    taxYear: 2026, employerTin: "123456789", employerBranch: "0000",
+    expectedEmployees: 1, expectedActualWithheld: "5000.00",
+    records: [row],
+  };
+  const disabled = buildReviewedBir1604cCandidate(request, false);
+  assert.equal(disabled.ok, false);
+  assert.equal(disabled.issues[0].code, "FEATURE_DISABLED");
+  assert.equal(disabled.validatedAgainstModuleV70, "not run");
+  const enabled = buildReviewedBir1604cCandidate(request, true);
+  assert.equal(enabled.ok, true);
+  assert.equal(enabled.validatedAgainstModuleV70, "not run");
+  if (enabled.ok) assert.match(enabled.candidate.candidateFilename, /^DRAFT-UNVALIDATED-/);
 });
