@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 
 // This is a local-only synthetic review of the sealed registration workflow.
 // It does not grant production MFA, DBA, bank or legal approvals.
-const base = "http://127.0.0.1:3002";
+const base = "https://127.0.0.1:3002";
 const password = "Synthetic-Entity-QA-2026-Only!";
 // Reserved TEST-NET addresses represent distinct fictional remote test users.
 // Only the disposable localhost runner trusts this single synthetic proxy hop.
@@ -31,6 +31,7 @@ assert.ok(["127.0.0.1", "localhost"].includes(dbUrl.hostname) && dbUrl.pathname 
 await mkdir("qa-artifacts/multi-entity", { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
+const newSyntheticContext = options => browser.newContext({ ignoreHTTPSErrors: true, ...options });
 const checks = [];
 async function login(context, email) {
   const response = await context.request.post(base + "/api/auth/login", {
@@ -38,6 +39,9 @@ async function login(context, email) {
     data: { email, password }, failOnStatusCode: false,
   });
   assert.equal(response.status(), 200, "Synthetic account login failed for " + email);
+  const session = (await context.cookies(base)).find(c => c.name === "__Host-linaw_session");
+  assert.ok(session?.secure && session?.httpOnly,
+    "Registration acceptance requires a real HttpOnly Secure __Host- session");
 }
 async function request(context, path, method = "GET", data = undefined) {
   const response = await context.request.fetch(base + path, {
@@ -70,10 +74,10 @@ async function routeToEntities(page) {
 }
 
 try {
-  const maker = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const checker = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const group = await browser.newContext();
-  const foreign = await browser.newContext();
+  const maker = await newSyntheticContext({ viewport: { width: 1440, height: 900 } });
+  const checker = await newSyntheticContext({ viewport: { width: 390, height: 844 } });
+  const group = await newSyntheticContext();
+  const foreign = await newSyntheticContext();
   await login(maker, "entity-owner@example.test");
   await login(checker, "entity-checker@example.test");
   await login(group, "entity-group@example.test");

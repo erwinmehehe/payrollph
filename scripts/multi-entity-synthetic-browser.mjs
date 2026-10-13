@@ -6,8 +6,8 @@ import { chromium } from "playwright";
  * Actual authenticated UI + HTTP acceptance, but ONLY against disposable
  * localhost PostgreSQL and fictional data. No production or live agency data.
  */
-const on = "http://127.0.0.1:3000";
-const off = "http://127.0.0.1:3001";
+const on = "https://127.0.0.1:3000";
+const off = "https://127.0.0.1:3001";
 const password = "Synthetic-Entity-QA-2026-Only!";
 // Reserved TEST-NET addresses represent distinct fictional remote test users.
 // Only the disposable localhost runner trusts this single synthetic proxy hop.
@@ -33,6 +33,8 @@ assert.ok(["127.0.0.1", "localhost"].includes(db.hostname) && db.pathname === "/
 await mkdir("qa-artifacts/multi-entity", { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
+// Real HTTPS transport retains Secure __Host- cookies in the same browser context.
+const newSyntheticContext = options => browser.newContext({ ignoreHTTPSErrors: true, ...options });
 const checks = [];
 const screenshots = [];
 function filename(name, width) {
@@ -50,25 +52,21 @@ async function login(context, base, email) {
     data: { email, password }, failOnStatusCode: false,
   });
   assert.equal(r.status(), 200, "Disposable login must work for " + email);
+  // Browser and API must use a genuine HttpOnly, Secure production session
+  // issued over ephemeral HTTPS, not a copied token or relaxed cookie policy.
+  const session = (await context.cookies(base)).find(c => c.name === "__Host-linaw_session");
+  assert.ok(session?.secure && session?.httpOnly,
+    "Synthetic login must retain an HttpOnly Secure __Host- session");
 }
 async function request(context, base, path, method = "GET", data = undefined) {
-  // In Next production mode the login cookie is Secure. Playwright's
-  // APIRequestContext retains it but DOES NOT send it over the HTTP 127.0.0.1
-  // synthetic transport (unlike a real production HTTPS browser session).
-  // Explicitly forward only this freshly minted fake-login cookie to the
-  // strictly pinned localhost test app; do not relax the production cookie.
   assert.equal(process.env.MULTI_ENTITY_QA_MODE, "synthetic-postgres-only");
-  assert.ok([on, off, "http://127.0.0.1:3002"].includes(base));
-  const cookie = (await context.cookies(base)).find(c =>
-    c.name === "__Host-linaw_session" || c.name === "linaw_session");
-  assert.ok(cookie, "Synthetic login must mint an actual session cookie before API acceptance");
+  assert.ok([on, off, "https://127.0.0.1:3002"].includes(base));
+  // Context-managed browser cookies are the sole auth mechanism. Never copy
+  // raw session tokens into request headers or test output.
   const response = await context.request.fetch(base + path, {
     method,
-    headers: {
-      Cookie: cookie.name + "=" + cookie.value,
-      ...(method === "GET" ? {} : {
-        "Content-Type": "application/json", Origin: base, "sec-fetch-site": "same-origin",
-      }),
+    headers: method === "GET" ? undefined : {
+      "Content-Type": "application/json", Origin: base, "sec-fetch-site": "same-origin",
     },
     data, failOnStatusCode: false,
   });
@@ -124,7 +122,7 @@ async function checkpoint(label, action, page) {
 }
 
 try {
-  const group = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const group = await newSyntheticContext({ viewport: { width: 1440, height: 900 } });
   await login(group, on, "entity-group@example.test");
   const g = await request(group, on, "/api/multi-entity/context?organizationId=1");
   assert.equal(g.status, 200);
@@ -147,7 +145,7 @@ try {
   }
   checks.push("Group HR read-only tenant totals, redaction and exact two-employer scope");
 
-  const restricted = await browser.newContext();
+  const restricted = await newSyntheticContext();
   await login(restricted, on, "entity-group-unit@example.test");
   for (const path of [
     "/api/multi-entity/context?organizationId=1",
@@ -160,16 +158,16 @@ try {
   }
   checks.push("Restricted group_hr denies All across actual authenticated HTTP");
 
-  const ungranted = await browser.newContext();
+  const ungranted = await newSyntheticContext();
   await login(ungranted, on, "entity-nogrant@example.test");
   assert.equal((await request(ungranted, on, "/api/multi-entity/context?organizationId=1")).status, 403);
   assert.equal((await request(ungranted, on, "/api/multi-entity/reports?organizationId=1")).status, 403);
-  const foreign = await browser.newContext();
+  const foreign = await newSyntheticContext();
   await login(foreign, on, "entity-foreign@example.test");
   assert.equal((await request(foreign, on, "/api/multi-entity/context?organizationId=1")).status, 403);
   checks.push("Ungrantable roles and foreign tenants fail closed");
 
-  const owner = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const owner = await newSyntheticContext({ viewport: { width: 1440, height: 900 } });
   await login(owner, on, "entity-owner@example.test");
   const op = await owner.newPage();
   const ownerContext = await request(owner, on, "/api/multi-entity/context?organizationId=1");
@@ -226,7 +224,7 @@ try {
     }, op);
   }
   await checkpoint("Entity-scoped run reads and wrong-entity creation are denied", async () => {
-    const scopedPayroll = await browser.newContext();
+    const scopedPayroll = await newSyntheticContext();
     await login(scopedPayroll, on, "entity-payroll@example.test");
     const alphaRuns = await request(scopedPayroll, on, "/api/payroll-runs?organizationId=1");
     assert.equal(alphaRuns.status, 200);
@@ -294,7 +292,7 @@ try {
     assert.equal(registrationAttempt.status, 404);
   }, op);
 
-  const hr = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const hr = await newSyntheticContext({ viewport: { width: 390, height: 844 } });
   await login(hr, on, "entity-hr@example.test");
   const hp = await hr.newPage();
   await checkpoint("Scoped HR gets fixed employer label, never a switcher", async () => {
@@ -326,7 +324,7 @@ try {
   assert.equal((await request(hr, on, "/api/multi-entity/reports?organizationId=1")).status, 403);
 
   for (const width of [320, 375, 430]) {
-    const ctx = await browser.newContext({ viewport: { width, height: 844 } });
+    const ctx = await newSyntheticContext({ viewport: { width, height: 844 } });
     await login(ctx, on, "entity-hr@example.test");
     const p = await ctx.newPage();
     await checkpoint("Scoped HR phone " + width, async () => {
@@ -350,7 +348,7 @@ try {
   // The legacy /app route and all shared member-only APIs must not grant
   // group_hr access when the entire feature is disabled, even if a group_hr
   // membership has already been pre-provisioned for a future rollout.
-  const offGroup = await browser.newContext();
+  const offGroup = await newSyntheticContext();
   await login(offGroup, off, "entity-group@example.test");
   const offGroupApp = await offGroup.newPage();
   const offGroupResponse = await offGroupApp.goto(off + "/app?organizationId=1", {
@@ -360,7 +358,7 @@ try {
   checks.push("Flag-OFF preprovisioned group HR has no legacy workspace access");
   await offGroup.close();
 
-  const disabled = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const disabled = await newSyntheticContext({ viewport: { width: 1440, height: 900 } });
   await login(disabled, off, "entity-owner@example.test");
   assert.equal((await request(disabled, off, "/api/multi-entity/context?organizationId=1")).status, 404);
   const oldPage = await disabled.newPage();
@@ -383,7 +381,7 @@ try {
     await legacy.getByRole("button", { name: "Cancel" }).click();
   }, oldPage);
 
-  const mobileOff = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const mobileOff = await newSyntheticContext({ viewport: { width: 390, height: 844 } });
   await login(mobileOff, off, "entity-hr@example.test");
   const beforeMobile = await mobileOff.newPage();
   await checkpoint("Phone flag OFF remains legacy", async () => {
