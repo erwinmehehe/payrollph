@@ -123,6 +123,14 @@ try {
   const savedBytes = await readFile(outDir + "/official-module-test-input/" + preview.fileName);
   assert.equal(createHash("sha256").update(savedBytes).digest("hex"), sha,
     "Exact browser DAT output must match the persisted test input");
+  await writeFile(outDir + "/VALIDATION-MANIFEST.json", JSON.stringify({
+    status: "SYNTHETIC ONLY — NEVER SUBMIT", sampleYear: 2025,
+    primaryFile: "official-module-test-input/" + preview.fileName,
+    sha256: sha, byteCount: body.length, sourceDigest,
+    source: "PR 959 isolated browser acceptance",
+    moduleVersion: null, moduleResult: "not run",
+    independentReviewer: null, acceptedByBir: false, submittedToBir: false,
+  }, null, 2));
   results.push({ checkpoint: "full-synthetic-DAT-check-and-download", result: "pass", sha256: sha });
 
   const tampered = structuredClone(row);
