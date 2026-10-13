@@ -6311,6 +6311,31 @@ export const firstPayrollJourneyProgress = pgTable("first_payroll_journey_progre
   uniqueIndex("first_payroll_journey_tenant_step").on(table.organizationId,table.step),
 ]);
 
+/** An offline punch is unverified evidence, never an authoritative time_punch. */
+export const offlinePunchClaims = pgTable("offline_punch_claims", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  submittedByUserId: integer("submitted_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  clientEventId: varchar("client_event_id", { length: 64 }).notNull(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
+  actionType: varchar("action_type", { length: 20 }).notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("pending_review"),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNote: varchar("review_note", { length: 400 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("offline_punch_client_event_unique").on(table.organizationId, table.employeeId, table.clientEventId),
+  index("offline_punch_pending_org_idx").on(table.organizationId, table.status, table.createdAt),
+  foreignKey({
+    name: "workflow_offline_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id],
+  }).onDelete("restrict"),
+]);
+
+
 /**
  * Opt-in, tenant-owned scheduling policy for WFM roster publish warnings and
  * blockers. No changes to payroll-engine math or prior guardrail semantics.
