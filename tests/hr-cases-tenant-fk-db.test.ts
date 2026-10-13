@@ -22,12 +22,15 @@ test("HR cases, case messages and COE documents must share the same employer in 
       role: "employee", passwordHash: "not-valid",
     }).returning();
     actorId = actor.id;
-    const [workerA, workerB] = await db.insert(employees).values([
+    const [workerA, workerB, workerOtherA] = await db.insert(employees).values([
       { organizationId: alpha.id, employeeNo: "A-" + suffix, firstName: "Synthetic",
         lastName: "A", title: "Staff", avatarInitials: "SA",
         basicRate: "12000", startDate: "2026-01-01" },
       { organizationId: beta.id, employeeNo: "B-" + suffix, firstName: "Synthetic",
         lastName: "B", title: "Staff", avatarInitials: "SB",
+        basicRate: "12000", startDate: "2026-01-01" },
+      { organizationId: alpha.id, employeeNo: "C-" + suffix, firstName: "Other",
+        lastName: "Alpha", title: "Staff", avatarInitials: "OA",
         basicRate: "12000", startDate: "2026-01-01" },
     ]).returning();
 
@@ -61,6 +64,17 @@ test("HR cases, case messages and COE documents must share the same employer in 
       await db.update(employeeHrCases).set({ coeDocumentId: foreignCoe.id })
         .where(eq(employeeHrCases.id, owned.id));
     }, "a case cannot certify a document belonging to another employer");
+
+    const [sameEmployerWrongWorker] = await db.insert(documents).values({
+      organizationId: alpha.id, employeeId: workerOtherA.id,
+      kind: "coe", fileName: "other-worker-coe.txt", mimeType: "text/plain",
+      byteSize: 0, sha256: "a".repeat(64), scannedClean: true,
+      uploadedBy: "Synthetic reviewer", content: "",
+    }).returning();
+    await assert.rejects(async () => {
+      await db.update(employeeHrCases).set({ coeDocumentId: sameEmployerWrongWorker.id })
+        .where(eq(employeeHrCases.id, owned.id));
+    }, "a COE for another worker at the same employer must be rejected");
 
     const [unmodified] = await db.select().from(employeeHrCases)
       .where(eq(employeeHrCases.id, owned.id));
