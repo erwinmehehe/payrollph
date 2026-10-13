@@ -25,5 +25,10 @@ test("banner only appears for owner/admin, company-wide Overview and updates wit
   assert.match(banner, /Scheduler last ran /);
   assert.match(banner, /AbortController/);
   assert.match(banner, /clearInterval/);
-  assert.match(banner, /role=\{health\.ok \? "status" : "alert"\}/);
+  // Disabled-by-design is ordinary informational state; only unexpected
+  // scheduler failures must announce themselves to screen readers as alerts.
+  assert.match(banner, /const disabled = health\.state === "scheduler-disabled"/);
+  assert.match(banner, /const alert = !health\.ok && !disabled/);
+  assert.match(banner, /role=\{alert \? "alert" : "status"\}/);
+  assert.match(banner, /Scheduler is disabled \(development mode\)/);
 });
