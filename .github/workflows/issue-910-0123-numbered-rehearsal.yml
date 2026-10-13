@@ -37,7 +37,7 @@ jobs:
       - name: Preserve source-only SHA-256 (NOT a production execution receipt)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: issue-910-0123-unnumbered-release-evidence-not-applied
+          name: issue-910-0123-source-only-not-applied
           path: qa-artifacts/issue-910-0123
           retention-days: 14
           if-no-files-found: error
