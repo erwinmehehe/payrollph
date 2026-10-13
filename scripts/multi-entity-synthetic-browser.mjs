@@ -187,6 +187,43 @@ try {
       await capture(op, "after-owner-" + screen);
     }, op);
   }
+  await checkpoint("Entity-scoped run reads and wrong-entity creation are denied", async () => {
+    const runs = await request(owner, on, "/api/payroll-runs?organizationId=1");
+    assert.equal(runs.status, 200);
+    assert.equal(runs.data?.runs?.length, 1);
+    assert.equal(runs.data.runs[0].legalEntityId, employerB.id);
+    const payload = {
+      organizationId: 1, periodStart: "2026-11-16",
+      periodEnd: "2026-11-30", payDate: "2026-11-30",
+      processNow: false,
+    };
+    const crossEmployer = await request(owner, on, "/api/payroll-runs", "POST", {
+      ...payload, legalEntityId: employerA.id, confirmLegalEntityName: employerA.legalName,
+    });
+    assert.equal(crossEmployer.status, 403, "Other granted employer is NOT selected");
+    const wrongName = await request(owner, on, "/api/payroll-runs", "POST", {
+      ...payload, legalEntityId: employerB.id, confirmLegalEntityName: "wrong",
+    });
+    assert.equal(wrongName.status, 422);
+    assert.equal(wrongName.data?.code, "ENTITY_CONFIRMATION_REQUIRED");
+    const unchanged = await request(owner, on, "/api/payroll-runs?organizationId=1");
+    assert.equal(unchanged.data?.runs?.length, 1, "Denied payroll start must create no run");
+  }, op);
+  await checkpoint("Payroll start UI blocks wrong legal name", async () => {
+    await gotoScreen(op, "Payroll");
+    await op.getByRole("button", { name: /New payroll/i }).first().click();
+    const modal = op.getByRole("dialog", { name: "Create payroll draft" });
+    await modal.waitFor();
+    await modal.getByLabel("Type legal employer name").waitFor();
+    await capture(op, "after-payroll-start-locked");
+    const create = modal.getByRole("button", { name: /Create & process/ });
+    assert.equal(await create.isDisabled(), true);
+    await modal.getByLabel("Type legal employer name").fill(employerB.legalName);
+    assert.equal(await create.isDisabled(), false,
+      "Exact employer name unlocks UI, but never bypasses server or maker-checker");
+    await capture(op, "after-payroll-start-exact-match");
+    await modal.getByRole("button", { name: "Cancel" }).click();
+  }, op);
   await checkpoint("Transfers are read-only without independent legal approval", async () => {
     const transfers = await request(owner, on, "/api/multi-entity/transfers?organizationId=1");
     assert.equal(transfers.status, 200);
@@ -255,6 +292,13 @@ try {
       await gotoScreen(oldPage, screen);
       await capture(oldPage, "before-owner-" + screen);
     }
+    await gotoScreen(oldPage, "Payroll");
+    await oldPage.getByRole("button", { name: /New payroll/i }).first().click();
+    const legacy = oldPage.getByRole("dialog", { name: "Create payroll draft" });
+    await legacy.waitFor();
+    assert.equal(await legacy.getByLabel("Type legal employer name").count(), 0);
+    await capture(oldPage, "before-payroll-start");
+    await legacy.getByRole("button", { name: "Cancel" }).click();
   }, oldPage);
 
   const mobileOff = await browser.newContext({ viewport: { width: 390, height: 844 } });
