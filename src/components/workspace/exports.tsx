@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { FilingEvidencePanel } from "./filing-evidence";
+import { XenditPayoutPanel } from "./xendit-payout-panel";
 import { Bir1601cRemittancePanel } from "./bir-1601c-remittance-panel";
 import { BookkeeperPayrollClose } from "./bookkeeper-payroll-close";
 import { ManagedPayrollControlRoom } from "./managed-payroll-control-room";
@@ -66,6 +67,7 @@ export function ExportsView({
 
   const run = runs.find((item) => item.id === runId) ?? runs[0];
   const organizationId = data.selectedOrganization.id;
+  const xenditEnabled = data.xenditPayoutsEnabled === true;
   const payoutState = run ? derivePayrollPayoutState(data.auditEvents, run.id) : null;
   const bookkeeperMode = data.access?.role === "bookkeeper";
   const treasuryStatusEligible = ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "");
@@ -315,7 +317,9 @@ export function ExportsView({
       <div className="notice notice-blue">
         <Info size={15} className="i-blue" />
         <span>
-          PayMongo is Linaw&apos;s primary payroll payout rail when the production wallet is connected. Bank files below are an
+          {xenditEnabled
+            ? "Xendit is an opt-in salary payout rail, disabled until approved for the exact employer. Existing PayMongo routing is preserved. Bank files below are an"
+            : "PayMongo is Linaw's primary payroll payout rail when the production wallet is connected. Bank files below are an"}
           optional fallback and stay fail-closed until their exact bank-provided template has passed UAT. Government worksheets
           remain draft-only until agency acceptance evidence is recorded. See <a className="link-button" href="/api/readiness">/api/readiness</a>.
         </span>
@@ -405,13 +409,30 @@ export function ExportsView({
             />
           )}
 
-          {run.status === "Released" && payoutState && (
+          {xenditEnabled && run.status === "Released" && treasuryStatusEligible && (
+            <XenditPayoutPanel
+                key={run.id}
+                runId={run.id}
+                onRefresh={onRefresh}
+                onPaymongoPreflight={runPaymongoPreflight}
+                onPaymongoSubmit={submitPaymongoPayout}
+                canSubmitPaymongo={payoutState?.payout.method === "PayMongo" && payoutState.payout.status === "ready"}
+                allowPaymongoActions={payoutState?.payout.status !== "submitted" && payoutState?.payout.status !== "completed"}
+                paymongoPreflighting={preflightingPayout}
+                paymongoSubmitting={submittingPayout}
+              />
+          )}
+
+          {run.status === "Released" && payoutState &&
+            (!xenditEnabled || payoutState.reconciliation.provider === "PayMongo" || payoutState.payout.method === "bank-file") && (
             <article className="card" data-payout-operations style={{ marginBottom: 16 }}>
               <div className="card-header">
                 <div>
                   <div className="card-kicker">PAYOUT COMPLETION</div>
                   <h2>Close the loop after release</h2>
-                  <p>Release, PayMongo preflight, submission and provider settlement are separate audited milestones. Bank files are optional fallback.</p>
+                  <p>{xenditEnabled
+                    ? "Release, provider preflight, submission and provider settlement must be separately authorized. Xendit is opt-in and stays disabled until treasury release approval. Existing PayMongo claims remain on PayMongo; validated bank files remain available where permitted."
+                    : "Release, PayMongo preflight, submission and provider settlement are separate audited milestones. Bank files are optional fallback."}</p>
                 </div>
                 <Status value={payoutState.payout.status === "completed" ? "Completed" : "In progress"} />
               </div>
@@ -548,7 +569,7 @@ export function ExportsView({
                   )}
                 </section>
 
-                {payoutState.reconciliation.provider !== "PayMongo" && payoutState.payout.method !== "bank-file" && (
+                {!xenditEnabled && payoutState.reconciliation.provider !== "PayMongo" && payoutState.payout.method !== "bank-file" && (
                   <div className="payout-confirm" data-paymongo-primary-actions>
                     <div>
                       <strong>Primary payout: PayMongo</strong>
@@ -557,20 +578,14 @@ export function ExportsView({
                       </p>
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <button
-                        className="secondary-button"
-                        disabled={preflightingPayout || submittingPayout}
-                        onClick={() => void runPaymongoPreflight()}
-                      >
+                      <button className="secondary-button" disabled={preflightingPayout || submittingPayout}
+                        onClick={() => void runPaymongoPreflight()}>
                         <ShieldCheck size={14} />
                         {preflightingPayout ? "Checking PayMongo…" : "Run PayMongo preflight"}
                       </button>
                       {canRecordManualPayout && payoutState.payout.status === "ready" && payoutState.payout.method === "PayMongo" && (
-                        <button
-                          className="primary-button brand"
-                          disabled={preflightingPayout || submittingPayout}
-                          onClick={() => void submitPaymongoPayout()}
-                        >
+                        <button className="primary-button brand" disabled={preflightingPayout || submittingPayout}
+                          onClick={() => void submitPaymongoPayout()}>
                           <Banknote size={14} />
                           {submittingPayout ? "Submitting payout…" : "Submit via PayMongo"}
                         </button>
@@ -774,7 +789,7 @@ export function ExportsView({
                   Bank-file fallback <Status value="Optional" />
                 </h3>
                 <p>
-                  Use only when PayMongo is unavailable or the employer explicitly uses its corporate-bank upload flow.
+                  Use only when the selected payout provider is unavailable or the employer explicitly uses its corporate-bank upload flow.
                   Proprietary formats require the exact bank-provided mapping and recorded portal UAT; Linaw will not guess one.
                 </p>
                 <div style={{ display: "grid", gap: 10, marginTop: 12 }}>

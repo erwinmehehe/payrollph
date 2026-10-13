@@ -1198,7 +1198,7 @@ export const payoutBatches = pgTable(
     index("payout_batches_org_run_status_idx").on(table.organizationId, table.payrollRunId, table.status),
     check("payout_batches_positive_total_check", sql`${table.transferCount} > 0 and ${table.totalAmountCents} > 0`),
     check("payout_batches_status_check", sql`${table.status} in ('prepared','submitting','submitted','reconciliation_required','settled','failed','cancelled')`),
-    check("payout_batches_provider_check", sql`${table.provider} = 'paymongo'`),
+    check("payout_batches_provider_check", sql`${table.provider} in ('paymongo','xendit')`),
   ],
 );
 
@@ -1222,7 +1222,7 @@ export const payoutTransfers = pgTable(
     uniqueIndex("payout_transfers_entry_unique").on(table.payrollEntryId),
     index("payout_transfers_org_status_idx").on(table.organizationId, table.status),
     check("payout_transfers_positive_amount_check", sql`${table.amountCents} > 0`),
-    check("payout_transfers_status_check", sql`${table.status} in ('prepared','submitting','submitted','succeeded','failed','reconciliation_required','cancelled')`),
+    check("payout_transfers_status_check", sql`${table.status} in ('prepared','submitting','submitted','succeeded','failed','reversed','reconciliation_required','cancelled')`),
   ],
 );
 
@@ -1243,7 +1243,7 @@ export const payoutBatchTransfers = pgTable(
     uniqueIndex("payout_batch_transfers_provider_transfer_unique").on(table.providerTransferId)
       .where(sql`${table.providerTransferId} is not null`),
     index("payout_batch_transfers_org_batch_idx").on(table.organizationId, table.payoutBatchId),
-    check("payout_batch_transfers_status_check", sql`${table.status} in ('prepared','submitting','submitted','succeeded','failed','reconciliation_required','cancelled')`),
+    check("payout_batch_transfers_status_check", sql`${table.status} in ('prepared','submitting','submitted','succeeded','failed','reversed','reconciliation_required','cancelled')`),
   ],
 );
 
@@ -1364,7 +1364,7 @@ export const payoutProfiles = pgTable(
     index("payout_profiles_org_active_idx").on(table.organizationId, table.active),
     check(
       "payout_profiles_default_method_check",
-      sql`${table.defaultMethod} IN ('bank_file','paymongo','manual')`,
+      sql`${table.defaultMethod} IN ('bank_file','paymongo','xendit','manual')`,
     ),
     check(
       "payout_profiles_max_amount_check",
