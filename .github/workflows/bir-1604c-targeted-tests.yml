@@ -9,6 +9,8 @@ on:
       - 'src/components/workspace/bir-1604c-candidate-panel.tsx'
       - 'src/components/workspace/panels.tsx'
       - 'tests/bir-1604c*.test.ts'
+      - 'tests/bir-annual-entity-route-access.test.ts'
+      - 'src/lib/bir-annual-entity-access.ts'
       - '.github/workflows/bir-1604c-targeted-tests.yml'
 
 permissions:
@@ -28,4 +30,4 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Run every BIR 1604-C unit test (no agency simulation)
-        run: npx tsx --test --test-concurrency=1 tests/bir-1604c*.test.ts
+        run: npx tsx --test --test-concurrency=1 tests/bir-1604c*.test.ts tests/bir-annual-entity-route-access.test.ts

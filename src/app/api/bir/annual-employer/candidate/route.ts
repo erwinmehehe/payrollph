@@ -1,3 +1,5 @@
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { assertBirAnnualEntityAccess } from "@/lib/bir-annual-entity-access";
 import { createHash } from "node:crypto";
 import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -49,7 +51,7 @@ export async function POST(request: Request) {
   if (originDenied) return originDenied;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401, headers: PRIVATE });
-  if (process.env.BIR_1604C_DAT_CANDIDATE_ENABLED !== "true") return disabled();
+  if (!criticalReleaseFlagEnabled("bir1604cReviewedCandidate")) return disabled();
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
   let raw: unknown;
@@ -85,6 +87,8 @@ export async function POST(request: Request) {
   });
   if (rateDenied) return rateDenied;
 
+  const entityDenied = await assertBirAnnualEntityAccess(user.id, body.organizationId, body.legalEntityId, request);
+  if (entityDenied) return entityDenied;
   const source = await loadBirAnnualEmployerSource(
     body.organizationId, body.legalEntityId, body.taxYear,
   );

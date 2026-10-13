@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  bir1604cReviewedCandidate: {
+    env: "BIR_1604C_DAT_CANDIDATE_ENABLED",
+    owner: "Philippine Payroll / Tax",
+    risk: "Reviewed draft annual employer DAT and private validation evidence",
+    approval: "Exact-source, role/MFA, maker-checker and official-module acceptance; no filing authority",
+  },
   independentSourceReview: {
     env: "INDEPENDENT_SOURCE_REVIEW_REQUIRED",
     owner: "Repository Maintainer",

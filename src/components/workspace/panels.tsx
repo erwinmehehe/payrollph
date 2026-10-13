@@ -530,7 +530,7 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
         </section>
       )}
 
-      <YearEndPanel organizationId={data.selectedOrganization.id} setNotice={setNotice} />
+      <YearEndPanel organizationId={data.selectedOrganization.id} setNotice={setNotice} birCandidateEnabled={data.bir1604cCandidateEnabled === true} />
       <DoleThirteenthMonthReportPanel
         organizationId={data.selectedOrganization.id}
         notify={(message) => setNotice(message)}
@@ -557,7 +557,7 @@ type BirAnnualPreflight = {
   warnings: Array<{ code: string; message: string; employeeNo?: string }>;
 };
 
-function YearEndPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (message: string) => void }) {
+function YearEndPanel({ organizationId, setNotice, birCandidateEnabled }: { organizationId: number; setNotice: (message: string) => void; birCandidateEnabled?: boolean }) {
   const [taxYear, setTaxYear] = useState(2026);
   const [summary, setSummary] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -768,6 +768,7 @@ function YearEndPanel({ organizationId, setNotice }: { organizationId: number; s
         </div>
       </section>
       <Bir1604cCandidatePanel
+        enabled={birCandidateEnabled}
         key={organizationId + ":" + birEntityId + ":" + taxYear + ":" + (birEntityReport?.sourceDigest ?? "")}
         organizationId={organizationId}
         legalEntityId={birEntityId}

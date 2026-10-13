@@ -1,3 +1,5 @@
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { assertBirAnnualEntityAccess } from "@/lib/bir-annual-entity-access";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents } from "@/db/schema";
@@ -61,6 +63,7 @@ async function loadAudits(scope: Scope): Promise<BirModuleAudit[]> {
 }
 
 export async function GET(request: Request) {
+  if (!criticalReleaseFlagEnabled("bir1604cReviewedCandidate")) return Response.json({ error: "BIR module evidence is unavailable." }, { status: 404, headers: PRIVATE });
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401, headers: PRIVATE });
   const search = new URL(request.url).searchParams;
@@ -72,6 +75,8 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  const entityDenied = await assertBirAnnualEntityAccess(user.id, scope.organizationId, scope.legalEntityId, request);
+  if (entityDenied) return entityDenied;
   const source = await loadBirAnnualEmployerSource(scope.organizationId, scope.legalEntityId, scope.taxYear);
   if (!source) return Response.json({ error: "Legal employer not found." }, { status: 404, headers: PRIVATE });
   const audits = await loadAudits(scope);
@@ -87,6 +92,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
+  if (!criticalReleaseFlagEnabled("bir1604cReviewedCandidate")) return Response.json({ error: "BIR module evidence is unavailable." }, { status: 404, headers: PRIVATE });
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401, headers: PRIVATE });
   const mfaDenied = requireSensitiveActionMfa(user);
@@ -115,6 +121,8 @@ export async function POST(request: Request) {
     resourceId: resource(scope), limit: 8, windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
+  const entityDenied = await assertBirAnnualEntityAccess(user.id, scope.organizationId, scope.legalEntityId, request);
+  if (entityDenied) return entityDenied;
   const source = await loadBirAnnualEmployerSource(scope.organizationId, scope.legalEntityId, scope.taxYear);
   if (!source) return Response.json({ error: "Legal employer not found." }, { status: 404, headers: PRIVATE });
   const audits = await loadAudits(scope);

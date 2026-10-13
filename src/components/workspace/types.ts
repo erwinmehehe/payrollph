@@ -349,6 +349,7 @@ export type DashboardData = {
   coreModuleNavigationEnabled?: boolean;
   employeeImportPreviewEnabled?: boolean;
   xenditPayoutsEnabled?: boolean;
+  bir1604cCandidateEnabled?: boolean;
   firstPayrollReadiness?: FirstPayrollReadiness | null;
   user: SessionUser | null;
   organizations: Organization[];

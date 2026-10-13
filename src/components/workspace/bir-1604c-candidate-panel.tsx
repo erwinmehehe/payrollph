@@ -28,7 +28,13 @@ const formStyle = { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", minW
 const labelStyle = { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", minWidth: 0, gap: 4, fontSize: 12 } as const;
 const endpoint = "/api/bir/annual-employer/module-evidence";
 
-export function Bir1604cCandidatePanel({
+export function Bir1604cCandidatePanel(props: Props & { enabled?: boolean }) {
+  // Scope/source changes discard old files, previews and validation claims.
+  const scopeKey = [props.organizationId, props.legalEntityId, props.taxYear, props.sourceDigest ?? ""].join(":");
+  return props.enabled === true ? <EnabledBir1604cCandidatePanel key={scopeKey} {...props} /> : null;
+}
+
+function EnabledBir1604cCandidatePanel({
   organizationId, legalEntityId, taxYear, sourceDigest, setNotice,
 }: Props) {
   const [reviewFile, setReviewFile] = useState<File | null>(null);
