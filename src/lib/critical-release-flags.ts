@@ -244,6 +244,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     env: "SAFE_OTEL_ERRORS_ENABLED", owner: "Security / Operations",
     risk: "Optional remote sanitized error events", approval: "Collector/DPO review and synthetic error payload acceptance",
   },
+  offboardingClearance: {
+    env: "OFFBOARDING_CLEARANCE_ENABLED",
+    owner: "People Operations and Payroll",
+    risk: "P0 documented clearance waivers, final-pay authority and worker access revocation",
+    approval: "Three-actor final-pay pilot, tenant isolation, waiver evidence and revoked-session rollback UAT",
+  },
 } as const;
 
 export type CriticalReleaseFlag = keyof typeof CRITICAL_RELEASE_FLAGS;
