@@ -30,6 +30,8 @@ function employee(schedule: "D1" | "D2" = "D1", employeeNo = "EMP001"): Bir1604C
   });
   if (schedule === "D2") fields.FACTOR_USED = "313";
   return { schedule, employeeNo, sourceReference: "fixture-2316-reviewed",
+    priorEmployerReview: "none-confirmed",
+    ...(schedule === "D2" ? { mwePremiumEvidenceReference: "synthetic-mwe-breakdown" } : {}),
     reviewedBy: "Synthetic Reviewer", fields };
 }
 function check(rows: Bir1604CReviewedRecord[], amount = "5000.00") {
@@ -146,4 +148,17 @@ test("default-off flag blocks DAT even for reviewed fixtures", () => {
   assert.equal(enabled.ok, true);
   assert.equal(enabled.validatedAgainstModuleV70, "not run");
   if (enabled.ok) assert.match(enabled.candidate.candidateFilename, /^DRAFT-UNVALIDATED-/);
+});
+
+test("manual previous-employer declaration and MWE premium evidence fail closed", () => {
+  const worker = employee("D1");
+  worker.fields.PREV_NONTAX_13TH_MONTH = "2000.00";
+  assert.ok(has(check([worker]), "UNVERIFIED_PREVIOUS_EMPLOYER", "EMP001"));
+  worker.priorEmployerReview = "form-2316-verified";
+  assert.ok(has(check([worker]), "PRIOR_EMPLOYER_EVIDENCE", "EMP001"));
+  worker.priorEmployerEvidenceReference = "synthetic-form-2316-from-prior-employer";
+  assert.equal(check([worker]).canGenerateCandidate, true);
+  const mwe = employee("D2");
+  delete mwe.mwePremiumEvidenceReference;
+  assert.ok(has(check([mwe]), "MWE_PREMIUM_EVIDENCE", "EMP001"));
 });
