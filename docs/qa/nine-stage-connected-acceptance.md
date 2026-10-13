@@ -9,9 +9,17 @@ Run on the PR via **Nine-Stage Connected Payroll Development Acceptance (No Mone
 The job is restricted to GitHub-hosted PostgreSQL 16 on 127.0.0.1/app_db and an
 empty database. It explicitly refuses provider keys, payout and filing submission
 flags, demo mode, remote hostnames and arbitrary production connections. The job
-builds the exact checked-out commit and uploads only sanitized JSON. Synthetic login
-handoff is removed before artifact upload. The browser job uses 375px/390px
-Chromium, not a real mobile device.
+builds the exact checked-out commit and uploads sanitized JSON and fictional UI screenshots.
+Synthetic login handoff is removed before artifact upload. The browser job uses
+1440px desktop and 375px/390px Chromium, not a real mobile device.
+
+The mobile header correction is behind `COMPACT_MOBILE_HEADER_ENABLED`, registered
+default OFF. Only the enabled server marks its shell for the scoped CSS. A separate
+localhost app keeps the flag OFF; authenticated browser checks and screenshots prove
+the marker is absent and the legacy flex layout remains. Actual workspace React
+rendering also proves absent/false flag markup is identical. The disabled comparison
+preserves the legacy layout, including its known narrow-screen overflow; it does not
+silently activate the fix or hide overflowing content.
 
 The historical September QA in `scripts/pilot-payroll-qa.ts` is useful regression
 evidence but its live Web Bundy punch falls outside its seeded September payroll period.
