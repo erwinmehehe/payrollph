@@ -21,8 +21,15 @@ The benchmark is Rippling for unified time/payroll *architecture*, Deputy for ro
 Use the existing [WFM Synthetic Evidence workflow](../../.github/workflows/wfm-pilot-synthetic-evidence.yml) against **the exact candidate SHA**; retain its `wfm-14-scenario-synthetic-evidence` artifact. For a local disposable loopback PostgreSQL with isolated CI secrets and the **validated** repository `db:push` guard, focused tests are:
 
 ```bash
+# Start a dedicated disposable PostgreSQL 16/18 app_db on localhost first.
+# Do not reuse any environment that contains employer/payroll data.
+export DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:5432/app_db'
+export CI='true'
+export GITHUB_ACTIONS='true'
+export BANK_DATA_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+export PII_ENCRYPTION_KEY="$(openssl rand -hex 32)"
 npm ci
-npm run db:push
+npm run db:push  # repository guard must confirm 127.0.0.1/app_db
 npx tsx --test --test-concurrency=1 tests/wfm-roster-scale-postgres.test.ts tests/workforce-roster-scale-rules.test.ts
 node --test tests/wfm-pilot-synthetic-evidence.test.mjs
 ```
