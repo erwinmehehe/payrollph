@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { workflowEntityHold } from "@/lib/workflow-entity-hold";
 import { recordAuditEvent } from "@/lib/audit";
 
 const STEPS: Record<string, { team: string; title: string; detail: string; sourceId: number }> = {
@@ -18,8 +19,9 @@ const STEPS: Record<string, { team: string; title: string; detail: string; sourc
 };
 
 export async function POST(request: Request) {
-  if (!criticalReleaseFlagEnabled("firstPayrollInline"))
+  if (!criticalReleaseFlagEnabled("workflowFirstPayrollAdvisory"))
     return Response.json({ error: "Inline first-payroll handoff is disabled." }, { status: 404 });
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const origin = enforceSameOriginMutation(request);
   if (origin) return origin;
   const user = await getSessionUser();
