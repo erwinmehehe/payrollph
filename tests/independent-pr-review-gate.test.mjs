@@ -121,6 +121,59 @@ test("a current approval is not release authority, and draft sensitive PRs stay 
   assert.equal(draft.ok, false);
 });
 
+test("core Time retention safety repair can be independently reviewed before pilot, never self-approved", () => {
+  const paths = [
+    "src/lib/workforce-punch-evidence.ts",
+    "src/lib/workforce-punch-retention.ts",
+    "tests/workforce-punch-evidence.test.ts",
+    "tests/workforce-punch-retention-db.test.ts",
+  ];
+  const files = paths.map(filename => ({ filename, status: "modified" }));
+  const scope = classifyReviewScope(files);
+  assert.equal(scope.hcmWfmFrozen, true);
+  assert.equal(scope.coreTimeRetentionSafetyRepair, true);
+  assert.equal(scope.requiresIndependentHuman, true);
+  const accepted = review(files);
+  assert.equal(accepted.ok, true, "a named non-author human can review the bounded safety fix pre-pilot");
+  assert.equal(accepted.releaseAuthorized, false);
+  const missing = review(files, {
+    reviewerAllowlist: "", reviews: [], permissions: {},
+  });
+  assert.equal(missing.ok, false);
+  assert.ok(missing.blockers.includes("NAMED_REVIEWER_NOT_CONFIGURED"));
+  assert.ok(missing.blockers.includes("CURRENT_HEAD_INDEPENDENT_APPROVAL_REQUIRED"));
+  assert.equal(review(files, { reviews: [human("reviewer", { commit_id: prior })] }).ok, false,
+    "stale-head approval must never qualify for a retention safety repair");
+  assert.equal(review(files, { permissions: { reviewer: "read" } }).ok, false);
+  assert.equal(review(files, { pr: pr(files, { draft: true }) }).ok, false);
+});
+
+test("core Time retention exemption refuses unrelated WFM, added, deleted and renamed changes", () => {
+  const base = [
+    "src/lib/workforce-punch-evidence.ts",
+    "src/lib/workforce-punch-retention.ts",
+    "tests/workforce-punch-evidence.test.ts",
+    "tests/workforce-punch-retention-db.test.ts",
+  ].map(filename => ({ filename, status: "modified" }));
+  const variants = [
+    base.slice(0, 3),
+    [...base, { filename: "src/lib/workforce-roster-rules.ts", status: "modified" }],
+    [...base, { filename: "drizzle/0122_new_wfm_feature.sql", status: "added" }],
+    base.map((file, i) => i === 0 ? { ...file, status: "added" } : file),
+    base.map((file, i) => i === 1 ? { ...file, status: "removed" } : file),
+    base.map((file, i) => i === 1 ? {
+      ...file, status: "renamed", previous_filename: "src/lib/workforce-roster.ts",
+    } : file),
+    [base[0], base[1], base[1], base[3]],
+  ];
+  for (const files of variants) {
+    const result = review(files);
+    assert.equal(result.scope.coreTimeRetentionSafetyRepair, false);
+    assert.equal(result.scope.hcmWfmFrozen, true);
+    assert.ok(result.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+  }
+});
+
 test("HCM/WFM/compensation remain frozen even when independently approved", () => {
   for (const path of [
     "src/lib/hcm-compensation.ts",
