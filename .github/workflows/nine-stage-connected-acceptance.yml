@@ -119,6 +119,8 @@ jobs:
         run: node scripts/qa/nine-stage-mobile-browser.mjs
       - name: Validate sanitized source and evidence contract
         if: always()
+        env:
+          NINE_STAGE_EVIDENCE_REQUIRED: "true"
         run: node --test tests/nine-stage-connected-evidence.test.mjs
       - name: Show bounded server errors on failure
         if: failure()

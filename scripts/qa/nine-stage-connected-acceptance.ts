@@ -177,13 +177,17 @@ async function main() {
       title: "Synthetic Attendance Worker", email: "worker.nine@linaw.test",
       payBasis: "monthly", rateAmount: 28000,
       standardWorkDaysPerMonth: 22, standardHoursPerDay: 8,
-      region: "NCR", startDate: "2026-01-01", bankAccount: "QA-ACCOUNT-NOT-REAL-01",
+      region: "NCR", startDate: workDate, bankAccount: "QA-ACCOUNT-NOT-REAL-01",
       bankCode: "BDO", mobile: "QA-ONLY-0001",
       tin: "QA-TIN-1001", sssNo: "QA-SSS-1001",
       philHealthNo: "QA-PHIC-1001", pagIbigNo: "QA-HDMF-1001", tinBranchCode: "0000",
     });
     worker = Number(created.employee?.id);
     assert.ok(worker > 0);
+    const [hiredWorker] = await db.select({ startDate: employees.startDate })
+      .from(employees).where(eq(employees.id, worker));
+    assert.equal(String(hiredWorker.startDate), workDate,
+      "First-payroll test must not invent a prior statutory cutoff for an existing worker");
     const [unit] = await db.insert(orgUnits).values({
       organizationId: orgA, type: "department", code: "NINE-QA",
       name: "Fictional Schedule Team",
@@ -197,7 +201,7 @@ async function main() {
       organizationId: orgB, employeeNo,
       firstName: "Fictional", lastName: "Tenant B",
       title: "Isolation Only", avatarInitials: "FB", basicRate: "28000",
-      startDate: "2026-01-01",
+      startDate: workDate,
     });
     const specs = [
       { key: "hr", role: "hr" }, { key: "manager", role: "manager" },
@@ -233,7 +237,7 @@ async function main() {
     assert.notEqual(Number(aEmployee[0].id), Number(bEmployee[0].id));
     evidence.push("API employee-create returned worker identity; distinct tenant A/B and seven login sessions");
     report.lineage = { organizationId: orgA, shadowOrganizationId: orgB, employeeId: worker,
-      periodStart, periodEnd, payDate, sourcePunchId: null, payrollRunId: null,
+      periodStart, periodEnd, payDate, employeeHireDate: workDate, sourcePunchId: null, payrollRunId: null,
       separateEmployerSameLocalEmployeeNo: true };
     // Private localhost browser sign-in handoff, never uploaded as an artifact.
     writeFileSync("qa-artifacts/.nine-stage-browser-auth.json",
@@ -424,7 +428,15 @@ async function main() {
     const entry = register.entries?.find((x: any) => Number(x.employeeId) === worker);
     assert.ok(entry && Number(entry.netPay) > 0, "Same Web Bundy worker missing from payable register");
     assert.equal(register.entries?.length, 1);
-    assert.equal(payrollRun.run?.exceptions, 0);
+    const flagCategories = [...new Set(
+      (Array.isArray(entry.trace?.flags) ? entry.trace.flags : []).map((flag: unknown) =>
+        typeof flag === "string"
+          ? flag.match(/^([A-Z][A-Z0-9_]+):/)?.[1] ?? "UNCLASSIFIED"
+          : "UNCLASSIFIED"),
+    )];
+    assert.equal(Number(payrollRun.run?.exceptions), 0,
+      "Unexpected payroll exception categories: " + flagCategories.join(","));
+    assert.equal(entry.status, "Ready", "Calculated worker must be free of review exceptions");
     assert.equal(entry.trace?.payableTime?.mode, "calendar-segmented");
     const payableSegments = entry.trace?.payableTime?.segments ?? [];
     assert.ok(payableSegments.some((segment: any) =>

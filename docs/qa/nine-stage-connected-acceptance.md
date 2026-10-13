@@ -38,3 +38,16 @@ remain separately NOT_RUN. Nothing authorizes production or real payouts.
 Failure reports are not a reason to weaken permission gates or application
 security. A failure marks overall acceptance FAIL, preserves sanitized stage evidence,
 and prevents promoting this draft PR as accepted.
+
+The acceptance fixture creates a **same-date newly hired worker** (2026-09-30) and
+asserts that the HRIS start date matches the simulated work day. An existing
+employee on a final monthly cutoff would need a released earlier-cutoff ledger
+for statutory true-up; the test must not invent that prior ledger or disable
+the statutory exception.
+
+The evidence test also runs in the ordinary sharded regression inventory. In
+ordinary CI, where there is intentionally no connected-journey report, it
+checks negative acceptance cases and skips artifact conformance without
+claiming any pass. Only the dedicated workflow sets
+`NINE_STAGE_EVIDENCE_REQUIRED=true`; there, missing, failed, wrong-commit,
+or incomplete connected evidence **must fail**.
