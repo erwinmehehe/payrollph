@@ -71,6 +71,26 @@ function isPinnedWfm691WitnessDevEvidence(files) {
       && WFM691_WITNESS_PINNED_BLOBS.get(file.filename) === file.sha);
 }
 
+/**
+ * Exact, development-only source fixture exception proposal for #965.
+ * This is a three-file TEST correction for the already-split CSV import.
+ * Every tracked Git blob must match the independently inspected PR #965 HEAD.
+ * Any runtime, schema, extra test, changed byte or Git rename remains frozen.
+ */
+const HCM_INTAKE_REGRESSIONS_PINNED_BLOBS = new Map([
+  ["tests/hcm-direct-route-policy-races.test.ts", "c986dc63f7e490a4e8ec3360f56d2f0a49525539"],
+  ["tests/hcm-governed-intake.test.ts", "94f9523c257a3b603ab726f61b5b80b11ff6e212"],
+  ["tests/hcm-legacy-write-integration.test.ts", "ba929f96c369fc9db00e414ae360bf7ee2c4e4ea"],
+]);
+function isPinnedHcmIntakeRegressionDevEvidence(files) {
+  if (files.length !== HCM_INTAKE_REGRESSIONS_PINNED_BLOBS.size) return false;
+  const unique = new Set(files.map(file => file.filename));
+  return unique.size === HCM_INTAKE_REGRESSIONS_PINNED_BLOBS.size
+    && files.every(file => file.status === "modified"
+      && typeof file.sha === "string"
+      && HCM_INTAKE_REGRESSIONS_PINNED_BLOBS.get(file.filename) === file.sha);
+}
+
 const FROZEN_LANES = [
   // Treat every component of the exact #969 offline witness set as frozen.
   // Otherwise dropping the test file leaves the docs and QA script outside
@@ -114,6 +134,7 @@ export function classifyReviewScope(files) {
   const wfm12DevEvidence = isExactWfm12DevelopmentEvidence(files);
   const wfmFiveWorkerDevEvidence = isPinnedWfmFiveWorkerDevEvidence(files);
   const wfm691WitnessDevEvidence = isPinnedWfm691WitnessDevEvidence(files);
+  const hcmIntakeRegressionDevEvidence = isPinnedHcmIntakeRegressionDevEvidence(files);
   const sensitivePaths = list.filter(path =>
     ALWAYS_SENSITIVE.some(regex => regex.test(path)) ||
     ["T2", "T3"].includes(tierForPath(path)));
@@ -124,6 +145,7 @@ export function classifyReviewScope(files) {
     wfm12DevEvidence,
     wfmFiveWorkerDevEvidence,
     wfm691WitnessDevEvidence,
+    hcmIntakeRegressionDevEvidence,
     sensitiveFileCount: sensitivePaths.length,
     frozenFileCount: frozenPaths.length,
   };
@@ -181,6 +203,7 @@ export function evaluateIndependentReview({
   const blockers = [];
   if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
       !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
+       !scope.hcmIntakeRegressionDevEvidence &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {
