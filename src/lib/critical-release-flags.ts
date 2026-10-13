@@ -120,12 +120,6 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 Pipeline, public careers and hiring handoff",
     approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
   },
-  employeeCases: {
-    env: "EMPLOYEE_CASES_UI_ENABLED",
-    owner: "People / Privacy",
-    risk: "P1 Employee requests and HR case inbox",
-    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
-  },
   publicIntakeProof: {
     env: "PUBLIC_INTAKE_PROOF_ENABLED", owner: "Security",
     risk: "Public enquiry and signup anti-automation", approval: "Proof replay, limits and accessible intake acceptance",

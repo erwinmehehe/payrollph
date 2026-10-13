@@ -36,7 +36,6 @@ import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/compon
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
 import { MoreModulesPage } from "@/components/workspace/more-modules-page";
-import { EmployeeCaseInbox } from "@/components/workspace/employee-case-ui";
 import { OfflinePunchReviewQueue } from "@/components/workspace/offline-punch-review";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
@@ -153,8 +152,6 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   const effectiveRole = demoRole ?? data.access?.role ?? data.user?.role ?? null;
   const rolePages = demoRole ? demoRolePages(demoRole) : workspacePagesForRole(effectiveRole);
   const coreModules = data.coreModuleNavigationEnabled === true && data.selectedOrganization.moduleNavigationMode === "core" && !isFreelancer;
-  const canSeeEmployeeCases = workflowUi.employeeCases && !isFreelancer && !demoRole
-    && data.access?.companyWide === true && ["owner", "admin", "hr"].includes(effectiveRole ?? "");
   // The existing tenant-aware core navigation remains authoritative. An older
   // optional core-only frontend must not displace or duplicate its module UI.
   const legacyCompactCore = workflowUi.coreOnlyNav && isSelfServeCustomer
@@ -168,10 +165,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   const availablePages = useMemo(() => {
     const pages = tenantNavigationPages({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, rolePages, companyWide: data.access?.companyWide, canManageModules: ["owner", "admin", "bookkeeper"].includes(effectiveRole ?? "") }, pilotFocusEnabled && !demoRole);
     if (entityVisible && !pages.includes("Entities")) pages.push("Entities");
-    if (canSeeEmployeeCases && !pages.includes("Employee requests")) pages.push("Employee requests");
     if (legacyCompactCore && ["owner", "admin", "hr"].includes(effectiveRole ?? "") && !pages.includes("More modules")) pages.push("More modules");
     return pages;
-  }, [data.access?.companyWide, data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole, entityVisible, canSeeEmployeeCases, legacyCompactCore]);
+  }, [data.access?.companyWide, data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole, entityVisible, legacyCompactCore]);
   const visiblePages = legacyCompactCore
     ? availablePages.filter(name => ["Overview", "People", "Time & attendance", "Payroll", "Analytics", "Approvals", "More modules", "Entities"].includes(name))
     : availablePages;
@@ -548,7 +544,6 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           </>
         )}
 
-        {page === "Employee requests" && canSeeEmployeeCases && <EmployeeCaseInbox organizationId={data.selectedOrganization.id} />}
         {page === "Payroll" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity}
           organizationId={data.selectedOrganization.id} title="Payroll by entity" />}
         {page === "Payroll" && (

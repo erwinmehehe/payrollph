@@ -1,3 +1,5 @@
+**Integration update (2026-10-13): Canonical A-3 employee HR cases and COE approvals already exist on main. The duplicate #862 employee request UI/API and service-case schema have now been removed from this draft. Only NINE independently default-OFF legacy UI controls remain. The previous "ten workflow" inventory below is historical; employee HR cases are not a deliverable of this PR. An independent real-device and pilot approval gate remains mandatory.**
+
 **PostgreSQL tenant integrity fix (2026-10-12):** The Drizzle schema for optional employee request and offline attendance tables now matches the unnumbered SQL proposal, including composite tenant foreign keys (organization_id, employee_id) and (organization_id, case_id), plus required compound unique keys on employees and employee cases. This closes a disposable db:push gap where cross-tenant inserts could pass while the migration proposal specified fail-closed constraints. The integration test exercises each rejection. The desktop employee navigation assertion now checks conditional visibleSelfTabs and preserved base tabs. Source-only; no live Neon DDL applied.
 
 # Ten workflow frontends — role, state, mobile and screenshot acceptance
@@ -22,7 +24,7 @@ Every flag is evaluated **on the server**, passed to the client through `Workflo
 | Report builder | `REPORT_BUILDER_UI_ENABLED` |
 | Benefits and loans | `BENEFITS_LOANS_UI_ENABLED` |
 | Recruitment | `RECRUITMENT_JOURNEY_UI_ENABLED` |
-| Employee case management | `EMPLOYEE_CASES_UI_ENABLED` |
+| Employee case management | **Retired from #862; canonical `EMPLOYEE_HR_CASES_ENABLED` on main only** |
 
 The new release registry lives in `src/lib/critical-release-flags.ts`. Unset flags leave the new interface invisible. Other existing safety flags (e.g. `WFM_BULK_PUBLISH_UI_ENABLED` and treasury/payroll approval controls) remain independent; these UI flags **cannot** override them.
 
@@ -47,12 +49,12 @@ The new release registry lives in `src/lib/critical-release-flags.ts`. Unset fla
 
 **MIGRATION NOT ALLOCATED / DO NOT APPLY:** The SQL below is a design proposal, not a numbered release migration. The current #865 train exclusively owns 0115-0119. Split the ten-feature PR and obtain a reviewed post-train number with exact-head code/schema parity and historical-receipt DBA signoff before merging or enabling any flag.
 
-`docs/engineering/migration-proposals/workflow-frontend-requests.sql` adds only additive schema: `job_requisitions.careers_published` (default false), `saved_report_definitions`, `employee_service_cases`, `employee_service_case_messages`, `offline_punch_claims`. Composite tenant foreign keys exist for case-to-employee, case-message-to-case, and offline-claim-to-employee. Existing payroll and employee identity are not modified. Because main is frequently rewritten and PR #860 may also use numeric prefix 0115, **a final re-fetch, migration number reconciliation and applied-hash receipt audit are mandatory before merge**. Do not run production migration until DBA rehearses it **twice** on a representative isolated copy and signs data/constraint evidence. Rolling back the feature is flag-OFF; keep immutable case/claim data and never truncate payroll.
+`docs/engineering/migration-proposals/workflow-frontend-requests.sql` adds only additive schema: `job_requisitions.careers_published` (default false), `saved_report_definitions`, `offline_punch_claims`. A composite tenant foreign key remains for offline-claim-to-employee; canonical HR cases have their own separately reviewed tenant constraints on main. Existing payroll and employee identity are not modified. Because main is frequently rewritten and PR #860 may also use numeric prefix 0115, **a final re-fetch, migration number reconciliation and applied-hash receipt audit are mandatory before merge**. Do not run production migration until DBA rehearses it **twice** on a representative isolated copy and signs data/constraint evidence. Rolling back the feature is flag-OFF; keep immutable case/claim data and never truncate payroll.
 
 ## Executable tests added
 
 - `tests/workflow-frontend-behavior.test.ts` executes real flag decisions, canonical first-payroll flag-off parity, multiline quoted CSV parser and spreadsheet-safe error download, report projections and formula-safe CSV, centavo-safe loan schedule, and React server-rendered screens for role-specific navigation/requests/camera/careers. Tests assert behavior, **not source-code grep**.
-- `tests/workflow-case-tenant-integration.test.ts` executes PostgreSQL two-tenant and multiple-employee fixtures, using the same tenant/employee predicates and composite FK refusal for foreign employee IDs and case IDs. Requires additive schema; before the migration is installed, this fixture reports explicit skipped status rather than pretending successful isolation.
+- `tests/workflow-offline-claim-tenant-integration.test.ts` executes PostgreSQL two-tenant and multiple-employee offline-claim fixtures, including composite FK refusal for cross-tenant employee IDs. Canonical HR-case role/privacy/FK tests remain on main. Requires isolated additive schema; the fixture explicitly skips when absent.
 - Additional full HTTP authentication/permission, real camera/reconnect, maker-checker roster, hiring, browser and two-role tests are still required for release acceptance.
 
 **Required commands on exact head SHA:**

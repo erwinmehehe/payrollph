@@ -10,7 +10,6 @@ import { loanDisplaySchedule } from "../src/lib/loan-schedule-view";
 import { FirstPayrollReadinessCard } from "../src/components/workspace/first-payroll-readiness";
 import { MoreModulesPage } from "../src/components/workspace/more-modules-page";
 import { WorkflowUiProvider } from "../src/components/workspace/workflow-ui-context";
-import { EmployeeRequestPanel, EmployeeCaseInbox } from "../src/components/workspace/employee-case-ui";
 import { FaceOfflinePunchPanel } from "../src/components/workspace/face-offline-punch";
 import { OfflinePunchReviewQueue } from "../src/components/workspace/offline-punch-review";
 import { CareersBoard } from "../src/components/careers-board";
@@ -29,7 +28,7 @@ const readiness: FirstPayrollReadiness = {
   ],
 };
 
-test("all ten workflow UI flags are default OFF and require exact true", () => {
+test("all nine remaining draft workflow UI flags are default OFF and require exact true", () => {
   const flags = {
     workflowFirstPayrollAdvisory: "FIRST_PAYROLL_INLINE_UI_ENABLED",
     importReview: "IMPORT_REVIEW_UI_ENABLED",
@@ -40,7 +39,6 @@ test("all ten workflow UI flags are default OFF and require exact true", () => {
     reportBuilder: "REPORT_BUILDER_UI_ENABLED",
     benefitsLoans: "BENEFITS_LOANS_UI_ENABLED",
     recruitmentJourney: "RECRUITMENT_JOURNEY_UI_ENABLED",
-    employeeCases: "EMPLOYEE_CASES_UI_ENABLED",
   } as const;
   assert.ok(Object.values(EMPTY_WORKFLOW_UI_FLAGS).every(value => value === false));
   for (const [key, env] of Object.entries(flags)) {
@@ -122,18 +120,11 @@ test("core-only More modules executes role-gated React rendering", () => {
   assert.doesNotMatch(more, /Open Discipline/);
 });
 
-test("new request, HR review and offline consent screens have useful loading/empty state", () => {
-  const employee = renderToStaticMarkup(createElement(EmployeeRequestPanel,{organizationId:1}));
-  assert.match(employee,/Ask HR/);
-  assert.match(employee,/Request category/);
-  assert.match(employee,/Loading requests/);
-  const hr = renderToStaticMarkup(createElement(EmployeeCaseInbox,{organizationId:1}));
-  assert.match(hr,/Employee requests inbox/);
-  assert.doesNotMatch(hr,/Send request to HR/);
-  const camera = renderToStaticMarkup(createElement(FaceOfflinePunchPanel,{organizationId:1,employeeId:1}));
+test("unverified offline camera and reviewer queue keep explicit empty/loading states", () => {
+  const camera = renderToStaticMarkup(createElement(FaceOfflinePunchPanel,{ organizationId:1,employeeId:1 }));
   assert.match(camera,/camera preview/i);
   assert.match(camera,/not face verification/i);
-  const review = renderToStaticMarkup(createElement(OfflinePunchReviewQueue,{organizationId:1}));
+  const review = renderToStaticMarkup(createElement(OfflinePunchReviewQueue,{ organizationId:1 }));
   assert.match(review,/Unverified offline punch claims/);
   assert.match(review,/Loading offline claims/);
 });
@@ -153,24 +144,16 @@ test("public careers displays published job card or grounded empty state", () =>
   assert.doesNotMatch(html,/bank account/i);
 });
 
-test("canonical HR cases supersede the draft employee request entrypoint without enabling other UI flags", () => {
-  const enabledLegacy = resolveWorkflowUiFlags({
+test("canonical HR Requests flag remains separate from the nine optional UI controls", () => {
+  assert.equal(criticalReleaseFlagEnabled("employeeHrCases", { EMPLOYEE_HR_CASES_ENABLED: "true" }), true);
+  assert.equal(criticalReleaseFlagEnabled("employeeHrCases", { EMPLOYEE_CASES_UI_ENABLED: "true" }), false);
+  const flags = resolveWorkflowUiFlags({
+    EMPLOYEE_HR_CASES_ENABLED: "true",
     EMPLOYEE_CASES_UI_ENABLED: "true",
-    EMPLOYEE_HR_CASES_ENABLED: "false",
     MULTI_ENTITY_ENABLED: "false",
   });
-  assert.equal(enabledLegacy.employeeCases, true);
-  const canonical = resolveWorkflowUiFlags({
-    EMPLOYEE_CASES_UI_ENABLED: "true",
-    EMPLOYEE_HR_CASES_ENABLED: "true",
-    MULTI_ENTITY_ENABLED: "false",
-  });
-  assert.equal(canonical.employeeCases, false);
-  assert.equal(canonical.faceOfflinePunch, false);
-  assert.equal(canonical.reportBuilder, false);
-  assert.equal(resolveWorkflowUiFlags({
-    EMPLOYEE_CASES_UI_ENABLED: "true",
-    EMPLOYEE_HR_CASES_ENABLED: "true",
-    MULTI_ENTITY_ENABLED: "true",
-  }).employeeCases, false);
+  assert.equal(Object.keys(flags).length, 9);
+  assert.ok(Object.values(flags).every(value => value === false));
+  assert.equal("employeeCases" in flags, false);
+  assert.ok(Object.values(resolveWorkflowUiFlags({ MULTI_ENTITY_ENABLED: "true" })).every(value => value === false));
 });

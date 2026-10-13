@@ -10,7 +10,6 @@ export type WorkflowUiFlags = {
   reportBuilder: boolean;
   benefitsLoans: boolean;
   recruitmentJourney: boolean;
-  employeeCases: boolean;
 };
 
 export const EMPTY_WORKFLOW_UI_FLAGS: Readonly<WorkflowUiFlags> = Object.freeze({
@@ -23,7 +22,6 @@ export const EMPTY_WORKFLOW_UI_FLAGS: Readonly<WorkflowUiFlags> = Object.freeze(
   reportBuilder: false,
   benefitsLoans: false,
   recruitmentJourney: false,
-  employeeCases: false,
 });
 
 /** Resolve only on the server. No NEXT_PUBLIC flags or client-side grants. */
@@ -43,8 +41,5 @@ export function resolveWorkflowUiFlags(
     reportBuilder: criticalReleaseFlagEnabled("reportBuilder", env),
     benefitsLoans: criticalReleaseFlagEnabled("benefitsLoans", env),
     recruitmentJourney: criticalReleaseFlagEnabled("recruitmentJourney", env),
-    // Keep one authoritative HR request UI when the newer governed A-3 flow is enabled.
-    employeeCases: criticalReleaseFlagEnabled("employeeCases", env)
-      && !criticalReleaseFlagEnabled("employeeHrCases", env),
   };
 }

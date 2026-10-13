@@ -6327,47 +6327,6 @@ export const savedReportDefinitions = pgTable("saved_report_definitions", {
   uniqueIndex("saved_reports_user_name_unique").on(table.organizationId, table.userId, table.name),
 ]);
 
-/** Employee requests are case records; a request does not itself change payroll. */
-export const employeeServiceCases = pgTable("employee_service_cases", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
-  category: varchar("category", { length: 40 }).notNull(),
-  subject: varchar("subject", { length: 160 }).notNull(),
-  description: text("description").notNull(),
-  priority: varchar("priority", { length: 16 }).notNull().default("normal"),
-  status: varchar("status", { length: 24 }).notNull().default("open"),
-  assignedToUserId: integer("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [
-  index("employee_service_cases_org_status_idx").on(table.organizationId, table.status, table.createdAt),
-  index("employee_service_cases_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
-  unique("employee_service_cases_org_id_unique").on(table.organizationId, table.id),
-  foreignKey({
-    name: "workflow_case_employee_tenant_fk",
-    columns: [table.organizationId, table.employeeId],
-    foreignColumns: [employees.organizationId, employees.id],
-  }).onDelete("restrict"),
-]);
-
-export const employeeServiceCaseMessages = pgTable("employee_service_case_messages", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  caseId: integer("case_id").notNull().references(() => employeeServiceCases.id, { onDelete: "cascade" }),
-  authorUserId: integer("author_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
-  body: text("body").notNull(),
-  internal: boolean("internal").notNull().default(false),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [
-  index("service_case_messages_case_idx").on(table.organizationId, table.caseId, table.createdAt),
-  foreignKey({
-    name: "workflow_case_message_tenant_fk",
-    columns: [table.organizationId, table.caseId],
-    foreignColumns: [employeeServiceCases.organizationId, employeeServiceCases.id],
-  }).onDelete("cascade"),
-]);
-
 /** An offline punch is unverified evidence, never an authoritative time_punch. */
 export const offlinePunchClaims = pgTable("offline_punch_claims", {
   id: serial("id").primaryKey(),

@@ -63,7 +63,6 @@ export const NAVIGATION: NavGroup[] = [
     label: "Workspace",
     items: [
       { name: "Overview", icon: LayoutDashboard, hint: "Payroll status, approvals and cost at a glance", tone: "blue" },
-      { name: "Employee requests", icon: ClipboardCheck, hint: "HR inbox for governed employee requests and replies", tone: "purple" },
       { name: "Payroll", icon: WalletCards, hint: "Prepare, approve, release and export a run", tone: "green", badge: "runs" },
       { name: "People", icon: UsersRound, hint: "Employee directory, import and structure", tone: "purple", badge: "people" },
       { name: "Migration", icon: RefreshCcw, hint: "Switch from another payroll or HRIS with validated imports", tone: "teal" },

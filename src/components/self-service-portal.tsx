@@ -35,7 +35,6 @@ import { EmployeeExplainPay } from "@/components/employee-explain-pay";
 import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
 import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
-import { EmployeeRequestPanel } from "@/components/workspace/employee-case-ui";
 import { EmployeeHrCasesPanel } from "@/components/employee-hr-cases-panel";
 import { HcmSelfProbationReviews } from "@/components/hcm-self-probation-reviews";
 import { HcmSelfPerformance } from "@/components/hcm-self-performance";
@@ -208,7 +207,7 @@ type Payload = {
   };
 };
 
-type SelfTab = "home" | "pay" | "time" | "leave" | "documents" | "performance" | "profile" | "requests";
+type SelfTab = "home" | "pay" | "time" | "leave" | "documents" | "performance" | "profile";
 
 const ESS_TAB_CONFIG: Record<SelfTab, { label: string; mobileLabel?: string; icon: LucideIcon }> = {
   home: { label: "Home", icon: House },
@@ -217,7 +216,6 @@ const ESS_TAB_CONFIG: Record<SelfTab, { label: string; mobileLabel?: string; ico
   leave: { label: "Leave", icon: CalendarDays },
   documents: { label: "Documents", icon: FileText },
   performance: { label: "Performance", icon: BadgeCheck },
-  requests: { label: "Requests", mobileLabel: "Ask HR", icon: FileText },
   profile: { label: "Profile", mobileLabel: "My info", icon: UserRound },
 };
 
@@ -268,10 +266,6 @@ function statusTone(status: string) {
 
 export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?: boolean } = {}) {
   const workflowUi = useWorkflowUi();
-  // A single employee request entrypoint: canonical HR cases take precedence.
-  const legacyRequestsEnabled = workflowUi.employeeCases && !hrCasesEnabled;
-  const visibleSelfTabs = legacyRequestsEnabled ? [...ESS_ALL_TABS, "requests" as const] : ESS_ALL_TABS;
-  const moreSelfTabs = legacyRequestsEnabled ? [...ESS_MORE_TABS, "requests" as const] : ESS_MORE_TABS;
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demoRole") === "employee";
   const [language, setLanguage] = useState<EssLanguage>("en");
@@ -568,7 +562,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
         </div>
         <div className="workspace-label employee-workspace-label"><span className="pulse-dot" />{t("Employee workspace")}</div>
         <nav className="side-navigation employee-side-nav" aria-label={t("Employee pages")}>
-          {visibleSelfTabs.map((value) => {
+          {ESS_ALL_TABS.map((value) => {
             const { icon: Icon, label } = ESS_TAB_CONFIG[value];
             return (
               <button
@@ -645,7 +639,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
             <button
               ref={moreButtonRef}
               type="button"
-              className={moreOpen || moreSelfTabs.includes(tab) ? "active" : ""}
+              className={moreOpen || ESS_MORE_TABS.includes(tab) ? "active" : ""}
               aria-expanded={moreOpen}
               aria-controls={moreOpen ? "employee-more-panel" : undefined}
               aria-label="More employee pages"
@@ -666,7 +660,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
                   </button>
                 </div>
                 <div className="employee-more-links">
-                  {moreSelfTabs.map((value, index) => {
+                  {ESS_MORE_TABS.map((value, index) => {
                     const { icon: Icon, label, mobileLabel } = ESS_TAB_CONFIG[value];
                     return (
                       <button
@@ -1095,11 +1089,6 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
         </section>
       )}
 
-      {legacyRequestsEnabled && tab === "requests" && data.employer && (
-        <section className="employee-section">
-          <EmployeeRequestPanel organizationId={data.employer.id} />
-        </section>
-      )}
       {tab === "documents" && data.employer && (
         <>
           <EmployeeDocumentsPanel organizationId={data.employer.id} language={language} />

@@ -113,9 +113,10 @@ test("employee app exposes pay time leave and profile as first-class sections", 
   for (const [tab, label] of [["home", "Home"], ["pay", "Pay"], ["time", "Time"], ["leave", "Leave"], ["profile", "Profile"]]) {
     assert.ok(portal.includes(`${tab}: { label: "${label}"`), `missing desktop ${label} navigation`);
   }
-  assert.ok(portal.includes("visibleSelfTabs.map((value) => {"), "desktop navigation must expose available employee sections");
-  assert.ok(portal.includes('const visibleSelfTabs = workflowUi.employeeCases ? [...ESS_ALL_TABS, "requests" as const] : ESS_ALL_TABS'),
-    "optional requests must extend, not replace, existing employee tabs");
+  assert.ok(portal.includes("ESS_ALL_TABS.map((value) => {"), "desktop navigation must preserve existing employee sections");
+  assert.ok(portal.includes("EmployeeHrCasesPanel language={language} enabled={hrCasesEnabled}"),
+    "canonical confidential HR requests must remain available behind their separate reviewed feature gate");
+  assert.ok(!portal.includes("EmployeeRequestPanel"), "retired legacy HR request UI must not be restored");
   assert.ok(portal.includes("ESS_PRIMARY_TABS.map((value) => {"), "mobile navigation must keep the primary employee tabs");
   assert.ok(read("src/components/employee-home-dashboard.tsx").includes("employee-latest-pay"));
   assert.ok(portal.includes("employee-pay-breakdown"));
