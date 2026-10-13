@@ -12,6 +12,8 @@ on:
       - "tests/issue-910-0121-postgres.test.mjs"
       - "tests/issue-910-forward-predecessor-postgres.test.mjs"
       - "docs/sql/issue-910-review-only-forward-predecessor.sql"
+      - "docs/sql/issue-910-read-only-catalog-probe.sql"
+      - "tests/issue-910-readonly-catalog-probe.test.mjs"
 
       - "drizzle/0022_job_architecture_positions.sql"
       - "drizzle/0050_hcm_core_worker_history.sql"
@@ -31,6 +33,8 @@ on:
       - "tests/issue-910-0121-postgres.test.mjs"
       - "tests/issue-910-forward-predecessor-postgres.test.mjs"
       - "docs/sql/issue-910-review-only-forward-predecessor.sql"
+      - "docs/sql/issue-910-read-only-catalog-probe.sql"
+      - "tests/issue-910-readonly-catalog-probe.test.mjs"
       - "docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql"
       - "drizzle/0022_job_architecture_positions.sql"
       - "drizzle/0050_hcm_core_worker_history.sql"
@@ -60,6 +64,7 @@ jobs:
         run: |
           node --test tests/issue-910-0121-review.test.mjs
           node --test tests/issue-910-source-manifest.test.mjs
+          node --test tests/issue-910-readonly-catalog-probe.test.mjs
           node scripts/issue-910-source-manifest.mjs --json > /dev/null
 
   rehearsal-pg:
