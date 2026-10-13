@@ -189,6 +189,23 @@ try {
   assert.equal(ownerContext.data.canSwitch, true);
   assert.equal(ownerContext.data.entities.length, 2);
   assert.equal((await request(owner, on, "/api/multi-entity/reports?organizationId=1")).status, 403);
+  await checkpoint("HCM API GET/POST fail closed under multi-entity flag", async () => {
+    for (const path of [
+      "/api/hcm/lifecycle-readiness?organizationId=1",
+      "/api/hcm/people-operations-inbox?organizationId=1",
+      "/api/hcm/effective-changes?organizationId=1",
+      "/api/hcm/worker-profile?organizationId=1",
+    ]) {
+      const denied = await request(owner, on, path);
+      assert.equal(denied.status, 403, "Multi-entity HCM must fail closed: " + path);
+      assert.equal(denied.data?.code, "ENTITY_HCM_DEFERRED");
+    }
+    const mutation = await request(owner, on, "/api/hcm/effective-changes", "POST", {
+      organizationId: 1,
+    });
+    assert.equal(mutation.status, 403, "Unreviewed HCM mutation must never reach its route");
+    assert.equal(mutation.data?.code, "ENTITY_HCM_DEFERRED");
+  });
   await checkpoint("Owner one-granted-entity context and header", async () => {
     await app(op, on);
     const sw = op.getByRole("combobox", { name: "Legal entity switcher" }).first();
@@ -373,6 +390,9 @@ try {
 
   const disabled = await newSyntheticContext({ viewport: { width: 1440, height: 900 } });
   await login(disabled, off, "entity-owner@example.test");
+  const legacyHcm = await request(disabled, off, "/api/hcm/lifecycle-readiness?organizationId=1");
+  assert.notEqual(legacyHcm.data?.code, "ENTITY_HCM_DEFERRED",
+    "Feature-OFF HCM must not inherit the multi-entity hold");
   assert.equal((await request(disabled, off, "/api/multi-entity/context?organizationId=1")).status, 404);
   const oldPage = await disabled.newPage();
   await checkpoint("Flag OFF has no entity switcher or badge", async () => {

@@ -1,3 +1,9 @@
+## 2026-10-13 frozen-HCM/WFM source split — fail-closed guard is deliberate
+
+Eight HCM/WFM-frozen file changes are being deferred into a separate stacked draft review; their scoped-read and effective-change protections are **not** silently discarded. While `MULTI_ENTITY_ENABLED=true`, core PR #860 now denies **all** `/api/hcm/:path*` HTTP read/write requests in Next.js `src/proxy.ts` with `403 ENTITY_HCM_DEFERRED`, and skips the `runScheduledWorkerEffectiveChanges` scheduler job. This is a restrictive temporary compatibility hold, not production activation.
+
+Other HCM jobs and direct library callers still require their own worker/async security audit and independent source review before any multi-entity release. The three `MULTI_ENTITY_*` flags remain default OFF. Existing single-employer flag-OFF HCM behavior must remain unchanged. No deferred HCM code or UI should be treated as independently reviewed; the hold must not be lifted merely because the stacked PR merges. Synthetic authenticated HTTP checks verify the hold and flag-OFF parity. No live SQL, employee transfer, payroll release or financial action was performed.
+
 # Design-review reconciliation for existing multi-entity draft #860 (2026-10-13)
 
 **Scope of this technical review:** reuse the already merged RFC (#857), existing `legal_entities`/ `legal_entity_id` (0045/0065), canonical source-only SQL `0121`, and the *existing* draft #860. **Approval status:** architectural direction reviewed and accepted for **source-only, fail-closed authorization/test hardening**; independent DBA, security, Philippine payroll/HR/legal design and schema/production activation approvals are **NOT granted**. Do not mark #860 ready or apply/merge SQL based on this note. A full release decision remains HOLD.
