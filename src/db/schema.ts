@@ -3036,6 +3036,43 @@ export const jobApplicants = pgTable("job_applicants", {
   uniqueIndex("job_applicants_hired_employee_unique")
     .on(table.hiredEmployeeId)
     .where(sql`${table.hiredEmployeeId} is not null`),
+  unique("job_applicants_org_id_privacy_fk").on(table.organizationId, table.id),
+]);
+
+/**
+ * A-2 applicant privacy: independent additive table so default-off recruiting
+ * does not query columns absent from the live job_applicants schema.
+ * The release migration also installs a composite employer/candidate FK.
+ */
+export const applicantPrivacyEvidence = pgTable("applicant_privacy_evidence", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  applicantId: integer("applicant_id").notNull().references(() => jobApplicants.id, { onDelete: "cascade" }),
+  legalBasis: varchar("legal_basis", { length: 32 }).notNull(),
+  privacyNoticeVersion: varchar("privacy_notice_version", { length: 64 }).notNull(),
+  consentCapturedAt: timestamp("consent_captured_at", { withTimezone: true }).notNull(),
+  sourceEvidenceReference: varchar("source_evidence_reference", { length: 200 }).notNull(),
+  rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+  legalHold: boolean("legal_hold").notNull().default(false),
+  purgedAt: timestamp("purged_at", { withTimezone: true }),
+  purgedByUserId: integer("purged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionRequestedByUserId: integer("deletion_requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionRequestedAt: timestamp("deletion_requested_at", { withTimezone: true }),
+  deletionReason: varchar("deletion_reason", { length: 500 }),
+  deletionReviewedByUserId: integer("deletion_reviewed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionReviewedAt: timestamp("deletion_reviewed_at", { withTimezone: true }),
+  deletionReviewEvidenceReference: varchar("deletion_review_evidence_reference", { length: 200 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("applicant_privacy_org_candidate_unique").on(table.organizationId, table.applicantId),
+  index("applicant_privacy_rejection_due_idx").on(table.organizationId, table.rejectedAt, table.purgedAt),
+  foreignKey({
+    name: "applicant_privacy_employer_fk",
+    columns: [table.organizationId, table.applicantId],
+    foreignColumns: [jobApplicants.organizationId, jobApplicants.id],
+  }).onDelete("cascade"),
+  check("applicant_privacy_legal_basis_check", sql`${table.legalBasis} = 'consent'`),
+  check("applicant_privacy_purged_rejected_check", sql`${table.purgedAt} is null or ${table.rejectedAt} is not null`),
 ]);
 
 /** Confidential HR service requests, scoped to the employee and their employer. */
