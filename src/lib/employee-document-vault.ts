@@ -63,3 +63,14 @@ export function isMandatoryDocumentMissing(row: {
 }): boolean {
   return row.mandatory && row.status === "missing";
 }
+
+/** Never release an unverified private object, even after flag rollback in QA. */
+export function documentBytesMayBeReleased(input: {
+  scannedClean: boolean;
+  isProduction: boolean;
+  vaultEnabled: boolean;
+  hasPrivateObject: boolean;
+}): boolean {
+  return input.scannedClean ||
+    (!input.isProduction && !input.vaultEnabled && !input.hasPrivateObject);
+}
