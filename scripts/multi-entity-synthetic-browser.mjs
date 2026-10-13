@@ -83,7 +83,18 @@ async function app(page, base) {
 }
 async function gotoScreen(page, target) {
   if (page.viewportSize()?.width < 550) {
-    await page.getByRole("button", { name: "Open navigation" }).click();
+    // On phones the visible People tab lives in the bottom navigation. The
+    // desktop sidebar is off-canvas even if its DOM button is still attached.
+    if (target === "People") {
+      const shortcut = page.locator(".mobile-bottom-nav button")
+        .filter({ hasText: /^(People|Employees)$/ }).first();
+      if (await shortcut.isVisible()) {
+        await shortcut.click();
+        await page.locator('[data-workspace-page="' + target + '"]').waitFor({ timeout: 30000 });
+        return;
+      }
+    }
+    await page.getByRole("button", { name: "More navigation options" }).click();
   }
   let nav = page.locator('.sidebar [data-nav-name="' + target + '"]').first();
   if (!(await nav.count())) {
