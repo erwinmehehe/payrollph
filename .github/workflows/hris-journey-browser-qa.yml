@@ -138,6 +138,8 @@ jobs:
         run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
       - name: Add unit managers, approval and onboarding acceptance records
         run: npx tsx scripts/hris-journey-synthetic-fixture.ts
+      - name: Link fictional ESS identity for A-3 HR-case acceptance (disposable DB)
+        run: npx tsx scripts/hr-cases-synthetic-employee-link.ts
       - name: Build local app with tenant-scoped synthetic flags
         run: npm run build
       - name: Install pinned Chromium
