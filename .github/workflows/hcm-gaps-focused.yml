@@ -34,18 +34,18 @@ jobs:
     env:
       TZ: Asia/Manila
       CI: "true"
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hcm_test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: hcm_test
+          POSTGRES_DB: app_db
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d hcm_test"
+          --health-cmd "pg_isready -U postgres -d app_db"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -79,18 +79,18 @@ jobs:
     env:
       TZ: Asia/Manila
       CI: "true"
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hcm_build
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: hcm_build
+          POSTGRES_DB: app_db
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d hcm_build"
+          --health-cmd "pg_isready -U postgres -d app_db"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -115,18 +115,18 @@ jobs:
     env:
       TZ: Asia/Manila
       CI: "true"
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hcm_golden
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: hcm_golden
+          POSTGRES_DB: app_db
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d hcm_golden"
+          --health-cmd "pg_isready -U postgres -d app_db"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
