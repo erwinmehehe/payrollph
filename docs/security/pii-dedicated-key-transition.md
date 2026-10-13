@@ -1,5 +1,16 @@
 # Dedicated PII key transition (S-2)
 
+## Prelaunch development acceptance (October 13, 2026)
+
+**S-2 is development-complete without a dedicated remote staging environment.** The owner confirms PayrollPH has no customers yet. Source PRs [#917](https://github.com/erwinmehehe/payrollph/pull/917), [#931](https://github.com/erwinmehehe/payrollph/pull/931), and [#939](https://github.com/erwinmehehe/payrollph/pull/939) implement dedicated-key startup/worker checks, required encryption writers, default-off legacy reads, and an optional tenant-scoped rewrap. Real startup and synthetic PostgreSQL behavior tests cover missing keys, legacy reads, current-key-only decryption, re-encryption, conflicts, and tenant isolation. These security protections stay on even during development.
+
+**Read-only development inventory (Neon default `main` branch, `neondb`, 2026-10-13):** one organization, eight employees, zero contractors. All five employee government-ID columns (`tin`, `tin_branch_code`, `sss_no`, `philhealth_no`, `pagibig_no`) were blank; contractor TIN had zero records. No existing government-ID envelope in these tables needs legacy migration. The optional ESS photo/identifier tables were **absent**, not verified empty; track development schema alignment separately in [#953](https://github.com/erwinmehehe/payrollph/issues/953). No ciphertext, employee identifiers, or secret values were retrieved. Vercel has `PII_ENCRYPTION_KEY`, bank, and TOTP key **entries** configured for its production-labeled deployment target; presence alone does not prove secret values are distinct, so startup and write checks remain mandatory.
+
+**Pre-client workflow:** use disposable localhost PostgreSQL, fictional employer data, real behavior tests, lint/typecheck and golden payroll suites. A separate staging project, production snapshot/restore, DBA-attested legacy-data rewrite, and rotation rehearsal are **not required** when there are no historical ciphertext records to preserve. Do not turn on `PII_LEGACY_READ_ENABLED` or invoke `rotate-pii-legacy.ts --apply` merely to close S-2. Do not wipe the shared development database: it contains eight employee rows, regardless of whether those are demos.
+
+**When data changes:** if historical encrypted test records appear and must be preserved, inventory their provenance and use the guarded backfill on a separately verified disposable copy first. If confirmed fictional data are disposable, an explicitly approved reset/reseed may be simpler. Before introducing actual customer data or rotating a live key, follow the stricter migration, backup, privacy and operator controls below. The word `production` in Vercel describes a deployment target, not evidence that PayrollPH has paying customers.
+
+
 Production startup requires a valid dedicated `PII_ENCRYPTION_KEY`. Provision it before deploying this change. No bank or TOTP secret can encrypt new government identifiers or portraits. Do not copy either secret into the new variable. Portraits retain their purpose-specific HMAC derivation; government identifiers use the dedicated key directly.
 
 ## Historical fallback rows
