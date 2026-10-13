@@ -35,7 +35,6 @@ import { ApprovalsView } from "@/components/workspace/approvals";
 import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/components/workspace/command-palette";
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
-import { MoreModulesPage } from "@/components/workspace/more-modules-page";
 import { OfflinePunchReviewQueue } from "@/components/workspace/offline-punch-review";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
@@ -152,12 +151,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   const effectiveRole = demoRole ?? data.access?.role ?? data.user?.role ?? null;
   const rolePages = demoRole ? demoRolePages(demoRole) : workspacePagesForRole(effectiveRole);
   const coreModules = data.coreModuleNavigationEnabled === true && data.selectedOrganization.moduleNavigationMode === "core" && !isFreelancer;
-  // The existing tenant-aware core navigation remains authoritative. An older
-  // optional core-only frontend must not displace or duplicate its module UI.
-  const legacyCompactCore = workflowUi.coreOnlyNav && isSelfServeCustomer
-    && !coreModules && !isFreelancer && !demoRole && data.access?.companyWide === true;
+  // The governed tenant-aware module navigation on main remains authoritative.
   const primaryPages = coreModules ? ["Overview", "People", "Time & attendance", "Payroll", "Approvals", "Reports", "More modules"]
-    : legacyCompactCore ? ["Overview", "People", "Time & attendance", "Payroll", "Analytics", "Approvals", "More modules"]
     : workspacePrimaryPagesForRole(effectiveRole);
   const entityVisible = data.multiEntity?.enabled && !demoRole && !isFreelancer
     && data.access?.companyWide === true
@@ -165,12 +160,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   const availablePages = useMemo(() => {
     const pages = tenantNavigationPages({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, rolePages, companyWide: data.access?.companyWide, canManageModules: ["owner", "admin", "bookkeeper"].includes(effectiveRole ?? "") }, pilotFocusEnabled && !demoRole);
     if (entityVisible && !pages.includes("Entities")) pages.push("Entities");
-    if (legacyCompactCore && ["owner", "admin", "hr"].includes(effectiveRole ?? "") && !pages.includes("More modules")) pages.push("More modules");
     return pages;
-  }, [data.access?.companyWide, data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole, entityVisible, legacyCompactCore]);
-  const visiblePages = legacyCompactCore
-    ? availablePages.filter(name => ["Overview", "People", "Time & attendance", "Payroll", "Analytics", "Approvals", "More modules", "Entities"].includes(name))
-    : availablePages;
+  }, [data.access?.companyWide, data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole, entityVisible]);
 
   // Only surface existing HR modules that this role, plan and pilot menu permit.
   const hrisShortcuts = useMemo(
@@ -442,7 +433,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
         onSwitchClient={(id) => void changeOrganization(id)}
         onSwitchRole={demoRole ? (role) => void switchDemoRole(role) : undefined}
         onSignOut={() => void signOut()}
-        visiblePages={visiblePages}
+        visiblePages={availablePages}
         primaryPages={primaryPages ?? undefined}
         workspaceRole={effectiveRole}
         displayRole={demoRole}
@@ -637,8 +628,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           />
         )}
 
-        {page === "More modules" && legacyCompactCore && <MoreModulesPage visiblePages={visiblePages} allowedPages={availablePages} onPage={setPage} />}
-        {page === "More modules" && !legacyCompactCore && availablePages.includes("More modules") && <MoreModules key={data.selectedOrganization.id} organizationId={data.selectedOrganization.id} enabledModules={data.selectedOrganization.enabledModules ?? []} onRefresh={async () => { await refresh(); }} notify={notify} />}
+        {page === "More modules" && availablePages.includes("More modules") && <MoreModules key={data.selectedOrganization.id} organizationId={data.selectedOrganization.id} enabledModules={data.selectedOrganization.enabledModules ?? []} onRefresh={async () => { await refresh(); }} notify={notify} />}
         {page === "Reports" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity} organizationId={data.selectedOrganization.id} title="Reports by entity" />}
         {page === "Reports" && availablePages.includes("Reports") && <CoreReports
           analytics={(!rolePages || rolePages.includes("Analytics")) ? <AnalyticsView data={data} notify={notify} /> : undefined}

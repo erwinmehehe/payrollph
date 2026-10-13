@@ -3,8 +3,6 @@
 import { EmployeeImportPreviewPanel } from "./employee-import-preview-panel";
 import { useState } from "react";
 import { FileSpreadsheet, Upload, UsersRound } from "lucide-react";
-import { EmployeeImportReview } from "@/components/workspace/employee-import-review";
-import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 
 type ImportResult = {
   batchId?: number;
@@ -31,33 +29,26 @@ export function ImportPanel({ organizationId, onImported, previewEnabled = false
   return previewEnabled ? <EmployeeImportPreviewPanel key={organizationId} organizationId={organizationId} onImported={onImported} /> : <LegacyImportPanel organizationId={organizationId} onImported={onImported} />;
 }
 function LegacyImportPanel({ organizationId, onImported }: { organizationId: number; onImported: () => void }) {
-  const reviewEnabled = useWorkflowUi().importReview;
   const [open, setOpen] = useState(false);
   const [csv, setCsv] = useState("");
   const [fileName, setFileName] = useState("upload.csv");
   const [result, setResult] = useState<ImportResult | null>(null);
   const [busy, setBusy] = useState(false);
-  const [networkError, setNetworkError] = useState("");
 
   async function submit(dryRun: boolean) {
-    setBusy(true); setNetworkError("");
-    if (!dryRun) setResult(null);
-    try {
-      const response = await fetch("/api/employees/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId, csv, fileName, dryRun }),
-      });
-      const payload = await response.json() as ImportResult;
-      setResult(payload);
-      if (response.ok && !dryRun) {
-        if ((payload.errorCount ?? 0) === 0) setCsv("");
-        if ((payload.createdCount ?? 0) > 0) onImported();
-      }
-    } catch {
-      setNetworkError("The import server could not be reached. Nothing was confirmed; retry validation.");
-    } finally {
-      setBusy(false);
+    setBusy(true);
+    setResult(null);
+    const response = await fetch("/api/employees/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ organizationId, csv, fileName, dryRun }),
+    });
+    setBusy(false);
+    const payload = await response.json() as ImportResult;
+    setResult(payload);
+    if (response.ok && !dryRun) {
+      if ((payload.errorCount ?? 0) === 0) setCsv("");
+      if ((payload.createdCount ?? 0) > 0) onImported();
     }
   }
 
@@ -86,21 +77,17 @@ function LegacyImportPanel({ organizationId, onImported }: { organizationId: num
                   const file = event.target.files?.[0];
                   if (!file) return;
                   setFileName(file.name);
-                  setResult(null); setNetworkError("");
                   setCsv(await file.text());
                 }}
               />
             </label>
             {csv && <p className="auth-copy">{fileName} · {csv.trim().split(/\r?\n/).length - 1} data row(s) loaded</p>}
-            {reviewEnabled && <p className="auth-copy">Review validation errors before submitting new employees.</p>}
-            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button className="secondary-button" onClick={() => submit(true)} disabled={busy || !csv}>{busy ? "Checking…" : "Validate only"}</button>
-              <button className="primary-button" onClick={() => submit(false)} disabled={busy || !csv || (reviewEnabled && (!result?.dryRun || !!result.error || (result.errorCount ?? 0) > 0))}>{busy ? "Importing…" : "Import employees"}</button>
+              <button className="primary-button" onClick={() => submit(false)} disabled={busy || !csv}>{busy ? "Importing…" : "Import employees"}</button>
             </div>
           </div>
 
-          {networkError && <div role="alert" className="notice notice-amber">{networkError}</div>}
-          {reviewEnabled && csv && <EmployeeImportReview csv={csv} fileName={fileName} errors={result?.errors} />}
           {result && (
             <div style={{ padding: "0 17px 16px" }}>
               {result.error && !result.errors && (

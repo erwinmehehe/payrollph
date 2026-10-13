@@ -2,8 +2,6 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 
 export type WorkflowUiFlags = {
   firstPayrollInline: boolean;
-  importReview: boolean;
-  coreOnlyNav: boolean;
   faceOfflinePunch: boolean;
   approvalBuilder: boolean;
   reportBuilder: boolean;
@@ -13,8 +11,6 @@ export type WorkflowUiFlags = {
 
 export const EMPTY_WORKFLOW_UI_FLAGS: Readonly<WorkflowUiFlags> = Object.freeze({
   firstPayrollInline: false,
-  importReview: false,
-  coreOnlyNav: false,
   faceOfflinePunch: false,
   approvalBuilder: false,
   reportBuilder: false,
@@ -31,8 +27,6 @@ export function resolveWorkflowUiFlags(
   if (criticalReleaseFlagEnabled("multiEntity", env)) return { ...EMPTY_WORKFLOW_UI_FLAGS };
   return {
     firstPayrollInline: criticalReleaseFlagEnabled("workflowFirstPayrollAdvisory", env),
-    importReview: criticalReleaseFlagEnabled("importReview", env),
-    coreOnlyNav: criticalReleaseFlagEnabled("coreOnlyNav", env),
     faceOfflinePunch: criticalReleaseFlagEnabled("faceOfflinePunch", env),
     approvalBuilder: criticalReleaseFlagEnabled("approvalBuilder", env),
     reportBuilder: criticalReleaseFlagEnabled("reportBuilder", env),

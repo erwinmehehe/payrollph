@@ -4,11 +4,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { EMPTY_WORKFLOW_UI_FLAGS, resolveWorkflowUiFlags } from "../src/lib/workflow-ui-flags";
-import { parseEmployeeImportPreview, makeEmployeeImportErrorCsv } from "../src/lib/workflow-employee-import-preview";
 import { projectReportRows, exportProjectedReportCsv } from "../src/lib/report-builder-view";
 import { loanDisplaySchedule } from "../src/lib/loan-schedule-view";
 import { FirstPayrollReadinessCard } from "../src/components/workspace/first-payroll-readiness";
-import { MoreModulesPage } from "../src/components/workspace/more-modules-page";
 import { WorkflowUiProvider } from "../src/components/workspace/workflow-ui-context";
 import { FaceOfflinePunchPanel } from "../src/components/workspace/face-offline-punch";
 import { OfflinePunchReviewQueue } from "../src/components/workspace/offline-punch-review";
@@ -28,11 +26,9 @@ const readiness: FirstPayrollReadiness = {
   ],
 };
 
-test("all eight remaining draft workflow UI flags are default OFF and require exact true", () => {
+test("all six remaining draft workflow UI flags are default OFF and require exact true", () => {
   const flags = {
     workflowFirstPayrollAdvisory: "FIRST_PAYROLL_INLINE_UI_ENABLED",
-    importReview: "IMPORT_REVIEW_UI_ENABLED",
-    coreOnlyNav: "CORE_ONLY_NAV_UI_ENABLED",
     faceOfflinePunch: "FACE_OFFLINE_PUNCH_UI_ENABLED",
     approvalBuilder: "APPROVAL_BUILDER_UI_ENABLED",
     reportBuilder: "REPORT_BUILDER_UI_ENABLED",
@@ -45,27 +41,6 @@ test("all eight remaining draft workflow UI flags are default OFF and require ex
       assert.equal(criticalReleaseFlagEnabled(key as keyof typeof flags, { [env]: value }), false);
     assert.equal(criticalReleaseFlagEnabled(key as keyof typeof flags, { [env]: "true" }), true);
   }
-});
-
-test("CSV import preview resolves multiline quotes and server row findings", () => {
-  const csv = "Employee No,Name,Notes\r\nE-1,\"Doe, Jane\",\"multi\nline\"\r\nE-2,John,ok\r\n";
-  const parsed = parseEmployeeImportPreview(csv, [{ line: 4, problems: ["Missing bank"] }]);
-  assert.deepEqual(parsed.headers, ["Employee No", "Name", "Notes"]);
-  assert.equal(parsed.total, 2);
-  assert.deepEqual(parsed.rows.map(row=>row.line), [2,4]);
-  assert.equal(parsed.rows[0].cells[1], "Doe, Jane");
-  assert.equal(parsed.rows[0].cells[2], "multi\nline");
-  assert.deepEqual(parsed.rows[1].problems, ["Missing bank"]);
-  assert.throws(() => parseEmployeeImportPreview("a,b\n\"unterminated"), /unclosed quoted/);
-});
-
-test("CSV errors download includes original line and avoids spreadsheet formulas", () => {
-  const csv = "Employee No,Name\n=2+2,Jane\nE-2,John";
-  const result = makeEmployeeImportErrorCsv(csv, [{ line: 2, problems:["Missing payout; verify"] }]);
-  assert.match(result, /"Source line"/);
-  assert.match(result, /"'=2\+2"/);
-  assert.match(result, /"Missing payout; verify"/);
-  assert.doesNotMatch(result, /"E-2","John"/);
 });
 
 test("saved report selection/filters never fabricate unauthorized columns or data", () => {
@@ -107,18 +82,6 @@ test("flag-off first-payroll card retains the original UI and has no inline draw
   assert.match(legacy, /Guided first payroll journey/);
 });
 
-test("core-only More modules executes role-gated React rendering", () => {
-  const more = renderToStaticMarkup(createElement(MoreModulesPage,{
-    visiblePages:["Overview","More modules"],
-    allowedPages:["Exports"],
-    onPage: (_:string) => {},
-  }));
-  assert.match(more,/More modules/);
-  assert.match(more,/Open Exports/);
-  assert.match(more,/Not available to this role/);
-  assert.doesNotMatch(more, /Open Discipline/);
-});
-
 test("unverified offline camera and reviewer queue keep explicit empty/loading states", () => {
   const camera = renderToStaticMarkup(createElement(FaceOfflinePunchPanel,{ organizationId:1,employeeId:1 }));
   assert.match(camera,/camera preview/i);
@@ -143,7 +106,7 @@ test("public careers displays published job card or grounded empty state", () =>
   assert.doesNotMatch(html,/bank account/i);
 });
 
-test("canonical HR Requests flag remains separate from the nine optional UI controls", () => {
+test("canonical HR Requests flag remains separate from the six optional UI controls", () => {
   assert.equal(criticalReleaseFlagEnabled("employeeHrCases", { EMPLOYEE_HR_CASES_ENABLED: "true" }), true);
   assert.equal(criticalReleaseFlagEnabled("employeeHrCases", { EMPLOYEE_CASES_UI_ENABLED: "true" }), false);
   const flags = resolveWorkflowUiFlags({
@@ -151,7 +114,7 @@ test("canonical HR Requests flag remains separate from the nine optional UI cont
     EMPLOYEE_CASES_UI_ENABLED: "true",
     MULTI_ENTITY_ENABLED: "false",
   });
-  assert.equal(Object.keys(flags).length, 9);
+  assert.equal(Object.keys(flags).length, 6);
   assert.ok(Object.values(flags).every(value => value === false));
   assert.equal("employeeCases" in flags, false);
   assert.ok(Object.values(resolveWorkflowUiFlags({ MULTI_ENTITY_ENABLED: "true" })).every(value => value === false));

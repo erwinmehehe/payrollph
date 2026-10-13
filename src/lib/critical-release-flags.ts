@@ -72,18 +72,6 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 Interactive first-payroll drawers, preview and task handoff",
     approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
   },
-  importReview: {
-    env: "IMPORT_REVIEW_UI_ENABLED",
-    owner: "Product / HCM",
-    risk: "P1 Preview/error export for employee import",
-    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
-  },
-  coreOnlyNav: {
-    env: "CORE_ONLY_NAV_UI_ENABLED",
-    owner: "Product",
-    risk: "P1 Core-only navigation and More modules",
-    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
-  },
   faceOfflinePunch: {
     env: "FACE_OFFLINE_PUNCH_UI_ENABLED",
     owner: "Security / Workforce",
