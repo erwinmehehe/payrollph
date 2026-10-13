@@ -18,7 +18,7 @@ const fixture = JSON.parse(await readFile("qa-artifacts/first-payroll-zero-tenan
 assert.equal(fixture.label,"disposable-synthetic-only");
 assert.ok(Number.isSafeInteger(fixture.organizationId) && fixture.organizationId > 2);
 const report = { mode:"synthetic-local-browser-only", employerId:fixture.organizationId,
-  roles:["owner","hr","payroll"],steps:[], result:"FAIL",
+  roles:["owner","hr","payroll","checker"],steps:[], result:"FAIL",
   verifiedNoPayments:true, realDevice:false, realEmployer:false, production:false };
 const browser=await chromium.launch({headless:true});
 let active=null;
@@ -66,11 +66,19 @@ async function closeStep(item) {
 async function enter(email){
   const context=await browser.newContext({viewport:{width:375,height:812}});
   contexts.push(context);
-  const response=await context.request.post(base+"/api/auth/login",{
-    headers:{origin:base,"sec-fetch-site":"same-origin"},
-    data:{email,password:"Synthetic-HCM-QA-Password-Only-2026!"},
-  });
-  assert.equal(response.status(),200,"Synthetic user must authenticate: "+email);
+  let response;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    response = await context.request.post(base + "/api/auth/login", {
+      headers: { origin: base, "sec-fetch-site": "same-origin" },
+      data: { email, password: "Synthetic-HCM-QA-Password-Only-2026!" },
+    });
+    if (response.status() !== 429 || attempt === 1) break;
+    const limited = await response.json().catch(() => ({}));
+    const delay = Number(limited.retryAfterMs);
+    if (!Number.isFinite(delay) || delay < 0 || delay > 60000) break;
+    await new Promise(resolve => setTimeout(resolve, Math.max(250, Math.ceil(delay) + 250)));
+  }
+  assert.equal(response.status(), 200, "Synthetic account must authenticate through normal throttling: " + email);
   active=await context.newPage();
   await active.goto(base+"/app?organizationId="+fixture.organizationId,{waitUntil:"domcontentloaded"});
   const card=active.getByRole("region",{name:"First payroll setup readiness"});
@@ -82,6 +90,11 @@ async function enter(email){
 try{
   const owner=await enter("first-payroll-gamma-owner@example.test");
   assert.match(await owner.card.innerText(),/Add active employees|Add people and payout details/);
+  const outsiderEntity = await contexts[0].request.get(base + "/api/legal-entities?organizationId=1");
+  assert.equal(outsiderEntity.status(), 403, "Unrelated tenant's employer data must be denied");
+  const outsiderProgress = await contexts[0].request.get(base + "/api/first-payroll/progress?organizationId=1");
+  assert.equal(outsiderProgress.status(), 403, "An owner is not a global cross-tenant reader");
+  report.steps.push("owner: unrelated employer and progress routes deny tenant crossover");
 
   const employerStep=owner.steps.nth(0);
   const companyPanel=await captureStep("owner","company",employerStep,"Review company");
@@ -163,7 +176,7 @@ try{
     panel.getByRole("button",{name:"Create actual draft payroll (writes a draft record)"}).click(),
   ]);
   assert.ok([200,201].includes(draftResponse.status()),
-    "Explicit draft creation refused: "+(await draftResponse.text()));
+    "Explicit draft creation did not succeed; only HTTP status may be logged.");
   assert.equal(new URL(active.url()).pathname,"/app","Payroll draft action remained inline");
   report.steps.push("payroll: explicit, separately confirmed draft run; no release or money movement");
   await closeStep(payrollStep);

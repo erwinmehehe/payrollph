@@ -40,6 +40,7 @@ import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 import { buildFirstPayrollReadiness } from "@/lib/first-payroll-readiness";
+import { canReadFirstPayrollProgress } from "@/lib/first-payroll-progress";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 
@@ -306,7 +307,7 @@ export async function getDashboardData(organizationId?: number) {
   const canViewFirstPayrollReadiness =
     accountType !== "freelancer"
     && access.companyWide
-    && ["owner", "admin", "bookkeeper", "payroll", "hr", "checker"].includes(access.role);
+    && canReadFirstPayrollProgress(access.role);
   const firstPayrollMemberships = canViewFirstPayrollReadiness
     ? await db
         .select({ role: userOrganizations.role })
@@ -321,7 +322,7 @@ export async function getDashboardData(organizationId?: number) {
         workspaceName: selectedOrganization.legalName || selectedOrganization.name,
         employees: employeeRows,
         memberships: firstPayrollMemberships,
-        payrollStatuses: runRows.map((run) => run.status),
+        payrollStatuses: (canViewPayroll ? runRows : handoffRunRows).map((run) => run.status),
       })
     : null;
 

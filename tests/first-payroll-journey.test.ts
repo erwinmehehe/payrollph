@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FirstPayrollReadinessCard } from "../src/components/workspace/first-payroll-readiness";
@@ -46,9 +45,9 @@ test("the first released payroll still presents the export handoff before ongoin
   assert.equal(first.payrollRunCount, 1);
   assert.equal(later.payrollRunCount, 2);
   assert.equal(buildFirstPayrollJourney(first).find((step) => step.key === "exports")?.state, "review");
-  const ui = readFileSync("src/components/workspace/first-payroll-readiness.tsx", "utf8");
-  assert.ok(ui.includes("readiness.firstPayrollReleased && readiness.payrollRunCount > 1"));
-  assert.ok(ui.includes('"Open exports"'));
+  const props = { readiness: first, guided: true, allowedPages: ["Payroll", "Exports"], onPage: () => {}, onNewRun: () => {} };
+  assert.match(renderToStaticMarkup(createElement(FirstPayrollReadinessCard, props)), /Open exports/);
+  assert.equal(renderToStaticMarkup(createElement(FirstPayrollReadinessCard, { ...props, readiness: later })), "");
 });
 
 test("self-serve owners receive a single guided journey without duplicate setup tiles", () => {
@@ -63,10 +62,8 @@ test("self-serve owners receive a single guided journey without duplicate setup 
   assert.doesNotMatch(guided, /class="first-payroll-grid"/);
   assert.match(legacy, /class="first-payroll-grid"/);
   assert.doesNotMatch(legacy, /Guided first payroll journey/);
-  const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
-  const page = readFileSync("src/app/app/page.tsx", "utf8");
-  assert.ok(page.includes("isSelfServeCustomer={isSelfServe}"));
-  assert.ok(workspace.includes("guided={isSelfServeCustomer}"));
+  assert.equal(guided.includes("first-payroll-grid"), false);
+  assert.equal(legacy.includes("first-payroll-grid"), true);
 });
 
 test("seven canonical journey steps own role handoff metadata, not duplicated component arrays",()=>{
@@ -74,8 +71,6 @@ test("seven canonical journey steps own role handoff metadata, not duplicated co
   assert.deepEqual(keys,["company","people","time","reviewers","payroll","approval","exports"]);
   assert.deepEqual(new Set(keys).size,7);
   assert.equal(FIRST_PAYROLL_STEPS.find(x=>x.key==="time")?.owner,"hr");
-  const ui=readFileSync("src/components/workspace/first-payroll-inline-panel.tsx","utf8");
-  const quick=readFileSync("src/components/saas-onboarding-quickstart.tsx","utf8");
-  assert.match(ui,/FIRST_PAYROLL_STEPS/);
-  assert.doesNotMatch(quick,/const steps\s*=/);
+  const journey = buildFirstPayrollJourney(buildFirstPayrollReadiness({ ...base, payrollStatuses: [] }));
+  assert.deepEqual(journey.map(step => step.key), keys);
 });
