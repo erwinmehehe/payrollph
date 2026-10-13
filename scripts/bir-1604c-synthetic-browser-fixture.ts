@@ -28,15 +28,15 @@ async function main() {
     organizationId: org.id, legalEntityId: entity.id, employeeNo: "SYN-BIR-001",
     firstName: "Maria", middleName: "", lastName: "Santos",
     title: "Synthetic QA", avatarInitials: "MS", basicRate: "50000.00",
-    nationality: "Filipino", startDate: "2026-01-01",
+    nationality: "Filipino", startDate: "2025-01-01",
     tin: encryptGovernmentId("333222111", { required: true }),
     tinBranchCode: encryptGovernmentId("0000", { required: true }),
   }).returning();
   const [run] = await db.insert(payrollRuns).values({
     organizationId: org.id, legalEntityId: entity.id,
-    periodLabel: "Synthetic December 2026",
-    periodStart: "2026-12-01", periodEnd: "2026-12-31",
-    payDate: "2026-12-31", status: "Released", employeeCount: 1,
+    periodLabel: "Synthetic December 2025",
+    periodStart: "2025-12-01", periodEnd: "2025-12-31",
+    payDate: "2025-12-31", status: "Released", employeeCount: 1,
     grossPay: "600000.00", netPay: "595000.00",
   }).returning();
   await db.insert(payrollEntries).values({
@@ -46,7 +46,7 @@ async function main() {
     status: "Ready",
   });
   await db.insert(yearEndAdjustments).values({
-    organizationId: org.id, employeeId: employee.id, taxYear: 2026,
+    organizationId: org.id, employeeId: employee.id, taxYear: 2025,
     grossCompensation: "600000.00", thirteenthMonth: "50000.00",
     nonTaxable: "100000.00", taxableIncome: "500000.00",
     taxDue: "5000.00", taxWithheld: "5000.00", adjustment: "0.00",
@@ -54,8 +54,8 @@ async function main() {
   });
   await db.insert(birWithholdingRemittanceBatches).values({
     organizationId: org.id, legalEntityId: entity.id,
-    applicableMonth: "2026-12", filingChannel: "ebirforms",
-    filingDueDate: "2027-01-10", paymentDueDate: "2027-01-10",
+    applicableMonth: "2025-12", filingChannel: "ebirforms",
+    filingDueDate: "2026-01-10", paymentDueDate: "2026-01-10",
     status: "reconciled", employeeCount: 1, payrollRunCount: 1,
     expectedTaxWithheld: "5000.00", amountPaid: "5000.00",
     snapshotHash: "a".repeat(64), createdBy: "Synthetic only",
@@ -65,7 +65,7 @@ async function main() {
     const [user] = await db.insert(users).values({
       name: "Synthetic " + role,
       email: role + "@bir-qa.example.test",
-      passwordHash: hashPassword("Synthetic-BIR-Only-2026!"),
+      passwordHash: hashPassword("Synthetic-BIR-Only-2025!"),
       role, totpEnabled: true, totpSecret,
       employeeId: role === "employee" ? employee.id : null,
     }).returning();
@@ -76,7 +76,7 @@ async function main() {
   await db.insert(subscriptions).values({ organizationId: org.id, plan: "Core", status: "active" });
   writeFileSync("/tmp/bir-1604c-qa-fixture.json", JSON.stringify({
     organizationId: org.id, legalEntityId: entity.id,
-    employeeNo: employee.employeeNo, year: 2026,
+    employeeNo: employee.employeeNo, year: 2025,
   }), { mode: 0o600 });
   console.log("Synthetic 1604-C employer/year/identity and MFA personas seeded; no live accounts or actual BIR evidence.");
   await pool.end();
