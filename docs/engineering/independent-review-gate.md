@@ -24,6 +24,17 @@ enabled and enforced by a repository administrator.
   and planning lanes remain **frozen** until a genuine documented first-pilot
   start is approved. Merely merging the source check does not lift this freeze.
   Core Payroll/People/Time bug fixes remain eligible for independent review.
+- **Existing-development WFM-12 tests (#936):** The optional-WFM freeze does not
+  require a *pilot-start receipt* to merge a PR that **only modifies the two
+  existing files** `scripts/wfm-pilot-synthetic-evidence.mjs` and
+  `tests/wfm-roster-scale-postgres.test.ts`. This is needed to improve a
+  developer's synthetic 1,000-row pagination evidence **before** external pilots
+  exist. It does NOT waive current-head independent real human review,
+  reviewer allowlisting, collaborator authorization, passing CI, and the draft
+  prohibition; no author/self/bot signoff. Added, removed, renamed, partial,
+  extra, runtime, feature flag, migration and payroll changes remain frozen.
+  **All source merges remain distinct from optional WFM activation, live
+  employee data, biometric capture, production migration and payout approval.**
 - Source approval is **not** employer payroll authorization, a bank release,
   encryption/migration acceptance, or production feature activation. Actual
   payroll continues to require separate employer maker/checker/releaser,
