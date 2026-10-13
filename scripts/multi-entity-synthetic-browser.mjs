@@ -243,7 +243,7 @@ try {
   }, op);
   await checkpoint("Payroll start UI blocks wrong legal name", async () => {
     await gotoScreen(op, "Payroll");
-    await op.getByRole("button", { name: /New payroll/i }).first().click();
+    await op.getByRole("button", { name: /New payroll|Start another payroll|Create payroll/i }).first().click();
     const modal = op.getByRole("dialog", { name: "Create payroll draft" });
     await modal.waitFor();
     await modal.getByLabel("Type legal employer name").waitFor();
@@ -338,7 +338,7 @@ try {
       await capture(oldPage, "before-owner-" + screen);
     }
     await gotoScreen(oldPage, "Payroll");
-    await oldPage.getByRole("button", { name: /New payroll/i }).first().click();
+    await oldPage.getByRole("button", { name: /New payroll|Start another payroll|Create payroll/i }).first().click();
     const legacy = oldPage.getByRole("dialog", { name: "Create payroll draft" });
     await legacy.waitFor();
     assert.equal(await legacy.getByLabel("Type legal employer name").count(), 0);
