@@ -234,3 +234,24 @@
   :is(.app-shell.clean-shell, .linaw-dialog) *::before,
   :is(.app-shell.clean-shell, .linaw-dialog) *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* People workspace: wide employee tables scroll inside their cards on phones.
+   Keep the document at viewport width and retain horizontal table access. */
+@media (max-width: 760px) {
+  .app-shell.clean-shell[data-workspace-page="People"] .content-area,
+  .app-shell.clean-shell[data-workspace-page="People"] .content-area > .card,
+  .app-shell.clean-shell[data-workspace-page="People"] .people-layout,
+  .app-shell.clean-shell[data-workspace-page="People"] .people-layout > .card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .app-shell.clean-shell[data-workspace-page="People"] .data-table-wrap {
+    display: block;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+}
