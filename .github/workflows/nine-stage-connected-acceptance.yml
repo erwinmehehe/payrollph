@@ -1,0 +1,138 @@
+name: Nine-Stage Connected Payroll Development Acceptance (No Money)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/nine-stage-mobile-browser.mjs"
+      - "tests/nine-stage-connected-evidence.test.mjs"
+      - "docs/qa/nine-stage-connected-acceptance.md"
+      - ".github/workflows/nine-stage-connected-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  connected-payroll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: "true"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      QA_URL: http://127.0.0.1:3000
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      SETUP_TOKEN: nine-stage-disposable-setup-token-000000000000
+      READINESS_TOKEN: nine-stage-disposable-readiness-token-000000000
+      WORKER_TOKEN: nine-stage-disposable-worker-token-000000000000
+      TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Generate isolated fixture encryption keys
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - name: Provision empty disposable PG16 and audited controls
+        run: |
+          npm run db:push
+          node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Run focused payroll/WFM safety regressions (separate from connected evidence)
+        run: |
+          npx tsx --test \
+            tests/web-bundy-overnight-anchor.test.ts \
+            tests/payroll-night-differential.test.ts \
+            tests/payroll-holiday-overtime.test.ts \
+            tests/payroll-rest-day.test.ts \
+            tests/workforce-overtime-payroll-trace.test.ts \
+            tests/workforce-attendance-correction.test.ts \
+            tests/workforce-attendance-locks.test.ts \
+            tests/workforce-timesheet.test.ts \
+            tests/filing-remittance-crosscheck.test.ts
+      - name: Build exact PR commit
+        run: npm run build
+      - name: Install pinned Chromium
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start localhost application
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/nine-stage-app.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 5 http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Isolated localhost server unavailable"
+          exit 1
+      - name: Run SAME-source nine-stage connected workflow
+        run: npx tsx scripts/qa/nine-stage-connected-acceptance.ts
+      - name: Exercise synthetic 375px/390px role and employer switching
+        if: success()
+        run: node scripts/qa/nine-stage-mobile-browser.mjs
+      - name: Validate sanitized source and evidence contract
+        if: always()
+        run: node --test tests/nine-stage-connected-evidence.test.mjs
+      - name: Show bounded server errors on failure
+        if: failure()
+        shell: bash
+        run: |
+          grep -E 'Error:|code:|failed|Error \[' /tmp/nine-stage-app.log | tail -n 25 | cut -c1-180 || true
+      - name: Delete synthetic login handoff
+        if: always()
+        run: rm -f qa-artifacts/.nine-stage-browser-auth.json
+      - name: Upload sanitized machine-readable results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nine-stage-source-connected-no-money
+          path: |
+            qa-artifacts/nine-stage-connected-report.json
+            qa-artifacts/nine-stage-mobile-report.json
+          if-no-files-found: warn
+          retention-days: 14
