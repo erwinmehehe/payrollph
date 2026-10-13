@@ -49,13 +49,15 @@ export function birModuleEvidenceStatus(
   const matching = audits.filter(item => obj(item.metadata)?.sourceDigest === sourceDigest)
     .sort((a, b) => a.id - b.id);
   const generated = new Map<string, BirModuleAudit>();
+  let latestDownloadSha: string | null = null;
   const reported = new Map<number, BirModuleAudit>();
   const independentlyReviewed = new Map<number, BirModuleAudit>();
   for (const audit of matching) {
     const m = obj(audit.metadata);
     if (!m) continue;
     if (audit.action === "bir1604c.candidate.downloaded" && digest(m.fileSha256)) {
-      generated.set(String(m.fileSha256).toLowerCase(), audit);
+      latestDownloadSha = String(m.fileSha256).toLowerCase();
+      generated.set(latestDownloadSha, audit);
     }
     if (audit.action === "bir1604c.validator.observed" &&
         validateBirModuleObservation(m) &&
@@ -76,7 +78,8 @@ export function birModuleEvidenceStatus(
   }
   const reviewCandidates = [...independentlyReviewed].map(([id, review]) => ({
     observed: reported.get(id)!, reviewed: review,
-  })).filter(item => obj(item.observed.metadata)?.moduleVersion === moduleVersion);
+  })).filter(item => obj(item.observed.metadata)?.moduleVersion === moduleVersion &&
+    obj(item.observed.metadata)?.fileSha256 === latestDownloadSha);
   const latest = reviewCandidates.sort((a,b) => b.reviewed.id - a.reviewed.id)[0];
   const confirmed = latest && obj(latest.reviewed.metadata)?.decision === "confirmed"
     ? latest : null;
@@ -91,6 +94,7 @@ export function birModuleEvidenceStatus(
     independentlyReviewed: Boolean(confirmed),
     reportedAwaitingReview: [...reported.values()].some(item =>
       obj(item.metadata)?.moduleVersion === moduleVersion &&
+      obj(item.metadata)?.fileSha256 === latestDownloadSha &&
       !independentlyReviewed.has(item.id)),
     note: "Operator-recorded independent review of official module evidence. This is not BIR agency submission acceptance.",
   };
