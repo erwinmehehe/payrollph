@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { EMPTY_WORKFLOW_UI_FLAGS } from "../src/lib/workflow-ui-flags";
-import { firstPayrollPreview } from "../src/lib/first-payroll-preview";
+import { firstPayrollPreview } from "../src/lib/workflow-readiness-preview";
 import { parseEmployeeImportPreview, makeEmployeeImportErrorCsv } from "../src/lib/workflow-employee-import-preview";
 import { projectReportRows, exportProjectedReportCsv } from "../src/lib/report-builder-view";
 import { loanDisplaySchedule } from "../src/lib/loan-schedule-view";

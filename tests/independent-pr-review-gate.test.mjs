@@ -188,6 +188,101 @@ function fakeGithub({ files = [moneyFile], reviews = [human()], permission = "wr
   };
 }
 
+test("only the exact two already-modified WFM-12 evidence files bypass pilot-start source freeze", async () => {
+  const evidence = [
+    { filename: "scripts/wfm-pilot-synthetic-evidence.mjs", status: "modified" },
+    { filename: "tests/wfm-roster-scale-postgres.test.ts", status: "modified" },
+  ];
+  const scope = classifyReviewScope(evidence);
+  assert.equal(scope.hcmWfmFrozen, true);
+  assert.equal(scope.wfm12DevEvidence, true);
+  assert.equal(review(evidence).ok, true, "strict-mode pilot freeze exception is test-only");
+  assert.equal(review(evidence).releaseAuthorized, false);
+
+  const fromSolo = await checkIndependentReview({
+    ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
+    PILOT_START_EVIDENCE_REF: "",
+  }, fakeGithub({ files: evidence, reviews: [] }).fetcher);
+  assert.equal(fromSolo.ok, true, "repo's approved solo-maintainer policy can accept development evidence");
+  assert.equal(fromSolo.mode, "solo-maintainer");
+  assert.equal(fromSolo.approvalCount, 0);
+  assert.equal(fromSolo.releaseAuthorized, false);
+
+  const variants = [
+    [evidence[0]],
+    [evidence[1]],
+    [...evidence, { filename: "src/lib/workforce-roster-scale.ts", status: "modified" }],
+    [...evidence, { filename: "drizzle/0118_wfm_roster_scale_rules.sql", status: "modified" }],
+    [...evidence, { filename: "tests/wfm-new-runtime.test.ts", status: "added" }],
+    evidence.map((file, i) => i === 1 ? { ...file, status: "added" } : file),
+    evidence.map((file, i) => i === 1 ? { ...file, status: "removed" } : file),
+    evidence.map((file, i) => i === 1 ? { ...file, status: "renamed", previous_filename: "tests/wfm-old.test.ts" } : file),
+    [evidence[0], evidence[0]],
+  ];
+  for (const changed of variants) {
+    assert.equal(classifyReviewScope(changed).wfm12DevEvidence, false);
+    const strict = review(changed);
+    assert.equal(strict.ok, false);
+    assert.ok(strict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+    const solo = await checkIndependentReview({
+      ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+      PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
+      PILOT_START_EVIDENCE_REF: "",
+    }, fakeGithub({ files: changed, reviews: [] }).fetcher);
+    assert.equal(solo.ok, false);
+    assert.deepEqual(solo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+  }
+});
+
+test("the exact 3 added WFM-5 development evidence blobs alone are eligible, with no release authority", async () => {
+  const evidence = [
+    {filename:".github/workflows/wfm-five-worker-dev-acceptance.yml",status:"added",
+      sha:"f925a4d6e14ca02676b9a381a3f35dd5a52fd2eb"},
+    {filename:"docs/wfm-five-worker-development-acceptance.md",status:"added",
+      sha:"2bdb7bf9f9f92855f6ce04323af531f0d4a1f96a"},
+    {filename:"scripts/qa/wfm-five-worker-dev-acceptance.ts",status:"added",
+      sha:"fea3ed7ad0d2142a2828cdfdf0725aacc92c489c"},
+  ];
+  const scope = classifyReviewScope(evidence);
+  assert.equal(scope.hcmWfmFrozen, true);
+  assert.equal(scope.wfmFiveWorkerDevEvidence, true);
+  assert.equal(review(evidence).ok, true);
+  assert.equal(review(evidence).releaseAuthorized, false);
+
+  const soloEnv = { ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
+    PILOT_START_EVIDENCE_REF: "" };
+  const solo = await checkIndependentReview(soloEnv,
+    fakeGithub({ files: evidence, reviews: [] }).fetcher);
+  assert.equal(solo.ok, true);
+  assert.equal(solo.releaseAuthorized, false);
+  assert.equal(solo.approvalCount, 0);
+
+  const badSets = [
+    evidence.slice(0,2),
+    [evidence[0]],
+    [...evidence, {filename:"src/app/api/workforce/schedules/route.ts",status:"modified",sha:"c".repeat(40)}],
+    [...evidence, {filename:".github/workflows/payout.yml",status:"added",sha:"c".repeat(40)}],
+    evidence.map((file,i) => i===0 ? {...file,sha:"c".repeat(40)} : file),
+    evidence.map((file,i) => i===1 ? {...file,sha:null} : file),
+    evidence.map((file,i) => i===2 ? {...file,status:"modified"} : file),
+    evidence.map((file,i) => i===2 ? {...file,status:"removed"} : file),
+    evidence.map((file,i) => i===1 ? {...file,status:"renamed",previous_filename:"docs/old.md"} : file),
+    [evidence[0],evidence[0],evidence[2]],
+  ];
+  for (const files of badSets) {
+    assert.equal(classifyReviewScope(files).wfmFiveWorkerDevEvidence,false);
+    assert.equal(review(files).ok,false);
+    assert.ok(review(files).blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+    const denied = await checkIndependentReview(soloEnv,
+      fakeGithub({ files, reviews: [] }).fetcher);
+    assert.equal(denied.ok,false);
+    assert.deepEqual(denied.blockers,["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+    assert.equal(denied.releaseAuthorized,false);
+  }
+});
+
 test("solo source mode validates the actual head without inventing independent approval", async () => {
   for (const value of [undefined, "", "false", "TRUE"]) {
     const api = fakeGithub();

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { FirstPayrollReadiness } from "@/lib/first-payroll-readiness";
-import { firstPayrollPreview } from "@/lib/first-payroll-preview";
+import { firstPayrollPreview } from "@/lib/workflow-readiness-preview";
 
 type Props = {
   readiness: FirstPayrollReadiness;

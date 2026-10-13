@@ -5,6 +5,7 @@ import { AlertTriangle, ClipboardCheck, Download, FileBarChart2, Gauge, RefreshC
 import type { DashboardData, Notify } from "./types";
 import { EnterpriseBiExportPanel } from "@/components/enterprise-bi-export-panel";
 import { HcmReportBuilderPanel } from "./hcm-report-builder-panel";
+import { GroupEntityReports } from "./multi-entity-ui";
 import { useWorkflowUi } from "./workflow-ui-context";
 import { CustomReportBuilder } from "./custom-report-builder";
 import { PeopleIntelligenceOverview } from "./people-intelligence";
@@ -42,27 +43,55 @@ type ReportResult = {
 };
 
 export function AnalyticsView({ data, notify }: { data: DashboardData; notify: Notify }) {
+  // Preserve the established flag-OFF default. For multi-entity sessions,
+  // safeActive below selects only a certified employer-scoped report before
+  // any API request, CSV export, or visible report selection.
   const customReportsEnabled = useWorkflowUi().reportBuilder;
   const [active, setActive] = useState<ReportKey>("workforce");
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [result, setResult] = useState<ReportResult | null>(null);
   const [error, setError] = useState("");
+  // A report response is reusable only for the exact tenant, selected legal
+  // employer, role, report, date window and reload revision that produced it.
+  // Deriving visibility here prevents a one-render flash of the last employer's
+  // rows during a React prop change, before an effect can start refetching.
+  const [resolvedScopeKey, setResolvedScopeKey] = useState<string | null>(null);
   const [peopleAsOf, setPeopleAsOf] = useState("");
   const [peopleWindowDays, setPeopleWindowDays] = useState<30 | 90 | 180 | 365>(90);
 
   const organizationId = data.selectedOrganization.id;
 
   const [nonce, setNonce] = useState(0);
+  // Derived, not an effect-driven state change: a mid-session employer switch
+  // cannot fetch or export a report not certified for a single legal employer.
+  const employerScoped = data.multiEntity?.enabled === true && data.multiEntity.legalEntityId !== null;
+  const supportedEmployerReports: ReportKey[] = ["headcount", "cost", "turnover", "assurance"];
+  const safeActive: ReportKey = employerScoped && !supportedEmployerReports.includes(active)
+    ? "headcount" : active;
+  const requestScopeKey = JSON.stringify({
+    organizationId,
+    enabled: data.multiEntity?.enabled === true,
+    legalEntityId: data.multiEntity?.enabled ? data.multiEntity.legalEntityId : null,
+    role: data.multiEntity?.enabled ? data.multiEntity.role : "legacy",
+    report: safeActive,
+    peopleAsOf,
+    peopleWindowDays,
+    nonce,
+  });
+  const visibleResult = resolvedScopeKey === requestScopeKey ? result : null;
+  const visibleState = resolvedScopeKey === requestScopeKey ? state : "loading";
+  const visibleError = resolvedScopeKey === requestScopeKey ? error : "";
 
   // The fetch lives in the effect and every state update happens after an
   // await, so switching report or client never cascades a synchronous render.
   // `alive` stops a slow response from overwriting a newer one.
   useEffect(() => {
+    if (data.multiEntity?.enabled && data.multiEntity.role === "group_hr") return;
     let alive = true;
     (async () => {
       try {
-        const query = new URLSearchParams({ organizationId: String(organizationId), key: active });
-        if (active === "people") {
+        const query = new URLSearchParams({ organizationId: String(organizationId), key: safeActive });
+        if (safeActive === "people") {
           if (peopleAsOf) query.set("asOf", peopleAsOf);
           query.set("windowDays", String(peopleWindowDays));
         }
@@ -70,23 +99,30 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         const payload = await response.json().catch(() => ({}));
         if (!alive) return;
         if (!response.ok) {
+          setResult(null);
           setError(payload.error ?? `The report service returned ${response.status}.`);
           setState("error");
+          setResolvedScopeKey(requestScopeKey);
           return;
         }
         setResult(payload as ReportResult);
         setError("");
         setState("ready");
+        setResolvedScopeKey(requestScopeKey);
       } catch {
         if (!alive) return;
+        setResult(null);
         setError("Could not reach the report service.");
         setState("error");
+        setResolvedScopeKey(requestScopeKey);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [organizationId, active, nonce, peopleAsOf, peopleWindowDays]);
+  }, [organizationId, safeActive, nonce, peopleAsOf, peopleWindowDays,
+    data.multiEntity?.enabled, data.multiEntity?.role, data.multiEntity?.legalEntityId,
+    requestScopeKey]);
 
   const reload = useCallback(() => {
     setState("loading");
@@ -115,6 +151,14 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
   const totalNet = data.payrollRuns.reduce((sum, run) => sum + Number(run.netPay), 0);
   const exceptions = data.payrollRuns.reduce((sum, run) => sum + run.exceptions, 0);
 
+  if (data.multiEntity?.enabled && data.multiEntity.role === "group_hr") {
+    return <>
+      <PageHeading eyebrow="Group HR" title="Group headcount and payroll cost"
+        copy="Read-only company-by-company headcount and released payroll cost. Legal employers remain separate." />
+      <GroupEntityReports context={data.multiEntity} organizationId={organizationId} />
+    </>;
+  }
+
   return (
     <>
       <PageHeading
@@ -122,14 +166,16 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         title="Reports"
         copy="Explore payroll, people and workforce records. Preview a report before exporting."
         actions={
-          <button className="secondary-button" onClick={reload} disabled={state === "loading"}>
+          <button className="secondary-button" onClick={reload} disabled={visibleState === "loading"}>
             <RefreshCw size={15} className="i-blue" /> Refresh
           </button>
         }
       />
 
-      {customReportsEnabled && <CustomReportBuilder organizationId={organizationId}
-        active={active} report={result} onReport={key => { setActive(key as ReportKey); setState("loading"); }} />}
+      {data.multiEntity?.enabled && data.multiEntity.group && <GroupEntityReports
+        context={data.multiEntity} organizationId={organizationId} />}
+      {customReportsEnabled && !data.multiEntity?.enabled && <CustomReportBuilder organizationId={organizationId}
+        active={safeActive} report={result} onReport={key => { setActive(key as ReportKey); setState("loading"); }} />}
       <section className="stats-grid">
         <Metric
           label="Runs on record"
@@ -168,21 +214,28 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         </article>
       )}
 
-      <EnterpriseBiExportPanel organizationId={organizationId} notify={notify} />
-      <HcmReportBuilderPanel key={organizationId} organizationId={organizationId} />
+      {/* The legacy BI/HCM builders are not certified for employer-specific
+          permissions. Hide both when multi-entity isolation is enabled;
+          API authorization is enforced independently of this UI guard. */}
+      {!data.multiEntity?.enabled && (
+        <>
+          <EnterpriseBiExportPanel organizationId={organizationId} notify={notify} />
+          <HcmReportBuilderPanel key={organizationId} organizationId={organizationId} />
+        </>
+      )}
 
       <div className="report-grid">
-        {REPORTS.map((report) => {
+        {REPORTS.filter(report => !employerScoped || supportedEmployerReports.includes(report.key)).map((report) => {
           const Icon = report.icon;
           return (
             <button
               key={report.key}
-              className={`report-hero ${active === report.key ? "on" : ""}`}
+              className={`report-hero ${safeActive === report.key ? "on" : ""}`}
               onClick={() => {
                 setState("loading");
                 setActive(report.key);
               }}
-              aria-pressed={active === report.key}
+              aria-pressed={safeActive === report.key}
             >
               <span className="report-icon" aria-hidden>
                 <Icon size={15} />
@@ -194,7 +247,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         })}
       </div>
 
-      {active === "people" && (
+      {safeActive === "people" && (
         <article className="card" style={{ marginBottom: 16 }}>
           <div className="card-header">
             <div>
@@ -223,29 +276,29 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         </article>
       )}
 
-      {active === "people" && state === "ready" && result?.peopleIntelligence && (
-        <PeopleIntelligenceOverview report={result.peopleIntelligence} />
+      {safeActive === "people" && visibleState === "ready" && visibleResult?.peopleIntelligence && (
+        <PeopleIntelligenceOverview report={visibleResult.peopleIntelligence} />
       )}
 
       <article className="card table-card">
         <div className="card-header">
           <div>
             <div className="card-kicker">Result</div>
-            <h2>{REPORTS.find((report) => report.key === active)?.name}</h2>
+            <h2>{REPORTS.find((report) => report.key === safeActive)?.name}</h2>
             <p>
-              {state === "ready" && result
-                ? `${result.rows.length} row${result.rows.length === 1 ? "" : "s"} returned${result.generatedAt ? ` · generated ${new Date(result.generatedAt).toLocaleTimeString("en-PH")}` : ""}`
+              {visibleState === "ready" && visibleResult
+                ? `${visibleResult.rows.length} row${visibleResult.rows.length === 1 ? "" : "s"} returned${visibleResult.generatedAt ? ` · generated ${new Date(visibleResult.generatedAt).toLocaleTimeString("en-PH")}` : ""}`
                 : "Running the aggregate query…"}
             </p>
           </div>
           <button
             className="secondary-button"
-            disabled={state !== "ready" || !result?.rows.length}
+            disabled={visibleState !== "ready" || !visibleResult?.rows.length}
             onClick={() => {
               const query = new URLSearchParams({
-                organizationId: String(organizationId), key: active, format: "csv",
+                organizationId: String(organizationId), key: safeActive, format: "csv",
               });
-              if (active === "people") {
+              if (safeActive === "people") {
                 if (peopleAsOf) query.set("asOf", peopleAsOf);
                 query.set("windowDays", String(peopleWindowDays));
               }
@@ -257,13 +310,13 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
           </button>
         </div>
 
-        {state === "loading" && <TableSkeleton rows={5} label="Running report" />}
+        {visibleState === "loading" && <TableSkeleton rows={5} label="Running report" />}
 
-        {state === "error" && <ErrorState title="That report could not run" detail={error} onRetry={reload} />}
+        {visibleState === "error" && <ErrorState title="That report could not run" detail={visibleError} onRetry={reload} />}
 
-        {state === "ready" && result && (
+        {visibleState === "ready" && visibleResult && (
           <>
-            {result.rows.length === 0 ? (
+            {visibleResult.rows.length === 0 ? (
               <EmptyState icon={<FileBarChart2 size={20} className="i-teal" />} title="No rows matched">
                 This client has no data for that report yet. It fills in as payroll runs and employee records accumulate.
               </EmptyState>
@@ -272,7 +325,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
                 <table className="data-table">
                   <thead>
                     <tr>
-                      {result.columns.map((column) => (
+                      {visibleResult.columns.map((column) => (
                         <th key={column} className={isNumericColumn(column) ? "right" : undefined}>
                           {column}
                         </th>
@@ -280,10 +333,10 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
                     </tr>
                   </thead>
                   <tbody>
-                    {result.rows.map((row, index) => (
+                    {visibleResult.rows.map((row, index) => (
                       <tr key={index}>
                         {row.map((cell, cellIndex) => {
-                          const column = result.columns[cellIndex] ?? "";
+                          const column = visibleResult.columns[cellIndex] ?? "";
                           const numeric = isNumericColumn(column);
                           return (
                             <td key={cellIndex} className={numeric ? "right num" : undefined}>
