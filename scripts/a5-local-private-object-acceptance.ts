@@ -4,6 +4,7 @@ import { documentObjectIdentityMatches } from "../src/lib/employee-document-vaul
 import { documentObjectKey, documentStorageConfig, deleteDocumentObject, putDocumentObject, signedDocumentObjectUrl } from "../src/lib/document-object-storage";
 import { scanUpload } from "../src/lib/storage";
 
+async function main() {
 // No real storage, customer records, credentials, or production endpoint allowed.
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.GITHUB_ACTIONS, "true");
@@ -80,3 +81,12 @@ try {
 } finally {
   await deleteDocumentObject(key, { config }).catch(() => {});
 }
+}
+
+// GitHub Actions runs tsx in CommonJS mode: top-level await cannot compile.
+// Keep all storage/scanner assertions in the awaited async acceptance function.
+void main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+
