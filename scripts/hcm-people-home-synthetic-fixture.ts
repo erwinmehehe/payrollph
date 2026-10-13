@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { hashPassword } from "../src/lib/crypto";
 import {
