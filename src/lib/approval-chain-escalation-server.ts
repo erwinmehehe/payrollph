@@ -1,8 +1,9 @@
-import { and, asc, eq, gt, ne } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, approvalChainInstances, approvalChainInstanceSteps, auditEvents } from "@/db/schema";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { shouldEscalateApprovalStep } from "@/lib/approval-human-separation";
+import { resolveApprovalEscalationRecipients, queueApprovalEscalationNotices } from "@/lib/approval-escalation-notifications";
 
 /**
  * Advisory-only task priority escalation. Never approves a task, changes pay,
@@ -40,17 +41,22 @@ export async function runDueApprovalChainEscalations(now=new Date()){
    eq(approvalChainInstanceSteps.status,"pending"),
    eq(approvalChainInstances.currentStepIndex,approvalChainInstanceSteps.stepIndex),
    eq(approvalTasks.status,"Pending"),
-   ne(approvalTasks.priority,"High"),
    gt(approvalChainInstanceSteps.id,cursor),
  )).orderBy(asc(approvalChainInstanceSteps.id)).limit(250);
  if(!rows.length)break;
  cursor=rows[rows.length-1].id;
  for(const row of rows){
    const snapshot=Array.isArray(row.stepsSnapshot)?row.stepsSnapshot:[];
-   const step=snapshot[row.stepIndex] as {escalationAfterDays?:number}|undefined;
-   if(step?.escalationAfterDays==null)continue;
+   const step=snapshot[row.stepIndex] as {escalationAfterDays?:number;escalationRecipient?:string}|undefined;
+   if(!Number.isSafeInteger(step?.escalationAfterDays) || (step?.escalationAfterDays ?? 0)<1 ||
+     (step?.escalationAfterDays ?? 31)>30)continue;
+   // Notification targets are advisory-only and never replace the actual checker.
+   const recipientTarget=step?.escalationRecipient;
+   const recipients=await resolveApprovalEscalationRecipients(row.organizationId,recipientTarget);
    // Serialize against stage advancement and decision writes before mutating the task.
-   const changed=await db.transaction(async (tx)=>{
+   let changed=false;
+   if(row.priority!=="High"){
+   changed=await db.transaction(async (tx)=>{
      const [instance]=await tx.select({
        status:approvalChainInstances.status,
        currentStepIndex:approvalChainInstances.currentStepIndex,
@@ -103,12 +109,33 @@ export async function runDueApprovalChainEscalations(now=new Date()){
        action:"Approval chain overdue escalation",resource:"Approval task",
        metadata:{approvalTaskId:row.taskId,instanceId:row.instanceId,
          stepIndex:row.stepIndex,escalationAfterDays:step?.escalationAfterDays,
-         stageActivatedAt:activatedAt.toISOString()},
+         stageActivatedAt:activatedAt.toISOString(),
+         recipientTarget:recipientTarget??null,
+         notificationState:recipients.length?"outbox_pending":"blocked_no_active_recipient"},
      });
      return true;
    });
-   if(!changed)continue;
-   raised++;
+   }
+   if(!changed && row.priority!=="High")continue;
+   if(row.priority==="High"){
+     // Only retry a prior recorded scheduler escalation. A policy may have
+     // started with priority High; that must not trigger a fabricated notice.
+     const [receipt]=await db.select({id:auditEvents.id}).from(auditEvents).where(and(
+       eq(auditEvents.organizationId,row.organizationId),
+       eq(auditEvents.action,"Approval chain overdue escalation"),
+       sql`${auditEvents.metadata}->>'approvalTaskId' = ${String(row.taskId)}`,
+       sql`${auditEvents.metadata}->>'instanceId' = ${String(row.instanceId)}`,
+     )).limit(1);
+     if(!receipt)continue;
+   }
+   if(recipients.length && recipientTarget){
+     await queueApprovalEscalationNotices({
+       organizationId:row.organizationId,instanceId:row.instanceId,
+       stepIndex:row.stepIndex,taskId:row.taskId,
+       recipientTarget,recipients,
+     });
+   }
+   if(changed)raised++;
  }
  if(rows.length<250)break;
  }
