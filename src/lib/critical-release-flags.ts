@@ -234,6 +234,10 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P2 employer pilot navigation",
     approval: "Named pilot employer opt-in and witnessed UX acceptance",
   },
+  sanitizedErrorTelemetry: {
+    env: "SAFE_OTEL_ERRORS_ENABLED", owner: "Security / Operations",
+    risk: "Optional remote sanitized error events", approval: "Collector/DPO review and synthetic error payload acceptance",
+  },
 } as const;
 
 export type CriticalReleaseFlag = keyof typeof CRITICAL_RELEASE_FLAGS;
