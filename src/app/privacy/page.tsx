@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
+import { leadRetentionDays } from "@/lib/lead-retention-policy";
 
 export const metadata: Metadata = {
   title: "Privacy Notice | Linaw PayrollPH",
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyNoticePage() {
+  const retentionDays = leadRetentionDays();
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
       <SiteNav />
@@ -29,7 +31,7 @@ export default function PrivacyNoticePage() {
           <p>Depending on enabled services, hosting, mail and payments may involve Vercel, Resend or Postmark, Xendit and PayMongo. Optional OpenAI-assisted drafting is disabled by default and requires additional approval. Some processing may occur outside the Philippines. The deployed provider inventory and applicable contracts must be confirmed for each deployment; this page does not claim that unverified agreements, including zero-retention arrangements, have been signed.</p>
         </section>
         <section><h2 className="text-[22px] font-semibold">Retention and safeguards</h2>
-          <p>Inactive public enquiry records are scheduled for removal after 365 days without an update. Sessions, tokens and delivery records have separate retention windows. Statutory payroll, tax and employment records can require longer retention, subject to legal holds. Access controls, revocable sessions and encryption protections reduce risk but do not provide absolute security.</p>
+          <p>Inactive public enquiry records are scheduled for removal after {retentionDays} days without an update. Sessions, tokens and delivery records have separate retention windows. Statutory payroll, tax and employment records can require longer retention, subject to legal holds. Access controls, revocable sessions and encryption protections reduce risk but do not provide absolute security.</p>
         </section>
         <section><h2 className="text-[22px] font-semibold">Your rights and requests</h2>
           <p>You can ask about access, correction, objection, portability, deletion or withdrawal of consent as applicable. Identity verification, the employer&#39;s role and legal retention requirements can affect how requests are handled. Submit a privacy enquiry via the <Link href="/contact" className="text-[#0868dc] underline">contact page</Link>.</p>

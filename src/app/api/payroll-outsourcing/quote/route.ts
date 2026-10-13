@@ -9,6 +9,7 @@ import { sha256 } from "@/lib/crypto";
 import { hasMarketingEnquiryConsent, marketingConsentEvidence, marketingHoneypotTripped } from "@/lib/marketing-consent";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { normalizeEmail, validEmail } from "@/lib/validation";
+import { enforceIntakeProof } from "@/lib/public-intake-proof-server";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
   }
   const name = String(body.name ?? "").trim().slice(0, 120);
   const email = normalizeEmail(body.email);
+  const proofDenied = await enforceIntakeProof(body, email);
+  if (proofDenied) return proofDenied;
   const company = String(body.company ?? "").trim().slice(0, 160);
   const headcount = String(body.headcount ?? "").trim().slice(0, 40);
   const frequency = String(body.frequency ?? "").trim().slice(0, 40);

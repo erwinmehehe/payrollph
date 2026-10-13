@@ -1,0 +1,25 @@
+# Deploy this file on an approved always-on managed worker host, NOT Vercel Hobby.
+# The private worker.env must be created there under secret-manager control.
+services:
+  payrollph-scheduler-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/scheduler/worker.Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ./worker.env
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1024m
+    stop_grace_period: 2m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

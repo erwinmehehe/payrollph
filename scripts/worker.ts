@@ -3,7 +3,20 @@ import { pool } from "../src/db";
 import { processNextPayrollJob } from "../src/lib/payroll-engine";
 import { tickScheduler } from "../src/lib/scheduler";
 
-const POLL_MS = Math.max(1000, Number(process.env.WORKER_POLL_MS ?? "3000"));
+// Refuse a NaN/zero/overflow timer instead of accidentally creating a tight
+// database polling loop under a typo in managed-worker configuration.
+function workerPollMs(raw: string | undefined) {
+  const value = raw ?? "3000";
+  if (!/^[0-9]{1,6}$/.test(value)) {
+    throw new Error("WORKER_POLL_MS must be an integer between 1000 and 60000.");
+  }
+  const ms = Number(value);
+  if (!Number.isSafeInteger(ms) || ms < 1000 || ms > 60_000) {
+    throw new Error("WORKER_POLL_MS must be an integer between 1000 and 60000.");
+  }
+  return ms;
+}
+const POLL_MS = workerPollMs(process.env.WORKER_POLL_MS);
 let stopping = false;
 
 function sleep(ms: number) {
