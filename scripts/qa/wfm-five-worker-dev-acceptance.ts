@@ -11,7 +11,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
 import {
-  employees, organizations, payrollRuns, timePunches, userOrganizations, users,
+  employees, orgUnits, organizations, payrollRuns, timePunches, userOrganizations, users,
 } from "../../src/db/schema";
 import { hashPassword } from "../../src/lib/crypto";
 import { buildEmployeeTimesheetSnapshot } from "../../src/lib/workforce-timesheet-server";
@@ -135,6 +135,14 @@ async function run() {
   const listed = await ok(owner, "/api/employees?organizationId=" + organizationId);
   assert.equal((listed as any[]).length, 5, "Tenant A directory must contain precisely five fictional employees");
   evidence("five-employee-authoritative-directory");
+  // A real manager is never company-wide without an active organizational unit.
+  // Scope this fictional manager to the same active department as all five workers.
+  const [qaUnit] = await db.insert(orgUnits).values({
+    organizationId, type:"department", code:"WFM5-UNIT",
+    name:"Fictional WFM QA Department",
+  }).returning();
+  await db.update(employees).set({ orgUnitId: qaUnit.id })
+    .where(eq(employees.organizationId, organizationId));
 
   const [tenantB] = await db.insert(organizations).values({
     name: "Fictional WFM Acceptance B", legalName: "Fictional WFM Acceptance B Inc.", plan: "Core",
@@ -164,7 +172,7 @@ async function run() {
     userId: user.id,
     organizationId: index === 3 ? tenantB.id : organizationId,
     role: roleSpec[index].role,
-    orgUnitId: null,
+    orgUnitId: roleSpec[index].role === "manager" ? qaUnit.id : null,
   })));
   const actors: Record<string, Client> = {};
   for (const item of roleSpec) actors[item.key] = await signIn(item.key.toLowerCase() + ".wfm5@linaw.test");
