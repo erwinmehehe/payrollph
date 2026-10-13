@@ -28,14 +28,20 @@ export function SchedulerAdminBanner({ organizationId }: { organizationId: numbe
   }, [organizationId]);
   if (!health) return null;
   const age = health.lastRanMinutesAgo;
-  const message = age === null
-    ? "Scheduler has not reported a completed run."
-    : "Scheduler last ran " + age + " minute" + (age === 1 ? "" : "s") + " ago.";
+  // "Off by design" during development is not an outage. Reserve live
+  // accessibility alerts for a scheduler that is expected to work but isn't.
+  const disabled = health.state === "scheduler-disabled";
+  const alert = !health.ok && !disabled;
+  const message = disabled
+    ? "Scheduler is disabled (development mode)."
+    : age === null
+      ? "Scheduler has not reported a completed run."
+      : "Scheduler last ran " + age + " minute" + (age === 1 ? "" : "s") + " ago.";
   return (
-    <div role={health.ok ? "status" : "alert"} aria-label="Scheduler health"
-      style={{ padding: "10px 14px", marginBottom: 12, border: "1px solid var(--line-strong)", borderRadius: 8, background: health.ok ? "var(--success-bg)" : "var(--review-bg)", color: "var(--ink)" }}>
+    <div role={alert ? "alert" : "status"} aria-label="Scheduler health"
+      style={{ padding: "10px 14px", marginBottom: 12, border: "1px solid var(--line-strong)", borderRadius: 8, background: alert ? "var(--review-bg)" : health.ok ? "var(--success-bg)" : "var(--surface)", color: "var(--ink)" }}>
       <strong>Scheduler monitoring</strong>
-      <span style={{ marginLeft: 8 }}>{message} {health.ok ? "Healthy." : "Attention required (" + health.state + ")."}</span>
+      <span style={{ marginLeft: 8 }}>{message} {disabled ? "" : health.ok ? "Healthy." : "Attention required (" + health.state + ")."}</span>
     </div>
   );
 }
