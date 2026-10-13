@@ -66,7 +66,7 @@ test("test-only HTTPS origin adapter can reach ONLY two localhost routes", async
     "https://scheduler-proof.example.test/api/other",
     "https://scheduler-proof.example.test/api/jobs/tick?token=sensitive",
     "http://scheduler-proof.example.test/api/jobs/tick",
-    "https://user@​scheduler-proof.example.test/api/jobs/tick",
+    "https://user@scheduler-proof.example.test/api/jobs/tick",
   ]) await assert.rejects(adapter(invalid, { method: "POST", redirect: "error" }));
   await assert.rejects(adapter("https://scheduler-proof.example.test/api/jobs/tick", { method: "GET", redirect: "error" }));
   await assert.rejects(adapter("https://scheduler-proof.example.test/api/jobs/tick", { method: "POST", redirect: "follow" }));
