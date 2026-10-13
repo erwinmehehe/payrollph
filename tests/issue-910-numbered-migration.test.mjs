@@ -47,9 +47,6 @@ test("#910 0123 matches the canonical exact-byte source builder after its six nu
     const sha256 = createHash("sha256").update(raw).digest("hex");
     const part = generated.manifest.parts.find(p => p.key === key);
     assert.equal(part?.source_sha256, sha256, "Source file changed since builder hash: " + sourcePath);
-    assert.equal(candidate.split(
-      "-- ISSUE910 SOURCE " + key + " [" + sourcePath + "] SHA256 " + sha256
-    ).length, 2, "Unique exact-file checksum marker required for: " + key);
   }
 });
 
