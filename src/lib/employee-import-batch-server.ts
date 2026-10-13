@@ -45,7 +45,7 @@ export async function commitEmployeeImport(input: {
       basicRate: row.monthlyBasic.toFixed(2), mwe: row.mwe, region: row.region,
       email: row.email, mobile: row.mobile, bankCode: row.bankCode,
       bankAccount: encryptBankAccount(row.bankAccount),
-      tin: encryptGovernmentId(row.tin, { required: process.env.NODE_ENV === "production" }),
+      tin: encryptGovernmentId(row.tin, { required: true }),
       startDate: row.startDate,
       }))).returning({ id: employees.id, basicRate: employees.basicRate });
       inserted.push(...chunk);

@@ -3,7 +3,7 @@ import test from "node:test";
 import {readFileSync} from "node:fs";
 import {randomBytes} from "node:crypto";
 import {criticalReleaseFlagEnabled} from "../src/lib/critical-release-flags";
-import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel,validPunchUuid,validDevicePunchTimestamp,drainExpiredPunchPhotoBatches,enhancedPunchEnabledForOrganization,matchingPunchReplay} from "../src/lib/workforce-punch-evidence";
+import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel,validPunchUuid,validDevicePunchTimestamp,drainExpiredPunchPhotoBatches,enhancedPunchEnabledForOrganization,matchingPunchReplay,selectPunchPhotoPurgePage} from "../src/lib/workforce-punch-evidence";
 import {encryptPunchPhoto,decryptPunchPhoto,stripJpegMetadata} from "../src/lib/workforce-punch-photo-crypto";
 import {resolveWebBundyPunchAnchor} from "../src/lib/web-bundy-overnight-anchor";
 
@@ -224,6 +224,26 @@ test("photo purge refuses to certify success if backlog exceeds bounded capacity
   await assert.rejects(drainExpiredPunchPhotoBatches(async()=>({
     purged:-1,remainingPossiblyDue:false,
   }),async()=>undefined,1),/Invalid photo retention batch result/);
+});
+
+test("retention drains exactly full final batch without a false backlog error",async()=>{
+  const run=async(count:number)=>{
+    const pool=Array.from({length:count},(_,index)=>({id:`synthetic-photo-${index}`}));
+    let leaseChecks=0;
+    const result=await drainExpiredPunchPhotoBatches(async()=>{
+      const page=selectPunchPhotoPurgePage(pool.slice(0,251),250);
+      pool.splice(0,page.ids.length);
+      return {purged:page.ids.length,remainingPossiblyDue:page.remainingPossiblyDue};
+    },async()=>{leaseChecks++;},2);
+    return {result,leaseChecks,remaining:pool.length};
+  };
+  assert.deepEqual(await run(500),{
+    result:{purged:500,batches:2},leaseChecks:2,remaining:0,
+  });
+  await assert.rejects(run(501),/backlog exceeded/,
+    "A real extra photo must still trigger an operator-visible backlog failure");
+  assert.deepEqual(selectPunchPhotoPurgePage([],250),{ids:[],remainingPossiblyDue:false});
+  assert.throws(()=>selectPunchPhotoPurgePage([],251),/Invalid bounded/);
 });
 
 test("existing same-employee punch receipt is resolved before later payroll locks or expiry",()=>{

@@ -1,6 +1,7 @@
 import { and, inArray, isNotNull, lt, or } from "drizzle-orm";
 import { db } from "@/db";
 import { purgeExpiredRejectedApplicants } from "@/lib/recruitment-applicant-retention";
+import { leadRetentionCutoff } from "./lead-retention-policy";
 import {
   emailChangeTokens,
   marketingLeads,
@@ -117,7 +118,7 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
   const authCutoff = daysAgo(RETENTION_POLICY.authenticationArtifacts.retentionDaysAfterExpiry, now);
   const messageCutoff = daysAgo(RETENTION_POLICY.messageDeliveryRecords.retentionDays, now);
   const webhookCutoff = daysAgo(RETENTION_POLICY.webhookDeliveryRecords.retentionDays, now);
-  const marketingLeadCutoff = daysAgo(RETENTION_POLICY.marketingLeadRecords.retentionDaysAfterLastUpdate, now);
+  const marketingLeadCutoff = leadRetentionCutoff(now);
   const rateCutoff = hoursAgo(RETENTION_POLICY.rateLimitCounters.retentionHours, now);
 
   const deletedSessions = await db.delete(sessions).where(or(
