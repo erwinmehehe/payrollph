@@ -131,6 +131,9 @@ function denied(code: number, actual: number, label: string) {
 }
 async function main() {
   requireSafeTarget();
+  // Browser handoff is never uploaded; create the temporary fixture folder
+  // before the first real authenticated step and remove its credential file in CI.
+  mkdirSync("qa-artifacts", { recursive: true });
   assert.equal((await db.select({ id: organizations.id }).from(organizations)).length, 0,
     "Never run connected fixture against a populated database");
   const now = new Date();
