@@ -24,10 +24,16 @@ assert.ok(Number.isSafeInteger(realAnchor) && anchorAge >= 0 && anchorAge < 30 *
 // while server markup was generated in September (React hydration error #418).
 const syntheticEpoch = Date.parse("2026-09-30T08:00:00.000Z");
 const browser = await chromium.launch({headless:true});
+// Authenticate each fictional actor once; viewport coverage is not a burst
+// login-load test. Reuse only the actual browser cookie jar, never forge a
+// session or weaken production login rate limits. /auth/me is checked below.
+let ownerState;
+let employeeState;
 try {
   for(const width of [1440,375,390]) {
     const context = await browser.newContext({
       viewport:{ width,height:844 }, timezoneId:"Asia/Manila",
+      ...(ownerState ? {storageState:ownerState} : {}),
     });
     await context.addInitScript(({epoch, anchor}) => {
       // Test page only: match the guarded localhost server's *shared* synthetic
@@ -48,11 +54,14 @@ try {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", err => errors.push(String(err.message).slice(0,100)));
-    const signed = await context.request.post(base + "/api/auth/login",{
+    if (!ownerState) {
+      const signed = await context.request.post(base + "/api/auth/login",{
       data:{email:auth.owner,password:auth.password},
       headers:{origin:base,"sec-fetch-site":"same-origin"}
     });
-    assert.equal(signed.status(),200);
+      assert.equal(signed.status(),200);
+      ownerState = await context.storageState();
+    }
     await page.goto(base + "/app?organizationId=" + auth.organizationId,
       {waitUntil:"domcontentloaded"});
     await page.locator(".company-switcher").waitFor({timeout:60000});
@@ -144,6 +153,7 @@ try {
     // are deliberately virtualized for a synthetic September payroll.
     const restricted = await browser.newContext({
       viewport:{width,height:844}, timezoneId:"Asia/Manila",
+      ...(employeeState ? {storageState:employeeState} : {}),
     });
     await restricted.addInitScript(({epoch, anchor}) => {
       const RealDate = Date;
@@ -163,6 +173,7 @@ try {
     employeePage.on("pageerror", err =>
       employeeErrors.push(String(err.message).slice(0,100)));
     await employeePage.goto(base + "/login", {waitUntil:"domcontentloaded"});
+    if (!employeeState) {
     const employeeLogin = await employeePage.evaluate(async credentials => {
       const response = await fetch("/api/auth/login", {
         method:"POST",
@@ -175,6 +186,8 @@ try {
     assert.equal(employeeLogin.status,200, "Employee browser sign-in failed");
     assert.equal(employeeLogin.body?.user?.email,auth.employee,
       "Employee login must return the actual fictional worker account");
+      employeeState = await restricted.storageState();
+    }
     const session = await employeePage.evaluate(async () => {
       const response = await fetch("/api/auth/me",{credentials:"same-origin"});
       return {status:response.status,body:await response.json()};
