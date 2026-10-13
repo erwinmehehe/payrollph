@@ -28,8 +28,8 @@ jobs:
       TZ: Asia/Manila
       BIR_SYNTHETIC_BROWSER_QA: 'true'
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
-      APP_BASE_URL: http://127.0.0.1:3000
-      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3001
+      APP_BASE_URL: https://127.0.0.1:3443
+      TRUSTED_APP_ORIGINS: https://127.0.0.1:3443,https://127.0.0.1:3444
       DEMO_MODE: 'false'
       REQUIRE_PRIVILEGED_MFA: 'true'
       NEXT_TELEMETRY_DISABLED: '1'
@@ -75,6 +75,13 @@ jobs:
         run: |
           npm install --no-save --package-lock=false playwright@1.55.0
           npx playwright install --with-deps chromium
+      - name: Generate ephemeral loopback TLS certificate
+        run: |
+          openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 1 \
+            -keyout /tmp/bir-synthetic-https.key \
+            -out /tmp/bir-synthetic-https.crt \
+            -subj "/CN=localhost" \
+            -addext "subjectAltName=IP:127.0.0.1,DNS:localhost" >/dev/null 2>&1
       - name: Start flag-on and flag-off servers
         run: |
           BIR_1604C_DAT_CANDIDATE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/bir-1604c-on.log 2>&1 &
@@ -83,6 +90,17 @@ jobs:
             ready=false
             for attempt in $(seq 1 60); do
               if curl --silent --fail "http://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi
+              sleep 1
+            done
+            test "$ready" = true
+          done
+      - name: Start ephemeral HTTPS reverse proxies for Secure MFA session cookies
+        run: |
+          node scripts/bir-1604c-synthetic-https-proxy.mjs > /tmp/bir-1604c-tls.log 2>&1 &
+          for port in 3443 3444; do
+            ready=false
+            for attempt in $(seq 1 30); do
+              if curl --cacert /tmp/bir-synthetic-https.crt --silent --fail "https://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi
               sleep 1
             done
             test "$ready" = true
