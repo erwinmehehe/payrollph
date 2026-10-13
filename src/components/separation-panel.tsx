@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, CheckCircle2, Download, FileCheck, FileText, HelpCircle, Plus, Shield, UserX, X } from "lucide-react";
 import { finalPayReviewCsv, finalPayReviewShortfall, finalPayLoanReviewSummary } from "@/lib/final-pay-review-evidence";
+import { manilaCalendarDate } from "@/lib/payroll-period-ui";
 
 type ReadyTermHandoff = {
   employeeId: number;
@@ -113,6 +114,9 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   const [clearanceEvidenceReference, setClearanceEvidenceReference] = useState("");
   const [clearanceReason, setClearanceReason] = useState("");
   const [offboardingClearanceEnabled, setOffboardingClearanceEnabled] = useState(false);
+  const [canRevokeLocalAccess, setCanRevokeLocalAccess] = useState(false);
+  const [localAccessEvidenceReference, setLocalAccessEvidenceReference] = useState("");
+  const [localAccessBusy, setLocalAccessBusy] = useState(false);
   const [canAuthorizeClearanceWaivers, setCanAuthorizeClearanceWaivers] = useState(false);
   const [waiverDepartment, setWaiverDepartment] = useState<"it" | "admin" | "finance" | "hr">("it");
   const [waiverEvidenceReference, setWaiverEvidenceReference] = useState("");
@@ -164,6 +168,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         setCurrentUserId(Number.isInteger(data.currentUserId) ? data.currentUserId : null);
         setManualReleaseEnabled(data.manualReleaseEnabled === true);
         setOffboardingClearanceEnabled(data.offboardingClearanceEnabled === true);
+        setCanRevokeLocalAccess(data.canRevokeLocalAccess === true);
         setCanAuthorizeClearanceWaivers(data.canAuthorizeClearanceWaivers === true);
         const ids = records.filter((row) => row.status === "draft").map((row) => row.id);
         const query = new URLSearchParams({
@@ -367,6 +372,41 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     setShowCoeModal(false);
     setSelectedRecord(null);
     reload();
+  }
+
+  async function revokeLocalAccess(id: number) {
+    if (localAccessBusy || localAccessEvidenceReference.trim().length < 8) return;
+    if (!window.confirm(
+      "Revoke the employee's local app sessions and memberships for this employer? "
+      + "This does NOT revoke external SSO/MDM application access, does NOT mark final pay "
+      + "released, and will preserve active memberships at other employers.",
+    )) return;
+    setLocalAccessBusy(true);
+    try {
+      const res = await fetch("/api/separation", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id, action: "revoke_local_access",
+          localAccessEvidenceReference: localAccessEvidenceReference.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNotice(data.error ?? "Could not revoke local application access.");
+        return;
+      }
+      setNotice(
+        `Local employer access cutoff recorded: ${data.revokedSessionCount ?? 0} sessions invalidated. `
+        + "External identity-provider grants still require independent IT verification. "
+        + "Final pay has not been released.",
+      );
+      setLocalAccessEvidenceReference("");
+      setSelectedRecord(null);
+      reload();
+    } finally {
+      setLocalAccessBusy(false);
+    }
   }
 
   async function transitionFinalPay(id: number, action: "approve" | "release") {
@@ -662,6 +702,42 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
               <span>Outstanding tax/statutory obligations: {finalPayReviewShortfall(selectedRecord).total === null ? "amount unverified" : peso(finalPayReviewShortfall(selectedRecord).total!) }. Net pay may show ₱0.00, but this does not settle the unpaid deductions.</span>
               <span>Approval and release are blocked until Finance and Philippine payroll reconcile and recompute the package. Legacy records may not include a tax/statutory allocation split.</span>
             </div>
+          )}
+
+          {offboardingClearanceEnabled && canRevokeLocalAccess
+            && ["draft", "approved"].includes(selectedRecord.status) && (
+            <section style={{ marginTop: 14, padding: 14, border: "1px solid var(--line)", borderRadius: 10 }}>
+              <strong>Local application access cutoff (independent of final pay)</strong>
+              <p style={{ fontSize: 12 }}>
+                After the verified last working day, an independent HR/IT reviewer can
+                revoke this employer's local memberships and existing sessions.
+                No external SSO/MDM provider calls are made. Final-pay approval,
+                release, and money movement remain separate.
+              </p>
+              {selectedRecord.lastDay > manilaCalendarDate() && (
+                <p role="status" style={{ fontSize: 12 }}>
+                  Cutoff cannot run before {selectedRecord.lastDay} (Philippine date).
+                </p>
+              )}
+              <label>
+                Local access cutoff evidence reference
+                <input
+                  value={localAccessEvidenceReference}
+                  maxLength={200}
+                  onChange={event => setLocalAccessEvidenceReference(event.target.value)}
+                  placeholder="Reviewed HR/IT separation record"
+                />
+              </label>
+              <button className="secondary-button" style={{ marginTop: 8 }}
+                disabled={localAccessBusy
+                  || selectedRecord.lastDay > manilaCalendarDate()
+                  || selectedRecord.preparedByUserId == null
+                  || selectedRecord.preparedByUserId === currentUserId
+                  || localAccessEvidenceReference.trim().length < 8}
+                onClick={() => void revokeLocalAccess(selectedRecord.id)}>
+                {localAccessBusy ? "Recording local cutoff..." : "Revoke local access for this employer"}
+              </button>
+            </section>
           )}
 
           <div style={{ marginTop: 14, padding: "12px 16px", borderRadius: 10, background: "var(--green-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
