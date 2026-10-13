@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { documentObjectIdentityMatches } from "../src/lib/employee-document-vault";
-import { documentObjectKey, documentStorageConfig, deleteDocumentObject, putDocumentObject, signedDocumentObjectUrl } from "../src/lib/document-object-storage";
+import { documentObjectKey, documentStorageConfig, deleteDocumentObject, putDocumentObject, signedDocumentObjectUrl, verifyStoredDocumentObject } from "../src/lib/document-object-storage";
 import { scanUpload } from "../src/lib/storage";
 
 // No real storage, customer records, credentials, or production endpoint allowed.
@@ -28,6 +28,7 @@ try {
   const anonymous = await fetch(unsignedUrl);
   assert.ok([401, 403, 404].includes(anonymous.status), "anonymous GET must not expose object");
   await putDocumentObject(key, bytes, "application/pdf", { config });
+  await verifyStoredDocumentObject(key, sha, bytes.length, { config });
   const authorized = await fetch(signedDocumentObjectUrl(key, "GET", config, { expirySeconds: 60 }));
   assert.equal(authorized.status, 200, "signed GET must read privately stored bytes");
   const stored = Buffer.from(await authorized.arrayBuffer());

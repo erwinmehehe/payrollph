@@ -12,7 +12,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { documentObjectKey, deleteDocumentObject, putDocumentObject } from "@/lib/document-object-storage";
+import { documentObjectKey, deleteDocumentObject, putDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
 import { canStaffOpenEmployeeVault, validExpiryCalendarDate } from "@/lib/employee-document-vault";
 import { legacyDocumentInsertTable, legacyVisibleDocumentWhere } from "@/lib/document-schema-compat";
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
@@ -279,6 +279,10 @@ export async function POST(request: Request) {
     const storageKey = documentObjectKey(organizationId, employeeId);
     try {
       await putDocumentObject(storageKey, bytes, check.mime);
+      // Before recording a clean, scanned document, prove the object store
+      // serves precisely the same bytes and length. A corrupt/partial GET
+      // prevents the SQL compliance row from being created.
+      await verifyStoredDocumentObject(storageKey, hash, bytes.byteLength);
     } catch {
       // A provider may time out after writing part or all of a private object.
       // Never assume an HTTP timeout means no bytes were stored: reconcile

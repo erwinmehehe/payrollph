@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { canIssueExpiryNotice, documentExpiryMilestone, documentObjectIdentityMatches, expiryDaysRemaining, manilaDateOnly, validExpiryCalendarDate } from "../src/lib/employee-document-vault";
@@ -180,4 +181,42 @@ test("merged HR document protection rejects unscanned private objects after flag
   const schema = readFileSync("src/db/schema.ts", "utf8");
   assert.ok(schema.includes("documents_org_employee_id_hr_cases_unique"),
     "A-3 tenant-bound COE parent constraint must survive the A-5 reconciliation");
+});
+
+
+test("private vault upload readback rejects corrupted, truncated, oversized and unavailable provider bytes", async () => {
+  const { verifyStoredDocumentObject } = await import("../src/lib/document-object-storage");
+  const key = "private-documents/4/15/00000000-0000-4000-8000-000000000001";
+  const config = {
+    endpoint: "https://objects.example.test", bucket: "private-files", region: "us-east-1",
+    accessKeyId: "SYNTHETIC_KEY", secretAccessKey: "synthetic-not-real",
+  };
+  const bytes = "%PDF-1.7\\nSynthetic A-5 bytes\\n";
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  const goodGet = async (url: RequestInfo | URL, options?: RequestInit) => {
+    assert.equal(options?.method, "GET");
+    assert.equal(options?.redirect, "error");
+    assert.equal(new URL(String(url)).searchParams.get("X-Amz-Expires"), "60");
+    return new Response(bytes, { status: 200 });
+  };
+  await verifyStoredDocumentObject(key, hash, Buffer.byteLength(bytes), {
+    config, fetchImpl: goodGet as typeof fetch,
+  });
+  for (const body of [bytes.slice(0, -1), bytes + "extra", bytes.replace("Synthetic", "Malicious!")]) {
+    await assert.rejects(() => verifyStoredDocumentObject(key, hash, Buffer.byteLength(bytes), {
+      config, fetchImpl: (async () => new Response(body, { status: 200 })) as typeof fetch,
+    }), /integrity check failed/);
+  }
+  await assert.rejects(() => verifyStoredDocumentObject(key, hash, Buffer.byteLength(bytes), {
+    config, fetchImpl: (async () => new Response(null, { status: 503 })) as typeof fetch,
+  }), /readback is unavailable/);
+  await assert.rejects(() => verifyStoredDocumentObject(key, hash, 5 * 1024 * 1024 + 1, {
+    config, fetchImpl: goodGet as typeof fetch,
+  }), /integrity receipt is invalid/);
+
+  // The upload route must verify the object before starting its DB transaction.
+  const source = readFileSync("src/app/api/documents/route.ts", "utf8");
+  const proof = source.indexOf("await verifyStoredDocumentObject(storageKey, hash, bytes.byteLength)");
+  const insert = source.indexOf("const result = await db.transaction(async tx => {", proof);
+  assert.ok(proof > 0 && insert > proof);
 });

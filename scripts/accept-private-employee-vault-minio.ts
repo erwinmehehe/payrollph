@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
   documentObjectKey, documentStorageConfig, signedDocumentObjectUrl,
-  putDocumentObject, deleteDocumentObject,
+  putDocumentObject, deleteDocumentObject, verifyStoredDocumentObject,
 } from "../src/lib/document-object-storage";
 import { documentObjectIdentityMatches } from "../src/lib/employee-document-vault";
 import { scanUpload, validateUpload } from "../src/lib/storage";
@@ -55,6 +55,7 @@ const unsigned=new URL(config.endpoint+"/"+config.bucket+"/"+key);
 const before=await fetch(unsigned);
 assert.ok([403,404].includes(before.status),"unsigned object access must be denied");
 await putDocumentObject(key,bytes,mime,{config});
+await verifyStoredDocumentObject(key, createHash("sha256").update(bytes).digest("hex"), bytes.length, { config });
 const signed=signedDocumentObjectUrl(key,"GET",config,{expirySeconds:60});
 const downloaded=await fetch(signed,{cache:"no-store"});
 assert.equal(downloaded.status,200,"MinIO signed GET must retrieve actual privately stored bytes");

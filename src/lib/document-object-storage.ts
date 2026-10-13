@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { MAX_UPLOAD_BYTES } from "@/lib/storage";
 
 /** Private S3-compatible object store. Browser never receives write credentials. */
 export type DocumentStorageConfig = {
@@ -114,4 +115,51 @@ export async function deleteDocumentObject(key: string,
     method: "DELETE", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(20000),
   });
   if (!response.ok && response.status !== 404) throw new Error("Private document deletion failed.");
+}
+
+/**
+ * Fail closed before an A-5 upload is committed as scanned and available.
+ * An acknowledged S3 PUT is not evidence that the provider retained the
+ * malware-scanned bytes unchanged; re-read through a separate signed GET.
+ * Bound streaming memory/bytes to the existing 5 MB upload limit and never
+ * include object keys or document bytes in exceptions or logs.
+ */
+export async function verifyStoredDocumentObject(
+  key: string, expectedSha256: string, expectedByteSize: number,
+  options: { fetchImpl?: typeof fetch; config?: DocumentStorageConfig } = {},
+): Promise<void> {
+  if (!/^[0-9a-f]{64}$/.test(expectedSha256) ||
+    !Number.isSafeInteger(expectedByteSize) || expectedByteSize <= 0 ||
+    expectedByteSize > MAX_UPLOAD_BYTES) {
+    throw new Error("Private document integrity receipt is invalid.");
+  }
+  const config = options.config ?? documentStorageConfig();
+  const url = signedDocumentObjectUrl(key, "GET", config, { expirySeconds: 60 });
+  const response = await (options.fetchImpl ?? fetch)(url, {
+    method: "GET", cache: "no-store", redirect: "error",
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (response.status !== 200 || !response.body) {
+    throw new Error("Private document object readback is unavailable.");
+  }
+  const reader = response.body.getReader();
+  const digest = createHash("sha256");
+  let bytesRead = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytesRead += value.byteLength;
+      if (bytesRead > expectedByteSize) {
+        await reader.cancel();
+        throw new Error("Private document object integrity check failed.");
+      }
+      digest.update(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (bytesRead !== expectedByteSize || digest.digest("hex") !== expectedSha256) {
+    throw new Error("Private document object integrity check failed.");
+  }
 }
