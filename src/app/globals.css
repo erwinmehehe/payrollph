@@ -5453,6 +5453,16 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   body { font-size: 13.5px; }
   .topbar { height: 54px; }
   .company-switcher small { display: none; }
+  /* Keep profile controls inside narrow phone viewports. Let the current
+     employer name truncate before the switcher pushes topbar actions right. */
+  .topbar-left { flex: 1 1 0%; min-width: 0; }
+  .topbar-left > .mobile-menu { flex: none; }
+  .topbar-left > .client-switcher-wrap { flex: 1 1 auto; min-width: 0; }
+  .topbar-left > .client-switcher-wrap > .company-switcher { width: 100%; min-width: 0; }
+  .topbar-left > .client-switcher-wrap > .company-switcher > span:nth-child(2) {
+    flex: 1 1 auto; min-width: 0;
+  }
+  .topbar-actions { flex: 0 0 auto; }
   .palette-trigger { min-width: 0; width: 32px; padding: 0; justify-content: center; }
   .palette-trigger span, .palette-trigger kbd { display: none; }
   .topbar-link, .role-pill-btn { display: none; }
