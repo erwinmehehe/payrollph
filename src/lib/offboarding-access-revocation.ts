@@ -36,7 +36,7 @@ export async function revokeSeparatedEmployeeAccessTx(tx: DbTransaction, input: 
     eq(users.employeeId, input.employeeId),
     eq(users.role, "employee"),
   ));
-  const employeeUserIds = linked.map(row => row.id);
+  const directlyLinkedEmployeeIds = linked.map(row => row.id);
   // Revoke every employer-A membership tied to the separated employee,
   // including historical linked-logins without a populated workerEmployeeId.
   const scopedMemberships = await tx.update(userOrganizations).set({ active: false })
@@ -45,9 +45,22 @@ export async function revokeSeparatedEmployeeAccessTx(tx: DbTransaction, input: 
       eq(userOrganizations.active, true),
       or(
         eq(userOrganizations.workerEmployeeId, input.employeeId),
-        ...(employeeUserIds.length ? [inArray(userOrganizations.userId, employeeUserIds)] : []),
+        ...(directlyLinkedEmployeeIds.length
+          ? [inArray(userOrganizations.userId, directlyLinkedEmployeeIds)] : []),
       ),
-    )).returning({ id: userOrganizations.id });
+    )).returning({ id: userOrganizations.id, userId: userOrganizations.userId });
+  // Older ESS records may be linked through the tenant membership alone,
+  // without users.employeeId. Those identities still need session revocation.
+  // Worker-linked staff identities must reauthenticate too, but may retain
+  // legitimate access to a different employer.
+  const affectedUserIds = [...new Set([
+    ...directlyLinkedEmployeeIds, ...scopedMemberships.map(row => row.userId),
+  ])];
+  const employeeLogins = affectedUserIds.length
+    ? await tx.select({ id: users.id, employeeId: users.employeeId }).from(users)
+        .where(and(inArray(users.id, affectedUserIds), eq(users.role, "employee")))
+    : [];
+  const employeeUserIds = employeeLogins.map(row => row.id);
   const otherEmployerMemberships = employeeUserIds.length
     ? await tx.select({ userId: userOrganizations.userId }).from(userOrganizations)
         .where(and(
@@ -58,7 +71,9 @@ export async function revokeSeparatedEmployeeAccessTx(tx: DbTransaction, input: 
     : [];
   const retainedLogins = new Set(otherEmployerMemberships.map(row => row.userId));
   const disableIds = employeeUserIds.filter(id => !retainedLogins.has(id));
-  const retainedIds = employeeUserIds.filter(id => retainedLogins.has(id));
+  const retainedIds = employeeLogins
+    .filter(row => retainedLogins.has(row.id) && row.employeeId === input.employeeId)
+    .map(row => row.id);
   // A still-active account must not keep the separated employer's global
   // employeeId pointer. Self-service endpoints can use that pointer even
   // before reading tenant membership; require a new authorized HR link.
@@ -73,9 +88,9 @@ export async function revokeSeparatedEmployeeAccessTx(tx: DbTransaction, input: 
         .where(and(inArray(users.id, disableIds), eq(users.role, "employee")))
         .returning({ id: users.id })
     : [];
-  const revoked = employeeUserIds.length
+  const revoked = affectedUserIds.length
     ? await tx.update(sessions).set({ revokedAt: new Date() }).where(and(
-        inArray(sessions.userId, employeeUserIds), isNull(sessions.revokedAt),
+        inArray(sessions.userId, affectedUserIds), isNull(sessions.revokedAt),
       )).returning({ id: sessions.id })
     : [];
 
