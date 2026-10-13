@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { sameOfflineClaimReplay } from "../src/lib/offline-claim-replay";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -17,6 +19,22 @@ test("offline employee consent and HR queue clearly label unverified claims",()=
   assert.match(html,/camera preview/i);assert.match(html,/not face verification/i);
   const hr=renderToStaticMarkup(createElement(OfflinePunchReviewQueue,{organizationId:1}));
   assert.match(hr,/Unverified offline punch claims/);assert.match(hr,/Loading offline claims/);
+});
+test("offline reconnect retry matches actor, action and timestamp exactly",()=>{
+ const existing={submittedByUserId:31,actionType:"clock_in",claimedAt:new Date("2026-10-14T02:15:00Z")};
+ assert.equal(sameOfflineClaimReplay(existing,{...existing,claimedAt:new Date("2026-10-14T10:15:00+08:00")}),true);
+ assert.equal(sameOfflineClaimReplay(existing,{...existing,submittedByUserId:32}),false);
+ assert.equal(sameOfflineClaimReplay(existing,{...existing,actionType:"clock_out"}),false);
+ assert.equal(sameOfflineClaimReplay(existing,{...existing,claimedAt:new Date("2026-10-14T02:15:01Z")}),false);
+ assert.equal(sameOfflineClaimReplay(existing,{...existing,claimedAt:new Date("invalid")}),false);
+});
+test("offline claim intake refuses local rate limit fallback and mismatched replays",()=>{
+ const code=readFileSync("src/app/api/attendance/offline-claims/route.ts","utf8");
+ assert.match(code,/limit\.mode !== "distributed-postgres"/);
+ assert.match(code,/sameOfflineClaimReplay\(prior/);
+ assert.match(code,/claimId: prior\.id/);
+ assert.match(code,/already used for a different claim/);
+ assert.doesNotMatch(code,/request\.clone\(\)\.json\(/);
 });
 test("offline claims API rejects disabled and multi-entity requests before DB access",async()=>{
   process.env.DATABASE_URL??="postgresql://local:local@127.0.0.1:1/offline";

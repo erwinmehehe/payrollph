@@ -7,6 +7,7 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { workflowEntityHold } from "@/lib/workflow-entity-hold";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { rateLimitDistributed } from "@/lib/rate-limit";
+import { sameOfflineClaimReplay } from "@/lib/offline-claim-replay";
 
 export const dynamic = "force-dynamic";
 const unavailable = () => Response.json({ error: "Offline punch review disabled." }, { status: 404 });
@@ -67,14 +68,15 @@ export async function POST(request: Request) {
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return failure("Sign in required.", 401);
-  const initialBody = await request.clone().json().catch(() => ({}));
-  const initialOrganizationId = Number(initialBody.organizationId);
-  const access = Number.isSafeInteger(initialOrganizationId) && initialOrganizationId > 0
-    ? await getAccess(user.id, initialOrganizationId) : null;
+  const payload: unknown = await request.json().catch(() => null);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload))
+    return failure("A JSON object is required.",400);
+  const body = payload as Record<string, unknown>;
+  const organizationId = Number(body.organizationId);
+  const access = Number.isSafeInteger(organizationId) && organizationId > 0
+    ? await getAccess(user.id, organizationId) : null;
   if (access?.role !== "employee" || !user.employeeId)
     return failure("Only the linked employee can submit their own offline attendance claim.",403);
-  const body = await request.json().catch(() => ({}));
-  const organizationId = Number(body.organizationId);
   const denied = await member(user.id, organizationId); if (denied) return denied;
   const employeeId = Number(body.employeeId);
   const eventId = String(body.clientEventId ?? "");
@@ -93,6 +95,9 @@ export async function POST(request: Request) {
   if (!worker) return failure("Employee not in this workspace.",403);
   const limit = await rateLimitDistributed("offline-punch-claim:" + organizationId + ":" + user.id,
     { limit: 10, windowMs: 24*60*60_000 });
+  // A per-process fallback cannot enforce a durable cross-instance intake bound.
+  if (limit.mode !== "distributed-postgres")
+    return failure("Offline claim service cannot verify its shared rate limit. Retry later.",503);
   if (!limit.allowed) return failure("Too many attendance claims; contact HR.",429);
   const created = await db.transaction(async tx => {
     const [row] = await tx.insert(offlinePunchClaims).values({
@@ -108,9 +113,27 @@ export async function POST(request: Request) {
     });
     return row;
   });
-  // Idempotent resend across browser reconnects. Do not expose another person's record.
-  return Response.json({ received: true, claimId: created?.id ?? null, verified: false,
-    message: "Received for HR review, not clocked in/out." }, { status: created ? 201 : 200 });
+  if (!created) {
+    // A unique-key clash is an idempotent replay ONLY when the actual stored
+    // actor, action and timestamp match. Never acknowledge a changed claim.
+    const [prior] = await db.select({
+      id: offlinePunchClaims.id, submittedByUserId: offlinePunchClaims.submittedByUserId,
+      actionType: offlinePunchClaims.actionType, claimedAt: offlinePunchClaims.claimedAt,
+    }).from(offlinePunchClaims).where(and(
+      eq(offlinePunchClaims.organizationId, organizationId),
+      eq(offlinePunchClaims.employeeId, employeeId),
+      eq(offlinePunchClaims.clientEventId, eventId),
+    )).limit(1);
+    if (!prior || !sameOfflineClaimReplay(prior, {
+      submittedByUserId: user.id, actionType, claimedAt,
+    })) return failure("The offline event ID was already used for a different claim.",409);
+    return Response.json({ received: true, claimId: prior.id, replayed: true, verified: false,
+      message: "Already received for HR review, not clocked in/out." },
+      { status: 200, headers: { "Cache-Control": "private, no-store" } });
+  }
+  return Response.json({ received: true, claimId: created.id, replayed: false, verified: false,
+    message: "Received for HR review, not clocked in/out." },
+    { status: 201, headers: { "Cache-Control": "private, no-store" } });
 }
 export async function PATCH(request: Request) {
   if (!criticalReleaseFlagEnabled("faceOfflinePunch")) return unavailable();
