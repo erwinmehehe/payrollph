@@ -38,8 +38,8 @@ export function HcmReportBuilderPanel({ organizationId }: { organizationId: numb
   const generation = useRef(0);
 
   const loadCapabilities = useCallback(async (signal?: AbortSignal) => {
-    setRetrieving(true);
-    setError("");
+    // Initial effect starts only async network synchronization: no synchronous
+    // setState call during commit. Retry state updates occur in the click handler.
     try {
       const response = await fetch("/api/hcm-report-builder?organizationId=" + organizationId,
         { cache: "no-store", signal });
@@ -157,7 +157,8 @@ export function HcmReportBuilderPanel({ organizationId }: { organizationId: numb
         {retrieving && <p role="status">Loading available report fields…</p>}
         {error && fieldsAvailable.length === 0 && (
           <button type="button" className="secondary-button" disabled={retrieving}
-            onClick={() => void loadCapabilities()} style={{ justifySelf: "start" }}>
+            onClick={() => { setRetrieving(true); setError(""); void loadCapabilities(); }}
+            style={{ justifySelf: "start" }}>
             Retry loading fields
           </button>
         )}
