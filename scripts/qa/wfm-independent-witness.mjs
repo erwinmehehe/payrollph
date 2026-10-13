@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, statSync } from 'node:fs';
+import { openSync, closeSync, fstatSync, readSync, constants } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -140,6 +140,34 @@ export function evaluateWfmWitnessPacket(packet) {
   };
 }
 
+// Open the evidence once and read through the same descriptor. No path-level
+// check-then-open race, and no unbounded read from an untrusted packet path.
+function readPrivateWitnessPacket(path) {
+  const fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    const before = fstatSync(fd);
+    const limit = 256 * 1024;
+    if (!before.isFile() || !Number.isSafeInteger(before.size) ||
+        before.size <= 0 || before.size > limit) {
+      throw new Error('Packet must be a nonempty regular file no larger than 256 KiB');
+    }
+    const data = Buffer.alloc(before.size);
+    let offset = 0;
+    while (offset < data.length) {
+      const received = readSync(fd, data, offset, data.length - offset, offset);
+      if (received === 0) throw new Error('Packet changed while reading');
+      offset += received;
+    }
+    const after = fstatSync(fd);
+    if (after.size !== before.size || after.mtimeMs !== before.mtimeMs) {
+      throw new Error('Packet changed while reading');
+    }
+    return JSON.parse(data.toString('utf8'));
+  } finally {
+    closeSync(fd);
+  }
+}
+
 function cli() {
   const [command, arg] = process.argv.slice(2);
   if (command === 'template' && arg) {
@@ -147,8 +175,7 @@ function cli() {
     return;
   }
   if (command === 'verify' && arg && process.argv.length === 4) {
-    if (statSync(arg).size > 256 * 1024) throw new Error('Packet exceeds 256 KiB limit');
-    const packet = JSON.parse(readFileSync(arg, 'utf8'));
+    const packet = readPrivateWitnessPacket(arg);
     const report = evaluateWfmWitnessPacket(packet);
     process.stdout.write(JSON.stringify(report, null, 2) + '\n');
     if (report.status !== 'RECORDED_PENDING_HUMAN_VALIDATION') process.exitCode = 1;
