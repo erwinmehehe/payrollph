@@ -136,7 +136,14 @@ jobs:
             if curl -fsS "http://127.0.0.1:3000/login" >/dev/null; then exit 0; fi
             sleep 2
           done
-          echo "Synthetic HRIS app failed to start"
+          echo "Synthetic HRIS app failed to serve /login successfully; retain failure exit code"
+          if test -f /tmp/hris-journey-local.log; then
+            # Disposable PostgreSQL/fictional employees only. Show a bounded,
+            # redacted server diagnostic instead of concealing all HTTP 500s.
+            tail -n 100 /tmp/hris-journey-local.log \
+              | sed -E 's#(postgres(ql)?://)[^/@[:space:]]+@#\\1[REDACTED]@#g; s#(BANK_DATA_ENCRYPTION_KEY|TOTP_ENCRYPTION_KEY|PII_ENCRYPTION_KEY|SESSION_SECRET|AUTH_SECRET|OPENAI_API_KEY)[=:][^[:space:]]+#\\1=[REDACTED]#g' \
+              | tail -n 80
+          fi
           exit 1
       - name: Test HR Home, Employee 360, My Team, onboarding and approvals
         run: node scripts/hris-journey-synthetic-browser.mjs
