@@ -8,7 +8,11 @@ import { dirname, resolve } from "node:path";
 if (process.env.CI !== "true" || process.env.GITHUB_ACTIONS !== "true") {
   throw new Error("The synthetic Next.js runtime probe is CI-only.");
 }
-const route = resolve("src/app/api/__safe_otel_ci_probe__/route.ts");
+// App Router excludes underscore-prefixed private folders from its route
+// manifest. The disposable test must use a routable, non-private segment.
+const PROBE_SEGMENT = "safe-otel-ci-probe";
+assert.match(PROBE_SEGMENT, /^[a-z][a-z0-9-]*$/);
+const route = resolve("src/app/api", PROBE_SEGMENT, "route.ts");
 const action = process.argv[2];
 if (action === "stage") {
   mkdirSync(dirname(route), { recursive: true });
@@ -70,7 +74,7 @@ if (action === "stage") {
   });
   try {
     await waitFor(() => output.includes("Ready in"), "production-mode Next.js readiness");
-    const webResponse = await fetch(url + "/api/__safe_otel_ci_probe__", {
+    const webResponse = await fetch(url + "/api/" + PROBE_SEGMENT, {
       signal: AbortSignal.timeout(15_000),
     });
     assert.equal(webResponse.status, 500, "uncaught synthetic route must return HTTP 500");
