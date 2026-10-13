@@ -106,6 +106,8 @@ jobs:
         run: node --test tests/unattended-scheduler-payroll-proof.test.mjs tests/run-external-scheduler-tick.test.mjs
       - name: Create disposable PostgreSQL schema
         run: npm run db:push
+      - name: Apply audited 0109 chain functions on EMPTY isolated PostgreSQL only
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
       - name: Build real Next.js routes against disposable schema
         run: npm run build
       - name: Start isolated Next.js server without payroll worker
