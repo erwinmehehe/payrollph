@@ -274,3 +274,99 @@ test("worker-only tenant membership revokes its login sessions without harming a
     await db.delete(users).where(eq(users.id, employeeLogin.id));
   }
 });
+
+
+test("independent last-day cutoff revokes local access but leaves final pay pending", async () => {
+  const suffix = randomUUID();
+  const [orgA, orgB] = await db.insert(organizations).values([
+    { name: "A6 Last-day A " + suffix, legalName: "A6 Last-day A", plan: "Core" },
+    { name: "A6 Last-day B " + suffix, legalName: "A6 Last-day B", plan: "Core" },
+  ]).returning();
+  const [maker, reviewer, login] = await db.insert(users).values([
+    { email: "a6-cutoff-maker-" + suffix + "@example.invalid", name: "Fictional Maker", passwordHash: "qa", role: "owner" },
+    { email: "a6-cutoff-reviewer-" + suffix + "@example.invalid", name: "Fictional Reviewer", passwordHash: "qa", role: "owner" },
+    { email: "a6-cutoff-login-" + suffix + "@example.invalid", name: "Fictional Worker", passwordHash: "qa", role: "employee" },
+  ]).returning();
+  try {
+    const [worker] = await db.insert(employees).values({
+      organizationId: orgA.id, employeeNo: "A6-CUTOFF-" + orgA.id,
+      firstName: "Fictional", lastName: "Cutoff", title: "QA",
+      avatarInitials: "FC", basicRate: "25000.00", startDate: "2024-01-01",
+      status: "Separating",
+    }).returning();
+    await db.update(users).set({ employeeId: worker.id }).where(eq(users.id, login.id));
+    const [sep] = await db.insert(separationRecords).values({
+      organizationId: orgA.id, employeeId: worker.id,
+      separationType: "resignation", noticeDate: "2025-01-01",
+      lastDay: "2099-01-01", preparedByUserId: maker.id,
+    }).returning();
+    await db.insert(userOrganizations).values([
+      { userId: login.id, organizationId: orgA.id, role: "employee", workerEmployeeId: worker.id },
+      { userId: login.id, organizationId: orgB.id, role: "employee" },
+    ]);
+    const [session] = await db.insert(sessions).values({
+      userId: login.id, tokenHash: "a6-cutoff-" + suffix,
+      expiresAt: new Date("2100-01-01T00:00:00Z"),
+    }).returning();
+    const input = {
+      organizationId: orgA.id, employeeId: worker.id, separationId: sep.id,
+      actorUserId: reviewer.id, actorName: reviewer.name,
+      mode: "last-day-local-access" as const,
+      cutoffEvidenceReference: "SYNTHETIC-IT-CUTOFF-REVIEW-001",
+    };
+    await assert.rejects(
+      () => db.transaction(tx => revokeSeparatedEmployeeAccessTx(tx, input)),
+      /OFFBOARDING_ACCESS_LAST_DAY_PENDING/,
+      "future-dated departure cannot revoke login access",
+    );
+    const [stillLive] = await db.select().from(sessions).where(eq(sessions.id, session.id));
+    assert.equal(stillLive.revokedAt, null);
+    await db.update(separationRecords).set({ lastDay: "2025-10-01" })
+      .where(eq(separationRecords.id, sep.id));
+    await assert.rejects(
+      () => db.transaction(tx => revokeSeparatedEmployeeAccessTx(tx, {
+        ...input, actorUserId: maker.id,
+      })),
+      /OFFBOARDING_ACCESS_INDEPENDENT_REVIEW_REQUIRED/,
+    );
+    await assert.rejects(
+      () => db.transaction(tx => revokeSeparatedEmployeeAccessTx(tx, {
+        ...input, cutoffEvidenceReference: "short",
+      })),
+      /OFFBOARDING_ACCESS_EVIDENCE_REQUIRED/,
+    );
+    const result = await db.transaction(tx => revokeSeparatedEmployeeAccessTx(tx, input));
+    assert.deepEqual(result.disabledEmployeeLoginIds, []);
+    assert.equal(result.revokedSessionCount, 1);
+    assert.equal(result.revokedEmployerMembershipIds.length, 1);
+    const [afterSep] = await db.select().from(separationRecords)
+      .where(eq(separationRecords.id, sep.id));
+    const [afterWorker] = await db.select().from(employees).where(eq(employees.id, worker.id));
+    const [afterLogin] = await db.select().from(users).where(eq(users.id, login.id));
+    const [afterSession] = await db.select().from(sessions).where(eq(sessions.id, session.id));
+    assert.equal(afterSep.status, "draft", "no financial approval or release transition");
+    assert.equal(afterSep.releasedAt, null);
+    assert.equal(afterWorker.status, "Separating", "payroll worker status remains unchanged");
+    assert.equal(afterLogin.active, true, "cross-employer account survives");
+    assert.equal(afterLogin.employeeId, null, "old self-service employee pointer removed");
+    assert.ok(afterSession.revokedAt, "old session denied on next request");
+    const memberships = await db.select().from(userOrganizations)
+      .where(eq(userOrganizations.userId, login.id));
+    assert.equal(memberships.find(m => m.organizationId === orgA.id)?.active, false);
+    assert.equal(memberships.find(m => m.organizationId === orgB.id)?.active, true);
+    const audit = await db.select().from(auditEvents).where(and(
+      eq(auditEvents.organizationId, orgA.id),
+      eq(auditEvents.action, "Separation last-day local application access revoked"),
+    ));
+    assert.equal(audit.length, 1);
+    assert.equal((audit[0].metadata as Record<string, unknown>).externalProviderCallsMade, false);
+    assert.equal((audit[0].metadata as Record<string, unknown>).finalPayStateChanged, false);
+    assert.equal((audit[0].metadata as Record<string, unknown>).payoutExecuted, false);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, orgA.id));
+    await db.delete(organizations).where(eq(organizations.id, orgB.id));
+    await db.delete(users).where(eq(users.id, maker.id));
+    await db.delete(users).where(eq(users.id, reviewer.id));
+    await db.delete(users).where(eq(users.id, login.id));
+  }
+});
