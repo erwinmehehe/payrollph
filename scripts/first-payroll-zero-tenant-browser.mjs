@@ -104,6 +104,22 @@ try{
   assert.equal(new URL(active.url()).pathname,"/app","Company completed without page navigation");
   report.steps.push("owner: primary legal employer and pay calendar saved inline");
   await screenshotCompleted("owner","company");
+  const security = companyPanel.getByRole("button",{name:"Configure account security and MFA"});
+  for (const width of [390,1280]) {
+    await active.setViewportSize({width,height:844});
+    await companyPanel.screenshot({path:`${screenshotRoot}/security-owner-${width}-before.png`,animations:"disabled"});
+  }
+  await security.click();
+  const securityPanel=companyPanel.locator('[aria-label="Inline account security"]');
+  await securityPanel.waitFor();
+  for (const width of [390,1280]) {
+    await active.setViewportSize({width,height:844});
+    const bounds=await securityPanel.evaluate(el=>({left:el.getBoundingClientRect().left,right:el.getBoundingClientRect().right,viewport:window.innerWidth}));
+    assert.ok(bounds.left>=-1&&bounds.right<=bounds.viewport+1,"Security panel fits phone width");
+    await companyPanel.screenshot({path:`${screenshotRoot}/security-owner-${width}-after.png`,animations:"disabled"});
+  }
+  await companyPanel.getByRole("button",{name:"Close account security"}).click();
+  await active.setViewportSize({width:375,height:812});
   await closeStep(employerStep);
 
   const peopleStep=owner.steps.nth(1);

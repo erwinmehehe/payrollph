@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { EmployeeImportPreviewPanel } from "@/components/employee-import-preview-panel";
+import { AccountPanel } from "@/components/account-panel";
 import { NewHireModal } from "@/components/new-hire-modal";
 import { FIRST_PAYROLL_STEPS, type FirstPayrollKey } from "@/lib/first-payroll-journey";
 import { INVITABLE_ROLES } from "@/lib/roles";
@@ -39,6 +40,7 @@ export function FirstPayrollInlinePanel({
  const [employer,setEmployer]=useState<LegalEmployer|null>(null);
  const [peopleMode,setPeopleMode]=useState<"add"|"import">("add");
  const [showHire,setShowHire]=useState(false);
+ const [showSecurity,setShowSecurity]=useState(false);
  const [email,setEmail]=useState("");const [role,setRole]=useState("payroll");
  const [target,setTarget]=useState<string>(defaultOwner);
  const [start,setStart]=useState("");const [end,setEnd]=useState("");const [payDate,setPayDate]=useState("");
@@ -149,6 +151,16 @@ export function FirstPayrollInlinePanel({
      </select></label>
      <button type="button" className="primary-button" disabled={busy||!employer||!reviewersCanEdit}
        onClick={()=>void companySave()}>Save legal employer and schedule</button>
+     {reviewersCanEdit&&<div className="min-w-0 max-w-full rounded-lg border p-3">
+       <p className="text-sm">Account security is personal to the signed-in administrator. MFA and session changes use the existing protected account endpoints.</p>
+       <button type="button" className="secondary-button" aria-expanded={showSecurity}
+         onClick={()=>setShowSecurity(current=>!current)}>
+         {showSecurity?"Close account security":"Configure account security and MFA"}
+       </button>
+       {showSecurity&&<div className="mt-3 max-w-full overflow-x-auto" aria-label="Inline account security">
+         <AccountPanel onNotice={message=>setNotice(message)}/>
+       </div>}
+     </div>}
      {progress?.completedSteps?.company&&<small>Confirmed by user #{progress.completedSteps.company.byUserId}</small>}
    </div>}
    {step==="people"&&<div>
