@@ -103,3 +103,28 @@ test("bank dry-run proof rejects duplicate or path-shaped split filenames even w
   }
   assert.equal(isValidPilotBankDryRunEvidence(preview(), releasedAt, expected), true);
 });
+
+test("bank preview part names reject portable collisions and dangerous characters", () => {
+  const part = (filename: string, rowCount: number, totalNet: string) =>
+    ({ filename, rowCount, totalNet });
+  const first = part("part-1.csv", 1, "200.00");
+  for (const secondName of [
+    "PART-1.CSV", "Part-1.csv", " part-2.csv", "part-2.csv ",
+    "part-2.csv.", "CON.csv", "aux.txt", "Lpt9.csv",
+    "part:2.csv", "part?2.csv", "part|2.csv", "part<2.csv",
+    "part-2.csv\t", "part-2.csv\n", "part-2.csv\r",
+    "part-2.csv\u0000", "part-2.csv\u001f", "part-2.csv\u007f",
+    "part-2.csv\u0085", "part-2.csv\u202e",
+  ]) {
+    assert.equal(isValidPilotBankDryRunEvidence(
+      preview({ bankFileParts: [first, part(secondName, 1, "100.25")] }),
+      releasedAt, expected,
+    ), false, "Unsafe or colliding filename must not certify a preview: " + JSON.stringify(secondName));
+  }
+  assert.equal(isValidPilotBankDryRunEvidence(preview({
+    bankFileParts: [part("caf\u00e9.csv", 1, "200.00"), part("cafe\u0301.csv", 1, "100.25")],
+  }), releasedAt, expected), false, "Unicode NFC aliases must not describe distinct bank file parts");
+  assert.equal(isValidPilotBankDryRunEvidence(preview({
+    bankFileParts: [part("caf\u00e9.csv", 1, "200.00"), part("part-2.csv", 1, "100.25")],
+  }), releasedAt, expected), true, "Distinct safe Unicode filenames must remain valid");
+});

@@ -64,13 +64,20 @@ export function isValidPilotBankDryRunEvidence(
     if (!part || typeof part !== "object" || Array.isArray(part)) return false;
     const data = part as Record<string, unknown>;
     const cents = nonNegativeCents(data.totalNet);
-    if (typeof data.filename !== "string" || !data.filename.trim()
-      || data.filename.includes("/") || data.filename.includes("\\")
-      || data.filename.includes("\n") || data.filename.includes("\r")
-      || data.filename === "." || data.filename === ".."
-      || partFilenames.has(data.filename)
+    const filename = data.filename;
+    const portableName = typeof filename === "string"
+      ? filename.normalize("NFC").toLowerCase() : null;
+    // Preview parts may be opened on case-insensitive or Unicode-normalizing
+    // filesystems. Reject names that could collide, escape a directory, become
+    // Windows device paths, or conceal control characters in review evidence.
+    if (typeof filename !== "string" || !filename || filename.length > 255
+      || filename !== filename.trim()
+      || /[/\\\x00-\x1f\x7f-\x9f<>:"|?*\u202a-\u202e\u2066-\u2069]/u.test(filename)
+      || filename === "." || filename === ".." || filename.endsWith(".")
+      || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(filename)
+      || portableName === null || partFilenames.has(portableName)
       || !positiveInteger(data.rowCount) || cents === null) return false;
-    partFilenames.add(data.filename);
+    partFilenames.add(portableName);
     partRows += data.rowCount;
     partCents += cents;
     if (!Number.isSafeInteger(partRows) || !Number.isSafeInteger(partCents)) return false;
