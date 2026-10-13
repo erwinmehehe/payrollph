@@ -15,6 +15,10 @@ assert.equal(process.env.QA_URL, base);
 assert.equal(new URL(process.env.DATABASE_URL).hostname, "127.0.0.1");
 assert.equal(process.env.NINE_STAGE_SYNTHETIC_CLOCK, "2026-09-30");
 assert.equal(process.env.DEMO_MODE, "false");
+const realAnchor = Number(process.env.NINE_STAGE_SYNTHETIC_REAL_ANCHOR);
+const anchorAge = Date.now() - realAnchor;
+assert.ok(Number.isSafeInteger(realAnchor) && anchorAge >= 0 && anchorAge < 30 * 60_000,
+  "Synthetic mobile acceptance requires a fresh localhost-only shared clock anchor");
 // The CI server preloads the isolated virtual September cutoff. Chromium must
 // render the same fictional calendar, or its first hydration sees October
 // while server markup was generated in September (React hydration error #418).
@@ -25,12 +29,12 @@ try {
     const context = await browser.newContext({
       viewport:{ width,height:844 }, timezoneId:"Asia/Manila",
     });
-    await context.addInitScript(epoch => {
-      // Test page only: match the guarded localhost server's monotonic clock.
+    await context.addInitScript(({epoch, anchor}) => {
+      // Test page only: match the guarded localhost server's *shared* synthetic
+      // September timeline, not a fresh clock starting at browser navigation.
       // Preserve Date.parse/UTC, constructor overloads and instanceof behavior.
       const RealDate = Date;
-      const started = performance.now();
-      const now = () => epoch + Math.floor(performance.now() - started);
+      const now = () => epoch + (RealDate.now() - anchor);
       globalThis.Date = new Proxy(RealDate, {
         apply() { return new RealDate(now()).toString(); },
         construct(target, args, newTarget) {
@@ -40,7 +44,7 @@ try {
           return key === "now" ? now : Reflect.get(target, key, receiver);
         },
       });
-    }, syntheticEpoch);
+    }, {epoch: syntheticEpoch, anchor: realAnchor});
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", err => errors.push(String(err.message).slice(0,100)));
