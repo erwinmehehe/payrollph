@@ -20,8 +20,11 @@ This harness instead uses real authenticated Web Bundy IN/OUT HTTP operations un
 final monthly cutoff, released ledger, and draft BIR/SSS/PhilHealth/Pag-IBIG worksheets
 share the same *simulated* payroll work date. The API-created punch is not seeded.
 It is **not actual October 13 wall-clock attendance or a real device event**.
-The virtual clock applies only to the localhost Next.js process and the connected test
-process, never the browser, Postgres server, other CI checks or production.
+The guarded virtual date runs in the localhost Next.js process and connected test
+process. The synthetic Chromium browser now uses an isolated test-only Manila-time
+Date shim so its hydrated UI matches the fictional September cutoff; React page-error
+assertions remain active. This is not actual wall-clock attendance or a physical phone.
+Postgres itself, other CI checks and production continue using their real clocks.
 The preload refuses anything except GitHub CI with a local empty PG16 database, payout
 flags OFF and provider keys absent. Its time advances monotonically to retain ordering.
 
