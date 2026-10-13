@@ -89,6 +89,15 @@ export function classifyReviewScope(files) {
   }
   const list = [...paths];
   const frozenPaths = list.filter(path => FROZEN_LANES.some(regex => regex.test(path)));
+  // Owner-approved #888 compatibility correction, not new HCM functionality.
+  // Only this exact modified blob may cross the freeze; any other frozen path,
+  // rename, changed byte, absent SHA or duplicate restores the normal hold.
+  const legacyEvidencePath = "src/app/api/hcm/employment-term-decisions/[id]/evidence/route.ts";
+  const legacyEvidenceFiles = files.filter(file => file.filename === legacyEvidencePath);
+  const hrDocumentLegacyCompatibility = frozenPaths.length === 1 &&
+    frozenPaths[0] === legacyEvidencePath && legacyEvidenceFiles.length === 1 &&
+    legacyEvidenceFiles[0].status === "modified" &&
+    legacyEvidenceFiles[0].sha === "49957255191041ee83440bd7f24ea5cfd72d491c";
   const wfm12DevEvidence = isExactWfm12DevelopmentEvidence(files);
   const wfmFiveWorkerDevEvidence = isPinnedWfmFiveWorkerDevEvidence(files);
   const sensitivePaths = list.filter(path =>
@@ -100,6 +109,7 @@ export function classifyReviewScope(files) {
     hcmWfmFrozen: frozenPaths.length > 0,
     wfm12DevEvidence,
     wfmFiveWorkerDevEvidence,
+    hrDocumentLegacyCompatibility,
     sensitiveFileCount: sensitivePaths.length,
     frozenFileCount: frozenPaths.length,
   };
@@ -157,6 +167,7 @@ export function evaluateIndependentReview({
   const blockers = [];
   if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
       !scope.wfmFiveWorkerDevEvidence &&
+      !scope.hrDocumentLegacyCompatibility &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {

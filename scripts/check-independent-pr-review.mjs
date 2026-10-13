@@ -116,7 +116,7 @@ export async function checkIndependentReview(env, fetcher = fetch) {
     const pilotAccepted = env.PILOT_HCM_WFM_STARTED === "true" &&
       /^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidence);
     const blockers = scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
-      !scope.wfmFiveWorkerDevEvidence && !pilotAccepted
+      !scope.wfmFiveWorkerDevEvidence && !scope.hrDocumentLegacyCompatibility && !pilotAccepted
       ? ["PILOT_HCM_WFM_FREEZE_ACTIVE"] : [];
     return { ok: blockers.length === 0, scope, approvalCount: 0, blockers,
       releaseAuthorized: false, mode: "solo-maintainer" };
