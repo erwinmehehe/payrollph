@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  workPeriodWageScreen: {
+    env: "WORK_PERIOD_WAGE_SCREEN_ENABLED",
+    owner: "Philippine Payroll",
+    risk: "P1 advisory wage-order effective-date warnings",
+    approval: "Cutoff boundary behavior and unchanged payroll golden amounts",
+  },
   wfmGreedyRoster: {
     env: "WFM_GREEDY_ROSTER_ENABLED",
     owner: "WFM Product / PH People Operations",
@@ -23,6 +29,23 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Treasury",
     risk: "P0 external Xendit salary money movement",
     approval: "Independent provider/treasury acceptance and exact employer/legal-entity authorization",
+  },
+  publicIntakeProof: {
+    env: "PUBLIC_INTAKE_PROOF_ENABLED", owner: "Security",
+    risk: "Public enquiry and signup anti-automation", approval: "Proof replay, limits and accessible intake acceptance",
+  },
+  operationalStatusDetails: {
+    env: "OPERATIONAL_STATUS_DETAILS_ENABLED", owner: "Security",
+    risk: "Authenticated operational status details", approval: "Endpoint visibility acceptance",
+  },
+  configurableLeadRetention: {
+    env: "CONFIGURABLE_LEAD_RETENTION_ENABLED", owner: "Privacy",
+    risk: "Public enquiry retention period", approval: "Approved notice and purge acceptance",
+  },
+  piiLegacyRead: {
+    env: "PII_LEGACY_READ_ENABLED", owner: "Security",
+    risk: "Temporary read-only legacy PII key compatibility",
+    approval: "Key custody, measured rewrap and retirement acceptance",
   },
   employeeImportPreview: {
     env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
@@ -86,6 +109,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Workforce Operations",
     risk: "P1 consented POS source access and historical aggregate import",
     approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
+  },
+  apiV1ExtendedReads: {
+    env: "API_V1_EXTENDED_READS_ENABLED",
+    owner: "Integrations",
+    risk: "P1 additional provider inbox and payroll accounting journal exports",
+    approval: "Entity-scoped API authorization, accounting reconciliation and privacy acceptance",
   },
   publicApiV1Extended: {
     env: "PUBLIC_API_V1_EXTENDED_ENABLED",

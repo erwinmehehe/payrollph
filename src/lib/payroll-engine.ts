@@ -60,7 +60,7 @@ import {
 } from "@/lib/payroll-rules";
 import {
   holidayPayContextOn,
-  isBelowMinimum,
+  payrollWageScreen,
   NATIONAL_HOLIDAYS_2026,
   nationalHolidayCalendarForDate,
   type HolidayCalendarEntry,
@@ -2819,7 +2819,10 @@ export function calculateEmployeePay(input: {
   }));
   const leaveAdjustmentTotal = leaveLines.reduce((sum, line) => sum + Number(line.amount), 0);
 
-  const wageCheck = isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth, input.payDate);
+  const wageCheck = payrollWageScreen(
+    monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth,
+    input.periodStart, input.periodEnd, input.payDate,
+  );
   const mweResolution = resolveMweClassification(
     input.mweClassifications ?? [],
     input.payDate,
@@ -2833,8 +2836,13 @@ export function calculateEmployeePay(input: {
   }
   if (wageCheck.below) {
     flags.push(
-      `Configured pay implies ₱${wageCheck.impliedDaily.toFixed(2)}/day versus the reference wage figure of ₱${wageCheck.order.dailyRate.toFixed(2)} for ${wageCheck.order.region}. Verify the applicable wage tier; payroll did not infer MWE tax status automatically.`,
+      `Configured pay implies ₱${wageCheck.impliedDaily.toFixed(2)}/day versus the reference wage figure of ₱${wageCheck.order.dailyRate.toFixed(2)} for ${wageCheck.order.region}${wageCheck.workPeriodEnd ? ` on work period end ${wageCheck.workPeriodEnd}` : ""}. Verify the applicable wage tier; payroll did not infer MWE tax status automatically.`,
     );
+    if (wageCheck.effectiveDateChange) {
+      flags.push(
+        `WAGE_ORDER_EFFECTIVE_DURING_CUTOFF: Wage screening reference changed between work dates ${input.periodStart} (₱${wageCheck.startOrder.dailyRate.toFixed(2)}/day) and ${input.periodEnd} (₱${wageCheck.order.dailyRate.toFixed(2)}/day). Verify eligible work dates, locality tier and legal wage treatment before approval. Payroll did not change pay or MWE tax status automatically.`,
+      );
+    }
   }
 
   let calamityPay = 0;

@@ -525,7 +525,7 @@ test("a verified later transfer failure reopens a previously settled payroll", (
 test("PayMongo transfer webhook route is signed, duplicate-safe and exact-transfer scoped", () => {
   const route = readFileSync("src/app/api/webhooks/paymongo/transfers/route.ts", "utf8");
   const reconciliationRoute = readFileSync("src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "utf8");
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   const view = readFileSync("src/components/workspace/exports.tsx", "utf8");
 
   for (const marker of [

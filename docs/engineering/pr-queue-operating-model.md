@@ -1,57 +1,69 @@
-# PayrollPH PR Integration Queue
+# PayrollPH PR integration queue and human review
 
-Status: maintainer-operated engineering model. See `docs/engineering/change-risk-policy.md`. **No mandatory independent GitHub approval applies to every PR.**
+**Status:** maintain no more than **three review-ready pull requests**. The
+queue protects review capacity but does not independently authorize a code
+merge, a deployment, a payroll run or money movement.
 
-## Goal
+## Three review-ready candidates maximum
 
-Stop accumulating unfinished, overlapping branches. Keep at most **three review-ready PRs**. Other real work may stay draft or be explicitly deferred. This is a *work-in-progress limit*, **not a reviewer-count requirement**. A green PR may be merged by its author/authorized maintainer when the source merge gates in the risk policy are satisfied.
+`.github/workflows/pr-integration-queue-gate.yml` and
+`scripts/pr-queue-policy.mjs` inspect the full set of open PRs and
+numbered SQL claims. More than three non-draft PRs blocks the queue check.
+Keep additional/overlapping changes in draft, especially financial ledger,
+migration, payroll-money, bank-payout, and provider-inbox work. Never
+renumber SQL already applied in a live database to resolve a draft collision.
 
-The workflow is read-only and never approves, merges, applies SQL, deploys, activates workers, or authorizes payments.
+For each review-ready candidate, record its exact head SHA, the dependent
+PRs, risk tier, tests/CI result, rollback plan, and **human reviewer** for
+sensitive money-related changes. Changes to the head invalidate previous
+approval. Do not rely on cached passing checks from an older commit.
 
-## Three active merge candidates
+## Required independent source review for T2/T3
 
-Choose at most three candidates and one accountable maintainer for each. No second GitHub account or outside reviewer is needed *solely to merge a PR*.
+The P0-3 gate `Independent Payroll Change Review Gate (P0-3)` requires
+one **named human other than the author** who is permitted to review
+the repository and actually approved the latest SHA. It covers money,
+payroll, final pay, approval routes, bank/payout, scheduler, migration,
+identity and related security changes. A green queue check does not
+replace a current-head approval. Low-risk T0/T1 docs/UI can still use
+ordinary maintainer review.
 
-1. Confirm exact source SHA and current base; inspect the incremental diff and upstream overlap.
-2. Run exact-head CI and the applicable security, statutory/golden and behavior tests.
-3. Identify canonical branch and predecessor/dependent PRs; keep unfinished work draft.
-4. Resolve demonstrated failures, conflicts and SQL reservation collisions. Do not require a generic independent-review checkbox.
-5. Record rollback and activation gates separately from **source** merge.
-6. Do not claim live payroll, bank, migration, privacy, or external provider acceptance from GitHub CI alone.
+The named reviewer allowlist and required GitHub branch protection must
+be configured by the repo administrator. The GitHub `Protect main`
+ruleset was **disabled** when inspected on October 12, 2026; even a
+passing read-only review check is not a hard merge gate until the
+ruleset is enabled with required reviews and status checks. See
+[Independent Review Gate](independent-review-gate.md) and
+[Change-risk policy](change-risk-policy.md). Never claim independent
+approval while the role remains unassigned.
 
-`.github/workflows/pr-integration-queue-gate.yml` checks whether *more than three* non-draft PRs are open and verifies SQL prefix reservations. There is no generic second-person signoff check.
+## Pilot freeze, then source merge
 
-## Current source-merge ordering
+Optional HCM/WFM branches (talent, compensation, performance, Worker 360,
+planning, coverage and similar advanced operations) stay on hold
+**until a real first-pilot start has written committee approval**.
+The new policy guard detects affected files, including scripts, tests
+and relevant SQL. Do not flip the pilot variable just to make a PR green.
+Core People, Time, Payroll, Leave, Payslip, Approval, Export, Audit and
+Compliance remediation can continue with tests and review.
 
-| Lane | Current candidate(s) | Before source merge |
-| --- | --- | --- |
-| Security | #741, #742 | Current-head security and behavior checks; account for modified public routes |
-| Scheduler | #740 | CI, cron authorization tests; keep activation OFF pending staging |
-| Bank controls | #723 → #724 | Preserve helper and payment-snapshot dependency; exact-head protection/golden tests |
-| Financial overlap | #720, #721, #739 | Reconcile payout/payroll release and bank crypto code; do not double-merge sources |
-| Money calculation | #743 | Golden and assurance reconciliation; inspect changes relative to other engine PRs |
-| Provider idempotency | #745 | Reserve unique migration, PostgreSQL transaction/replay and payout isolation |
-| Optional HCM/WFM | Remaining feature drafts | Defer or merge individually only with relevant source testing; live pilots separate |
+## Required work before any real payroll release
 
-## SQL migration reservation
+- Complete and reconcile the employer first-payroll journey, including
+  current statutory calculations, approvals and employee-by-employee
+  centavo accuracy under an independent checker.
+- Confirm bank-data encryption/backfill and SQL migrations on the
+  actual environment, with witnessed restore and acceptable filing/bank
+  evidence. Never equate code presence with production migration.
+- Keep provider payouts, self-serve billing, AI automation and optional
+  modules disabled until separately authorized.
+- Record reviewer and release committee decision; prohibit self-approval
+  of live payroll and any bank/payout execution.
 
-SQL filenames share one append-only sequence. Different open PRs must not reserve the same four-digit migration prefix. Inspect actual *applied* production/staging journal before authorizing any migration. Never renumber previously applied SQL or overwrite a live database merely to make a PR green.
+## Scope of the two checks
 
-## Merge checklist
-
-- [ ] Current-head applicable checks green
-- [ ] Incremental diff, dependencies and overlaps reviewed by maintainer
-- [ ] Risk tier and changed behavior tested
-- [ ] No private tenant/payroll/secrets exposed in the PR
-- [ ] For payroll/WFM, golden and scenario tests/reconciliation where applicable
-- [ ] For schema/PII, migration/restore and security *activation* gates documented
-- [ ] For scheduler, AI, financial provider or live payments, activation flags stay OFF until separately authorized
-- [ ] For money movement, distinct employer/bank authority and recovery proof exists **before executing money movement**, not as a universal PR reviewer checkbox
-
-## Workflow safety and limitations
-
-The queue action uses `pull_request_target` but checks out **only trusted default-branch code**, never untrusted PR-head code. Its token is read-only and it makes no API writes.
-
-For branch protection, require appropriate automated checks without a blanket independent-review approval count. The repository owner may still request optional targeted review for particularly difficult changes; optional review must never be represented as already completed.
-
-No PR, however well tested, authorizes production payroll, transfers, employee-data migration, or live provider activation.
+The PR Queue Gate and independent reviewer gate operate only on
+**GitHub metadata**. Neither job has write permission, merges PRs,
+grants repository roles, configures protection, runs SQL, deploys code,
+triggers a cron/worker, decrypts data or moves money. Configure GitHub
+ruleset and production environment protection separately.

@@ -2,6 +2,7 @@
 
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
+import { obtainIntakeProof } from "@/lib/public-intake-proof-client";
 import { PrivacyConsentFields } from "@/components/marketing/privacy-consent-fields";
 import { AlertTriangle, ArrowRight, Check, LoaderCircle, Send } from "lucide-react";
 
@@ -39,10 +40,11 @@ export function PayrollQuoteForm() {
     setError("");
 
     try {
+      const intakeProof = await obtainIntakeProof(form.email);
       const response = await fetch("/api/payroll-outsourcing/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, privacyConsent, website }),
+        body: JSON.stringify({ ...form, intakeProof, privacyConsent, website }),
       });
       const payload = await response.json().catch(() => ({}));
 

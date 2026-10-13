@@ -94,3 +94,50 @@ test("retention scheduler never selects photo ciphertext into worker memory",()=
  assert.match(source,/db\.select\(\{id:workforcePunchPhotoEvidence\.id\}\)/);
  assert.match(source,/limit>250/);
 });
+
+
+test("PostgreSQL purge distinguishes an exactly full 250-photo page from a 251-photo backlog",async()=>{
+  const suffix=randomUUID().slice(0,9);
+  const [org]=await db.insert(organizations).values({
+    name:"Synthetic Retention Boundary "+suffix,
+    legalName:"Synthetic Retention Boundary "+suffix,
+  }).returning();
+  try{
+    const [employee]=await db.insert(employees).values({
+      organizationId:org.id,employeeNo:"B-"+suffix,firstName:"Synthetic",lastName:"Worker",
+      title:"Tester",avatarInitials:"SW",basicRate:"25000",startDate:"2026-01-01",
+    }).returning();
+    // Use a deliberately old, synthetic expiry so other CI fixtures (2026+)
+    // are not eligible for this job; no real photo bytes or employee data.
+    const expiresAt=new Date("2010-01-01T00:00:00.000Z");
+    const now=new Date("2010-01-02T00:00:00.000Z");
+    const insert=async(count:number)=>{
+      const ids=Array.from({length:count},()=>randomUUID());
+      await db.insert(workforcePunchPhotoEvidence).values(ids.map(id=>({
+        id,organizationId:org.id,employeeId:employee.id,
+        expiresAt,sealedPhoto:"synthetic-encrypted-placeholder",
+      })));
+      return ids;
+    };
+    const exact=await insert(250);
+    const full=await purgeExpiredPunchPhotos(now,250);
+    assert.deepEqual(full,{purged:250,remainingPossiblyDue:false},
+      "An exactly full final page must not report a phantom backlog");
+    const exactRows=await db.select({id:workforcePunchPhotoEvidence.id,
+      sealedPhoto:workforcePunchPhotoEvidence.sealedPhoto})
+      .from(workforcePunchPhotoEvidence).where(inArray(workforcePunchPhotoEvidence.id,exact));
+    assert.ok(exactRows.every(row=>row.sealedPhoto===null));
+    const more=await insert(251);
+    const first=await purgeExpiredPunchPhotos(now,250);
+    assert.deepEqual(first,{purged:250,remainingPossiblyDue:true},
+      "A genuine 251st due photo must remain visible to the drain loop");
+    const second=await purgeExpiredPunchPhotos(now,250);
+    assert.deepEqual(second,{purged:1,remainingPossiblyDue:false});
+    const leftovers=await db.select({id:workforcePunchPhotoEvidence.id,
+      sealedPhoto:workforcePunchPhotoEvidence.sealedPhoto})
+      .from(workforcePunchPhotoEvidence).where(inArray(workforcePunchPhotoEvidence.id,more));
+    assert.ok(leftovers.every(row=>row.sealedPhoto===null));
+  }finally{
+    await db.delete(organizations).where(eq(organizations.id,org.id));
+  }
+});
