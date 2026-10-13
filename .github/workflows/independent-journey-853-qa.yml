@@ -1,0 +1,32 @@
+name: "Independent Journey #853 Receipt Integrity (Offline)"
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/qa/independent-journey-853.mjs"
+      - "tests/independent-journey-853.test.mjs"
+      - "docs/qa/independent-journey-853.md"
+      - ".github/workflows/independent-journey-853-qa.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/qa/independent-journey-853.mjs"
+      - "tests/independent-journey-853.test.mjs"
+      - "docs/qa/independent-journey-853.md"
+      - ".github/workflows/independent-journey-853-qa.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evidence-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Verify fail-closed receipt and no certification
+        run: node --test tests/independent-journey-853.test.mjs
