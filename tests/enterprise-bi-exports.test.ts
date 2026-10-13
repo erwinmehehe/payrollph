@@ -88,3 +88,24 @@ test("Analytics exposes governed CSV NDJSON and JSON BI downloads", () => {
   assert.ok(panel.includes("All legal entities"));
   assert.ok(panel.includes("All organization units"));
 });
+
+
+test("legacy BI metadata and exports fail closed when multi-entity mode is enabled", () => {
+  const route = read("src/app/api/bi-exports/route.ts");
+  const analytics = read("src/components/workspace/analytics.tsx");
+  const gate = route.indexOf('if (criticalReleaseFlagEnabled("multiEntity"))');
+  const access = route.indexOf("if (!access?.companyWide)");
+  const definitions = route.indexOf('const key = String(url.searchParams.get("key") ?? "")');
+  const exportCall = route.indexOf("await runBiExport(");
+  assert.ok(route.includes('import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags"'));
+  assert.ok(access >= 0 && gate > access, "membership/role checks must still run first");
+  assert.ok(gate < definitions && definitions < exportCall,
+    "deny before metadata enumeration, filters, audit or export");
+  assert.ok(route.includes('"ENTITY_BI_EXPORT_NOT_YET_CERTIFIED"'));
+  assert.ok(route.includes('"Cache-Control": "no-store"'));
+  // The normal company-wide legacy UI remains available with the feature OFF.
+  assert.ok(analytics.includes('useState<ReportKey>("workforce")'));
+  assert.ok(analytics.includes("!data.multiEntity?.enabled && ("));
+  assert.ok(analytics.includes("<EnterpriseBiExportPanel organizationId={organizationId} notify={notify} />"));
+  assert.ok(analytics.includes("<HcmReportBuilderPanel key={organizationId} organizationId={organizationId} />"));
+});
