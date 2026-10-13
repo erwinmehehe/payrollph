@@ -6,6 +6,9 @@ on:
       - "docs/engineering/issue-910-0121-readiness.md"
       - "docs/engineering/issue-910-provenance-live-catalog-20261013.md"
       - "scripts/issue-910-source-manifest.mjs"
+      - "scripts/issue-910-build-forward-schema.mjs"
+      - "tests/issue-910-forward-schema-assembly.test.mjs"
+      - "tests/issue-910-forward-schema-postgres.test.mjs"
       - "tests/issue-910-source-manifest.test.mjs"
       - "docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql"
       - "tests/issue-910-0121-review.test.mjs"
@@ -30,6 +33,9 @@ on:
     paths:
       - "docs/engineering/issue-910-provenance-live-catalog-20261013.md"
       - "scripts/issue-910-source-manifest.mjs"
+      - "scripts/issue-910-build-forward-schema.mjs"
+      - "tests/issue-910-forward-schema-assembly.test.mjs"
+      - "tests/issue-910-forward-schema-postgres.test.mjs"
       - "tests/issue-910-source-manifest.test.mjs"
       - "docs/sql/issue-910-review-only-0121-*.sql"
       - "tests/issue-910-0121-review.test.mjs"
@@ -68,12 +74,24 @@ jobs:
           node --test tests/issue-910-0121-review.test.mjs
           node --test tests/issue-910-source-manifest.test.mjs
           node --test tests/issue-910-readonly-catalog-probe.test.mjs
+          node --check scripts/issue-910-build-forward-schema.mjs
+          node --test tests/issue-910-forward-schema-assembly.test.mjs
           node scripts/issue-910-source-manifest.mjs --json > issue-910-source-only-sha256.json
+          node scripts/issue-910-build-forward-schema.mjs --write-review-artifacts
       - name: Retain source-only SHA-256 manifest (NOT an applied migration receipt)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: issue-910-source-only-sha256
           path: issue-910-source-only-sha256.json
+          retention-days: 14
+          if-no-files-found: error
+      - name: Retain generated UNNUMBERED schema candidate and checksums (NOT release SQL)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: issue-910-review-only-schema-candidate
+          path: |
+            qa-artifacts/issue-910/review-only-forward-schema.sql
+            qa-artifacts/issue-910/review-only-forward-schema-manifest.json
           retention-days: 14
           if-no-files-found: error
 
@@ -124,3 +142,5 @@ jobs:
           node --test tests/issue-910-0121-postgres.test.mjs
           node --check tests/issue-910-forward-predecessor-postgres.test.mjs
           node --test tests/issue-910-forward-predecessor-postgres.test.mjs
+          node --check tests/issue-910-forward-schema-postgres.test.mjs
+          node --test tests/issue-910-forward-schema-postgres.test.mjs
