@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { db } from "../src/db";
+import { eq, sql } from "drizzle-orm";
 import { hashPassword } from "../src/lib/crypto";
 import {
   employees, legalEntities, orgUnits, organizations, payrollRuns,
@@ -29,6 +30,12 @@ async function main() {
     { organizationId: tenantA.id, code: "SECOND", legalName: "Beta Legal Employer", displayName: "Beta Legal" },
     { organizationId: tenantB.id, code: "PRIMARY", legalName: "Foreign Legal Employer", displayName: "Foreign Legal", primaryEntity: true },
   ]).returning();
+  // Deterministic sub-millisecond source timestamp: JS Date cannot represent
+  // its final 437 microseconds, while PostgreSQL equality must remain exact.
+  // Only fictional employer B on disposable localhost PostgreSQL is touched.
+  await db.update(legalEntities).set({
+    updatedAt: sql<Date>`date_trunc('milliseconds', current_timestamp) + interval '437 microseconds'`,
+  }).where(eq(legalEntities.id, a2.id));
   const [unit] = await db.insert(orgUnits).values({
     organizationId: tenantA.id, type: "department", code: "HR-RESTRICTED",
     name: "Synthetic Restricted Group", legalEntityId: a1.id,
