@@ -58,6 +58,10 @@ export function ApprovalChainAdmin({
   const [dynamicGroups, setDynamicGroups] = useState<Array<{ id: number; code: string; name: string; version: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [approvalEscalationsEnabled, setApprovalEscalationsEnabled] = useState(false);
+  const [heldEscalationInstances, setHeldEscalationInstances] = useState<Array<{
+    id: number; policyCode: string; policyVersion: number; currentStepIndex: number;
+  }>>([]);
+  const [recoveryInventoryLimited, setRecoveryInventoryLimited] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [code, setCode] = useState("");
@@ -76,6 +80,9 @@ export function ApprovalChainAdmin({
       setPolicies(Array.isArray(payload.policies) ? payload.policies : []);
       setDynamicGroups(Array.isArray(payload.dynamicGroups) ? payload.dynamicGroups : []);
       setApprovalEscalationsEnabled(payload.approvalEscalationsEnabled === true);
+      setHeldEscalationInstances(Array.isArray(payload.heldEscalationInstances)
+        ? payload.heldEscalationInstances : []);
+      setRecoveryInventoryLimited(payload.recoveryInventoryLimited === true);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not load approval chains.");
     } finally {
@@ -184,6 +191,19 @@ export function ApprovalChainAdmin({
           <span>Chain changes require company-wide admin, MFA, same-origin, rate-limit, and audit controls. Steps keep their named approver or role:hr, role:finance, role:manager or role:owner authority. An optional Dynamic Group adds a live worker-membership requirement; it never grants approvals or bypasses delegation, maker-checker or payroll controls. Group identity and version are frozen when a request starts.</span>
         </div>
 
+        {heldEscalationInstances.length > 0 && (
+          <div className="notice notice-slate" role="status" style={{ marginBottom: 14 }}>
+            <ShieldCheck size={15} />
+            <div>
+              <strong>{heldEscalationInstances.length} in-flight approval chain(s) held after escalation rollback.</strong>
+              <p>These approvals require review and reissue under the current policy; they cannot be silently decided as legacy tasks. This list contains no worker or payroll details.</p>
+              <ul>{heldEscalationInstances.map(row => (
+                <li key={row.id}>Chain #{row.id} · {row.policyCode} v{row.policyVersion} · stage {row.currentStepIndex + 1}</li>
+              ))}</ul>
+              {recoveryInventoryLimited && <p>Only the newest 100 pending chains were inspected. Export or page the full inventory before declaring recovery complete.</p>}
+            </div>
+          </div>
+        )}
         <div className="setting-form">
           <label>Chain code
             <input
