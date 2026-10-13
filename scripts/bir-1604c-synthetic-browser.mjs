@@ -20,7 +20,7 @@ async function login(role) {
     headers: { origin: base, "sec-fetch-site": "same-origin" },
     data: {
       email: role + "@bir-qa.example.test",
-      password: "Synthetic-BIR-Only-2026!",
+      password: "Synthetic-BIR-Only-2025!",
       totpCode: generateTotp("JBSWY3DPEHPK3PXP"),
     },
   });
@@ -50,11 +50,11 @@ async function navigateCompliance(page, width) {
   await page.locator('[data-bir-v70-validation-status]').waitFor({ timeout: 60000 });
 }
 
-const scope = { organizationId: fixture.organizationId, legalEntityId: fixture.legalEntityId, taxYear: 2026 };
+const scope = { organizationId: fixture.organizationId, legalEntityId: fixture.legalEntityId, taxYear: 2025 };
 try {
   const owner = await login("owner");
   const get = await owner.request.get("https://127.0.0.1:3443/api/bir/annual-employer?organizationId=" +
-    fixture.organizationId + "&legalEntityId=" + fixture.legalEntityId + "&taxYear=2026");
+    fixture.organizationId + "&legalEntityId=" + fixture.legalEntityId + "&taxYear=2025");
   assert.equal(get.status(), 200, "synthetic employer annual reconciliation GET");
   const report = (await get.json()).reconciliation;
   assert.equal(report.totals.blockers, 0);
@@ -84,8 +84,8 @@ try {
   for (const [field, value] of Object.entries(row.fields)) {
     if (value !== null) continue;
     const overrides = {
-      REGION_NUM: "0001", EMPLOYMENT_FROM: "01/01/2026",
-      EMPLOYMENT_TO: "12/31/2026", EMPLOYMENT_STATUS: "R",
+      REGION_NUM: "0001", EMPLOYMENT_FROM: "01/01/2025",
+      EMPLOYMENT_TO: "12/31/2025", EMPLOYMENT_STATUS: "R",
       REASON_SEPARATION: "NA", SUBS_FILING: "Y",
       PRES_NONTAX_GROSS_COMP_INCOME: "100000.00",
       PRES_NONTAX_13TH_MONTH: "50000.00",
@@ -118,6 +118,11 @@ try {
   assert.match(body.toString("ascii"), /D1,/);
   assert.match(body.toString("ascii"), /C1,/);
   assert.ok(body.toString("ascii").endsWith("\r\n"));
+  await mkdir(outDir + "/official-module-test-input", { recursive: true });
+  await writeFile(outDir + "/official-module-test-input/" + preview.fileName, body);
+  const savedBytes = await readFile(outDir + "/official-module-test-input/" + preview.fileName);
+  assert.equal(createHash("sha256").update(savedBytes).digest("hex"), sha,
+    "Exact browser DAT output must match the persisted test input");
   results.push({ checkpoint: "full-synthetic-DAT-check-and-download", result: "pass", sha256: sha });
 
   const tampered = structuredClone(row);
@@ -151,7 +156,7 @@ try {
   results.push({ checkpoint: "non-payroll-employee-denied", result: "pass" });
 
   const moduleStatus = await owner.request.get("https://127.0.0.1:3443/api/bir/annual-employer/module-evidence?" +
-    "organizationId=" + fixture.organizationId + "&legalEntityId=" + fixture.legalEntityId + "&taxYear=2026");
+    "organizationId=" + fixture.organizationId + "&legalEntityId=" + fixture.legalEntityId + "&taxYear=2025");
   assert.equal(moduleStatus.status(), 200);
   assert.equal((await moduleStatus.json()).moduleV70.status, "not run");
 
