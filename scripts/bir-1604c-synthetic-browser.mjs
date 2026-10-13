@@ -215,7 +215,7 @@ try {
     });
     const legacyLoaded = page.waitForResponse(response => response.url().includes("/api/year-end?") && response.request().method() === "GET");
     await navigateCompliance(page, width, "https://127.0.0.1:3444", false);
-    await legacyLoaded;
+    assert.equal((await legacyLoaded).status(), 200, "Disabled candidate preserves authorized legacy year-end reads");
     assert.equal(await page.locator('[data-bir-1604c-candidate]').count(), 0);
     assert.equal(evidenceRequests.length, 0, "Disabled panel must not read new evidence endpoints");
     await page.screenshot({ path: outDir + "/year-end-flag-off-" + width + ".png", fullPage: false });
