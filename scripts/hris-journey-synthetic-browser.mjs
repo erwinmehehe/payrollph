@@ -245,7 +245,13 @@ try {
         await page.screenshot({ path: "qa-artifacts/hr-cases-staff-" + width + ".png", fullPage: true });
         await ep.setViewportSize({ width, height: 900 });
         await ep.goto(base + "/app");
-        await ep.getByRole("button", { name: "Documents", exact: true }).first().click();
+        if (width < 600) {
+          await ep.getByRole("button", { name: "More employee pages", exact: true }).click();
+          await ep.getByRole("region", { name: "Additional employee pages" })
+            .getByRole("button", { name: "Documents", exact: true }).click();
+        } else {
+          await ep.locator(".employee-side-nav").getByRole("button", { name: "Documents", exact: true }).click();
+        }
         const requests = ep.getByRole("region", { name: "HR requests", exact: true });
         await requests.getByText("Synthetic staff support", { exact: true }).waitFor();
         assert.equal(await requests.getByText("HR_PRIVATE_SYNTHETIC_ONLY").count(), 0);
