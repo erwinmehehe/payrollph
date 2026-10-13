@@ -21,7 +21,12 @@ export function tenantModulePages(enabledModules: readonly string[]): Set<string
   return new Set(TENANT_MODULES.filter(m => enabledModules.includes(m.id)).flatMap(m => [...m.pages]));
 }
 
-/** Optional columns must never enter ordinary organization SELECT/INSERT projections. */
+/** Storage capability is separate from the flag; partial SQL is not usable. */
+export function hasTenantModuleColumns(columns: readonly string[]): boolean {
+  return columns.includes("module_navigation_mode") && columns.includes("enabled_modules");
+}
+
+/** Disabled requests cannot query optional storage; ignore rows outside authorized memberships. */
 export async function loadTenantModulePreferences(
   organizationIds: readonly number[],
   read: () => Promise<readonly { id: number; mode: unknown; enabledModules: unknown }[]>,

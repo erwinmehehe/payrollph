@@ -2,6 +2,24 @@
 
 # Core module navigation
 
+## Safe source-only deployment before SQL 0122
+
+The new columns are deliberately excluded from the shared `organizations` Drizzle
+model, which is read by unrelated payroll and HR flows. Instead, the optional
+`organizationModuleSettings` contract selects or updates only the two new fields
+when **both** `CORE_MODULE_NAVIGATION_ENABLED=true` and the storage-column
+readiness check pass. Pre-migration, flag-off mainline remains compatible with
+old `organizations` rows; an accidental flag-on returns the legacy menu and
+the optional module API returns 404 (it never attempts DDL). The disposable
+browser fixture applies 0122 after test-only schema creation, then exercises
+real MFA, roles and phone screenshots.
+
+Do not fold those fields back into the global model until production schema
+adoption and its journal receipt have been independently confirmed. Never
+use `db:push` to bring production Neon into sync.
+
+
+
 Default off: CORE_MODULE_NAVIGATION_ENABLED=true. DEPENDS ON #865 canonical 0115-0121 source train; 0122 is not valid for isolated apply until the preceding migrations have reviewed journal receipts and a rehearsed database cutover. Apply drizzle/0122_tenant_module_disclosure.sql before any separately reviewed module activation (never use db:push on Neon production): old rows become all, future rows default core.
 
 ## Modules
