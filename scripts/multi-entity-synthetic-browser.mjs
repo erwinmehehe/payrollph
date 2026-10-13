@@ -84,8 +84,11 @@ async function gotoScreen(page, target) {
     // On phones the visible People tab lives in the bottom navigation. The
     // desktop sidebar is off-canvas even if its DOM button is still attached.
     if (target === "People") {
-      const shortcut = page.locator(".mobile-bottom-nav button")
-        .filter({ hasText: /^(People|Employees)$/ }).first();
+      // The button includes an icon and CSS can add whitespace around its
+      // text. Match the accessible name rather than anchoring innerText:
+      // that stale exact-text matcher incorrectly fell back to the drawer.
+      const mobileNav = page.getByRole("navigation", { name: "Mobile workspace navigation" });
+      const shortcut = mobileNav.getByRole("button", { name: /^(People|Employees)$/i });
       if (await shortcut.isVisible()) {
         await shortcut.click();
         await page.locator('[data-workspace-page="' + target + '"]').waitFor({ timeout: 30000 });
