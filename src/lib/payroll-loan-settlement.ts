@@ -2,6 +2,15 @@ import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
 import { moneyFromCents } from "@/lib/payroll-loan-approval";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 
+/** A replay is valid only when the stored payment is exactly the planned
+ * deduction. Never treat a 1-cent difference as an idempotent release.
+ */
+export function exactLoanPaymentReplayMatches(plannedDeduction: unknown, storedAmount: unknown): boolean {
+  const planned = storedMoneyCentavos(plannedDeduction);
+  const stored = storedMoneyCentavos(storedAmount);
+  return planned !== null && planned > 0 && planned === stored;
+}
+
 /** Keep the existing release posting until the exact-centavo rollout is enabled. */
 export function payrollLoanPosting(input: {
   loanId: number;

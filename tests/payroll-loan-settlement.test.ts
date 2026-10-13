@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { payrollLoanPosting, settlePayrollLoanBalance } from "../src/lib/payroll-loan-settlement";
+import { exactLoanPaymentReplayMatches, payrollLoanPosting, settlePayrollLoanBalance } from "../src/lib/payroll-loan-settlement";
 
 test("flag-off reproduces existing release posting; exact true rejects a one-cent overdraft", () => {
   const input = { loanId: 17, plannedDeduction: 100.01, remainingBalance: "100.00", totalPaid: "0.00" };
@@ -52,4 +52,13 @@ test("invalid persisted cents and unbounded totalPaid fail closed", () => {
     plannedDeduction: "0.01", remainingBalance: "0.01",
     totalPaid: "9999999999.99",
   }), /OVERFLOW/);
+});
+
+test("exact idempotent loan payment is employee-scoped and must match stored centavos", () => {
+  assert.equal(exactLoanPaymentReplayMatches("100.00", "100.00"), true);
+  assert.equal(exactLoanPaymentReplayMatches(100, "100.00"), true);
+  for (const bad of ["100.01", "99.99", "100.001", "NaN", "", null, 0]) {
+    assert.equal(exactLoanPaymentReplayMatches("100.00", bad), false, String(bad));
+  }
+  assert.equal(exactLoanPaymentReplayMatches("0.00", "0.00"), false);
 });
