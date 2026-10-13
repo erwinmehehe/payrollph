@@ -6,6 +6,24 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  independentSourceReview: {
+    env: "INDEPENDENT_SOURCE_REVIEW_REQUIRED",
+    owner: "Repository Maintainer",
+    risk: "Optional independent source-review CI policy; no payroll release authority",
+    approval: "Owner policy selection; exact-head checks remain required",
+  },
+  exactPayrollLoanSettlement: {
+    env: "EXACT_PAYROLL_LOAN_SETTLEMENT_ENABLED",
+    owner: "Payroll / Finance",
+    risk: "P0 release-time employee loan ledger posting",
+    approval: "Exact centavo, transaction rollback and payroll golden acceptance",
+  },
+  loanSchedulePreview: {
+    env: "LOAN_SCHEDULE_PREVIEW_ENABLED",
+    owner: "Philippine Payroll / HR Operations",
+    risk: "P1 read-only employee/company and agency loan schedule previews",
+    approval: "Centavo schedule/golden tests, lawful deduction policy and independent finance review",
+  },
   workPeriodWageScreen: {
     env: "WORK_PERIOD_WAGE_SCREEN_ENABLED",
     owner: "Philippine Payroll",
@@ -139,6 +157,10 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "People Operations",
     risk: "P1 anonymous employee feedback and small-cohort inference",
     approval: "Minimum cohort privacy tests, consent and retention review",
+  },
+  coreModuleNavigation: {
+    env: "CORE_MODULE_NAVIGATION_ENABLED", owner: "Product",
+    risk: "P2 tenant module disclosure", approval: "New and existing tenant navigation snapshots",
   },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
