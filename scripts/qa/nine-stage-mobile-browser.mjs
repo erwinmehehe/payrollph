@@ -79,8 +79,22 @@ try {
     assert.equal(backToA.body.length,1);
     assert.equal(backToA.body[0].id,a.body[0].id,
       "Returning to employer A must restore the original worker");
-    const overflows = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
-    assert.equal(overflows,false,"Round-trip employer switch mobile screen overflows");
+    const widthAudit = await page.evaluate(() => {
+      const width = window.innerWidth;
+      const offenders = [...document.querySelectorAll("body *")].flatMap(el => {
+        const rect = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        if (rect.right <= width + 1 || rect.width <= 0) return [];
+        return [{tag:el.tagName.toLowerCase(),
+          class:typeof el.className === "string" ? el.className.slice(0,90) : "",
+          left:Math.round(rect.left),right:Math.round(rect.right),
+          width:Math.round(rect.width),overflowX:style.overflowX}];
+      }).sort((a,b) => b.right - a.right).slice(0,12);
+      return {viewport:width,document:document.documentElement.scrollWidth,
+        body:document.body.scrollWidth,offenders};
+    });
+    assert.ok(widthAudit.document <= widthAudit.viewport + 1,
+      "Round-trip employer switch mobile screen overflows: " + JSON.stringify(widthAudit));
     assert.deepEqual(errors,[]);
     report.checks.push(width + "px failure/retry and owner switch A -> B -> A; disjoint tenant employee records");
     await context.close();
