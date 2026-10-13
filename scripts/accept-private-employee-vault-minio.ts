@@ -13,7 +13,7 @@ import { scanUpload, validateUpload } from "../src/lib/storage";
  * holds or production file residency.
  */
 async function main() {
-assert.equal(process.env.CI,"true");
+  assert.equal(process.env.CI,"true");
 assert.equal(process.env.GITHUB_ACTIONS,"true");
 assert.equal(process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED,"true");
 assert.equal(process.env.NODE_ENV,"test");
@@ -79,10 +79,12 @@ await assert.rejects(()=>putDocumentObject(key,Buffer.from("%PDF-other"),mime,{c
 await deleteDocumentObject(key,{config});
 const after=await fetch(signed,{cache:"no-store"});
 assert.equal(after.status,404,"deleted disposable object must not remain available");
-console.log("PASS synthetic private vault storage: signed GET, byte hash, private bucket, expiry, signature tampering, immutable PUT, delete; deterministic scanner clean/infected/outage");
+  console.log("PASS synthetic private vault storage: signed GET, byte hash, private bucket, expiry, signature tampering, immutable PUT, delete; deterministic scanner clean/infected/outage");
 }
 
-main().catch(() => {
+// Execute asynchronously inside a function. This repository emits CommonJS
+// for tsx CLI scripts, where top-level await does not compile.
+void main().catch(() => {
   console.error("Synthetic private vault acceptance failed; no production service was used.");
   process.exitCode = 1;
 });
