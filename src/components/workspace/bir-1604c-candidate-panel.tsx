@@ -24,8 +24,8 @@ type Props = {
   sourceDigest: string | null; setNotice: (message: string) => void;
 };
 
-const formStyle = { display: "grid", gap: 8 } as const;
-const labelStyle = { display: "grid", gap: 4, fontSize: 12 } as const;
+const formStyle = { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", minWidth: 0, gap: 8 } as const;
+const labelStyle = { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", minWidth: 0, gap: 4, fontSize: 12 } as const;
 const endpoint = "/api/bir/annual-employer/module-evidence";
 
 export function Bir1604cCandidatePanel({
@@ -213,8 +213,8 @@ export function Bir1604cCandidatePanel({
 
   return (
     <section className="notice notice-slate" aria-label="BIR 1604-C draft candidate and validator evidence"
-      data-bir-1604c-candidate style={{ marginTop: 14 }}>
-      <div style={{ width: "100%", display: "grid", gap: 12 }}>
+      data-bir-1604c-candidate style={{ marginTop: 14, width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+      <div style={{ width: "100%", minWidth: 0, maxWidth: "100%", display: "grid", gridTemplateColumns: "minmax(0, 1fr)", overflowWrap: "anywhere", gap: 12 }}>
         <h3 style={{ margin: 0 }}>1604-C reviewed DAT candidate (controlled test only)</h3>
         <p style={{ margin: 0 }}>
           Provide a private, independently reviewed JSON file containing a <code>records</code> array of
@@ -222,14 +222,14 @@ export function Bir1604cCandidatePanel({
           and MWE premium evidence references where applicable. Missing fields and guessed zeroes are blocked.
           The feature is off by default and never files with BIR.
         </p>
-        <button type="button" className="secondary-button" style={{ justifySelf: "start" }}
+        <button type="button" className="secondary-button" style={{ justifySelf: "start", maxWidth: "100%", whiteSpace: "normal", height: "auto", minHeight: 36, lineHeight: 1.35, textAlign: "left" }}
           disabled={!sourceDigest || !legalEntityId || loading}
           onClick={() => void downloadTemplate()}>
           Download prefilled review worksheet (unknown fields stay null)
         </button>
         <label style={labelStyle}>
           Reviewed schedule JSON (stays in this browser until you run the check)
-          <input type="file" accept=".json,application/json" aria-label="Reviewed BIR schedule JSON"
+          <input type="file" accept=".json,application/json" aria-label="Reviewed BIR schedule JSON" style={{ maxWidth: "100%", minWidth: 0 }}
             onChange={event => { setReviewFile(event.target.files?.[0] ?? null); setPreview(null); setIssues([]); }} />
         </label>
         <div className="heading-actions" style={{ flexWrap: "wrap", gap: 8 }}>
