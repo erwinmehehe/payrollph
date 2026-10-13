@@ -52,6 +52,20 @@ async function fit(page, label) {
     visibleWidth: window.innerWidth,
     scrollWidth: document.documentElement.scrollWidth,
   }));
+  if (rect.scrollWidth > rect.visibleWidth + 1) {
+    const offenders = await page.evaluate(() => [...document.querySelectorAll("body *")]
+      .map(node => {
+        const box = node.getBoundingClientRect();
+        return { tag: node.tagName.toLowerCase(),
+          classes: typeof node.className === "string" ? node.className.slice(0, 100) : "",
+          left: Math.round(box.left), right: Math.round(box.right),
+          width: Math.round(box.width) };
+      })
+      .filter(box => box.width > 0 && box.right > window.innerWidth + 1 && box.left < window.innerWidth)
+      .sort((a, b) => b.right - a.right).slice(0, 14));
+    console.error("ESS_MOBILE_OVERFLOW", JSON.stringify({ label, ...rect, offenders }));
+    await page.screenshot({ path: "qa-artifacts/ess-profile/overflow-diagnostic-390.png", fullPage: true });
+  }
   assert.ok(rect.scrollWidth <= rect.visibleWidth + 1, label + " horizontal overflow");
   checks.push(label + " fits viewport");
 }
