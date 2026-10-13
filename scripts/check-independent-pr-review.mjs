@@ -109,7 +109,15 @@ export async function checkIndependentReview(env, fetcher = fetch) {
   // This result validates the exact diff; it never fabricates a human review
   // and never authorizes payroll, migrations, deployments or money movement.
   if (env.INDEPENDENT_SOURCE_REVIEW_REQUIRED !== "true") {
-    return { ok: true, scope, approvalCount: 0, blockers: [],
+    // Only the independent *person* requirement is waived for a solo
+    // maintainer. The separately adopted HCM/WFM pilot freeze still applies
+    // to source integrations; a review-mode flag cannot disable it.
+    const pilotEvidence = env.PILOT_START_EVIDENCE_REF ?? "";
+    const pilotAccepted = env.PILOT_HCM_WFM_STARTED === "true" &&
+      /^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidence);
+    const blockers = scope.hcmWfmFrozen && !pilotAccepted
+      ? ["PILOT_HCM_WFM_FREEZE_ACTIVE"] : [];
+    return { ok: blockers.length === 0, scope, approvalCount: 0, blockers,
       releaseAuthorized: false, mode: "solo-maintainer" };
   }
   const reviewers = scope.requiresIndependentHuman
