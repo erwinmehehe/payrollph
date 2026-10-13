@@ -555,7 +555,8 @@ async function main() {
       requestId: refusedCorrection.correction.id, decision: "approved",
       decisionNote: "Test denial; released records must not be silently rewritten",
     });
-    denied(409, deniedRewrite.status, "released payroll attendance rewrite denied");
+    denied(423, deniedRewrite.status, "active payroll cutoff prevents post-release correction");
+    assert.equal(deniedRewrite.body?.code, "ATTENDANCE_PERIOD_LOCKED");
     const after = await db.select().from(timePunches).where(eq(timePunches.id, punchId));
     assert.deepEqual(after[0].timeIn, before[0].timeIn);
     assert.deepEqual(after[0].timeOut, before[0].timeOut);
