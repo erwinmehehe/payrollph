@@ -1,5 +1,6 @@
 import { roundedBasicPayBuckets, roundedGrossFromBuckets, statutoryTrueUpDecision } from "@/lib/payroll-money";
 import { reviewRetroStatutorySourcePeriods } from "@/lib/payroll-retro-statutory-source-period";
+import { loadPendingPayrollRetroSources } from "@/lib/payroll-retro-source-lookup";
 import { allocateMandatoryDeductions } from "@/lib/payroll-mandatory-shortfall";
 import { and, asc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
@@ -988,25 +989,11 @@ async function processPayrollChunk(input: {
         inArray(employeeLoans.employeeId, chunkIds),
       ))
     : [];
-  // Join the referenced payroll run, not its editable display label.
-  // A missing or wrong-tenant source retains a NULL date for fail-closed review.
-  const pendingRetroAdjustments = chunkIds.length
-    ? await db.select({
-        id: employeePayRetroAdjustments.id,
-        employeeId: employeePayRetroAdjustments.employeeId,
-        amount: employeePayRetroAdjustments.amount,
-        sourcePeriodLabel: employeePayRetroAdjustments.sourcePeriodLabel,
-        sourcePeriodStart: payrollRuns.periodStart,
-        sourcePeriodEnd: payrollRuns.periodEnd,
-      }).from(employeePayRetroAdjustments).leftJoin(payrollRuns, and(
-        eq(payrollRuns.id, employeePayRetroAdjustments.sourcePayrollRunId),
-        eq(payrollRuns.organizationId, employeePayRetroAdjustments.organizationId),
-      )).where(and(
-        eq(employeePayRetroAdjustments.organizationId, input.organizationId),
-        eq(employeePayRetroAdjustments.status, "pending"),
-        inArray(employeePayRetroAdjustments.employeeId, chunkIds),
-      ))
-    : [];
+  // M-10: tenant-bound source-run period lookup, preserving orphaned dates.
+  const pendingRetroAdjustments = await loadPendingPayrollRetroSources({
+    organizationId: input.organizationId,
+    employeeIds: chunkIds,
+  });
   const retroByEmployee = new Map<number, typeof pendingRetroAdjustments>();
   for (const retro of pendingRetroAdjustments) {
     retroByEmployee.set(retro.employeeId, [...(retroByEmployee.get(retro.employeeId) ?? []), retro]);
