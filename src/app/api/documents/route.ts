@@ -12,7 +12,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { documentObjectKey, deleteDocumentObject, putDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
+import { documentObjectKey, putDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
 import { canStaffOpenEmployeeVault, validExpiryCalendarDate } from "@/lib/employee-document-vault";
 import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
 import { legacyDocumentInsertTable, legacyVisibleDocumentWhere } from "@/lib/document-schema-compat";
