@@ -121,6 +121,10 @@ function ScopedHcmEmploymentLifecycleActionCenter({
     const controller = new AbortController();
     activeRequest.current = controller;
     setLoading(true);
+    // A refresh is a new authorization boundary: never keep worker names,
+    // actions or employment dates from an earlier completed request visible
+    // while the next request may reject a revoked grant or changed scope.
+    setPayload(null);
     setError("");
     // A disabled or missing employer selection cannot issue a broad request.
     const params = hcmReadScopeParams(selection);
