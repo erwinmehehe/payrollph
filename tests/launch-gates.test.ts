@@ -156,8 +156,12 @@ test("production rollout readiness proves the exact deployed commit and exposes 
   assert.ok(liveRbac.includes("deploymentSha"));
   assert.ok(liveRbac.includes("/api/readiness/deployment"));
   assert.ok(liveRbac.includes("Exact production commit is live."));
-  assert.ok(liveRbac.includes('demoDataMode":"synthetic-redacted'));
-  assert.ok(liveRbac.includes('sensitiveFieldsPersisted":false'));
+  // The production smoke verifies typed response fields using jq without logging
+  // the raw authentication body; changing the diagnostics must not weaken RBAC.
+  assert.ok(liveRbac.includes('.demoDataMode == "synthetic-redacted"'));
+  assert.ok(liveRbac.includes(".sensitiveFieldsPersisted == false"));
+  assert.ok(liveRbac.includes('jq -e --arg role "$role"'));
+  assert.ok(!liveRbac.includes('cat /tmp/demo-switch-body.txt'));
   assert.ok(liveRbac.includes("roles=(owner hr payroll checker bookkeeper employee)"));
 });
 
