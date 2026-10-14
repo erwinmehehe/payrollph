@@ -303,6 +303,24 @@ function main() {
     console.log('Tailscale Serve must be configured by an authorized tailnet admin.');
     console.log('NEVER use tailscale funnel. Real phone acceptance: NOT_RUN.');
   });
+  // A machine administrator could enable public Funnel *after* the initial
+  // preflight. Shut the gateway down if Funnel, tailnet identity or the CLI
+  // stops being verifiably safe. This is a best-effort safety monitor; the
+  // tailnet administrator must still prohibit Funnel and restrict grants.
+  const safetyWatch = setInterval(() => {
+    try {
+      const current = tailnetHostname(JSON.parse(run('tailscale', ['status', '--json'], 5000)));
+      assert.equal(current, hostname, 'UAT853_PHONE_TAILNET_HOST_CHANGED');
+      assertNoPublicFunnel(run('tailscale', ['funnel', 'status', '--json'], 5000));
+    } catch {
+      console.error('UAT853_PHONE_TAILNET_UNSAFE_GATEWAY_SHUTDOWN');
+      clearInterval(safetyWatch);
+      server.closeAllConnections();
+      server.close();
+      process.exitCode = 1;
+    }
+  }, 15000);
+  safetyWatch.unref();
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
