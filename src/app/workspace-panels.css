@@ -183,16 +183,16 @@
 .app-shell.clean-shell .table-sort { display: inline-flex; align-items: center; gap: 6px; color: inherit; font: inherit; background: transparent; padding: 4px 0; border: 0; }
 .app-shell.clean-shell .empty-state-action { text-align: center; padding: 0 16px 24px; }
 .app-shell.clean-shell [role=tabpanel][hidden] { display: none !important; }
-.app-shell.clean-shell .clean-record-overview :is(.mockup-person strong, .mockup-person span, .mockup-review-status, .mockup-liability-row strong, .mockup-liability-total, .mockup-table-row button) { font-size: 12px; line-height: 1.5; }
-.app-shell.clean-shell .clean-record-overview .mockup-person strong { font-size: 13px; }
-.app-shell.clean-shell .clean-record-overview .mockup-person .avatar { width: 34px; height: 34px; font-size: 11px; }
+.app-shell.clean-shell .clean-record-overview :is(.mockup-person > div > strong, .mockup-person > div > span, .mockup-review-status, .mockup-liability-row strong, .mockup-liability-total, .mockup-table-row button) { font-size: 12px; line-height: 1.5; }
+.app-shell.clean-shell .clean-record-overview .mockup-person > div > strong { font-size: 13px; }
+.app-shell.clean-shell .clean-record-overview .mockup-person .avatar { width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center; margin: 0; font-size: 11px; line-height: 1; white-space: nowrap; }
 .app-shell.clean-shell .clean-record-overview .mockup-table-row button { min-height: 40px; padding: 8px 12px; }
 .app-shell.clean-shell .clean-record-overview .mockup-close-steps.dashboard-alert-banner { background: #fff; padding: 20px; border: 1px solid #e2e8f0; }
 .app-shell.clean-shell .search-field { min-height: 42px; height: auto; }
 .app-shell.clean-shell .pagination button { min-width: 36px; min-height: 36px; }
 .app-shell.clean-shell .data-table td { font-size: 13px; }
 .app-shell.clean-shell .person-cell strong { font-size: 13px; }
-.app-shell.clean-shell .person-cell span { font-size: 12px; }
+.app-shell.clean-shell .person-cell > div > span { font-size: 12px; }
 .app-shell.clean-shell .register-summary-title { padding: 12px 16px; font-size: 14px; font-weight: 600; }
 .app-shell.clean-shell .clean-record-overview .hr-readiness-mockup.dashboard-alert-banner { padding: 20px !important; border-radius: 12px !important; }
 .app-shell.clean-shell .clean-record-overview .mockup-close-steps.dashboard-alert-banner { padding: 20px !important; background: #fff !important; }

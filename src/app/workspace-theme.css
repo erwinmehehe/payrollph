@@ -6668,6 +6668,11 @@
   width: 27px;
   height: 27px;
   flex: none;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  margin: 0;
+  white-space: nowrap;
   font-size: 8px;
 }
 
@@ -6675,12 +6680,12 @@
   min-width: 0;
 }
 
-.app-shell .role-person strong,
-.app-shell .role-person span {
+.app-shell .role-person > div > strong,
+.app-shell .role-person > div > span {
   display: block;
 }
 
-.app-shell .role-person strong {
+.app-shell .role-person > div > strong {
   overflow: hidden;
   color: #34413c;
   font-size: 9.5px;
@@ -6689,7 +6694,7 @@
   white-space: nowrap;
 }
 
-.app-shell .role-person span {
+.app-shell .role-person > div > span {
   margin-top: 2px;
   color: #909a95;
   font-size: 8.5px;
@@ -7537,11 +7542,11 @@
   font-size: 10px;
 }
 
-.app-shell .role-person strong {
+.app-shell .role-person > div > strong {
   font-size: 10px;
 }
 
-.app-shell .role-person span {
+.app-shell .role-person > div > span {
   font-size: 8.75px;
 }
 
@@ -8831,6 +8836,12 @@
   width:24px;
   height:24px;
   flex:none;
+  display:grid;
+  place-items:center;
+  margin:0;
+  line-height:1;
+  white-space:nowrap;
+  text-align:center;
   font-size:7px;
 }
 
@@ -8838,21 +8849,21 @@
   min-width:0;
 }
 
-.app-shell .mockup-person strong,
-.app-shell .mockup-person span {
+.app-shell .mockup-person > div > strong,
+.app-shell .mockup-person > div > span {
   display:block;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
 }
 
-.app-shell .mockup-person strong {
+.app-shell .mockup-person > div > strong {
   color:#263755;
   font-size:8px;
   font-weight:660;
 }
 
-.app-shell .mockup-person span {
+.app-shell .mockup-person > div > span {
   margin-top:1px;
   color:#8792a2;
   font-size:6.8px;
@@ -9367,7 +9378,14 @@
 
 .app-shell .hr-mockup-table .mockup-table-head,
 .app-shell .hr-mockup-table .mockup-table-row {
-  grid-template-columns:minmax(160px,1.2fr) 1.5fr 80px;
+  grid-template-columns:minmax(160px,1.2fr) minmax(0,1.5fr) minmax(120px,max-content);
+}
+
+.app-shell .hr-mockup-table .mockup-table-row > button {
+  min-width: 120px;
+  justify-self: end;
+  padding: 8px 12px;
+  white-space: nowrap;
 }
 
 .app-shell .mockup-blocker-copy {
@@ -10278,11 +10296,11 @@
   font-size: 8.9px;
 }
 
-.app-shell .mockup-person strong {
+.app-shell .mockup-person > div > strong {
   font-size: 8.5px;
 }
 
-.app-shell .mockup-person span {
+.app-shell .mockup-person > div > span {
   font-size: 7.1px;
 }
 

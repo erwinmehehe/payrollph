@@ -737,6 +737,45 @@ jobs:
               }
               if (persona.id === "checker") check((await dashboard.getByRole("tablist").count()) === 1, "Checker: review tabs are missing");
               if (persona.id === "hr") check((await dashboard.getByText("Employee record checks", { exact: true }).count()) === 1, "HR: employee record checks are missing");
+              if (persona.id === "hr") {
+                // Screenshot regression: employee initials must stay centered in
+                // their circular badges, not inherit subtitle overflow styles.
+                const avatarBadges = dashboard.locator(".hr-mockup-table .mockup-person > .avatar");
+                check((await avatarBadges.count()) >= 1, "HR: employee attention avatars are missing");
+                const avatarStyles = await avatarBadges.evaluateAll((avatars) => avatars.map((el) => {
+                  const style = getComputedStyle(el);
+                  const rect = el.getBoundingClientRect();
+                  return {
+                    display: style.display,
+                    alignItems: style.alignItems,
+                    justifyItems: style.justifyItems,
+                    width: rect.width,
+                    height: rect.height,
+                    initials: el.textContent?.trim() || "",
+                  };
+                }));
+                check(avatarStyles.every((item) =>
+                  item.display === "grid" &&
+                  item.alignItems === "center" &&
+                  item.justifyItems === "center" &&
+                  Math.abs(item.width - item.height) < 2 &&
+                  item.width >= 24 &&
+                  item.initials.length >= 1 &&
+                  item.initials.length <= 2
+                ), "HR: employee initials are clipped, uncentered, or distorted");
+                const actions = dashboard.locator(".hr-mockup-table .mockup-table-row > button");
+                const actionsFit = await actions.evaluateAll((buttons) => buttons.every((el) => {
+                  const style = getComputedStyle(el);
+                  const rect = el.getBoundingClientRect();
+                  const row = el.closest(".mockup-table-row")?.getBoundingClientRect();
+                  return Boolean(row) &&
+                    style.whiteSpace === "nowrap" &&
+                    rect.width >= 120 &&
+                    rect.left >= row.left - 1 &&
+                    rect.right <= row.right + 1;
+                }));
+                check((await actions.count()) >= 1 && actionsFit, "HR: Open employee or attendance actions are wrapping/clipped on desktop");
+              }
               if (persona.id === "bookkeeper") check((await dashboard.locator(".mockup-close-stage").count()) === 5, "Bookkeeper: close evidence stages are missing");
               const sandbox = page.locator(".demo-sandbox").first();
               if (await sandbox.count()) {
