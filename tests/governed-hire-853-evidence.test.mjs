@@ -12,7 +12,7 @@ test("governed Hire sidecar source has a strict nonproduction and no-money contr
     'assert.equal(dbUrl.hostname, "127.0.0.1")',
     'assert.equal(dbUrl.pathname, "/app_db")',
     '"HCM_GOVERNED_HIRE_REQUIRED"',
-    '"recruitment/hire"',
+    '/api/recruitment/hire',
     'processId',
     'deniedMaker',
     'deniedForeign',
