@@ -6,11 +6,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
-  if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  if (!user) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "Cache-Control": "no-store" } });
 
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   if (!Number.isInteger(organizationId)) {
-    return Response.json({ error: "organizationId is required." }, { status: 400 });
+    return Response.json({ error: "organizationId is required." }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
 
   const denied = await assertOrganizationRole(
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
   const access = await getAccess(user.id, organizationId);
   if (!access?.companyWide) {
-    return Response.json({ error: "Rollout readiness requires company-wide access." }, { status: 403 });
+    return Response.json({ error: "Rollout readiness requires company-wide access." }, { status: 403, headers: { "Cache-Control": "no-store" } });
   }
 
   const payload = await buildReadinessPayload();
