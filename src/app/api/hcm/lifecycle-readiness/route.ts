@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
-  if (!Number.isInteger(organizationId)) {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) {
     return Response.json({ error: "A valid organizationId is required." }, { status: 400 });
   }
 
