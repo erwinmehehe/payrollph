@@ -1,3 +1,4 @@
+import { acknowledgeEmployeeVaultExpiryNotice } from "@/lib/employee-vault-expiry-acknowledgement";
 import { createHash } from "node:crypto";
 import { and, desc, eq, isNull, notLike, or } from "drizzle-orm";
 import { db } from "@/db";
@@ -291,52 +292,22 @@ export async function POST(request: Request) {
     if (!Number.isSafeInteger(noticeId) || noticeId <= 0) {
       return Response.json({ error: "Valid noticeId required." }, { status: 422 });
     }
-    const [notice] = await db.select().from(hcmDocumentExpiryNotices).where(and(
-      eq(hcmDocumentExpiryNotices.id, noticeId),
-      eq(hcmDocumentExpiryNotices.organizationId, organizationId),
-    )).limit(1);
-    if (!notice) return Response.json({ error: "Expiry notice not found." }, { status: 404 });
-    const [attachedCompliance] = await db.select({
-      employeeId: hcmEmployeeDocumentCompliance.employeeId,
-      documentId: hcmEmployeeDocumentCompliance.documentId,
-      expiresAt: hcmEmployeeDocumentCompliance.expiresAt,
-      status: hcmEmployeeDocumentCompliance.status,
-    }).from(hcmEmployeeDocumentCompliance).where(and(
-      eq(hcmEmployeeDocumentCompliance.id, notice.complianceId),
-      eq(hcmEmployeeDocumentCompliance.organizationId, organizationId),
-    )).limit(1);
-    if (!attachedCompliance || attachedCompliance.employeeId !== notice.employeeId ||
-      attachedCompliance.documentId !== notice.documentId ||
-      String(attachedCompliance.expiresAt) !== String(notice.expiresOn) ||
-      ["waived", "missing", "submitted"].includes(attachedCompliance.status)) {
+    const state = await acknowledgeEmployeeVaultExpiryNotice({
+      organizationId,
+      noticeId,
+      actorUserId: user.id,
+      actorName: user.name,
+      canAccessOrgUnit: (orgUnitId) => assertScope(access, orgUnitId).ok,
+    });
+    if (state === "not_found") {
+      return Response.json({ error: "Expiry notice not found." }, { status: 404 });
+    }
+    if (state === "stale") {
       return Response.json({ error: "This expiry notice is stale; refresh the inbox." }, { status: 409 });
     }
-    const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
-      eq(employees.id, notice.employeeId), eq(employees.organizationId, organizationId),
-    )).limit(1);
-    if (!employee) return Response.json({ error: "Expiry notice not found." }, { status: 404 });
-    const scope = assertScope(access, employee.orgUnitId);
-    if (!scope.ok) return Response.json({ error: "Expiry notice not found." }, { status: 404 });
-
-    const decided = await db.transaction(async tx => {
-      const [updated] = await tx.update(hcmDocumentExpiryNotices).set({
-        acknowledgedAt: new Date(), acknowledgedByUserId: user.id,
-      }).where(and(
-        eq(hcmDocumentExpiryNotices.id, noticeId),
-        eq(hcmDocumentExpiryNotices.organizationId, organizationId),
-        isNull(hcmDocumentExpiryNotices.acknowledgedAt),
-      )).returning({ id: hcmDocumentExpiryNotices.id });
-      if (!updated) return null;
-      await tx.insert(auditEvents).values({
-        organizationId, actor: user.name, action: "HR document expiry notice acknowledged",
-        resource: String(noticeId),
-        metadata: { employeeId: notice.employeeId, complianceId: notice.complianceId,
-          milestoneDays: notice.milestoneDays, expiryDate: String(notice.expiresOn),
-          actorUserId: user.id },
-      });
-      return updated;
-    });
-    if (!decided) return Response.json({ error: "This notice was already acknowledged." }, { status: 409 });
+    if (state === "already_acknowledged") {
+      return Response.json({ error: "This notice was already acknowledged." }, { status: 409 });
+    }
     return Response.json({ noticeId, acknowledged: true });
   }
 
