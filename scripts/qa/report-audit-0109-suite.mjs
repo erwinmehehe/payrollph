@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { regressionFiles, selectRegressionShard } from "../run-sharded-tests.mjs";
 
 // Reads the private, fictional CI test log and emits ONLY aggregate TAP counts.
 // Never publishes the full log, fixture salaries, IDs, or a human signoff.
@@ -10,6 +11,13 @@ assert.equal(process.env.GITHUB_ACTIONS, "true");
 const logPath = process.env.TEST_LOG_PATH;
 assert.ok(logPath && logPath.startsWith(process.env.RUNNER_TEMP + "/"));
 const log = readFileSync(logPath, "utf8");
+const shard=Number(process.env.AUDIT_SHARD),total=Number(process.env.AUDIT_TOTAL_SHARDS);
+assert.equal(total,4);
+assert.ok(Number.isSafeInteger(shard)&&shard>=0&&shard<total);
+const allFiles=regressionFiles(),selected=selectRegressionShard(allFiles,shard,total);
+assert.ok(selected.length>0);
+const inventoryDigest=createHash("sha256").update(allFiles.join("\n")).digest("hex");
+const selectionDigest=createHash("sha256").update(selected.join("\n")).digest("hex");
 const keys = ["tests", "pass", "fail", "cancelled", "skipped", "todo"];
 const summaries = Object.fromEntries(keys.map((key) => [
   key, [...log.matchAll(new RegExp("^# " + key + " +([0-9]+) *$", "gm"))].map((match) => Number(match[1])),
@@ -31,7 +39,9 @@ const report = {
   migrationSha256: createHash("sha256").update(
     readFileSync("drizzle/0109_tamper_evident_audit_chain.sql"),
   ).digest("hex"),
-  suite: "npm test",
+  suite: "full test inventory, audited PG16 isolated shard",
+  shard,totalShards:total,regressionFileCount:allFiles.length,
+  selectedRegressionFiles:selected.length,inventoryDigest,selectionDigest,
   subprocessExitCode: exitCode,
   tapSummaryGroups: groupCount,
   ...totals,
@@ -43,6 +53,6 @@ const report = {
   productionAuthorization: "NOT_AUTHORIZED",
 };
 mkdirSync("qa-artifacts", { recursive: true });
-writeFileSync("qa-artifacts/audit-0109-pg16-full-suite.json", JSON.stringify(report, null, 2) + "\n");
+writeFileSync("qa-artifacts/audit-0109-pg16-shard-"+shard+"-full-suite.json", JSON.stringify(report, null, 2) + "\n");
 process.stdout.write(JSON.stringify(report, null, 2) + "\n");
 if (!passed) process.exitCode = 1;
