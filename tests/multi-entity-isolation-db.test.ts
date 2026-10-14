@@ -16,7 +16,7 @@ import { assertMembership, getAccess } from "../src/lib/access";
 import { ensurePrimaryLegalEntity } from "../src/lib/legal-entity";
 import { loadPeopleOperationsInbox } from "../src/lib/hcm-people-operations-inbox-server";
 import { loadEmploymentLifecycleReadiness } from "../src/lib/hcm-lifecycle-readiness-server";
-import { applyWorkerEffectiveChange, runScheduledWorkerEffectiveChanges } from "../src/lib/hcm-effective-changes";
+import { applyWorkerEffectiveChange, runScheduledWorkerEffectiveChanges, validHcmIsoDate } from "../src/lib/hcm-effective-changes";
 import { employeeScopePredicate } from "../src/lib/multi-entity-personnel-scope";
 import { encryptBankAccount } from "../src/lib/bank-account-crypto";
 import { encryptGovernmentId } from "../src/lib/government-id-crypto";
@@ -562,4 +562,25 @@ test("all deferred HCM route handlers deny before auth and mutations", () => {
     assert.match(handler, /organizationId, legalEntityId/,
       "A scoped response must identify the authorized employer for future UI validation");
   }
+});
+
+// Validate calendar semantics, not merely a regex shape. PostgreSQL should
+// never be asked to interpret an impossible scheduled employment date.
+test("effective-dated HCM requests accept real ISO calendar dates only", () => {
+  for (const valid of ["2024-02-29", "2026-10-14", "2000-02-29", "9999-12-31"]) {
+    assert.equal(validHcmIsoDate(valid), true, valid);
+  }
+  for (const invalid of [
+    "", "2026-02-29", "2026-02-30", "2026-02-31", "1900-02-29",
+    "2026-04-31", "2026-13-01", "2026-00-01", "2026-01-00",
+    "2026-12-32", "0000-01-01", "2026-1-2", "2026-10-14T00:00:00Z",
+  ]) {
+    assert.equal(validHcmIsoDate(invalid), false, invalid);
+  }
+  const route = readFileSync("src/app/api/hcm/effective-changes/route.ts", "utf8");
+  assert.match(route, /validHcmIsoDate\(effectiveDate\)/);
+  assert.match(route, /Number\.isSafeInteger\(organizationId\)/);
+  assert.match(route, /Number\.isSafeInteger\(employeeId\)/);
+  assert.match(route, /Number\.isSafeInteger\(id\)/);
+  assert.match(route, /Effective-dated HCM change not found/);
 });
