@@ -152,3 +152,14 @@ test("connected worker profile surfaces policy and document risk without copying
   assert.ok(people.includes("pending policy acknowledgement"));
   assert.ok(people.includes("document item"));
 });
+
+test("Documents load is tenant scoped, suppresses superseded failures, and does not report false compliance", () => {
+  assert.ok(adminPanel.includes('useScopedAsyncResource(String(organizationId), fetchDocumentControls)'));
+  assert.ok(adminPanel.includes('{ cache: "no-store", signal }'));
+  assert.ok(adminPanel.includes('error: loadError'));
+  assert.ok(adminPanel.includes('HCM document controls are unavailable.'));
+  assert.ok(adminPanel.includes('No document-compliance status is being reported.'));
+  assert.ok(adminPanel.includes('Retry loading'));
+  assert.equal(adminPanel.includes('useEffect(() => { void load(); }, [load]);'), false);
+  assert.equal(adminPanel.includes('setNotice(error instanceof Error ? error.message : "Could not load HCM documents."'), false);
+});
