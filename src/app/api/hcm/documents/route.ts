@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, notLike, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -19,6 +19,8 @@ import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { canStaffOpenEmployeeVault, isMandatoryDocumentMissing } from "@/lib/employee-document-vault";
 import { verifyEmployeeVaultDocument } from "@/lib/employee-document-vault-verification";
+import { canMutateLegacyHcmDocument, legacyVisibleDocumentWhere } from "@/lib/document-schema-compat";
+import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   documentComplianceStatus,
@@ -118,7 +120,14 @@ export async function GET(request: Request) {
       sha256: documents.sha256,
       scannedClean: documents.scannedClean,
       createdAt: documents.createdAt,
-    }).from(documents).where(eq(documents.organizationId, organizationId)),
+    }).from(documents).where(and(
+      eq(documents.organizationId, organizationId),
+      // A provisional object intent is never a readable HR file.
+      or(isNull(documents.sourceKey), notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%")),
+      // After flag rollback, legacy People roles (including bookkeeper) must
+      // not enumerate private 201-file names, kinds, hashes or timestamps.
+      canStaffOpenEmployeeVault(access.role) ? undefined : legacyVisibleDocumentWhere,
+    )),
   ]);
 
   const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
@@ -146,7 +155,12 @@ export async function GET(request: Request) {
     : staff.filter((employee) => employee.orgUnitId === access.orgUnitId);
   const visibleEmployeeIds = new Set(visibleStaff.map((employee) => employee.id));
   const visibleAssignments = assignments.filter((row) => visibleEmployeeIds.has(row.employeeId));
-  const visibleCompliance = compliance.filter((row) => visibleEmployeeIds.has(row.employeeId));
+  const visibleDocumentIds = new Set(documentRows.map(row => row.id));
+  const visibleCompliance = compliance.filter((row) =>
+    visibleEmployeeIds.has(row.employeeId) &&
+    (canStaffOpenEmployeeVault(access.role) || row.documentId == null ||
+      visibleDocumentIds.has(row.documentId))
+  );
   const visibleDocuments = documentRows.filter((row) => row.employeeId != null && visibleEmployeeIds.has(row.employeeId));
 
   const employeeById = new Map(staff.map((employee) => [
@@ -255,7 +269,8 @@ export async function POST(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "Workspace access required." }, { status: 403 });
-  if (criticalReleaseFlagEnabled("employeeDocumentVault") && !canStaffOpenEmployeeVault(access.role)) {
+  const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
+  if (vaultEnabled && !canStaffOpenEmployeeVault(access.role)) {
     return Response.json({ error: "Private HR document controls are outside your role." }, { status: 403 });
   }
 
@@ -589,7 +604,16 @@ export async function POST(request: Request) {
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
     if (!row.documentId) return Response.json({ error: "No submitted document is linked to this requirement." }, { status: 409 });
 
-    if (criticalReleaseFlagEnabled("employeeDocumentVault")) {
+    // A5 private objects remain protected if a deployment rolls the feature
+    // flag back OFF. Legacy verification must never bypass immutable uploader
+    // provenance, private storage validation, MFA or maker/checker approval.
+    if (!vaultEnabled && !await canMutateLegacyHcmDocument({
+      organizationId, employeeId: employee.id, documentId: row.documentId,
+    })) {
+      return Response.json({ error: "Document not available for legacy verification." }, { status: 404 });
+    }
+
+    if (vaultEnabled) {
       const deniedMfa = requireSensitiveActionMfa(user);
       if (deniedMfa) return deniedMfa;
       const decision = await verifyEmployeeVaultDocument({
@@ -702,6 +726,14 @@ export async function POST(request: Request) {
     if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
     const scope = assertScope(access, employee.orgUnitId);
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+
+    // A legacy waiver must not dispose of the review status for an A5 object
+    // that was already stored before its rollout flag was switched OFF.
+    if (!vaultEnabled && row.documentId !== null && !await canMutateLegacyHcmDocument({
+      organizationId, employeeId: employee.id, documentId: row.documentId,
+    })) {
+      return Response.json({ error: "Document not available for legacy waiver." }, { status: 404 });
+    }
 
     const [updated] = await db.update(hcmEmployeeDocumentCompliance).set({
       status: "waived",
