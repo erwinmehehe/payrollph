@@ -43,6 +43,10 @@ try {
   git('add', '.');
   git('commit', '-q', '-m', 'malformed empty pinned schema');
   const emptyBase = git('rev-parse', 'HEAD');
+  writeFileSync(schema, Buffer.from([0xff, 0xfe, 0xfa]));
+  git('add', '.');
+  git('commit', '-q', '-m', 'invalid UTF-8 historical Drizzle schema');
+  const invalidSchemaBase = git('rev-parse', 'HEAD');
 
   const check = (base, head, extraEnv = {}) => spawnSync('bash', [script], {
     cwd: repo, encoding: 'utf8',
@@ -74,6 +78,11 @@ try {
     const r = check(emptyBase, emptyBase);
     assert.equal(r.status, 1, r.stdout);
     assert.match(r.stderr, /Pinned base Drizzle schema is empty/);
+  });
+  test('treats an unparseable Drizzle schema as blocked, not clean', () => {
+    const r = check(invalidSchemaBase, invalidSchemaBase);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stderr, /Pinned base Drizzle schema could not be safely parsed/);
   });
   test('rejects invalid refs rather than silently testing checkout merge SHA', () => {
     const r = check('main', legacyHead);
