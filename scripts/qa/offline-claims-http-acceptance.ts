@@ -202,21 +202,27 @@ async function main() {
   }),{mode:0o600});
   outcome = "PASS";
 }
-try {
-  await main();
-} catch (cause) {
-  errorCode = cause instanceof Error ? cause.name : "HTTP_ACCEPTANCE_FAILED";
-  throw cause;
-} finally {
-  mkdirSync("qa-artifacts",{recursive:true});
-  writeFileSync("qa-artifacts/offline-claims-http-acceptance.json",JSON.stringify({
-    sourceSha:process.env.PR_HEAD_SHA ?? process.env.GITHUB_SHA ?? "local",
-    githubRunId:process.env.GITHUB_RUN_ID ?? "local",
-    kind:"offline-claims-connected-fictitious-employee-hr-two-tenant",
-    result:outcome,errorCode,passedScenarios:results,
-    productionData:false,realEmployer:false,independentHumanUat:"NOT_RUN",
-    physicalDevice:"NOT_RUN",automaticPayrollOrAttendanceWrites:false,
-    externalMoneyOrFiling:"PROHIBITED",
-  },null,2)+"\n");
-  await pool.end();
+async function run(): Promise<void> {
+  try {
+    await main();
+  } catch (cause) {
+    errorCode = cause instanceof Error ? cause.name : "HTTP_ACCEPTANCE_FAILED";
+    throw cause;
+  } finally {
+    mkdirSync("qa-artifacts",{recursive:true});
+    writeFileSync("qa-artifacts/offline-claims-http-acceptance.json",JSON.stringify({
+      sourceSha:process.env.PR_HEAD_SHA ?? process.env.GITHUB_SHA ?? "local",
+      githubRunId:process.env.GITHUB_RUN_ID ?? "local",
+      kind:"offline-claims-connected-fictitious-employee-hr-two-tenant",
+      result:outcome,errorCode,passedScenarios:results,
+      productionData:false,realEmployer:false,independentHumanUat:"NOT_RUN",
+      physicalDevice:"NOT_RUN",automaticPayrollOrAttendanceWrites:false,
+      externalMoneyOrFiling:"PROHIBITED",
+    },null,2)+"\n");
+    await pool.end();
+  }
 }
+void run().catch(error => {
+  console.error(error instanceof Error ? error.message : "Synthetic acceptance failed");
+  process.exitCode = 1;
+});
