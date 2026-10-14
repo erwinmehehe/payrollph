@@ -5,6 +5,9 @@ on:
     paths:
       - "scripts/qa/independent-journey-853.mjs"
       - "tests/independent-journey-853.test.mjs"
+      - "tests/first-employer-workflow-triggers.test.mjs"
+      - ".github/workflows/nine-stage-connected-acceptance.yml"
+      - ".github/workflows/hris-journey-browser-qa.yml"
       - "docs/qa/independent-journey-853.md"
       - ".github/workflows/independent-journey-853-qa.yml"
   pull_request:
@@ -12,6 +15,9 @@ on:
     paths:
       - "scripts/qa/independent-journey-853.mjs"
       - "tests/independent-journey-853.test.mjs"
+      - "tests/first-employer-workflow-triggers.test.mjs"
+      - ".github/workflows/nine-stage-connected-acceptance.yml"
+      - ".github/workflows/hris-journey-browser-qa.yml"
       - "docs/qa/independent-journey-853.md"
       - ".github/workflows/independent-journey-853-qa.yml"
   workflow_dispatch:
@@ -29,4 +35,4 @@ jobs:
         with:
           node-version: "22"
       - name: Verify fail-closed receipt and no certification
-        run: node --test tests/independent-journey-853.test.mjs
+        run: node --test tests/independent-journey-853.test.mjs tests/first-employer-workflow-triggers.test.mjs
