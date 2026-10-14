@@ -204,7 +204,7 @@ export function AttendanceExceptionsPanel({
 
   useEffect(() => {
     void load();
-    return () => { activeRequest.current?.abort(); };
+    return () => { activeRequest.current?.abort(); activeRequest.current = null; };
   }, [load]);
 
   const mutateOperationalException = useCallback(async (
