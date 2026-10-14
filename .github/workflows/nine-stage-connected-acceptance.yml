@@ -2,9 +2,33 @@ name: Nine-Stage Connected Payroll Development Acceptance (No Money)
 
 on:
   # Re-prove the merged source on main without deploying another environment.
+  # Source-connected acceptance also runs after changes to the authoritative
+  # hire/onboarding, time-to-pay and draft filing inputs (not only phone CSS).
   push:
     branches: [main]
     paths:
+      # Authoritative nine-stage source inputs; retain both PR and main coverage.
+      - "src/app/api/employees/**"
+      - "src/app/api/recruitment/**"
+      - "src/app/api/provisioning/**"
+      - "src/app/api/workforce/**"
+      - "src/app/api/web-bundy/**"
+      - "src/app/api/payroll/**"
+      - "src/app/api/payroll-runs/**"
+      - "src/app/api/bir/**"
+      - "src/app/api/exports/**"
+      - "src/lib/first-payroll-*.ts"
+      - "src/lib/hris-onboarding-checklist.ts"
+      - "src/lib/hcm-hire-business-process.ts"
+      - "src/lib/workforce-*.ts"
+      - "src/lib/attendance-*.ts"
+      - "src/lib/payroll-engine.ts"
+      - "src/lib/payroll-calendar.ts"
+      - "src/lib/payroll-period-integrity.ts"
+      - "src/lib/payroll-release-segregation.ts"
+      - "src/lib/filing-evidence*.ts"
+      - "src/components/hris-onboarding-checklist.tsx"
+      - "src/components/workspace/first-payroll-readiness.tsx"
       - "src/app/dashboard-design.css"
       - "src/app/globals.css"
       - "src/components/workspace/shell.tsx"
@@ -21,6 +45,28 @@ on:
   pull_request:
     branches: [main]
     paths:
+      # Authoritative nine-stage source inputs; retain both PR and main coverage.
+      - "src/app/api/employees/**"
+      - "src/app/api/recruitment/**"
+      - "src/app/api/provisioning/**"
+      - "src/app/api/workforce/**"
+      - "src/app/api/web-bundy/**"
+      - "src/app/api/payroll/**"
+      - "src/app/api/payroll-runs/**"
+      - "src/app/api/bir/**"
+      - "src/app/api/exports/**"
+      - "src/lib/first-payroll-*.ts"
+      - "src/lib/hris-onboarding-checklist.ts"
+      - "src/lib/hcm-hire-business-process.ts"
+      - "src/lib/workforce-*.ts"
+      - "src/lib/attendance-*.ts"
+      - "src/lib/payroll-engine.ts"
+      - "src/lib/payroll-calendar.ts"
+      - "src/lib/payroll-period-integrity.ts"
+      - "src/lib/payroll-release-segregation.ts"
+      - "src/lib/filing-evidence*.ts"
+      - "src/components/hris-onboarding-checklist.tsx"
+      - "src/components/workspace/first-payroll-readiness.tsx"
       - "src/app/dashboard-design.css"
       - "src/app/globals.css"
       - "src/components/workspace/shell.tsx"
