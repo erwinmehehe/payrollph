@@ -1,6 +1,9 @@
 import { and, eq, isNull, notLike, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { documents, hcmEmployeeDocumentCompliance } from "@/db/schema";
+import {
+  documents, hcmDocumentRequirements, hcmEmployeeDocumentCompliance,
+  hcmPolicyAssignments, hcmPolicyVersions,
+} from "@/db/schema";
 import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
 import {
   boolean, integer, jsonb, pgTable, serial, text, timestamp, varchar,
@@ -107,4 +110,22 @@ export const employeeDocumentMetadataJoin = and(
     isNull(documents.sourceKey),
     notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"),
   ),
+);
+
+
+/** Historical policy assignments have an ID-only policy FK. The ESS read and
+ * acknowledgement route must not follow a guessed/malformed policy ID into
+ * another organization's published policy content or acknowledgement ledger.
+ */
+export const employeePolicyVersionJoin = and(
+  eq(hcmPolicyAssignments.policyId, hcmPolicyVersions.id),
+  eq(hcmPolicyAssignments.organizationId, hcmPolicyVersions.organizationId),
+);
+
+/** Document-requirement assignments have the same legacy ID-only FK.
+ * Only the attached requirement from this same employer can be disclosed.
+ */
+export const employeeDocumentRequirementJoin = and(
+  eq(hcmEmployeeDocumentCompliance.requirementId, hcmDocumentRequirements.id),
+  eq(hcmEmployeeDocumentCompliance.organizationId, hcmDocumentRequirements.organizationId),
 );
