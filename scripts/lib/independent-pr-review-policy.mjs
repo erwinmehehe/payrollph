@@ -171,6 +171,34 @@ function isPinnedApplicantPrivacySource(files) {
     file.filename === expected.filename && file.status === expected.status && file.sha === expected.sha));
 }
 
+// Owner-approved #896 test-only source exception. Other frozen paths remain held.
+// Bind it to the exact reviewed Spend PR and head as well as immutable test blobs.
+// A new Spend commit requires a new source review; never infer pilot/production approval.
+const SPEND_NAVIGATION_APPROVED_PR = 896;
+const SPEND_NAVIGATION_APPROVED_HEAD = "25e025e695965e0320a52cee06372304bc39ad58";
+const SPEND_NAVIGATION_TEST_BLOBS = new Map([
+  ["tests/hcm-documents-policy-center.test.ts", "67e95f68dfa1166e8bd7fcf798d75d9fe28ba4b4"],
+  ["tests/performance-self-assessment.test.ts", "11b9dcae1fa140559db69a3ef078ea2286334d35"],
+]);
+function isPinnedSpendNavigationTests(files, frozenPaths) {
+  const candidates = files.filter(file => SPEND_NAVIGATION_TEST_BLOBS.has(file.filename));
+  return frozenPaths.length === 2 && candidates.length === 2
+    && new Set(candidates.map(file => file.filename)).size === 2
+    && frozenPaths.every(path => SPEND_NAVIGATION_TEST_BLOBS.has(path))
+    // No rename/copy may smuggle a previously frozen filename through the
+    // Set of frozen paths or rebind either pinned test to a new file.
+    && files.every(file => file.status !== "renamed" && file.status !== "copied"
+      && file.previous_filename == null)
+    && candidates.every(file => file.status === "modified"
+      && file.sha === SPEND_NAVIGATION_TEST_BLOBS.get(file.filename));
+}
+
+export function isApprovedSpendNavigationSource(pr, scope) {
+  return pr?.number === SPEND_NAVIGATION_APPROVED_PR &&
+    pr?.head?.sha === SPEND_NAVIGATION_APPROVED_HEAD &&
+    scope?.spendNavigationTests === true;
+}
+
 const FROZEN_LANES = [
   // Treat every component of the exact #969 offline witness set as frozen.
   // Otherwise dropping the test file leaves the docs and QA script outside
@@ -225,6 +253,7 @@ export function classifyReviewScope(files) {
   const wfm691WitnessDevEvidence = isPinnedWfm691WitnessDevEvidence(files);
   const hcmIntakeRegressionDevEvidence = isPinnedHcmIntakeRegressionDevEvidence(files);
   const applicantPrivacySource = isPinnedApplicantPrivacySource(files);
+  const spendNavigationTests = isPinnedSpendNavigationTests(files, frozenPaths);
   const sensitivePaths = list.filter(path =>
     ALWAYS_SENSITIVE.some(regex => regex.test(path)) ||
     ["T2", "T3"].includes(tierForPath(path)));
@@ -238,6 +267,7 @@ export function classifyReviewScope(files) {
     hcmIntakeRegressionDevEvidence,
     hrDocumentLegacyCompatibility,
     applicantPrivacySource,
+    spendNavigationTests,
     sensitiveFileCount: sensitivePaths.length,
     frozenFileCount: frozenPaths.length,
   };
@@ -295,7 +325,7 @@ export function evaluateIndependentReview({
   const blockers = [];
   if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
       !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
-       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource &&
+       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !isApprovedSpendNavigationSource(pr, scope) &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {
