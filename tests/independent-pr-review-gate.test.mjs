@@ -157,7 +157,7 @@ const env = {
   PILOT_START_EVIDENCE_REF: "",
 };
 function fakeGithub({ files = [moneyFile], reviews = [human()], permission = "write",
-  failure = null, mismatch = false } = {}) {
+  failure = null, mismatch = false, number = 100, headSha = sha } = {}) {
   const calls = [];
   return {
     calls,
@@ -170,12 +170,12 @@ function fakeGithub({ files = [moneyFile], reviews = [human()], permission = "wr
         });
       }
       let body;
-      if (url.endsWith("/pulls/100")) body = pr(files, mismatch ? { head: { sha: prior } } : {});
-      else if (url.includes("/pulls/100/files?")) {
+      if (url.endsWith("/pulls/" + number)) body = pr(files, { number, head: { sha: mismatch ? prior : headSha } });
+      else if (url.includes("/pulls/" + number + "/files?")) {
         const page = Number(new URL(url).searchParams.get("page"));
         body = files.slice((page - 1) * 100, page * 100);
       }
-      else if (url.includes("/pulls/100/reviews?")) {
+      else if (url.includes("/pulls/" + number + "/reviews?")) {
         const page = Number(new URL(url).searchParams.get("page"));
         body = reviews.slice((page - 1) * 100, page * 100);
       }
@@ -508,4 +508,92 @@ test("frozen WFM change on a later files page blocks even a valid approval", asy
   const gate = await checkIndependentReview(env, mock.fetcher);
   assert.equal(gate.ok, false);
   assert.ok(gate.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+});
+
+// This is a source-only exception pinned to the actual reviewed #896 head.
+// A new commit on #896 requires a separate reviewed policy update.
+const spendApprovedHead = "25e025e695965e0320a52cee06372304bc39ad58";
+const spendNavigationFiles = [
+  { filename: "tests/hcm-documents-policy-center.test.ts", status: "modified", sha: "67e95f68dfa1166e8bd7fcf798d75d9fe28ba4b4" },
+  { filename: "tests/performance-self-assessment.test.ts", status: "modified", sha: "11b9dcae1fa140559db69a3ef078ea2286334d35" },
+];
+const reviewSpend = (files, extra = {}) => review(files, {
+  pr: pr(files, { number: 896, head: { sha: spendApprovedHead } }),
+  expectedHeadSha: spendApprovedHead,
+  reviews: [{ ...human(), commit_id: spendApprovedHead }],
+  ...extra,
+});
+const soloSpendEnv = { ...env, PR_NUMBER: "896", PR_HEAD_SHA: spendApprovedHead,
+  INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false", PAYROLL_INDEPENDENT_REVIEWERS: "",
+  PILOT_HCM_WFM_STARTED: "false", PILOT_START_EVIDENCE_REF: "" };
+const githubSpend = (files, extra = {}) => fakeGithub({
+  files, number: 896, headSha: spendApprovedHead, reviews: [], ...extra,
+});
+
+test("approved exact #896 navigation blobs cross only the source freeze, never release authority", async () => {
+  const files = [...spendNavigationFiles, moneyFile];
+  assert.equal(classifyReviewScope(files).spendNavigationTests, true);
+  assert.equal(reviewSpend(files).ok, true);
+  assert.equal(reviewSpend(files).releaseAuthorized, false);
+  const verdict = await checkIndependentReview(soloSpendEnv, githubSpend(files).fetcher);
+  assert.equal(verdict.ok, true);
+  assert.equal(verdict.releaseAuthorized, false);
+  assert.equal(verdict.approvalCount, 0);
+  const denied = reviewSpend(files, { reviews: [] });
+  assert.equal(denied.ok, false, "strict independent review remains required");
+  assert.ok(denied.blockers.includes("CURRENT_HEAD_INDEPENDENT_APPROVAL_REQUIRED"));
+  const draft = reviewSpend(files, {
+    pr: pr(files, { number: 896, head: { sha: spendApprovedHead }, draft: true }),
+  });
+  assert.ok(draft.blockers.includes("SENSITIVE_PR_STILL_DRAFT"));
+});
+
+test("Spend exception denies a different PR number or newer head in strict and solo modes", async () => {
+  const files = [...spendNavigationFiles, moneyFile];
+  const wrongPr = reviewSpend(files, {
+    pr: pr(files, { number: 100, head: { sha: spendApprovedHead } }),
+  });
+  assert.ok(wrongPr.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+  const wrongHead = reviewSpend(files, {
+    pr: pr(files, { number: 896, head: { sha } }),
+    expectedHeadSha: sha, reviews: [human()],
+  });
+  assert.ok(wrongHead.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+  const wrongPrSolo = await checkIndependentReview({
+    ...soloSpendEnv, PR_NUMBER: "100",
+  }, fakeGithub({ files, number: 100, headSha: spendApprovedHead, reviews: [] }).fetcher);
+  assert.deepEqual(wrongPrSolo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+  const wrongHeadSolo = await checkIndependentReview({
+    ...soloSpendEnv, PR_HEAD_SHA: sha,
+  }, githubSpend(files, { headSha: sha }).fetcher);
+  assert.deepEqual(wrongHeadSolo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+});
+
+test("Spend navigation exception rejects changed bytes, omissions, duplicates, renames and extra frozen runtime", async () => {
+  const cases = [
+    spendNavigationFiles.slice(0, 1),
+    [...spendNavigationFiles, spendNavigationFiles[0]],
+    spendNavigationFiles.map((f, i) => i ? f : { ...f, sha: prior }),
+    spendNavigationFiles.map((f, i) => i ? f : { ...f, sha: undefined }),
+    spendNavigationFiles.map((f, i) => i ? f : { ...f, status: "added" }),
+    spendNavigationFiles.map((f, i) => i ? f : { ...f, status: "renamed", previous_filename: "tests/hcm-old.test.ts" }),
+    [...spendNavigationFiles, { filename: "src/lib/hcm-runtime.ts", status: "modified" }],
+    [...spendNavigationFiles, { filename: "src/app/api/workforce/coverage/route.ts", status: "added" }],
+    [...spendNavigationFiles, { filename: "docs/reassigned.txt", status: "renamed",
+      previous_filename: "tests/hcm-documents-policy-center.test.ts" }],
+    [...spendNavigationFiles, { filename: "docs/moved.txt", status: "renamed",
+      previous_filename: "docs/old.txt" }],
+    [...spendNavigationFiles, { filename: "docs/copied.txt", status: "copied",
+      previous_filename: "tests/performance-self-assessment.test.ts" }],
+    [...spendNavigationFiles, { filename: "docs/not-a-rename.txt", status: "modified",
+      previous_filename: "tests/performance-self-assessment.test.ts" }],
+  ];
+  for (const files of cases) {
+    assert.equal(classifyReviewScope(files).spendNavigationTests, false);
+    const strict = reviewSpend(files);
+    assert.ok(strict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+    const solo = await checkIndependentReview(soloSpendEnv, githubSpend(files).fetcher);
+    assert.deepEqual(solo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+    assert.equal(solo.releaseAuthorized, false);
+  }
 });

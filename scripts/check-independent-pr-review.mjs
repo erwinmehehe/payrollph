@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   allowedHumanReviewerLogins, classifyReviewScope, evaluateIndependentReview,
+  isApprovedSpendNavigationSource,
 } from "./lib/independent-pr-review-policy.mjs";
 
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -117,7 +118,7 @@ export async function checkIndependentReview(env, fetcher = fetch) {
       /^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidence);
     const blockers = scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
       !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
-      !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !pilotAccepted
+      !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !isApprovedSpendNavigationSource(pr, scope) && !pilotAccepted
       ? ["PILOT_HCM_WFM_FREEZE_ACTIVE"] : [];
     return { ok: blockers.length === 0, scope, approvalCount: 0, blockers,
       releaseAuthorized: false, mode: "solo-maintainer" };

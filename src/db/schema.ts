@@ -1748,6 +1748,19 @@ export const leaveBalances = pgTable("leave_balances", {
   uniqueIndex("leave_balance_unique").on(table.employeeId, table.leaveType, table.year),
 ]);
 
+export const expenseCategoryPolicies = pgTable("expense_category_policies", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  category: varchar("category", { length: 60 }).notNull(),
+  taxable: boolean("taxable").notNull(),
+  reviewReference: varchar("review_reference", { length: 200 }).notNull(),
+  reviewedByUserId: integer("reviewed_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("expense_category_policies_org_category").on(table.organizationId, table.category),
+  unique("expense_category_policies_org_id_unique").on(table.organizationId, table.id),
+]);
+
 export const expenseClaims = pgTable("expense_claims", {
   id: serial("id").primaryKey(),
   submittedByUserId: integer("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
@@ -1761,7 +1774,40 @@ export const expenseClaims = pgTable("expense_claims", {
   decidedBy: varchar("decided_by", { length: 120 }),
   payrollRunId: integer("payroll_run_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, table => [unique("expense_claims_org_employee_id_unique").on(table.organizationId, table.employeeId, table.id)]);
+
+/** A4 evidence is separate: legacy expense reads/writes need no new columns. */
+export const expenseClaimEvidence = pgTable("expense_claim_evidence", {
+  claimId: integer("claim_id").primaryKey().references(() => expenseClaims.id, { onDelete: "cascade" }),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  categoryPolicyId: integer("category_policy_id").notNull(),
+  taxable: boolean("taxable").notNull(),
+  approvedAmount: numeric("approved_amount", { precision: 12, scale: 2 }),
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  receiptStorageKey: varchar("receipt_storage_key", { length: 512 }),
+  receiptSha256: varchar("receipt_sha256", { length: 64 }),
+  receiptByteSize: integer("receipt_byte_size"),
+  receiptVerifiedAt: timestamp("receipt_verified_at", { withTimezone: true }),
+  receiptMime: varchar("receipt_mime", { length: 100 }),
+  receiptFileName: varchar("receipt_file_name", { length: 200 }),
+  receiptScanNote: varchar("receipt_scan_note", { length: 240 }),
+}, table => [
+  foreignKey({ name: "expense_evidence_claim_employer_fk",
+    columns: [table.organizationId, table.employeeId, table.claimId],
+    foreignColumns: [expenseClaims.organizationId, expenseClaims.employeeId, expenseClaims.id],
+  }).onDelete("cascade"),
+  foreignKey({ name: "expense_evidence_policy_employer_fk",
+    columns: [table.organizationId, table.categoryPolicyId],
+    foreignColumns: [expenseCategoryPolicies.organizationId, expenseCategoryPolicies.id],
+  }),
+  check("expense_evidence_amount_check", sql`${table.approvedAmount} is null or ${table.approvedAmount} > 0`),
+  check("expense_evidence_receipt_size_check", sql`${table.receiptByteSize} is null or ${table.receiptByteSize} between 1 and 5242880`),
+  uniqueIndex("expense_evidence_receipt_key_unique").on(table.receiptStorageKey).where(sql`${table.receiptStorageKey} is not null`),
+  uniqueIndex("expense_evidence_receipt_tenant_hash_unique").on(table.organizationId, table.receiptSha256)
+    .where(sql`${table.receiptSha256} is not null`),
+]);
 
 export const earnedWageRequests = pgTable("earned_wage_requests", {
   id: serial("id").primaryKey(),
