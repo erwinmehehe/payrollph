@@ -246,6 +246,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 private employee documents in signed object storage",
     approval: "Object storage, migration reconciliation, malware scanning and view auditing accepted",
   },
+  spendPayroll: {
+    env: "SPEND_PAYROLL_REIMBURSEMENTS_ENABLED",
+    owner: "Payroll and Finance",
+    risk: "P0 taxable reimbursements, receipt evidence, duplicate payouts",
+    approval: "Isolated employer payroll comparison and independent expense-review acceptance",
+  },
   employeeHrCases: {
     env: "EMPLOYEE_HR_CASES_ENABLED",
     owner: "People Operations",

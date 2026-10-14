@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { employeeNavigationTabs, employeeTabEnabled, EMPLOYEE_PAGE_LABELS, ESS_PRIMARY_TABS, type EmployeeSelfTab } from "@/lib/employee-navigation";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import {
@@ -36,6 +37,7 @@ import { EmployeeContributionIssueModal } from "@/components/employee-contributi
 import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { EmployeeHrCasesPanel } from "@/components/employee-hr-cases-panel";
+import { ExpensesPanel } from "@/components/wallet-panel";
 import { HcmSelfProbationReviews } from "@/components/hcm-self-probation-reviews";
 import { HcmSelfPerformance } from "@/components/hcm-self-performance";
 import { WebBundyModal } from "@/components/web-bundy-modal";
@@ -207,21 +209,18 @@ type Payload = {
   };
 };
 
-type SelfTab = "home" | "pay" | "time" | "leave" | "documents" | "performance" | "profile";
+type SelfTab = EmployeeSelfTab;
 
 const ESS_TAB_CONFIG: Record<SelfTab, { label: string; mobileLabel?: string; icon: LucideIcon }> = {
-  home: { label: "Home", icon: House },
-  pay: { label: "Pay", mobileLabel: "Payslips", icon: WalletCards },
-  time: { label: "Time", mobileLabel: "Attendance", icon: Clock },
-  leave: { label: "Leave", icon: CalendarDays },
-  documents: { label: "Documents", icon: FileText },
-  performance: { label: "Performance", icon: BadgeCheck },
-  profile: { label: "Profile", mobileLabel: "My info", icon: UserRound },
+  expenses: { ...EMPLOYEE_PAGE_LABELS.expenses, icon: WalletCards },
+  home: { ...EMPLOYEE_PAGE_LABELS.home, icon: House },
+  pay: { ...EMPLOYEE_PAGE_LABELS.pay, icon: WalletCards },
+  time: { ...EMPLOYEE_PAGE_LABELS.time, icon: Clock },
+  leave: { ...EMPLOYEE_PAGE_LABELS.leave, icon: CalendarDays },
+  documents: { ...EMPLOYEE_PAGE_LABELS.documents, icon: FileText },
+  performance: { ...EMPLOYEE_PAGE_LABELS.performance, icon: BadgeCheck },
+  profile: { ...EMPLOYEE_PAGE_LABELS.profile, icon: UserRound },
 };
-
-const ESS_PRIMARY_TABS: SelfTab[] = ["home", "pay", "time", "leave"];
-const ESS_MORE_TABS: SelfTab[] = ["documents", "performance", "profile"];
-const ESS_ALL_TABS: SelfTab[] = [...ESS_PRIMARY_TABS, ...ESS_MORE_TABS];
 
 const peso = (value: string | number) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(Number(value));
@@ -264,7 +263,7 @@ function statusTone(status: string) {
   return "neutral";
 }
 
-export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?: boolean } = {}) {
+export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false }: { hrCasesEnabled?: boolean; spendEnabled?: boolean } = {}) {
   const workflowUi = useWorkflowUi();
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demoRole") === "employee";
@@ -278,6 +277,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
   const [webBundyOpen, setWebBundyOpen] = useState(false);
   const [switchingRole, setSwitchingRole] = useState<DemoRoleId | null>(null);
   const [tab, setTab] = useState<SelfTab>("home");
+  const { moreTabs, allTabs } = employeeNavigationTabs(spendEnabled);
   const [moreOpen, setMoreOpen] = useState(false);
   const [photoAvailable, setPhotoAvailable] = useState(false);
   const [photoVersion, setPhotoVersion] = useState(0);
@@ -315,6 +315,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
   }
 
   function navigateTo(next: SelfTab) {
+    if (!employeeTabEnabled(next, spendEnabled)) return;
     setMoreOpen(false);
     setTab(next);
   }
@@ -562,7 +563,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
         </div>
         <div className="workspace-label employee-workspace-label"><span className="pulse-dot" />{t("Employee workspace")}</div>
         <nav className="side-navigation employee-side-nav" aria-label={t("Employee pages")}>
-          {ESS_ALL_TABS.map((value) => {
+          {allTabs.map((value) => {
             const { icon: Icon, label } = ESS_TAB_CONFIG[value];
             return (
               <button
@@ -639,7 +640,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
             <button
               ref={moreButtonRef}
               type="button"
-              className={moreOpen || ESS_MORE_TABS.includes(tab) ? "active" : ""}
+              className={moreOpen || moreTabs.includes(tab) ? "active" : ""}
               aria-expanded={moreOpen}
               aria-controls={moreOpen ? "employee-more-panel" : undefined}
               aria-label="More employee pages"
@@ -660,7 +661,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
                   </button>
                 </div>
                 <div className="employee-more-links">
-                  {ESS_MORE_TABS.map((value, index) => {
+                  {moreTabs.map((value, index) => {
                     const { icon: Icon, label, mobileLabel } = ESS_TAB_CONFIG[value];
                     return (
                       <button
@@ -1097,6 +1098,11 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
 
       {tab === "performance" && (
         <HcmSelfPerformance />
+      )}
+      {spendEnabled && tab === "expenses" && data.employer && (
+        <section className="employee-section">
+          <ExpensesPanel organizationId={data.employer.id} reviewModeEnabled setNotice={setError} />
+        </section>
       )}
 
       {tab === "profile" && (
