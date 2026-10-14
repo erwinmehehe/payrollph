@@ -1,4 +1,6 @@
 import { roundedBasicPayBuckets, roundedGrossFromBuckets, statutoryTrueUpDecision } from "@/lib/payroll-money";
+import { reviewRetroStatutorySourcePeriods } from "@/lib/payroll-retro-statutory-source-period";
+import { loadPendingPayrollRetroSources } from "@/lib/payroll-retro-source-lookup";
 import { allocateMandatoryDeductions } from "@/lib/payroll-mandatory-shortfall";
 import { and, asc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
@@ -13,7 +15,6 @@ import {
   employeePayProfiles,
   employeePayRevisions,
   employeeRestDayRevisions,
-  employeePayRetroAdjustments,
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
   employees,
@@ -987,13 +988,11 @@ async function processPayrollChunk(input: {
         inArray(employeeLoans.employeeId, chunkIds),
       ))
     : [];
-  const pendingRetroAdjustments = chunkIds.length
-    ? await db.select().from(employeePayRetroAdjustments).where(and(
-        eq(employeePayRetroAdjustments.organizationId, input.organizationId),
-        eq(employeePayRetroAdjustments.status, "pending"),
-        inArray(employeePayRetroAdjustments.employeeId, chunkIds),
-      ))
-    : [];
+  // M-10: tenant-bound source-run period lookup, preserving orphaned dates.
+  const pendingRetroAdjustments = await loadPendingPayrollRetroSources({
+    organizationId: input.organizationId,
+    employeeIds: chunkIds,
+  });
   const retroByEmployee = new Map<number, typeof pendingRetroAdjustments>();
   for (const retro of pendingRetroAdjustments) {
     retroByEmployee.set(retro.employeeId, [...(retroByEmployee.get(retro.employeeId) ?? []), retro]);
@@ -1562,6 +1561,8 @@ async function processPayrollChunk(input: {
         id: retro.id,
         amount: Number(retro.amount),
         sourcePeriodLabel: retro.sourcePeriodLabel,
+        sourcePeriodStart: retro.sourcePeriodStart,
+        sourcePeriodEnd: retro.sourcePeriodEnd,
       })),
       payProfile: (() => {
         const profile = payProfileByEmployee.get(employee.id);
@@ -1753,7 +1754,10 @@ export function calculateEmployeePay(input: {
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
   leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
   approvedLeave?: ResolvedPayrollLeave[];
-  retroAdjustments?: Array<{ id: number; amount: number; sourcePeriodLabel: string }>;
+  retroAdjustments?: Array<{
+    id: number; amount: number; sourcePeriodLabel: string;
+    sourcePeriodStart?: string | null; sourcePeriodEnd?: string | null;
+  }>;
   payProfile: EmployeePayProfileInput;
   payRevisions?: EffectivePayRevisionInput[];
   holidayCalendar?: HolidayCalendarEntry[];
@@ -2868,6 +2872,14 @@ export function calculateEmployeePay(input: {
     amountNum: retro.amount,
   }));
   const retroTotal = retroLines.reduce((sum, line) => sum + line.amountNum, 0);
+  // M-10: cross-month salary corrections remain calculable but cannot be
+  // silently released as current-month SSS/HDMF contributions.
+  const retroStatutoryFlags = reviewRetroStatutorySourcePeriods({
+    currentPeriodStart: input.periodStart,
+    currentPeriodEnd: input.periodEnd,
+    adjustments: input.retroAdjustments ?? [],
+  });
+  flags.push(...retroStatutoryFlags);
 
   // Approved expense reimbursements are a non-taxable addition to pay, and
   // approved earned-wage advances are recovered here so they cannot be
@@ -3238,6 +3250,9 @@ export function calculateEmployeePay(input: {
       : pagIbigCutoffCompensation * 2,
   );
   const sssRule = computeSss(statutoryMonthlySssCompensation, input.payDate);
+  // M-6 (PC 2020-0005; PhilHealth PA2025-0002): fixed monthly basic
+  // salary only. Do not add OT, allowances, bonuses, 13th-month or retro pay,
+  // and do not subtract lateness/absence from the statutory MBS base.
   const philHealthRule = computePhilHealth(monthly, input.payDate);
   const pagIbigRule = computePagIbig(statutoryMonthlyPagIbigCompensation, input.payDate);
 
@@ -3619,6 +3634,7 @@ export function calculateEmployeePay(input: {
       `leavePayAdjustment=${money(leaveAdjustmentTotal)}`,
       `retroPay=${money(retroTotal)}`,
       `retroAdjustments=${retroLines.length}`,
+      `retroStatutoryAttributionBlockers=${retroStatutoryFlags.length}`,
       `punches=${eligiblePunches.length}`,
       `holidayCalendarFingerprint=${input.holidayCalendarFingerprint ?? ""}`,
       `holidayEligibilityAttendanceDates=${(input.holidayEligibilityAttendanceDates ?? []).join("|")}`,
