@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { spendIsolatedDatabase } from "./helpers/spend-isolated-database";
 import { organizations, employees, users, userOrganizations, orgUnits,
-  expenseCategoryPolicies, expenseClaimEvidence, expenseClaims, expenseReports, expenseReportItems, auditEvents } from "../src/db/schema";
+  expenseCategoryPolicies, expenseClaimEvidence, expenseClaims, expenseReports, expenseReportItems, auditEvents, documents } from "../src/db/schema";
 const require = createRequire(import.meta.url);
 
 test("expense API enforces maker-checker, MFA, employer scope, exact approval and legacy compatibility", async () => {
@@ -20,6 +20,8 @@ test("expense API enforces maker-checker, MFA, employer scope, exact approval an
   const api = await import("../src/app/api/expenses/route");
   const receipts = await import("../src/app/api/expenses/receipts/route");
   const spend = await import("../src/app/api/spend/route");
+  const recovery = await import("../src/lib/spend-receipt-object-reconciliation");
+  const documentApi = await import("../src/app/api/documents/[id]/route");
   const request = (method: string, body?: Record<string, unknown>, query = "") => new Request(
     "http://127.0.0.1:3000/api/expenses" + query, { method, headers: {
       "Content-Type": "application/json", Origin: "http://127.0.0.1:3000" },
@@ -60,15 +62,20 @@ test("expense API enforces maker-checker, MFA, employer scope, exact approval an
       DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: "synthetic", DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: "synthetic-not-live",
       MALWARE_SCAN_URL: "https://scanner.example.invalid/scan", MALWARE_SCAN_TOKEN: "synthetic" });
     const objects = new Map<string, Uint8Array>();
-    let tamper = false;
+    let tamper = false, ambiguousPut = false, failDelete = false;
     globalThis.fetch = async (input, options) => {
       const url = new URL(String(input)); assert.ok(url.hostname.endsWith("example.invalid"));
       if (url.hostname === "scanner.example.invalid") return Response.json({ clean: true, engine: "synthetic-contract" });
       if (options?.method === "PUT") {
+        assert.equal((await db.select().from(documents)).filter(row => row.sourceKey?.startsWith(recovery.SPEND_PENDING_RECEIPT_PREFIX)).length, 1,
+          "Durable unreadable SQL intent must exist before external PUT");
         assert.equal(new Headers(options.headers).get("If-None-Match"), "*");
-        objects.set(url.pathname, new Uint8Array(options.body as Uint8Array)); return new Response(null, { status: 200 });
+        objects.set(url.pathname, new Uint8Array(options.body as Uint8Array)); return new Response(null, { status: ambiguousPut ? 503 : 200 });
       }
-      if (options?.method === "DELETE") { objects.delete(url.pathname); return new Response(null, { status: 204 }); }
+      if (options?.method === "DELETE") {
+        if (failDelete) return new Response(null, { status: 503 });
+        objects.delete(url.pathname); return new Response(null, { status: 204 });
+      }
       const stored = objects.get(url.pathname); assert.ok(stored);
       return new Response(tamper ? new Uint8Array(Buffer.from("%PDF-1.8")) : new Uint8Array(stored));
     };
@@ -98,7 +105,30 @@ test("expense API enforces maker-checker, MFA, employer scope, exact approval an
     assert.equal((await api.PATCH(request("PATCH", { id: claim.id, status: "approved" }))).status, 403);
     assert.equal((await api.GET(request("GET", undefined, "?organizationId=" + orgs[1].id))).status, 403);
     const selfClaim = await api.POST(request("POST", { ...body, employeeId: staff[1].id }));
-    assert.equal(selfClaim.status, 201); assert.equal((await selfClaim.json()).employeeId, staff[0].id);
+    assert.equal(selfClaim.status, 201); const selfRow = await selfClaim.json(); assert.equal(selfRow.employeeId, staff[0].id);
+    ambiguousPut = true;
+    assert.equal((await upload(selfRow.id)).status, 503);
+    const [intent] = await db.select().from(documents); assert.ok(intent); assert.equal(intent.scannedClean, false);
+    assert.equal(objects.size, 2, "Ambiguous PUT does not race an immediate DELETE");
+    const unreadable = await documentApi.GET(request("GET"), { params: Promise.resolve({ id: String(intent.id) }) });
+    assert.equal(unreadable.status, 409, "Pending object can never be exposed through document download");
+    const sweepTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = "false"; failDelete = true;
+    const retry = await recovery.sweepPendingSpendReceipts(sweepTime);
+    assert.equal(retry.retryRequired, 1); assert.equal((await db.select().from(documents)).length, 1);
+    failDelete = false;
+    const cleaned = await recovery.sweepPendingSpendReceipts(sweepTime);
+    assert.equal(cleaned.deleted, 1); assert.equal(objects.size, 1);
+    assert.equal((await db.select().from(documents)).length, 0);
+    assert.equal((await recovery.sweepPendingSpendReceipts(sweepTime)).deleted, 0, "Retry is idempotent");
+    ambiguousPut = false; process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = "true";
+    // Even a stale intent cannot delete bytes referenced by a reviewed claim.
+    const [attachedIntent] = await db.insert(documents).values({ organizationId: orgs[0].id, employeeId: staff[0].id,
+      kind: "expense_receipt", fileName: "Synthetic stale intent", mimeType: "application/pdf", byteSize: 8,
+      sha256: hash, scannedClean: false, sourceType: "upload", sourceKey: recovery.SPEND_PENDING_RECEIPT_PREFIX + "synthetic",
+      uploadedBy: "Synthetic", content: "", objectStorageKey: verified.receiptStorageKey }).returning();
+    assert.equal(await recovery.reconcilePendingSpendReceipt(attachedIntent.id), "referenced");
+    assert.equal(objects.size, 1); await db.delete(documents).where(eq(documents.id, attachedIntent.id));
     signed(0);
     assert.equal((await api.PATCH(request("PATCH", { id: claim.id, status: "approved" }))).status, 403);
     signed(2);
@@ -155,6 +185,7 @@ test("expense API enforces maker-checker, MFA, employer scope, exact approval an
     actor = null; assert.equal((await receipts.GET(request("GET", undefined, "?claimId=" + claim.id))).status, 404);
     // Rehearse the unnumbered proposal only in this generated schema, twice.
     await pool.query("DROP TABLE expense_claim_evidence; DROP TABLE expense_category_policies");
+    assert.equal((await recovery.sweepPendingSpendReceipts()).enabled, false, "Pre-migration recovery does not query additive tables");
     signed(0);
     assert.equal((await api.POST(request("POST", { ...body, category: "Legacy" }))).status, 201);
     assert.equal((await api.GET(request("GET", undefined, "?organizationId=" + orgs[0].id))).status, 200);
