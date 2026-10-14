@@ -95,7 +95,8 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
   const employeeId = url.searchParams.get("employeeId") ? Number(url.searchParams.get("employeeId")) : null;
-  if (!Number.isInteger(organizationId) || (employeeId !== null && !Number.isInteger(employeeId))) {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0
+    || (employeeId !== null && (!Number.isSafeInteger(employeeId) || employeeId <= 0))) {
     return Response.json({ error: "A valid organizationId and optional employeeId are required." }, { status: 400 });
   }
 
@@ -129,7 +130,9 @@ export async function POST(request: Request) {
   const effectiveDate = String(body.effectiveDate ?? "").trim();
   const movementType = String(body.movementType ?? "job_change").trim().toLowerCase();
   const reason = String(body.reason ?? "").trim();
-  if (!Number.isInteger(organizationId) || !Number.isInteger(employeeId) || !isoDate(effectiveDate) || reason.length < 3) {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0
+    || !Number.isSafeInteger(employeeId) || employeeId <= 0
+    || !isoDate(effectiveDate) || reason.length < 3) {
     return Response.json({ error: "organizationId, employeeId, effectiveDate, and a reason are required." }, { status: 400 });
   }
   if (!MOVEMENT_TYPES.includes(movementType as (typeof MOVEMENT_TYPES)[number])) {
@@ -192,7 +195,7 @@ export async function POST(request: Request) {
     if (owns(body, bodyKey)) changes[changeKey] = body[bodyKey] === "" ? null : body[bodyKey];
   }
 
-  if (targetPositionId !== null && !Number.isInteger(targetPositionId)) {
+  if (targetPositionId !== null && (!Number.isSafeInteger(targetPositionId) || targetPositionId <= 0)) {
     return Response.json({ error: "targetPositionId must be a valid position id." }, { status: 400 });
   }
   if (targetFte !== null && (!Number.isFinite(targetFte) || targetFte <= 0 || targetFte > 1)) {
@@ -289,7 +292,9 @@ export async function POST(request: Request) {
   for (const [key, raw] of integerTargets) {
     if (!owns(changes, key) || raw === null) continue;
     const id = Number(raw);
-    if (!Number.isInteger(id)) return Response.json({ error: `${key} must be a valid id or null.` }, { status: 400 });
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      return Response.json({ error: `${key} must be a valid positive id or null.` }, { status: 400 });
+    }
   }
 
   if (owns(changes, "orgUnitId") && changes.orgUnitId !== null) {
@@ -483,7 +488,7 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const id = Number(body.id);
   const action = String(body.action ?? "").trim().toLowerCase();
-  if (!Number.isInteger(id) || !["approve", "decline", "cancel", "retry"].includes(action)) {
+  if (!Number.isSafeInteger(id) || id <= 0 || !["approve", "decline", "cancel", "retry"].includes(action)) {
     return Response.json({ error: "A valid change id and approve/decline/cancel/retry action are required." }, { status: 400 });
   }
 
@@ -491,7 +496,11 @@ export async function PATCH(request: Request) {
   if (!change) return Response.json({ error: "Effective-dated HCM change not found." }, { status: 404 });
 
   const gate = await assertCompanyWidePeople(user.id, change.organizationId);
-  if ("error" in gate) return gate.error;
+  // A guessed HCM record ID must not disclose whether another tenant has it.
+  // Return the same response as a missing record for all unauthorized callers.
+  if ("error" in gate) return Response.json({
+    error: "Effective-dated HCM change not found.",
+  }, { status: 404, headers: { "Cache-Control": "private, no-store" } });
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
