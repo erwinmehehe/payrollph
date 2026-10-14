@@ -179,6 +179,10 @@ async function verify(archiveArgument) {
       !/^[0-9a-f]{64}$/.test(receipt.encryptedSha256 || "") ||
       receipt.encryptedBytes!==(await stat(actual)).size ||
       receipt.encryptedSha256!==await sha256(actual)) reject("CIPHERTEXT_RECEIPT_MISMATCH");
+  // Resolve the operator-reviewed local image to its immutable image ID before execution.
+  // Never let docker run implicitly pull a changing tag during the restore.
+  const restoreImageId=await runQuiet("docker",["image","inspect","postgres:18","--format","{{.Id}}"]);
+  if (!/^sha256:[0-9a-f]{64}$/.test(restoreImageId)) reject("TRUSTED_LOCAL_POSTGRES_IMAGE_REQUIRED");
   const tag="linaw-dev-restore-"+process.pid+"-"+randomBytes(4).toString("hex");
   let started=false;
   const start=Date.now();
@@ -187,7 +191,7 @@ async function verify(archiveArgument) {
       "--name",tag,"--security-opt","no-new-privileges",
       "-e","POSTGRES_DB=linaw_restore_probe",
       "-e","POSTGRES_PASSWORD="+randomBytes(32).toString("hex"),
-      "postgres:18"]);
+      restoreImageId]);
     started=true;
     let ready=false;
     for (let i=0;i<60;i++) {
@@ -214,7 +218,7 @@ async function verify(archiveArgument) {
       format:"linaw-dev-offline-verification-v1",status:"SOLO_DEV_RESTORE_SMOKE",
       archive:receipt.archive,encryptedSha256:receipt.encryptedSha256,
       restoredPublicTables:Number(tables),restoreSeconds:Math.ceil((Date.now()-start)/1000),
-      disconnectedDocker:true,restoredToNeon:false,productionCertified:false,
+      disconnectedDocker:true,restoreImageId,restoredToNeon:false,productionCertified:false,
       verifiedUtc:new Date().toISOString()
     };
     await writeFile(actual+".verify.json",JSON.stringify(evidence,null,2)+"\n",{flag:"wx",mode:0o600});
