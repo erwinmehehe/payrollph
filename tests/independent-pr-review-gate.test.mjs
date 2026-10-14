@@ -121,31 +121,6 @@ test("a current approval is not release authority, and draft sensitive PRs stay 
   assert.equal(draft.ok, false);
 });
 
-test("HCM/WFM/compensation remain frozen even when independently approved", () => {
-  for (const path of [
-    "src/lib/hcm-compensation.ts",
-    "src/lib/workforce-roster.ts",
-    "src/app/api/hcm/work-items/route.ts",
-    "src/app/api/workforce/coverage/route.ts",
-    "src/components/workspace/compensation.tsx",
-    "tests/wfm-coverage.test.ts",
-    "drizzle/0115_hcm_worker360.sql",
-  ]) {
-    const files = [{ filename: path, status: "modified" }];
-    const blocked = review(files);
-    assert.equal(blocked.scope.hcmWfmFrozen, true, path);
-    assert.ok(blocked.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"), path);
-    const enabled = review(files, {
-      pilotStarted: "true", pilotEvidenceRef: "PILOT-START-REVIEW-2026-10",
-    });
-    assert.equal(enabled.ok, true, path);
-    assert.equal(enabled.releaseAuthorized, false);
-  }
-  assert.equal(review([moneyFile], {
-    pilotStarted: "false", pilotEvidenceRef: "",
-  }).ok, true, "core payroll fixes are not part of optional HCM/WFM freeze");
-});
-
 const env = {
   INDEPENDENT_SOURCE_REVIEW_REQUIRED: "true",
   GITHUB_REPOSITORY: "erwinmehehe/payrollph",
@@ -188,201 +163,6 @@ function fakeGithub({ files = [moneyFile], reviews = [human()], permission = "wr
   };
 }
 
-test("only the exact two already-modified WFM-12 evidence files bypass pilot-start source freeze", async () => {
-  const evidence = [
-    { filename: "scripts/wfm-pilot-synthetic-evidence.mjs", status: "modified" },
-    { filename: "tests/wfm-roster-scale-postgres.test.ts", status: "modified" },
-  ];
-  const scope = classifyReviewScope(evidence);
-  assert.equal(scope.hcmWfmFrozen, true);
-  assert.equal(scope.wfm12DevEvidence, true);
-  assert.equal(review(evidence).ok, true, "strict-mode pilot freeze exception is test-only");
-  assert.equal(review(evidence).releaseAuthorized, false);
-
-  const fromSolo = await checkIndependentReview({
-    ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
-    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
-    PILOT_START_EVIDENCE_REF: "",
-  }, fakeGithub({ files: evidence, reviews: [] }).fetcher);
-  assert.equal(fromSolo.ok, true, "repo's approved solo-maintainer policy can accept development evidence");
-  assert.equal(fromSolo.mode, "solo-maintainer");
-  assert.equal(fromSolo.approvalCount, 0);
-  assert.equal(fromSolo.releaseAuthorized, false);
-
-  const variants = [
-    [evidence[0]],
-    [evidence[1]],
-    [...evidence, { filename: "src/lib/workforce-roster-scale.ts", status: "modified" }],
-    [...evidence, { filename: "drizzle/0118_wfm_roster_scale_rules.sql", status: "modified" }],
-    [...evidence, { filename: "tests/wfm-new-runtime.test.ts", status: "added" }],
-    evidence.map((file, i) => i === 1 ? { ...file, status: "added" } : file),
-    evidence.map((file, i) => i === 1 ? { ...file, status: "removed" } : file),
-    evidence.map((file, i) => i === 1 ? { ...file, status: "renamed", previous_filename: "tests/wfm-old.test.ts" } : file),
-    [evidence[0], evidence[0]],
-  ];
-  for (const changed of variants) {
-    assert.equal(classifyReviewScope(changed).wfm12DevEvidence, false);
-    const strict = review(changed);
-    assert.equal(strict.ok, false);
-    assert.ok(strict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-    const solo = await checkIndependentReview({
-      ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
-      PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
-      PILOT_START_EVIDENCE_REF: "",
-    }, fakeGithub({ files: changed, reviews: [] }).fetcher);
-    assert.equal(solo.ok, false);
-    assert.deepEqual(solo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
-  }
-});
-
-test("the exact 3 added WFM-5 development evidence blobs alone are eligible, with no release authority", async () => {
-  const evidence = [
-    {filename:".github/workflows/wfm-five-worker-dev-acceptance.yml",status:"added",
-      sha:"f925a4d6e14ca02676b9a381a3f35dd5a52fd2eb"},
-    {filename:"docs/wfm-five-worker-development-acceptance.md",status:"added",
-      sha:"2bdb7bf9f9f92855f6ce04323af531f0d4a1f96a"},
-    {filename:"scripts/qa/wfm-five-worker-dev-acceptance.ts",status:"added",
-      sha:"fea3ed7ad0d2142a2828cdfdf0725aacc92c489c"},
-  ];
-  const scope = classifyReviewScope(evidence);
-  assert.equal(scope.hcmWfmFrozen, true);
-  assert.equal(scope.wfmFiveWorkerDevEvidence, true);
-  assert.equal(review(evidence).ok, true);
-  assert.equal(review(evidence).releaseAuthorized, false);
-
-  const soloEnv = { ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
-    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
-    PILOT_START_EVIDENCE_REF: "" };
-  const solo = await checkIndependentReview(soloEnv,
-    fakeGithub({ files: evidence, reviews: [] }).fetcher);
-  assert.equal(solo.ok, true);
-  assert.equal(solo.releaseAuthorized, false);
-  assert.equal(solo.approvalCount, 0);
-
-  const badSets = [
-    evidence.slice(0,2),
-    [evidence[0]],
-    [...evidence, {filename:"src/app/api/workforce/schedules/route.ts",status:"modified",sha:"c".repeat(40)}],
-    [...evidence, {filename:".github/workflows/payout.yml",status:"added",sha:"c".repeat(40)}],
-    evidence.map((file,i) => i===0 ? {...file,sha:"c".repeat(40)} : file),
-    evidence.map((file,i) => i===1 ? {...file,sha:null} : file),
-    evidence.map((file,i) => i===2 ? {...file,status:"modified"} : file),
-    evidence.map((file,i) => i===2 ? {...file,status:"removed"} : file),
-    evidence.map((file,i) => i===1 ? {...file,status:"renamed",previous_filename:"docs/old.md"} : file),
-    [evidence[0],evidence[0],evidence[2]],
-  ];
-  for (const files of badSets) {
-    assert.equal(classifyReviewScope(files).wfmFiveWorkerDevEvidence,false);
-    assert.equal(review(files).ok,false);
-    assert.ok(review(files).blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-    const denied = await checkIndependentReview(soloEnv,
-      fakeGithub({ files, reviews: [] }).fetcher);
-    assert.equal(denied.ok,false);
-    assert.deepEqual(denied.blockers,["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
-    assert.equal(denied.releaseAuthorized,false);
-  }
-});
-
-test("only exact unchanged #965 HCM import regression blobs may pass source freeze", async () => {
-  const files = [
-    {filename: "tests/hcm-direct-route-policy-races.test.ts", status: "modified",
-      sha: "c986dc63f7e490a4e8ec3360f56d2f0a49525539"},
-    {filename: "tests/hcm-governed-intake.test.ts", status: "modified",
-      sha: "94f9523c257a3b603ab726f61b5b80b11ff6e212"},
-    {filename: "tests/hcm-legacy-write-integration.test.ts", status: "modified",
-      sha: "ba929f96c369fc9db00e414ae360bf7ee2c4e4ea"},
-  ];
-  const scope = classifyReviewScope(files);
-  assert.equal(scope.hcmWfmFrozen, true);
-  assert.equal(scope.hcmIntakeRegressionDevEvidence, true);
-  assert.equal(review(files).ok, true);
-  assert.equal(review(files).releaseAuthorized, false);
-
-  const soloEnv = {...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
-    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
-    PILOT_START_EVIDENCE_REF: ""};
-  const allowed = await checkIndependentReview(soloEnv,
-    fakeGithub({files, reviews: []}).fetcher);
-  assert.equal(allowed.ok, true);
-  assert.equal(allowed.mode, "solo-maintainer");
-  assert.equal(allowed.approvalCount, 0);
-  assert.equal(allowed.releaseAuthorized, false);
-
-  const badSets = [
-    files.slice(0, 2),
-    [files[2]],
-    [files[0], files[0], files[2]],
-    files.map((x, i) => i === 0 ? {...x, sha: "c".repeat(40)} : x),
-    files.map((x, i) => i === 1 ? {...x, sha: null} : x),
-    files.map((x, i) => i === 2 ? {...x, status: "added"} : x),
-    files.map((x, i) => i === 2 ? {...x, status: "removed"} : x),
-    files.map((x, i) => i === 1 ? {...x, status: "renamed",
-      previous_filename: "tests/hcm-old-regression.test.ts"} : x),
-    [...files, {filename: "src/lib/hcm-governance.ts", status: "modified", sha: "c".repeat(40)}],
-    [...files, {filename: "drizzle/0123_hcm_new.sql", status: "added", sha: "c".repeat(40)}],
-    [...files, {filename: "tests/hcm-new-runtime.test.ts", status: "added", sha: "c".repeat(40)}],
-    [...files, {filename: "scripts/qa/wfm-independent-witness.mjs",
-      status: "added", sha: "c".repeat(40)}],
-    [...files, {filename: ".github/workflows/payout.yml", status: "added", sha: "c".repeat(40)}],
-  ];
-  for (const changed of badSets) {
-    assert.equal(classifyReviewScope(changed).hcmIntakeRegressionDevEvidence, false);
-    const strict = review(changed);
-    assert.equal(strict.ok, false);
-    assert.ok(strict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-    const solo = await checkIndependentReview(soloEnv,
-      fakeGithub({files: changed, reviews: []}).fetcher);
-    assert.equal(solo.ok, false);
-    assert.deepEqual(solo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
-    assert.equal(solo.releaseAuthorized, false);
-  }
-});
-
-test("WFM-691 offline witness packet permits only exact immutable #969 blobs, with no acceptance or release authority", async () => {
-  const files = [
-    {filename:"docs/qa/wfm-691-independent-witness-handoff.md",status:"added",sha:"4cbcc7bb09e21e0d836f4d52fb17750273bdd2bc"},
-    {filename:"scripts/qa/wfm-independent-witness.mjs",status:"added",sha:"ed923d4bead1dab6f98583b59435fc494a773d1b"},
-    {filename:"tests/wfm-independent-witness.test.mjs",status:"added",sha:"5dbfc80577b30365cf17573c1d19693cdb9ce3a0"},
-  ];
-  const scope = classifyReviewScope(files);
-  assert.equal(scope.hcmWfmFrozen, true);
-  assert.equal(scope.wfm691WitnessDevEvidence, true);
-  assert.equal(review(files).ok, true);
-  assert.equal(review(files).releaseAuthorized, false);
-  const soloEnv = { ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
-    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
-    PILOT_START_EVIDENCE_REF: "" };
-  const authorizedSourceOnly = await checkIndependentReview(soloEnv,
-    fakeGithub({files,reviews:[]}).fetcher);
-  assert.equal(authorizedSourceOnly.ok,true);
-  assert.equal(authorizedSourceOnly.mode,"solo-maintainer");
-  assert.equal(authorizedSourceOnly.approvalCount,0);
-  assert.equal(authorizedSourceOnly.releaseAuthorized,false);
-
-  const rejected = [
-    files.slice(0,2),
-    [files[2]],
-    [...files, {filename:"src/lib/wfm-roster.ts",status:"added",sha:"c".repeat(40)}],
-    [...files, {filename:"drizzle/0123_wfm_new.sql",status:"added",sha:"c".repeat(40)}],
-    [...files, {filename:".github/workflows/wfm-new-feature.yml",status:"added",sha:"c".repeat(40)}],
-    files.map((x,i)=>i===0?{...x,sha:"c".repeat(40)}:x),
-    files.map((x,i)=>i===1?{...x,sha:null}:x),
-    files.map((x,i)=>i===2?{...x,status:"modified"}:x),
-    files.map((x,i)=>i===1?{...x,status:"renamed",previous_filename:"scripts/qa/wfm-old.mjs"}:x),
-    [files[0], files[0], files[2]],
-  ];
-  for (const altered of rejected) {
-    assert.equal(classifyReviewScope(altered).wfm691WitnessDevEvidence,false);
-    assert.equal(review(altered).ok,false);
-    assert.ok(review(altered).blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-    const check=await checkIndependentReview(soloEnv,
-      fakeGithub({files:altered,reviews:[]}).fetcher);
-    assert.equal(check.ok,false);
-    assert.deepEqual(check.blockers,["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
-    assert.equal(check.releaseAuthorized,false);
-  }
-});
-
 test("solo source mode validates the actual head without inventing independent approval", async () => {
   for (const value of [undefined, "", "false", "TRUE"]) {
     const api = fakeGithub();
@@ -402,52 +182,6 @@ test("solo source mode validates the actual head without inventing independent a
   const strict = fakeGithub({ reviews: [] });
   const verdict = await checkIndependentReview(env, strict.fetcher);
   assert.equal(verdict.ok, false, "explicit strict mode retains current-head review");
-});
-
-test("solo-maintainer source policy keeps the HCM/WFM pilot freeze intact", async () => {
-  const frozen = { filename: "src/lib/wfm-roster.ts", status: "modified" };
-  const api = fakeGithub({ files: [frozen], reviews: [] });
-  const blocked = await checkIndependentReview({
-    ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
-    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "false",
-    PILOT_START_EVIDENCE_REF: "",
-  }, api.fetcher);
-  assert.equal(blocked.ok, false);
-  assert.deepEqual(blocked.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
-  assert.equal(blocked.approvalCount, 0);
-  assert.equal(blocked.releaseAuthorized, false);
-  assert.equal(api.calls.length, 2);
-
-  const allowed = await checkIndependentReview({
-    ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
-    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "true",
-    PILOT_START_EVIDENCE_REF: "PILOT-START-REVIEW-2026-10",
-  }, fakeGithub({ files: [frozen], reviews: [] }).fetcher);
-  assert.equal(allowed.ok, true);
-  assert.equal(allowed.releaseAuthorized, false);
-
-  const unverified = await checkIndependentReview({
-    ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
-    PAYROLL_INDEPENDENT_REVIEWERS: "", PILOT_HCM_WFM_STARTED: "true",
-    PILOT_START_EVIDENCE_REF: "bad",
-  }, fakeGithub({ files: [frozen], reviews: [] }).fetcher);
-  assert.equal(unverified.ok, false);
-});
-
-test("solo source gate admits the approved legacy blob but not changed or additional frozen code", async () => {
-  const file = { filename: "src/app/api/hcm/employment-term-decisions/[id]/evidence/route.ts",
-    status: "modified", sha: "49957255191041ee83440bd7f24ea5cfd72d491c" };
-  const solo = { ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false" };
-  const approved = await checkIndependentReview(solo, fakeGithub({ files: [file], reviews: [] }).fetcher);
-  assert.equal(approved.ok, true);
-  assert.equal(approved.releaseAuthorized, false);
-  assert.equal(approved.approvalCount, 0);
-  for (const files of [[{ ...file, sha: "0".repeat(40) }], [file,
-    { filename: "src/lib/hcm-new.ts", status: "modified" }]]) {
-    const blocked = await checkIndependentReview(solo, fakeGithub({ files, reviews: [] }).fetcher);
-    assert.equal(blocked.ok, false);
-    assert.ok(blocked.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-  }
 });
 
 test("live gate uses GitHub API GET only, with read-only token and current-head review", async () => {
@@ -498,251 +232,38 @@ test("a sensitive change at file 101 cannot hide behind GitHub's first page", as
     "must inspect the second GitHub files page");
 });
 
-test("frozen WFM change on a later files page blocks even a valid approval", async () => {
-  const docs = Array.from({ length: 100 }, (_, index) => ({
-    filename: "docs/marketing/topic-" + index + ".md", status: "modified",
-  }));
-  const mock = fakeGithub({ files: [
-    ...docs, { filename: "src/app/api/workforce/coverage/route.ts", status: "modified" },
-  ] });
-  const gate = await checkIndependentReview(env, mock.fetcher);
-  assert.equal(gate.ok, false);
-  assert.ok(gate.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-});
 
-// This is a source-only exception pinned to the actual reviewed #896 head.
-// A new commit on #896 requires a separate reviewed policy update.
-const spendApprovedHead = "25e025e695965e0320a52cee06372304bc39ad58";
-const spendNavigationFiles = [
-  { filename: "tests/hcm-documents-policy-center.test.ts", status: "modified", sha: "67e95f68dfa1166e8bd7fcf798d75d9fe28ba4b4" },
-  { filename: "tests/performance-self-assessment.test.ts", status: "modified", sha: "11b9dcae1fa140559db69a3ef078ea2286334d35" },
-];
-const reviewSpend = (files, extra = {}) => review(files, {
-  pr: pr(files, { number: 896, head: { sha: spendApprovedHead } }),
-  expectedHeadSha: spendApprovedHead,
-  reviews: [{ ...human(), commit_id: spendApprovedHead }],
-  ...extra,
-});
-const soloSpendEnv = { ...env, PR_NUMBER: "896", PR_HEAD_SHA: spendApprovedHead,
-  INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false", PAYROLL_INDEPENDENT_REVIEWERS: "",
-  PILOT_HCM_WFM_STARTED: "false", PILOT_START_EVIDENCE_REF: "" };
-const githubSpend = (files, extra = {}) => fakeGithub({
-  files, number: 896, headSha: spendApprovedHead, reviews: [], ...extra,
-});
-
-test("approved exact #896 navigation blobs cross only the source freeze, never release authority", async () => {
-  const files = [...spendNavigationFiles, moneyFile];
-  assert.equal(classifyReviewScope(files).spendNavigationTests, true);
-  assert.equal(reviewSpend(files).ok, true);
-  assert.equal(reviewSpend(files).releaseAuthorized, false);
-  const verdict = await checkIndependentReview(soloSpendEnv, githubSpend(files).fetcher);
-  assert.equal(verdict.ok, true);
-  assert.equal(verdict.releaseAuthorized, false);
-  assert.equal(verdict.approvalCount, 0);
-  const denied = reviewSpend(files, { reviews: [] });
-  assert.equal(denied.ok, false, "strict independent review remains required");
-  assert.ok(denied.blockers.includes("CURRENT_HEAD_INDEPENDENT_APPROVAL_REQUIRED"));
-  const draft = reviewSpend(files, {
-    pr: pr(files, { number: 896, head: { sha: spendApprovedHead }, draft: true }),
-  });
-  assert.ok(draft.blockers.includes("SENSITIVE_PR_STILL_DRAFT"));
-});
-
-test("Spend exception denies a different PR number or newer head in strict and solo modes", async () => {
-  const files = [...spendNavigationFiles, moneyFile];
-  const wrongPr = reviewSpend(files, {
-    pr: pr(files, { number: 100, head: { sha: spendApprovedHead } }),
-  });
-  assert.ok(wrongPr.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-  const wrongHead = reviewSpend(files, {
-    pr: pr(files, { number: 896, head: { sha } }),
-    expectedHeadSha: sha, reviews: [human()],
-  });
-  assert.ok(wrongHead.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-  const wrongPrSolo = await checkIndependentReview({
-    ...soloSpendEnv, PR_NUMBER: "100",
-  }, fakeGithub({ files, number: 100, headSha: spendApprovedHead, reviews: [] }).fetcher);
-  assert.deepEqual(wrongPrSolo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
-  const wrongHeadSolo = await checkIndependentReview({
-    ...soloSpendEnv, PR_HEAD_SHA: sha,
-  }, githubSpend(files, { headSha: sha }).fetcher);
-  assert.deepEqual(wrongHeadSolo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
-});
-
-test("Spend navigation exception rejects changed bytes, omissions, duplicates, renames and extra frozen runtime", async () => {
-  const cases = [
-    spendNavigationFiles.slice(0, 1),
-    [...spendNavigationFiles, spendNavigationFiles[0]],
-    spendNavigationFiles.map((f, i) => i ? f : { ...f, sha: prior }),
-    spendNavigationFiles.map((f, i) => i ? f : { ...f, sha: undefined }),
-    spendNavigationFiles.map((f, i) => i ? f : { ...f, status: "added" }),
-    spendNavigationFiles.map((f, i) => i ? f : { ...f, status: "renamed", previous_filename: "tests/hcm-old.test.ts" }),
-    [...spendNavigationFiles, { filename: "src/lib/hcm-runtime.ts", status: "modified" }],
-    [...spendNavigationFiles, { filename: "src/app/api/workforce/coverage/route.ts", status: "added" }],
-    [...spendNavigationFiles, { filename: "docs/reassigned.txt", status: "renamed",
-      previous_filename: "tests/hcm-documents-policy-center.test.ts" }],
-    [...spendNavigationFiles, { filename: "docs/moved.txt", status: "renamed",
-      previous_filename: "docs/old.txt" }],
-    [...spendNavigationFiles, { filename: "docs/copied.txt", status: "copied",
-      previous_filename: "tests/performance-self-assessment.test.ts" }],
-    [...spendNavigationFiles, { filename: "docs/not-a-rename.txt", status: "modified",
-      previous_filename: "tests/performance-self-assessment.test.ts" }],
-  ];
-  for (const files of cases) {
-    assert.equal(classifyReviewScope(files).spendNavigationTests, false);
-    const strict = reviewSpend(files);
-    assert.ok(strict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-    const solo = await checkIndependentReview(soloSpendEnv, githubSpend(files).fetcher);
-    assert.deepEqual(solo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
-    assert.equal(solo.releaseAuthorized, false);
+test("HCM/WFM source review no longer needs pilot evidence in solo or strict mode", async () => {
+  for (const filename of ["src/lib/hcm-compensation.ts", "src/lib/workforce-roster.ts",
+    "src/app/api/hcm/work-items/route.ts", "src/app/api/workforce/coverage/route.ts",
+    "src/components/workspace/compensation.tsx", "tests/wfm-coverage.test.ts",
+    "drizzle/0115_hcm_worker360.sql"]) {
+    const files = [{ filename, status: "modified" }];
+    const accepted = review(files);
+    assert.equal(accepted.ok,true,filename);
+    assert.equal(accepted.scope.hcmWfmFrozen,false);
+    assert.equal(accepted.releaseAuthorized,false);
+    const solo = await checkIndependentReview({ ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+      PILOT_HCM_WFM_STARTED: "false", PILOT_START_EVIDENCE_REF: "" },
+      fakeGithub({ files, reviews: [] }).fetcher);
+    assert.equal(solo.ok,true,filename);
+    assert.equal(solo.releaseAuthorized,false);
   }
 });
-
-const hcmIsolationFiles = [
-  {
-    "filename": ".github/workflows/multi-entity-browser-qa.yml",
-    "status": "modified",
-    "sha": "8010de61b6ecd2cc07fba10a59c5a4d186a3a163"
-  },
-  {
-    "filename": "docs/qa/multi-entity-hcm-development-acceptance.md",
-    "status": "added",
-    "sha": "725af599a2a62ce7fb1f21b2e41f05760bed4bef"
-  },
-  {
-    "filename": "scripts/ess-profile-synthetic-browser.mjs",
-    "status": "modified",
-    "sha": "405381550ea44af4995dc6152981571b70858f11"
-  },
-  {
-    "filename": "scripts/hcm-request-lifecycle-browser.mjs",
-    "status": "modified",
-    "sha": "2bfc7cf619d0d75ee56ef17135414eb201c63bed"
-  },
-  {
-    "filename": "src/app/api/hcm/effective-changes/route.ts",
-    "status": "modified",
-    "sha": "fb4bd6692a33a2130f0ec369fedc854334e718db"
-  },
-  {
-    "filename": "src/app/api/hcm/lifecycle-readiness/route.ts",
-    "status": "modified",
-    "sha": "a093e0edcbfbed3d07752ee89717abc4a069810f"
-  },
-  {
-    "filename": "src/app/api/hcm/people-operations-inbox/route.ts",
-    "status": "modified",
-    "sha": "71d8f6510ceb2dce1316a04bebf0bff6553cf4e2"
-  },
-  {
-    "filename": "src/components/hcm-employment-lifecycle-action-center.tsx",
-    "status": "modified",
-    "sha": "fc7cd323e2ea1c851207cd3b3ff37ed33c4b8c80"
-  },
-  {
-    "filename": "src/components/hcm-people-operations-inbox.tsx",
-    "status": "modified",
-    "sha": "abf4a0cab717f41618913eb96f581ef2a95775d7"
-  },
-  {
-    "filename": "src/components/workspace/people.tsx",
-    "status": "modified",
-    "sha": "66265f277742ec0159a7699fe367cba63687ce48"
-  },
-  {
-    "filename": "src/lib/hcm-client-employer-scope.ts",
-    "status": "added",
-    "sha": "5d85973f9b5a95767a0e63644aa2ec4413094eff"
-  },
-  {
-    "filename": "src/lib/hcm-effective-changes.ts",
-    "status": "modified",
-    "sha": "5e11f82d184a135012955ddee79998ac0fa4481d"
-  },
-  {
-    "filename": "src/lib/hcm-lifecycle-readiness-server.ts",
-    "status": "modified",
-    "sha": "2c4665b9ddf691a615dd75484d41c47495f48730"
-  },
-  {
-    "filename": "src/lib/hcm-people-operations-inbox-server.ts",
-    "status": "modified",
-    "sha": "6a86c8c719f21deba0b97372a273450274475207"
-  },
-  {
-    "filename": "tests/fixtures/hcm-request-lifecycle.jsx",
-    "status": "modified",
-    "sha": "90681980f7bb997a4fa13bf1b101d04e10a778b5"
-  },
-  {
-    "filename": "tests/hcm-client-employer-scope.test.ts",
-    "status": "added",
-    "sha": "a9776ee4f4211f57ec4016fcf1cfca8a565e6205"
-  },
-  {
-    "filename": "tests/hcm-people-intelligence.test.ts",
-    "status": "modified",
-    "sha": "e6dd544c5597bf4a31586fe12723edfa9ad31893"
-  },
-  {
-    "filename": "tests/hcm-people-operations-inbox.test.ts",
-    "status": "modified",
-    "sha": "bc3d6fe973449b480745675741d642a9031d38bb"
-  },
-  {
-    "filename": "tests/hcm-people-ops-daily-triage.test.ts",
-    "status": "modified",
-    "sha": "0d01a88ba391588c6c6001fb5ba87b260e2a0960"
-  },
-  {
-    "filename": "tests/multi-entity-isolation-db.test.ts",
-    "status": "modified",
-    "sha": "361ba2cfcd23e12df3773794ac6439df2767c34a"
-  },
-  {
-    "filename": "tests/workforce-enterprise-analytics.test.ts",
-    "status": "modified",
-    "sha": "36abb56cf1fd137c2a174b15984e3ace011bf834"
-  }
-];
-const hcmApprovedHead = "2c0dc90e1cc6994928cd43eaabe250380ca554ce";
-const hcmSolo = { ...env, PR_NUMBER: "963", PR_HEAD_SHA: hcmApprovedHead,
-  INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false", PILOT_HCM_WFM_STARTED: "false",
-  PILOT_START_EVIDENCE_REF: "" };
-const reviewHcm = (files, extra = {}) => review(files, {
-  pr: pr(files, { number: 963, head: { sha: hcmApprovedHead } }),
-  expectedHeadSha: hcmApprovedHead,
-  reviews: [{ ...human(), commit_id: hcmApprovedHead }], ...extra,
+test("retiring source freeze does not waive configured independent review", async () => {
+  const files = [{ filename: "src/app/api/hcm/work-items/route.ts", status: "modified" }];
+  const verdict = await checkIndependentReview(env, fakeGithub({ files,reviews:[] }).fetcher);
+  assert.equal(verdict.ok,false);
+  assert.ok(verdict.blockers.includes("CURRENT_HEAD_INDEPENDENT_APPROVAL_REQUIRED"));
+  assert.equal(verdict.releaseAuthorized,false);
 });
-test("approved exact HCM isolation source crosses source freeze without runtime or release authority", async () => {
-  assert.equal(reviewHcm(hcmIsolationFiles).ok, true);
-  assert.equal(reviewHcm(hcmIsolationFiles).releaseAuthorized, false);
-  const verdict = await checkIndependentReview(hcmSolo, fakeGithub({
-    files: hcmIsolationFiles, number: 963, headSha: hcmApprovedHead, reviews: [],
-  }).fetcher);
-  assert.equal(verdict.ok, true);
-  assert.equal(verdict.releaseAuthorized, false);
-  assert.ok(reviewHcm(hcmIsolationFiles, { reviews: [] }).blockers.includes("CURRENT_HEAD_INDEPENDENT_APPROVAL_REQUIRED"));
-});
-test("HCM isolation exception rejects cross-PR/head reuse and any changed diff", async () => {
-  const mutated = [
-    hcmIsolationFiles.slice(1),
-    [...hcmIsolationFiles, hcmIsolationFiles[0]],
-    [...hcmIsolationFiles, { filename: "docs/extra.md", status: "added", sha }],
-    hcmIsolationFiles.map((f,i) => i ? f : { ...f, sha: prior }),
-    hcmIsolationFiles.map((f,i) => i ? f : { ...f, sha: undefined }),
-    hcmIsolationFiles.map((f,i) => i ? f : { ...f, status: "deleted" }),
-    hcmIsolationFiles.map((f,i) => i ? f : { ...f, status: "renamed", previous_filename: "src/lib/hcm-other.ts" }),
-  ];
-  for (const files of mutated) {
-    assert.ok(reviewHcm(files).blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-    const verdict = await checkIndependentReview(hcmSolo, fakeGithub({ files,
-      number: 963, headSha: hcmApprovedHead, reviews: [], }).fetcher);
-    assert.ok(verdict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-  }
-  for (const [number, headSha] of [[964,hcmApprovedHead],[963,sha]]) {
-    const verdict = await checkIndependentReview({ ...hcmSolo, PR_NUMBER: String(number), PR_HEAD_SHA: headSha },
-      fakeGithub({ files: hcmIsolationFiles, number, headSha, reviews: [] }).fetcher);
-    assert.ok(verdict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-  }
+test("HCM source on later file pages stays sensitive without a pilot prerequisite", async () => {
+  const files = [...Array.from({length:100},(_,i)=>({filename:`docs/topic-${i}.md`,status:"modified"})),
+    {filename:"src/app/api/workforce/coverage/route.ts",status:"modified"}];
+  const mock = fakeGithub({files});
+  const verdict = await checkIndependentReview(env,mock.fetcher);
+  assert.equal(verdict.ok,true);
+  assert.equal(verdict.scope.requiresIndependentHuman,true);
+  assert.equal(verdict.releaseAuthorized,false);
+  assert.ok(mock.calls.some(c=>c.url.includes("files?per_page=100&page=2")));
 });

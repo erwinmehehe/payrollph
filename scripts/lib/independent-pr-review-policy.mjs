@@ -22,304 +22,7 @@ const ALWAYS_SENSITIVE = [
   /^tests\/.*(?:payroll|payout|bank|financial|review|approval|migration|scheduler).*\.test\.(?:ts|mjs)$/,
 ];
 
-// One narrow development-only source-evidence lane for WFM-12. This does NOT
-// permit runtime behavior, new tests, migrations, operational pilot activation,
-// environment flags, or payroll release. Every GitHub file must be MODIFIED.
-const WFM12_DEV_EVIDENCE_FILES = new Set([
-  "scripts/wfm-pilot-synthetic-evidence.mjs",
-  "tests/wfm-roster-scale-postgres.test.ts",
-]);
-function isExactWfm12DevelopmentEvidence(files) {
-  if (files.length !== WFM12_DEV_EVIDENCE_FILES.size) return false;
-  const actual = new Set(files.map(file => file.filename));
-  return actual.size === WFM12_DEV_EVIDENCE_FILES.size
-    && files.every(file => file.status === "modified"
-      && WFM12_DEV_EVIDENCE_FILES.has(file.filename));
-}
-
-// One additional exact development acceptance artifact, reviewed as immutable
-// content rather than trusting filenames. Any changed byte or added file must
-// return to P0-3's pilot freeze; this is never runtime/payout authorization.
-const WFM5_DEV_PINNED_BLOBS = new Map([
-  [".github/workflows/wfm-five-worker-dev-acceptance.yml", "f925a4d6e14ca02676b9a381a3f35dd5a52fd2eb"],
-  ["docs/wfm-five-worker-development-acceptance.md", "2bdb7bf9f9f92855f6ce04323af531f0d4a1f96a"],
-  ["scripts/qa/wfm-five-worker-dev-acceptance.ts", "fea3ed7ad0d2142a2828cdfdf0725aacc92c489c"],
-]);
-function isPinnedWfmFiveWorkerDevEvidence(files) {
-  if (files.length !== WFM5_DEV_PINNED_BLOBS.size) return false;
-  const uniquePaths = new Set(files.map(file => file.filename));
-  return uniquePaths.size === WFM5_DEV_PINNED_BLOBS.size
-    && files.every(file => file.status === "added"
-      && typeof file.sha === "string"
-      && WFM5_DEV_PINNED_BLOBS.get(file.filename) === file.sha);
-}
-
-// Reviewed exact-blob exception PROPOSAL for #969: offline WFM-691 witness
-// packet only. No flags, runtime, DB, live device, human signoff or release.
-// The original files must be ADDED unchanged; extra paths fail closed.
-const WFM691_WITNESS_PINNED_BLOBS = new Map([
-  ["docs/qa/wfm-691-independent-witness-handoff.md", "4cbcc7bb09e21e0d836f4d52fb17750273bdd2bc"],
-  ["scripts/qa/wfm-independent-witness.mjs", "ed923d4bead1dab6f98583b59435fc494a773d1b"],
-  ["tests/wfm-independent-witness.test.mjs", "5dbfc80577b30365cf17573c1d19693cdb9ce3a0"],
-]);
-function isPinnedWfm691WitnessDevEvidence(files) {
-  if (files.length !== WFM691_WITNESS_PINNED_BLOBS.size) return false;
-  const unique = new Set(files.map(file => file.filename));
-  return unique.size === WFM691_WITNESS_PINNED_BLOBS.size
-    && files.every(file => file.status === "added"
-      && typeof file.sha === "string"
-      && WFM691_WITNESS_PINNED_BLOBS.get(file.filename) === file.sha);
-}
-
-/**
- * Exact, development-only source fixture exception proposal for #965.
- * This is a three-file TEST correction for the already-split CSV import.
- * Every tracked Git blob must match the independently inspected PR #965 HEAD.
- * Any runtime, schema, extra test, changed byte or Git rename remains frozen.
- */
-const HCM_INTAKE_REGRESSIONS_PINNED_BLOBS = new Map([
-  ["tests/hcm-direct-route-policy-races.test.ts", "c986dc63f7e490a4e8ec3360f56d2f0a49525539"],
-  ["tests/hcm-governed-intake.test.ts", "94f9523c257a3b603ab726f61b5b80b11ff6e212"],
-  ["tests/hcm-legacy-write-integration.test.ts", "ba929f96c369fc9db00e414ae360bf7ee2c4e4ea"],
-]);
-function isPinnedHcmIntakeRegressionDevEvidence(files) {
-  if (files.length !== HCM_INTAKE_REGRESSIONS_PINNED_BLOBS.size) return false;
-  const unique = new Set(files.map(file => file.filename));
-  return unique.size === HCM_INTAKE_REGRESSIONS_PINNED_BLOBS.size
-    && files.every(file => file.status === "modified"
-      && typeof file.sha === "string"
-      && HCM_INTAKE_REGRESSIONS_PINNED_BLOBS.get(file.filename) === file.sha);
-}
-
-// Owner-approved #925 source-only exception. Entire delta, including schema and
-// default-OFF flag, is immutable. No production activation or migration approval.
-const APPLICANT_PRIVACY_PINNED_FILES = [
-  {
-    "filename": "docs/engineering/migration-proposals/recruitment-applicant-privacy.sql",
-    "status": "added",
-    "sha": "1554b2c899f1606941a81de6fe4320e9c23f85e2"
-  },
-  {
-    "filename": "scripts/qa/nine-stage-mobile-browser.mjs",
-    "status": "modified",
-    "sha": "22d7208a9bcf632b4a88ae97a06360535478b74f"
-  },
-  {
-    "filename": "src/app/api/recruitment/hire/route.ts",
-    "status": "modified",
-    "sha": "c9cd681a0ae23a35188c42a853647400957f9d87"
-  },
-  {
-    "filename": "src/app/api/recruitment/privacy/route.ts",
-    "status": "added",
-    "sha": "33c77eeeb06c449a58e98d9e07b4058b08a2f1f3"
-  },
-  {
-    "filename": "src/app/api/recruitment/route.ts",
-    "status": "modified",
-    "sha": "d54420453b3e3846a5c0c2c44ea76f308ec3ec69"
-  },
-  {
-    "filename": "src/db/schema.ts",
-    "status": "modified",
-    "sha": "e52841f16ec4e292213b4c7320255fdabcce1c48"
-  },
-  {
-    "filename": "src/lib/critical-release-flags.ts",
-    "status": "modified",
-    "sha": "b02ec6daf626d14a8e7e64d043f49c4719f6cce3"
-  },
-  {
-    "filename": "src/lib/data-retention.ts",
-    "status": "modified",
-    "sha": "9b126db1ac1ebb4d37eab0b2b94c1fdcd56893b8"
-  },
-  {
-    "filename": "src/lib/recruitment-applicant-copy-hold.ts",
-    "status": "added",
-    "sha": "d9e91de55ed731a7570c87f194370f36ef3af176"
-  },
-  {
-    "filename": "src/lib/recruitment-applicant-privacy.ts",
-    "status": "added",
-    "sha": "66ffa6cc37c0a3545266b6dd40184d51b9da1779"
-  },
-  {
-    "filename": "src/lib/recruitment-applicant-retention.ts",
-    "status": "added",
-    "sha": "343d75c78b7027f3372275c4ba95831e6abbe9f2"
-  },
-  {
-    "filename": "tests/recruitment-applicant-privacy.test.ts",
-    "status": "added",
-    "sha": "a22afde07d4dfae53387180d101565a7084811e4"
-  },
-  {
-    "filename": "tests/recruitment-applicant-retention-db.test.ts",
-    "status": "added",
-    "sha": "33dbe2855b6e04356a0991dbd457c1a8c24e242d"
-  },
-  {
-    "filename": "tests/recruitment-privacy-route.test.ts",
-    "status": "added",
-    "sha": "bdd8dc98c93fce0f1720cc4fd5eec4ed86289faf"
-  }
-];
-function isPinnedApplicantPrivacySource(files) {
-  if (files.length !== APPLICANT_PRIVACY_PINNED_FILES.length || new Set(files.map(f => f.filename)).size !== files.length) return false;
-  return APPLICANT_PRIVACY_PINNED_FILES.every(expected => files.some(file =>
-    file.filename === expected.filename && file.status === expected.status && file.sha === expected.sha));
-}
-
-// Owner-approved #896 test-only source exception. Other frozen paths remain held.
-// Bind it to the exact reviewed Spend PR and head as well as immutable test blobs.
-// A new Spend commit requires a new source review; never infer pilot/production approval.
-const SPEND_NAVIGATION_APPROVED_PR = 896;
-const SPEND_NAVIGATION_APPROVED_HEAD = "25e025e695965e0320a52cee06372304bc39ad58";
-const SPEND_NAVIGATION_TEST_BLOBS = new Map([
-  ["tests/hcm-documents-policy-center.test.ts", "67e95f68dfa1166e8bd7fcf798d75d9fe28ba4b4"],
-  ["tests/performance-self-assessment.test.ts", "11b9dcae1fa140559db69a3ef078ea2286334d35"],
-]);
-function isPinnedSpendNavigationTests(files, frozenPaths) {
-  const candidates = files.filter(file => SPEND_NAVIGATION_TEST_BLOBS.has(file.filename));
-  return frozenPaths.length === 2 && candidates.length === 2
-    && new Set(candidates.map(file => file.filename)).size === 2
-    && frozenPaths.every(path => SPEND_NAVIGATION_TEST_BLOBS.has(path))
-    // No rename/copy may smuggle a previously frozen filename through the
-    // Set of frozen paths or rebind either pinned test to a new file.
-    && files.every(file => file.status !== "renamed" && file.status !== "copied"
-      && file.previous_filename == null)
-    && candidates.every(file => file.status === "modified"
-      && file.sha === SPEND_NAVIGATION_TEST_BLOBS.get(file.filename));
-}
-
-export function isApprovedSpendNavigationSource(pr, scope) {
-  return pr?.number === SPEND_NAVIGATION_APPROVED_PR &&
-    pr?.head?.sha === SPEND_NAVIGATION_APPROVED_HEAD &&
-    scope?.spendNavigationTests === true;
-}
-
-// Owner-approved #963 source-only isolation hardening. Complete diff and head
-// are immutable; this never lifts HCM runtime/worker or production holds.
-const HCM_ISOLATION_APPROVED_FILES = [
-  {
-    "filename": ".github/workflows/multi-entity-browser-qa.yml",
-    "status": "modified",
-    "sha": "8010de61b6ecd2cc07fba10a59c5a4d186a3a163"
-  },
-  {
-    "filename": "docs/qa/multi-entity-hcm-development-acceptance.md",
-    "status": "added",
-    "sha": "725af599a2a62ce7fb1f21b2e41f05760bed4bef"
-  },
-  {
-    "filename": "scripts/ess-profile-synthetic-browser.mjs",
-    "status": "modified",
-    "sha": "405381550ea44af4995dc6152981571b70858f11"
-  },
-  {
-    "filename": "scripts/hcm-request-lifecycle-browser.mjs",
-    "status": "modified",
-    "sha": "2bfc7cf619d0d75ee56ef17135414eb201c63bed"
-  },
-  {
-    "filename": "src/app/api/hcm/effective-changes/route.ts",
-    "status": "modified",
-    "sha": "fb4bd6692a33a2130f0ec369fedc854334e718db"
-  },
-  {
-    "filename": "src/app/api/hcm/lifecycle-readiness/route.ts",
-    "status": "modified",
-    "sha": "a093e0edcbfbed3d07752ee89717abc4a069810f"
-  },
-  {
-    "filename": "src/app/api/hcm/people-operations-inbox/route.ts",
-    "status": "modified",
-    "sha": "71d8f6510ceb2dce1316a04bebf0bff6553cf4e2"
-  },
-  {
-    "filename": "src/components/hcm-employment-lifecycle-action-center.tsx",
-    "status": "modified",
-    "sha": "fc7cd323e2ea1c851207cd3b3ff37ed33c4b8c80"
-  },
-  {
-    "filename": "src/components/hcm-people-operations-inbox.tsx",
-    "status": "modified",
-    "sha": "abf4a0cab717f41618913eb96f581ef2a95775d7"
-  },
-  {
-    "filename": "src/components/workspace/people.tsx",
-    "status": "modified",
-    "sha": "66265f277742ec0159a7699fe367cba63687ce48"
-  },
-  {
-    "filename": "src/lib/hcm-client-employer-scope.ts",
-    "status": "added",
-    "sha": "5d85973f9b5a95767a0e63644aa2ec4413094eff"
-  },
-  {
-    "filename": "src/lib/hcm-effective-changes.ts",
-    "status": "modified",
-    "sha": "5e11f82d184a135012955ddee79998ac0fa4481d"
-  },
-  {
-    "filename": "src/lib/hcm-lifecycle-readiness-server.ts",
-    "status": "modified",
-    "sha": "2c4665b9ddf691a615dd75484d41c47495f48730"
-  },
-  {
-    "filename": "src/lib/hcm-people-operations-inbox-server.ts",
-    "status": "modified",
-    "sha": "6a86c8c719f21deba0b97372a273450274475207"
-  },
-  {
-    "filename": "tests/fixtures/hcm-request-lifecycle.jsx",
-    "status": "modified",
-    "sha": "90681980f7bb997a4fa13bf1b101d04e10a778b5"
-  },
-  {
-    "filename": "tests/hcm-client-employer-scope.test.ts",
-    "status": "added",
-    "sha": "a9776ee4f4211f57ec4016fcf1cfca8a565e6205"
-  },
-  {
-    "filename": "tests/hcm-people-intelligence.test.ts",
-    "status": "modified",
-    "sha": "e6dd544c5597bf4a31586fe12723edfa9ad31893"
-  },
-  {
-    "filename": "tests/hcm-people-operations-inbox.test.ts",
-    "status": "modified",
-    "sha": "bc3d6fe973449b480745675741d642a9031d38bb"
-  },
-  {
-    "filename": "tests/hcm-people-ops-daily-triage.test.ts",
-    "status": "modified",
-    "sha": "0d01a88ba391588c6c6001fb5ba87b260e2a0960"
-  },
-  {
-    "filename": "tests/multi-entity-isolation-db.test.ts",
-    "status": "modified",
-    "sha": "361ba2cfcd23e12df3773794ac6439df2767c34a"
-  },
-  {
-    "filename": "tests/workforce-enterprise-analytics.test.ts",
-    "status": "modified",
-    "sha": "36abb56cf1fd137c2a174b15984e3ace011bf834"
-  }
-];
-export function isApprovedHcmIsolationSource(pr, files) {
-  return pr?.number === 963
-    && pr?.head?.sha === "2c0dc90e1cc6994928cd43eaabe250380ca554ce"
-    && files.length === HCM_ISOLATION_APPROVED_FILES.length
-    && new Set(files.map(file => file.filename)).size === files.length
-    && files.every(file => file.previous_filename == null)
-    && HCM_ISOLATION_APPROVED_FILES.every(expected => files.some(file =>
-      file.filename === expected.filename && file.status === expected.status
-      && file.sha === expected.sha));
-}
-
-const FROZEN_LANES = [
+const HCM_WFM_LANES = [
   // Treat every component of the exact #969 offline witness set as frozen.
   // Otherwise dropping the test file leaves the docs and QA script outside
   // the existing WFM path classifiers and bypasses the three-file guarantee.
@@ -358,38 +61,20 @@ export function classifyReviewScope(files) {
     }
   }
   const list = [...paths];
-  const frozenPaths = list.filter(path => FROZEN_LANES.some(regex => regex.test(path)));
-  // Owner-approved #888 compatibility correction, not new HCM functionality.
-  // Only this exact modified blob may cross the freeze; any other frozen path,
-  // rename, changed byte, absent SHA or duplicate restores the normal hold.
-  const legacyEvidencePath = "src/app/api/hcm/employment-term-decisions/[id]/evidence/route.ts";
-  const legacyEvidenceFiles = files.filter(file => file.filename === legacyEvidencePath);
-  const hrDocumentLegacyCompatibility = frozenPaths.length === 1 &&
-    frozenPaths[0] === legacyEvidencePath && legacyEvidenceFiles.length === 1 &&
-    legacyEvidenceFiles[0].status === "modified" &&
-    legacyEvidenceFiles[0].sha === "49957255191041ee83440bd7f24ea5cfd72d491c";
-  const wfm12DevEvidence = isExactWfm12DevelopmentEvidence(files);
-  const wfmFiveWorkerDevEvidence = isPinnedWfmFiveWorkerDevEvidence(files);
-  const wfm691WitnessDevEvidence = isPinnedWfm691WitnessDevEvidence(files);
-  const hcmIntakeRegressionDevEvidence = isPinnedHcmIntakeRegressionDevEvidence(files);
-  const applicantPrivacySource = isPinnedApplicantPrivacySource(files);
-  const spendNavigationTests = isPinnedSpendNavigationTests(files, frozenPaths);
+  const hcmWfmPaths = list.filter(path => HCM_WFM_LANES.some(regex => regex.test(path)));
   const sensitivePaths = list.filter(path =>
     ALWAYS_SENSITIVE.some(regex => regex.test(path)) ||
+    HCM_WFM_LANES.some(regex => regex.test(path)) ||
     ["T2", "T3"].includes(tierForPath(path)));
   return {
     fileCount: files.length,
     requiresIndependentHuman: sensitivePaths.length > 0,
-    hcmWfmFrozen: frozenPaths.length > 0,
-    wfm12DevEvidence,
-    wfmFiveWorkerDevEvidence,
-    wfm691WitnessDevEvidence,
-    hcmIntakeRegressionDevEvidence,
-    hrDocumentLegacyCompatibility,
-    applicantPrivacySource,
-    spendNavigationTests,
+    // Owner retired the source freeze on 14 October 2026. Scope remains
+    // diagnostic; production feature gates and runtime holds are separate.
+    hcmWfmFrozen: false,
+    hcmWfmSourceScope: hcmWfmPaths.length > 0,
     sensitiveFileCount: sensitivePaths.length,
-    frozenFileCount: frozenPaths.length,
+    frozenFileCount: hcmWfmPaths.length,
   };
 }
 
@@ -431,7 +116,7 @@ function latestDecisiveByLogin(reviews) {
  */
 export function evaluateIndependentReview({
   pr, files, reviews, expectedHeadSha, reviewerAllowlist = "",
-  permissions = {}, pilotStarted = "", pilotEvidenceRef = "",
+  permissions = {},
 }) {
   if (!pr || pr.state !== "open" || pr.base?.ref !== "main" ||
       !SHA.test(expectedHeadSha ?? "") ||
@@ -443,14 +128,6 @@ export function evaluateIndependentReview({
   }
   const scope = classifyReviewScope(files);
   const blockers = [];
-  if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
-      !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
-       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !isApprovedSpendNavigationSource(pr, scope) && !isApprovedHcmIsolationSource(pr, files) &&
-      (pilotStarted !== "true" ||
-       typeof pilotEvidenceRef !== "string" ||
-       !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {
-    blockers.push("PILOT_HCM_WFM_FREEZE_ACTIVE");
-  }
   if (scope.requiresIndependentHuman) {
     if (pr.draft) blockers.push("SENSITIVE_PR_STILL_DRAFT");
     const names = allowedHumanReviewerLogins(reviewerAllowlist);
