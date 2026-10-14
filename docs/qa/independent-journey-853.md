@@ -1,5 +1,7 @@
 # PayrollPH #853 — independent witness handoff (fictional, no money)
 
+**P0 evidence integrity / v2 schema (October 14, 2026):** Each observed `PASS` or `NEEDS_FIX` stage/check must now include `observedAt`: the actual UTC `YYYY-MM-DDTHH:mm:ssZ` timestamp of the human observation. `NOT_RUN` and `BLOCKED` rows must retain `observedAt: null`. The `init` command generates a **version 2** blank manifest; version 1 packets are intentionally not silently upgraded because retrospective guessed timestamps would create false acceptance evidence. Archive any old packet privately and start a new exact-SHA witnessed v2 session. Record any real observations in the approved encrypted evidence vault, never fabricate a time, witness, salary or receipt. Successful structural validation is still **COMPLETE (UNVERIFIED)** only.
+
 This offline companion is **not** a replacement for the existing product-owner self-UAT tool in `docs/qa/local-owner-wfm-journey-uat.md`. It records structured *references to observations* for privately independent witnesses, not the observations themselves. No operator or witness is authenticated by this script. **Even COMPLETE (UNVERIFIED) does not mean accepted or certified.**
 
 ## Freeze the test
