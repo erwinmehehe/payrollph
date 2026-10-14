@@ -6373,6 +6373,21 @@ export const firstPayrollJourneyProgress = pgTable("first_payroll_journey_progre
   uniqueIndex("first_payroll_journey_tenant_step").on(table.organizationId,table.step),
 ]);
 
+/** Default-off workflow UI: named, owner-scoped reports; never grants data permissions. */
+export const savedReportDefinitions = pgTable("saved_report_definitions", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 100 }).notNull(),
+  reportKey: varchar("report_key", { length: 40 }).notNull(),
+  selectedFields: jsonb("selected_fields").notNull().default([]),
+  rowFilters: jsonb("row_filters").notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("saved_reports_user_name_unique").on(table.organizationId, table.userId, table.name),
+]);
+
 /**
  * Opt-in, tenant-owned scheduling policy for WFM roster publish warnings and
  * blockers. No changes to payroll-engine math or prior guardrail semantics.

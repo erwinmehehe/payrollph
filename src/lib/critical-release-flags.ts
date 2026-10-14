@@ -78,6 +78,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 Benefits enrollment, loan schedules and payslip explanations",
     approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
   },
+  reportBuilder: {
+    env: "REPORT_BUILDER_UI_ENABLED",
+    owner: "Security / Reports",
+    risk: "P1 Saved report field and filter choices",
+    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
+  },
   recruitmentJourney: {
     env: "RECRUITMENT_JOURNEY_UI_ENABLED",
     owner: "HCM",
