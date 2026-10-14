@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { employeeNavigationTabs, EMPLOYEE_PAGE_LABELS } from "../src/lib/employee-navigation";
 
 const selfRoute = readFileSync("src/app/api/self/performance/route.ts", "utf8");
 const selfPanel = readFileSync("src/components/hcm-self-performance.tsx", "utf8");
@@ -25,8 +26,8 @@ test("self-assessment mutations are protected, bounded and locked after completi
 });
 
 test("employee self-service exposes performance without taking over the final rating", () => {
-  assert.ok(portal.includes('performance: { label: "Performance"'));
-  assert.ok(portal.includes('ESS_MORE_TABS: SelfTab[] = ["documents", "performance", "profile"]'));
+  assert.equal(EMPLOYEE_PAGE_LABELS.performance.label, "Performance");
+  assert.ok(employeeNavigationTabs().moreTabs.includes("performance"));
   assert.ok(portal.includes("<HcmSelfPerformance />"));
   assert.ok(selfPanel.includes("the final rating remains a separate manager decision"));
   assert.ok(selfPanel.includes('fetch("/api/self/performance"'));

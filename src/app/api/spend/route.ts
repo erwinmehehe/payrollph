@@ -1,12 +1,15 @@
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employees, expenseClaims, expenseReports, expenseReportItems, spendCards, spendCardTransactions } from "@/db/schema";
-import { assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import { auditEvents, employees, expenseCategoryPolicies, expenseClaimEvidence, expenseClaims, expenseReports, expenseReportItems, spendCards, spendCardTransactions } from "@/db/schema";
+import { assertOrganizationRole, assertScope, getAccess, ORG_ADMIN_ROLES, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { enforceSameOriginMutation, requireSensitiveActionMfa, enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
 import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { assertSpendModeAvailable, loadSpendClaimEvidence, lockReviewedSpendOrganization, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
+import { approvedReimbursementAmount } from "@/lib/spend-payroll-reimbursement";
 
 export const dynamic = "force-dynamic";
 const validId = (v: unknown) => Number.isSafeInteger(Number(v)) && Number(v) > 0;
@@ -63,6 +66,10 @@ export async function GET(request: Request) {
       return { ...r, claimIds, reimbursementStatus };
     }),
     unreportedClaims: claims.filter(c => visible.has(c.employeeId) && c.status === "pending" && !items.some(i => i.claimId === c.id)),
+    ...(spendPayrollEnabled() ? { spendPayrollEnabled: true,
+    canReviewCategories:
+      context.access!.companyWide && ["owner", "admin"].includes(context.access!.role),
+    categoryPolicies: await db.select().from(expenseCategoryPolicies).where(eq(expenseCategoryPolicies.organizationId, organizationId)) } : {}),
   });
 }
 
@@ -78,6 +85,41 @@ export async function POST(request: Request) {
   if (context.denied) return context.denied;
   const access = context.access!;
   const action = String(body.action ?? "");
+  if (action === "category_policy") {
+    if (!spendPayrollEnabled()) return Response.json({ error: "Policy review is disabled." }, { status: 404 });
+    const denied = await assertOrganizationRole(user.id, organizationId, ORG_ADMIN_ROLES);
+    if (denied) return denied;
+    if (!access.companyWide || !["owner", "admin"].includes(access.role)) {
+      return Response.json({ error: "An independent company-wide owner/admin policy reviewer is required." }, { status: 403 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const rateDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id, action: "expense-category-tax-review",
+      resourceId: organizationId, limit: 10, windowMs: 60 * 60_000,
+    });
+    if (rateDenied) return rateDenied;
+    const category = String(body.category ?? "").trim();
+    const reviewReference = String(body.reviewReference ?? "").trim();
+    if (category.length < 2 || category.length > 60 ||
+      typeof body.taxable !== "boolean" ||
+      reviewReference.length < 8 || reviewReference.length > 200) {
+      return Response.json({ error: "Valid category, taxable flag, and audit reference required." }, { status: 422 });
+    }
+    const row = await db.transaction(async tx => {
+    const [created] = await tx.insert(expenseCategoryPolicies).values({
+      organizationId, category, taxable: body.taxable, reviewReference, reviewedByUserId: user.id,
+    }).onConflictDoNothing().returning();
+    if (!created) return null;
+    await tx.insert(auditEvents).values({
+      organizationId, actor: user.name, action: "Expense category tax treatment approved",
+      resource: String(created.id), metadata: { category, taxable: created.taxable, reviewReference, reviewedByUserId: user.id },
+    });
+    return created;
+    });
+    if (!row) return Response.json({ error: "Category is already reviewed. Tax changes require a new governed policy." }, { status: 409 });
+    return Response.json(row, { status: 201 });
+  }
   if (action === "card") {
     const employeeId = body.employeeId == null || body.employeeId === "" ? null : Number(body.employeeId);
     if (!access.companyWide && employeeId == null) return Response.json({ error: "Card requires an employee in your unit." }, { status: 403 });
@@ -123,6 +165,7 @@ export async function POST(request: Request) {
     if (denied) return denied;
     const claimIds = ids.map(Number);
     const report = await db.transaction(async tx => {
+      await lockReviewedSpendOrganization(tx, organizationId);
       await tx.execute(sql`select id from expense_claims where organization_id = ${organizationId} and id in (${sql.join(claimIds.map(id => sql`${id}`), sql`, `)}) for update`);
       const claims = await tx.select().from(expenseClaims).where(and(eq(expenseClaims.organizationId, organizationId), inArray(expenseClaims.id, claimIds), eq(expenseClaims.employeeId, employeeId)));
       if (claims.length !== claimIds.length || claims.some(c => c.status !== "pending" || c.payrollRunId != null)) throw new Error("Claims must belong to the same employee and remain pending.");
@@ -169,13 +212,41 @@ export async function PATCH(request: Request) {
   });
   if (rateDenied) return rateDenied;
   const outcome = await db.transaction(async tx => {
+    await lockReviewedSpendOrganization(tx, existing.organizationId);
     const [report] = await tx.update(expenseReports).set({ status, decidedByUserId: user.id, decidedAt: new Date(), decisionNote: String(body.note ?? "").slice(0, 240) })
       .where(and(eq(expenseReports.id, id), eq(expenseReports.organizationId, existing.organizationId), eq(expenseReports.status, "submitted"))).returning();
     if (!report) throw new Error("Report already decided.");
     const items = await tx.select().from(expenseReportItems).where(and(eq(expenseReportItems.organizationId, existing.organizationId), eq(expenseReportItems.reportId, id)));
     if (!items.length) throw new Error("Report has no claims.");
     const claimIds = items.map(i => i.claimId);
-    const rows = await tx.update(expenseClaims).set({ status: status, decidedBy: user.name }).where(and(
+    const spendEnabled = spendPayrollEnabled();
+    if (!spendEnabled) {
+      const legacyClaims = await tx.select().from(expenseClaims).where(and(
+        eq(expenseClaims.organizationId, existing.organizationId), inArray(expenseClaims.id, claimIds),
+      ));
+      await assertSpendModeAvailable(tx, legacyClaims);
+    }
+    if (spendEnabled && status === "approved") {
+      const coreClaims = await tx.select().from(expenseClaims).where(and(
+        eq(expenseClaims.organizationId, existing.organizationId),
+        eq(expenseClaims.employeeId, existing.employeeId),
+        inArray(expenseClaims.id, claimIds),
+      )).orderBy(expenseClaims.id).for("update");
+      const claims = await loadSpendClaimEvidence(tx, coreClaims);
+      if (claims.length !== claimIds.length || claims.some(claim =>
+        !claim.receiptStorageKey || !claim.receiptSha256 || !claim.receiptVerifiedAt ||
+        claim.policyMatched !== true || claim.categoryPolicyId == null ||
+        !claim.submittedByUserId || claim.submittedByUserId === user.id ||
+        approvedReimbursementAmount(claim.amount, claim.amount) === null)) {
+        throw new Error("Each claim requires a scanned receipt and reviewed tax category before report approval.");
+      }
+      for (const claim of claims) await tx.update(expenseClaimEvidence).set({
+        approvedAmount: approvedReimbursementAmount(claim.amount, claim.amount), approvedByUserId: user.id, approvedAt: new Date(),
+      }).where(and(eq(expenseClaimEvidence.claimId, claim.id), eq(expenseClaimEvidence.organizationId, existing.organizationId)));
+    }
+    const rows = await tx.update(expenseClaims).set({
+      status: status, decidedBy: user.name,
+    }).where(and(
       eq(expenseClaims.organizationId, existing.organizationId), eq(expenseClaims.employeeId, existing.employeeId),
       inArray(expenseClaims.id, claimIds), eq(expenseClaims.status, "pending"),
     )).returning({ id: expenseClaims.id });

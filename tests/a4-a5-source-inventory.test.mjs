@@ -7,34 +7,71 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const inventory = fileURLToPath(new URL("../scripts/qa/a4-a5-source-inventory.mjs", import.meta.url));
-function fixture(mergedTables = true) {
-  const cwd = mkdtempSync(path.join(tmpdir(), "a4-a5-inventory-"));
-  const git = (...args) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+const expiryMarker = "/** Per-expiry, per-milestone HR alert ledger; idempotent across scheduler retries. */\n";
+const expiryBlock = expiryMarker +
+  'export const hcmDocumentExpiryNotices = pgTable("hcm_document_expiry_notices", {});\n\n';
+const importVault = 'import { sweepPendingVaultUploads } from "@/lib/employee-vault-object-reconciliation";\n';
+const vaultTick = "  // Private A5 upload intents must also be swept when its flag is rolled back.\n" +
+  "  const pendingVaultObjectRecovery = await sweepPendingVaultUploads(new Date(now));\n";
+
+function fixture({ predecessors = true } = {}) {
+  const cwd = mkdtempSync(path.join(tmpdir(), "a4-a5-merged-"));
+  const git = (...args) => execFileSync("git", args, {
+    cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
   const write = (file, content) => {
     const full = path.join(cwd, file);
     mkdirSync(path.dirname(full), { recursive: true });
     writeFileSync(full, content);
   };
+  const read = file => readFileSync(path.join(cwd, file), "utf8");
   git("init", "-q", "--initial-branch=main");
-  git("config", "user.email", "synthetic@example.invalid");
-  git("config", "user.name", "Synthetic QA");
-  write("src/db/schema.ts", mergedTables
+  git("config", "user.name", "Fictional Git Fixture");
+  git("config", "user.email", "fixture@example.invalid");
+  const oldSchema = (predecessors
     ? 'const hr = pgTable(\n  "employee_hr_cases", {}\n);\n' +
-      "const privacy = pgTable('applicant_privacy_evidence', {});\n"
-    : 'const company = pgTable("organizations", {});\n');
-  git("add", ".");
-  git("commit", "-q", "-m", "fictional current-main baseline");
-  const base = git("rev-parse", "HEAD");
-  git("switch", "-q", "-c", "a4");
-  write("src/lib/spend-payroll-reimbursement.ts", "// synthetic A4");
-  git("add", ".");git("commit", "-q", "-m", "isolated A4");
-  let spend = git("rev-parse", "HEAD");
-  git("switch", "-q", "main");
+      'const privacy = pgTable("applicant_privacy_evidence", {});\n'
+    : 'const org = pgTable("organizations", {});\n') +
+    'export const invitations = pgTable("invitations", {});\n';
+  const oldRetention =
+    'import { sweepPendingCoeObjects } from "@/lib/hr-case-coe-object-reconciliation";\n' +
+    'async function tick(now) {\n' +
+    '  const pendingCoeObjectRecovery = await sweepPendingCoeObjects(new Date(now));\n' +
+    '  return {\n    pendingCoeObjectRecovery,\n  };\n}\n';
+  write("src/db/schema.ts", oldSchema);
+  write("src/lib/data-retention.ts", oldRetention);
+  git("add", ".");git("commit", "-q", "-m", "fictional A2 A3 original");
+  const original = git("rev-parse", "HEAD");
+
+  // In the real repo this is the already-merged #896 commit, NOT #896's old PR head.
+  write("src/db/schema.ts", oldSchema.replace(
+    'export const invitations',
+    'const a4policies = pgTable("expense_category_policies", {});\n' +
+    'const a4evidence = pgTable("expense_claim_evidence", {});\n' +
+    'export const invitations',
+  ));
+  const spendImport = 'import { sweepPendingSpendReceipts } from "@/lib/spend-receipt-object-reconciliation";\n';
+  const spendTick = '  const pendingSpendReceiptRecovery = await sweepPendingSpendReceipts(new Date(now));\n';
+  const mergedRetention = spendImport + oldRetention
+    .replace('  return {\n', spendTick + '  return {\n')
+    .replace('    pendingCoeObjectRecovery,\n', '    pendingCoeObjectRecovery,\n    pendingSpendReceiptRecovery,\n');
+  write("src/lib/data-retention.ts", mergedRetention);
+  git("add", ".");git("commit", "-q", "-m", "merged A4 896");
+  const mergedSpend = git("rev-parse", "HEAD");
   git("switch", "-q", "-c", "a5");
-  write("src/lib/employee-vault-object-reconciliation.ts", "// synthetic A5");
-  git("add", ".");git("commit", "-q", "-m", "isolated A5");
-  let vault = git("rev-parse", "HEAD");
-  const verify = ({ main = base, a4 = spend, a5 = vault, env = {} } = {}) => {
+  write("src/db/schema.ts", read("src/db/schema.ts").replace(
+    'export const invitations', expiryBlock + 'export const invitations',
+  ));
+  write("src/lib/data-retention.ts",
+    importVault + mergedRetention
+      .replace('  return {\n', vaultTick + '  return {\n')
+      .replace('    pendingSpendReceiptRecovery,\n',
+        '    pendingSpendReceiptRecovery,\n    pendingVaultObjectRecovery,\n')
+  );
+  git("add", ".");git("commit", "-q", "-m", "reconciled private A5 vault");
+  const vault = git("rev-parse", "HEAD");
+
+  function verify({ main = mergedSpend, a4 = mergedSpend, a5 = vault, env = {} } = {}) {
     const call = spawnSync(process.execPath, [inventory], {
       cwd, encoding: "utf8", env: {
         ...process.env, CI: "true", A4_A5_INVENTORY_MODE: "read-only-ci",
@@ -45,76 +82,96 @@ function fixture(mergedTables = true) {
     const json = JSON.parse(readFileSync(path.join(cwd,
       "qa-artifacts/a4-a5-source-inventory.json"), "utf8"));
     return { call, json };
-  };
-  return { cwd, git, write, base, spend, vault, verify,
+  }
+  return { cwd, git, write, read, original, mergedSpend, vault, verify,
     clean: () => rmSync(cwd, { recursive: true, force: true }) };
 }
 
-test("fresh main with non-overlapping owner branches is inventory-only, never certified", () => {
+test("merged A4 and scoped A5 source reconcile without certifying combined QA", () => {
   const f = fixture();
   try {
     const { call, json } = f.verify();
     assert.equal(call.status, 0, call.stderr);
-    assert.equal(json.status, "INVENTORY_ONLY");
-    assert.equal(json.verifiedCombinedSource, false);
+    assert.equal(json.status, "SOURCE_RECONCILED_ONLY");
+    assert.equal(json.mergedA4InMain, true);
+    assert.equal(json.vaultIncludesMain, true);
+    assert.equal(json.a4SchemaPreserved, true);
+    assert.equal(json.a4RetentionPreserved, true);
+    assert.equal(json.sourceReconciled, true);
     assert.equal(json.combinedAcceptance, "NOT_RUN");
-    assert.equal(json.databaseWrites, false);
-    assert.deepEqual(json.overlaps, []);
-    assert.deepEqual(json.owners.spend.changedPaths, ["src/lib/spend-payroll-reimbursement.ts"]);
-    assert.deepEqual(json.owners.vault.changedPaths, ["src/lib/employee-vault-object-reconciliation.ts"]);
+    assert.equal(json.databaseOperations, false);
   } finally { f.clean(); }
 });
 
-test("stale owner refs fail closed before any combined test can start", () => {
+test("a vault branch behind newly advanced main fails closed", () => {
   const f = fixture();
   try {
     f.git("switch", "-q", "main");
-    f.git("commit", "-q", "--allow-empty", "-m", "main advanced");
-    const modernMain = f.git("rev-parse", "HEAD");
-    const { call, json } = f.verify({ main: modernMain });
+    f.git("commit", "-q", "--allow-empty", "-m", "another main update");
+    const latest = f.git("rev-parse", "HEAD");
+    const { call, json } = f.verify({ main: latest });
     assert.equal(call.status, 1);
-    assert.equal(json.status, "BLOCKED");
-    assert.ok(json.blockers.some(message => message.includes("PR #896 must reconcile")));
-    assert.ok(json.blockers.some(message => message.includes("PR #902 must reconcile")));
+    assert.equal(json.vaultIncludesMain, false);
+    assert.ok(json.blockers.some(x => x.includes("A5 #902 must reconcile")));
   } finally { f.clean(); }
 });
 
-test("shared modified paths are inventoried and block unsafe overwrite", () => {
+test("old A4 feature head cannot stand in for its actual main merge commit", () => {
   const f = fixture();
   try {
-    f.git("switch", "-q", "a4");
-    f.write("src/lib/data-retention.ts", "// synthetic A4 retention");
-    f.git("add", ".");f.git("commit", "-q", "-m", "A4 overlap");
-    const a4 = f.git("rev-parse", "HEAD");
-    f.git("switch", "-q", "a5");
-    f.write("src/lib/data-retention.ts", "// synthetic A5 retention");
-    f.git("add", ".");f.git("commit", "-q", "-m", "A5 overlap");
-    const a5 = f.git("rev-parse", "HEAD");
-    const { call, json } = f.verify({ a4, a5 });
+    const { call, json } = f.verify({ a4: f.vault });
     assert.equal(call.status, 1);
-    assert.deepEqual(json.overlaps, ["src/lib/data-retention.ts"]);
-    assert.ok(json.blockers.some(message => message.includes("Overlapping A4/A5")));
+    assert.equal(json.mergedA4InMain, false);
+    assert.ok(json.blockers.some(x => x.includes("A4 #896 merged commit")));
   } finally { f.clean(); }
 });
 
-test("missing already-merged applicant privacy/HCM tables makes historical replay unsafe", () => {
-  const f = fixture(false);
+test("A5 cannot silently change A4 receipt ledger schema beyond its expiry table", () => {
+  const f = fixture();
+  try {
+    f.write("src/db/schema.ts", f.read("src/db/schema.ts").replace(
+      '"expense_category_policies"', '"wrong_a4_replacement"',
+    ));
+    f.git("add", ".");f.git("commit", "-q", "-m", "regression in merged A4 schema");
+    const { call, json } = f.verify({ a5: f.git("rev-parse", "HEAD") });
+    assert.equal(call.status, 1);
+    assert.equal(json.a4SchemaPreserved, false);
+  } finally { f.clean(); }
+});
+
+test("A5 cannot silently remove Spend orphan recovery in the retention scheduler", () => {
+  const f = fixture();
+  try {
+    f.write("src/lib/data-retention.ts", f.read("src/lib/data-retention.ts")
+      .replace('    pendingSpendReceiptRecovery,\n', '    LOST_SPEND_RECOVERY,\n'));
+    f.git("add", ".");f.git("commit", "-q", "-m", "regressed A4 retry receipt");
+    const { call, json } = f.verify({ a5: f.git("rev-parse", "HEAD") });
+    assert.equal(call.status, 1);
+    assert.equal(json.a4RetentionPreserved, false);
+  } finally { f.clean(); }
+});
+
+test("historical combined replay remains blocked if A2 and A3 tables are missing", () => {
+  const f = fixture({ predecessors: false });
   try {
     const { call, json } = f.verify();
     assert.equal(call.status, 1);
-    assert.ok(json.blockers.some(message => message.includes("employee_hr_cases")));
-    assert.ok(json.blockers.some(message => message.includes("applicant_privacy_evidence")));
+    assert.equal(json.applicantHrPredecessorsPresent, false);
+    assert.ok(json.blockers.some(x => x.includes("HR-case/applicant-privacy")));
   } finally { f.clean(); }
 });
 
-test("invalid SHA and non-CI execution fail without attempting a merge or SQL", () => {
+test("non-CI execution, malformed SHA and nonexistent commit all block", () => {
   const f = fixture();
   try {
-    let result = f.verify({ a4: "main" });
-    assert.equal(result.call.status, 1);
-    assert.ok(result.json.blockers.some(message => message.includes("A4_A5_SPEND_SHA")));
-    result = f.verify({ env: { CI: "false" } });
-    assert.equal(result.call.status, 1);
-    assert.ok(result.json.blockers.some(message => message.includes("CI=true")));
+    const nonCi = f.verify({ env: { CI: "false" } });
+    assert.equal(nonCi.call.status, 1);
+    assert.ok(nonCi.json.blockers.some(x => x.includes("read-only CI")));
+    const malformed = f.verify({ a4: "main" });
+    assert.equal(malformed.call.status, 1);
+    assert.ok(malformed.json.blockers.some(x => x.includes("A4_A5_SPEND_SHA")));
+    const missing = f.verify({ a5: "0".repeat(40) });
+    assert.equal(missing.call.status, 1);
+    assert.ok(missing.json.blockers.some(x => x.includes("A4_A5_VAULT_SHA")));
   } finally { f.clean(); }
 });

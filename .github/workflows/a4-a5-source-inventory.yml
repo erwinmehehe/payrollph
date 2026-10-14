@@ -1,4 +1,4 @@
-name: A4-A5 Fresh-Main Source Inventory (Read Only)
+name: A4 Merged + A5 Candidate Source Acceptance (Read Only)
 on:
   pull_request:
     paths:
@@ -13,50 +13,47 @@ permissions:
   contents: read
 
 concurrency:
-  group: a4-a5-source-inventory-${{ github.event.pull_request.number || github.ref }}
+  group: a4-a5-source-acceptance-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  inspect-source-only:
+  verify-preserved-a4:
     runs-on: ubuntu-latest
     env:
       CI: "true"
-      TZ: Asia/Manila
       A4_A5_INVENTORY_MODE: read-only-ci
+      TZ: Asia/Manila
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          # Read access for Git-only PR-head inventory. No branch code is
-          # executed and the credential is removed by checkout's post-step.
-          persist-credentials: true
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-      - name: Verify preflight parsers against synthetic-only Git fixtures
+      - name: Test historical replay guard and merged-owner source contract with fictional Git fixtures
         run: |
           node --test tests/a1-a6-baseline-preflight.test.mjs tests/a4-a5-source-inventory.test.mjs
-      - name: Fetch A4 and A5 owner commits without executing either PR
+      - name: Fetch merged main and outstanding A5 owner without running PR source
         shell: bash
         run: |
           set -euo pipefail
           git fetch --no-tags origin \
             '+refs/heads/main:refs/remotes/origin/main' \
-            '+refs/pull/896/head:refs/remotes/origin/a4-owner-896' \
             '+refs/pull/902/head:refs/remotes/origin/a5-owner-902'
-      - name: Fail closed until both owners and shared source are reconciled
+      - name: Verify A4 merge ancestry and byte-exact A5-only changes to the two shared files
         shell: bash
         run: |
           set -euo pipefail
           export A4_A5_BASE_SHA="$(git rev-parse refs/remotes/origin/main)"
-          export A4_A5_SPEND_SHA="$(git rev-parse refs/remotes/origin/a4-owner-896)"
+          # This is the merged #896 squash commit, not the obsolete PR head.
+          export A4_A5_SPEND_SHA=361bd6b5d9a9706a2930b0c48a8e0e431fd10bfe
           export A4_A5_VAULT_SHA="$(git rev-parse refs/remotes/origin/a5-owner-902)"
           node scripts/qa/a4-a5-source-inventory.mjs
-      - name: Upload bounded read-only inventory (not integration certification)
+      - name: Publish sanitized source evidence, including on a blocked result
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: a4-a5-fresh-main-source-inventory
+          name: a4-merged-a5-source-inventory
           path: qa-artifacts/a4-a5-source-inventory.json
           if-no-files-found: warn
           retention-days: 14

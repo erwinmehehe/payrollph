@@ -1,28 +1,25 @@
-# #927 Fresh-Main A4/A5 Rehearsal Preflight (Development Only)
+# PR #927 — A4 merged, A5 candidate integration source evidence
 
-This document replaces the active diff of the historical A1–A6 integration PR with a narrow and safe source inventory. The original #927 code remains in Git history for investigation; it is NOT recopied over the current payroll engine, employer schema, financial settlement or privacy/retention controls. This PR is NOT the combined integration acceptance and must remain Draft until a fresh successor actually passes combined tests.
+**Development-only. Historical A1–A6 integration source is retired.** The previous 77-file source snapshot stays in Git history and is not part of the current PR diff or test execution.
 
-## Current owner PRs, read at runtime
+## Confirmed mainline change
 
-- A4 / Spend reimbursements: [#896](https://github.com/erwinmehehe/payrollph/pull/896)
-- A5 / Private 201-file vault: [#902](https://github.com/erwinmehehe/payrollph/pull/902)
-- Canonical single-employer, A1/A2/A3/A6, Careers, Saved Reports and Offline Attendance are already present on main. Never duplicate their migrations or revert their more recent source.
+Spend/expense reimbursements **PR #896 was squash-merged** as 361bd6b5d9a9706a2930b0c48a8e0e431fd10bfe, not integrated by replaying the former feature branch. Its category policies, expense claims, receipt evidence, settlement code, and receipt-object orphan recovery now belong to main.
 
-At this design checkpoint (14 Oct 2026), the owner PRs had distinct source deltas with two overlapping paths:
-- src/db/schema.ts — additive A4 employer expense policies/receipt evidence and A5 expiry notice schema. Resolve both against current main.
-- src/lib/data-retention.ts — A4 receipt-intent sweeper and A5 private-vault-intent sweeper. Retain both, including flag-OFF behavior.
+The private employee 201-file vault remains in **draft PR #902** and its merged-source candidate includes the above mainline commit. The two originally conflicting files were reconciled specifically:
+- src/db/schema.ts: preserve all canonical A4 tables/indices and other main fields, with **only** the additive hcm_document_expiry_notices table for A5.
+- src/lib/data-retention.ts: preserve the existing COE and A4 Spend pending-object sweepers while adding A5 private-vault pending-object recovery even when the vault flag is OFF.
 
-Both owner branches were behind a rapidly moving main. These are timestamped observations; the source inventory workflow reads live PR refs without executing their code and regenerates SHA-pinned JSON evidence for each run.
+## What the read-only gate verifies
 
-## What this PR actually tests
+scripts/qa/a4-a5-source-inventory.mjs reads pinned Git commit trees only. It verifies that the merged #896 SHA is an ancestor of main; the current main SHA is an ancestor of #902; A2/A3 predecessor schema still exists; the entire A4 main schema is **byte-identical** to #902's version after removing the sole A5 expiry-ledger addition; and the entire A4 retention scheduler is byte-identical after removing exactly the three small A5 import/tick/result additions.
 
-- Historical A1–A6 disposable-schema guard with eight fictional Git fixture scenarios.
-- A4/A5 read-only Git inventory with five fictional Git fixture scenarios: fresh common base, stale owner ref, shared modified-path conflict, missing already-merged A2/A3 tables and invalid/unauthorized execution.
-- Current main must contain canonical A2/A3 tables. Both owner source heads must include the pinned current-main ancestry. Shared paths must be separately resolved before combined source tests.
-- The workflow exits BLOCKED rather than falsely green while owner branches lag main or overlap. It emits only commit SHAs, file paths, booleans and reason codes. No real employer information or document contents.
+The workflow runs eight existing historical guard fixtures plus seven new synthetic A4-merged/A5-candidate source-fixture tests. Evidence is emitted as a bounded JSON report of SHAs, booleans, and blocker reasons, with **no real employee, policy, or private file content**.
 
-## Follow-on combined rehearsal — NOT RUN
+A green inventory means **only** that the reviewed two-file source reconciliation matches the pinned main. It does not exercise the A5 application code, schema migration, object store, scanner, PostgreSQL concurrency, maker/checker or payroll arithmetic. PR #902's **exact-head** CI, including these suites, is the separate executable acceptance evidence.
 
-A fresh successor branch must integrate only source-owned, reviewed A4/A5 changes against verified current main, explicitly reconcile schema, retention, and any additional overlap, then run disposable PG16/18 forward/rollback/idempotency, private-object/scan fail-closed tests, cross-employer HR maker/checker, payroll golden centavos, TS/lint/build, security/CodeQL and authenticated browser/mobile source tests. No production schema change, payouts, government filing, candidate deletion, private object writes or toggled feature flag is authorized by this inventory.
+## What remains
 
-Owner development-stage scope: no current customers. Independent human review may be waived for source-only development under an explicit owner decision; that does not bypass repository rules, the HCM/WFM source freeze or future real-data/release gates.
+Before shipping or merging A5 under repository policy, resolve any exact-head #902 CI failures; check whether P0-3 source-freeze and independent approval rules require an explicit source exception or owner-reviewed policy decision. Real provider and production approvals have been deferred for this no-customer development phase and must **not** be represented as passed.
+
+No numbered production migrations, Neon writes, real employee files, live S3/R2/scanner credentials, payouts, filings, source-policy bypass, or production flags were changed by this rehearsal.
