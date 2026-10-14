@@ -518,6 +518,14 @@ export function WorkspaceShell({
         </header>
 
         <main className="content-area" id="workspace-main">
+          <div className="linaw-workspace-context" data-demo={displayRole ? "true" : undefined} role={displayRole ? "status" : undefined}>
+            <ShieldCheck size={17} aria-hidden />
+            <span>
+              <strong>{displayRole ? "Sample-data demo" : "Secure workspace"}</strong>
+              {" · "}
+              {displayRole ? "Explore role-specific workflows; server permissions still apply." : "Actions and records follow your company access permissions."}
+            </span>
+          </div>
           {data.access?.companyWide && ["owner", "admin"].includes(data.access.role) && page === "Overview" && (
             <SchedulerAdminBanner organizationId={data.selectedOrganization.id} />
           )}
