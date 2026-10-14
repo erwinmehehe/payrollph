@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
-import { auditEvents, documents, employees, organizations } from "../src/db/schema";
+import { auditEvents, documents, employees, hcmPolicyVersions, organizations } from "../src/db/schema";
 import { documentObjectKey } from "../src/lib/document-object-storage";
 import {
   VAULT_PENDING_SOURCE_PREFIX, VAULT_ORPHAN_GRACE_MS,
@@ -135,4 +135,81 @@ test("private vault PUT is preceded by durable intent; only verified rows become
   assert.match(download, /documentBytesMayBeReleased/);
   assert.match(recover, /await sweepPendingVaultUploads\(new Date\(now\)\)/);
   assert.doesNotMatch(upload, /await deleteDocumentObject\(storageKey\)\.catch\(\(\) => \{\}\)/);
+});
+
+test("orphan cleanup preserves policy-attached bytes even when the reference belongs to another employer", async () => {
+  const suffix = randomUUID().slice(0, 12);
+  const [ownerOrg, otherOrg] = await db.insert(organizations).values([
+    { name: "Vault owner " + suffix, legalName: "Vault owner " + suffix },
+    { name: "Vault other " + suffix, legalName: "Vault other " + suffix },
+  ]).returning();
+  try {
+    const [worker] = await db.insert(employees).values({
+      organizationId: ownerOrg.id, employeeNo: "PROTECT-" + suffix,
+      firstName: "Fictional", lastName: "Policy",
+      title: "Associate", avatarInitials: "FP",
+      basicRate: "22000.00", startDate: "2026-01-01",
+    }).returning();
+    const [pending] = await db.insert(documents).values(
+      pendingFields(ownerOrg.id, worker.id),
+    ).returning();
+
+    const policyContent = "Fictional policy reference only";
+    const createPolicy = async (organizationId: number, code: string) => {
+      const [policy] = await db.insert(hcmPolicyVersions).values({
+        organizationId, policyCode: code, title: "Synthetic retained reference",
+        version: "1", effectiveFrom: "2026-01-01",
+        sourceDocumentId: pending.id, content: policyContent,
+        contentSha256: createHash("sha256").update(policyContent).digest("hex"),
+        createdByName: "Synthetic reviewer",
+      }).returning({ id: hcmPolicyVersions.id });
+      return policy.id;
+    };
+    const deletes: string[] = [];
+    const providerDelete = async (key: string) => { deletes.push(key); };
+    const ownPolicyId = await createPolicy(ownerOrg.id, "own-" + suffix);
+    assert.equal(await reconcilePendingVaultUpload(pending.id, {
+      deleteObject: providerDelete,
+    }), "referenced", "same-employer policy must retain its source bytes");
+    await db.delete(hcmPolicyVersions).where(eq(hcmPolicyVersions.id, ownPolicyId));
+
+    // Legacy policy FK references documents.id alone, so an inconsistent
+    // cross-tenant attachment can exist without a composite FK. The cleanup
+    // must refuse provider DELETE rather than nulling this separate record.
+    const foreignPolicyId = await createPolicy(otherOrg.id, "foreign-" + suffix);
+    assert.equal(await reconcilePendingVaultUpload(pending.id, {
+      deleteObject: providerDelete,
+    }), "referenced", "other-employer reference must also block deletion");
+    assert.equal(deletes.length, 0);
+    const [retained] = await db.select().from(documents).where(eq(documents.id, pending.id));
+    assert.ok(retained && retained.scannedClean === false);
+    const [foreignPolicy] = await db.select().from(hcmPolicyVersions)
+      .where(eq(hcmPolicyVersions.id, foreignPolicyId));
+    assert.equal(foreignPolicy.sourceDocumentId, pending.id);
+
+    await db.delete(hcmPolicyVersions).where(eq(hcmPolicyVersions.id, foreignPolicyId));
+    assert.equal(await reconcilePendingVaultUpload(pending.id, {
+      deleteObject: providerDelete,
+    }), "deleted", "cleanup can resume once all records are unlinked");
+    assert.deepEqual(deletes, [pending.objectStorageKey]);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, ownerOrg.id));
+    await db.delete(organizations).where(eq(organizations.id, otherOrg.id));
+  }
+});
+
+test("orphan cleanup reference inventory includes all known document FK owners", () => {
+  const recovery = readFileSync("src/lib/employee-vault-object-reconciliation.ts", "utf8");
+  for (const table of [
+    "hcm_employee_document_compliance",
+    "hcm_document_expiry_notices",
+    "hcm_policy_versions",
+    "employee_hr_cases",
+    "hcm_employment_decision_documents",
+  ]) {
+    assert.match(recovery, new RegExp("FROM " + table + " WHERE "),
+      table + " references must prevent private object deletion");
+    assert.match(recovery, new RegExp("to_regclass\\('public\\." + table + "'\\)"),
+      table + " must exist before the recovery sweeper runs");
+  }
 });
