@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { pinVerifiedPgTls } from "../src/lib/pg-tls-policy.ts";
+import { pinVerifiedPgTls } from "../src/lib/pg-tls-policy";
 
 const secret = "hidden-credential-test-value";
 const remoteUrl = "postgresql://fixture:" + secret + "@db.example.invalid:5432/app_db";
