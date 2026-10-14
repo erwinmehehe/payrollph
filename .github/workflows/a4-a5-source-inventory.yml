@@ -40,11 +40,29 @@ jobs:
           git fetch --no-tags origin \
             '+refs/heads/main:refs/remotes/origin/main' \
             '+refs/pull/902/head:refs/remotes/origin/a5-owner-902'
-      - name: Verify A4 merge ancestry and byte-exact A5-only changes to the two shared files
+      - name: Verify pinned event-base A4/A5 source and unchanged HCM security guards
         shell: bash
+        env:
+          # Freeze the exact base SHA from the PR event rather than fetching a
+          # moving main ref several minutes after the event was generated.
+          PR_EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          export A4_A5_BASE_SHA="$(git rev-parse refs/remotes/origin/main)"
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            [[ "${PR_EVENT_BASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || {
+              echo "Missing exact pull-request event base SHA" >&2
+              exit 1
+            }
+            export A4_A5_BASE_SHA="${PR_EVENT_BASE_SHA}"
+          else
+            # workflow_dispatch pins main once for this manually run check.
+            export A4_A5_BASE_SHA="$(git rev-parse refs/remotes/origin/main)"
+          fi
+          # Git must contain the event-base commit even if main has since advanced.
+          git cat-file -e "${A4_A5_BASE_SHA}^{commit}" || {
+            echo "Pinned PR base commit is unavailable" >&2
+            exit 1
+          }
           # This is the merged #896 squash commit, not the obsolete PR head.
           export A4_A5_SPEND_SHA=361bd6b5d9a9706a2930b0c48a8e0e431fd10bfe
           export A4_A5_VAULT_SHA="$(git rev-parse refs/remotes/origin/a5-owner-902)"
