@@ -151,8 +151,39 @@ test("public careers is consent-bound, isolated by employer, race-safe and HR-on
     assert.equal((await pub.GET(publicGet(orgA.id))).status, 503);
     assert.equal((await admin.PATCH(adminRequest(orgA.id, jobA.id, true, false))).status, 503);
     const sqlProposal = readFileSync("docs/engineering/migration-proposals/careers-published.sql", "utf8");
+    const columnPresenceSql = `select count(*)::int as count from information_schema.columns
+      where table_schema = $1 and table_name = 'job_requisitions'
+        and column_name = 'careers_published'`;
+    const columnCount = async () =>
+      Number((await pool.query<{ count: number }>(columnPresenceSql, [schema])).rows[0]?.count ?? -1);
+    assert.equal(await columnCount(), 0, "The current-main schema must not pre-add a flag-gated column");
+
+    // PostgreSQL DDL must be transactionally reversible on the exact isolated
+    // schema. None of these operations touch the production Neon project.
+    const connection = await pool.connect();
+    let open = false;
+    try {
+      await connection.query("BEGIN");
+      open = true;
+      await connection.query(sqlProposal);
+      const during = await connection.query<{ count: number }>(columnPresenceSql, [schema]);
+      assert.equal(Number(during.rows[0]?.count), 1, "Column added inside proposed transaction");
+      await connection.query("ROLLBACK");
+      open = false;
+    } finally {
+      if (open) await connection.query("ROLLBACK").catch(() => {});
+      connection.release();
+    }
+    assert.equal(await columnCount(), 0, "Rollback must remove the proposed column without drift");
+
     await pool.query(sqlProposal);
-    await pool.query(sqlProposal); // isolated idempotency, not a numbered release receipt
+    await pool.query(sqlProposal); // idempotent DDL, not a numbered production receipt
+    assert.equal(await columnCount(), 1, "Repeat application is idempotent");
+    const retainedJob = await pool.query<{ careers_published: boolean }>(
+      `select careers_published from ${schema}.job_requisitions where id = $1`, [jobA.id],
+    );
+    assert.equal(retainedJob.rows[0]?.careers_published, false,
+      "Pre-existing jobs default to unpublished after forward DDL");
     assert.equal((await pub.GET(publicGet(orgA.id))).status, 200);
 
     actor = null;
