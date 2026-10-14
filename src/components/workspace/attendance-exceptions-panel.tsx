@@ -117,10 +117,12 @@ export function AttendanceExceptionsPanel({
   const [resolutionDrafts, setResolutionDrafts] = useState<Record<number, string>>({});
   const [actionBusyId, setActionBusyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!startDate || !endDate || endDate < startDate) return;
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams({
         organizationId: String(organizationId),
@@ -146,7 +148,9 @@ export function AttendanceExceptionsPanel({
       setPayload(body as ResponsePayload);
       setOperations(operationsBody as OperationsPayload);
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not load attendance exceptions.", "err");
+      setPayload(null);
+      setOperations(null);
+      setLoadError(error instanceof Error ? error.message : "Could not load attendance exceptions.");
     } finally {
       setLoading(false);
     }
@@ -242,24 +246,32 @@ export function AttendanceExceptionsPanel({
         </button>
       </div>
 
+      {loadError && (
+        <div className="notice notice-slate" role="alert" style={{ marginBottom: 14 }}>
+          <AlertTriangle size={16} className="i-amber" />
+          <span>Attendance exception data is unavailable. No absence of exceptions can be confirmed. {loadError}</span>
+          <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>Retry</button>
+        </div>
+      )}
+
       <section className="stats-grid">
         <Metric
           label="Blocking"
-          value={String(payload?.summary.blockers ?? 0)}
+          value={payload ? String(payload.summary.blockers) : "—"}
           hint="must be reviewed before payroll"
           icon={<ShieldAlert size={16} className="i-red" />}
           tone={(payload?.summary.blockers ?? 0) ? "red" : "slate"}
         />
         <Metric
           label="Warnings"
-          value={String(payload?.summary.warnings ?? 0)}
+          value={payload ? String(payload.summary.warnings) : "—"}
           hint="late, undertime or unscheduled work"
           icon={<AlertTriangle size={16} className="i-amber" />}
           tone={(payload?.summary.warnings ?? 0) ? "amber" : "slate"}
         />
         <Metric
           label="Employees affected"
-          value={String(payload?.summary.employeesAffected ?? 0)}
+          value={payload ? String(payload.summary.employeesAffected) : "—"}
           hint="with blocking or warning items"
           icon={<Clock3 size={16} className="i-cyan" />}
           tone={(payload?.summary.employeesAffected ?? 0) ? "blue" : "slate"}
@@ -293,28 +305,28 @@ export function AttendanceExceptionsPanel({
         <section className="stats-grid" style={{ padding: "0 14px 14px" }}>
           <Metric
             label="Open cases"
-            value={String(operations?.summary.open ?? 0)}
+            value={operations ? String(operations.summary.open) : "—"}
             hint="persisted WFM exception events"
             icon={<ShieldAlert size={16} className="i-amber" />}
             tone={(operations?.summary.open ?? 0) ? "amber" : "slate"}
           />
           <Metric
             label="Overdue"
-            value={String(operations?.summary.overdue ?? 0)}
+            value={operations ? String(operations.summary.overdue) : "—"}
             hint="past severity-based SLA"
             icon={<Clock3 size={16} className="i-red" />}
             tone={(operations?.summary.overdue ?? 0) ? "red" : "slate"}
           />
           <Metric
             label="Unassigned"
-            value={String(operations?.summary.unassigned ?? 0)}
+            value={operations ? String(operations.summary.unassigned) : "—"}
             hint="open cases without an owner"
             icon={<UserRoundCheck size={16} className="i-cyan" />}
             tone={(operations?.summary.unassigned ?? 0) ? "blue" : "slate"}
           />
           <Metric
             label="Resolved"
-            value={String(operations?.summary.resolved ?? 0)}
+            value={operations ? String(operations.summary.resolved) : "—"}
             hint="closed by corrected attendance evidence"
             icon={<CheckCircle2 size={16} className="i-green" />}
             tone="slate"
@@ -425,7 +437,7 @@ export function AttendanceExceptionsPanel({
             </tbody>
           </table>
 
-          {!loading && (operations?.exceptions.length ?? 0) === 0 && (
+          {!loading && !loadError && (operations?.exceptions.length ?? 0) === 0 && (
             <EmptyState icon={<CheckCircle2 size={20} className="i-green" />} title="No persisted exception cases in this window">
               New attendance exceptions will appear here with owner and SLA tracking.
             </EmptyState>
@@ -504,7 +516,7 @@ export function AttendanceExceptionsPanel({
             </tbody>
           </table>
 
-          {!loading && rows.length === 0 && (
+          {!loading && !loadError && rows.length === 0 && (
             <EmptyState icon={<ShieldAlert size={20} className="i-green" />} title="No attendance exceptions in this view">
               Scheduled attendance and stored punches reconcile for the selected window.
             </EmptyState>
