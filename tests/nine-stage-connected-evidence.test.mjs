@@ -32,10 +32,10 @@ test("stage identities and no-money status are explicit and consistent",
   assert.equal(r.independentHumanUat, "NOT_RUN");
   assert.equal(r.realEmployerReconciliation, "NOT_RUN");
   assert.equal(r.clock?.mode, "CI_GUARDED_VIRTUAL_MANILA_MONTH_END");
-  assert.equal(r.clock?.manilaWorkDate, "2026-09-30");
+  assert.match(String(r.clock?.manilaWorkDate), /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(r.clock?.realWallClockAttendance, false);
   assert.equal(r.clock?.actualApiCapture, true);
-  assert.match(String(r.virtualGeneratedAt), /^2026-09-30T/);
+  assert.ok(String(r.virtualGeneratedAt).startsWith(r.clock.manilaWorkDate + "T"));
   assert.ok(String(r.githubRunId).length > 0);
   assert.ok(r.stages.every(s => ["PASS","FAIL","BLOCKED","NOT_RUN"].includes(s.status)));
   if (r.result === "PASS") {
@@ -51,6 +51,8 @@ test("stage identities and no-money status are explicit and consistent",
       h => typeof h === "string" && /^[a-f0-9]{64}$/.test(h)));
   }
   if (required) {
+    assert.equal(r.clock.manilaWorkDate, process.env.NINE_STAGE_SYNTHETIC_CLOCK,
+      "Connected report must use this CI run's guarded month-end");
     assert.equal(r.sourceSha, process.env.PR_HEAD_SHA,
       "Connected report must come from the exact checked-out PR commit");
     assert.equal(r.githubRunId, process.env.GITHUB_RUN_ID,
