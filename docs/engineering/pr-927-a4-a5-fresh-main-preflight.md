@@ -12,14 +12,20 @@ The private employee 201-file vault remains in **draft PR #902** and its merged-
 
 ## What the read-only gate verifies
 
-scripts/qa/a4-a5-source-inventory.mjs reads pinned Git commit trees only. It verifies that the merged #896 SHA is an ancestor of main; the current main SHA is an ancestor of #902; A2/A3 predecessor schema still exists; the entire A4 main schema is **byte-identical** to #902's version after removing the sole A5 expiry-ledger addition; and the entire A4 retention scheduler is byte-identical after removing exactly the three small A5 import/tick/result additions.
+scripts/qa/a4-a5-source-inventory.mjs reads pinned Git commit trees only. It verifies that the merged #896 SHA is an ancestor of main; the current main SHA is an ancestor of #902; A2/A3 predecessor schema still exists; the entire A4 main schema is **byte-identical** to #902's version after removing the sole A5 expiry-ledger addition; and the entire A4 retention scheduler is byte-identical after removing exactly the three small A5 import/tick/result additions; and both `src/lib/critical-release-flags.ts` and `src/proxy.ts` are byte-identical to current main. Flag/proxy parity is emitted as `null` (not inspected) if ancestry validation fails, never incorrectly as `false` (unchanged).
 
-The workflow runs eight existing historical guard fixtures plus seven new synthetic A4-merged/A5-candidate source-fixture tests. Evidence is emitted as a bounded JSON report of SHAs, booleans, and blocker reasons, with **no real employee, policy, or private file content**.
+The workflow runs eight existing historical guard fixtures plus ten synthetic A4-merged/A5-candidate source-fixture tests (**18 tests total**). Evidence is emitted as a bounded JSON report of SHAs, booleans, and blocker reasons, with **no real employee, policy, or private file content**.
 
 A green inventory means **only** that the reviewed two-file source reconciliation matches the pinned main. It does not exercise the A5 application code, schema migration, object store, scanner, PostgreSQL concurrency, maker/checker or payroll arithmetic. PR #902's **exact-head** CI, including these suites, is the separate executable acceptance evidence.
 
 ## What remains
 
 Before shipping or merging A5 under repository policy, resolve any exact-head #902 CI failures; check whether P0-3 source-freeze and independent approval rules require an explicit source exception or owner-reviewed policy decision. Real provider and production approvals have been deferred for this no-customer development phase and must **not** be represented as passed.
+
+### 14 October 2026 — main advanced after original green check
+
+On reconciliation of this QA branch to `main@bef23ef79b3574664868280cd8c7fd6115cdc9b5` (which includes #963), the A5 owner branch #902 still pointed to `94435b43f98de209065a373d4959af3db8e14b69` and was **two commits behind** main. Those latest mainline files are disjoint from the A5 owner diff, but that is **not** evidence of a successful source merge. The strict ancestry check must report `BLOCKED` until the **#902 owner** reconciles its actual head to current main and reruns exact-head development CI. Do not edit #902 source, claim an inventory success from an older main SHA, or weaken the ancestor precondition to force a green check.
+
+This #927 diff remains QA-only and cannot certify combined A4/A5 execution. Its new source-only checks also reject unexpected A5 changes to release flags and the HCM HTTP proxy guard.
 
 No numbered production migrations, Neon writes, real employee files, live S3/R2/scanner credentials, payouts, filings, source-policy bypass, or production flags were changed by this rehearsal.
