@@ -390,6 +390,23 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     assert.ok(!inScope.some(row => row.id === worker2.id || row.id === foreignWorker.id));
     // Real SQL regression for the People Operations worklist and lifecycle
     // endpoint: an HR grant for A1 must not reveal A2 or another tenant.
+    // Direct/async library entrypoints must reject an omitted or invalid
+    // employer under multi-entity mode instead of falling back to All.
+    await assert.rejects(() => loadPeopleOperationsInbox(tenantA.id, {}, "2026-10-13"),
+      /ENTITY_HCM_SCOPE_REQUIRED/);
+    await assert.rejects(() => loadEmploymentLifecycleReadiness(tenantA.id, "2026-10-13"),
+      /ENTITY_HCM_SCOPE_REQUIRED/);
+    for (const invalid of [0, -1, Number.NaN, 1.5]) {
+      await assert.rejects(() => loadPeopleOperationsInbox(tenantA.id, {}, "2026-10-13", invalid),
+        /ENTITY_HCM_INVALID_EMPLOYER/);
+      await assert.rejects(() => loadEmploymentLifecycleReadiness(tenantA.id, "2026-10-13", invalid),
+        /ENTITY_HCM_INVALID_EMPLOYER/);
+    }
+    await assert.rejects(() => loadPeopleOperationsInbox(0, {}, "2026-10-13", a1.id),
+      /ENTITY_HCM_ORGANIZATION_REQUIRED/);
+    await assert.rejects(() => loadEmploymentLifecycleReadiness(0, "2026-10-13", a1.id),
+      /ENTITY_HCM_ORGANIZATION_REQUIRED/);
+
     const scopedInbox = await loadPeopleOperationsInbox(tenantA.id, { pageSize: 50 },
       "2026-10-13", a1.id);
     assert.ok(scopedInbox.rows.length > 0);
