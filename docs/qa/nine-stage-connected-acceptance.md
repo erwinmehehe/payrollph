@@ -135,3 +135,22 @@ Report: \`qa-artifacts/governed-hire-853-report.json\`.
 Validator: \`tests/governed-hire-853-evidence.test.mjs\`.
 The validator fails closed on missing/wrong-source/nonpassing sidecar results
 when \`NINE_STAGE_GOVERNED_HIRE_REQUIRED=true\` in dedicated CI.
+
+### Session clock alignment and governed-sidecar credentials
+
+The disposable PG16 job now aligns only the `sessions.created_at` default
+before any organization, user or session exists. PostgreSQL uses real wall
+time plus the same bounded virtual-month-end offset as Node and Chromium.
+The setup rejects remote/query-overridden URLs, wrong database/version,
+stale anchors, provider credentials and populated fixtures. Existing sessions
+are never rewritten, and production schema/authentication/expiry/MFA code is
+unchanged. An isolated-schema behavior test calls actual `createSession`,
+reproduces the original age mismatch, proves the aligned creation timestamps,
+and verifies existing sessions and policy limits remain unchanged.
+
+The governed-Hire sidecar creates independent fictional initiator/reviewer/
+owner/foreign-owner actors with a freshly generated in-memory password. It
+queries the exact two fictional employer names from the disposable store and
+never reads the browser credential handoff file. HTTP redirects are refused.
+No production record or credential is read, and the actor split still tests
+maker-checker/tenant/role denial through actual authenticated APIs.

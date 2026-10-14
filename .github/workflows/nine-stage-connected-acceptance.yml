@@ -46,7 +46,9 @@ on:
       - "tests/governed-hire-853-evidence.test.mjs"
       - "scripts/qa/isolated-month-end-clock.cjs"
       - "scripts/qa/synthetic-month-end.cjs"
+      - "scripts/qa/synthetic-session-clock.cjs"
       - "tests/qa-synthetic-month-end.test.mjs"
+      - "tests/qa-synthetic-session-clock.test.ts"
       - "scripts/qa/nine-stage-mobile-browser.mjs"
       - "tests/nine-stage-connected-evidence.test.mjs"
       - "docs/qa/nine-stage-connected-acceptance.md"
@@ -93,7 +95,9 @@ on:
       - "tests/governed-hire-853-evidence.test.mjs"
       - "scripts/qa/isolated-month-end-clock.cjs"
       - "scripts/qa/synthetic-month-end.cjs"
+      - "scripts/qa/synthetic-session-clock.cjs"
       - "tests/qa-synthetic-month-end.test.mjs"
+      - "tests/qa-synthetic-session-clock.test.ts"
       - "scripts/qa/nine-stage-mobile-browser.mjs"
       - "tests/nine-stage-connected-evidence.test.mjs"
       - "docs/qa/nine-stage-connected-acceptance.md"
@@ -177,11 +181,13 @@ jobs:
         run: |
           npm run db:push
           node scripts/qa/apply-audit-0109-isolated.mjs
+          node scripts/qa/synthetic-session-clock.cjs
       - name: Validate guarded synthetic Manila month-end helper
         run: node --test tests/qa-synthetic-month-end.test.mjs
       - name: Run focused payroll/WFM safety regressions (separate from connected evidence)
         run: |
           npx tsx --test \
+            tests/qa-synthetic-session-clock.test.ts \
             tests/web-bundy-overnight-anchor.test.ts \
             tests/payroll-night-differential.test.ts \
             tests/payroll-holiday-overtime.test.ts \

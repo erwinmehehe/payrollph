@@ -6,7 +6,9 @@
  * worker's source lineage, human acceptance, or a payout/filing test.
  */
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
 import { hashPassword } from "../../src/lib/crypto";
@@ -32,27 +34,13 @@ const report = {
   checks: [] as string[],
 };
 function save() { writeFileSync(reportPath, JSON.stringify(report, null, 2) + "\n"); }
+const { fixtureClockOffset } = createRequire(import.meta.url)("./synthetic-session-clock.cjs");
 function safeEnvironment() {
-  assert.equal(process.env.CI, "true");
-  assert.equal(process.env.GITHUB_ACTIONS, "true");
-  assert.equal(process.env.QA_URL, BASE);
-  assert.equal(process.env.DEMO_MODE, "false");
-  assert.match(process.env.NINE_STAGE_SYNTHETIC_CLOCK ?? "", /^\d{4}-\d{2}-\d{2}$/);
-  for (const key of [
-    "PAYMONGO_DISBURSEMENTS_ENABLED", "XENDIT_PAYOUTS_ENABLED",
-    "XENDIT_PAYOUTS_LIVE_APPROVED", "WFM_PUNCH_EVIDENCE_ENABLED",
-    "WFM_GEOFENCE_PILOT_ENABLED", "FINAL_PAY_MANUAL_RELEASE_ENABLED",
-  ]) assert.equal(process.env[key], "false", key + " must be disabled");
-  assert.equal(process.env.OPENAI_API_KEY ?? "", "");
-  assert.equal(process.env.PAYMONGO_SECRET_KEY ?? "", "");
-  assert.equal(process.env.XENDIT_SECRET_KEY ?? "", "");
-  const dbUrl = new URL(process.env.DATABASE_URL ?? "");
-  assert.equal(dbUrl.protocol, "postgresql:");
-  assert.equal(dbUrl.hostname, "127.0.0.1");
-  assert.equal(dbUrl.port, "5432");
-  assert.equal(dbUrl.pathname, "/app_db");
-  assert.equal(dbUrl.username, "postgres");
+  // performance uses the real host clock even under the guarded Date preload.
+  fixtureClockOffset(process.env, Math.trunc(performance.timeOrigin + performance.now()));
+  assert.match(process.env.PR_HEAD_SHA ?? "", /^[0-9a-f]{40}$/);
 }
+
 class Client {
   cookie = "";
   async json(path: string, method = "GET", payload?: unknown) {
@@ -65,6 +53,7 @@ class Client {
     const response = await fetch(BASE + path, {
       method, headers,
       body: payload === undefined ? undefined : JSON.stringify(payload),
+      redirect: "error",
       signal: AbortSignal.timeout(30000),
     });
     const cookie = response.headers.get("set-cookie");
@@ -88,12 +77,8 @@ async function login(email: string, password: string) {
 }
 async function main() {
   safeEnvironment();
-  const auth = JSON.parse(readFileSync("qa-artifacts/.nine-stage-browser-auth.json", "utf8")) as {
-    password: string; organizationId: number; otherOrganizationId: number; owner: string;
-  };
-  assert.ok(auth.password && Number.isSafeInteger(auth.organizationId));
-  const alpha = auth.organizationId;
-  const beta = auth.otherOrganizationId;
+  // Independent fixture actors; no browser credential file is read or sent.
+  const password = "FictionalGovernedOnly!" + randomUUID();
   const startDate = new Date(Date.parse(
     process.env.NINE_STAGE_SYNTHETIC_CLOCK + "T00:00:00.000Z") + 86400000,
   ).toISOString().slice(0, 10);
@@ -101,8 +86,9 @@ async function main() {
     id: organizations.id, name: organizations.name,
   }).from(organizations);
   assert.equal(companyRows.length, 2, "Must be the exact two fictional nine-stage employers");
-  assert.equal(companyRows.find(r => r.id === alpha)?.name, "Fictional Connected Employer A");
-  assert.equal(companyRows.find(r => r.id === beta)?.name, "Fictional Connected Employer B");
+  const alpha = companyRows.find(r => r.name === "Fictional Connected Employer A")?.id;
+  const beta = companyRows.find(r => r.name === "Fictional Connected Employer B")?.id;
+  assert.ok(alpha && beta && alpha !== beta);
   const [released] = await db.select().from(payrollRuns).where(and(
     eq(payrollRuns.organizationId, alpha), eq(payrollRuns.status, "Released"),
   )).limit(1);
@@ -115,7 +101,7 @@ async function main() {
 
   const [creatorUser] = await db.insert(users).values({
     email: "hiring.nine@linaw.test", name: "Fictional Hiring Initiator",
-    role: "hr", passwordHash: hashPassword(auth.password),
+    role: "hr", passwordHash: hashPassword(password),
     backupCodes: [], totpEnabled: false,
   }).returning();
   await db.insert(userOrganizations).values({
@@ -141,10 +127,22 @@ async function main() {
     ],
   });
 
-  const owner = await login(auth.owner, auth.password);
-  const creator = await login("hiring.nine@linaw.test", auth.password);
-  const reviewer = await login("hr.nine@linaw.test", auth.password);
-  const betaOwner = await login("tenantb.nine@linaw.test", auth.password);
+  const actorDefinitions = [
+    { email: "governed.owner.nine@linaw.test", role: "owner", organizationId: alpha },
+    { email: "governed.hr.nine@linaw.test", role: "hr", organizationId: alpha },
+    { email: "governed.foreign.nine@linaw.test", role: "owner", organizationId: beta },
+  ];
+  for (const actor of actorDefinitions) {
+    const [user] = await db.insert(users).values({ email: actor.email,
+      name: "Fictional governed reviewer", role: actor.role, passwordHash: hashPassword(password),
+      backupCodes: [], totpEnabled: false }).returning();
+    await db.insert(userOrganizations).values({ userId: user.id,
+      organizationId: actor.organizationId, role: actor.role });
+  }
+  const owner = await login(actorDefinitions[0].email, password);
+  const creator = await login("hiring.nine@linaw.test", password);
+  const reviewer = await login(actorDefinitions[1].email, password);
+  const betaOwner = await login(actorDefinitions[2].email, password);
   const direct = await owner.json("/api/employees", "POST", {
     organizationId: alpha, employeeNo: "NINE-GOV-BYPASS",
     firstName: "Fictional", lastName: "DirectBypass", title: "Worker",
