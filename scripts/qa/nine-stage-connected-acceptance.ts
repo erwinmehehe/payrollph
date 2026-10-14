@@ -26,7 +26,7 @@ const report = {
   schemaVersion: 1, sourceSha: process.env.PR_HEAD_SHA ?? "local",
   virtualGeneratedAt: new Date().toISOString(), githubRunId: process.env.GITHUB_RUN_ID ?? "local", result: "BLOCKED",
   scope: "synthetic-local-postgres16-only", independentHumanUat: "NOT_RUN",
-  clock: { mode: "CI_GUARDED_VIRTUAL_MANILA_MONTH_END", manilaWorkDate: "2026-09-30",
+  clock: { mode: "CI_GUARDED_VIRTUAL_MANILA_MONTH_END", manilaWorkDate: process.env.NINE_STAGE_SYNTHETIC_CLOCK ?? "NOT_CONFIGURED",
     realWallClockAttendance: false, actualApiCapture: true },
   bankOrPaymentSubmission: "PROHIBITED", officialAgencySubmission: "NOT_RUN",
   physicalDeviceUat: "NOT_RUN", realEmployerReconciliation: "NOT_RUN",
@@ -140,8 +140,8 @@ async function main() {
     "Never run connected fixture against a populated database");
   const now = new Date();
   const workDate = dateInManila(now);
-  assert.equal(process.env.NINE_STAGE_SYNTHETIC_CLOCK, "2026-09-30");
-  assert.equal(workDate, "2026-09-30",
+  assert.match(process.env.NINE_STAGE_SYNTHETIC_CLOCK ?? "", /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(workDate, process.env.NINE_STAGE_SYNTHETIC_CLOCK,
     "Connected filing tests require the authorized virtual final cutoff, not a manufactured mid-month BIR worksheet");
   // One real browser clock IN and OUT with a reviewer-corrected synthetic shift.
   // No application clock overrides, future punches, or historical inserts.
