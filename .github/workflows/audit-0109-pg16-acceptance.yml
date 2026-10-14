@@ -76,12 +76,15 @@ jobs:
           cache: npm
       - name: Restore locked dependencies
         run: npm ci
-      - name: Generate masked, ephemeral bank-data key for fictional CI only
+      - name: Generate independent masked bank and government-ID keys for fictional CI only
         shell: bash
         run: |
           bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
           echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
           echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Push schema to disposable PostgreSQL 16
         run: npm run db:push
       - name: Apply migration 0109 and prove enabled append-only trigger
