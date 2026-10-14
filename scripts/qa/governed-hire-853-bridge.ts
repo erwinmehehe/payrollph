@@ -76,7 +76,7 @@ async function login(email: string, password: string) {
     // The prior nine-stage and mobile tests share localhost IP rate limits.
     // Wait for the *actual* limiter window once; never reset/disable it.
     const wait = boundedSyntheticLoginWaitMs(result.status, result.body);
-    await new Promise((resolve) => setTimeout(resolve, wait));
+    await new Promise<void>((resolve) => setTimeout(resolve, wait));
     result = await client.json("/api/auth/login", "POST", { email, password });
   }
   assert.ok(result.status >= 200 && result.status < 300,
