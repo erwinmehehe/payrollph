@@ -184,7 +184,7 @@ async function verify(archiveArgument) {
   const start=Date.now();
   try {
     await runQuiet("docker",["run","-d","--rm","--network","none",
-      "--name",tag,"--cap-drop","ALL","--security-opt","no-new-privileges",
+      "--name",tag,"--security-opt","no-new-privileges",
       "-e","POSTGRES_DB=linaw_restore_probe",
       "-e","POSTGRES_PASSWORD="+randomBytes(32).toString("hex"),
       "postgres:18"]);
