@@ -8,6 +8,27 @@ Payroll PH has no paying customers. The pre-customer development milestone is to
 
 The historical `drizzle/baseline.sql` is older than the modern schema. The 0001–0123 numbered SQL archive includes duplicate identifiers and unverified applied history. **Never blindly replay those SQL files, infer an applied receipt, or use this workflow to migrate real Neon.** This is a **fresh developer bootstrap test**, not a proof of production migration-history reconciliation.
 
+## Constraint-order regression and preserved tenant boundary
+
+During the initial PG18 CI test (run #38560533426), Drizzle 0.31.11
+erroneously attempted to drop an unchanged parent composite unique key on
+the **second** push, then printed PostgreSQL `2BP01` without a failing exit
+code. This is consistent with the reported Drizzle composite-key order
+introspection bug. Source code now declares the existing documents composite
+unique key and its confidential-case foreign key in the parent physical
+column order `(id, organization_id, employee_id)`. This is a logically
+equivalent tenant/employee-equality FK, **not removal of a security check**.
+PG catalog assertions verify both constraints still exist and match exactly.
+
+This is a **development source-schema change**, not permission to modify an
+existing production database or historical SQL receipts. Future production
+migration planning must reconcile any existing FK/key order separately.
+
+The first CI attempt's claim `FRESH_PG18_TWO_PUSH_REPRODUCIBLE` was
+**not valid** because the second push emitted an error despite returning
+exit zero. Only a clean new exact-head strict-repeat-push CI run can establish
+repeatability.
+
 ## New PG18 acceptance
 
 `.github/workflows/nine-stage-connected-acceptance.yml` now has three separately isolated matrix cases:
@@ -22,7 +43,13 @@ The PG18 case:
 2. Checks `public` is **empty** before running any schema tool. An accidental connection to a populated database fails immediately.
 3. Executes `npm run db:push`, which is already guarded to reject Neon and all remote targets.
 4. Checks for critical employer, employee, attendance, timekeeping, payroll, approvals and filing tables plus broad table/column/constraint/index coverage. Captures a **catalog-only** SHA-256 fingerprint without querying application rows.
-5. Executes the exact same schema push again, then verifies identical catalog content. This blocks silent no-op bootstrap and non-idempotent push drift.
+5. Executes a **strict** second schema push via
+   `scripts/qa/verified-pg18-repeat-push.mjs`, requiring Drizzle's explicit
+   `No changes detected` and rejecting errors in stdout/stderr even when
+   Drizzle exits zero. Then verifies identical catalog content. The runner
+   fails on phantom DDL, silent dependency errors or an unproven no-op.
+   The synthetic regression in `tests/verified-pg18-repeat-push.test.mjs`
+   exercises exit-zero + reported PostgreSQL error as a failure.
 6. Runs the existing synthetic audit setup and session-clock fixture on PG18, with distinct fictional encryption keys, then runs the real localhost API journey, strict same-worker lineage checks, tenant-boundary negatives, both 375px/390px Chromium layouts and governed candidate-to-worker sidecar.
 7. Uploads only sanitized fictional evidence and catalog-only fingerprints. No customer records exist in the isolated CI service. `SOLO_DEV_REBUILD_ACCEPTANCE` is possible only if all PG18 workflow steps actually pass at the reviewed SHA.
 
