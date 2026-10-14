@@ -268,6 +268,23 @@ export function evaluatePayrollAssurance(
       });
     }
 
+    // M-10: ordinary payroll warnings may be acknowledged, but an unclear
+    // SSS/Pag-IBIG retro contribution month cannot. The release API uses
+    // assurance.findings.blocking, not the "Exception" status alone.
+    const statutoryRetroFlag = flags.find((flag) =>
+      /^(?:STATUTORY_RETRO_INVALID_SOURCE|STATUTORY_RETRO_SOURCE_UNVERIFIED|STATUTORY_RETRO_PRIOR_MONTH_REVIEW):/.test(flag)
+    );
+    if (statutoryRetroFlag) {
+      findings.push({
+        code: "STATUTORY_RETRO_ATTRIBUTION_UNVERIFIED",
+        severity: "high",
+        blocking: true,
+        title: "Retro salary contribution month is not reconciled",
+        detail: "Resolve the original source period and obtain independently verified SSS/Pag-IBIG treatment before payroll approval or release. Exception acknowledgement is not sufficient. " + statutoryRetroFlag,
+        employeeId: entry.employeeId,
+      });
+    }
+
     // A mandatory shortfall is NEVER acknowledgeable. Cross-check the printed
     // liability marker, engine flags, and all three centavo-exact trace totals.
     // This also catches malformed/missing/duplicated trace fields rather than
