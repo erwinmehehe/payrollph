@@ -154,10 +154,16 @@ test("readiness is GET only, company-wide, no-store and does not update HR or pa
   assert.ok(!ui.includes("setChecked(false)"));
   assert.ok(ui.includes('errorState?.organizationId === organizationId ? errorState.message : ""'));
   assert.ok(ui.includes("disabled={busy || !checked}"));
-  // Fetch initiation in the effect must not synchronously call a state setter.
-  const effect = ui.match(/useEffect\(\(\) => \{([\s\S]*?)\}, \[refresh\]\)/)?.[1] ?? "";
-  assert.ok(effect.includes("void refresh()"));
-  assert.doesNotMatch(effect, /set(?:Busy|Checked|ErrorState)\(/);
+  // The effect synchronizes against real network I/O; its immediate body
+  // never calls a state setter or delegates to a state-setting function.
+  assert.ok(ui.includes("const controller = new AbortController()"));
+  assert.ok(ui.includes("signal: controller.signal"));
+  assert.ok(ui.includes(".then(async (response) => {"));
+  assert.ok(ui.includes("controller.abort()"));
+  assert.ok(ui.includes("setRefreshNonce((current) => current + 1)"));
+  assert.ok(!ui.includes("void refresh()"));
+  const effectIntro = ui.slice(ui.indexOf("  useEffect(() => {"), ui.indexOf("      .then(async (response)"));
+  assert.doesNotMatch(effectIntro, /set(?:Busy|Checked|ErrorState|Report)\(/);
 
   assert.ok(ui.includes("not certification") || ui.includes("not certification."));
   assert.ok(admin.includes('process.env.NEXT_PUBLIC_HCM_GOVERNANCE_READINESS_ENABLED === "true"'));
