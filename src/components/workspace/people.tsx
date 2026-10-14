@@ -475,6 +475,8 @@ export function PeopleView({
       {canManageLifecycle && (
         <HcmPeopleOperationsInbox
           organizationId={data.selectedOrganization.id}
+          multiEntityEnabled={data.multiEntity?.enabled === true}
+          legalEntityId={data.multiEntity?.legalEntityId ?? null}
           onOpenWorker={(employeeId) => {
             const worker = data.employees.find((employee) => employee.id === employeeId);
             if (!worker) return false;
@@ -514,6 +516,8 @@ export function PeopleView({
       {canManageLifecycle && (
         <HcmEmploymentLifecycleActionCenter
           organizationId={data.selectedOrganization.id}
+          multiEntityEnabled={data.multiEntity?.enabled === true}
+          legalEntityId={data.multiEntity?.legalEntityId ?? null}
           onOpenEmployee={(employeeId) => {
             const worker = data.employees.find((employee) => employee.id === employeeId);
             if (worker) setPicked(worker);
