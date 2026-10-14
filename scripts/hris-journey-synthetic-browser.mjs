@@ -192,6 +192,51 @@ try {
       has: page.getByRole("heading", { name: "Submit leave application" }),
     });
     await application.waitFor({ timeout: 60000 });
+    const manilaToday = await page.evaluate(() => {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+      }).formatToParts(new Date());
+      const part = type => parts.find(item => item.type === type)?.value;
+      return [part("year"), part("month"), part("day")].join("-");
+    });
+    assert.equal(await application.locator('input[type="date"]').nth(0).inputValue(),
+      manilaToday, "Fresh leave must default to today's Manila date");
+    assert.equal(await application.locator('input[type="date"]').nth(1).inputValue(),
+      manilaToday, "End date must default to the same Manila day");
+
+    // Explicitly mocked PREVIEW endpoint: this asserts frontend invalidation,
+    // not real schedule/payroll calculation or human operator acceptance.
+    await page.route("**/api/leave/preview", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({
+        blocking: false,
+        previews: [{
+          workDate: manilaToday, timezone: "Asia/Manila",
+          unavailableWallMinutes: 240, unavailablePaidMinutes: 240,
+          blockers: [], warnings: [],
+        }],
+      }),
+    }));
+    const timingChoice = application.locator("select").nth(2);
+    await timingChoice.selectOption("first_half");
+    assert.equal(await application.locator('input[type="number"]').first().inputValue(), "0.5");
+    await application.getByRole("button", { name: "Preview schedule impact" }).click();
+    await application.getByText(/240 paid min unavailable/).waitFor({ timeout: 60000 });
+    assert.equal(await application.getByRole("button", { name: "Submit request" }).isEnabled(),
+      true, "Matching schedule preview should permit a properly configured synthetic request");
+
+    const differentDate = new Date(Date.parse(manilaToday + "T00:00:00Z") + 86400000)
+      .toISOString().slice(0, 10);
+    await application.locator('input[type="date"]').nth(0).fill(differentDate);
+    assert.equal(await application.getByRole("button", { name: "Submit request" }).isDisabled(),
+      true, "Changing an input must invalidate an old successful timing preview");
+    assert.equal(await application.getByText(/240 paid min unavailable/).count(), 0,
+      "Outdated timing evidence must disappear after editing the dates");
+    await timingChoice.selectOption("full_day");
+    assert.equal(await application.locator('input[type="number"]').first().inputValue(), "1",
+      "Switching back to full-day should not leave an invalid 0.5-day request");
+    await page.unroute("**/api/leave/preview");
+
     await application.locator("select").first()
       .selectOption({ label: "AlphaPrivate Worker" });
     await application.locator('input[type="date"]').nth(0).fill("2026-10-20");

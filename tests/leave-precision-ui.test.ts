@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { manilaCalendarDate } from "../src/lib/payroll-period-ui";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -32,4 +33,33 @@ test("custom-hour leave requires explicit overnight selection instead of inferri
   assert.ok(panels.includes("Ends next day"));
   assert.ok(panels.includes("timedEndsNextDay"));
   assert.ok(!panels.includes("endLocalTime <= startLocalTime"));
+});
+
+test("new HR leave forms use the current Asia/Manila calendar day, including UTC boundary", () => {
+  assert.equal(manilaCalendarDate(new Date("2026-10-13T15:59:59Z")), "2026-10-13");
+  assert.equal(manilaCalendarDate(new Date("2026-10-13T16:00:00Z")), "2026-10-14");
+  const panels = read("src/components/workspace/panels.tsx");
+  assert.ok(panels.includes("const today = manilaCalendarDate();"));
+  assert.ok(panels.includes("onClick={toggleLeaveRequest}"));
+  assert.ok(!panels.includes('"2026-03-24"'), "Old hardcoded date must not reappear");
+  assert.match(panels, /setStartDate\(today\);\s*setEndDate\(today\);/);
+});
+
+test("partial-day leave preview cannot authorize a changed or obsolete request", () => {
+  const panels = read("src/components/workspace/panels.tsx");
+  assert.ok(panels.includes("timingPreview?.signature === previewSignature"));
+  assert.ok(panels.includes("generation !== previewGeneration.current"));
+  assert.ok(panels.includes("generation === previewGeneration.current"));
+  assert.ok(panels.includes("!currentTimingPreview || currentTimingPreview.blocking"));
+  assert.ok(panels.includes("setTimingPreview({ ...payload, signature })"));
+  assert.ok(panels.includes("if (mode === \"full_day\" && days === 0.5) setDays(1);"));
+  for (const input of ["setEmployeeId(Number(event.target.value))", "setLeaveType(event.target.value)",
+    "setStartDate(event.target.value)", "setEndDate(event.target.value)",
+    "setDays(Number(event.target.value))", "setStartLocalTime(event.target.value)",
+    "setEndLocalTime(event.target.value)", "setTimedEndsNextDay(event.target.checked)"]) {
+    const offset = panels.indexOf(input);
+    assert.ok(offset !== -1, "Missing source input: " + input);
+    assert.ok(panels.slice(offset, offset + 160).includes("clearTimingPreview()"),
+      "Changing input must clear a stale preview: " + input);
+  }
 });
