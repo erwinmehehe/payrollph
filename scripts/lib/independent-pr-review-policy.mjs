@@ -319,6 +319,63 @@ export function isApprovedHcmIsolationSource(pr, files) {
       && file.sha === expected.sha));
 }
 
+// Owner-authorized #902 development-only A5 vault source exception, pinned
+// to the exact 24/24-green source HEAD and the ENTIRE 34-file reviewed delta.
+// Neither the solo-maintainer setting nor this exception authorizes payroll,
+// HCM/WFM unfreeze beyond these bytes, production DDL, external document
+// storage, migrations, money movement, or downstream deployment.
+// A newer A5 head, changed file, renamed/moved path or hidden extra file
+// MUST return to the existing source freeze.
+const VAULT902_APPROVED_HEAD = "94435b43f98de209065a373d4959af3db8e14b69";
+const VAULT902_APPROVED_FILES = [
+  { filename: ".github/workflows/a5-private-object-acceptance.yml", status: "added", sha: "f4c43d83b740afad65763fb24674682664f0ae1f" },
+  { filename: ".github/workflows/a5-vault-migration-rehearsal.yml", status: "added", sha: "ad4052c14e5a9dee8908835100cb526a66e643a2" },
+  { filename: ".github/workflows/a5-vault-minio-acceptance.yml", status: "added", sha: "92a37ff962a13cf3d6603ffcc4b528c9a358d367" },
+  { filename: "docs/engineering/employee-document-vault-migration-plan.md", status: "added", sha: "b890cd26ff47b332340b3928d31c3733f16ea57a" },
+  { filename: "docs/engineering/employee-vault-independent-acceptance.md", status: "added", sha: "724d4b948e7bc0176a01b8e551d46e4d6f19bfc3" },
+  { filename: "docs/engineering/migration-proposals/employee-document-vault-a5.sql", status: "added", sha: "e24dd2af2a60ad1d33c45dac65e9a7751e5274b4" },
+  { filename: "scripts/a5-local-private-object-acceptance.ts", status: "added", sha: "f69bfbf41f7eb7f1ef88be6fe75fce49ec616a02" },
+  { filename: "scripts/accept-private-employee-vault-minio.ts", status: "added", sha: "0880aeed4c685f3409c490db84ac211cae0012aa" },
+  { filename: "scripts/check-a5-legacy-document-schema.ts", status: "added", sha: "c91cc885eec1c3b584584399e11862766d8570db" },
+  { filename: "scripts/rehearse-employee-document-vault-migration.cjs", status: "added", sha: "7d4ec4ca4f4fca2dcc432d9eb41211b7623b026a" },
+  { filename: "src/app/api/documents/route.ts", status: "modified", sha: "41236b2e6f734590ea092869261851d3d6b6800c" },
+  { filename: "src/app/api/hcm/documents/route.ts", status: "modified", sha: "cdf57b3fff05f228676916497fa91e413f5d0a84" },
+  { filename: "src/app/api/self/documents/route.ts", status: "modified", sha: "30ba92e5095e9244a3892906b014a45eba3e0f2a" },
+  { filename: "src/components/employee-documents-panel.tsx", status: "modified", sha: "cc4d9ba3c3d7ba726aa739bb98b42575611cd3ac" },
+  { filename: "src/components/hcm-documents-panel.tsx", status: "modified", sha: "c79110a5e382e31ea597f16deb697a38a0b55371" },
+  { filename: "src/db/schema.ts", status: "modified", sha: "24a1a4138285af40b308b86c7f05584521b5e812" },
+  { filename: "src/lib/automation-document-generation.ts", status: "modified", sha: "441bcddb0e7347d5430a665bc0e87e14725b9e13" },
+  { filename: "src/lib/data-retention.ts", status: "modified", sha: "475b5a160b0754746b52dce00741c1c244ac4fe2" },
+  { filename: "src/lib/document-object-storage.ts", status: "modified", sha: "649f9d862abca126e37f1ba751d285a7093c4c3d" },
+  { filename: "src/lib/document-schema-compat.ts", status: "modified", sha: "5792b12e5b250327fd2cac05d170f00a7042b120" },
+  { filename: "src/lib/employee-document-vault-verification.ts", status: "added", sha: "8a22aff65a59eae3b3c04dc9ad8d1b292e009c42" },
+  { filename: "src/lib/employee-vault-object-reconciliation.ts", status: "added", sha: "0b1813421cdef8f32747145db4697745cc31d3a7" },
+  { filename: "src/lib/hcm-documents.ts", status: "modified", sha: "7a40bd59f1a8308d67c3eb7f4ce750545aad4c36" },
+  { filename: "tests/a4-a5-retention-schema-regression.test.ts", status: "added", sha: "ce77d4bb40fa178711b29bc0b001c89918cf8b42" },
+  { filename: "tests/automation-document-generation.test.ts", status: "modified", sha: "adc93abc5e754b002fbd01fb360432d21737ebb8" },
+  { filename: "tests/employee-document-expiry-integration.test.ts", status: "added", sha: "4e4a64d91f28f38093766ac8dbd8174882b35325" },
+  { filename: "tests/employee-document-vault-generated.test.ts", status: "added", sha: "869aac6077808bdb42d3d7cfd33f9c9daf4204cc" },
+  { filename: "tests/employee-document-vault-verification.test.ts", status: "added", sha: "b5dcfa9491a8fad40031e069cd10cfd64c41bc46" },
+  { filename: "tests/employee-document-vault.test.ts", status: "added", sha: "e83c2c8355155d3ea1dbc3942a0a8fd35e60a12b" },
+  { filename: "tests/employee-vault-ess-link-isolation.test.ts", status: "added", sha: "8fcf1eff3a03cc5fcb8d12ba34d7c6ecb0e184ba" },
+  { filename: "tests/employee-vault-ess-policy-link-isolation.test.ts", status: "added", sha: "b57977a1eb5452a48d54241d348d93ff6a9eca87" },
+  { filename: "tests/employee-vault-flag-rollback.test.ts", status: "added", sha: "e08e88196c7e2e3f83582077a7b23aba3491d9b2" },
+  { filename: "tests/employee-vault-object-reconciliation.test.ts", status: "added", sha: "1cc825fa34bc580317358f32e3e547d88ead58f7" },
+  { filename: "tests/fixtures/minio/Dockerfile", status: "added", sha: "0a40a53628c27562627ef579e021cea995581100" },
+];
+export function isApprovedVault902Source(pr, files) {
+  return pr?.number === 902 && pr?.head?.sha === VAULT902_APPROVED_HEAD &&
+    pr?.base?.ref === "main" && Array.isArray(files) &&
+    files.length === VAULT902_APPROVED_FILES.length &&
+    new Set(files.map(file => file.filename)).size === files.length &&
+    files.every(file => file.previous_filename == null &&
+      file.status !== "renamed" && file.status !== "copied") &&
+    VAULT902_APPROVED_FILES.every(expected => files.some(file =>
+      file.filename === expected.filename &&
+      file.status === expected.status &&
+      file.sha === expected.sha));
+}
+
 const FROZEN_LANES = [
   // Treat every component of the exact #969 offline witness set as frozen.
   // Otherwise dropping the test file leaves the docs and QA script outside
@@ -445,7 +502,7 @@ export function evaluateIndependentReview({
   const blockers = [];
   if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
       !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
-       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !isApprovedSpendNavigationSource(pr, scope) && !isApprovedHcmIsolationSource(pr, files) &&
+       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !isApprovedSpendNavigationSource(pr, scope) && !isApprovedHcmIsolationSource(pr, files) && !isApprovedVault902Source(pr, files) &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {

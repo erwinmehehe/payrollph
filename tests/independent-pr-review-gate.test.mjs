@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   classifyReviewScope, allowedHumanReviewerLogins, evaluateIndependentReview,
+  isApprovedVault902Source,
 } from "../scripts/lib/independent-pr-review-policy.mjs";
 import { checkIndependentReview } from "../scripts/check-independent-pr-review.mjs";
 
@@ -745,4 +746,157 @@ test("HCM isolation exception rejects cross-PR/head reuse and any changed diff",
       fakeGithub({ files: hcmIsolationFiles, number, headSha, reviews: [] }).fetcher);
     assert.ok(verdict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
   }
+});
+
+/**
+ * Owner's 14 Oct dev-only waiver covers exactly the previously regression-
+ * tested PR #902 source. It never grants human review or payroll release.
+ * Construct the expected immutable file inventory independently of the
+ * policy's own private array to catch substitutions/removals.
+ */
+const pinnedVault902Head = "94435b43f98de209065a373d4959af3db8e14b69";
+const pinnedVault902Files = [
+  { filename: ".github/workflows/a5-private-object-acceptance.yml", status: "added", sha: "f4c43d83b740afad65763fb24674682664f0ae1f" },
+  { filename: ".github/workflows/a5-vault-migration-rehearsal.yml", status: "added", sha: "ad4052c14e5a9dee8908835100cb526a66e643a2" },
+  { filename: ".github/workflows/a5-vault-minio-acceptance.yml", status: "added", sha: "92a37ff962a13cf3d6603ffcc4b528c9a358d367" },
+  { filename: "docs/engineering/employee-document-vault-migration-plan.md", status: "added", sha: "b890cd26ff47b332340b3928d31c3733f16ea57a" },
+  { filename: "docs/engineering/employee-vault-independent-acceptance.md", status: "added", sha: "724d4b948e7bc0176a01b8e551d46e4d6f19bfc3" },
+  { filename: "docs/engineering/migration-proposals/employee-document-vault-a5.sql", status: "added", sha: "e24dd2af2a60ad1d33c45dac65e9a7751e5274b4" },
+  { filename: "scripts/a5-local-private-object-acceptance.ts", status: "added", sha: "f69bfbf41f7eb7f1ef88be6fe75fce49ec616a02" },
+  { filename: "scripts/accept-private-employee-vault-minio.ts", status: "added", sha: "0880aeed4c685f3409c490db84ac211cae0012aa" },
+  { filename: "scripts/check-a5-legacy-document-schema.ts", status: "added", sha: "c91cc885eec1c3b584584399e11862766d8570db" },
+  { filename: "scripts/rehearse-employee-document-vault-migration.cjs", status: "added", sha: "7d4ec4ca4f4fca2dcc432d9eb41211b7623b026a" },
+  { filename: "src/app/api/documents/route.ts", status: "modified", sha: "41236b2e6f734590ea092869261851d3d6b6800c" },
+  { filename: "src/app/api/hcm/documents/route.ts", status: "modified", sha: "cdf57b3fff05f228676916497fa91e413f5d0a84" },
+  { filename: "src/app/api/self/documents/route.ts", status: "modified", sha: "30ba92e5095e9244a3892906b014a45eba3e0f2a" },
+  { filename: "src/components/employee-documents-panel.tsx", status: "modified", sha: "cc4d9ba3c3d7ba726aa739bb98b42575611cd3ac" },
+  { filename: "src/components/hcm-documents-panel.tsx", status: "modified", sha: "c79110a5e382e31ea597f16deb697a38a0b55371" },
+  { filename: "src/db/schema.ts", status: "modified", sha: "24a1a4138285af40b308b86c7f05584521b5e812" },
+  { filename: "src/lib/automation-document-generation.ts", status: "modified", sha: "441bcddb0e7347d5430a665bc0e87e14725b9e13" },
+  { filename: "src/lib/data-retention.ts", status: "modified", sha: "475b5a160b0754746b52dce00741c1c244ac4fe2" },
+  { filename: "src/lib/document-object-storage.ts", status: "modified", sha: "649f9d862abca126e37f1ba751d285a7093c4c3d" },
+  { filename: "src/lib/document-schema-compat.ts", status: "modified", sha: "5792b12e5b250327fd2cac05d170f00a7042b120" },
+  { filename: "src/lib/employee-document-vault-verification.ts", status: "added", sha: "8a22aff65a59eae3b3c04dc9ad8d1b292e009c42" },
+  { filename: "src/lib/employee-vault-object-reconciliation.ts", status: "added", sha: "0b1813421cdef8f32747145db4697745cc31d3a7" },
+  { filename: "src/lib/hcm-documents.ts", status: "modified", sha: "7a40bd59f1a8308d67c3eb7f4ce750545aad4c36" },
+  { filename: "tests/a4-a5-retention-schema-regression.test.ts", status: "added", sha: "ce77d4bb40fa178711b29bc0b001c89918cf8b42" },
+  { filename: "tests/automation-document-generation.test.ts", status: "modified", sha: "adc93abc5e754b002fbd01fb360432d21737ebb8" },
+  { filename: "tests/employee-document-expiry-integration.test.ts", status: "added", sha: "4e4a64d91f28f38093766ac8dbd8174882b35325" },
+  { filename: "tests/employee-document-vault-generated.test.ts", status: "added", sha: "869aac6077808bdb42d3d7cfd33f9c9daf4204cc" },
+  { filename: "tests/employee-document-vault-verification.test.ts", status: "added", sha: "b5dcfa9491a8fad40031e069cd10cfd64c41bc46" },
+  { filename: "tests/employee-document-vault.test.ts", status: "added", sha: "e83c2c8355155d3ea1dbc3942a0a8fd35e60a12b" },
+  { filename: "tests/employee-vault-ess-link-isolation.test.ts", status: "added", sha: "8fcf1eff3a03cc5fcb8d12ba34d7c6ecb0e184ba" },
+  { filename: "tests/employee-vault-ess-policy-link-isolation.test.ts", status: "added", sha: "b57977a1eb5452a48d54241d348d93ff6a9eca87" },
+  { filename: "tests/employee-vault-flag-rollback.test.ts", status: "added", sha: "e08e88196c7e2e3f83582077a7b23aba3491d9b2" },
+  { filename: "tests/employee-vault-object-reconciliation.test.ts", status: "added", sha: "1cc825fa34bc580317358f32e3e547d88ead58f7" },
+  { filename: "tests/fixtures/minio/Dockerfile", status: "added", sha: "0a40a53628c27562627ef579e021cea995581100" },
+];
+const vault902Pr = (files, extras = {}) => pr(files, {
+  number: 902, head: { sha: pinnedVault902Head }, draft: false, ...extras,
+});
+const vault902SoloEnv = {
+  ...env, PR_NUMBER: "902", PR_HEAD_SHA: pinnedVault902Head,
+  INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
+  PAYROLL_INDEPENDENT_REVIEWERS: "",
+  PILOT_HCM_WFM_STARTED: "false", PILOT_START_EVIDENCE_REF: "",
+};
+const mockVault902 = (files, extra = {}) => fakeGithub({
+  files, number: 902, headSha: pinnedVault902Head, reviews: [], ...extra,
+});
+
+test("owner-pinned #902 exact 34-file source crosses freeze but never grants independent approval or production release", async () => {
+  assert.equal(pinnedVault902Files.length, 34);
+  const matchingPr = vault902Pr(pinnedVault902Files);
+  assert.equal(isApprovedVault902Source(matchingPr, pinnedVault902Files), true);
+  const scope = classifyReviewScope(pinnedVault902Files);
+  assert.equal(scope.hcmWfmFrozen, true);
+  assert.equal(scope.frozenFileCount, 3, "only HCM documents route, panel, and helper cross the freeze");
+  assert.equal(scope.requiresIndependentHuman, true);
+
+  const solo = await checkIndependentReview(vault902SoloEnv, mockVault902(pinnedVault902Files).fetcher);
+  assert.equal(solo.ok, true);
+  assert.deepEqual(solo.blockers, []);
+  assert.equal(solo.mode, "solo-maintainer");
+  assert.equal(solo.approvalCount, 0, "no human approval was fabricated");
+  assert.equal(solo.releaseAuthorized, false);
+
+  const strictApproved = review(pinnedVault902Files, {
+    pr: matchingPr, expectedHeadSha: pinnedVault902Head,
+    reviews: [{ ...human(), commit_id: pinnedVault902Head }],
+  });
+  assert.equal(strictApproved.ok, true);
+  assert.equal(strictApproved.releaseAuthorized, false);
+  assert.equal(strictApproved.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"), false);
+
+  const strictUnapproved = review(pinnedVault902Files, {
+    pr: matchingPr, expectedHeadSha: pinnedVault902Head, reviews: [],
+  });
+  assert.equal(strictUnapproved.ok, false);
+  assert.ok(strictUnapproved.blockers.includes("CURRENT_HEAD_INDEPENDENT_APPROVAL_REQUIRED"),
+    "strict mode still requires an actual current-head independent approval");
+
+  const draftStrict = review(pinnedVault902Files, {
+    pr: vault902Pr(pinnedVault902Files, { draft: true }),
+    expectedHeadSha: pinnedVault902Head,
+    reviews: [{ ...human(), commit_id: pinnedVault902Head }],
+  });
+  assert.ok(draftStrict.blockers.includes("SENSITIVE_PR_STILL_DRAFT"),
+    "source exception must not let a sensitive draft pass strict policy");
+});
+
+test("A5 freeze exception refuses any omitted, copied, moved, duplicate, extra or mutated GitHub diff entry", async () => {
+  const files = pinnedVault902Files;
+  const altered = [
+    files.slice(1),
+    [...files, files[0]],
+    [...files, { filename: "docs/extra-vault-scope.md", status: "added", sha }],
+    [...files, { filename: "src/app/api/workforce/coverage/route.ts", status: "modified", sha }],
+    files.map((f, i) => i ? f : { ...f, sha: prior }),
+    files.map((f, i) => i ? f : { ...f, sha: undefined }),
+    files.map((f, i) => i !== 11 ? f : { ...f, sha: prior }),
+    files.map((f, i) => i !== 14 ? f : { ...f, sha: prior }),
+    files.map((f, i) => i !== 22 ? f : { ...f, sha: prior }),
+    files.map((f, i) => i ? f : { ...f, status: "modified" }),
+    files.map((f, i) => i !== 11 ? f : { ...f, status: "added" }),
+    files.map((f, i) => i ? f : { ...f, status: "renamed", previous_filename: "src/components/hcm-documents-panel.old.tsx" }),
+    files.map((f, i) => i ? f : { ...f, status: "copied", previous_filename: "docs/old.md" }),
+    files.map((f, i) => i ? f : { ...f, previous_filename: "src/app/api/hcm/documents/route.ts" }),
+  ];
+  for (const fileSet of altered) {
+    assert.equal(isApprovedVault902Source(vault902Pr(fileSet), fileSet), false);
+    const strict = review(fileSet, {
+      pr: vault902Pr(fileSet), expectedHeadSha: pinnedVault902Head,
+      reviews: [{ ...human(), commit_id: pinnedVault902Head }],
+    });
+    assert.ok(strict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"),
+      "strict freeze must reject any expanded or changed source diff");
+    const solo = await checkIndependentReview(vault902SoloEnv, mockVault902(fileSet).fetcher);
+    assert.deepEqual(solo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"],
+      "solo mode must not turn a changed diff into an approved source exception");
+    assert.equal(solo.releaseAuthorized, false);
+  }
+});
+
+test("#902 exception is unusable by any other PR, head, or unrelated HCM/WFM source", async () => {
+  const files = pinnedVault902Files;
+  const otherPr = { ...vault902SoloEnv, PR_NUMBER: "903" };
+  const wrongNumber = await checkIndependentReview(otherPr,
+    mockVault902(files, { number: 903 }).fetcher);
+  assert.deepEqual(wrongNumber.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+
+  const futureHead = "c".repeat(40);
+  const newHeadEnv = { ...vault902SoloEnv, PR_HEAD_SHA: futureHead };
+  const wrongHead = await checkIndependentReview(newHeadEnv,
+    mockVault902(files, { headSha: futureHead }).fetcher);
+  assert.deepEqual(wrongHead.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+  assert.equal(isApprovedVault902Source(vault902Pr(files, { head: { sha: futureHead } }), files), false);
+
+  const unrelatedFrozen = [{
+    filename: "src/app/api/hcm/people-operations-inbox/route.ts",
+    status: "modified", sha: pinnedVault902Files[11].sha,
+  }];
+  assert.equal((await checkIndependentReview(vault902SoloEnv,
+    mockVault902(unrelatedFrozen).fetcher)).ok, false,
+    "unrelated HCM change stays frozen even when #902 owns the PR number/head");
+  assert.ok(review(unrelatedFrozen).blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
 });
