@@ -451,6 +451,9 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
       status: "scheduled", effectiveDate: "2026-10-10",
       reason: "Synthetic frozen HCM queue entry", requestedBy: "Fixture QA",
     }).returning();
+    const baselineLedger = await db.select({ id: workerEmploymentEvents.id }).from(workerEmploymentEvents)
+      .where(and(eq(workerEmploymentEvents.organizationId, tenantA.id),
+        eq(workerEmploymentEvents.employeeId, worker1.id)));
     assert.deepEqual(await applyWorkerEffectiveChange(scheduled.id), {
       skipped: true, reason: "ENTITY_HCM_DEFERRED",
     });
@@ -468,7 +471,8 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     const ledger = await db.select({ id: workerEmploymentEvents.id }).from(workerEmploymentEvents)
       .where(and(eq(workerEmploymentEvents.organizationId, tenantA.id),
         eq(workerEmploymentEvents.employeeId, worker1.id)));
-    assert.equal(ledger.length, 0, "A held worker must not create an employment event");
+    assert.deepEqual(ledger.map(row => row.id), baselineLedger.map(row => row.id),
+      "A held worker must not create or alter employment events");
     // The same predicate is used by the real workspace loader. Group HR may
     // see both employers inside one tenant, NEVER the other tenant's rows.
     const inGroup = await db.select({ id: employees.id }).from(employees)
