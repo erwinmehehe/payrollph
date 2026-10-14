@@ -169,6 +169,19 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     await assert.rejects(settlePayrollRun(run.id), /duplicate expense reimbursement/);
     assert.equal((await db.select().from(expenseClaims).where(eq(expenseClaims.id, claims[0].id)))[0].status, "approved");
     await db.update(payrollEntries).set({ lineItems: originalLines }).where(eq(payrollEntries.id, taxed!.id));
+    const mutatedLine = (mutate: (line: Record<string, unknown>) => Record<string, unknown>) =>
+      originalLines.map(item => item && typeof item === "object" &&
+        (item as { code?: string }).code === taxableLine?.code
+        ? mutate(item as Record<string, unknown>) : item);
+    await db.update(payrollEntries).set({ lineItems: mutatedLine(line => ({
+      ...line, amount: "450.02",
+    })) }).where(eq(payrollEntries.id, taxed!.id));
+    await assert.rejects(settlePayrollRun(run.id), /amount_changed/);
+    await db.update(payrollEntries).set({ lineItems: mutatedLine(line => ({
+      ...line, notes: [...(line.notes as string[]), "Tax treatment: non-taxable"],
+    })) }).where(eq(payrollEntries.id, taxed!.id));
+    await assert.rejects(settlePayrollRun(run.id), /different taxable policy/);
+    await db.update(payrollEntries).set({ lineItems: originalLines }).where(eq(payrollEntries.id, taxed!.id));
     tamperedReceipt = 0;
     await assert.rejects(settlePayrollRun(run.id), /RECEIPT_RELEASE_VERIFICATION_FAILED.*RECEIPT_HASH_MISMATCH/);
     assert.equal((await db.select().from(expenseClaims).where(eq(expenseClaims.id, claims[0].id)))[0].status, "approved");

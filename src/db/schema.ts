@@ -1805,7 +1805,7 @@ export const expenseClaimEvidence = pgTable("expense_claim_evidence", {
   check("expense_evidence_amount_check", sql`${table.approvedAmount} is null or ${table.approvedAmount} > 0`),
   check("expense_evidence_receipt_size_check", sql`${table.receiptByteSize} is null or ${table.receiptByteSize} between 1 and 5242880`),
   uniqueIndex("expense_evidence_receipt_key_unique").on(table.receiptStorageKey).where(sql`${table.receiptStorageKey} is not null`),
-  uniqueIndex("expense_evidence_receipt_hash_unique").on(table.organizationId, table.receiptSha256)
+  uniqueIndex("expense_evidence_receipt_tenant_hash_unique").on(table.organizationId, table.receiptSha256)
     .where(sql`${table.receiptSha256} is not null`),
 ]);
 

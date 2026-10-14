@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS expense_claim_evidence (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS expense_evidence_receipt_key_unique ON expense_claim_evidence (receipt_storage_key)
   WHERE receipt_storage_key IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS expense_evidence_receipt_hash_unique
-  -- Require DBA duplicate-hash preflight across ALL workers of this tenant before applying.
+-- New name avoids silently accepting a previously narrower (organization,employee,hash)
+-- index with IF NOT EXISTS. DBA must reconcile duplicate receipts before this index.
+CREATE UNIQUE INDEX IF NOT EXISTS expense_evidence_receipt_tenant_hash_unique
   ON expense_claim_evidence (organization_id, receipt_sha256) WHERE receipt_sha256 IS NOT NULL;
 COMMIT;
