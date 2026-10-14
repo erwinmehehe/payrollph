@@ -1,15 +1,14 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  engagementSurveyParticipants, engagementSurveys, legalEntities,
+  engagementSurveyParticipants, legalEntities,
 } from "@/db/schema";
 import { assertMembership, getAccess, assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
-  closedSurveyDisclosure, closeEngagementSurvey,
-  listSurveysForTenant, submitAnonymousSurveyRating,
+  closedSurveyDisclosure, closeEngagementSurvey, createEngagementSurveyWithAudit,
+  isOpenSurveyConflict, listSurveysForTenant, submitAnonymousSurveyRating,
 } from "@/lib/engagement-survey";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
@@ -124,27 +123,29 @@ export async function POST(request: Request) {
       return Response.json({ error: "Question must be 10-240 characters." }, { status: 422 });
     }
     try {
-      const [survey] = await db.insert(engagementSurveys).values({
-        organizationId, question, createdByUserId: session.id,
-      }).returning({ id: engagementSurveys.id });
-      await recordAuditEvent({
-        organizationId, actor: session.name, action: "Engagement survey opened",
-        resource: "engagement_survey", metadata: { surveyId: survey.id, actorUserId: session.id },
+      const survey = await createEngagementSurveyWithAudit({
+        organizationId, question, createdByUserId: session.id, actor: session.name,
       });
       return Response.json({ id: survey.id, status: "open" }, { status: 201 });
-    } catch {
-      return Response.json({ error: "Only one open survey is allowed for this workspace." }, { status: 409 });
+    } catch (error) {
+      if (isOpenSurveyConflict(error)) {
+        return Response.json({ error: "Only one open survey is allowed for this workspace." }, { status: 409 });
+      }
+      return Response.json({ error: "Survey could not be safely created." }, { status: 503 });
     }
   }
   if (action === "close") {
     const surveyId = Number(body.surveyId);
     if (!Number.isSafeInteger(surveyId) || surveyId <= 0) return Response.json({ error: "Valid survey required." }, { status: 400 });
-    const closed = await closeEngagementSurvey(organizationId, surveyId);
+    let closed: boolean;
+    try {
+      closed = await closeEngagementSurvey(organizationId, surveyId, {
+        actor: session.name, actorUserId: session.id,
+      });
+    } catch {
+      return Response.json({ error: "Survey could not be safely closed." }, { status: 503 });
+    }
     if (!closed) return Response.json({ error: "Survey not found or already closed." }, { status: 409 });
-    await recordAuditEvent({
-      organizationId, actor: session.name, action: "Engagement survey closed",
-      resource: "engagement_survey", metadata: { surveyId, actorUserId: session.id },
-    });
     return Response.json({ id: surveyId, status: "closed" });
   }
   return Response.json({ error: "Unknown survey action." }, { status: 400 });
