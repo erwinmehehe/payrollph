@@ -1,5 +1,10 @@
-import { sql } from "drizzle-orm";
-import { documents } from "@/db/schema";
+import { and, eq, isNull, notLike, or, sql } from "drizzle-orm";
+import { db } from "@/db";
+import {
+  documents, hcmDocumentRequirements, hcmEmployeeDocumentCompliance,
+  hcmPolicyAssignments, hcmPolicyVersions,
+} from "@/db/schema";
+import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
 import {
   boolean, integer, jsonb, pgTable, serial, text, timestamp, varchar,
 } from "drizzle-orm/pg-core";
@@ -57,3 +62,70 @@ export const compatibleDocumentColumns = {
 /** Only legacy rows remain visible to non-HR People roles when A-5 is off. */
 export const legacyVisibleDocumentWhere =
   sql`(to_jsonb(${documents})->>'object_storage_key') IS NULL`;
+
+/**
+ * A-5 rollback boundary: legacy HCM actions may verify or waive only a
+ * legacy employee file when the private vault is OFF. Query the physical
+ * document row using the pre-A5-compatible JSON projection so old production
+ * schemas without object_storage_key still work. Private objects remain
+ * governed by the independent maker/checker path after a separate rollout.
+ *
+ * Return false on missing, foreign-employer, foreign-employee or object-backed
+ * evidence. Do not pass a guessed documentId from a request without checking
+ * employer and employee identity.
+ */
+export async function canMutateLegacyHcmDocument(input: {
+  organizationId: number;
+  employeeId: number;
+  documentId: number;
+}): Promise<boolean> {
+  if ([input.organizationId, input.employeeId, input.documentId].some(
+    value => !Number.isSafeInteger(value) || value <= 0,
+  )) return false;
+  const [row] = await db.select({ id: documents.id }).from(documents).where(and(
+    eq(documents.id, input.documentId),
+    eq(documents.organizationId, input.organizationId),
+    eq(documents.employeeId, input.employeeId),
+    legacyVisibleDocumentWhere,
+  )).limit(1);
+  return Boolean(row);
+}
+
+
+/**
+ * ESS document metadata must be linked to its *own* compliance employee
+ * and tenant. Historical compliance.document_id has only an ID foreign key:
+ * a malformed import can legally attach another employer's or employee's
+ * document. Never use the document ID alone to expose its filename, kind,
+ * upload time or scan state, even after the A-5 feature is switched OFF.
+ *
+ * All columns in this JOIN exist in pre-A5 schemas. A pending vault PUT
+ * is deliberately hidden until storage verification commits its approval.
+ */
+export const employeeDocumentMetadataJoin = and(
+  eq(documents.id, hcmEmployeeDocumentCompliance.documentId),
+  eq(documents.organizationId, hcmEmployeeDocumentCompliance.organizationId),
+  eq(documents.employeeId, hcmEmployeeDocumentCompliance.employeeId),
+  or(
+    isNull(documents.sourceKey),
+    notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"),
+  ),
+);
+
+
+/** Historical policy assignments have an ID-only policy FK. The ESS read and
+ * acknowledgement route must not follow a guessed/malformed policy ID into
+ * another organization's published policy content or acknowledgement ledger.
+ */
+export const employeePolicyVersionJoin = and(
+  eq(hcmPolicyAssignments.policyId, hcmPolicyVersions.id),
+  eq(hcmPolicyAssignments.organizationId, hcmPolicyVersions.organizationId),
+);
+
+/** Document-requirement assignments have the same legacy ID-only FK.
+ * Only the attached requirement from this same employer can be disclosed.
+ */
+export const employeeDocumentRequirementJoin = and(
+  eq(hcmEmployeeDocumentCompliance.requirementId, hcmDocumentRequirements.id),
+  eq(hcmEmployeeDocumentCompliance.organizationId, hcmDocumentRequirements.organizationId),
+);

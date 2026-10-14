@@ -1,9 +1,12 @@
+import { acknowledgeEmployeeVaultExpiryNotice } from "@/lib/employee-vault-expiry-acknowledgement";
 import { createHash } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, notLike, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   documents,
   employees,
+  hcmDocumentExpiryNotices,
   hcmDocumentRequirements,
   hcmEmployeeDocumentCompliance,
   hcmPolicyAssignments,
@@ -14,6 +17,11 @@ import {
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { canStaffOpenEmployeeVault, isMandatoryDocumentMissing } from "@/lib/employee-document-vault";
+import { verifyEmployeeVaultDocument } from "@/lib/employee-document-vault-verification";
+import { canMutateLegacyHcmDocument, legacyVisibleDocumentWhere } from "@/lib/document-schema-compat";
+import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   documentComplianceStatus,
@@ -66,6 +74,9 @@ export async function GET(request: Request) {
 
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "Workspace access required." }, { status: 403 });
+  if (criticalReleaseFlagEnabled("employeeDocumentVault") && !canStaffOpenEmployeeVault(access.role)) {
+    return Response.json({ error: "Private HR document controls are outside your role." }, { status: 403 });
+  }
 
   const [policies, assignments, requirements, compliance, staff, units, profiles, documentRows] = await Promise.all([
     db.select().from(hcmPolicyVersions)
@@ -110,15 +121,47 @@ export async function GET(request: Request) {
       sha256: documents.sha256,
       scannedClean: documents.scannedClean,
       createdAt: documents.createdAt,
-    }).from(documents).where(eq(documents.organizationId, organizationId)),
+    }).from(documents).where(and(
+      eq(documents.organizationId, organizationId),
+      // A provisional object intent is never a readable HR file.
+      or(isNull(documents.sourceKey), notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%")),
+      // After flag rollback, legacy People roles (including bookkeeper) must
+      // not enumerate private 201-file names, kinds, hashes or timestamps.
+      canStaffOpenEmployeeVault(access.role) ? undefined : legacyVisibleDocumentWhere,
+    )),
   ]);
+
+  const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
+  const expiryNoticeRows = vaultEnabled
+    ? await db.select({
+      id: hcmDocumentExpiryNotices.id,
+      complianceId: hcmDocumentExpiryNotices.complianceId,
+      documentId: hcmDocumentExpiryNotices.documentId,
+      employeeId: hcmDocumentExpiryNotices.employeeId,
+      expiresOn: hcmDocumentExpiryNotices.expiresOn,
+      milestoneDays: hcmDocumentExpiryNotices.milestoneDays,
+      createdAt: hcmDocumentExpiryNotices.createdAt,
+    }).from(hcmDocumentExpiryNotices).innerJoin(employees, and(
+      eq(employees.id, hcmDocumentExpiryNotices.employeeId),
+      eq(employees.organizationId, organizationId),
+    )).where(and(
+      eq(hcmDocumentExpiryNotices.organizationId, organizationId),
+      isNull(hcmDocumentExpiryNotices.acknowledgedAt),
+      access.companyWide ? undefined : eq(employees.orgUnitId, access.orgUnitId!),
+    )).orderBy(desc(hcmDocumentExpiryNotices.createdAt)).limit(500)
+    : [];
 
   const visibleStaff = access.companyWide
     ? staff
     : staff.filter((employee) => employee.orgUnitId === access.orgUnitId);
   const visibleEmployeeIds = new Set(visibleStaff.map((employee) => employee.id));
   const visibleAssignments = assignments.filter((row) => visibleEmployeeIds.has(row.employeeId));
-  const visibleCompliance = compliance.filter((row) => visibleEmployeeIds.has(row.employeeId));
+  const visibleDocumentIds = new Set(documentRows.map(row => row.id));
+  const visibleCompliance = compliance.filter((row) =>
+    visibleEmployeeIds.has(row.employeeId) &&
+    (canStaffOpenEmployeeVault(access.role) || row.documentId == null ||
+      visibleDocumentIds.has(row.documentId))
+  );
   const visibleDocuments = documentRows.filter((row) => row.employeeId != null && visibleEmployeeIds.has(row.employeeId));
 
   const employeeById = new Map(staff.map((employee) => [
@@ -143,6 +186,25 @@ export async function GET(request: Request) {
       && new Date(row.dueAt).getTime() < now,
   }));
 
+  const complianceById = new Map(visibleCompliance.map(row => [row.id, row]));
+  const expiryNotices = expiryNoticeRows.flatMap(notice => {
+    if (!visibleEmployeeIds.has(notice.employeeId)) return [];
+    const row = complianceById.get(notice.complianceId);
+    if (!row || row.documentId !== notice.documentId ||
+      String(row.expiresAt) !== String(notice.expiresOn) ||
+      ["waived", "submitted", "missing"].includes(row.status)) return [];
+    const requirement = requirementById.get(row.requirementId);
+    if (!requirement || requirement.organizationId !== organizationId) return [];
+    return [{
+      id: notice.id, complianceId: notice.complianceId, documentId: notice.documentId,
+      employeeId: notice.employeeId,
+      employeeName: employeeById.get(notice.employeeId)?.name ?? "Employee",
+      requirementName: requirement.name, kind: requirement.kind,
+      expiresOn: String(notice.expiresOn), milestoneDays: notice.milestoneDays,
+      createdAt: notice.createdAt,
+    }];
+  });
+
   const complianceRows = visibleCompliance.map((row) => ({
     ...row,
     employee: employeeById.get(row.employeeId) ?? null,
@@ -152,6 +214,8 @@ export async function GET(request: Request) {
 
   return Response.json({
     policies,
+    vaultEnabled,
+    expiryNotices,
     assignments: acknowledgementRows,
     requirements,
     compliance: complianceRows,
@@ -167,12 +231,17 @@ export async function GET(request: Request) {
       publishedPolicies: policies.filter((row) => row.status === "published").length,
       pendingAcknowledgements: acknowledgementRows.filter((row) => row.status === "assigned").length,
       overdueAcknowledgements: acknowledgementRows.filter((row) => row.overdue).length,
-      missingDocuments: complianceRows.filter((row) => row.status === "missing").length,
+      missingDocuments: complianceRows.filter((row) =>
+        vaultEnabled ? isMandatoryDocumentMissing({
+          mandatory: row.requirement?.mandatory === true, status: row.status,
+        }) : row.status === "missing"
+      ).length,
       submittedDocuments: complianceRows.filter((row) => row.status === "submitted").length,
       expiringDocuments: complianceRows.filter((row) => row.status === "expiring").length,
       expiredDocuments: complianceRows.filter((row) => row.status === "expired").length,
+      unacknowledgedExpiryNotices: expiryNotices.length,
     },
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -201,6 +270,10 @@ export async function POST(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "Workspace access required." }, { status: 403 });
+  const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
+  if (vaultEnabled && !canStaffOpenEmployeeVault(access.role)) {
+    return Response.json({ error: "Private HR document controls are outside your role." }, { status: 403 });
+  }
 
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,
@@ -210,6 +283,33 @@ export async function POST(request: Request) {
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+  if (action === "acknowledge-expiry-notice") {
+    if (!criticalReleaseFlagEnabled("employeeDocumentVault")) {
+      return Response.json({ error: "Document expiry inbox is disabled." }, { status: 404 });
+    }
+    const noticeId = Number(body.noticeId);
+    if (!Number.isSafeInteger(noticeId) || noticeId <= 0) {
+      return Response.json({ error: "Valid noticeId required." }, { status: 422 });
+    }
+    const state = await acknowledgeEmployeeVaultExpiryNotice({
+      organizationId,
+      noticeId,
+      actorUserId: user.id,
+      actorName: user.name,
+      canAccessOrgUnit: (orgUnitId) => assertScope(access, orgUnitId).ok,
+    });
+    if (state === "not_found") {
+      return Response.json({ error: "Expiry notice not found." }, { status: 404 });
+    }
+    if (state === "stale") {
+      return Response.json({ error: "This expiry notice is stale; refresh the inbox." }, { status: 409 });
+    }
+    if (state === "already_acknowledged") {
+      return Response.json({ error: "This notice was already acknowledged." }, { status: 409 });
+    }
+    return Response.json({ noticeId, acknowledged: true });
+  }
 
   if (action === "save-policy-draft") {
     if (!access.companyWide) {
@@ -475,6 +575,29 @@ export async function POST(request: Request) {
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
     if (!row.documentId) return Response.json({ error: "No submitted document is linked to this requirement." }, { status: 409 });
 
+    // A5 private objects remain protected if a deployment rolls the feature
+    // flag back OFF. Legacy verification must never bypass immutable uploader
+    // provenance, private storage validation, MFA or maker/checker approval.
+    if (!vaultEnabled && !await canMutateLegacyHcmDocument({
+      organizationId, employeeId: employee.id, documentId: row.documentId,
+    })) {
+      return Response.json({ error: "Document not available for legacy verification." }, { status: 404 });
+    }
+
+    if (vaultEnabled) {
+      const deniedMfa = requireSensitiveActionMfa(user);
+      if (deniedMfa) return deniedMfa;
+      const decision = await verifyEmployeeVaultDocument({
+        organizationId, employeeId: employee.id, complianceId: row.id,
+        expectedDocumentId: row.documentId,
+        checkerUserId: user.id, checkerName: user.name,
+      });
+      if (!decision.ok) return Response.json({ error: decision.message }, {
+        status: decision.code === "NOT_FOUND" ? 404 : 409,
+      });
+      return Response.json(decision.row, { headers: { "Cache-Control": "private, no-store" } });
+    }
+
     const [requirement] = await db.select().from(hcmDocumentRequirements).where(and(
       eq(hcmDocumentRequirements.id, row.requirementId),
       eq(hcmDocumentRequirements.organizationId, organizationId),
@@ -574,6 +697,14 @@ export async function POST(request: Request) {
     if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
     const scope = assertScope(access, employee.orgUnitId);
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+
+    // A legacy waiver must not dispose of the review status for an A5 object
+    // that was already stored before its rollout flag was switched OFF.
+    if (!vaultEnabled && row.documentId !== null && !await canMutateLegacyHcmDocument({
+      organizationId, employeeId: employee.id, documentId: row.documentId,
+    })) {
+      return Response.json({ error: "Document not available for legacy waiver." }, { status: 404 });
+    }
 
     const [updated] = await db.update(hcmEmployeeDocumentCompliance).set({
       status: "waived",

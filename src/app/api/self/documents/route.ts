@@ -14,6 +14,11 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { isMandatoryDocumentMissing } from "@/lib/employee-document-vault";
+import {
+  employeeDocumentMetadataJoin, employeeDocumentRequirementJoin, employeePolicyVersionJoin,
+} from "@/lib/document-schema-compat";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +72,7 @@ export async function GET() {
       approvedByName: hcmPolicyVersions.approvedByName,
       approvedAt: hcmPolicyVersions.approvedAt,
     }).from(hcmPolicyAssignments)
-      .innerJoin(hcmPolicyVersions, eq(hcmPolicyAssignments.policyId, hcmPolicyVersions.id))
+      .innerJoin(hcmPolicyVersions, employeePolicyVersionJoin)
       .where(and(
         eq(hcmPolicyAssignments.organizationId, employee.organizationId),
         eq(hcmPolicyAssignments.employeeId, employee.id),
@@ -93,8 +98,8 @@ export async function GET() {
       scannedClean: documents.scannedClean,
       uploadedAt: documents.createdAt,
     }).from(hcmEmployeeDocumentCompliance)
-      .innerJoin(hcmDocumentRequirements, eq(hcmEmployeeDocumentCompliance.requirementId, hcmDocumentRequirements.id))
-      .leftJoin(documents, eq(hcmEmployeeDocumentCompliance.documentId, documents.id))
+      .innerJoin(hcmDocumentRequirements, employeeDocumentRequirementJoin)
+      .leftJoin(documents, employeeDocumentMetadataJoin)
       .where(and(
         eq(hcmEmployeeDocumentCompliance.organizationId, employee.organizationId),
         eq(hcmEmployeeDocumentCompliance.employeeId, employee.id),
@@ -118,6 +123,7 @@ export async function GET() {
         && new Date(row.dueAt).getTime() < now,
     })),
     documentRequirements: compliance,
+    vaultEnabled: criticalReleaseFlagEnabled("employeeDocumentVault"),
     summary: {
       acknowledgementRequired: assignments.filter((row) => row.status === "assigned").length,
       overdueAcknowledgements: assignments.filter(
@@ -125,7 +131,10 @@ export async function GET() {
           && row.dueAt != null
           && new Date(row.dueAt).getTime() < now,
       ).length,
-      missingDocuments: compliance.filter((row) => row.status === "missing").length,
+      missingDocuments: compliance.filter((row) =>
+        criticalReleaseFlagEnabled("employeeDocumentVault")
+          ? isMandatoryDocumentMissing(row) : row.status === "missing"
+      ).length,
       submittedDocuments: compliance.filter((row) => row.status === "submitted").length,
       expiringDocuments: compliance.filter((row) => row.status === "expiring").length,
       expiredDocuments: compliance.filter((row) => row.status === "expired").length,
@@ -160,7 +169,7 @@ export async function POST(request: Request) {
     assignment: hcmPolicyAssignments,
     policy: hcmPolicyVersions,
   }).from(hcmPolicyAssignments)
-    .innerJoin(hcmPolicyVersions, eq(hcmPolicyAssignments.policyId, hcmPolicyVersions.id))
+    .innerJoin(hcmPolicyVersions, employeePolicyVersionJoin)
     .where(and(
       eq(hcmPolicyAssignments.id, assignmentId),
       eq(hcmPolicyAssignments.organizationId, employee.organizationId),

@@ -4,6 +4,7 @@ import { purgeExpiredRejectedApplicants } from "@/lib/recruitment-applicant-rete
 import { leadRetentionCutoff } from "./lead-retention-policy";
 import { sweepPendingCoeObjects } from "@/lib/hr-case-coe-object-reconciliation";
 import { sweepPendingSpendReceipts } from "@/lib/spend-receipt-object-reconciliation";
+import { sweepPendingVaultUploads } from "@/lib/employee-vault-object-reconciliation";
 import {
   emailChangeTokens,
   marketingLeads,
@@ -159,10 +160,13 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
   const pendingCoeObjectRecovery = await sweepPendingCoeObjects(new Date(now));
   // Recover uncommitted Spend receipts, even when the A4 flag was rolled back.
   const pendingSpendReceiptRecovery = await sweepPendingSpendReceipts(new Date(now));
+  // Private A5 upload intents must also be swept when its flag is rolled back.
+  const pendingVaultObjectRecovery = await sweepPendingVaultUploads(new Date(now));
   return {
     ...(applicantPrivacy.enabled ? { applicantPrivacyPurged: applicantPrivacy.purged } : {}),
     pendingCoeObjectRecovery,
     pendingSpendReceiptRecovery,
+    pendingVaultObjectRecovery,
     sessions: deletedSessions.length,
     passwordResetTokens: deletedPasswordTokens.length,
     emailChangeTokens: deletedEmailTokens.length,

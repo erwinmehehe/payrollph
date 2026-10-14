@@ -2,13 +2,16 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  documents,
   employees,
   legalEntities,
   organizations,
   orgUnits,
 } from "@/db/schema";
-import { legacyDocumentInsertTable as documents } from "@/lib/document-schema-compat";
 import { recordAuditEvent } from "@/lib/audit";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { documentObjectKey, putDocumentObject, deleteDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
+import { compatibleDocumentColumns, legacyDocumentInsertTable } from "@/lib/document-schema-compat";
 import {
   getAutomationDocumentTemplate,
   type AutomationDocumentSnapshot,
@@ -49,6 +52,13 @@ export async function generateAutomationEmployeeDocument(input: {
   sourceKey: string;
   context?: Record<string, unknown>;
   actor?: string;
+  // Server-only injected adapter for disposable PostgreSQL + fake S3 tests.
+  // Never populated from an HTTP request.
+  objectStore?: {
+    put: (key: string, bytes: Uint8Array, mime: string) => Promise<void>;
+    verify: (key: string, expectedSha256: string, expectedByteSize: number) => Promise<void>;
+    delete: (key: string) => Promise<void>;
+  };
 }) {
   const template = getAutomationDocumentTemplate(input.templateId);
   if (!template) {
@@ -63,7 +73,7 @@ export async function generateAutomationEmployeeDocument(input: {
   const sourceKey = input.sourceKey.trim().slice(0, 160);
   if (!sourceKey) throw new AutomationDocumentGenerationError("A stable document generation source key is required.");
 
-  const [existing] = await db.select().from(documents).where(and(
+  const [existing] = await db.select(compatibleDocumentColumns).from(documents).where(and(
     eq(documents.organizationId, input.organizationId),
     eq(documents.sourceKey, sourceKey),
   )).limit(1);
@@ -162,7 +172,32 @@ export async function generateAutomationEmployeeDocument(input: {
     generatedAt: snapshot.generatedAt,
   };
 
-  const [created] = await db.insert(documents).values({
+  const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
+  const storageKey = vaultEnabled ? documentObjectKey(input.organizationId, employee.id) : null;
+  if (storageKey) {
+    try {
+      await (input.objectStore?.put ?? putDocumentObject)(
+        storageKey, bytes, "text/plain; charset=utf-8",
+      );
+      // An acknowledged PUT does not establish byte retention. A generated
+      // employee file must also round-trip its original SHA and length before
+      // the source-key/idempotency row can be committed.
+      await (input.objectStore?.verify ?? verifyStoredDocumentObject)(
+        storageKey, sha256, bytes.byteLength,
+      );
+    } catch {
+      // Readback failures are handled like storage failures. Remove the
+      // potentially corrupt/orphaned object; never create a document row.
+      await (input.objectStore?.delete ?? deleteDocumentObject)(storageKey).catch(() => {});
+      throw new AutomationDocumentGenerationError("Private generated-document storage is unavailable.");
+    }
+  }
+  // Retain sourceKey idempotency under concurrent generation. Any orphan
+  // object written before a rejected SQL insert is cleaned up best-effort.
+  let createdId: number | null = null;
+  try {
+    const docValues = {
+
     organizationId: input.organizationId,
     employeeId: employee.id,
     kind: template.kind,
@@ -176,10 +211,25 @@ export async function generateAutomationEmployeeDocument(input: {
     sourceKey,
     generationMetadata: metadata,
     uploadedBy: input.actor ?? "Automation Studio",
-    content: bytes.toString("base64"),
-  }).onConflictDoNothing().returning();
+    content: vaultEnabled ? "" : bytes.toString("base64"),
+    };
+    const [created] = storageKey
+      ? await db.insert(documents).values({ ...docValues, objectStorageKey: storageKey })
+          .onConflictDoNothing().returning({ id: documents.id })
+      : await db.insert(legacyDocumentInsertTable).values(docValues)
+          .onConflictDoNothing().returning({ id: legacyDocumentInsertTable.id });
+    createdId = created?.id ?? null;
+  } catch (error) {
+    if (storageKey) {
+      await (input.objectStore?.delete ?? deleteDocumentObject)(storageKey).catch(() => {});
+    }
+    throw error;
+  }
+  if (storageKey && createdId === null) {
+    await (input.objectStore?.delete ?? deleteDocumentObject)(storageKey).catch(() => {});
+  }
 
-  const document = created ?? (await db.select().from(documents).where(and(
+  const document = (await db.select(compatibleDocumentColumns).from(documents).where(and(
     eq(documents.organizationId, input.organizationId),
     eq(documents.sourceKey, sourceKey),
   )).limit(1))[0];
@@ -198,7 +248,7 @@ export async function generateAutomationEmployeeDocument(input: {
   }
 
   let auditWarning: string | null = null;
-  if (created) {
+  if (createdId !== null) {
     try {
       await recordAuditEvent({
         organizationId: input.organizationId,
@@ -220,5 +270,5 @@ export async function generateAutomationEmployeeDocument(input: {
     }
   }
 
-  return { document, idempotent: !created, auditWarning };
+  return { document, idempotent: createdId === null, auditWarning };
 }
