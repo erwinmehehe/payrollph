@@ -3,6 +3,7 @@
 import Navbar from "./components/Navbar";
 import { ProductHomeHero } from "../product-home-hero";
 import { ProductHomeStories } from "../product-home-stories";
+import { ExperienceJourney } from "../experience-journey";
 import Pricing from "./components/Pricing";
 import { CTA, FAQ, Footer } from "./components/Closing";
 
@@ -22,6 +23,7 @@ export default function ClaudeHomepage({ plans }: { plans: PublicPlan[] }) {
       <Navbar />
       <main id="main">
         <ProductHomeHero />
+        <ExperienceJourney />
         <ProductHomeStories />
         <Pricing plans={plans} />
         <FAQ />
