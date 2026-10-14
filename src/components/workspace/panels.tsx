@@ -10,7 +10,7 @@
  * success confirmation it did not earn.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   BookOpen,
@@ -52,6 +52,7 @@ import { PayrollMonthClosePanel } from "@/components/workspace/payroll-month-clo
 import { DoleThirteenthMonthReportPanel } from "@/components/workspace/dole-thirteenth-month-report-panel";
 import { CompliancePolicyReviewPanel } from "@/components/workspace/compliance-policy-review-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
+import { manilaCalendarDate } from "@/lib/payroll-period-ui";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money, moneyExact } from "./ui";
 export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData; setNotice: (message: string) => void; onRefresh: () => Promise<void> }) {
@@ -68,14 +69,16 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
   const [policyOpen, setPolicyOpen] = useState(false);
   const [employeeId, setEmployeeId] = useState(data.employees[0]?.id ?? 0);
   const [leaveType, setLeaveType] = useState("Annual leave");
-  const [startDate, setStartDate] = useState("2026-03-24");
-  const [endDate, setEndDate] = useState("2026-03-24");
+  // Fill Manila-local dates when the form opens, not from a frozen build-time date.
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [days, setDays] = useState(1);
   const [timingMode, setTimingMode] = useState<"full_day" | "first_half" | "second_half" | "timed">("full_day");
   const [startLocalTime, setStartLocalTime] = useState("09:00");
   const [endLocalTime, setEndLocalTime] = useState("13:00");
   const [timedEndsNextDay, setTimedEndsNextDay] = useState(false);
   const [timingPreview, setTimingPreview] = useState<{
+    signature: string;
     blocking: boolean;
     previews: Array<{
       workDate: string;
@@ -87,6 +90,44 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
     }>;
   } | null>(null);
   const [previewingTiming, setPreviewingTiming] = useState(false);
+  const previewGeneration = useRef(0);
+
+  // A preview belongs to one precise employee, employer, date and time input.
+  // A delayed response cannot authorize submission for changed form values.
+  const previewSignature = JSON.stringify([
+    data.selectedOrganization.id, employeeId, leaveType, startDate, endDate,
+    days, timingMode, startLocalTime, endLocalTime, timedEndsNextDay,
+  ]);
+  const currentTimingPreview =
+    timingPreview?.signature === previewSignature ? timingPreview : null;
+
+  function clearTimingPreview() {
+    previewGeneration.current += 1;
+    setTimingPreview(null);
+    setPreviewingTiming(false);
+  }
+
+  function toggleLeaveRequest() {
+    if (open) {
+      clearTimingPreview();
+      setOpen(false);
+      return;
+    }
+    const today = manilaCalendarDate();
+    setEmployeeId(data.employees[0]?.id ?? 0);
+    if (!configuredPolicies.some((policy) => policy.leaveType === leaveType)) {
+      setLeaveType(configuredPolicies[0]?.leaveType ?? "Annual leave");
+    }
+    setStartDate(today);
+    setEndDate(today);
+    setDays(1);
+    setTimingMode("full_day");
+    setStartLocalTime("09:00");
+    setEndLocalTime("13:00");
+    setTimedEndsNextDay(false);
+    clearTimingPreview();
+    setOpen(true);
+  }
 
   const [policyLeaveType, setPolicyLeaveType] = useState("Annual leave");
   const [annualDays, setAnnualDays] = useState(15);
@@ -118,13 +159,18 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
   async function previewScheduleImpact() {
     const intervals = preciseIntervals();
     if (!intervals) {
+      clearTimingPreview();
       setNotice("Half-day and custom-hour leave must be previewed one work date at a time.");
       return;
     }
     if (timingMode === "full_day") {
-      setTimingPreview(null);
+      clearTimingPreview();
       return;
     }
+
+    const generation = ++previewGeneration.current;
+    const signature = previewSignature;
+    setTimingPreview(null);
     setPreviewingTiming(true);
     try {
       const response = await fetch("/api/leave/preview", {
@@ -136,18 +182,26 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
           intervals,
         }),
       });
-      const payload = await response.json();
+      const payload = await response.json().catch(() => ({}));
+      if (generation !== previewGeneration.current) return;
       if (!response.ok) {
-        setTimingPreview(null);
         setNotice(payload.error ?? "Could not preview leave timing.");
         return;
       }
-      setTimingPreview(payload);
+      if (typeof payload.blocking !== "boolean" || !Array.isArray(payload.previews)) {
+        setNotice("Leave preview did not return complete timing evidence. Retry before submitting.");
+        return;
+      }
+      setTimingPreview({ ...payload, signature });
       if (payload.blocking) {
         setNotice("Resolve the schedule/timing issue before submitting this partial leave.");
       }
+    } catch {
+      if (generation === previewGeneration.current) {
+        setNotice("Could not reach the leave preview service. Retry before submitting.");
+      }
     } finally {
-      setPreviewingTiming(false);
+      if (generation === previewGeneration.current) setPreviewingTiming(false);
     }
   }
 
@@ -161,7 +215,7 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
       setNotice("Partial leave timing currently requires a single work date.");
       return;
     }
-    if (timingMode !== "full_day" && (!timingPreview || timingPreview.blocking)) {
+    if (timingMode !== "full_day" && (!currentTimingPreview || currentTimingPreview.blocking)) {
       setNotice("Preview schedule impact before submitting partial leave.");
       return;
     }
@@ -182,6 +236,7 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
     const payload = await response.json();
     if (!response.ok) { setNotice(payload.error ?? "Could not submit leave."); return; }
     setOpen(false);
+    clearTimingPreview();
     await onRefresh();
     setNotice("Leave request submitted and queued for approval.");
   }
@@ -224,7 +279,7 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
         eyebrow="LEAVE MANAGEMENT"
         title="Leave"
         copy="Every leave type has an explicit pay treatment. Approved leave flows into the payroll cutoff instead of silently disappearing from pay."
-        actions={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} className="i-green" /> New leave request</button>}
+        actions={<button className="primary-button" onClick={toggleLeaveRequest}><Plus size={17} className="i-green" /> New leave request</button>}
       />
       <section className="stats-grid">
         <Metric label="PENDING" value={String(pending.length)} hint="Needs manager review" icon={<CalendarDays size={19} className="i-cyan" />} tone="amber" />
@@ -292,26 +347,27 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
         <article className="card" style={{ marginBottom: 16 }}>
           <div className="card-header"><div><div className="card-kicker">NEW LEAVE</div><h2>Submit leave application</h2></div></div>
           <div className="setting-form">
-            <label>Employee<select value={employeeId} onChange={(event) => setEmployeeId(Number(event.target.value))}>{data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
+            <label>Employee<select value={employeeId} onChange={(event) => { setEmployeeId(Number(event.target.value)); clearTimingPreview(); }}>{data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
             <label>Leave Type
-              <select value={leaveType} onChange={(event) => setLeaveType(event.target.value)} disabled={configuredPolicies.length === 0}>
+              <select value={leaveType} onChange={(event) => { setLeaveType(event.target.value); clearTimingPreview(); }} disabled={configuredPolicies.length === 0}>
                 {configuredPolicies.length === 0
                   ? <option>No configured leave policy</option>
                   : configuredPolicies.map((policy) => <option key={policy.id} value={policy.leaveType}>{policy.leaveType}</option>)}
               </select>
             </label>
-            <label>Start date<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
-            <label>End date<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
-            <label>Days<input type="number" min={0.5} step={0.5} value={days} onChange={(event) => setDays(Number(event.target.value))} /></label>
+            <label>Start date<input type="date" value={startDate} onChange={(event) => { setStartDate(event.target.value); clearTimingPreview(); }} /></label>
+            <label>End date<input type="date" value={endDate} onChange={(event) => { setEndDate(event.target.value); clearTimingPreview(); }} /></label>
+            <label>Days<input type="number" min={0.5} step={0.5} value={days} onChange={(event) => { setDays(Number(event.target.value)); clearTimingPreview(); }} /></label>
             <label>Timing
               <select
                 value={timingMode}
                 onChange={(event) => {
                   const mode = event.target.value as "full_day" | "first_half" | "second_half" | "timed";
                   setTimingMode(mode);
-                  setTimingPreview(null);
+                  clearTimingPreview();
                   if (mode !== "timed") setTimedEndsNextDay(false);
                   if (mode === "first_half" || mode === "second_half") setDays(0.5);
+                  if (mode === "full_day" && days === 0.5) setDays(1);
                 }}
               >
                 <option value="full_day">Full day</option>
@@ -322,8 +378,8 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
             </label>
             {timingMode === "timed" && (
               <>
-                <label>Start time<input type="time" value={startLocalTime} onChange={(event) => { setStartLocalTime(event.target.value); setTimingPreview(null); }} /></label>
-                <label>End time<input type="time" value={endLocalTime} onChange={(event) => { setEndLocalTime(event.target.value); setTimingPreview(null); }} /></label>
+                <label>Start time<input type="time" value={startLocalTime} onChange={(event) => { setStartLocalTime(event.target.value); clearTimingPreview(); }} /></label>
+                <label>End time<input type="time" value={endLocalTime} onChange={(event) => { setEndLocalTime(event.target.value); clearTimingPreview(); }} /></label>
                 <label>
                   <span>Ends next day</span>
                   <input
@@ -331,7 +387,7 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
                     checked={timedEndsNextDay}
                     onChange={(event) => {
                       setTimedEndsNextDay(event.target.checked);
-                      setTimingPreview(null);
+                      clearTimingPreview();
                     }}
                   />
                 </label>
@@ -342,7 +398,7 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
                 <button className="secondary-button" type="button" disabled={previewingTiming} onClick={() => void previewScheduleImpact()}>
                   {previewingTiming ? "Previewing…" : "Preview schedule impact"}
                 </button>
-                {timingPreview?.previews.map((preview) => (
+                {currentTimingPreview?.previews.map((preview) => (
                   <div className="modal-note" key={preview.workDate} style={{ marginTop: 8 }}>
                     {preview.workDate} · {preview.timezone} · {preview.unavailablePaidMinutes == null
                       ? `${preview.unavailableWallMinutes} wall-clock min unavailable; paid-minute impact needs review`
@@ -355,11 +411,11 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
             )}
           </div>
           <div className="run-actions">
-            <button className="secondary-button" onClick={() => setOpen(false)}>Cancel</button>
+            <button className="secondary-button" onClick={() => { clearTimingPreview(); setOpen(false); }}>Cancel</button>
             <button
               className="primary-button"
               onClick={submit}
-              disabled={configuredPolicies.length === 0 || (timingMode !== "full_day" && (!timingPreview || timingPreview.blocking))}
+              disabled={configuredPolicies.length === 0 || (timingMode !== "full_day" && (!currentTimingPreview || currentTimingPreview.blocking))}
             >
               Submit request
             </button>
