@@ -83,8 +83,8 @@ export function assertCOETenantReference(constraints) {
     x.name === "employee_hr_cases_coe_document_tenant_fk");
   const uniqueDef=String(uniqueKey?.definition ?? "").replace(/"/g,"").replace(/\s+/g," ").trim();
   const fkDef=String(fk?.definition ?? "").replace(/"/g,"").replace(/\s+/g," ").trim();
-  if (!/^UNIQUE \(id, organization_id, employee_id\)$/i.test(uniqueDef) ||
-      !/^FOREIGN KEY \(coe_document_id, organization_id, employee_id\) REFERENCES (?:public\.)?documents\(id, organization_id, employee_id\)/i.test(fkDef)) {
+  if (!/^UNIQUE \(organization_id, employee_id, id\)$/i.test(uniqueDef) ||
+      !/^FOREIGN KEY \(organization_id, employee_id, coe_document_id\) REFERENCES (?:public\.)?documents\(organization_id, employee_id, id\)/i.test(fkDef)) {
     reject("COE_TENANT_FK_MISMATCH");
   }
   return true;
