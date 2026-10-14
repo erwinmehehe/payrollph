@@ -28,8 +28,13 @@ const evidence = {
   refs, mergedA4InMain: false, vaultIncludesMain: false,
   a4SchemaPreserved: false, a4RetentionPreserved: false,
   applicantHrPredecessorsPresent: false,
-  featureFlagsChanged: false, databaseOperations: false,
-  scannedFiles: ["src/db/schema.ts", "src/lib/data-retention.ts"],
+  // Null means the current source pair was not inspected. Never record
+  // false ("unchanged") merely because earlier ancestry preflight failed.
+  featureFlagsChanged: null, hcmProxyChanged: null, databaseOperations: false,
+  scannedFiles: [
+    "src/db/schema.ts", "src/lib/data-retention.ts",
+    "src/lib/critical-release-flags.ts", "src/proxy.ts",
+  ],
   sourceReconciled: false, combinedAcceptance: "NOT_RUN",
   blockers,
 };
@@ -101,6 +106,20 @@ if (!blockers.length) {
     if (!evidence.a4RetentionPreserved) {
       blockers.push("A5 retention loses A4 receipt/COE recovery or changes unrelated main logic");
     }
+
+    // Do not claim feature flags or proxy HCM guards are unchanged unless
+    // their full committed bytes have actually been compared. These are
+    // intentional default-OFF and fail-closed invariants for development QA.
+    evidence.featureFlagsChanged = source(main, "src/lib/critical-release-flags.ts") !==
+      source(vault, "src/lib/critical-release-flags.ts");
+    evidence.hcmProxyChanged = source(main, "src/proxy.ts") !==
+      source(vault, "src/proxy.ts");
+    if (evidence.featureFlagsChanged) {
+      blockers.push("A5 changes current-main critical feature flag definitions");
+    }
+    if (evidence.hcmProxyChanged) {
+      blockers.push("A5 changes current-main HCM HTTP proxy guards");
+    }
   } catch (error) {
     blockers.push("Could not inspect exact Git source snapshots: " +
       (error instanceof Error ? error.name : "unknown"));
@@ -109,7 +128,8 @@ if (!blockers.length) {
 evidence.sourceReconciled = !blockers.length &&
   evidence.mergedA4InMain && evidence.vaultIncludesMain &&
   evidence.applicantHrPredecessorsPresent &&
-  evidence.a4SchemaPreserved && evidence.a4RetentionPreserved;
+  evidence.a4SchemaPreserved && evidence.a4RetentionPreserved &&
+  evidence.featureFlagsChanged === false && evidence.hcmProxyChanged === false;
 evidence.status = evidence.sourceReconciled ? "SOURCE_RECONCILED_ONLY" : "BLOCKED";
 mkdirSync("qa-artifacts", { recursive: true });
 writeFileSync("qa-artifacts/a4-a5-source-inventory.json",
