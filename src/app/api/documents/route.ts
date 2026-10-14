@@ -15,7 +15,9 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { documentObjectKey, putDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
 import { canStaffOpenEmployeeVault, validExpiryCalendarDate } from "@/lib/employee-document-vault";
 import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
-import { legacyDocumentInsertTable, legacyVisibleDocumentWhere } from "@/lib/document-schema-compat";
+import {
+  canMutateLegacyHcmDocument, legacyDocumentInsertTable, legacyVisibleDocumentWhere,
+} from "@/lib/document-schema-compat";
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
@@ -230,6 +232,16 @@ export async function POST(request: Request) {
     }
     if (complianceRow.status === "waived") {
       return Response.json({ error: "This document requirement was waived and is no longer open for upload." }, { status: 409 });
+    }
+    // If a private, independently governed A-5 file was previously attached,
+    // turning the feature OFF must not let the legacy upload path replace its
+    // compliance state or silently downgrade it to unverified inline base64.
+    // The helper reads old/new DB schemas without referring to absent columns.
+    if (!vaultEnabled && complianceRow.documentId !== null &&
+      !await canMutateLegacyHcmDocument({
+        organizationId, employeeId, documentId: complianceRow.documentId,
+      })) {
+      return Response.json({ error: "Private document replacement is unavailable while the vault is disabled." }, { status: 409 });
     }
     if (requirement.expiryRequired && !expiresAt) {
       return Response.json({ error: "This required document needs an expiry date." }, { status: 400 });
