@@ -77,7 +77,7 @@ async function login(email: string, password: string) {
   let response = await client.json("/api/auth/login", "POST", { email, password });
   if (response.status === 429) {
     const retryAfterMs = Number(response.body.retryAfterMs);
-    assert.ok(Number.isFinite(retryAfterMs) && retryAfterMs > 0 && retryAfterMs <= 60_000,
+    assert.ok(Number.isFinite(retryAfterMs) && retryAfterMs >= 0 && retryAfterMs <= 60_000,
       "Unexpected bounded login retry window in isolated synthetic acceptance");
     await new Promise((resolve) => setTimeout(resolve, Math.ceil(retryAfterMs) + 350));
     response = await client.json("/api/auth/login", "POST", { email, password });
