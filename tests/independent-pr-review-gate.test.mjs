@@ -383,6 +383,105 @@ test("WFM-691 offline witness packet permits only exact immutable #969 blobs, wi
   }
 });
 
+test("exact PR #886 survey-audit blobs permit source-only exception, not pilot or release", async () => {
+  const pinned = [
+  {
+    "filename": ".github/workflows/hcm-gaps-focused.yml",
+    "status": "modified",
+    "sha": "3976e0ec07afd13328d47902aa929ee95a97831b"
+  },
+  {
+    "filename": "docs/engineering/pr-886-mainline-reconciliation-2026-10-14.md",
+    "status": "added",
+    "sha": "ba75a0f2324a22e4db1eda6ea1524221b331cec2"
+  },
+  {
+    "filename": "src/app/api/hcm/engagement-surveys/route.ts",
+    "status": "modified",
+    "sha": "8355956668eb8bdc0f767f9f72bd01992e964349"
+  },
+  {
+    "filename": "src/lib/engagement-survey.ts",
+    "status": "modified",
+    "sha": "3cd87143f9a1be6d136a552ee4a3c4c4a0348057"
+  },
+  {
+    "filename": "tests/engagement-survey-atomic-audit-db.test.ts",
+    "status": "added",
+    "sha": "2b43a9860e132ca2f7308de852ce1e172a8f18a8"
+  }
+];
+  const exact = "573dee55628e5898b174656020bb752a98a65d30";
+  const scope = classifyReviewScope(pinned);
+  assert.equal(scope.hcmWfmFrozen, true);
+  assert.equal(scope.hcm886SurveyAuditFix, true);
+  assert.equal(scope.requiresIndependentHuman, true);
+
+  const strict = review(pinned, {pr: pr(pinned,{number:886,head:{sha:exact}}),
+    expectedHeadSha:exact, reviews:[{...human(),commit_id:exact}]});
+  assert.equal(strict.ok,true);
+  assert.equal(strict.releaseAuthorized,false);
+  assert.equal(strict.approvalCount,1);
+
+  const missingReview = review(pinned, {pr:pr(pinned,{number:886,head:{sha:exact}}),
+    expectedHeadSha:exact,reviews:[]});
+  assert.ok(missingReview.blockers.includes("CURRENT_HEAD_INDEPENDENT_APPROVAL_REQUIRED"));
+  assert.ok(!missingReview.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+  const draft = review(pinned, {pr:pr(pinned,{number:886,head:{sha:exact},draft:true}),
+    expectedHeadSha:exact,reviews:[{...human(),commit_id:exact}]});
+  assert.ok(draft.blockers.includes("SENSITIVE_PR_STILL_DRAFT"));
+
+  const solo = {...env, PR_NUMBER:"886", PR_HEAD_SHA:exact,
+    INDEPENDENT_SOURCE_REVIEW_REQUIRED:"false",
+    PAYROLL_INDEPENDENT_REVIEWERS:"",
+    PILOT_HCM_WFM_STARTED:"false", PILOT_START_EVIDENCE_REF:""};
+  const ok = await checkIndependentReview(solo,
+    fakeGithub({number:886,headSha:exact,files:pinned,reviews:[]}).fetcher);
+  assert.equal(ok.ok,true);
+  assert.equal(ok.approvalCount,0);
+  assert.equal(ok.mode,"solo-maintainer");
+  assert.equal(ok.releaseAuthorized,false);
+
+  const wrongNumber = review(pinned,{pr:pr(pinned,{number:887,head:{sha:exact}}),
+    expectedHeadSha:exact,reviews:[{...human(),commit_id:exact}]});
+  assert.ok(wrongNumber.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+  const wrongHead = review(pinned,{pr:pr(pinned,{number:886})});
+  assert.ok(wrongHead.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+  const wrongNumberSolo = await checkIndependentReview({...solo,PR_NUMBER:"887"},
+    fakeGithub({number:887,headSha:exact,files:pinned,reviews:[]}).fetcher);
+  assert.deepEqual(wrongNumberSolo.blockers,["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+
+  const changedHeadSolo = await checkIndependentReview({ ...solo, PR_HEAD_SHA: sha },
+    fakeGithub({ number: 886, headSha: sha, files: pinned, reviews: [] }).fetcher);
+  assert.deepEqual(changedHeadSolo.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+  assert.equal(changedHeadSolo.releaseAuthorized, false);
+
+  const badSets = [
+    pinned.slice(1),
+    [pinned[0]],
+    [pinned[0],pinned[0],...pinned.slice(2)],
+    pinned.map((f,i)=>i===2?{...f,sha:"c".repeat(40)}:f),
+    pinned.map((f,i)=>i===4?{...f,sha:null}:f),
+    pinned.map((f,i)=>i===1?{...f,status:"modified"}:f),
+    pinned.map((f,i)=>i===3?{...f,status:"renamed",previous_filename:"src/lib/hcm-other.ts"}:f),
+    pinned.map((f,i)=>i===0?{...f,previous_filename:".github/workflows/old.yml"}:f),
+    [...pinned,{filename:"src/lib/hcm-new-runtime.ts",status:"added",sha:"c".repeat(40)}],
+    [...pinned,{filename:"src/lib/payroll-engine.ts",status:"modified",sha:"c".repeat(40)}],
+    [...pinned,{filename:"drizzle/0123_hcm-new.sql",status:"added",sha:"c".repeat(40)}],
+    [...pinned,{filename:"src/lib/critical-release-flags.ts",status:"modified",sha:"c".repeat(40)}],
+  ];
+  for(const files of badSets){
+    assert.equal(classifyReviewScope(files).hcm886SurveyAuditFix,false);
+    const strictCase=review(files,{pr:pr(files,{number:886,head:{sha:exact}}),
+      expectedHeadSha:exact,reviews:[{...human(),commit_id:exact}]});
+    assert.ok(strictCase.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+    const soloCase=await checkIndependentReview(solo,
+      fakeGithub({number:886,headSha:exact,files,reviews:[]}).fetcher);
+    assert.deepEqual(soloCase.blockers,["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+    assert.equal(soloCase.releaseAuthorized,false);
+  }
+});
+
 test("solo source mode validates the actual head without inventing independent approval", async () => {
   for (const value of [undefined, "", "false", "TRUE"]) {
     const api = fakeGithub();

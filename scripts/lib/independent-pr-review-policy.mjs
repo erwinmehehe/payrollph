@@ -319,6 +319,50 @@ export function isApprovedHcmIsolationSource(pr, files) {
       && file.sha === expected.sha));
 }
 
+// Authorized source-only exception candidate: PR #886 at SHA 573dee55628e5898b174656020bb752a98a65d30.
+// Exact immutable blob/status/path set only. Does NOT certify HR/DPO approval,
+// a production migration, a pilot start, or any HCM/WFM feature activation.
+const HCM886_AUDIT_HEAD_SHA = "573dee55628e5898b174656020bb752a98a65d30";
+const HCM886_AUDIT_PINNED_FILES = [
+  {
+    "filename": ".github/workflows/hcm-gaps-focused.yml",
+    "status": "modified",
+    "sha": "3976e0ec07afd13328d47902aa929ee95a97831b"
+  },
+  {
+    "filename": "docs/engineering/pr-886-mainline-reconciliation-2026-10-14.md",
+    "status": "added",
+    "sha": "ba75a0f2324a22e4db1eda6ea1524221b331cec2"
+  },
+  {
+    "filename": "src/app/api/hcm/engagement-surveys/route.ts",
+    "status": "modified",
+    "sha": "8355956668eb8bdc0f767f9f72bd01992e964349"
+  },
+  {
+    "filename": "src/lib/engagement-survey.ts",
+    "status": "modified",
+    "sha": "3cd87143f9a1be6d136a552ee4a3c4c4a0348057"
+  },
+  {
+    "filename": "tests/engagement-survey-atomic-audit-db.test.ts",
+    "status": "added",
+    "sha": "2b43a9860e132ca2f7308de852ce1e172a8f18a8"
+  }
+];
+function isPinnedHcm886SurveyAuditFix(files) {
+  if (files.length !== HCM886_AUDIT_PINNED_FILES.length ||
+      new Set(files.map(f => f.filename)).size !== files.length) return false;
+  return HCM886_AUDIT_PINNED_FILES.every(expected => files.some(file =>
+    file.filename === expected.filename && file.status === expected.status &&
+    file.sha === expected.sha && !Object.hasOwn(file, "previous_filename")));
+}
+
+export function isApprovedHcm886SurveyAuditSource(pr, scope) {
+  return pr?.number === 886 && pr?.head?.sha === HCM886_AUDIT_HEAD_SHA &&
+    scope?.hcm886SurveyAuditFix === true;
+}
+
 const FROZEN_LANES = [
   // Treat every component of the exact #969 offline witness set as frozen.
   // Otherwise dropping the test file leaves the docs and QA script outside
@@ -373,6 +417,7 @@ export function classifyReviewScope(files) {
   const wfm691WitnessDevEvidence = isPinnedWfm691WitnessDevEvidence(files);
   const hcmIntakeRegressionDevEvidence = isPinnedHcmIntakeRegressionDevEvidence(files);
   const applicantPrivacySource = isPinnedApplicantPrivacySource(files);
+  const hcm886SurveyAuditFix = isPinnedHcm886SurveyAuditFix(files);
   const spendNavigationTests = isPinnedSpendNavigationTests(files, frozenPaths);
   const sensitivePaths = list.filter(path =>
     ALWAYS_SENSITIVE.some(regex => regex.test(path)) ||
@@ -387,6 +432,7 @@ export function classifyReviewScope(files) {
     hcmIntakeRegressionDevEvidence,
     hrDocumentLegacyCompatibility,
     applicantPrivacySource,
+    hcm886SurveyAuditFix,
     spendNavigationTests,
     sensitiveFileCount: sensitivePaths.length,
     frozenFileCount: frozenPaths.length,
@@ -445,7 +491,7 @@ export function evaluateIndependentReview({
   const blockers = [];
   if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
       !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
-       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !isApprovedSpendNavigationSource(pr, scope) && !isApprovedHcmIsolationSource(pr, files) &&
+       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !isApprovedSpendNavigationSource(pr, scope) && !isApprovedHcmIsolationSource(pr, files) && !isApprovedHcm886SurveyAuditSource(pr, scope) &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {
