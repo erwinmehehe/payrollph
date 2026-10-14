@@ -16,7 +16,7 @@ test("saved report UI is exact-true default OFF and denied for multi-entity",()=
  assert.equal(combined.benefitsLoans,true,"already-merged benefits feature must survive the saved-report integration");
  assert.equal(combined.reportBuilder,true);
  const held=resolveWorkflowUiFlags({BENEFITS_LOANS_UI_ENABLED:"true",REPORT_BUILDER_UI_ENABLED:"true",MULTI_ENTITY_ENABLED:"true"});
- assert.deepEqual(held,{benefitsLoans:false,reportBuilder:false,recruitmentJourney:false},"multi-entity hold applies to every workflow");
+ assert.deepEqual(held,{benefitsLoans:false,reportBuilder:false,faceOfflinePunch:false,recruitmentJourney:false},"multi-entity hold applies to all four features");
 });
 test("projections use only authorized source columns and reject absent filter fields",()=>{
  const input={columns:["Name","Gross","Secret"],rows:[["A","100","private"],["B","200","hidden"]]};
@@ -69,26 +69,25 @@ test("saved routes deny disabled and multi-entity requests before querying data"
  }
 });
 
-test("careers, saved reports and benefits keep independent default-OFF gates after integration", () => {
-  const base = {
-    BENEFITS_LOANS_UI_ENABLED: "true",
-    REPORT_BUILDER_UI_ENABLED: "true",
-    RECRUITMENT_JOURNEY_UI_ENABLED: "true",
-    MULTI_ENTITY_ENABLED: "false",
-  };
-  assert.deepEqual(resolveWorkflowUiFlags(base), {
-    benefitsLoans: true, reportBuilder: true, recruitmentJourney: true,
-  }, "all three capabilities must survive branch reconciliation");
-  assert.deepEqual(resolveWorkflowUiFlags({ ...base, RECRUITMENT_JOURNEY_UI_ENABLED: "false" }), {
-    benefitsLoans: true, reportBuilder: true, recruitmentJourney: false,
-  }, "turning careers OFF must not disable saved reports or benefits");
-  assert.deepEqual(resolveWorkflowUiFlags({ ...base, REPORT_BUILDER_UI_ENABLED: "false" }), {
-    benefitsLoans: true, reportBuilder: false, recruitmentJourney: true,
-  }, "saved reports must not control the careers release gate");
-  assert.deepEqual(resolveWorkflowUiFlags({ ...base, MULTI_ENTITY_ENABLED: "true" }), {
-    benefitsLoans: false, reportBuilder: false, recruitmentJourney: false,
-  }, "all three must remain deferred in the multi-entity workflow");
-  assert.deepEqual(resolveWorkflowUiFlags({}), {
-    benefitsLoans: false, reportBuilder: false, recruitmentJourney: false,
-  }, "no capability is enabled without an exact-true operator flag");
+test("four dev UI features remain independent, default OFF, and entity-held", () => {
+  const all = { BENEFITS_LOANS_UI_ENABLED:"true", REPORT_BUILDER_UI_ENABLED:"true",
+    FACE_OFFLINE_PUNCH_UI_ENABLED:"true", RECRUITMENT_JOURNEY_UI_ENABLED:"true",
+    MULTI_ENTITY_ENABLED:"false" };
+  assert.deepEqual(resolveWorkflowUiFlags(all), {
+    benefitsLoans:true, reportBuilder:true, faceOfflinePunch:true, recruitmentJourney:true,
+  });
+  const noCareers = resolveWorkflowUiFlags({ ...all, RECRUITMENT_JOURNEY_UI_ENABLED:"false" });
+  assert.deepEqual(noCareers, {
+    benefitsLoans:true, reportBuilder:true, faceOfflinePunch:true, recruitmentJourney:false,
+  }, "careers disabled does not deactivate other features");
+  const noOffline = resolveWorkflowUiFlags({ ...all, FACE_OFFLINE_PUNCH_UI_ENABLED:"false" });
+  assert.deepEqual(noOffline, {
+    benefitsLoans:true, reportBuilder:true, faceOfflinePunch:false, recruitmentJourney:true,
+  }, "offline disabled does not deactivate careers");
+  const noReports = resolveWorkflowUiFlags({ ...all, REPORT_BUILDER_UI_ENABLED:"false" });
+  assert.equal(noReports.recruitmentJourney,true);
+  assert.equal(noReports.reportBuilder,false);
+  const denied = { benefitsLoans:false, reportBuilder:false, faceOfflinePunch:false, recruitmentJourney:false };
+  assert.deepEqual(resolveWorkflowUiFlags({ ...all, MULTI_ENTITY_ENABLED:"true" }),denied);
+  assert.deepEqual(resolveWorkflowUiFlags({}),denied,"all features default OFF");
 });

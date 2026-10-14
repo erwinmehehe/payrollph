@@ -6,6 +6,8 @@ import { isWebBundyPunchList, mayClockInWebBundy, visibleWebBundyState, webBundy
 import { Check, Clock, Coffee, LogIn, LogOut, MapPin, PlayCircle, X } from "lucide-react";
 import { essText, type EssLanguage } from "@/lib/ess-language";
 import { philippineClockDate, philippineClockTime } from "@/lib/philippine-clock-display";
+import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
+import { FaceOfflinePunchPanel } from "@/components/workspace/face-offline-punch";
 
 type ClockPolicy = { key: string; required: boolean; canClockWithLocation: boolean; error?: string };
 type OneTimePosition = { latitude: number; longitude: number; accuracyMeters: number; capturedAt: string };
@@ -60,6 +62,7 @@ function WebBundyView({
   onClose,
   onPunchSuccess,
 }: WebBundyProps) {
+  const faceOfflineEnabled = useWorkflowUi().faceOfflinePunch;
   const t = (text: string) => essText(language, text);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(employeeId ?? null);
   const [now, setNow] = useState(() => new Date());
@@ -231,7 +234,8 @@ function WebBundyView({
 
   return (
     <div className="modal-backdrop linaw-dialog" role="presentation">
-      <section className="modal" role="dialog" aria-modal="true" aria-label="Web Bundy Time Clock">
+      <section className="modal" role="dialog" aria-modal="true" aria-label="Web Bundy Time Clock"
+        style={faceOfflineEnabled ? { width:"min(95vw,560px)", maxHeight:"90vh", overflowY:"auto" } : undefined}>
         <button className="modal-close" type="button" aria-label={t("Close time clock")} onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Clock size={22} className="i-cyan" /></div>
         <div className="card-kicker">{t("WEB & TEAM TIME CLOCK")}</div>
@@ -349,7 +353,9 @@ function WebBundyView({
           </button>
         </div>}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--muted)", fontSize: 11 }}>
+        {faceOfflineEnabled && !!employeeId && <FaceOfflinePunchPanel
+          organizationId={organizationId} employeeId={employeeId} />}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--muted)", fontSize: 11 }}> 
           <MapPin size={14} className="i-blue" />
           <span>{t("Browser IP and attendance source are audit-stamped. Geofenced self-clock stores only coarse verification evidence, not raw employee GPS coordinates.")}</span>
         </div>

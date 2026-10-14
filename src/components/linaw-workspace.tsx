@@ -35,6 +35,8 @@ import { ApprovalsView } from "@/components/workspace/approvals";
 import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/components/workspace/command-palette";
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
+import { OfflinePunchReviewQueue } from "@/components/workspace/offline-punch-review";
+import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
 import { tenantNavigationPages } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
@@ -73,6 +75,7 @@ import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null }) {
   const searchParams = useSearchParams();
+  const workflowUi = useWorkflowUi();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
     requestedDemoRole &&
@@ -589,6 +592,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
 
         {page === "Time & attendance" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity}
           organizationId={data.selectedOrganization.id} title="Time by entity" />}
+        {page === "Time & attendance" && workflowUi.faceOfflinePunch && !data.multiEntity?.enabled && !demoRole && data.access?.companyWide === true && ["owner","admin","hr"].includes(effectiveRole ?? "") && <OfflinePunchReviewQueue organizationId={data.selectedOrganization.id} />}
         {page === "Time & attendance" && (
           <TimeView
             data={data}

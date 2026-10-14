@@ -84,6 +84,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 Saved report field and filter choices",
     approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
   },
+  faceOfflinePunch: {
+    env: "FACE_OFFLINE_PUNCH_UI_ENABLED",
+    owner: "Security / Workforce",
+    risk: "P1 Consent, camera and unverified offline punch review",
+    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
+  },
   recruitmentJourney: {
     env: "RECRUITMENT_JOURNEY_UI_ENABLED",
     owner: "HCM",
