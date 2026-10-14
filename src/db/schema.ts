@@ -2116,8 +2116,11 @@ export const documents = pgTable("documents", {
     .where(sql`${table.sourceKey} is not null`),
   index("documents_org_employee_source_idx").on(table.organizationId, table.employeeId, table.sourceType, table.createdAt),
   uniqueIndex("documents_object_storage_key_unique").on(table.objectStorageKey).where(sql`${table.objectStorageKey} is not null`),
-  // Composite parent key prevents a COE in another employer from being attached to an HR case.
-  unique("documents_org_employee_id_hr_cases_unique").on(table.organizationId, table.employeeId, table.id),
+  // PostgreSQL accepts a non-partial UNIQUE INDEX as a composite FK target.
+  // The old UNIQUE constraint was spuriously dropped by drizzle-kit 0.31.x
+  // on a second push, although employee_hr_cases referenced it. Preserve the
+  // same tenant + employee + document uniqueness and FK enforcement.
+  uniqueIndex("documents_org_employee_id_hr_cases_unique").on(table.organizationId, table.employeeId, table.id),
   check("documents_source_type_check", sql`${table.sourceType} in ('upload','generated')`),
 ]);
 
