@@ -15,6 +15,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { effectiveHcmSourceDrift, effectiveHcmTargetDrift } from "@/lib/hcm-effective-source-integrity";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { multiEntityHcmDeferred } from "@/lib/multi-entity-hcm-hold";
 import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { applyWorkerEffectiveChange, philippineBusinessDate } from "@/lib/hcm-effective-changes";
 import {
@@ -52,6 +53,16 @@ function owns(body: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(body, key);
 }
 
+// The proxy is an outer defense, not permission for direct route invocations.
+// Keep all HCM decisions unavailable while the multi-entity pilot is frozen.
+function rejectDeferredHcm(): Response | null {
+  if (!multiEntityHcmDeferred()) return null;
+  return Response.json({
+    error: "HCM APIs are unavailable until multi-entity employer isolation is reviewed.",
+    code: "ENTITY_HCM_DEFERRED",
+  }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
+}
+
 async function assertCompanyWidePeople(userId: number, organizationId: number) {
   const denied = await assertOrganizationRole(
     userId,
@@ -77,6 +88,8 @@ async function assertCompanyWidePeople(userId: number, organizationId: number) {
 }
 
 export async function GET(request: Request) {
+  const deferred = rejectDeferredHcm();
+  if (deferred) return deferred;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const url = new URL(request.url);
@@ -98,10 +111,13 @@ export async function GET(request: Request) {
         ),
   ).orderBy(desc(workerEffectiveChanges.effectiveDate), desc(workerEffectiveChanges.id));
 
-  return Response.json({ changes: rows, today: philippineBusinessDate() });
+  return Response.json({ changes: rows, today: philippineBusinessDate() },
+    { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
+  const deferred = rejectDeferredHcm();
+  if (deferred) return deferred;
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
   const user = await getSessionUser();
@@ -457,6 +473,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const deferred = rejectDeferredHcm();
+  if (deferred) return deferred;
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
   const user = await getSessionUser();
