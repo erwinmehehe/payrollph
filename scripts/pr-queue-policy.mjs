@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Read-only PR queue check. It never merges, closes, labels or updates PRs.
+ * Read-only PR migration-claim check. Review-ready volume is reported for
+ * visibility, never used as a cap. This tool never changes pull requests.
  * Run from trusted default-branch source in pull_request_target; do NOT check
  * out the PR head or use a write-capable token.
  */
 import { pathToFileURL } from "node:url";
 
-export const MAX_READY_FOR_REVIEW = 3;
 const MIGRATION = /^drizzle\/([0-9]{4})_[a-z0-9][a-z0-9_-]*\.sql$/;
 const MAX_PAGES = 10;
 
@@ -22,9 +22,8 @@ function comparePrCreation(a, b) {
 }
 
 /** Deterministic pure evaluator; file lists are incremental PR diffs. */
-export function evaluatePullQueue(prs, filesByNumber, currentNumber, maxReady = MAX_READY_FOR_REVIEW) {
+export function evaluatePullQueue(prs, filesByNumber, currentNumber) {
   safePrNumber(currentNumber);
-  if (!Number.isSafeInteger(maxReady) || maxReady < 1) throw new Error("Invalid review WIP limit");
   if (!Array.isArray(prs)) throw new Error("PR list was not available");
 
   const current = prs.find((pr) => pr.number === currentNumber);
@@ -86,10 +85,6 @@ export function evaluatePullQueue(prs, filesByNumber, currentNumber, maxReady = 
 
   const currentCollisions = collisions.filter((conflict) => conflict.conflictingPr === currentNumber);
   const failures = [];
-  if (!current.draft && ready.length > maxReady) {
-    failures.push("Review-ready queue exceeds " + maxReady + " PRs (" + ready.join(", ") +
-      "). Convert excess items to draft before asking for another review.");
-  }
   for (const clash of currentCollisions) {
     failures.push("Migration " + clash.prefix + " is already claimed by #" + clash.reservedBy +
       " (" + clash.reservedPath + "); this PR #" + clash.conflictingPr +
@@ -99,7 +94,6 @@ export function evaluatePullQueue(prs, filesByNumber, currentNumber, maxReady = 
   return {
     ready,
     currentDraft: Boolean(current.draft),
-    maxReady,
     claims: allClaims,
     collisions,
     currentCollisions,
@@ -112,7 +106,7 @@ export function formatQueueSummary(result, currentNumber) {
     "## Pull request integration queue",
     "",
     "PR under check: #" + currentNumber,
-    "Review-ready: " + result.ready.length + " / " + result.maxReady,
+    "Review-ready PR count (informational; no cap): " + result.ready.length,
     "Review-ready PRs: " + (result.ready.length ? result.ready.map((n) => "#" + n).join(", ") : "none"),
     "Open migration claims: " + result.claims.length,
     "Cross-PR or within-PR SQL prefix collisions: " + result.collisions.length,
