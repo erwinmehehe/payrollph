@@ -100,7 +100,7 @@ export async function POST(request: Request) {
 
   // One DB transaction commits the candidate, #925 consent and redacted audit.
   // A concurrent withdraw/position close is rechecked under row locks.
-  const created = await db.transaction(async tx => {
+  await db.transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(4911, hashtext(${organizationId + ":" + requisitionId + ":" + email}))`);
     const [lockedJob] = await tx.select({
       id: jobRequisitions.id, positionId: jobRequisitions.positionId,
