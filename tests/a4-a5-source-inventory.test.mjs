@@ -40,6 +40,10 @@ function fixture({ predecessors = true } = {}) {
     '  return {\n    pendingCoeObjectRecovery,\n  };\n}\n';
   write("src/db/schema.ts", oldSchema);
   write("src/lib/data-retention.ts", oldRetention);
+  // Test frozen runtime guards without loading either owner's application.
+  write("src/lib/critical-release-flags.ts",
+    'export const VAULT_RELEASE_FLAG_DEFAULT = false;\n');
+  write("src/proxy.ts", 'export const HCM_PROXY_FAIL_CLOSED = true;\n');
   git("add", ".");git("commit", "-q", "-m", "fictional A2 A3 original");
   const original = git("rev-parse", "HEAD");
 
@@ -97,6 +101,8 @@ test("merged A4 and scoped A5 source reconcile without certifying combined QA", 
     assert.equal(json.vaultIncludesMain, true);
     assert.equal(json.a4SchemaPreserved, true);
     assert.equal(json.a4RetentionPreserved, true);
+    assert.equal(json.featureFlagsChanged, false);
+    assert.equal(json.hcmProxyChanged, false);
     assert.equal(json.sourceReconciled, true);
     assert.equal(json.combinedAcceptance, "NOT_RUN");
     assert.equal(json.databaseOperations, false);
@@ -173,5 +179,44 @@ test("non-CI execution, malformed SHA and nonexistent commit all block", () => {
     const missing = f.verify({ a5: "0".repeat(40) });
     assert.equal(missing.call.status, 1);
     assert.ok(missing.json.blockers.some(x => x.includes("A4_A5_VAULT_SHA")));
+  } finally { f.clean(); }
+});
+
+test("candidate vault cannot alter critical feature flags while inventory claims unchanged", () => {
+  const f = fixture();
+  try {
+    f.write("src/lib/critical-release-flags.ts",
+      f.read("src/lib/critical-release-flags.ts").replace("false", "true"));
+    f.git("add", ".");f.git("commit", "-q", "-m", "fictional accidental feature flag activation");
+    const { call, json } = f.verify({ a5: f.git("rev-parse", "HEAD") });
+    assert.equal(call.status, 1);
+    assert.equal(json.featureFlagsChanged, true);
+    assert.equal(json.hcmProxyChanged, false);
+    assert.ok(json.blockers.some(x => x.includes("critical feature flag")));
+  } finally { f.clean(); }
+});
+
+test("candidate vault cannot weaken the HCM proxy guard while inventory claims unchanged", () => {
+  const f = fixture();
+  try {
+    f.write("src/proxy.ts",
+      f.read("src/proxy.ts").replace("true", "false"));
+    f.git("add", ".");f.git("commit", "-q", "-m", "fictional weakened proxy guard");
+    const { call, json } = f.verify({ a5: f.git("rev-parse", "HEAD") });
+    assert.equal(call.status, 1);
+    assert.equal(json.featureFlagsChanged, false);
+    assert.equal(json.hcmProxyChanged, true);
+    assert.ok(json.blockers.some(x => x.includes("HCM HTTP proxy guards")));
+  } finally { f.clean(); }
+});
+
+test("invalid refs cannot report flag/proxy parity before source was inspected", () => {
+  const f = fixture();
+  try {
+    const { call, json } = f.verify({ a5: "0".repeat(40) });
+    assert.equal(call.status, 1);
+    assert.equal(json.featureFlagsChanged, null);
+    assert.equal(json.hcmProxyChanged, null);
+    assert.equal(json.sourceReconciled, false);
   } finally { f.clean(); }
 });
