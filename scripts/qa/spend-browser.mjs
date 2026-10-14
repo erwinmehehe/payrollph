@@ -68,10 +68,17 @@ try {
     if (mode === "checker") {
       await page.getByRole("button", { name: "Approve claim 10", exact: true }).click();
       await page.getByRole("status").filter({ hasText: "approved" }).waitFor();
-      fail = true; await page.reload(); await page.getByRole("button", { name: "Retry claims" }).waitFor();
+      fail = true; await page.reload();
+      const retry = page.getByRole("button", { name: "Retry claims" });
+      await retry.waitFor();
+      assert.equal(await page.getByText("No claims yet.", { exact: true }).count(), 0,
+        "a failed reviewed-claims request must not masquerade as an empty successful response");
       await page.screenshot({ path: `qa-artifacts/spend-error-${width}.png`, fullPage: true });
-      fail = false; empty = true; await page.getByRole("button", { name: "Retry claims" }).click();
+      fail = false; empty = true; await retry.click();
+      await retry.waitFor({ state: "hidden" });
       await page.getByText("No claims yet.", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("alert").count(), 0,
+        "successful retry must clear the error instead of retaining stale failure UI");
       await page.screenshot({ path: `qa-artifacts/spend-empty-${width}.png`, fullPage: true });
       report.checks.push("Loading, exact approval, receipt-required disabled state, error/retry and empty state at " + width);
     }

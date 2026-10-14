@@ -192,7 +192,7 @@ export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = f
         <table className="data-table">
           <thead><tr><th>EMPLOYEE</th><th>CATEGORY</th><th>DESCRIPTION</th><th>AMOUNT</th><th>STATUS</th><th></th></tr></thead>
           <tbody>
-            {displayClaims.length === 0 && <tr><td colSpan={6}><div className="empty-state">No claims yet.</div></td></tr>}
+            {displayClaims.length === 0 && (!activeReview || (loadedOrganization === organizationId && !claimError)) && <tr><td colSpan={6}><div className="empty-state">No claims yet.</div></td></tr>}
             {displayClaims.map((c) => {
               const emp = displayEmployees.find((e) => e.id === c.employeeId);
               return (
