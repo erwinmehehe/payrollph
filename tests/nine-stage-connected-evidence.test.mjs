@@ -63,8 +63,8 @@ test("stage identities and no-money status are explicit and consistent",
 
 test("synthetic viewport acceptance reuses real role sessions without bypassing sign-in throttling",()=>{
   const source=readFileSync("scripts/qa/nine-stage-mobile-browser.mjs","utf8");
-  assert.match(source,/let ownerState = null/);
-  assert.match(source,/let employeeState = null/);
+  assert.match(source,/let ownerState;/);
+  assert.match(source,/let employeeState;/);
   assert.match(source,/ownerState = await context\.storageState\(\)/);
   assert.match(source,/employeeState = await restricted\.storageState\(\)/);
   assert.match(source,/!ownerState/);
