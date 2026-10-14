@@ -17,6 +17,13 @@ protected manual release environment are mandatory. See
 
 ## A fresh **disposable development or CI** database
 
+**Fresh PostgreSQL 18 development acceptance:** the [guarded PG18 rebuild and
+nine-stage acceptance](../docs/engineering/fresh-pg18-dev-rebuild-20261014.md)
+tests an empty disposable loopback database, the current Drizzle schema push,
+its repeatability, and a fictional governed Hire-to-filing journey. It does
+**not** replay or adopt the numbered historical SQL archive, make live Neon
+schema changes, or replace production migration-provenance requirements.
+
 ```
 DATABASE_URL="postgresql://localhost/..." npm run db:push
 ```
