@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  assertSafeHostEnvironment, assertLoopbackUrl, assertBoundPort,
+  assertSafeHostEnvironment, assertLoopbackUrl, assertBoundPort, assertLocalDockerEndpoint,
   buildLocalRuntime, onlySafeProcessEnvironment,
 } from '../scripts/qa/uat853-local-lab.mjs';
 
@@ -20,6 +20,7 @@ test('remote or inherited production credential fails closed', () => {
     { POSTGRES_URL: 'postgresql://prod' },
     { POSTGRES_PRISMA_URL: 'postgresql://prod' },
     { CI: 'true' }, { GITHUB_ACTIONS: 'true' },
+    { DOCKER_HOST: 'tcp://production.example:2375' },
   ]) assert.throws(() => assertSafeHostEnvironment(bad), /UAT853_/);
   assert.doesNotThrow(() => assertSafeHostEnvironment({}));
 });
@@ -74,4 +75,11 @@ test('invalid encryption and database passwords fail closed', () => {
   assert.throws(() => buildLocalRuntime('short', keys));
   assert.throws(() => buildLocalRuntime(password,
     { ...keys, BANK_DATA_ENCRYPTION_KEY: 'plaintext' }));
+});
+
+test('Docker daemon must use a local Unix or Windows named pipe, not remote', () => {
+  for (const endpoint of ['unix:///var/run/docker.sock', 'npipe:////./pipe/docker_engine'])
+    assert.doesNotThrow(() => assertLocalDockerEndpoint(endpoint));
+  for (const endpoint of ['tcp://127.0.0.1:2375', 'ssh://admin@server', 'tcp://remote:2376'])
+    assert.throws(() => assertLocalDockerEndpoint(endpoint), /UAT853_REMOTE_DOCKER/);
 });
