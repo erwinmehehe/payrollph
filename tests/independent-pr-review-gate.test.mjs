@@ -533,9 +533,35 @@ test("Spend navigation exception rejects changed bytes, omissions, duplicates, r
     spendNavigationFiles.map((f, i) => i ? f : { ...f, status: "added" }),
     spendNavigationFiles.map((f, i) => i ? f : { ...f, status: "renamed", previous_filename: "tests/hcm-old.test.ts" }),
     [...spendNavigationFiles, { filename: "src/lib/hcm-runtime.ts", status: "modified" }],
+    [...spendNavigationFiles, { filename: "src/app/api/workforce/coverage/route.ts", status: "added" }],
+    // The older classifier's path Set could swallow the original frozen
+    // pathname of this unrelated rename, leaving only the two pinned paths.
+    [...spendNavigationFiles, { filename: "docs/reassigned.txt", status: "renamed",
+      previous_filename: "tests/hcm-documents-policy-center.test.ts" }],
+    [...spendNavigationFiles, { filename: "docs/moved.txt", status: "renamed",
+      previous_filename: "docs/old.txt" }],
+    [...spendNavigationFiles, { filename: "docs/copied.txt", status: "copied",
+      previous_filename: "tests/performance-self-assessment.test.ts" }],
+    [...spendNavigationFiles, { filename: "docs/not-a-rename.txt", status: "modified",
+      previous_filename: "tests/performance-self-assessment.test.ts" }],
   ];
   for (const files of cases) {
     assert.equal(classifyReviewScope(files).spendNavigationTests, false);
     assert.ok(review(files).blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
   }
+});
+
+test("solo GitHub adapter refuses a renamed-away pinned frozen source in the approved Spend exception", async () => {
+  const files = [...spendNavigationFiles, {
+    filename: "docs/renamed-legacy-nav.txt", status: "renamed",
+    previous_filename: "tests/performance-self-assessment.test.ts",
+  }];
+  const verdict = await checkIndependentReview(
+    { ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false" },
+    fakeGithub({ files, reviews: [] }).fetcher,
+  );
+  assert.equal(verdict.ok, false);
+  assert.deepEqual(verdict.blockers, ["PILOT_HCM_WFM_FREEZE_ACTIVE"]);
+  assert.equal(verdict.scope.spendNavigationTests, false);
+  assert.equal(verdict.releaseAuthorized, false);
 });

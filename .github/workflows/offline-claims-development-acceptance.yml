@@ -1,0 +1,202 @@
+name: Offline Claims Isolated Migration and Mobile Acceptance (No Money)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/offline-claims-development-acceptance.yml"
+      - "scripts/qa/offline-claim-proposal-rehearsal.mjs"
+      - "scripts/qa/offline-claims-http-acceptance.ts"
+      - "scripts/qa/offline-claims-mobile-browser.mjs"
+      - "src/app/api/attendance/offline-claims/route.ts"
+      - "src/components/workspace/face-offline-punch.tsx"
+      - "docs/engineering/migration-proposals/offline-punch-claims.sql"
+      - "docs/qa/offline-claims-development-acceptance.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/offline-claims-development-acceptance.yml"
+      - "scripts/qa/offline-claim-proposal-rehearsal.mjs"
+      - "scripts/qa/offline-claims-http-acceptance.ts"
+      - "scripts/qa/offline-claims-mobile-browser.mjs"
+      - "src/app/api/attendance/offline-claims/route.ts"
+      - "docs/engineering/migration-proposals/offline-punch-claims.sql"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-claim-acceptance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-sql-rollback:
+    name: Exact SQL proposal rollback (PG ${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: [16, 18]
+    env:
+      CI: "true"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      OFFLINE_CLAIM_MIGRATION_REHEARSAL_MODE: isolated-ci-only
+      FACE_OFFLINE_PUNCH_UI_ENABLED: "false"
+      MULTI_ENTITY_ENABLED: "false"
+      DEMO_MODE: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Create schema on disposable localhost only
+        run: npm run db:push
+      - name: Execute EXACT unnumbered SQL proposal in a rolled-back transaction
+        run: node scripts/qa/offline-claim-proposal-rehearsal.mjs
+      - name: Upload sanitized PG rollback evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: offline-claim-rollback-pg-${{ matrix.postgres }}
+          path: qa-artifacts/offline-claim-proposal-rehearsal.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  synthetic-employee-hr:
+    name: Authenticated employee/HR and mobile acceptance (PG16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: "true"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      QA_URL: http://127.0.0.1:3000
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3001
+      OFFLINE_CLAIM_CONNECTED_MODE: isolated-ci-only
+      OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: "true"
+      FACE_OFFLINE_PUNCH_UI_ENABLED: "true"
+      MULTI_ENTITY_ENABLED: "false"
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Provision ephemeral synthetic-only encryption keys
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          totp_key=$(openssl rand -hex 32)
+          for secret in "$bank_key" "$pii_key" "$totp_key"; do echo "::add-mask::$secret"; done
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+          echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
+      - name: Install isolated schema (NEVER Neon)
+        run: npm run db:push
+      - name: Fail if offline FK, status, or action acceptance is skipped
+        run: npx tsx --test tests/offline-claims-split.test.ts tests/workflow-offline-claim-tenant-integration.test.ts
+      - name: Build exact-source localhost app
+        run: npm run build
+      - name: Start isolated app with offline claim feature ON for synthetic testing only
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/offline-claims-on.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 5 http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Disposable offline-claims localhost app failed readiness"
+          exit 1
+      - name: Authenticated two-employer, five-role HTTP claims and audits
+        run: npx tsx scripts/qa/offline-claims-http-acceptance.ts
+      - name: Start default-OFF comparison app on a second localhost port
+        shell: bash
+        run: |
+          nohup env FACE_OFFLINE_PUNCH_UI_ENABLED=false APP_BASE_URL=http://127.0.0.1:3001 npm start -- -H 127.0.0.1 -p 3001 > /tmp/offline-claims-off.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 5 http://127.0.0.1:3001/login >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Disposable feature-OFF localhost app failed readiness"
+          exit 1
+      - name: Install pinned synthetic Chromium
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Exercise 320/375/390/430px employee consent, offline retry, HR and OFF parity
+        run: node scripts/qa/offline-claims-mobile-browser.mjs
+      - name: Delete fictional sign-in handoff before artifact upload
+        if: always()
+        run: rm -f qa-artifacts/.offline-claims-synthetic-auth.json
+      - name: Show bounded server errors on test failure
+        if: failure()
+        shell: bash
+        run: |
+          grep -E 'Error:|failed|\[error\]|ERR_' /tmp/offline-claims-on.log | tail -n 20 | cut -c1-160 || true
+      - name: Upload sanitized synthetic acceptance evidence (no credentials)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: offline-claim-synthetic-mobile-and-http-no-money
+          path: |
+            qa-artifacts/offline-claims-http-acceptance.json
+            qa-artifacts/offline-claims-mobile-acceptance.json
+            qa-artifacts/offline-claims-employee-*.png
+            qa-artifacts/offline-claims-hr-*.png
+          if-no-files-found: warn
+          retention-days: 14

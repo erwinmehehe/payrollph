@@ -233,9 +233,13 @@ function WebBundyView({
   const canClockOut = Boolean(historyReady && todayPunch?.timeIn && !todayPunch?.timeOut && !breakActive);
 
   return (
-    <div className="modal-backdrop linaw-dialog" role="presentation">
+    <div className="modal-backdrop linaw-dialog" role="presentation"
+      style={faceOfflineEnabled ? { padding: 12 } : undefined}>
       <section className="modal" role="dialog" aria-modal="true" aria-label="Web Bundy Time Clock"
-        style={faceOfflineEnabled ? { width:"min(95vw,560px)", maxHeight:"90vh", overflowY:"auto" } : undefined}>
+        style={faceOfflineEnabled ? {
+          width:"min(560px, calc(100vw - 24px))", maxWidth:"100%", minWidth:0,
+          boxSizing:"border-box", maxHeight:"90vh", overflowY:"auto",
+        } : undefined}>
         <button className="modal-close" type="button" aria-label={t("Close time clock")} onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Clock size={22} className="i-cyan" /></div>
         <div className="card-kicker">{t("WEB & TEAM TIME CLOCK")}</div>

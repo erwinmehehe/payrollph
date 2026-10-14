@@ -181,6 +181,10 @@ function isPinnedSpendNavigationTests(files, frozenPaths) {
   return frozenPaths.length === 2 && candidates.length === 2
     && new Set(candidates.map(file => file.filename)).size === 2
     && frozenPaths.every(path => SPEND_NAVIGATION_TEST_BLOBS.has(path))
+    // No rename/copy may smuggle a previously frozen filename through the
+    // Set of frozen paths or rebind either pinned test to a new file.
+    && files.every(file => file.status !== "renamed" && file.status !== "copied"
+      && file.previous_filename == null)
     && candidates.every(file => file.status === "modified"
       && file.sha === SPEND_NAVIGATION_TEST_BLOBS.get(file.filename));
 }
