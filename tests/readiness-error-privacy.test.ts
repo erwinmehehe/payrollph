@@ -23,15 +23,15 @@ test("private readiness denial and failure responses explicitly disable caching"
 
 test("the protected pilot-status endpoint never logs raw exception objects", () => {
   const source = read("src/app/api/readiness/pilot-status/route.ts");
-  assert.match(source, /console\\.error\\("Sanitized readiness evaluation failed"\\);/);
-  assert.doesNotMatch(source, /console\\.error\\("Sanitized readiness evaluation failed",/);
-  assert.match(source, /status: 404, headers: \\{ "Cache-Control": "no-store" \\}/);
+  assert.ok(source.includes('console.error("Sanitized readiness evaluation failed");'));
+  assert.ok(!source.includes('console.error("Sanitized readiness evaluation failed",'));
+  assert.ok(source.includes('status: 404, headers: { "Cache-Control": "no-store" }')) ;
 });
 
 test("anonymous status and health probes continue to conceal operational details", () => {
   const status = read("src/app/api/status/route.ts");
   const health = read("src/app/api/health/route.ts");
-  assert.match(status, /publicStatusResponse\\(rows\\[0\\] \\?\\? null\\)/);
-  assert.match(health, /recordSnapshot \\? \\{ ok: true, latencyMs \\} : \\{ ok: true \\}/);
+  assert.ok(status.includes("publicStatusResponse(rows[0] ?? null)"));
+  assert.ok(health.includes("recordSnapshot ? { ok: true, latencyMs } : { ok: true }"));
   assert.match(health, /"Cache-Control": "no-store"/);
 });
