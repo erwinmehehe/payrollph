@@ -44,13 +44,13 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
   const [loadedOrganizationId, setLoadedOrganizationId] = useState<number | null>(null);
   const requestGeneration = useRef(0);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [errorState, setErrorState] = useState<{ organizationId: number; message: string } | null>(null);
   const [checkedOrganizationId, setCheckedOrganizationId] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     const requestId = ++requestGeneration.current;
-    setBusy(true);
-    setError("");
+    // The effect initiates a request but does not synchronously update React state.
+    // The initial checking indicator derives from the selected employer below.
     try {
       const response = await fetch(
         `/api/hcm/governance-readiness?organizationId=${organizationId}`,
@@ -62,19 +62,20 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
       if (requestId !== requestGeneration.current) return;
       if (!response.ok) {
         if (response.status === 403) {
-          setError("Company-wide People administrator access is required for this aggregate readiness report.");
+          setErrorState({ organizationId, message: "Company-wide People administrator access is required for this aggregate readiness report." });
         } else {
           throw new Error(payload.error ?? "Could not load HCM governance readiness.");
         }
         setReport(null);
         return;
       }
+      setErrorState(null);
       setReport(payload as HcmGovernanceReport);
       setLoadedOrganizationId(organizationId);
     } catch (caught) {
       if (requestId !== requestGeneration.current) return;
       setReport(null);
-      setError(caught instanceof Error ? caught.message : "HCM readiness is unavailable.");
+      setErrorState({ organizationId, message: caught instanceof Error ? caught.message : "HCM readiness is unavailable." });
     } finally {
       if (requestId === requestGeneration.current) {
         setCheckedOrganizationId(organizationId);
@@ -92,8 +93,9 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
   // the render before a React effect has run on an organization switch.
   const report = loadedOrganizationId === organizationId ? storedReport : null;
   // Derive completion from the selected employer during render, not an effect.
-  // On A -> B -> A switches, B cannot inherit A\'s completed-check indicator.
+  // An employer cannot inherit another employer's completed-check indicator.
   const checked = checkedOrganizationId === organizationId;
+  const error = errorState?.organizationId === organizationId ? errorState.message : "";
 
   return (
     <section style={{ padding: "12px 16px 4px" }} aria-label="Read-only HCM governance readiness">
@@ -106,8 +108,8 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
         <button
           type="button"
           className="secondary-button"
-          onClick={() => void refresh()}
-          disabled={busy}
+          onClick={() => { setBusy(true); setErrorState(null); void refresh(); }}
+          disabled={busy || !checked}
         >
           <RefreshCw size={14} /> {busy ? "Checking..." : "Refresh checks"}
         </button>
