@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useScopedAsyncResource } from "./workspace/use-scoped-async-resource";
 import {
   AlertTriangle,
   BookOpen,
@@ -128,8 +129,6 @@ export function HcmDocumentsPanel({
   organizationId: number;
   setNotice: (message: string) => void;
 }) {
-  const [data, setData] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(true);
   const [policyOpen, setPolicyOpen] = useState(false);
   const [requirementOpen, setRequirementOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -164,24 +163,21 @@ export function HcmDocumentsPanel({
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadExpiry, setUploadExpiry] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/hcm/documents?organizationId=${organizationId}`,
-        { cache: "no-store" },
-      );
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error ?? "Could not load HCM documents.");
-      setData(payload as Payload);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not load HCM documents.");
-    } finally {
-      setLoading(false);
-    }
-  }, [organizationId, setNotice]);
+  // Document-policy and employee-201 data must never persist across employer switches.
+  // The shared scoped owner aborts obsolete loads and prevents late errors from
+  // continually adding notices or overwriting a newly selected employer.
+  const fetchDocumentControls = useCallback(async (signal: AbortSignal) => {
+    const response = await fetch(
+      `/api/hcm/documents?organizationId=${organizationId}`,
+      { cache: "no-store", signal },
+    );
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error ?? "Could not load HCM documents.");
+    return payload as Payload;
+  }, [organizationId]);
 
-  useEffect(() => { void load(); }, [load]);
+  const { data, error: loadError, loading, reload: load } =
+    useScopedAsyncResource(String(organizationId), fetchDocumentControls);
 
   const policyAssignmentCounts = useMemo(() => {
     const counts = new Map<number, { assigned: number; acknowledged: number; overdue: number; waived: number }>();
@@ -367,7 +363,20 @@ export function HcmDocumentsPanel({
   }
 
   if (!data) {
-    return <div className="card" style={{ padding: 24 }}>{loading ? "Loading HCM document controls…" : "Documents unavailable."}</div>;
+    return (
+      <div className="card" style={{ padding: 24 }} role={loadError ? "alert" : "status"}>
+        {loading ? "Loading HCM document controls…" : (
+          <div style={{ display: "grid", gap: 10, justifyItems: "start" }}>
+            <strong>HCM document controls are unavailable.</strong>
+            <p>Policies, required documents and acknowledgements could not be verified. No document-compliance status is being reported.</p>
+            {loadError && <p className="id">{loadError.message}</p>}
+            <button className="secondary-button" type="button" onClick={() => void load()}>
+              <RefreshCw size={15} /> Retry loading
+            </button>
+          </div>
+        )}
+      </div>
+    );
   }
 
   const openCompliance = data.compliance.filter((row) => ["missing", "submitted", "expiring", "expired"].includes(row.status));
