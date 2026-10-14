@@ -70,3 +70,45 @@ or incomplete connected evidence **must fail**.
 ## Development-run finding (2026-10-13)
 
 The first exact-head connected synthetic run passed Hire through Release Payroll Records (8/9) and generated all four draft files, but the ninth stage failed on an **incorrect expected HTTP status** in the test harness. The post-release correction is already covered by an active payroll-cutoff lock, so `decide_request` returns HTTP **423** with `ATTENDANCE_PERIOD_LOCKED` before the separate immutable-payroll-run 409 guard. The initial harness incorrectly expected 409. It has been corrected to assert **HTTP 423 and `ATTENDANCE_PERIOD_LOCKED`** at the active cutoff; the separate immutable-payroll guard remains unchanged. The first run remains **FAIL** and cannot be promoted; the updated exact-head workflow must pass the connected journey and mobile checks before this source is integrated. No human/customer acceptance is claimed by these initial results.
+
+
+## P0 governed Hire bridge — separate additional synthetic proof
+
+The source-connected **nine-stage payroll worker still originates from the direct
+authorized HRIS employee-create API**. That original same-worker payroll lineage
+is intentionally unchanged. The new post-browser **governed Hire sidecar** tests
+a *different fictional future-start worker* in the same isolated employer A.
+It must **never** be reported as if the reviewed candidate was also the released
+September 30 payroll worker.
+
+The additive test is \`scripts/qa/governed-hire-853-bridge.ts\` and runs **after**
+all nine payroll stages and A → B → A mobile browser tenant checks so that the
+mobile harness's original single-worker assumptions remain true. It runs in
+the same disposable localhost database, then confirms the original released
+payroll entries remain byte-for-byte unchanged.
+
+The test seeds only an approved fictional job profile/position, the employer
+Hire BP definition and a separate HR initiator. It then drives **real protected
+application APIs** for opening the requisition, applicant stage progression,
+recording a monthly offer, requesting Hire BP, independent HR and owner
+approval, and final candidate-to-worker conversion. It asserts:
+
+- Direct employee creation is blocked once an employer Hire process exists.
+- The initiator cannot approve their own request; tenant B cannot even view
+  tenant A's approval; HR cannot impersonate Owner approval.
+- The repeated request reuses one frozen process; no employee exists before
+  both approvals and final authorized conversion.
+- One resulting worker, pay profile, position assignment, candidate linkage,
+  employee history event and employee-specific onboarding tasks all agree.
+- Duplicate conversion is rejected, and the prior September released payroll
+  register remains unchanged.
+
+**Coverage boundary:** the position and BP policy are seeded as isolated
+fictional fixture preconditions, not proved through a published workforce plan
+or a real setup UI. This sidecar proves the application Hire business-process
+API bridge, **not** candidate-to-payroll lineage, novice HR navigation, physical
+device testing, customer onboarding acceptance or a real employer pilot.
+Report: \`qa-artifacts/governed-hire-853-report.json\`.
+Validator: \`tests/governed-hire-853-evidence.test.mjs\`.
+The validator fails closed on missing/wrong-source/nonpassing sidecar results
+when \`NINE_STAGE_GOVERNED_HIRE_REQUIRED=true\` in dedicated CI.
