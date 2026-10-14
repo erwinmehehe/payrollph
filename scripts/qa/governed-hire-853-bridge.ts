@@ -70,7 +70,20 @@ class Client {
 }
 async function login(email: string, password: string) {
   const client = new Client();
-  const data = await client.ok("/api/auth/login", "POST", { email, password });
+  // The preceding connected-payroll journey may legitimately exhaust the
+  // same localhost IP's one-minute login budget. Respect the real 429 and
+  // retry once after its server-provided window; never weaken production
+  // throttling, forge request IPs, or bypass authentication.
+  let response = await client.json("/api/auth/login", "POST", { email, password });
+  if (response.status === 429) {
+    const retryAfterMs = Number(response.body.retryAfterMs);
+    assert.ok(Number.isFinite(retryAfterMs) && retryAfterMs > 0 && retryAfterMs <= 60_000,
+      "Unexpected bounded login retry window in isolated synthetic acceptance");
+    await new Promise((resolve) => setTimeout(resolve, Math.ceil(retryAfterMs) + 350));
+    response = await client.json("/api/auth/login", "POST", { email, password });
+  }
+  assert.equal(response.status, 200, "Synthetic login remained unavailable after bounded rate-limit retry");
+  const data = response.body;
   assert.equal(data.user?.email, email);
   assert.ok(client.cookie, "Missing isolated browser-session login cookie");
   return client;
