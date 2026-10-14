@@ -1,5 +1,6 @@
 import { and, eq, isNull, lte, sql } from "drizzle-orm";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { multiEntityHcmDeferred } from "@/lib/multi-entity-hcm-hold";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -58,6 +59,11 @@ export async function applyWorkerEffectiveChange(
   changeId: number,
   options: { actor?: string; actorUserId?: number | null; now?: Date } = {},
 ) {
+  // The scheduler and HTTP proxy are not sufficient: direct-library callers
+  // must not apply or inspect deferred HCM changes during the entity freeze.
+  if (multiEntityHcmDeferred()) {
+    return { skipped: true as const, reason: "ENTITY_HCM_DEFERRED" as const };
+  }
   const now = options.now ?? new Date();
   const today = philippineBusinessDate(now);
   const actor = options.actor ?? "System scheduler";
@@ -643,6 +649,11 @@ export async function runScheduledWorkerEffectiveChanges({
   now?: Date;
   limit?: number;
 } = {}) {
+  // A direct scheduled-runner call must also avoid even reading the deferred
+  // HCM queue when the multi-entity pilot freeze is active.
+  if (multiEntityHcmDeferred()) {
+    return [{ status: "skipped", reason: "ENTITY_HCM_DEFERRED" }];
+  }
   const today = philippineBusinessDate(now);
   const rows = await db.select({ id: workerEffectiveChanges.id })
     .from(workerEffectiveChanges)
