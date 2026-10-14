@@ -1,6 +1,6 @@
 import { and, eq, isNotNull, like, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, documents, hcmEmployeeDocumentCompliance } from "@/db/schema";
+import { auditEvents, documents } from "@/db/schema";
 import { deleteDocumentObject } from "@/lib/document-object-storage";
 import { documentObjectIdentityMatches } from "@/lib/employee-document-vault";
 
@@ -43,14 +43,24 @@ export async function reconcilePendingVaultUpload(
         !row.sourceKey?.startsWith(VAULT_PENDING_SOURCE_PREFIX)) return "referenced";
     if (now.getTime() - row.createdAt.getTime() < minAgeMs) return "too_recent";
 
-    // A pending object may never be deleted if any compliance row already
-    // references it; investigate that cross-state inconsistency separately.
-    const [compliance] = await tx.select({ id: hcmEmployeeDocumentCompliance.id })
-      .from(hcmEmployeeDocumentCompliance).where(and(
-        eq(hcmEmployeeDocumentCompliance.organizationId, row.organizationId),
-        eq(hcmEmployeeDocumentCompliance.documentId, row.id),
-      )).limit(1);
-    if (compliance) return "referenced";
+    // Do not DELETE a private object while ANY business record still points
+    // at its document row. Historical/imported records can contain a wrong-
+    // tenant FK because several references target only documents.id. Checking
+    // only the pending row's organization silently misses those references.
+    // A policy source uses ON DELETE SET NULL and an expiry notice CASCADE:
+    // PostgreSQL would accept deletion and irreversibly lose the attachment.
+    // Include every document-id reference from the reviewed Drizzle schema,
+    // regardless of employer, until a human resolves inconsistent ownership.
+    const linked = await tx.execute<{ referenced: boolean }>(sql`
+      SELECT (
+        EXISTS (SELECT 1 FROM hcm_employee_document_compliance WHERE document_id = ${row.id})
+        OR EXISTS (SELECT 1 FROM hcm_document_expiry_notices WHERE document_id = ${row.id})
+        OR EXISTS (SELECT 1 FROM hcm_policy_versions WHERE source_document_id = ${row.id})
+        OR EXISTS (SELECT 1 FROM employee_hr_cases WHERE coe_document_id = ${row.id})
+        OR EXISTS (SELECT 1 FROM hcm_employment_decision_documents WHERE document_id = ${row.id})
+      ) AS referenced
+    `);
+    if (linked.rows[0]?.referenced !== false) return "referenced";
     if (!row.objectStorageKey || !documentObjectIdentityMatches(
       row.objectStorageKey, row.organizationId, row.employeeId,
     )) return "invalid_identity";
@@ -92,6 +102,10 @@ export async function sweepPendingVaultUploads(
   }
   const result = await db.execute<{ schema_ready: boolean }>(sql`
     SELECT to_regclass('public.hcm_employee_document_compliance') IS NOT NULL
+      AND to_regclass('public.hcm_document_expiry_notices') IS NOT NULL
+      AND to_regclass('public.hcm_policy_versions') IS NOT NULL
+      AND to_regclass('public.employee_hr_cases') IS NOT NULL
+      AND to_regclass('public.hcm_employment_decision_documents') IS NOT NULL
       AND EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'documents'
