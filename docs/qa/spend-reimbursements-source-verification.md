@@ -43,6 +43,10 @@ Claim decisions, report creation/decisions and release share an employer-scoped 
 lock before row locks. Tests observe actual PostgreSQL advisory-lock waiters for approval and
 competing releases. This closes the late-approval phantom window; OFF mode takes no new lock.
 Signed-provider diagnostics are restricted to safe receipt error codes before surfacing release failures.
+The shared employee navigation resolver is used by the actual portal. Executed snapshots preserve
+the default desktop sections and phone primary/More pages, add Expenses only when enabled, and
+deny disabled Expenses navigation. Navigation assertions in self-service, Documents and performance
+tests now execute this contract rather than matching component source strings.
 The unnumbered SQL proposal is rehearsed twice only in that generated namespace.
 
 Default OFF leaves the legacy ORM mapping and JSON response fields unchanged. Tests drop both

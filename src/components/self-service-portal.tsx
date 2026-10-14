@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { employeeNavigationTabs, employeeTabEnabled, EMPLOYEE_PAGE_LABELS, ESS_PRIMARY_TABS, type EmployeeSelfTab } from "@/lib/employee-navigation";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import {
@@ -208,22 +209,18 @@ type Payload = {
   };
 };
 
-type SelfTab = "home" | "pay" | "time" | "leave" | "documents" | "performance" | "profile" | "expenses";
+type SelfTab = EmployeeSelfTab;
 
 const ESS_TAB_CONFIG: Record<SelfTab, { label: string; mobileLabel?: string; icon: LucideIcon }> = {
-  expenses: { label: "Expenses", icon: WalletCards },
-  home: { label: "Home", icon: House },
-  pay: { label: "Pay", mobileLabel: "Payslips", icon: WalletCards },
-  time: { label: "Time", mobileLabel: "Attendance", icon: Clock },
-  leave: { label: "Leave", icon: CalendarDays },
-  documents: { label: "Documents", icon: FileText },
-  performance: { label: "Performance", icon: BadgeCheck },
-  profile: { label: "Profile", mobileLabel: "My info", icon: UserRound },
+  expenses: { ...EMPLOYEE_PAGE_LABELS.expenses, icon: WalletCards },
+  home: { ...EMPLOYEE_PAGE_LABELS.home, icon: House },
+  pay: { ...EMPLOYEE_PAGE_LABELS.pay, icon: WalletCards },
+  time: { ...EMPLOYEE_PAGE_LABELS.time, icon: Clock },
+  leave: { ...EMPLOYEE_PAGE_LABELS.leave, icon: CalendarDays },
+  documents: { ...EMPLOYEE_PAGE_LABELS.documents, icon: FileText },
+  performance: { ...EMPLOYEE_PAGE_LABELS.performance, icon: BadgeCheck },
+  profile: { ...EMPLOYEE_PAGE_LABELS.profile, icon: UserRound },
 };
-
-const ESS_PRIMARY_TABS: SelfTab[] = ["home", "pay", "time", "leave"];
-const ESS_MORE_TABS: SelfTab[] = ["documents", "performance", "profile"];
-const ESS_ALL_TABS: SelfTab[] = [...ESS_PRIMARY_TABS, ...ESS_MORE_TABS];
 
 const peso = (value: string | number) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(Number(value));
@@ -280,8 +277,7 @@ export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false
   const [webBundyOpen, setWebBundyOpen] = useState(false);
   const [switchingRole, setSwitchingRole] = useState<DemoRoleId | null>(null);
   const [tab, setTab] = useState<SelfTab>("home");
-  const moreTabs: SelfTab[] = spendEnabled ? [...ESS_MORE_TABS, "expenses"] : ESS_MORE_TABS;
-  const allTabs: SelfTab[] = spendEnabled ? [...ESS_ALL_TABS, "expenses"] : ESS_ALL_TABS;
+  const { moreTabs, allTabs } = employeeNavigationTabs(spendEnabled);
   const [moreOpen, setMoreOpen] = useState(false);
   const [photoAvailable, setPhotoAvailable] = useState(false);
   const [photoVersion, setPhotoVersion] = useState(0);
@@ -319,7 +315,7 @@ export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false
   }
 
   function navigateTo(next: SelfTab) {
-    if (next === "expenses" && !spendEnabled) return;
+    if (!employeeTabEnabled(next, spendEnabled)) return;
     setMoreOpen(false);
     setTab(next);
   }
