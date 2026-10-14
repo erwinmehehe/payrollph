@@ -16,6 +16,7 @@ import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { isMandatoryDocumentMissing } from "@/lib/employee-document-vault";
+import { employeeDocumentMetadataJoin } from "@/lib/document-schema-compat";
 
 export const dynamic = "force-dynamic";
 
@@ -96,7 +97,7 @@ export async function GET() {
       uploadedAt: documents.createdAt,
     }).from(hcmEmployeeDocumentCompliance)
       .innerJoin(hcmDocumentRequirements, eq(hcmEmployeeDocumentCompliance.requirementId, hcmDocumentRequirements.id))
-      .leftJoin(documents, eq(hcmEmployeeDocumentCompliance.documentId, documents.id))
+      .leftJoin(documents, employeeDocumentMetadataJoin)
       .where(and(
         eq(hcmEmployeeDocumentCompliance.organizationId, employee.organizationId),
         eq(hcmEmployeeDocumentCompliance.employeeId, employee.id),
