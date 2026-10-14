@@ -117,7 +117,7 @@ export async function checkIndependentReview(env, fetcher = fetch) {
       /^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidence);
     const blockers = scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
       !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
-      !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !pilotAccepted
+      !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !scope.spendNavigationTests && !pilotAccepted
       ? ["PILOT_HCM_WFM_FREEZE_ACTIVE"] : [];
     return { ok: blockers.length === 0, scope, approvalCount: 0, blockers,
       releaseAuthorized: false, mode: "solo-maintainer" };

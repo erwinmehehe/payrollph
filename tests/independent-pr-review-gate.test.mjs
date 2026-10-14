@@ -509,3 +509,33 @@ test("frozen WFM change on a later files page blocks even a valid approval", asy
   assert.equal(gate.ok, false);
   assert.ok(gate.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
 });
+
+const spendNavigationFiles = [
+  { filename: "tests/hcm-documents-policy-center.test.ts", status: "modified", sha: "67e95f68dfa1166e8bd7fcf798d75d9fe28ba4b4" },
+  { filename: "tests/performance-self-assessment.test.ts", status: "modified", sha: "11b9dcae1fa140559db69a3ef078ea2286334d35" },
+];
+test("approved Spend navigation blobs cross only the test freeze, never release authority", async () => {
+  const files = [...spendNavigationFiles, moneyFile];
+  assert.equal(review(files).ok, true);
+  assert.equal(review(files).releaseAuthorized, false);
+  const solo = { ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false" };
+  const verdict = await checkIndependentReview(solo, fakeGithub({ files, reviews: [] }).fetcher);
+  assert.equal(verdict.ok, true);
+  assert.equal(verdict.releaseAuthorized, false);
+  assert.equal(review(files, { reviews: [] }).ok, false, "strict independent review remains required");
+});
+test("Spend navigation exception rejects changed bytes, omissions, duplicates, renames and extra frozen runtime", () => {
+  const cases = [
+    spendNavigationFiles.slice(0, 1),
+    [...spendNavigationFiles, spendNavigationFiles[0]],
+    spendNavigationFiles.map((f, i) => i ? f : { ...f, sha: prior }),
+    spendNavigationFiles.map((f, i) => i ? f : { ...f, sha: undefined }),
+    spendNavigationFiles.map((f, i) => i ? f : { ...f, status: "added" }),
+    spendNavigationFiles.map((f, i) => i ? f : { ...f, status: "renamed", previous_filename: "tests/hcm-old.test.ts" }),
+    [...spendNavigationFiles, { filename: "src/lib/hcm-runtime.ts", status: "modified" }],
+  ];
+  for (const files of cases) {
+    assert.equal(classifyReviewScope(files).spendNavigationTests, false);
+    assert.ok(review(files).blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+  }
+});
