@@ -44,7 +44,10 @@ if python3 - "$schema_file" <<'PY'
 import pathlib
 import re
 import sys
-schema = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+try:
+    schema = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+except (OSError, UnicodeError):
+    sys.exit(2)
 merged_feature_table = re.compile(
     r"""\bpgTable\s*\(\s*["'](?:employee_hr_cases|applicant_privacy_evidence)["']""",
     re.MULTILINE,
@@ -53,6 +56,10 @@ sys.exit(0 if merged_feature_table.search(schema) else 1)
 PY
 then
   blocked 'Main schema already defines HR-case and/or applicant-privacy tables; legacy A1-A6 proposal replay is incompatible. Build a fresh-main A4/A5-only rehearsal.'
+else
+  # A parser/read failure is NOT proof that no merged tables exist.
+  parser_status=$?
+  [[ "$parser_status" -eq 1 ]] || blocked 'Pinned base Drizzle schema could not be safely parsed'
 fi
 
 printf 'A1-A6 legacy baseline preflight passed for %s..%s (synthetic only, not release-certified)\n' "${base_sha:0:12}" "${head_sha:0:12}"
