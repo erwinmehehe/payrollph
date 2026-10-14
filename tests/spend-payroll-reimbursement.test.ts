@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { approvedReimbursementAmount, reimbursementEligible, reimbursementSettlementDecision, reimbursementLineTaxMatches, receiptObjectIdentityMatches } from "../src/lib/spend-payroll-reimbursement";
+import { approvedReimbursementAmount, reimbursementEligible, reimbursementSettlementDecision, reimbursementLineTaxMatches, reimbursementLineBenefitTreatmentMatches, receiptObjectIdentityMatches } from "../src/lib/spend-payroll-reimbursement";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 const claim = { status: "approved", payrollRunId: null, amount: "500.00", approvedAmount: "450.01",
   categoryPolicyId: 8, receiptStorageKey: "private-documents/1/2/00000000-0000-4000-8000-000000000001",
@@ -42,6 +42,22 @@ test("payslip tax marker cannot drift after a category policy changes", () => {
   assert.equal(reimbursementLineTaxMatches(true, ["Non-taxable reimbursement"]), false);
   assert.equal(reimbursementLineTaxMatches(false, []), false);
   assert.equal(reimbursementLineTaxMatches(true, ["Taxable reimbursement", "Non-taxable reimbursement"]), false);
+});
+
+test("reimbursement payslip snapshots cannot silently change taxable, type or contribution-base notes", () => {
+  const approved = ["Type: expense_reimbursement", "Tax treatment: taxable",
+    "Excluded from SSS contribution base", "Excluded from Pag-IBIG contribution base"];
+  assert.equal(reimbursementLineBenefitTreatmentMatches(true, approved), true);
+  assert.equal(reimbursementLineBenefitTreatmentMatches(false, [
+    ...approved.filter(note => note !== "Tax treatment: taxable"), "Tax treatment: non-taxable",
+  ]), true);
+  for (const changed of [
+    approved.filter(note => note !== "Excluded from SSS contribution base"),
+    [...approved, "Included in Pag-IBIG contribution base"],
+    [...approved, "Type: bonus"],
+    [...approved, "Tax treatment: non-taxable"],
+    approved.filter(note => note !== "Excluded from Pag-IBIG contribution base"),
+  ]) assert.equal(reimbursementLineBenefitTreatmentMatches(true, changed), false);
 });
 
 test("receipt signed URLs require exact claim tenant and employee object prefix",()=>{

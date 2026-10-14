@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { eq } from "drizzle-orm";
 import { spendIsolatedDatabase } from "./helpers/spend-isolated-database";
@@ -22,6 +23,11 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
   const { db } = fixture;
   const { drainPayrollQueue, enqueuePayrollRun } = await import("../src/lib/payroll-engine");
   const prior = process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED;
+  const originalFetch = globalThis.fetch;
+  const storageKeys = ["DOCUMENT_OBJECT_STORAGE_ENDPOINT", "DOCUMENT_OBJECT_STORAGE_BUCKET",
+    "DOCUMENT_OBJECT_STORAGE_REGION", "DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID",
+    "DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY"] as const;
+  const previousStorage = storageKeys.map(key => process.env[key]);
   process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = "true";
   const [org] = await db.insert(organizations).values({
     name: "A4 Synthetic Payroll Employer", legalName: "A4 Synthetic Payroll Employer Inc.", plan: "Core",
@@ -66,7 +72,8 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
         taxable: false, reviewReference: "Synthetic substantiated business travel review",
         reviewedByUserId: reviewer.id },
     ]).returning();
-    const receiptSha = "a".repeat(64);
+    const receiptBytes = staff.map((_employee, i) => Buffer.from("%PDF-1." + (i + 1)));
+    const receiptHashes = receiptBytes.map(bytes => createHash("sha256").update(bytes).digest("hex"));
     const claims = await db.insert(expenseClaims).values(staff.map((employee, i) => ({
       organizationId: org.id, employeeId: employee.id,
       submittedByUserId: maker.id,
@@ -80,7 +87,7 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
       approvedAmount: i < 2 ? "450.01" : "20000.00", approvedByUserId: reviewer.id, approvedAt: new Date(),
       receiptStorageKey: "private-documents/" + org.id + "/" + staff[i].id +
         "/00000000-0000-4000-8000-00000000000" + (i + 1),
-      receiptSha256: receiptSha, receiptByteSize: 8, receiptVerifiedAt: new Date(),
+      receiptSha256: receiptHashes[i], receiptByteSize: receiptBytes[i].length, receiptVerifiedAt: new Date(),
       receiptMime: "application/pdf", receiptFileName: "receipt.pdf",
       receiptScanNote: "Synthetic reviewed scanner result — no real file",
     })));
@@ -129,6 +136,26 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     for (const base of ["statutoryMonthlySssCompensation", "statutoryMonthlyPagIbigCompensation"]) {
       assert.equal(readTrace(mweTaxed.trace, base), readTrace(mweExempt.trace, base));
     }
+    Object.assign(process.env, {
+      DOCUMENT_OBJECT_STORAGE_ENDPOINT: "https://objects.example.invalid",
+      DOCUMENT_OBJECT_STORAGE_BUCKET: "reimbursements-synthetic",
+      DOCUMENT_OBJECT_STORAGE_REGION: "us-east-1",
+      DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: "synthetic",
+      DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: "synthetic-never-production",
+    });
+    let tamperedReceipt: number | null = null;
+    let missingReceipt: number | null = null;
+    globalThis.fetch = async (url, options) => {
+      assert.equal(options?.method, "GET", "Only private signed receipt reads are permitted");
+      assert.equal(options?.redirect, "error");
+      const uri = new URL(String(url));
+      assert.equal(uri.hostname, "objects.example.invalid");
+      const name = uri.pathname.split("/").at(-1) ?? "";
+      const index = Number(name.slice(-1)) - 1;
+      assert.ok(index >= 0 && index < receiptBytes.length, "Signed receipt identity is known");
+      if (missingReceipt === index) return new Response("Synthetic missing receipt", { status: 404 });
+      return new Response(new Uint8Array(tamperedReceipt === index ? Buffer.from("%PDF-1.9") : receiptBytes[index]));
+    };
     const { settlePayrollRun } = await import("../src/lib/payroll-settlement");
     const [laterRun] = await db.insert(payrollRuns).values({ organizationId: org.id,
       periodLabel: "A4 Sep 16-30 synthetic", periodStart: "2026-09-16", periodEnd: "2026-09-30",
@@ -142,6 +169,13 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     await assert.rejects(settlePayrollRun(run.id), /duplicate expense reimbursement/);
     assert.equal((await db.select().from(expenseClaims).where(eq(expenseClaims.id, claims[0].id)))[0].status, "approved");
     await db.update(payrollEntries).set({ lineItems: originalLines }).where(eq(payrollEntries.id, taxed!.id));
+    tamperedReceipt = 0;
+    await assert.rejects(settlePayrollRun(run.id), /RECEIPT_RELEASE_VERIFICATION_FAILED.*RECEIPT_HASH_MISMATCH/);
+    assert.equal((await db.select().from(expenseClaims).where(eq(expenseClaims.id, claims[0].id)))[0].status, "approved");
+    tamperedReceipt = null;
+    missingReceipt = 1;
+    await assert.rejects(settlePayrollRun(run.id), /RECEIPT_RELEASE_VERIFICATION_FAILED.*RECEIPT_READ_UNAVAILABLE/);
+    missingReceipt = null;
     // Disabling the gate cannot reinterpret taxable or partially approved A4 data.
     process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = "false";
     await assert.rejects(settlePayrollRun(run.id), /Reviewed reimbursements are paused/);
@@ -161,6 +195,11 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     if (reviewerId !== null) await db.delete(users).where(eq(users.id, reviewerId));
     if (prior === undefined) delete process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED;
     else process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = prior;
+    globalThis.fetch = originalFetch;
+    storageKeys.forEach((key, i) => {
+      if (previousStorage[i] === undefined) delete process.env[key];
+      else process.env[key] = previousStorage[i];
+    });
     await fixture.close();
   }
 });

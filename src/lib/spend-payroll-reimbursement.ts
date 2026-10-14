@@ -82,6 +82,23 @@ export function reimbursementLineTaxMatches(taxable: boolean, notes: readonly st
   return markers.length === 1 && markers[0] === (taxable ? "Taxable reimbursement" : "Non-taxable reimbursement");
 }
 
+
+/** The actual payslip must reflect the reviewed reimbursement classification and
+ * exclusion from contribution bases, not just retain a free-text tax marker. */
+export function reimbursementLineBenefitTreatmentMatches(taxable: boolean, notes: readonly string[]): boolean {
+  const markers = [
+    "Type: expense_reimbursement",
+    taxable ? "Tax treatment: taxable" : "Tax treatment: non-taxable",
+    "Excluded from SSS contribution base",
+    "Excluded from Pag-IBIG contribution base",
+  ];
+  return markers.every(marker => notes.filter(note => note === marker).length === 1) &&
+    notes.filter(note => note.startsWith("Type: ")).length === 1 &&
+    notes.filter(note => note.startsWith("Tax treatment: ")).length === 1 &&
+    notes.filter(note => /^(Included|Excluded) (from|in) SSS contribution base$/.test(note)).length === 1 &&
+    notes.filter(note => /^(Included|Excluded) (from|in) Pag-IBIG contribution base$/.test(note)).length === 1;
+}
+
 export function reimbursementLineEvidenceMatches(claim: ReimbursementClaimSnapshot, notes: readonly string[]) {
   return ["Receipt SHA-256: " + claim.receiptSha256, "Expense policy: " + claim.categoryPolicyId,
     "Expense approval: " + claim.approvedByUserId].every(marker => notes.filter(note => note === marker).length === 1) &&

@@ -97,6 +97,18 @@ test("expense API enforces maker-checker, MFA, employer scope, exact approval an
     tamper = false;
     const repeated = await (await api.POST(request("POST", body))).json();
     assert.equal((await upload(repeated.id)).status, 409, "Same worker cannot reuse identical receipt bytes");
+    // The same employer must not pay a scanned receipt a second time through
+    // a different worker. Other employers retain independent receipt ledgers.
+    const [otherWorkerInEmployer] = await db.insert(employees).values({
+      organizationId: orgs[0].id, employeeNo: "C", firstName: "Second",
+      lastName: "Claimant", title: "Associate", avatarInitials: "SC",
+      basicRate: "30000", startDate: "2025-01-01",
+    }).returning();
+    const crossWorkerClaim = await (await api.POST(request("POST", {
+      ...body, employeeId: otherWorkerInEmployer.id,
+    }))).json();
+    assert.equal((await upload(crossWorkerClaim.id)).status, 409,
+      "Tenant-level receipt fingerprint rejects exact duplicate across employees");
     const [verified] = await db.select().from(expenseClaimEvidence).where(eq(expenseClaimEvidence.claimId, claim.id));
     assert.equal(verified.receiptSha256, hash); assert.equal(verified.receiptByteSize, bytes.length);
     assert.equal(objects.size, 1, "Failed database attachment deletes the orphan object");

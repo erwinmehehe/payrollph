@@ -14,8 +14,15 @@ They run actual routes, role/membership/unit authorization, MFA and rate-limit c
 audits, claim approvals, receipt attachment/read-back, payroll queue/calculation and transactional settlement.
 Only session lookup is injected for route actor fixtures; scanner/object-provider responses are simulated.
 Receipt reads hash actual bytes; wrong bytes, truncated/oversized content, identity drift and redirects fail.
-One-time attachment, identical-receipt rejection, employer foreign keys, partial approval, concurrent
+One-time attachment, tenant-wide identical-receipt rejection even across workers, employer foreign keys, partial approval, concurrent
 decisions/releases, duplicate register lines and double-cutoff settlement are exercised.
+Spend-enabled release now downloads the scanned private object in bounded groups of four
+before the settlement transaction, checks size/SHA against reviewed evidence and fails
+closed on missing or altered bytes. Within the SQL release transaction, claim-row locks
+enforce the unchanged receipt key, digest and byte-size snapshot before status is set
+to paid. Tampered/missing object regressions run against a mocked private provider.
+This is NOT a substitute for independently verifying real object immutability and
+provider availability throughout the release interval.
 Synthetic MWE and ordinary workers exercise taxable versus non-taxable reimbursements using the
 existing calculator; statutory SSS/Pag-IBIG trace bases must exist and remain equal across each pair.
 This certifies implemented behavior, not the legal eligibility of a real employer's tax policy.
@@ -46,6 +53,16 @@ locally, without a supplied reason. No production MFA bypass was introduced.
 
 - Canonical numbered migration allocation, DBA production lock/rollback review and deployment.
 - Independent Philippine tax review of each category, including MWE and employer-policy acceptance.
+  BIR RR 3-98 and RR 8-2000 describe employer-named, non-personal, duly supported
+  business reimbursement conditions and distinguish taxable compensation from some
+  fringe benefits. The current boolean `taxable` category setting and synthetic
+  payslip/withholding tests do NOT certify employee-specific legal classification,
+  employer invoice ownership, appropriate FBT treatment or actual receipts.
+- DBA preflight for duplicate receipt hashes across workers within one tenant before
+  accepting the wider proposed unique index; changed/scanned invoices still require
+  independent duplicate-invoice review. Bounded signed GET preflight requires
+  pilot throughput, failure/retry, no-PII logging and time-of-check provider-object
+  immutability validation.
 - Authenticated full application/employee-navigation UAT and real device accessibility testing.
 - Real private storage and malware-scanner certification, lifecycle/retention controls, production
   recovery/operator acceptance, disaster recovery and receipt legal retention review.
