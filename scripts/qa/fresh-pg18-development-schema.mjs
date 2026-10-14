@@ -76,15 +76,18 @@ export function summarizeSchema(relations,columns,constraints,indexes){
  * Referenced columns are declared in their physical table order to avoid the
  * Drizzle 0.31.x composite-unique phantom-diff defect.
  */
-export function assertCOETenantReference(constraints) {
-  const uniqueKey = constraints.find(x => x.relation === "documents" &&
+export function assertCOETenantReference(constraints, indexes) {
+  // PostgreSQL permits a non-partial unique index as an FK reference target.
+  // Require the exact unrestricted tenant/employee/document index: an ordinary,
+  // partial or differently ordered index is not evidence of ownership isolation.
+  const idx = indexes.find(x => x.table_name === "documents" &&
     x.name === "documents_org_employee_id_hr_cases_unique");
   const fk = constraints.find(x => x.relation === "employee_hr_cases" &&
     x.name === "employee_hr_cases_coe_document_tenant_fk");
-  const u=String(uniqueKey?.definition ?? "").replace(/"/g,"").replace(/\s+/g," ");
-  const f=String(fk?.definition ?? "").replace(/"/g,"").replace(/\s+/g," ");
-  if (!/^UNIQUE \(id, organization_id, employee_id\)$/i.test(u) ||
-      !/^FOREIGN KEY \(coe_document_id, organization_id, employee_id\) REFERENCES (?:public\.)?documents\(id, organization_id, employee_id\)/i.test(f)) {
+  const indexDef = String(idx?.definition ?? "").replace(/"/g,"").replace(/\s+/g," ").trim();
+  const f = String(fk?.definition ?? "").replace(/"/g,"").replace(/\s+/g," ").trim();
+  if (!/^CREATE UNIQUE INDEX documents_org_employee_id_hr_cases_unique ON (?:public\.)?documents USING btree \(organization_id, employee_id, id\)$/i.test(indexDef) ||
+      !/^FOREIGN KEY \(organization_id, employee_id, coe_document_id\) REFERENCES (?:public\.)?documents\(organization_id, employee_id, id\)/i.test(f)) {
     reject("COE_TENANT_FK_MISMATCH");
   }
   return true;
@@ -130,7 +133,7 @@ async function main(){
        catalog.identity?.server<180000 || catalog.identity?.server>=190000){
       reject("WRONG_BACKEND_IDENTITY");
     }
-    assertCOETenantReference(catalog.constraints);
+    assertCOETenantReference(catalog.constraints, catalog.indexes);
     const summary=summarizeSchema(catalog.relations,catalog.columns,catalog.constraints,catalog.indexes);
     const evidence={
       kind:"fictional-fresh-pg18-drizzle-source-schema-v1",
