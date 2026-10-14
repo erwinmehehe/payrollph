@@ -403,6 +403,17 @@ try {
 
   await checkpoint(mp, "Independent manager approves fictional HR leave request", async () => {
     assert.ok(Number.isSafeInteger(syntheticLeaveId) && Number.isSafeInteger(syntheticLeaveApprovalId));
+    const queued = await browserRequest(mp, "/api/dashboard?organizationId=1");
+    assert.equal(queued.status, 200);
+    const target = queued.body?.tasks?.find(task => task.id === syntheticLeaveApprovalId);
+    assert.equal(target?.title, "Approve leave request",
+      "The leave's original task must be present in manager's authorized dashboard");
+    assert.equal(target?.status, "Pending");
+    const matching = queued.body.tasks.filter(task =>
+      task.title === "Approve leave request" && task.detail.includes("AlphaPrivate Worker"));
+    assert.equal(matching.length, 1, "Leave approval must have one unambiguous source task");
+    assert.equal(matching[0].id, syntheticLeaveApprovalId,
+      "Visible leave approval must refer to the exact new leave request");
     const assigned = mp.locator(".approval-content")
       .filter({ hasText: "Approve leave request" })
       .filter({ hasText: "AlphaPrivate Worker" });
@@ -411,6 +422,10 @@ try {
     await mp.getByRole("button", { name: "Confirm approval", exact: true }).click();
     await mp.getByText("Approval approved and recorded in the audit trail.")
       .waitFor({ timeout: 60000 });
+    const afterDecision = await browserRequest(mp, "/api/dashboard?organizationId=1");
+    assert.equal(afterDecision.status, 200);
+    assert.equal(afterDecision.body?.tasks?.find(task => task.id === syntheticLeaveApprovalId)?.status,
+      "Approved", "The exact source leave approval task must be approved, not a neighboring task");
     const leave = await browserRequest(mp, "/api/leave?organizationId=1");
     assert.equal(leave.status, 200);
     assert.equal(leave.body?.requests?.find(row => row.id === syntheticLeaveId)?.status,
