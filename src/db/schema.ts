@@ -3195,6 +3195,31 @@ export const separationRecords = pgTable("separation_records", {
   `),
 ]);
 
+/**
+ * A governed exception is distinct from completed departmental clearance.
+ * Retain revoked waivers for audit. The partial uniqueness constraint means
+ * there can be at most one CURRENT waiver per separation and department.
+ */
+export const separationClearanceWaivers = pgTable("separation_clearance_waivers", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  separationId: integer("separation_id").notNull().references(() => separationRecords.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  department: varchar("department", { length: 16 }).notNull(),
+  reason: varchar("reason", { length: 500 }).notNull(),
+  evidenceReference: varchar("evidence_reference", { length: 200 }).notNull(),
+  authorizedByUserId: integer("authorized_by_user_id").notNull().references(() => users.id),
+  authorizedAt: timestamp("authorized_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokedByUserId: integer("revoked_by_user_id").references(() => users.id, { onDelete: "set null" }),
+}, (table) => [
+  uniqueIndex("separation_clearance_waivers_active_unique").on(table.separationId, table.department)
+    .where(sql`${table.revokedAt} is null`),
+  index("separation_clearance_waivers_org_sep_idx").on(table.organizationId, table.separationId),
+  check("separation_clearance_waivers_department_check",
+    sql`${table.department} in ('it', 'admin', 'finance', 'hr')`),
+]);
+
 export const biometricDevices = pgTable("biometric_devices", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
@@ -6366,6 +6391,48 @@ export const firstPayrollJourneyProgress = pgTable("first_payroll_journey_progre
   updatedAt: timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
 }, table => [
   uniqueIndex("first_payroll_journey_tenant_step").on(table.organizationId,table.step),
+]);
+
+/** An offline punch is unverified evidence, never an authoritative time_punch. */
+export const offlinePunchClaims = pgTable("offline_punch_claims", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  submittedByUserId: integer("submitted_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  clientEventId: varchar("client_event_id", { length: 64 }).notNull(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
+  actionType: varchar("action_type", { length: 20 }).notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("pending_review"),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNote: varchar("review_note", { length: 400 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("offline_punch_client_event_unique").on(table.organizationId, table.employeeId, table.clientEventId),
+  index("offline_punch_pending_org_idx").on(table.organizationId, table.status, table.createdAt),
+  check("offline_claim_action_type_check", sql`${table.actionType} in ('clock_in','clock_out')`),
+  check("offline_claim_status_check", sql`${table.status} in ('pending_review','flagged','dismissed')`),
+  foreignKey({
+    name: "workflow_offline_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id],
+  }).onDelete("restrict"),
+]);
+
+
+/** Default-off workflow UI: named, owner-scoped reports; never grants data permissions. */
+export const savedReportDefinitions = pgTable("saved_report_definitions", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 100 }).notNull(),
+  reportKey: varchar("report_key", { length: 40 }).notNull(),
+  selectedFields: jsonb("selected_fields").notNull().default([]),
+  rowFilters: jsonb("row_filters").notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("saved_reports_user_name_unique").on(table.organizationId, table.userId, table.name),
 ]);
 
 /**
