@@ -454,7 +454,7 @@ export function RecruitmentPanel({
                     onChange={event => setConsentEvidenceConfirmed(event.target.checked)}/>
                   I confirm the candidate accepted the recorded notice and privacy evidence is retained.
                 </label>
-              </>
+              </>}
             </div>
             <div className="run-actions">
               <button type="button" className="secondary-button" onClick={() => setShowAppModal(false)}>Cancel</button>
