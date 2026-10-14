@@ -35,6 +35,7 @@ test('template holds exactly fourteen NOT_RUN cases, never claims acceptance', (
   const packet = createWfmWitnessTemplate(SHA);
   const result = evaluateWfmWitnessPacket(packet);
   assert.equal(WFM_CASES.length, 14);
+  assert.equal(packet.version, 2);
   assert.deepEqual(result.counts, { NOT_RUN:14, PASS:0, NEEDS_FIX:0, BLOCKED:0 });
   assert.equal(result.independentHumanApproval, 'NOT_VERIFIED');
   assert.equal(result.physicalDeviceCertification, 'NOT_VERIFIED');
@@ -113,6 +114,15 @@ test('unverified runtime flags fail closed even when all fourteen cases claim PA
   assert.equal(evaluateWfmWitnessPacket(packet).status, 'RECORDED_PENDING_HUMAN_VALIDATION');
   // An internally consistent packet is never authenticated human approval.
   assert.equal(evaluateWfmWitnessPacket(packet).independentHumanApproval, 'NOT_VERIFIED');
+});
+
+test('v1 WFM receipts cannot silently inherit unverified deployment and payout attestations', () => {
+  const packet = witness('WFM-01');
+  packet.version = 1;
+  assert.throws(() => evaluateWfmWitnessPacket(packet), /archive v1/);
+  packet.version = 2;
+  packet.cases['WFM-01'].observedAt = '2099-01-01T12:00:00Z';
+  assert.throws(() => evaluateWfmWitnessPacket(packet), /future timestamp/);
 });
 
 test('CLI reads local packet and prints redacted summary, not private observation strings', () => {
