@@ -2117,7 +2117,7 @@ export const documents = pgTable("documents", {
   index("documents_org_employee_source_idx").on(table.organizationId, table.employeeId, table.sourceType, table.createdAt),
   uniqueIndex("documents_object_storage_key_unique").on(table.objectStorageKey).where(sql`${table.objectStorageKey} is not null`),
   // Composite parent key prevents a COE in another employer from being attached to an HR case.
-  unique("documents_org_employee_id_hr_cases_unique").on(table.organizationId, table.employeeId, table.id),
+  unique("documents_org_employee_id_hr_cases_unique").on(table.id, table.organizationId, table.employeeId),
   check("documents_source_type_check", sql`${table.sourceType} in ('upload','generated')`),
 ]);
 
@@ -3167,8 +3167,12 @@ export const employeeHrCases = pgTable("employee_hr_cases", {
   }).onDelete("cascade"),
   foreignKey({
     name: "employee_hr_cases_coe_document_tenant_fk",
-    columns: [table.organizationId, table.employeeId, table.coeDocumentId],
-    foreignColumns: [documents.organizationId, documents.employeeId, documents.id],
+    // Keep the referenced composite unique key in the table's physical column
+    // order (id, organization_id, employee_id). drizzle-kit 0.31.x otherwise
+    // repeatedly attempts to drop/recreate it during a second dev db:push.
+    // This reordering preserves exact tenant/employee identity matching.
+    columns: [table.coeDocumentId, table.organizationId, table.employeeId],
+    foreignColumns: [documents.id, documents.organizationId, documents.employeeId],
   }),
   index("employee_hr_cases_sla_idx").on(table.organizationId, table.status, table.slaDueAt),
   check("employee_hr_cases_status_check", sql`${table.status} in ('open','in_progress','waiting_employee','resolved','closed')`),
