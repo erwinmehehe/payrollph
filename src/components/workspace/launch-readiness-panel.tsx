@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { AlertTriangle, CheckCircle2, RefreshCw, Rocket, ServerCog, ShieldCheck } from "lucide-react";
 import { PageHeading, Status } from "@/components/workspace/ui";
+import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
 
 type Gate = {
   key: string;
@@ -24,29 +25,30 @@ type ReadinessPayload = {
 };
 
 export function LaunchReadinessPanel({ organizationId }: { organizationId: number }) {
-  const [payload, setPayload] = useState<ReadinessPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const fetchReadiness = useCallback(async (signal: AbortSignal): Promise<ReadinessPayload> => {
+    let response: Response;
     try {
-      const response = await fetch(`/api/readiness/workspace?organizationId=${organizationId}`, { cache: "no-store" });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setError(body.error ?? "Rollout readiness could not be loaded.");
-        return;
-      }
-      setPayload(body);
+      response = await fetch(`/api/readiness/workspace?organizationId=${organizationId}`, {
+        cache: "no-store",
+        signal,
+      });
     } catch {
-      setError("Rollout readiness could not be loaded because the server could not be reached.");
-    } finally {
-      setLoading(false);
+      throw new Error("Rollout readiness could not be loaded because the server could not be reached.");
     }
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof body.error === "string" ? body.error : "Rollout readiness could not be loaded.");
+    }
+    return body as ReadinessPayload;
   }, [organizationId]);
 
-  useEffect(() => { void load(); }, [load]);
+  // Never show an old employer's launch/pilot status during an employer switch,
+  // and never let a late response override the currently selected employer.
+  const { data: payload, loading, error: loadError, reload } = useScopedAsyncResource(
+    "launch-readiness:" + organizationId,
+    fetchReadiness,
+  );
+  const error = loadError?.message ?? "";
 
   const launch = useMemo(
     () => (payload?.gates ?? []).filter((gate) => gate.blocks === "launch").sort((a, b) => Number(a.ready) - Number(b.ready)),
@@ -68,7 +70,7 @@ export function LaunchReadinessPanel({ organizationId }: { organizationId: numbe
         title="Prove launch, don’t infer it."
         copy="Deployment readiness is evidence-based. A green code path is not treated as proof of agency acceptance, bank acceptance, live delivery or production payroll reconciliation."
         actions={
-          <button className="secondary-button" onClick={() => void load()} disabled={loading}>
+          <button className="secondary-button" onClick={() => void reload()} disabled={loading}>
             <RefreshCw size={15} /> {loading ? "Checking…" : "Refresh evidence"}
           </button>
         }
