@@ -39,6 +39,7 @@ export function DemoRolePicker() {
   const [selectedRole, setSelectedRole] = useState<DemoRoleId>("owner");
   const [launching, setLaunching] = useState<DemoRoleId | null>(null);
   const [error, setError] = useState("");
+  const [liveUnavailable, setLiveUnavailable] = useState(false);
 
   const selected = useMemo(
     () => DEMO_ROLES.find((role) => role.id === selectedRole) ?? DEMO_ROLES[0],
@@ -50,6 +51,7 @@ export function DemoRolePicker() {
   async function openDemo(role: DemoRoleId) {
     setLaunching(role);
     setError("");
+    setLiveUnavailable(false);
 
     try {
       const response = await fetch("/api/auth/demo-switch", {
@@ -60,20 +62,25 @@ export function DemoRolePicker() {
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setError(payload.error ?? "This demo is not available on the current deployment.");
+        setError(typeof payload.error === "string" ? payload.error : "The live sandbox is unavailable on this deployment.");
+        setLiveUnavailable(true);
         return;
       }
 
-      window.location.assign(demoRolePath(role));
+      const safeDestination = typeof payload.redirectTo === "string" && payload.redirectTo === demoRolePath(role)
+        ? payload.redirectTo
+        : demoRolePath(role);
+      window.location.assign(safeDestination);
     } catch {
-      setError("Could not open the demo workspace. Please try again.");
+      setError("The live demo could not be opened. You can still explore the interactive preview.");
+      setLiveUnavailable(true);
     } finally {
       setLaunching(null);
     }
   }
 
   return (
-    <main className="bg-white text-[#0B0D1A]">
+    <main className="linaw-demo-role-picker bg-white text-[#0B0D1A]">
       <section className="relative overflow-hidden border-b border-[#EDEFF7] pb-16 pt-16 sm:pb-20 sm:pt-20">
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <div className="absolute -right-32 -top-48 h-[560px] w-[620px] rounded-full bg-gradient-to-br from-[#e5f0ff] via-[#EAF4FF] to-[#e5f8f2] opacity-80 blur-3xl" />
@@ -113,6 +120,12 @@ export function DemoRolePicker() {
               {error}
             </div>
           )}
+          {liveUnavailable && (
+            <div className="linaw-demo-fallback" role="status">
+              <p>The on-page interactive preview uses fictional data and does not require a live demo session.</p>
+              <Link href="/#demo">Explore interactive preview <ArrowRight size={14} aria-hidden /></Link>
+            </div>
+          )}
 
           <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
             <div className="rounded-[24px] border border-[#E5E7F0] bg-[#FAFBFD] p-2" role="tablist" aria-label="Demo roles">
@@ -124,9 +137,27 @@ export function DemoRolePicker() {
                   <button
                     type="button"
                     role="tab"
+                    id={`demo-role-tab-${role.id}`}
+                    aria-controls="demo-role-panel"
                     aria-selected={active}
+                    tabIndex={active ? 0 : -1}
                     key={role.id}
-                    onClick={() => setSelectedRole(role.id)}
+                    onClick={() => { setSelectedRole(role.id); setError(""); setLiveUnavailable(false); }}
+                    onKeyDown={(event) => {
+                      const index = DEMO_ROLES.findIndex((item) => item.id === role.id);
+                      let next = index;
+                      if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (index + 1) % DEMO_ROLES.length;
+                      else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (index + DEMO_ROLES.length - 1) % DEMO_ROLES.length;
+                      else if (event.key === "Home") next = 0;
+                      else if (event.key === "End") next = DEMO_ROLES.length - 1;
+                      else return;
+                      event.preventDefault();
+                      const target = DEMO_ROLES[next].id;
+                      setSelectedRole(target);
+                      setError("");
+                      setLiveUnavailable(false);
+                      document.getElementById(`demo-role-tab-${target}`)?.focus();
+                    }}
                     className={`flex w-full items-center gap-3 rounded-[18px] px-3.5 py-3.5 text-left transition-all ${
                       active ? "bg-white shadow-[0_10px_28px_-18px_rgba(30,34,70,.45)] ring-1 ring-[#E2E4F0]" : "hover:bg-white/70"
                     }`}
@@ -147,7 +178,7 @@ export function DemoRolePicker() {
               })}
             </div>
 
-            <article className="overflow-hidden rounded-[28px] border border-[#E2E4F0] bg-white shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)]" role="tabpanel">
+            <article className="overflow-hidden rounded-[28px] border border-[#E2E4F0] bg-white shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)]" role="tabpanel" id="demo-role-panel" aria-labelledby={`demo-role-tab-${selected.id}`}>
               <div className="grid gap-8 p-6 sm:p-8 xl:grid-cols-[1.05fr_.95fr]">
                 <div>
                   <div className="flex items-start gap-4">
