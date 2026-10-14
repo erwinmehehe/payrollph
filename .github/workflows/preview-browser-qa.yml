@@ -614,7 +614,7 @@ jobs:
               body: JSON.stringify({ error: "Sample demo temporarily unavailable" }),
             }));
             await page.getByRole("button", { name: /^Open HR Admin demo/i }).click();
-            const alert = page.getByRole("alert");
+            const alert = page.locator(".linaw-demo-role-picker [role=\"alert\"]").first();
             await alert.waitFor({ state: "visible", timeout: 10000 });
             check((await alert.count()) === 1 &&
               (await alert.innerText()).includes("Sample demo temporarily unavailable"),
