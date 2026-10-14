@@ -218,7 +218,7 @@ export function buildBir1604cDatCandidate(input: Bir1604CCandidateInput) {
     actualWithheld += amount(record.ACTUAL_AMT_WTHLD, "ACTUAL_AMT_WTHLD");
   }
   const expectedWithheld = amount(input.expectedActualWithheld, "expectedActualWithheld");
-  if (Math.abs(cents(actualWithheld) - cents(expectedWithheld)) > 1) {
+  if (cents(actualWithheld) !== cents(expectedWithheld)) {
     throw new Error("DAT candidate actual withholding does not reconcile to released employer payroll withholding.");
   }
   for (const schedule of ["D1", "D2"] as const) {

@@ -43,6 +43,11 @@ on:
       - "tests/compact-mobile-header.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
       - "scripts/qa/governed-hire-853-bridge.ts"
+      - "scripts/qa/connected-governed-hire.ts"
+      - "scripts/qa/bir-1604c-validation-corpus.ts"
+      - "scripts/build-bir-validation-corpus.ts"
+      - "tests/bir-validation-corpus.test.ts"
+      - "src/lib/bir-1604c-dat-candidate.ts"
       - "tests/governed-hire-853-evidence.test.mjs"
       - "scripts/qa/isolated-month-end-clock.cjs"
       - "scripts/qa/synthetic-month-end.cjs"
@@ -92,6 +97,11 @@ on:
       - "tests/compact-mobile-header.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
       - "scripts/qa/governed-hire-853-bridge.ts"
+      - "scripts/qa/connected-governed-hire.ts"
+      - "scripts/qa/bir-1604c-validation-corpus.ts"
+      - "scripts/build-bir-validation-corpus.ts"
+      - "tests/bir-validation-corpus.test.ts"
+      - "src/lib/bir-1604c-dat-candidate.ts"
       - "tests/governed-hire-853-evidence.test.mjs"
       - "scripts/qa/isolated-month-end-clock.cjs"
       - "scripts/qa/synthetic-month-end.cjs"
@@ -113,9 +123,14 @@ concurrency:
 
 jobs:
   connected-payroll:
+    strategy:
+      fail-fast: false
+      matrix:
+        hire-mode: [direct, governed]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
+      NINE_STAGE_HIRE_MODE: ${{ matrix.hire-mode }}
       CI: "true"
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       TZ: Asia/Manila
@@ -197,6 +212,10 @@ jobs:
             tests/workforce-attendance-locks.test.ts \
             tests/workforce-timesheet.test.ts \
             tests/filing-remittance-crosscheck.test.ts
+      - name: Generate byte-bound fictional official-validator handoff (not certification)
+        run: |
+          npx tsx --test tests/bir-validation-corpus.test.ts tests/bir-1604c-dat-candidate.test.ts tests/bir-1604c-pre-export.test.ts
+          npx tsx scripts/build-bir-validation-corpus.ts
       - name: Build exact PR commit
         run: npm run build
       - name: Start localhost application
@@ -253,18 +272,19 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: nine-stage-source-connected-no-money
+          name: nine-stage-source-connected-no-money-${{ matrix.hire-mode }}
           path: |
             qa-artifacts/nine-stage-connected-report.json
             qa-artifacts/nine-stage-mobile-report.json
             qa-artifacts/governed-hire-853-report.json
+            qa-artifacts/bir-validation-corpus/**
           if-no-files-found: warn
           retention-days: 14
       - name: Upload fictional desktop and phone layout screenshots
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: nine-stage-role-layout-screenshots
+          name: nine-stage-role-layout-screenshots-${{ matrix.hire-mode }}
           path: qa-artifacts/nine-stage-layout-*.png
           if-no-files-found: warn
           retention-days: 14

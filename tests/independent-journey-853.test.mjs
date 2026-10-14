@@ -6,12 +6,13 @@ const people={HR:"PERSON-HR01",MANAGER:"PERSON-MANAGER01",EMPLOYEE:"PERSON-EMPLO
 function sample(){
  const m=createTemplate(sha);
  m.runtime={deployedSha:sha,appBuildEvidence:"UAT-BUILD01",fixtureEvidence:"UAT-FIXTURE01",flagEvidence:"UAT-FLAGS01",deviceEvidence:"UAT-PHONES01",databaseIsolationEvidence:"UAT-DB01"};
- for(const s of STAGES)m.stages[s.id]={status:"PASS",operatorRef:people[s.role],witnessRef:"PERSON-QA01",evidenceRef:"UAT-"+s.id.replace("-","")+"01",defectRef:null,blockerCode:null};
- for(const c of CHECKS)m.checks[c.id]={status:"PASS",operatorRef:c.id.startsWith("OWNER_")?people.OWNER:c.id.startsWith("PAYROLL_")?people.PAYROLL:people.HR,witnessRef:"PERSON-QA01",evidenceRef:"UAT-"+c.id.replaceAll("_","")+"01",defectRef:null,blockerCode:null};
+ for(const s of STAGES)m.stages[s.id]={status:"PASS",operatorRef:people[s.role],witnessRef:"PERSON-QA01",evidenceRef:"UAT-"+s.id.replace("-","")+"01",defectRef:null,blockerCode:null,observedAt:"2026-10-13T08:00:00Z"};
+ for(const c of CHECKS)m.checks[c.id]={status:"PASS",operatorRef:c.id.startsWith("OWNER_")?people.OWNER:c.id.startsWith("PAYROLL_")?people.PAYROLL:people.HR,witnessRef:"PERSON-QA01",evidenceRef:"UAT-"+c.id.replaceAll("_","")+"01",defectRef:null,blockerCode:null,observedAt:"2026-10-13T08:01:00Z"};
  return m;
 }
 test("starts all 19 outcomes NOT_RUN; never certifies",()=>{
  const m=createTemplate(sha),a=assess(m);
+ assert.equal(m.version,2);
  assert.equal(STAGES.length,9); assert.equal(CHECKS.length,10);
  assert.equal(a.counts.NOT_RUN,19); assert.equal(a.completeForPrivateReview,false);
  assert.equal(a.independentHumanAccepted,false); assert.equal(a.productionAuthorized,false);
@@ -38,7 +39,7 @@ test("checker/owner/payroll separation and mobile role mismatches fail closed",(
 test("missing phone proof, stale SHA, duplicated evidence block completeness",()=>{
  const m=sample();m.runtime.deployedSha="b".repeat(40);
  assert.equal(assess(m).completeForPrivateReview,false);
- m.runtime.deployedSha=sha;m.checks.PAYROLL_PHYSICAL_MOBILE={status:"BLOCKED",operatorRef:null,witnessRef:null,evidenceRef:null,defectRef:null,blockerCode:"DEVICE"};
+ m.runtime.deployedSha=sha;m.checks.PAYROLL_PHYSICAL_MOBILE={status:"BLOCKED",operatorRef:null,witnessRef:null,evidenceRef:null,defectRef:null,blockerCode:"DEVICE",observedAt:null};
  assert.equal(assess(m).completeForPrivateReview,false);
  const n=sample();n.stages["JOURNEY-02"].evidenceRef=n.stages["JOURNEY-01"].evidenceRef;
  assert.equal(assess(n).completeForPrivateReview,false);
@@ -74,7 +75,7 @@ test("blocked or unexecuted rows must never carry invented proof", () => {
  const blocked = sample();
  blocked.checks.OWNER_EMPLOYER_SWITCH = {
   status: "BLOCKED", operatorRef: null, witnessRef: null,
-  evidenceRef: null, defectRef: null, blockerCode: "DEVICE"
+  evidenceRef: null, defectRef: null, blockerCode: "DEVICE", observedAt: null
  };
  assert.equal(assess(blocked).completeForPrivateReview, false);
  blocked.checks.OWNER_EMPLOYER_SWITCH.evidenceRef = "UAT-NO-OBSERVATION";
@@ -86,4 +87,32 @@ test("blocked or unexecuted rows must never carry invented proof", () => {
  failed.stages["JOURNEY-04"].status = "NEEDS_FIX";
  failed.stages["JOURNEY-04"].defectRef = "BUG-ATTENDANCE01";
  assert.equal(assess(failed).completeForPrivateReview, false);
+});
+
+test("journey PASS requires exact nonfuture UTC observation evidence time", () => {
+ const m = sample();
+ m.stages["JOURNEY-04"].observedAt = null;
+ assert.throws(() => assess(m), /Exact UTC observation timestamp/);
+ m.stages["JOURNEY-04"].observedAt = "2099-11-21T08:00:00Z";
+ assert.throws(() => assess(m), /Future observation timestamps/);
+ m.stages["JOURNEY-04"].observedAt = "2026-10-13";
+ assert.throws(() => assess(m), /Exact UTC observation timestamp/);
+ m.stages["JOURNEY-04"].observedAt = "2026-10-13T08:01:00Z";
+ assert.equal(assess(m).completeForPrivateReview, true);
+});
+
+test("old v1 witness receipts cannot silently become current v2 acceptance", () => {
+ const m=sample();
+ m.version=1;
+ assert.throws(() => assess(m), /archive v1 privately/);
+});
+
+test("NOT_RUN and BLOCKED witness rows cannot carry fabricated timestamp", () => {
+ const m=createTemplate(sha);
+ m.stages["JOURNEY-01"].observedAt="2026-10-13T08:00:00Z";
+ assert.throws(()=>assess(m),/NOT_RUN cannot contain invented proof/);
+ const n=sample();
+ n.checks.OWNER_PHYSICAL_MOBILE={status:"BLOCKED",operatorRef:null,witnessRef:null,
+   evidenceRef:null,defectRef:null,blockerCode:"DEVICE",observedAt:"2026-10-13T08:00:00Z"};
+ assert.throws(()=>assess(n),/Blocked rows cannot claim an observation time/);
 });

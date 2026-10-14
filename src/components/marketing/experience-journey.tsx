@@ -34,7 +34,7 @@ export function ExperienceJourney() {
           <h2 id="journey-title">From the first hire to the payroll record.</h2>
           <p>
             Follow the handoffs between HR, workforce management, payroll and review.
-            Each step has a place in Linaw, with access determined by the person's role.
+            Each step has a place in Linaw, with access determined by the person&apos;s role.
           </p>
         </div>
         <Link href="/demo" className="journey-primary">

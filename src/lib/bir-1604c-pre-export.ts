@@ -242,8 +242,8 @@ export function validateBir1604cPreExport(input: {
     if (withheld !== null) actualCents += withheld;
   }
 
-  if (expectedCents !== null && Math.abs(actualCents - expectedCents) > 1)
-    add("WITHHOLDING_MISMATCH", "Sum of employee actual withholding does not match released employer payroll (tolerance PHP 0.01).");
+  if (expectedCents !== null && actualCents !== expectedCents)
+    add("WITHHOLDING_MISMATCH", "Sum of employee actual withholding must match released employer payroll to the exact centavo.");
   for (const schedule of ["D1", "D2"] as const) {
     const controls = schedule === "D1" ? BIR_1604C_C1_FIELDS : BIR_1604C_C2_FIELDS;
     for (const field of controls.slice(5)) {

@@ -90,7 +90,7 @@ function cents(value: string): number | null {
   const amount = Number(whole) * 100 + Number(frac.padEnd(2, "0"));
   return Number.isSafeInteger(amount) ? (negative ? -amount : amount) : null;
 }
-function safeFile(source: unknown, root: string): Buffer {
+function safeFile(source: unknown, root: string, seenFiles: Set<string>): Buffer {
   if (!isObject(source)
     || typeof source.filePath !== "string"
     || typeof source.sha256 !== "string"
@@ -118,6 +118,16 @@ function safeFile(source: unknown, root: string): Buffer {
   const bytes = readFileSync(target);
   const digest = createHash("sha256").update(bytes).digest("hex");
   if (digest !== source.sha256) throw new Error("SHA-256 mismatch.");
+  // Each actual file must represent exactly one independently sourced export.
+  // Otherwise an incumbent and PayrollPH record can compare a file to itself
+  // and falsely appear reconciled. Block aliases and hard links as well.
+  const byPath = "path:" + target;
+  const byInode = stat.ino > 0 ? "inode:" + stat.dev + ":" + stat.ino : null;
+  if (seenFiles.has(byPath) || (byInode !== null && seenFiles.has(byInode))) {
+    throw new Error("Private evidence file reused across sources or payroll periods.");
+  }
+  seenFiles.add(byPath);
+  if (byInode !== null) seenFiles.add(byInode);
   return bytes;
 }
 function canonicalRows(bytes: Buffer, columns: readonly string[]): string[][] {
@@ -278,6 +288,7 @@ export function evaluateParallelPayrollReconciliation(
 ): ParallelReconciliationResult {
   const issues: string[] = [];
   let verifiedFileHashCount = 0;
+  const seenFiles = new Set<string>();
   const manifest = isObject(value) ? value : {};
   const legalEntityCode = typeof manifest.legalEntityCode === "string"
     ? manifest.legalEntityCode.trim() : "";
@@ -310,7 +321,7 @@ export function evaluateParallelPayrollReconciliation(
     const loaded = {} as Partial<Record<SourceKey, ParsedFile>>;
     for (const key of SOURCE_KEYS) {
       try {
-        const bytes = safeFile(rawCycle[key], safeRoot);
+        const bytes = safeFile(rawCycle[key], safeRoot, seenFiles);
         verifiedFileHashCount++;
         loaded[key] = key.endsWith("Payroll")
           ? payrollRows(bytes, legalEntityCode, period)

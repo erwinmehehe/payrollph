@@ -32,6 +32,7 @@ export const CHECKS = Object.freeze([
 const statuses = new Set(["NOT_RUN", "PASS", "NEEDS_FIX", "BLOCKED"]);
 const blockers = new Set(["DEVICE", "ENVIRONMENT", "ROLE", "DATA", "REVIEWER", "OTHER"]);
 const shaPattern = /^[a-f0-9]{40}$/;
+const observedAtPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 const personPattern = /^PERSON-[A-Z0-9][A-Z0-9-]{2,39}$/;
 const evidencePattern = /^UAT-[A-Z0-9][A-Z0-9-]{2,79}$/;
 const defectPattern = /^BUG-[A-Z0-9][A-Z0-9-]{1,79}$/;
@@ -46,12 +47,12 @@ function keys(value, fields, label) {
 }
 function emptyObservation() {
   return { status: "NOT_RUN", operatorRef: null, witnessRef: null,
-    evidenceRef: null, defectRef: null, blockerCode: null };
+    evidenceRef: null, defectRef: null, blockerCode: null, observedAt: null };
 }
 export function createTemplate(sourceSha) {
   assert.match(sourceSha, shaPattern, "Exact source commit required");
   return {
-    version: 1, type: "fictional-independent-journey-observations-unverified",
+    version: 2, type: "fictional-independent-journey-observations-unverified",
     sourceSha, runtime: { deployedSha: null, ...Object.fromEntries(runtimeRefs.map(k => [k, null])) },
     stages: Object.fromEntries(STAGES.map(x => [x.id, emptyObservation()])),
     checks: Object.fromEntries(CHECKS.map(x => [x.id, emptyObservation()])),
@@ -69,11 +70,18 @@ function validateObservation(row, id, reasons) {
     assert.equal(row.defectRef, null, "Blocked rows cannot claim a test defect: " + id);
     assert.equal(row.operatorRef, null, "Blocked rows cannot claim a test operator: " + id);
     assert.equal(row.witnessRef, null, "Blocked rows cannot claim a test witness: " + id);
+    assert.equal(row.observedAt, null, "Blocked rows cannot claim an observation time: " + id);
   } else {
     assert.match(row.operatorRef || "", personPattern, "Opaque operator reference required for " + id);
     assert.match(row.witnessRef || "", personPattern, "Opaque witness reference required for " + id);
     assert.notEqual(row.operatorRef, row.witnessRef, "Operator cannot witness their own outcome: " + id);
     assert.match(row.evidenceRef || "", evidencePattern, "Private UAT evidence reference required for " + id);
+    assert.match(row.observedAt || "", observedAtPattern,
+      "Exact UTC observation timestamp required for " + id);
+    assert.ok(Number.isFinite(Date.parse(row.observedAt)), "Invalid observation date for " + id);
+    // Impossible future timestamps do not constitute completed past observations.
+    assert.ok(Date.parse(row.observedAt) <= Date.now() + 5 * 60_000,
+      "Future observation timestamps are not valid for " + id);
     assert.equal(row.blockerCode, null, "Observed row cannot be marked blocked: " + id);
     if (row.status === "NEEDS_FIX") assert.match(row.defectRef || "", defectPattern, "Defect reference required for " + id);
     else assert.equal(row.defectRef, null, "PASS cannot contain unresolved defect: " + id);
@@ -82,7 +90,7 @@ function validateObservation(row, id, reasons) {
 }
 export function assess(manifest) {
   keys(manifest, ["version", "type", "sourceSha", "runtime", "stages", "checks", "safety"], "manifest");
-  assert.equal(manifest.version, 1, "Unsupported manifest version");
+  assert.equal(manifest.version, 2, "Unsupported manifest version; archive v1 privately and create a new NOT_RUN v2 session");
   assert.equal(manifest.type, "fictional-independent-journey-observations-unverified");
   assert.match(manifest.sourceSha, shaPattern, "Invalid source SHA");
   keys(manifest.runtime, ["deployedSha", ...runtimeRefs], "runtime");
