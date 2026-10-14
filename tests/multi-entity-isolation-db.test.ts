@@ -13,6 +13,7 @@ import { assertMembership, getAccess } from "../src/lib/access";
 import { ensurePrimaryLegalEntity } from "../src/lib/legal-entity";
 import { loadPeopleOperationsInbox } from "../src/lib/hcm-people-operations-inbox-server";
 import { loadEmploymentLifecycleReadiness } from "../src/lib/hcm-lifecycle-readiness-server";
+import { applyWorkerEffectiveChange, runScheduledWorkerEffectiveChanges } from "../src/lib/hcm-effective-changes";
 import { employeeScopePredicate } from "../src/lib/multi-entity-personnel-scope";
 import { encryptBankAccount } from "../src/lib/bank-account-crypto";
 import { encryptGovernmentId } from "../src/lib/government-id-crypto";
@@ -408,5 +409,24 @@ test("an empty tenant gets exactly one active PRIMARY under repeated bootstrap",
     assert.equal(all.filter(row => row.primaryEntity && row.active).length, 1);
   } finally {
     await db.delete(organizations).where(eq(organizations.id, tenant.id));
+  }
+});
+
+// Fail closed at the worker entrypoint, even if an API/scheduler caller is
+// changed later. A deferred invocation must not query the HCM queue, claim
+// work, or mark any previously scheduled change as failed.
+test("multi-entity freeze blocks direct and scheduled HCM worker entrypoints without DB access", async () => {
+  const previous = process.env.MULTI_ENTITY_ENABLED;
+  process.env.MULTI_ENTITY_ENABLED = "true";
+  try {
+    assert.deepEqual(await applyWorkerEffectiveChange(-1), {
+      skipped: true, reason: "ENTITY_HCM_DEFERRED",
+    });
+    assert.deepEqual(await runScheduledWorkerEffectiveChanges(), [
+      { status: "skipped", reason: "ENTITY_HCM_DEFERRED" },
+    ]);
+  } finally {
+    if (previous === undefined) delete process.env.MULTI_ENTITY_ENABLED;
+    else process.env.MULTI_ENTITY_ENABLED = previous;
   }
 });
