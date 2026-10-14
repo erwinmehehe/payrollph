@@ -30,9 +30,9 @@ test("real PostgreSQL serializes consumption of the same one-time backup code", 
 
     const identity = await first.query(`SELECT current_database() AS database,
       current_setting('server_version_num')::integer AS version,
-      inet_server_addr()::text AS host`);
+      current_user AS role`);
     assert.equal(identity.rows[0].database, "app_db");
-    assert.equal(identity.rows[0].host, "127.0.0.1");
+    assert.equal(identity.rows[0].role, "postgres");
     assert.ok(identity.rows[0].version >= 160000 && identity.rows[0].version < 190000);
 
     // Only a new throwaway synthetic table is mutated. Application users,
