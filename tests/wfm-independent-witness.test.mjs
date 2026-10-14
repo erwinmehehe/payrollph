@@ -12,6 +12,9 @@ import {
 const SHA = 'a'.repeat(40);
 const witness = id => {
   const packet = createWfmWitnessTemplate(SHA);
+  packet.deployedSha = SHA;
+  packet.payoutsDisabled = true;
+  packet.agencySubmissionDisabled = true;
   const role = WFM_CASES.find(([key]) => key === id)[1];
   packet.cases[id] = {
     ...packet.cases[id], status: 'PASS', reviewerRole: role,
@@ -36,6 +39,10 @@ test('template holds exactly fourteen NOT_RUN cases, never claims acceptance', (
   assert.equal(result.independentHumanApproval, 'NOT_VERIFIED');
   assert.equal(result.physicalDeviceCertification, 'NOT_VERIFIED');
   assert.equal(result.payoutsOrAgencyAuthorized, false);
+  assert.equal(packet.deployedSha, null, 'The template cannot pre-attest a deployed build');
+  assert.equal(packet.payoutsDisabled, null, 'Payout isolation must be checked by an operator');
+  assert.equal(packet.agencySubmissionDisabled, null, 'Agency isolation must be checked by an operator');
+  assert.equal(result.runtimeConfigurationSelfReported, false);
 });
 
 test('one claimed observation requires discipline, timestamp, expectation, actual and evidence', () => {
@@ -80,11 +87,32 @@ test('a fabricated external acceptance claim or partially omitted cases fails cl
 test('all fourteen populated cases produce only a record pending real reviewer verification', () => {
   const packet = createWfmWitnessTemplate(SHA);
   for(const [id] of WFM_CASES) packet.cases[id] = witness(id).cases[id];
+  // Structural completeness is still blocked until the operator records the
+  // actual deployment and disabled payment/agency flags.
+  assert.equal(evaluateWfmWitnessPacket(packet).status, 'INCOMPLETE_NOT_ACCEPTED');
+  packet.deployedSha = SHA;
+  packet.payoutsDisabled = true;
+  packet.agencySubmissionDisabled = true;
   const result = evaluateWfmWitnessPacket(packet);
   assert.equal(result.status, 'RECORDED_PENDING_HUMAN_VALIDATION');
   assert.equal(result.independentHumanApproval, 'NOT_VERIFIED');
   assert.equal(result.physicalDeviceCertification, 'NOT_VERIFIED');
   assert.equal(result.p0Recorded, true);
+});
+
+test('unverified runtime flags fail closed even when all fourteen cases claim PASS', () => {
+  const packet = createWfmWitnessTemplate(SHA);
+  for (const [id] of WFM_CASES) packet.cases[id] = witness(id).cases[id];
+  packet.deployedSha = SHA;
+  assert.equal(evaluateWfmWitnessPacket(packet).p0Recorded, false);
+  packet.payoutsDisabled = true;
+  assert.equal(evaluateWfmWitnessPacket(packet).status, 'INCOMPLETE_NOT_ACCEPTED');
+  packet.agencySubmissionDisabled = false;
+  assert.throws(() => evaluateWfmWitnessPacket(packet), /Runtime safety flags/);
+  packet.agencySubmissionDisabled = true;
+  assert.equal(evaluateWfmWitnessPacket(packet).status, 'RECORDED_PENDING_HUMAN_VALIDATION');
+  // An internally consistent packet is never authenticated human approval.
+  assert.equal(evaluateWfmWitnessPacket(packet).independentHumanApproval, 'NOT_VERIFIED');
 });
 
 test('CLI reads local packet and prints redacted summary, not private observation strings', () => {

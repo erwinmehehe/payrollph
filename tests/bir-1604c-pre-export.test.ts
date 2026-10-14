@@ -61,6 +61,14 @@ test("reviewed regular employee is locally complete, not officially validated", 
   assert.equal(result.canGenerateCandidate, true);
   assert.equal(birModuleV70Status(), "not run");
 });
+
+test("review preview blocks a one-centavo difference before candidate download", () => {
+  for (const amount of ["4999.99", "5000.01"]) {
+    const result = check([employee()], amount);
+    assert.equal(result.canGenerateCandidate, false);
+    assert.ok(has(result, "WITHHOLDING_MISMATCH"));
+  }
+});
 test("terminated mid-year: reviewed departure date permitted; inconsistent dates fail", () => {
   const departed = employee();
   departed.fields.EMPLOYMENT_TO = "06/30/2026";

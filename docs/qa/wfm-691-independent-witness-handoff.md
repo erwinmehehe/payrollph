@@ -1,5 +1,7 @@
 # WFM #691 — independent-witness packet (development only)
 
+**P0 evidence-integrity update (October 14, 2026):** The witness `template` intentionally leaves `deployedSha`, `payoutsDisabled`, and `agencySubmissionDisabled` as `null` — nothing has yet been witnessed. Before recording observed PASS rows, a real facilitator must verify the running app SHA and the effective no-payout/no-agency configuration independently, then enter the observed values in the private JSON. A value of `true` is only a self-reported configuration observation; this offline checker never verifies credentials, flags, individuals or the deployment itself. A packet with all 14 PASS rows but any unverified deployment/flag field remains **INCOMPLETE_NOT_ACCEPTED**. No bank/provider or agency action is permitted.
+
 This is an OFFLINE evidence recorder, not a substitute for conducting the WFM-01..14 tests. The existing owner self-UAT recorder documents only self-reported owner checks; this separate packet supports the independent HR, operations, payroll, security, SRE, UX and device reviewers required by issue #691.
 
 ## Safety and truth boundaries

@@ -45,10 +45,11 @@ export function createWfmWitnessTemplate(sha) {
     version: 1,
     purpose: 'fictional-development-wfm-witness',
     sourceSha: sha,
-    deployedSha: sha,
+    // Never pre-attest a running app or effective payment flags from Git alone.
+    deployedSha: null,
     fictionalRecordsOnly: true,
-    payoutsDisabled: true,
-    agencySubmissionDisabled: true,
+    payoutsDisabled: null,
+    agencySubmissionDisabled: null,
     cases: Object.fromEntries(WFM_CASES.map(([id]) => [id, empty()])),
   };
 }
@@ -65,11 +66,18 @@ export function evaluateWfmWitnessPacket(packet) {
   assert.equal(packet.version, 1, 'Unrecognized witness packet version');
   assert.equal(packet.purpose, 'fictional-development-wfm-witness', 'Fictional development scope required');
   assert.match(packet.sourceSha ?? '', SHA, 'Invalid source SHA');
-  assert.match(packet.deployedSha ?? '', SHA, 'Invalid deployed SHA');
-  assert.equal(packet.sourceSha, packet.deployedSha, 'Deployed build and source must match');
+  const deploymentRecorded = packet.deployedSha !== null;
+  if (deploymentRecorded) {
+    assert.match(packet.deployedSha ?? '', SHA, 'Invalid deployed SHA');
+    assert.equal(packet.sourceSha, packet.deployedSha, 'Deployed build and source must match');
+  }
   assert.equal(packet.fictionalRecordsOnly, true, 'This tool is restricted to fictional data');
-  assert.equal(packet.payoutsDisabled, true, 'Payout providers must be disabled');
-  assert.equal(packet.agencySubmissionDisabled, true, 'Agency submissions must be disabled');
+  for (const flag of ['payoutsDisabled', 'agencySubmissionDisabled']) {
+    assert.ok(packet[flag] === null || packet[flag] === true,
+      'Runtime safety flags must be explicitly observed as OFF: ' + flag);
+  }
+  const safetyRecorded = packet.payoutsDisabled === true
+    && packet.agencySubmissionDisabled === true;
   for (const claim of ['independentHumanAccepted', 'productionAuthorized', 'hardwareCertified', 'moneyMoved', 'agencyAccepted']) {
     assert.notEqual(packet[claim], true, 'External approval may not be asserted: ' + claim);
   }
@@ -127,16 +135,19 @@ export function evaluateWfmWitnessPacket(packet) {
   }
   return {
     sourceSha: packet.sourceSha,
-    status: counts.PASS === 14 ? 'RECORDED_PENDING_HUMAN_VALIDATION' : 'INCOMPLETE_NOT_ACCEPTED',
+    status: counts.PASS === 14 && deploymentRecorded && safetyRecorded
+      ? 'RECORDED_PENDING_HUMAN_VALIDATION' : 'INCOMPLETE_NOT_ACCEPTED',
     total: 14,
     counts,
-    p0Recorded: WFM_CASES.slice(0, 10).every(([id]) => packet.cases[id].status === 'PASS'),
+    p0Recorded: deploymentRecorded && safetyRecorded
+      && WFM_CASES.slice(0, 10).every(([id]) => packet.cases[id].status === 'PASS'),
+    runtimeConfigurationSelfReported: deploymentRecorded && safetyRecorded,
     physicalDeviceSelfReported,
     independentHumanApproval: 'NOT_VERIFIED',
     physicalDeviceCertification: 'NOT_VERIFIED',
     realEmployerReconciliation: 'NOT_RUN',
     payoutsOrAgencyAuthorized: false,
-    explanation: 'Offline self-supplied packet shape only. Verify witnesses, original private evidence and signatures independently.',
+    explanation: 'Offline self-supplied packet shape only. The template does not pre-verify deployment or runtime flags. Verify all flags, witnesses, original private evidence and signatures independently.',
   };
 }
 
