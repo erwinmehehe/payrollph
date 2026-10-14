@@ -152,6 +152,12 @@ test("readiness is GET only, company-wide, no-store and does not update HR or pa
   assert.ok(ui.includes("const checked = checkedOrganizationId === organizationId"));
   assert.ok(ui.includes("setCheckedOrganizationId(organizationId)"));
   assert.ok(!ui.includes("setChecked(false)"));
+  assert.ok(ui.includes('errorState?.organizationId === organizationId ? errorState.message : ""'));
+  assert.ok(ui.includes("disabled={busy || !checked}"));
+  // Fetch initiation in the effect must not synchronously call a state setter.
+  const effect = ui.match(/useEffect\(\(\) => \{([\s\S]*?)\}, \[refresh\]\)/)?.[1] ?? "";
+  assert.ok(effect.includes("void refresh()"));
+  assert.doesNotMatch(effect, /set(?:Busy|Checked|ErrorState)\(/);
 
   assert.ok(ui.includes("not certification") || ui.includes("not certification."));
   assert.ok(admin.includes('process.env.NEXT_PUBLIC_HCM_GOVERNANCE_READINESS_ENABLED === "true"'));
