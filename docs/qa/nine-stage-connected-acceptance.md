@@ -24,13 +24,13 @@ silently activate the fix or hide overflowing content.
 The historical September QA in `scripts/pilot-payroll-qa.ts` is useful regression
 evidence but its live Web Bundy punch falls outside its seeded September payroll period.
 This harness instead uses real authenticated Web Bundy IN/OUT HTTP operations under a
-**guarded virtual Manila clock of September 30, 2026 at 16:00**, so the punch, timesheet,
+**guarded virtual Manila clock at 16:00 on the current Manila calendar month-end**, so the punch, timesheet,
 final monthly cutoff, released ledger, and draft BIR/SSS/PhilHealth/Pag-IBIG worksheets
 share the same *simulated* payroll work date. The API-created punch is not seeded.
-It is **not actual October 13 wall-clock attendance or a real device event**.
+It is **not real wall-clock attendance or a physical device event**.
 The guarded virtual date runs in the localhost Next.js process and connected test
 process. GitHub CI exports one fresh real-time anchor (milliseconds), which both
-Node and the synthetic Chromium page convert to the same fictional September 30
+Node and the synthetic Chromium page convert to the same selected month-end
 instant. This avoids creating independent virtual clocks at each process start.
 The browser context explicitly uses the Asia/Manila timezone and an isolated Date
 shim; full React hydration/page-error assertions remain active. An absent, invalid
@@ -54,7 +54,8 @@ Failure reports are not a reason to weaken permission gates or application
 security. A failure marks overall acceptance FAIL, preserves sanitized stage evidence,
 and prevents promoting this draft PR as accepted.
 
-The acceptance fixture creates a **same-date newly hired worker** (2026-09-30) and
+The acceptance fixture creates a **same-date newly hired worker** on the selected
+Manila month-end and
 asserts that the HRIS start date matches the simulated work day. An existing
 employee on a final monthly cutoff would need a released earlier-cutoff ledger
 for statutory true-up; the test must not invent that prior ledger or disable
@@ -67,6 +68,89 @@ claiming any pass. Only the dedicated workflow sets
 `NINE_STAGE_EVIDENCE_REQUIRED=true`; there, missing, failed, wrong-commit,
 or incomplete connected evidence **must fail**.
 
+
+### Why the cutoff is selected at runtime
+
+The simulated server date previously remained fixed at September 30, 2026.
+After fourteen real days, Chromium's genuine cookie store considered the
+server-issued fourteen-day login cookie already expired, redirecting the
+otherwise authenticated synthetic UI test to `/login`. The server and browser
+were using different underlying cookie clocks. No application login, MFA,
+session-expiration or permission policy is changed to address this.
+
+The workflow now chooses the **current Manila month's actual final calendar
+day** once, before any application startup, using
+`scripts/qa/synthetic-month-end.cjs`. It exports that exact value to the
+isolated server, integration script, browser and evidence validator; the clock
+preload verifies that it is a genuine Manila month-end and that the connection
+is disposable localhost PostgreSQL. The browser and server simulate 16:00 on
+that date. The short-lived synthetic login therefore retains normal real
+browser cookie behavior, while the same source-created punch, timesheet,
+payroll run and final-period draft-filing checks remain tied to the **same**
+selected cutoff. Source acceptance at one virtual cutoff does not certify
+other actual payroll periods or real devices.
+
 ## Development-run finding (2026-10-13)
 
 The first exact-head connected synthetic run passed Hire through Release Payroll Records (8/9) and generated all four draft files, but the ninth stage failed on an **incorrect expected HTTP status** in the test harness. The post-release correction is already covered by an active payroll-cutoff lock, so `decide_request` returns HTTP **423** with `ATTENDANCE_PERIOD_LOCKED` before the separate immutable-payroll-run 409 guard. The initial harness incorrectly expected 409. It has been corrected to assert **HTTP 423 and `ATTENDANCE_PERIOD_LOCKED`** at the active cutoff; the separate immutable-payroll guard remains unchanged. The first run remains **FAIL** and cannot be promoted; the updated exact-head workflow must pass the connected journey and mobile checks before this source is integrated. No human/customer acceptance is claimed by these initial results.
+
+
+## P0 governed Hire bridge — separate additional synthetic proof
+
+The source-connected **nine-stage payroll worker still originates from the direct
+authorized HRIS employee-create API**. That original same-worker payroll lineage
+is intentionally unchanged. The new post-browser **governed Hire sidecar** tests
+a *different fictional future-start worker* in the same isolated employer A.
+It must **never** be reported as if the reviewed candidate was also the released
+original nine-stage payroll worker.
+
+The additive test is \`scripts/qa/governed-hire-853-bridge.ts\` and runs **after**
+all nine payroll stages and A → B → A mobile browser tenant checks so that the
+mobile harness's original single-worker assumptions remain true. It runs in
+the same disposable localhost database, then confirms the original released
+payroll entries remain byte-for-byte unchanged.
+
+The test seeds only an approved fictional job profile/position, the employer
+Hire BP definition and a separate HR initiator. It then drives **real protected
+application APIs** for opening the requisition, applicant stage progression,
+recording a monthly offer, requesting Hire BP, independent HR and owner
+approval, and final candidate-to-worker conversion. It asserts:
+
+- Direct employee creation is blocked once an employer Hire process exists.
+- The initiator cannot approve their own request; tenant B cannot even view
+  tenant A's approval; HR cannot impersonate Owner approval.
+- The repeated request reuses one frozen process; no employee exists before
+  both approvals and final authorized conversion.
+- One resulting worker, pay profile, position assignment, candidate linkage,
+  employee history event and employee-specific onboarding tasks all agree.
+- Duplicate conversion is rejected, and the prior fictional released payroll
+  register remains unchanged.
+
+**Coverage boundary:** the position and BP policy are seeded as isolated
+fictional fixture preconditions, not proved through a published workforce plan
+or a real setup UI. This sidecar proves the application Hire business-process
+API bridge, **not** candidate-to-payroll lineage, novice HR navigation, physical
+device testing, customer onboarding acceptance or a real employer pilot.
+Report: \`qa-artifacts/governed-hire-853-report.json\`.
+Validator: \`tests/governed-hire-853-evidence.test.mjs\`.
+The validator fails closed on missing/wrong-source/nonpassing sidecar results
+when \`NINE_STAGE_GOVERNED_HIRE_REQUIRED=true\` in dedicated CI.
+
+### Session clock alignment and governed-sidecar credentials
+
+The disposable PG16 job now aligns only the `sessions.created_at` default
+before any organization, user or session exists. PostgreSQL uses real wall
+time plus the same bounded virtual-month-end offset as Node and Chromium.
+The setup rejects remote/query-overridden URLs, wrong database/version,
+stale anchors, provider credentials and populated fixtures. Existing sessions
+are never rewritten, and production schema/authentication/expiry/MFA code is
+unchanged. An isolated-schema behavior test calls actual `createSession`,
+reproduces the original age mismatch, proves the aligned creation timestamps,
+and verifies existing sessions and policy limits remain unchanged.
+
+The governed-Hire sidecar creates independent fictional initiator/reviewer/
+owner/foreign-owner actors with a freshly generated in-memory password. It
+queries the exact two fictional employer names from the disposable store and
+never reads the browser credential handoff file. HTTP redirects are refused.
+No production record or credential is read, and the actor split still tests
+maker-checker/tenant/role denial through actual authenticated APIs.

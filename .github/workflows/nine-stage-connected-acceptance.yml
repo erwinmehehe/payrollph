@@ -42,7 +42,13 @@ on:
       - "src/lib/critical-release-flags.ts"
       - "tests/compact-mobile-header.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/governed-hire-853-bridge.ts"
+      - "tests/governed-hire-853-evidence.test.mjs"
       - "scripts/qa/isolated-month-end-clock.cjs"
+      - "scripts/qa/synthetic-month-end.cjs"
+      - "scripts/qa/synthetic-session-clock.cjs"
+      - "tests/qa-synthetic-month-end.test.mjs"
+      - "tests/qa-synthetic-session-clock.test.ts"
       - "scripts/qa/nine-stage-mobile-browser.mjs"
       - "tests/nine-stage-connected-evidence.test.mjs"
       - "docs/qa/nine-stage-connected-acceptance.md"
@@ -85,7 +91,13 @@ on:
       - "src/lib/critical-release-flags.ts"
       - "tests/compact-mobile-header.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/governed-hire-853-bridge.ts"
+      - "tests/governed-hire-853-evidence.test.mjs"
       - "scripts/qa/isolated-month-end-clock.cjs"
+      - "scripts/qa/synthetic-month-end.cjs"
+      - "scripts/qa/synthetic-session-clock.cjs"
+      - "tests/qa-synthetic-month-end.test.mjs"
+      - "tests/qa-synthetic-session-clock.test.ts"
       - "scripts/qa/nine-stage-mobile-browser.mjs"
       - "tests/nine-stage-connected-evidence.test.mjs"
       - "docs/qa/nine-stage-connected-acceptance.md"
@@ -106,7 +118,6 @@ jobs:
     env:
       CI: "true"
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      NINE_STAGE_SYNTHETIC_CLOCK: "2026-09-30"
       TZ: Asia/Manila
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       QA_URL: http://127.0.0.1:3000
@@ -161,16 +172,22 @@ jobs:
           echo "::add-mask::$pii_key"
           echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
-          # The isolated Node server and synthetic Chromium must agree on the
-          # same September 30 virtual instant; no production clock is changed.
+          # Pick the current Manila month-end once for this disposable run so
+          # authenticated browser cookies are not expired in real wall time.
+          echo "NINE_STAGE_SYNTHETIC_CLOCK=$(node scripts/qa/synthetic-month-end.cjs)" >> "$GITHUB_ENV"
+          # The localhost server and synthetic Chromium use one shared anchor.
           echo "NINE_STAGE_SYNTHETIC_REAL_ANCHOR=$(date +%s%3N)" >> "$GITHUB_ENV"
       - name: Provision empty disposable PG16 and audited controls
         run: |
           npm run db:push
           node scripts/qa/apply-audit-0109-isolated.mjs
+          node scripts/qa/synthetic-session-clock.cjs
+      - name: Validate guarded synthetic Manila month-end helper
+        run: node --test tests/qa-synthetic-month-end.test.mjs
       - name: Run focused payroll/WFM safety regressions (separate from connected evidence)
         run: |
           npx tsx --test \
+            tests/qa-synthetic-session-clock.test.ts \
             tests/web-bundy-overnight-anchor.test.ts \
             tests/payroll-night-differential.test.ts \
             tests/payroll-holiday-overtime.test.ts \
@@ -211,6 +228,14 @@ jobs:
       - name: Exercise synthetic 375px/390px role and employer switching
         if: success()
         run: node scripts/qa/nine-stage-mobile-browser.mjs
+      - name: Exercise governed candidate-to-worker Hire BP (separate no-money sidecar)
+        if: always()
+        run: NODE_OPTIONS="--require=$(pwd)/scripts/qa/isolated-month-end-clock.cjs" npx tsx scripts/qa/governed-hire-853-bridge.ts
+      - name: Validate governed Hire receipt without claiming nine-stage payroll lineage
+        if: always()
+        env:
+          NINE_STAGE_GOVERNED_HIRE_REQUIRED: "true"
+        run: node --test tests/governed-hire-853-evidence.test.mjs
       - name: Validate sanitized source and evidence contract
         if: always()
         env:
@@ -232,6 +257,7 @@ jobs:
           path: |
             qa-artifacts/nine-stage-connected-report.json
             qa-artifacts/nine-stage-mobile-report.json
+            qa-artifacts/governed-hire-853-report.json
           if-no-files-found: warn
           retention-days: 14
       - name: Upload fictional desktop and phone layout screenshots
