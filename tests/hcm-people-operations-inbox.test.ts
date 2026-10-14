@@ -271,7 +271,12 @@ test("People UI preserves existing lifecycle tools and supports safe navigation"
   assert.ok(source.includes("Leave account number blank to keep the saved destination"));
   assert.ok(inbox.includes("onPage(row.page)"));
   assert.ok(inbox.includes("controller.abort()"));
-  assert.ok(inbox.includes("JSON.stringify([organizationId, filters, refreshVersion])"));
+  assert.ok(inbox.includes("JSON.stringify([hcmReadScopeKey(scope), filters, refreshVersion])"),
+    "Request cache key must bind filters and refresh to the selected legal employer");
+  assert.ok(inbox.includes("key={hcmReadScopeKey(scope)}"),
+    "Switching legal employers remounts the inbox and clears private state");
+  assert.ok(inbox.includes("hcmResponseMatchesReadScope(body, scope)"),
+    "HTTP responses must prove tenant and selected legal employer before display");
   assert.ok(inbox.includes("response?.key === requestKey"));
   assert.ok(!inbox.includes('method: "POST"'));
 });
