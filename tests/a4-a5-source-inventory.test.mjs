@@ -220,3 +220,15 @@ test("invalid refs cannot report flag/proxy parity before source was inspected",
     assert.equal(json.sourceReconciled, false);
   } finally { f.clean(); }
 });
+
+test("PR source inventory pins the exact event base instead of a moving main ref", () => {
+  const workflow = readFileSync(
+    fileURLToPath(new URL("../.github/workflows/a4-a5-source-inventory.yml", import.meta.url)),
+    "utf8",
+  );
+  assert.ok(workflow.includes('PR_EVENT_BASE_SHA: $' + '{{ github.event.pull_request.base.sha }}'));
+  assert.ok(workflow.includes('if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]'));
+  assert.ok(workflow.includes('export A4_A5_BASE_SHA="${PR_EVENT_BASE_SHA}"'));
+  assert.ok(workflow.includes('git cat-file -e "${A4_A5_BASE_SHA}^{commit}"'));
+  assert.ok(workflow.includes('refs/pull/902/head:refs/remotes/origin/a5-owner-902'));
+});
