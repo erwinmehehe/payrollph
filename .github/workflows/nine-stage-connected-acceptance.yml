@@ -309,6 +309,7 @@ jobs:
           name: nine-stage-source-connected-no-money-pg${{ matrix.postgres }}-${{ matrix.hire-mode }}
           path: |
             qa-artifacts/nine-stage-connected-report.json
+            qa-artifacts/fresh-pg18-dev-schema.json
             qa-artifacts/nine-stage-mobile-report.json
             qa-artifacts/governed-hire-853-report.json
             qa-artifacts/bir-validation-corpus/**
