@@ -9,9 +9,19 @@ import { employees, offlinePunchClaims, organizations, users } from "../src/db/s
 test("unverified offline claims refuse foreign-employer employee IDs and retain tenant isolation", async t => {
   const [catalog] = (await db.execute(sql`select to_regclass('public.offline_punch_claims') as punches`)).rows as Array<{ punches: string | null }>;
   if (!catalog?.punches) {
+    if (process.env.OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED === "true")
+      assert.fail("The isolated CI PostgreSQL schema is missing offline_punch_claims; this acceptance test may not skip.");
     t.skip("Source-only SQL proposal has not been installed in this isolated database.");
     return;
   }
+  // Assert database-enforced tenant/action/status constraints, not source-only declarations.
+  const catalogConstraints = await db.execute(sql`
+    SELECT conname FROM pg_constraint
+    WHERE conrelid = 'public.offline_punch_claims'::regclass
+      AND conname IN ('workflow_offline_employee_tenant_fk','offline_claim_action_type_check','offline_claim_status_check')
+  `);
+  assert.deepEqual(catalogConstraints.rows.map(row => String(row.conname)).sort(),
+    ["offline_claim_action_type_check","offline_claim_status_check","workflow_offline_employee_tenant_fk"]);
   const suffix = randomUUID().slice(0, 10);
   const [a,b] = await db.insert(organizations).values([
     { name: "Offline Claim Employer Alpha "+suffix, legalName: "Offline Claim Employer Alpha "+suffix },
@@ -45,6 +55,16 @@ test("unverified offline claims refuse foreign-employer employee IDs and retain 
     ));
     assert.deepEqual(scoped.map(row=>row.id), [own.id]);
     assert.ok(scoped.every(row=>row.id!==coworker.id && row.id!==other.id));
+    // Database idempotency is unique per employer, employee and client event.
+    await assert.rejects(() => db.insert(offlinePunchClaims).values({
+      organizationId:a.id, employeeId:one.id, submittedByUserId:actor.id,
+      clientEventId:own.clientEventId, claimedAt:new Date("2026-10-12T01:00:00Z"), actionType:"clock_in",
+    }));
+    // Unverified claims cannot be relabeled as paid/approved or arbitrary device actions.
+    await assert.rejects(() => db.update(offlinePunchClaims).set({actionType:"break_start"})
+      .where(eq(offlinePunchClaims.id,own.id)));
+    await assert.rejects(() => db.update(offlinePunchClaims).set({status:"approved"})
+      .where(eq(offlinePunchClaims.id,own.id)));
     assert.deepEqual(await db.select({ id:offlinePunchClaims.id }).from(offlinePunchClaims).where(and(
       eq(offlinePunchClaims.organizationId,b.id), eq(offlinePunchClaims.employeeId,one.id),
     )),[]);

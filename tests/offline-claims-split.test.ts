@@ -13,6 +13,11 @@ test("offline UI flag is exact-true and disabled under multi-entity",()=>{
     assert.equal(criticalReleaseFlagEnabled("faceOfflinePunch",{FACE_OFFLINE_PUNCH_UI_ENABLED:value}),false);
   assert.equal(resolveWorkflowUiFlags({FACE_OFFLINE_PUNCH_UI_ENABLED:"true",MULTI_ENTITY_ENABLED:"false"}).faceOfflinePunch,true);
   assert.equal(resolveWorkflowUiFlags({FACE_OFFLINE_PUNCH_UI_ENABLED:"true",MULTI_ENTITY_ENABLED:"true"}).faceOfflinePunch,false);
+  assert.deepEqual(resolveWorkflowUiFlags({}),{benefitsLoans:false,reportBuilder:false,faceOfflinePunch:false});
+  const all=resolveWorkflowUiFlags({BENEFITS_LOANS_UI_ENABLED:"true",REPORT_BUILDER_UI_ENABLED:"true",FACE_OFFLINE_PUNCH_UI_ENABLED:"true",MULTI_ENTITY_ENABLED:"false"});
+  assert.deepEqual(all,{benefitsLoans:true,reportBuilder:true,faceOfflinePunch:true},"previous merged feature slices remain intact");
+  const denied=resolveWorkflowUiFlags({BENEFITS_LOANS_UI_ENABLED:"true",REPORT_BUILDER_UI_ENABLED:"true",FACE_OFFLINE_PUNCH_UI_ENABLED:"true",MULTI_ENTITY_ENABLED:"true"});
+  assert.deepEqual(denied,{benefitsLoans:false,reportBuilder:false,faceOfflinePunch:false},"all workflow UIs disabled under multi-entity hold");
 });
 test("offline employee consent and HR queue clearly label unverified claims",()=>{
   const html=renderToStaticMarkup(createElement(FaceOfflinePunchPanel,{organizationId:1,employeeId:1}));

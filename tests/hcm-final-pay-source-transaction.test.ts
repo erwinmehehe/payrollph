@@ -215,7 +215,21 @@ test("all three source-money decisions read from their own transaction and never
   assert.ok(loader.includes("const reader = options.executor ?? db"));
   assert.ok(!loader.includes("await db.select("));
   assert.equal((api.match(/const transactionSources = await loadFinalPaySources\(/g) ?? []).length, 3);
-  assert.equal((api.match(/isolationLevel: "serializable"/g) ?? []).length, 3);
+  // Three source-money decisions, one independent local-access cutoff,
+  // and one clearance-waiver decision must remain serializable. Neither
+  // access action may silently weaken or replace source-money protections.
+  assert.equal((api.match(/isolationLevel: "serializable"/g) ?? []).length, 5);
+  const cutoffStart = api.indexOf('if (action === "revoke_local_access")');
+  const waiverStart = api.indexOf('if (action === "waive_clearance")');
+  assert.ok(cutoffStart >= 0 && waiverStart > cutoffStart);
+  const cutoffBlock = api.slice(cutoffStart, waiverStart);
+  assert.ok(cutoffBlock.includes("await db.transaction("));
+  assert.ok(cutoffBlock.includes('isolationLevel: "serializable"'));
+  assert.ok(cutoffBlock.includes('mode: "last-day-local-access"'));
+  assert.ok(cutoffBlock.includes("requireSensitiveActionMfa(user)"));
+  assert.ok(waiverStart >= 0);
+  assert.ok(api.slice(waiverStart, api.indexOf('isolationLevel: "serializable"', waiverStart))
+    .includes("db.transaction"));
   // Loan settlement now preserves the lock-bound snapshot but applies only
   // to independently reviewed, still-authorized loan IDs.
   assert.ok(api.includes("const eligibleLoanIds = new Set(transactionLoanAuthority.eligibleLoanIds);"));
