@@ -81,13 +81,17 @@ try {
       assert.equal(await page.getByRole("alert").count(), 0,
         "successful retry must clear the error instead of retaining stale failure UI");
       const emptyTextVisible = await emptyMessage.evaluate(node => {
+        const scrollRegion = node.closest('[aria-label="Expense claims register"]');
+        if (!scrollRegion || scrollRegion.scrollLeft !== 0) return false;
         const range = document.createRange();
         range.selectNodeContents(node);
-        const rect = range.getBoundingClientRect();
-        return rect.width > 0 && rect.left >= 0 && rect.right <= window.innerWidth + 1;
+        const text = range.getBoundingClientRect();
+        const viewport = scrollRegion.getBoundingClientRect();
+        return text.width > 0 && text.left >= Math.max(0, viewport.left) &&
+          text.right <= Math.min(window.innerWidth, viewport.right) + 1;
       });
       assert.equal(emptyTextVisible, true,
-        "successful empty-state message must be readable without horizontal table scrolling at " + width);
+        "successful empty-state text must fit inside the visible table scroller without scrolling at " + width);
       await page.screenshot({ path: `qa-artifacts/spend-empty-${width}.png`, fullPage: true });
       report.checks.push("Loading, exact approval, receipt-required disabled state, error/retry and empty state at " + width);
     }
