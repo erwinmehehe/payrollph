@@ -17,21 +17,36 @@ protected manual release environment are mandatory. See
 
 ## A fresh **disposable development or CI** database
 
-**Fresh PostgreSQL 18 development acceptance:** the [guarded PG18 rebuild and
-nine-stage acceptance](../docs/engineering/fresh-pg18-dev-rebuild-20261014.md)
-tests a fresh empty disposable loopback database, its guarded initial Drizzle
-schema push, and a fictional governed Hire-to-filing journey. **Repeat pushes
-remain unsafe** until the known Drizzle composite-FK constraint-diff bug is
-resolved and separately verified. It does
-**not** replay or adopt the numbered historical SQL archive, make live Neon
-schema changes, or replace production migration-provenance requirements.
-
 ```
 DATABASE_URL="postgresql://localhost/..." npm run db:push
 ```
 
 **Never use `db:push` against production to repair drift.** Use the DBA-reviewed
 schema and receipt protocol for staging and production.
+
+**Fresh PostgreSQL 18 first-bootstrap acceptance:** The [guarded PG18 development journey](../docs/engineering/fresh-pg18-dev-rebuild-20261014.md) exercises a verified empty localhost database, its strict first source-schema push, and a fictional Hire-to-filing workflow in the PostgreSQL 18 governed-Hire matrix case (with PostgreSQL 16 direct/governed cases). This does not replay archived migrations or authorize production activity. The default Drizzle 0.x repeat-push defect described below remains blocked; the separate CI-only matched-RC repeat-push proof is not an application runtime upgrade.
+
+**Current Drizzle 0.x limitation (October 2026):** the pinned development
+toolchain (`drizzle-kit@0.31.11` / `drizzle-orm@0.45.4`) can emit a
+phantom `DROP CONSTRAINT documents_org_employee_id_hr_cases_unique` on a
+*second* push to an unchanged PostgreSQL 18 schema. PostgreSQL refuses
+because the existing `employee_hr_cases_coe_document_tenant_fk` depends on
+the unique key. A successful first push or process exit code 0 does **not**
+prove a safe, idempotent second push. Do not use `--force`, `CASCADE`, or
+weaken the composite tenant/employee FK to make it pass.
+
+The isolated `pg18-schema-repeat-proof.yml` CI workflow can exercise
+**matched** `drizzle-kit@1.0.0-rc.4` and `drizzle-orm@1.0.0-rc.4` against
+a newly created, disposable PG18 `app_db`, verify the real composite FK,
+require a strict no-change second push, and compare PostgreSQL catalog
+fingerprints. Those pre-release packages are installed **only in the CI
+worker**, with `--no-save --package-lock=false`. They are **not** approved
+for the application runtime: the RC introduces breaking driver APIs and fails
+this repository's TypeScript typecheck until the runtime and tests are
+migrated. An eventual version upgrade also requires separately reviewed
+historical migration compatibility and production release gates.
+
+
 
 `db:push` reads `src/db/schema.ts` and creates everything it finds there, which
 is the whole current schema. **Check that it actually created tables**: push has

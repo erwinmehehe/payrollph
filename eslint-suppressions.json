@@ -49,11 +49,6 @@
       "count": 1
     }
   },
-  "src/components/hcm-documents-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/hcm-employment-decision-evidence.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1

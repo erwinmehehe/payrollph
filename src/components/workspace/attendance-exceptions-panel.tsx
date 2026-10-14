@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarRange, CheckCircle2, Clock3, RefreshCcw, ShieldAlert, UserRoundCheck } from "lucide-react";
 import type { Notify } from "./types";
 import { AttendanceLockControl } from "./attendance-lock-control";
-import { EmptyState, Metric, Segmented, Spinner, Status } from "./ui";
+import { EmptyState, ErrorState, Metric, Segmented, Spinner, Status } from "./ui";
 
 type ExceptionItem = {
   kind: string;
@@ -101,6 +101,25 @@ function minutesLabel(minutes: number) {
   return rest ? `${hours}h ${rest}m` : `${hours}h`;
 }
 
+async function readScopedJson<T>(url: string, signal: AbortSignal): Promise<T> {
+  const response = await fetch(url, { cache: "no-store", signal });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = body && typeof body === "object" && "error" in body
+      && typeof body.error === "string" ? body.error : "Service unavailable.";
+    throw new Error(error);
+  }
+  if (!body || typeof body !== "object") throw new Error("Invalid response.");
+  return body as T;
+}
+
+function readFailureMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && /Unauthorized|access to this workspace|Only .*roles can/i.test(error.message)) {
+    return "Your session or workspace permissions need attention. Sign in again or contact your administrator.";
+  }
+  return fallback;
+}
+
 export function AttendanceExceptionsPanel({
   organizationId,
   notify,
@@ -117,43 +136,75 @@ export function AttendanceExceptionsPanel({
   const [resolutionDrafts, setResolutionDrafts] = useState<Record<number, string>>({});
   const [actionBusyId, setActionBusyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [operationsError, setOperationsError] = useState<string | null>(null);
+  const activeRequest = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
-    if (!startDate || !endDate || endDate < startDate) return;
+    activeRequest.current?.abort();
+    if (!startDate || !endDate || endDate < startDate) {
+      setPayload(null);
+      setOperations(null);
+      setAnalysisError("Select a valid start and end date to review exceptions.");
+      setOperationsError(null);
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    // A new employer or date range must never display previously loaded results.
     setLoading(true);
+    setPayload(null);
+    setOperations(null);
+    setAnalysisError(null);
+    setOperationsError(null);
+
     try {
       const params = new URLSearchParams({
         organizationId: String(organizationId),
         startDate,
         endDate,
       });
-      const [response, operationsResponse] = await Promise.all([
-        fetch(`/api/workforce/attendance-exceptions?${params.toString()}`, {
-          cache: "no-store",
-        }),
-        fetch(`/api/workforce/attendance-exception-events?${params.toString()}`, {
-          cache: "no-store",
-        }),
+      // Keep attendance analysis available even if the separate persisted
+      // exception-operations service is unavailable (e.g. schema not migrated).
+      const [analysis, events] = await Promise.allSettled([
+        readScopedJson<ResponsePayload>(
+          `/api/workforce/attendance-exceptions?${params.toString()}`, controller.signal,
+        ),
+        readScopedJson<OperationsPayload>(
+          `/api/workforce/attendance-exception-events?${params.toString()}`, controller.signal,
+        ),
       ]);
-      const [body, operationsBody] = await Promise.all([
-        response.json().catch(() => ({})),
-        operationsResponse.json().catch(() => ({})),
-      ]);
-      if (!response.ok) throw new Error(body.error ?? "Could not load attendance exceptions.");
-      if (!operationsResponse.ok) {
-        throw new Error(operationsBody.error ?? "Could not load attendance exception operations.");
+      if (controller.signal.aborted || activeRequest.current !== controller) return;
+
+      if (analysis.status === "fulfilled") {
+        setPayload(analysis.value);
+      } else {
+        setAnalysisError(readFailureMessage(
+          analysis.reason,
+          "Attendance analysis could not be loaded. No attendance data has been changed.",
+        ));
       }
-      setPayload(body as ResponsePayload);
-      setOperations(operationsBody as OperationsPayload);
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not load attendance exceptions.", "err");
+      if (events.status === "fulfilled") {
+        setOperations(events.value);
+      } else {
+        setOperationsError(readFailureMessage(
+          events.reason,
+          "Exception ownership and SLA information is unavailable. No case data has been changed.",
+        ));
+      }
     } finally {
-      setLoading(false);
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setLoading(false);
+      }
     }
-  }, [endDate, notify, organizationId, startDate]);
+  }, [endDate, organizationId, startDate]);
 
   useEffect(() => {
     void load();
+    return () => { activeRequest.current?.abort(); activeRequest.current = null; };
   }, [load]);
 
   const mutateOperationalException = useCallback(async (
@@ -245,21 +296,21 @@ export function AttendanceExceptionsPanel({
       <section className="stats-grid">
         <Metric
           label="Blocking"
-          value={String(payload?.summary.blockers ?? 0)}
+          value={payload ? String(payload.summary.blockers) : "—"}
           hint="must be reviewed before payroll"
           icon={<ShieldAlert size={16} className="i-red" />}
           tone={(payload?.summary.blockers ?? 0) ? "red" : "slate"}
         />
         <Metric
           label="Warnings"
-          value={String(payload?.summary.warnings ?? 0)}
+          value={payload ? String(payload.summary.warnings) : "—"}
           hint="late, undertime or unscheduled work"
           icon={<AlertTriangle size={16} className="i-amber" />}
           tone={(payload?.summary.warnings ?? 0) ? "amber" : "slate"}
         />
         <Metric
           label="Employees affected"
-          value={String(payload?.summary.employeesAffected ?? 0)}
+          value={payload ? String(payload.summary.employeesAffected) : "—"}
           hint="with blocking or warning items"
           icon={<Clock3 size={16} className="i-cyan" />}
           tone={(payload?.summary.employeesAffected ?? 0) ? "blue" : "slate"}
@@ -272,6 +323,14 @@ export function AttendanceExceptionsPanel({
           tone="purple"
         />
       </section>
+
+      {analysisError && (
+        <ErrorState
+          title="Attendance exception analysis unavailable"
+          detail={analysisError}
+          onRetry={() => void load()}
+        />
+      )}
 
       <AttendanceLockControl
         organizationId={organizationId}
@@ -293,33 +352,41 @@ export function AttendanceExceptionsPanel({
         <section className="stats-grid" style={{ padding: "0 14px 14px" }}>
           <Metric
             label="Open cases"
-            value={String(operations?.summary.open ?? 0)}
+            value={operations ? String(operations.summary.open) : "—"}
             hint="persisted WFM exception events"
             icon={<ShieldAlert size={16} className="i-amber" />}
             tone={(operations?.summary.open ?? 0) ? "amber" : "slate"}
           />
           <Metric
             label="Overdue"
-            value={String(operations?.summary.overdue ?? 0)}
+            value={operations ? String(operations.summary.overdue) : "—"}
             hint="past severity-based SLA"
             icon={<Clock3 size={16} className="i-red" />}
             tone={(operations?.summary.overdue ?? 0) ? "red" : "slate"}
           />
           <Metric
             label="Unassigned"
-            value={String(operations?.summary.unassigned ?? 0)}
+            value={operations ? String(operations.summary.unassigned) : "—"}
             hint="open cases without an owner"
             icon={<UserRoundCheck size={16} className="i-cyan" />}
             tone={(operations?.summary.unassigned ?? 0) ? "blue" : "slate"}
           />
           <Metric
             label="Resolved"
-            value={String(operations?.summary.resolved ?? 0)}
+            value={operations ? String(operations.summary.resolved) : "—"}
             hint="closed by corrected attendance evidence"
             icon={<CheckCircle2 size={16} className="i-green" />}
             tone="slate"
           />
         </section>
+
+        {operationsError && (
+          <ErrorState
+            title="Exception ownership unavailable"
+            detail={operationsError}
+            onRetry={() => void load()}
+          />
+        )}
 
         <div className="data-table-wrap slim-scroll">
           <table className="data-table">
@@ -425,7 +492,7 @@ export function AttendanceExceptionsPanel({
             </tbody>
           </table>
 
-          {!loading && (operations?.exceptions.length ?? 0) === 0 && (
+          {!loading && operations !== null && operations.exceptions.length === 0 && (
             <EmptyState icon={<CheckCircle2 size={20} className="i-green" />} title="No persisted exception cases in this window">
               New attendance exceptions will appear here with owner and SLA tracking.
             </EmptyState>
@@ -446,8 +513,8 @@ export function AttendanceExceptionsPanel({
             value={filter}
             onChange={setFilter}
             options={[
-              { value: "review", label: `Needs review (${reviewCount})` },
-              { value: "all", label: `All signals (${payload?.days.length ?? 0})` },
+              { value: "review", label: `Needs review (${payload ? reviewCount : "—"})` },
+              { value: "all", label: `All signals (${payload ? payload.days.length : "—"})` },
             ]}
           />
         </div>
@@ -504,7 +571,7 @@ export function AttendanceExceptionsPanel({
             </tbody>
           </table>
 
-          {!loading && rows.length === 0 && (
+          {!loading && payload !== null && rows.length === 0 && (
             <EmptyState icon={<ShieldAlert size={20} className="i-green" />} title="No attendance exceptions in this view">
               Scheduled attendance and stored punches reconcile for the selected window.
             </EmptyState>

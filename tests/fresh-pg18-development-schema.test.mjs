@@ -91,13 +91,13 @@ test("guard is catalog-only, immutable and not a historical migration executor",
   assert.match(source,/BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/);
   assert.match(source,/current_setting\('server_version_num'\)/);
   assert.match(source,/catalogSha256/);
-  assert.match(source,/FRESH_PG18_SOURCE_SCHEMA_CAPTURED/);
+  assert.match(source,/SECOND_PUSH_CHANGED_SCHEMA/);
   assert.doesNotMatch(source,/\b(?:INSERT INTO|DELETE FROM|TRUNCATE TABLE|CREATE TABLE|ALTER TABLE|DROP TABLE)\b/i);
   assert.doesNotMatch(source,/pg_dump|NeonClient|aws s3api|fetch\("https:\/\//i);
 });
 
 
-test("COE document composite unique and FK retain id AND tenant AND employee equality",()=>{
+test("Original composite UNIQUE and owner-bound COE FK remain enforced",()=>{
   const good=[
     {relation:"documents",name:"documents_org_employee_id_hr_cases_unique",
       definition:"UNIQUE (organization_id, employee_id, id)"},
@@ -115,9 +115,13 @@ test("COE document composite unique and FK retain id AND tenant AND employee equ
 });
 
 
-test("unchanged source preserves original composite tenant/employee COE foreign key",()=>{
+test("Baseline schema keeps its original composite document tenant ownership",()=>{
   const schema=readFileSync(new URL("../src/db/schema.ts",import.meta.url),"utf8");
   assert.match(schema,/unique\("documents_org_employee_id_hr_cases_unique"\)\.on\(table\.organizationId, table\.employeeId, table\.id\)/);
-  assert.match(schema,/columns: \[table\.organizationId, table\.employeeId, table\.coeDocumentId\]/);
-  assert.match(schema,/foreignColumns: \[documents\.organizationId, documents\.employeeId, documents\.id\]/);
+  const a=schema.indexOf('export const employeeHrCases = pgTable("employee_hr_cases"');
+  const b=schema.indexOf('export const employeeHrCaseMessages = pgTable(',a);
+  assert.ok(a>=0 && b>a);
+  const child=schema.slice(a,b);
+  assert.match(child,/columns: \[table\.organizationId, table\.employeeId, table\.coeDocumentId\]/);
+  assert.match(child,/foreignColumns: \[documents\.organizationId, documents\.employeeId, documents\.id\]/);
 });
