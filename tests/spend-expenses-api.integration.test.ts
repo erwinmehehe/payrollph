@@ -5,8 +5,10 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { spendIsolatedDatabase } from "./helpers/spend-isolated-database";
+import { encryptBankAccount } from "../src/lib/bank-account-crypto";
 import { organizations, employees, users, userOrganizations, orgUnits,
-  expenseCategoryPolicies, expenseClaimEvidence, expenseClaims, expenseReports, expenseReportItems, auditEvents, documents } from "../src/db/schema";
+  expenseCategoryPolicies, expenseClaimEvidence, expenseClaims, expenseReports, expenseReportItems, auditEvents, documents,
+  employeePayProfiles, payrollRuns, payrollEntries } from "../src/db/schema";
 const require = createRequire(import.meta.url);
 
 test("expense API enforces maker-checker, MFA, employer scope, exact approval and legacy compatibility", async () => {
@@ -189,6 +191,32 @@ test("expense API enforces maker-checker, MFA, employer scope, exact approval an
     signed(0);
     assert.equal((await api.POST(request("POST", { ...body, category: "Legacy" }))).status, 201);
     assert.equal((await api.GET(request("GET", undefined, "?organizationId=" + orgs[0].id))).status, 200);
+    const [legacyOrg] = await db.insert(organizations).values({ name: "Legacy Spend OFF",
+      legalName: "Legacy Spend OFF", plan: "Core" }).returning();
+    const legacyStaff = await db.insert(employees).values(["Expense", "Control"].map((name, index) => ({
+      organizationId: legacyOrg.id, employeeNo: "LEGACY-" + index, firstName: "Synthetic", lastName: name,
+      title: "Associate", avatarInitials: "SL", basicRate: "30000.00", startDate: "2025-01-01",
+      bankCode: "BDO", bankAccount: encryptBankAccount("000000000" + (index + 1)),
+    }))).returning();
+    await db.insert(employeePayProfiles).values(legacyStaff.map(employee => ({ organizationId: legacyOrg.id,
+      employeeId: employee.id, payBasis: "monthly", rateAmount: "30000.00", standardWorkDaysPerMonth: "22",
+      standardHoursPerDay: "8" })));
+    const [legacyClaim] = await db.insert(expenseClaims).values({ organizationId: legacyOrg.id,
+      employeeId: legacyStaff[0].id, submittedByUserId: accounts[0].id, category: "Legacy travel",
+      description: "Synthetic pre-migration claim", amount: "123.45", incurredOn: "2026-09-08", status: "approved" }).returning();
+    const [legacyRun] = await db.insert(payrollRuns).values({ organizationId: legacyOrg.id,
+      periodLabel: "Synthetic legacy Sep 1-15", periodStart: "2026-09-01", periodEnd: "2026-09-15",
+      payDate: "2026-09-15", status: "Draft", scopeLabel: "All locations" }).returning();
+    const engine = await import("../src/lib/payroll-engine");
+    await engine.enqueuePayrollRun(legacyRun.id); await engine.drainPayrollQueue(15, legacyRun.id);
+    const legacyEntries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, legacyRun.id));
+    assert.equal(legacyEntries.length, 2, "Flag-OFF calculation works before either new table exists");
+    const reimbursed = legacyEntries.find(row => row.employeeId === legacyStaff[0].id)!;
+    const control = legacyEntries.find(row => row.employeeId === legacyStaff[1].id)!;
+    const legacyLine = (reimbursed.lineItems as Array<{ code: string; amount: string }>).find(row => row.code === "EXP-" + legacyClaim.id);
+    assert.equal(Number(legacyLine?.amount), 123.45);
+    assert.equal(Math.round((Number(reimbursed.netPay) - Number(control.netPay)) * 100), 12345,
+      "Legacy reimbursement remains fully payable and non-taxable");
     const proposal = readFileSync("docs/engineering/migration-proposals/spend-payroll-reimbursements.sql", "utf8");
     await pool.query(proposal); await pool.query(proposal);
     assert.equal((await api.GET(request("GET", undefined, "?organizationId=" + orgs[0].id))).status, 200);
