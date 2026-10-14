@@ -3004,7 +3004,6 @@ export const jobRequisitions = pgTable(
     salaryMax: numeric("salary_max", { precision: 12, scale: 2 }),
     employmentType: varchar("employment_type", { length: 32 }).notNull().default("Full-time"),
     status: varchar("status", { length: 32 }).notNull().default("open"), // "open", "interviewing", "filled", "cancelled"
-    careersPublished: boolean("careers_published").notNull().default(false),
     description: text("description"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
