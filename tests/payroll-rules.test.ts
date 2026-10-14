@@ -148,6 +148,22 @@ test("PhilHealth boundary matrix covers the floor, ceiling and odd-centavo split
   }
 });
 
+test("M-6 PhilHealth premium uses fixed MBS, not gross variable pay", () => {
+  const period = "2026-10-14";
+  const fixedBasic = 30_000;
+  const nonBasicOvertime = 4_500;
+  const nonBasicAllowance = 2_000;
+  const nonBasicBonus = 3_000;
+  const amount = computePhilHealth(fixedBasic, period);
+  assert.deepEqual(amount, { base: 30_000, total: 1_500, employee: 750, employer: 750 });
+  assert.notDeepEqual(amount, computePhilHealth(
+    fixedBasic + nonBasicOvertime + nonBasicAllowance + nonBasicBonus, period,
+  ), "including variable earnings changes the result incorrectly");
+  for (const invalid of [NaN, Infinity, -1]) {
+    assert.throws(() => computePhilHealth(invalid, period), /monthly basic salary/);
+  }
+});
+
 test("Pag-IBIG uses the 2026 PHP 10,000 fund-salary cap", () => {
   assert.equal(computePagIbig(1_500).employee, 15);
   assert.equal(computePagIbig(1_500).employer, 30);
