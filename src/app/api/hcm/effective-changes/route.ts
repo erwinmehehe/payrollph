@@ -17,7 +17,7 @@ import { effectiveHcmSourceDrift, effectiveHcmTargetDrift } from "@/lib/hcm-effe
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { multiEntityHcmDeferred } from "@/lib/multi-entity-hcm-hold";
 import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
-import { applyWorkerEffectiveChange, philippineBusinessDate } from "@/lib/hcm-effective-changes";
+import { applyWorkerEffectiveChange, philippineBusinessDate, validHcmIsoDate } from "@/lib/hcm-effective-changes";
 import {
   cancelHcmBusinessProcessForSourceTx,
   findHcmBusinessProcessForSource,
@@ -44,10 +44,6 @@ const MOVEMENT_TYPES = [
   "status_change",
 ] as const;
 const EMPLOYEE_STATUSES = ["Active", "On leave"] as const;
-
-function isoDate(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
 
 function owns(body: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(body, key);
@@ -132,7 +128,7 @@ export async function POST(request: Request) {
   const reason = String(body.reason ?? "").trim();
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0
     || !Number.isSafeInteger(employeeId) || employeeId <= 0
-    || !isoDate(effectiveDate) || reason.length < 3) {
+    || !validHcmIsoDate(effectiveDate) || reason.length < 3) {
     return Response.json({ error: "organizationId, employeeId, effectiveDate, and a reason are required." }, { status: 400 });
   }
   if (!MOVEMENT_TYPES.includes(movementType as (typeof MOVEMENT_TYPES)[number])) {
