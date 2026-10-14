@@ -1,14 +1,15 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, exists, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employeePayRetroAdjustments, payrollRuns } from "@/db/schema";
+import { employeePayRetroAdjustments, payrollEntries, payrollRuns } from "@/db/schema";
 
 /**
  * M-10: Use the actual original run dates to screen retro statutory
  * attribution. An editable sourcePeriodLabel is never contribution evidence.
  *
- * The join must include BOTH run ID and organization ID: historical FK rows
- * may point to a different tenant's run, and date leakage would otherwise
- * silently make cross-tenant payroll appear verified.
+ * The join must include BOTH run ID and organization ID, a released source
+ * status, and an actual source payroll entry for this employee. Historical
+ * FK rows can point at another tenant or an unrelated employee/run. Matching
+ * a display label or a bare run ID must never certify contribution history.
  *
  * No writes, legacy backfill, bank access, or live remittance.
  */
@@ -31,6 +32,11 @@ export async function loadPendingPayrollRetroSources(input: {
   }).from(employeePayRetroAdjustments).leftJoin(payrollRuns, and(
     eq(payrollRuns.id, employeePayRetroAdjustments.sourcePayrollRunId),
     eq(payrollRuns.organizationId, employeePayRetroAdjustments.organizationId),
+    eq(payrollRuns.status, "Released"),
+    exists(db.select({ id: payrollEntries.id }).from(payrollEntries).where(and(
+      eq(payrollEntries.payrollRunId, employeePayRetroAdjustments.sourcePayrollRunId),
+      eq(payrollEntries.employeeId, employeePayRetroAdjustments.employeeId),
+    ))),
   )).where(and(
     eq(employeePayRetroAdjustments.organizationId, input.organizationId),
     eq(employeePayRetroAdjustments.status, "pending"),

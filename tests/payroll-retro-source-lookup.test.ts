@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
-import { employeePayRetroAdjustments, employeePayRevisions, employees, organizations, payrollRuns } from "../src/db/schema";
+import { employeePayRetroAdjustments, employeePayRevisions, employees, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
 import { loadPendingPayrollRetroSources } from "../src/lib/payroll-retro-source-lookup";
 import { reviewRetroStatutorySourcePeriods } from "../src/lib/payroll-retro-statutory-source-period";
 
@@ -32,14 +32,23 @@ test("M-10 source lookup uses the original run and never joins another employer'
 
     const [own, foreign] = await Promise.all([
       db.insert(payrollRuns).values({
-        organizationId: a.id, periodLabel: "Sept A",
+        organizationId: a.id, periodLabel: "Sept A", status: "Released",
         periodStart: "2026-09-01", periodEnd: "2026-09-15", payDate: "2026-09-16",
       }).returning(),
       db.insert(payrollRuns).values({
-        organizationId: b.id, periodLabel: "Aug B",
+        organizationId: b.id, periodLabel: "Aug B", status: "Released",
         periodStart: "2026-08-01", periodEnd: "2026-08-15", payDate: "2026-08-16",
       }).returning(),
     ]);
+    await db.insert(payrollEntries).values({
+      payrollRunId: own[0].id, employeeId: worker.id,
+      grossPay: "15000.00", deductions: "2500.00", netPay: "12500.00",
+    });
+    const [unrelatedRun] = await db.insert(payrollRuns).values({
+      organizationId: a.id, periodLabel: "No employee source",
+      periodStart: "2026-07-01", periodEnd: "2026-07-15", payDate: "2026-07-16",
+      status: "Released",
+    }).returning();
     const retro = await db.insert(employeePayRetroAdjustments).values([
       {
         organizationId: a.id, employeeId: worker.id, revisionId: revision.id,
@@ -51,9 +60,18 @@ test("M-10 source lookup uses the original run and never joins another employer'
         sourcePayrollRunId: foreign[0].id, sourcePeriodLabel: "UNTRUSTED OCT LABEL",
         amount: "125.25",
       },
+      {
+        organizationId: a.id, employeeId: worker.id, revisionId: revision.id,
+        sourcePayrollRunId: unrelatedRun.id, sourcePeriodLabel: "FAKE SOURCE",
+        amount: "75.25",
+      },
     ]).returning();
     const loaded = await loadPendingPayrollRetroSources({ organizationId: a.id, employeeIds: [worker.id] });
-    assert.equal(loaded.length, 2);
+    assert.equal(loaded.length, 3);
+    const unrelated = loaded.find(row => row.id === retro[2].id);
+    assert.ok(unrelated);
+    assert.equal(unrelated.sourcePeriodStart, null, "run with no employee pay entry cannot establish attribution");
+    assert.equal(unrelated.sourcePeriodEnd, null);
     const ownRow = loaded.find(row => row.id === retro[0].id);
     const foreignRow = loaded.find(row => row.id === retro[1].id);
     assert.ok(ownRow && foreignRow);
