@@ -72,6 +72,30 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P0 external Xendit salary money movement",
     approval: "Independent provider/treasury acceptance and exact employer/legal-entity authorization",
   },
+  benefitsLoans: {
+    env: "BENEFITS_LOANS_UI_ENABLED",
+    owner: "Payroll Operations",
+    risk: "P1 Benefits enrollment, loan schedules and payslip explanations",
+    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
+  },
+  reportBuilder: {
+    env: "REPORT_BUILDER_UI_ENABLED",
+    owner: "Security / Reports",
+    risk: "P1 Saved report field and filter choices",
+    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
+  },
+  faceOfflinePunch: {
+    env: "FACE_OFFLINE_PUNCH_UI_ENABLED",
+    owner: "Security / Workforce",
+    risk: "P1 Consent, camera and unverified offline punch review",
+    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
+  },
+  recruitmentJourney: {
+    env: "RECRUITMENT_JOURNEY_UI_ENABLED",
+    owner: "HCM",
+    risk: "P1 Pipeline, public careers and hiring handoff",
+    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
+  },
   publicIntakeProof: {
     env: "PUBLIC_INTAKE_PROOF_ENABLED", owner: "Security",
     risk: "Public enquiry and signup anti-automation", approval: "Proof replay, limits and accessible intake acceptance",

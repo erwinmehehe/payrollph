@@ -7,8 +7,13 @@ permissions:
   contents: read
 jobs:
   intake-postgres:
+    name: intake-postgres (PG${{ matrix.postgres }})
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
     env:
       CI: "true"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
@@ -25,7 +30,7 @@ jobs:
       REQUIRE_PRIVILEGED_MFA: "true"
     services:
       postgres:
-        image: postgres:16
+        image: postgres:${{ matrix.postgres }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -52,6 +57,8 @@ jobs:
           echo "PII_ENCRYPTION_KEY=$pii" >> "$GITHUB_ENV"
           echo "PUBLIC_INTAKE_PROOF_SECRET=$proof" >> "$GITHUB_ENV"
       - run: npm run db:push
+      - name: Rehearse careers consent, isolated DDL rollback and two-employer HTTP (PG${{ matrix.postgres }})
+        run: npx tsx --test --test-concurrency=1 tests/careers-http-postgres.test.ts
       - run: npm run build
       - name: Start production build with isolated PostgreSQL
         run: |

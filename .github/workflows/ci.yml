@@ -27,6 +27,8 @@ jobs:
       TZ: Asia/Manila
       CI: "true"
       SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+      # Offline claims must have real temporary PostgreSQL FK/CHECK acceptance.
+      OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: "true"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
