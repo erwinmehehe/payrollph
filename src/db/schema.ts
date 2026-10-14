@@ -2117,7 +2117,7 @@ export const documents = pgTable("documents", {
   index("documents_org_employee_source_idx").on(table.organizationId, table.employeeId, table.sourceType, table.createdAt),
   uniqueIndex("documents_object_storage_key_unique").on(table.objectStorageKey).where(sql`${table.objectStorageKey} is not null`),
   // Composite parent key prevents a COE in another employer from being attached to an HR case.
-  unique("documents_org_employee_id_hr_cases_unique").on(table.id, table.organizationId, table.employeeId),
+  unique("documents_org_employee_id_hr_cases_unique").on(table.organizationId, table.employeeId, table.id),
   check("documents_source_type_check", sql`${table.sourceType} in ('upload','generated')`),
 ]);
 
@@ -3143,10 +3143,6 @@ export const applicantPrivacyEvidence = pgTable("applicant_privacy_evidence", {
 /** Confidential HR service requests, scoped to the employee and their employer. */
 export const employeeHrCases = pgTable("employee_hr_cases", {
   id: serial("id").primaryKey(),
-  // Drizzle Kit 0.31.x introspects composite foreign keys in child physical
-  // column order. Align this nullable COE source key before the tenant pair;
-  // no field meaning or ownership constraint changes in fresh dev databases.
-  coeDocumentId: integer("coe_document_id").references(() => documents.id),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
@@ -3156,6 +3152,7 @@ export const employeeHrCases = pgTable("employee_hr_cases", {
   assignedRole: varchar("assigned_role", { length: 24 }).notNull(),
   status: varchar("status", { length: 24 }).notNull().default("open"),
   slaDueAt: timestamp("sla_due_at", { withTimezone: true }).notNull(),
+  coeDocumentId: integer("coe_document_id").references(() => documents.id),
   coeApprovedByUserId: integer("coe_approved_by_user_id").references(() => users.id),
   coeApprovedAt: timestamp("coe_approved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -3170,12 +3167,8 @@ export const employeeHrCases = pgTable("employee_hr_cases", {
   }).onDelete("cascade"),
   foreignKey({
     name: "employee_hr_cases_coe_document_tenant_fk",
-    // Keep the referenced composite unique key in the table's physical column
-    // order (id, organization_id, employee_id). drizzle-kit 0.31.x otherwise
-    // repeatedly attempts to drop/recreate it during a second dev db:push.
-    // This reordering preserves exact tenant/employee identity matching.
-    columns: [table.coeDocumentId, table.organizationId, table.employeeId],
-    foreignColumns: [documents.id, documents.organizationId, documents.employeeId],
+    columns: [table.organizationId, table.employeeId, table.coeDocumentId],
+    foreignColumns: [documents.organizationId, documents.employeeId, documents.id],
   }),
   index("employee_hr_cases_sla_idx").on(table.organizationId, table.status, table.slaDueAt),
   check("employee_hr_cases_status_check", sql`${table.status} in ('open','in_progress','waiting_employee','resolved','closed')`),

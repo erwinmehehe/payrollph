@@ -9,8 +9,10 @@ Run on the PR via **Nine-Stage Connected Payroll Development Acceptance (No Mone
 The workflow runs PostgreSQL 16 direct/governed Hire plus PostgreSQL 18 governed Hire
 on **separate** GitHub-hosted disposable 127.0.0.1/app_db databases. The PG18 case
 first proves an empty catalog, creates the current Drizzle schema, fingerprints
-its tables/columns/indexes/constraints, repeats the push, and rejects any catalog
-drift. See [PG18 fresh development rebuild](../engineering/fresh-pg18-dev-rebuild-20261014.md). It explicitly refuses provider keys, payout and filing submission
+its tables/columns/indexes/constraints, and fails closed on first-push
+SQL errors, even if Drizzle exits successfully. Repeat pushes are separately
+BLOCKED by an unresolved Drizzle constraint-diff issue; this does not prove
+idempotent migrations. See [PG18 fresh development rebuild](../engineering/fresh-pg18-dev-rebuild-20261014.md). It explicitly refuses provider keys, payout and filing submission
 flags, demo mode, remote hostnames and arbitrary production connections. The job
 builds the exact checked-out commit and uploads sanitized JSON and fictional UI screenshots.
 PG18 additionally uploads a catalog-only schema fingerprint; artifact names identify PG major.

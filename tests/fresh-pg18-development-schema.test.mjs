@@ -91,7 +91,7 @@ test("guard is catalog-only, immutable and not a historical migration executor",
   assert.match(source,/BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/);
   assert.match(source,/current_setting\('server_version_num'\)/);
   assert.match(source,/catalogSha256/);
-  assert.match(source,/SECOND_PUSH_CHANGED_SCHEMA/);
+  assert.match(source,/FRESH_PG18_SOURCE_SCHEMA_CAPTURED/);
   assert.doesNotMatch(source,/\b(?:INSERT INTO|DELETE FROM|TRUNCATE TABLE|CREATE TABLE|ALTER TABLE|DROP TABLE)\b/i);
   assert.doesNotMatch(source,/pg_dump|NeonClient|aws s3api|fetch\("https:\/\//i);
 });
@@ -100,33 +100,24 @@ test("guard is catalog-only, immutable and not a historical migration executor",
 test("COE document composite unique and FK retain id AND tenant AND employee equality",()=>{
   const good=[
     {relation:"documents",name:"documents_org_employee_id_hr_cases_unique",
-      definition:"UNIQUE (id, organization_id, employee_id)"},
+      definition:"UNIQUE (organization_id, employee_id, id)"},
     {relation:"employee_hr_cases",name:"employee_hr_cases_coe_document_tenant_fk",
-      definition:"FOREIGN KEY (coe_document_id, organization_id, employee_id) REFERENCES documents(id, organization_id, employee_id)"},
+      definition:"FOREIGN KEY (organization_id, employee_id, coe_document_id) REFERENCES documents(organization_id, employee_id, id)"},
   ];
   assert.equal(assertCOETenantReference(good),true);
   const wrongTenant=structuredClone(good);
   wrongTenant[1].definition="FOREIGN KEY (coe_document_id) REFERENCES documents(id)";
   forbidden(()=>assertCOETenantReference(wrongTenant),"COE_TENANT_FK_MISMATCH");
   const wrongOrder=structuredClone(good);
-  wrongOrder[0].definition="UNIQUE (organization_id, employee_id, id)";
+  wrongOrder[0].definition="UNIQUE (id, organization_id, employee_id)";
   forbidden(()=>assertCOETenantReference(wrongOrder),"COE_TENANT_FK_MISMATCH");
   forbidden(()=>assertCOETenantReference([]),"COE_TENANT_FK_MISMATCH");
 });
 
 
-test("COE composite FK column declarations follow physical child order", () => {
-  const schema = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
-  const start = schema.indexOf('export const employeeHrCases = pgTable("employee_hr_cases"');
-  const end = schema.indexOf('export const employeeHrCaseMessages = pgTable(', start);
-  assert.ok(start >= 0 && end > start, "canonical HR case definition required");
-  const child = schema.slice(start, end);
-  const id = child.indexOf('id: serial("id").primaryKey()');
-  const coe = child.indexOf('coeDocumentId: integer("coe_document_id")');
-  const org = child.indexOf('organizationId: integer("organization_id")');
-  const employee = child.indexOf('employeeId: integer("employee_id")');
-  assert.ok(id >= 0 && id < coe && coe < org && org < employee,
-    "keep the physically ordered COE/organization/employee tuple for Drizzle introspection");
-  assert.match(child, /columns: \[table\.coeDocumentId, table\.organizationId, table\.employeeId\]/);
-  assert.match(child, /foreignColumns: \[documents\.id, documents\.organizationId, documents\.employeeId\]/);
+test("unchanged source preserves original composite tenant/employee COE foreign key",()=>{
+  const schema=readFileSync(new URL("../src/db/schema.ts",import.meta.url),"utf8");
+  assert.match(schema,/unique\("documents_org_employee_id_hr_cases_unique"\)\.on\(table\.organizationId, table\.employeeId, table\.id\)/);
+  assert.match(schema,/columns: \[table\.organizationId, table\.employeeId, table\.coeDocumentId\]/);
+  assert.match(schema,/foreignColumns: \[documents\.organizationId, documents\.employeeId, documents\.id\]/);
 });

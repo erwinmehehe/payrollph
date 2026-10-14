@@ -19,8 +19,10 @@ protected manual release environment are mandatory. See
 
 **Fresh PostgreSQL 18 development acceptance:** the [guarded PG18 rebuild and
 nine-stage acceptance](../docs/engineering/fresh-pg18-dev-rebuild-20261014.md)
-tests an empty disposable loopback database, the current Drizzle schema push,
-its repeatability, and a fictional governed Hire-to-filing journey. It does
+tests a fresh empty disposable loopback database, its guarded initial Drizzle
+schema push, and a fictional governed Hire-to-filing journey. **Repeat pushes
+remain unsafe** until the known Drizzle composite-FK constraint-diff bug is
+resolved and separately verified. It does
 **not** replay or adopt the numbered historical SQL archive, make live Neon
 schema changes, or replace production migration-provenance requirements.
 
