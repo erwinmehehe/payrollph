@@ -56,5 +56,9 @@ test("production smoke workers authenticate the private deployment probe", () =>
   assert.ok(script.includes('if (token.length < 32)'));
   assert.ok(script.includes('blocked: "missing-protected-verification-credential"'));
   assert.ok(workflow.includes('secrets.PRODUCTION_READINESS_TOKEN'));
-  assert.ok(workflow.includes('-H "x-readiness-token: ${PRODUCTION_READINESS_TOKEN}"'));
+  // The private readiness probe still supplies the protected secret, but
+  // never prints response bodies, tokens, or headers to CI logs.
+  assert.ok(workflow.includes('-H "x-readiness-token: $PRODUCTION_READINESS_TOKEN"'));
+  assert.ok(workflow.includes("http_status="));
+  assert.ok(!workflow.includes("echo \"deployment attempt=$attempt deployed_sha="));
 });
