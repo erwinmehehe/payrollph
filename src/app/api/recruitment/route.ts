@@ -7,6 +7,7 @@ import {
   hcmSkills,
   jobApplicants,
   applicantPrivacyEvidence,
+  auditEvents,
   jobProfiles,
   jobRequisitions,
   orgUnits,
@@ -23,9 +24,11 @@ import {
   getAccess,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { careersNoticeConfig, careersSchemaReady } from "@/lib/careers-privacy-gates";
 import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
 import { requireApplicantConsent } from "@/lib/recruitment-applicant-privacy";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { positionControlFingerprint } from "@/lib/hcm-position-business-process";
 import { PlanRequisitionHandoffError, resolvePublishedPlanRequisitionLineage } from "@/lib/workforce-plan-requisition-handoff";
 import { freezeTalentRoleSkills, TalentRoleArchitectureError } from "@/lib/hcm-talent-continuity";
@@ -103,6 +106,19 @@ export async function GET(request: Request) {
     }
   }
 
+  // An active #925 privacy mode requires actual candidate notice evidence.
+  // Never claim a careers publication field when its DBA migration is absent.
+  const privacyConsentRequired = applicantPrivacyControlsEnabled();
+  const careersPublishingReady = !!careersNoticeConfig() &&
+    !criticalReleaseFlagEnabled("multiEntity") && await careersSchemaReady();
+  const publishedIds = new Set<number>();
+  if (careersPublishingReady) {
+    const published = await db.execute<{ id: number }>(sql`
+      select id from job_requisitions where organization_id = ${organizationId}
+        and careers_published = true`);
+    for (const row of published.rows) publishedIds.add(Number(row.id));
+  }
+
   const reqIds = reqs.map((row) => row.id);
   const applicants = reqIds.length
     ? await db.select().from(jobApplicants)
@@ -127,6 +143,7 @@ export async function GET(request: Request) {
       const reqApplicants = applicantsByReq.get(row.id) ?? [];
       return {
         ...row,
+        ...(careersPublishingReady ? { careersPublished: publishedIds.has(row.id) } : {}),
         applicantCount: reqApplicants.length,
         interviewCount: reqApplicants.filter((applicant) => applicant.stage === "interview").length,
         offerCount: reqApplicants.filter((applicant) => applicant.stage === "offer").length,
@@ -138,6 +155,8 @@ export async function GET(request: Request) {
     }),
     applicants,
     access,
+    ...(privacyConsentRequired ? { privacyConsentRequired: true } : {}),
+    ...(careersPublishingReady ? { careersPublishingReady: true } : {}),
   });
 }
 
@@ -524,6 +543,14 @@ export async function POST(request: Request) {
           sourceEvidenceReference: consent.sourceEvidenceReference,
           consentCapturedAt: new Date(),
         });
+        // #925 privacy mode: candidate+consent+redacted audit commit together.
+        await tx.insert(auditEvents).values({
+          organizationId, actor: user.name,
+          action: "Candidate application received",
+          resource: "Applicant #" + created.id,
+          metadata: { applicantId: created.id, requisitionId, positionId: linkedPosition?.id ?? null,
+            privacyNoticeVersion: consent.privacyNoticeVersion },
+        });
       }
 
       return { created, requisitionTitle: freshReq.title };
@@ -535,12 +562,14 @@ export async function POST(request: Request) {
     });
     if (createdOrResponse instanceof Response) return createdOrResponse;
 
-    await recordAuditEvent({
+    // Legacy flag-OFF behavior remains intact; privacy-mode audit is atomic.
+    if (!consent) await recordAuditEvent({
       organizationId,
       actor: user.name,
       action: "Candidate application received",
-      resource: consent ? "Applicant #" + createdOrResponse.created.id : `${fullName} -> ${createdOrResponse.requisitionTitle}`,
-      metadata: { applicantId: createdOrResponse.created.id, requisitionId, positionId: linkedPosition?.id ?? null },
+      resource: `${fullName} -> ${createdOrResponse.requisitionTitle}`,
+      metadata: { applicantId: createdOrResponse.created.id, requisitionId,
+        positionId: linkedPosition?.id ?? null },
     });
 
     return Response.json(createdOrResponse.created, { status: 201 });
