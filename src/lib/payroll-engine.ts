@@ -44,6 +44,8 @@ import {
   yearEndAdjustments,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { assertSpendModeAvailable, loadSpendClaimEvidence, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
+import { reimbursementPayrollInputs } from "@/lib/spend-payroll-reimbursement";
 import { sealPayrollPaymentBankAccount } from "@/lib/payroll-snapshot-sealing";
 import { validPayrollLoanSchedule } from "@/lib/payroll-loan-approval";
 import {
@@ -865,13 +867,15 @@ async function processPayrollChunk(input: {
     approvedLeaveByEmployee.set(employeeId, resolved);
   }
 
-  const openClaims = chunkIds.length
+  const legacyOpenClaims = chunkIds.length
     ? await db.select().from(expenseClaims).where(and(
         eq(expenseClaims.organizationId, input.organizationId),
         eq(expenseClaims.status, "approved"),
         inArray(expenseClaims.employeeId, chunkIds),
       ))
     : [];
+  await assertSpendModeAvailable(db, legacyOpenClaims);
+  const openClaims = await loadSpendClaimEvidence(db, legacyOpenClaims);
   const openAdvances = chunkIds.length
     ? await db.select().from(earnedWageRequests).where(and(
         eq(earnedWageRequests.organizationId, input.organizationId),
@@ -1457,6 +1461,7 @@ async function processPayrollChunk(input: {
       ),
     );
     const unit = employee.orgUnitId ? unitMap.get(employee.orgUnitId) : null;
+    const reimbursementInputs = reimbursementPayrollInputs(claimsByEmployee.get(employee.id) ?? [], spendPayrollEnabled());
     const calc = calculateEmployeePay({
       employee,
       punches,
@@ -1464,19 +1469,14 @@ async function processPayrollChunk(input: {
       unitName: unit?.name ?? "Unassigned",
       periodLabel: run.periodLabel,
       benefits: enrolmentsByEmployee.get(employee.id) ?? [],
-      expenses: (claimsByEmployee.get(employee.id) ?? []).map((c) => ({
-        id: c.id,
-        category: c.category,
-        description: c.description,
-        amount: Number(c.amount),
-        incurredOn: String(c.incurredOn),
-      })),
+      expenses: reimbursementInputs.expenses,
       advances: (advancesByEmployee.get(employee.id) ?? []).map((a) => ({
         id: a.id,
         requestedAmount: Number(a.requestedAmount),
         fee: Number(a.fee),
       })),
       supplementaryEarnings: [
+        ...reimbursementInputs.supplementaryEarnings,
         ...(supplementaryByEmployee.get(employee.id) ?? []).map((earning) => ({
           id: earning.id,
           earningType: earning.earningType,

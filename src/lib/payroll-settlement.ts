@@ -1,5 +1,8 @@
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
+import { assertSpendModeAvailable, loadSpendClaimEvidence, lockReviewedSpendOrganization, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
+import { reimbursementEligible, reimbursementLineBenefitTreatmentMatches, reimbursementLineEvidenceMatches, reimbursementLineTaxMatches, reimbursementSettlementDecision, receiptObjectIdentityMatches } from "@/lib/spend-payroll-reimbursement";
+import { readVerifiedSpendReceipt } from "@/lib/spend-receipt-storage";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
 import { exactLoanPaymentReplayMatches, payrollLoanPosting } from "@/lib/payroll-loan-settlement";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
@@ -29,14 +32,16 @@ function money(value: number) {
 }
 
 function storedLines(value: unknown) {
-  if (!Array.isArray(value)) return [] as Array<{ code: string; amount: number }>;
+  if (!Array.isArray(value)) return [] as Array<{ code: string; amount: number; notes: string[] }>;
   return value.flatMap((raw) => {
     if (!raw || typeof raw !== "object") return [];
     const row = raw as Record<string, unknown>;
     if (typeof row.code !== "string") return [];
     const amount = Number(row.amount ?? 0);
     if (!Number.isFinite(amount)) return [];
-    return [{ code: row.code, amount }];
+    return [{ code: row.code, amount,
+      notes: Array.isArray(row.notes) ? row.notes.filter((v): v is string => typeof v === "string") : [],
+    }];
   });
 }
 
@@ -44,6 +49,67 @@ function numericId(code: string, prefix: string) {
   if (!code.startsWith(prefix)) return null;
   const id = Number(code.slice(prefix.length));
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+
+type VerifiedSpendReceipt = Readonly<{ employeeId: number; storageKey: string; sha256: string; byteSize: number }>;
+
+/**
+ * Read the actual scanned private receipt bytes outside the payroll settlement
+ * transaction. Never hold money-ledger or employee row locks across S3 GETs.
+ * The locked settlement re-compares this snapshot to approved SQL evidence.
+ * Four concurrent reads bound provider load. A missing/tampered private object
+ * is a hard release failure, not a warning to pay without the receipt.
+ */
+async function verifySpendReceiptsBeforeSettlement(
+  runId: number, organizationId: number,
+): Promise<Map<number, VerifiedSpendReceipt>> {
+  const verified = new Map<number, VerifiedSpendReceipt>();
+  if (!spendPayrollEnabled()) return verified;
+  const entries = await db.select({ employeeId: payrollEntries.employeeId, lineItems: payrollEntries.lineItems })
+    .from(payrollEntries).where(eq(payrollEntries.payrollRunId, runId));
+  const claimEmployees = new Map<number, number>();
+  for (const entry of entries) {
+    for (const line of storedLines(entry.lineItems)) {
+      if (!line.code.startsWith("EXP-")) continue;
+      const claimId = numericId(line.code, "EXP-");
+      if (!claimId || line.code !== "EXP-" + claimId || claimEmployees.has(claimId)) {
+        throw new Error("The payroll register contains a duplicate expense reimbursement or invalid expense code.");
+      }
+      claimEmployees.set(claimId, entry.employeeId);
+    }
+  }
+  if (claimEmployees.size === 0) return verified;
+  const coreClaims = await db.select().from(expenseClaims).where(and(
+    eq(expenseClaims.organizationId, organizationId),
+    inArray(expenseClaims.id, [...claimEmployees.keys()]),
+  ));
+  const claims = await loadSpendClaimEvidence(db, coreClaims);
+  // The locked transaction remains responsible for detecting changed, paid,
+  // absent and unapproved claims. They must never cause an object read here.
+  const payable = claims.filter(claim => reimbursementEligible(claim, true) &&
+    claim.employeeId === claimEmployees.get(claim.id));
+  for (let i = 0; i < payable.length; i += 4) {
+    await Promise.all(payable.slice(i, i + 4).map(async claim => {
+      const storageKey = claim.receiptStorageKey!;
+      const sha256 = claim.receiptSha256!;
+      const byteSize = claim.receiptByteSize!;
+      try {
+        await readVerifiedSpendReceipt({
+          key: storageKey, organizationId: claim.organizationId,
+          employeeId: claim.employeeId, sha256, byteSize,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        const code = ["RECEIPT_IDENTITY_INVALID", "RECEIPT_READ_UNAVAILABLE", "RECEIPT_SIZE_MISMATCH", "RECEIPT_HASH_MISMATCH"]
+          .includes(message) ? message : "RECEIPT_READ_UNAVAILABLE";
+        throw new Error("RECEIPT_RELEASE_VERIFICATION_FAILED for claim #" + claim.id + ": " +
+          code);
+      }
+      verified.set(claim.id, { employeeId: claim.employeeId, storageKey, sha256, byteSize });
+    }));
+  }
+  return verified;
 }
 
 type PaymentSnapshot = {
@@ -155,8 +221,10 @@ export async function settlePayrollRun(
   const [preflightRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
   if (!preflightRun) throw new Error("Payroll run not found.");
   await ensureEmployeePayProfiles(preflightRun.organizationId);
+  const verifiedSpendReceipts = await verifySpendReceiptsBeforeSettlement(runId, preflightRun.organizationId);
 
   return db.transaction(async (tx) => {
+    await lockReviewedSpendOrganization(tx, preflightRun.organizationId);
     const [run] = await tx.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
     if (!run) throw new Error("Payroll run not found.");
     if (run.status !== "Releasing") {
@@ -390,6 +458,19 @@ export async function settlePayrollRun(
       }
     }
 
+    // All payable reimbursements for this calculated workforce must have a
+    // register line. Otherwise a late approval would be silently omitted.
+    // Lock currently approved unlinked claims in deterministic order; existing
+    // per-line locks and compare-and-swap still protect exact-once release.
+    const expectedSpendClaimIds = spendPayrollEnabled() && employeeIds.length
+      ? (await tx.select({ id: expenseClaims.id }).from(expenseClaims).where(and(
+          eq(expenseClaims.organizationId, run.organizationId),
+          inArray(expenseClaims.employeeId, employeeIds),
+          eq(expenseClaims.status, "approved"),
+          isNull(expenseClaims.payrollRunId),
+        )).orderBy(expenseClaims.id).for("update")).map(claim => claim.id)
+      : [];
+    const seenExpenseClaimIds = new Set<number>();
     let expensesSettled = 0;
     let advancesSettled = 0;
     let loanPaymentsSettled = 0;
@@ -401,17 +482,51 @@ export async function settlePayrollRun(
     for (const entry of entries) {
       for (const line of storedLines(entry.lineItems)) {
         const expenseId = numericId(line.code, "EXP-");
+        if (spendPayrollEnabled() && line.code.startsWith("EXP-") &&
+            (!expenseId || line.code !== "EXP-" + expenseId)) {
+          throw new Error("Invalid expense reimbursement code in the approved register.");
+        }
         if (expenseId) {
-          const [claim] = await tx
+          if (spendPayrollEnabled()) {
+            if (seenExpenseClaimIds.has(expenseId)) {
+              throw new Error("The payroll register contains duplicate expense reimbursement " + expenseId + ".");
+            }
+            seenExpenseClaimIds.add(expenseId);
+          }
+          const claimQuery = tx
             .select()
             .from(expenseClaims)
             .where(and(
               eq(expenseClaims.id, expenseId),
               eq(expenseClaims.organizationId, run.organizationId),
-            ))
-            .limit(1);
+            ));
+          const [coreClaim] = spendPayrollEnabled() ? await claimQuery.for("update").limit(1) : await claimQuery.limit(1);
+          if (coreClaim?.status === "approved") await assertSpendModeAvailable(tx, [coreClaim]);
+          const [claim] = coreClaim ? await loadSpendClaimEvidence(tx, [coreClaim]) : [];
           if (!claim || claim.employeeId !== entry.employeeId) {
             throw new Error(`Expense claim ${expenseId} no longer matches this payroll entry.`);
+          }
+          if (spendPayrollEnabled()) {
+            if (!claim.receiptStorageKey || !receiptObjectIdentityMatches(
+                claim.receiptStorageKey, claim.organizationId, claim.employeeId)) {
+              throw new Error("Expense claim " + expenseId + " receipt belongs to another employer or worker.");
+            }
+            if (!reimbursementLineTaxMatches(claim.taxable === true, line.notes) ||
+                !reimbursementLineBenefitTreatmentMatches(claim.taxable === true, line.notes) ||
+                !reimbursementLineEvidenceMatches(claim, line.notes)) {
+              throw new Error("Expense claim " + expenseId + " has a different taxable policy from its approved payslip.");
+            }
+            const decision = reimbursementSettlementDecision(claim, run.id, line.amount, true);
+            if (decision !== "settle") {
+              throw new Error(`Expense claim ${expenseId} cannot settle: ${decision}. Recalculate before release.`);
+            }
+            const bytesVerified = verifiedSpendReceipts.get(expenseId);
+            if (!bytesVerified || bytesVerified.employeeId !== entry.employeeId ||
+                bytesVerified.storageKey !== claim.receiptStorageKey ||
+                bytesVerified.sha256 !== claim.receiptSha256 ||
+                bytesVerified.byteSize !== claim.receiptByteSize) {
+              throw new Error("Expense claim " + expenseId + " private receipt changed since byte verification.");
+            }
           }
           if (claim.payrollRunId != null && claim.payrollRunId !== run.id) {
             throw new Error(`Expense claim ${expenseId} was already settled by another payroll run.`);
@@ -691,6 +806,14 @@ export async function settlePayrollRun(
           }
           loanPaymentsSettled += 1;
         }
+      }
+    }
+
+    if (spendPayrollEnabled()) {
+      const missingClaimId = expectedSpendClaimIds.find(id => !seenExpenseClaimIds.has(id));
+      if (missingClaimId !== undefined) {
+        throw new Error("Newly approved reimbursement #" + missingClaimId +
+          " is missing from the payroll register; recalculate before release.");
       }
     }
 

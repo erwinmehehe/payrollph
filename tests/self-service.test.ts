@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { employeeNavigationTabs, employeeTabEnabled, EMPLOYEE_PAGE_LABELS, type EmployeeSelfTab } from "../src/lib/employee-navigation";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -108,15 +109,24 @@ test("employee profile editing is restricted to non-payroll-sensitive contact fi
   assert.ok(!route.includes("startDate:"));
 });
 
-test("employee app exposes pay time leave and profile as first-class sections", () => {
-  const portal = read("src/components/self-service-portal.tsx");
+test("employee navigation retains default sections and opts Expenses into desktop and mobile More", () => {
+  const baseline = employeeNavigationTabs();
   for (const [tab, label] of [["home", "Home"], ["pay", "Pay"], ["time", "Time"], ["leave", "Leave"], ["profile", "Profile"]]) {
-    assert.ok(portal.includes(`${tab}: { label: "${label}"`), `missing desktop ${label} navigation`);
+    assert.equal(EMPLOYEE_PAGE_LABELS[tab as EmployeeSelfTab].label, label);
+    assert.ok(baseline.allTabs.includes(tab as EmployeeSelfTab));
   }
-  assert.ok(portal.includes("ESS_ALL_TABS.map((value) => {"), "desktop navigation must expose all employee sections");
-  assert.ok(portal.includes("ESS_PRIMARY_TABS.map((value) => {"), "mobile navigation must keep the primary employee tabs");
-  assert.ok(read("src/components/employee-home-dashboard.tsx").includes("employee-latest-pay"));
-  assert.ok(portal.includes("employee-pay-breakdown"));
+  assert.deepEqual(baseline.primaryTabs, ["home", "pay", "time", "leave"]);
+  assert.deepEqual(baseline.moreTabs, ["documents", "performance", "profile"]);
+  assert.deepEqual(baseline.allTabs, ["home", "pay", "time", "leave", "documents", "performance", "profile"]);
+  const enabled = employeeNavigationTabs(true);
+  assert.deepEqual(enabled.primaryTabs, baseline.primaryTabs);
+  assert.deepEqual(enabled.moreTabs, [...baseline.moreTabs, "expenses"]);
+  assert.deepEqual(enabled.allTabs, [...baseline.allTabs, "expenses"]);
+  assert.deepEqual(employeeNavigationTabs(false), baseline, "Opt-in must not mutate default navigation");
+  assert.equal(employeeTabEnabled("expenses"), false, "Direct Expenses navigation is denied by default");
+  assert.equal(employeeTabEnabled("expenses", false), false);
+  assert.equal(employeeTabEnabled("expenses", true), true);
+  assert.equal(employeeTabEnabled("pay", false), true, "Existing pay navigation remains available");
 });
 
 test("employee leave request does not guess chargeable days", () => {
