@@ -1,6 +1,6 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { createHash } from "node:crypto";
-import { and, desc, eq, isNull, ne } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
+import { and, desc, eq, isNull, ne, notLike, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -14,6 +14,7 @@ import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { documentObjectKey, deleteDocumentObject, putDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
 import { canStaffOpenEmployeeVault, validExpiryCalendarDate } from "@/lib/employee-document-vault";
+import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
 import { legacyDocumentInsertTable, legacyVisibleDocumentWhere } from "@/lib/document-schema-compat";
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
@@ -48,7 +49,8 @@ export async function GET(request: Request) {
       uploadedBy: documents.uploadedBy,
       createdAt: documents.createdAt,
     }).from(documents)
-      .where(and(eq(documents.organizationId, organizationId), eq(documents.employeeId, user.employeeId)))
+      .where(and(eq(documents.organizationId, organizationId), eq(documents.employeeId, user.employeeId),
+        or(isNull(documents.sourceKey), notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"))))
       .orderBy(desc(documents.id));
 
     return Response.json({
@@ -84,6 +86,7 @@ export async function GET(request: Request) {
   }).from(documents)
     .where(and(
       eq(documents.organizationId, organizationId),
+      or(isNull(documents.sourceKey), notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%")),
       // Turning the A-5 flag back off must NOT reveal confidential 201-file
       // metadata to bookkeeper/legacy People roles. The object-backed row
       // remains private even during feature rollback.
@@ -269,52 +272,83 @@ export async function POST(request: Request) {
   }
 
   if (vaultEnabled) {
-    // New vault uploads never store the file's base64 representation in SQL.
-    // Unlike legacy developer uploads, a missing scanner fails closed even in
-    // preview, and missing S3 storage fails closed before any DB mutation.
     if (!scan.scannedClean) {
       return Response.json({ error: "A completed clean malware scan is required for private vault storage." }, { status: 503 });
     }
     const hash = createHash("sha256").update(bytes).digest("hex");
     const storageKey = documentObjectKey(organizationId, employeeId);
+    const pendingSourceKey = VAULT_PENDING_SOURCE_PREFIX + randomUUID();
+
+    // Commit an unreadable, tenant-bound recovery intent BEFORE any remote
+    // object PUT. The provider and PostgreSQL cannot participate in one
+    // transaction; this row makes an ambiguous PUT/failed commit recoverable.
+    let pendingDocumentId: number;
+    try {
+      pendingDocumentId = await db.transaction(async tx => {
+        const [intent] = await tx.insert(documents).values({
+          organizationId, employeeId, kind,
+          fileName: safeFileName(file.name), mimeType: check.mime,
+          byteSize: bytes.byteLength, sha256: hash,
+          scannedClean: false, scanNote: "Pending verified private storage",
+          sourceType: "upload", sourceKey: pendingSourceKey,
+          uploadedBy: user.name, uploadedByUserId: user.id,
+          objectStorageKey: storageKey, content: "",
+        }).returning({ id: documents.id });
+        await tx.insert(auditEvents).values({
+          organizationId, actor: user.name,
+          action: "Pending private vault upload intent recorded",
+          resource: String(intent.id),
+          metadata: { documentId: intent.id, employeeId,
+            sha256: hash, byteSize: bytes.byteLength, actorUserId: user.id },
+        });
+        return intent.id;
+      });
+    } catch {
+      // No object was written, because the intent failed to commit.
+      return Response.json({ error: "Private document upload could not be reserved." }, { status: 409 });
+    }
+
     try {
       await putDocumentObject(storageKey, bytes, check.mime);
-      // Before recording a clean, scanned document, prove the object store
-      // serves precisely the same bytes and length. A corrupt/partial GET
-      // prevents the SQL compliance row from being created.
+      // An HTTP PUT receipt alone cannot prove the bytes survived unchanged.
       await verifyStoredDocumentObject(storageKey, hash, bytes.byteLength);
     } catch {
-      // A provider may time out after writing part or all of a private object.
-      // Never assume an HTTP timeout means no bytes were stored: reconcile
-      // the unique key on failure before allowing the user to retry.
-      await deleteDocumentObject(storageKey).catch(() => {
-        // Failed cleanup leaves a random, unreferenced private object for
-        // storage lifecycle reconciliation; never expose its key to clients.
-      });
-      return Response.json({ error: "Private document object storage is unavailable." }, { status: 503 });
+      // Do NOT issue an immediate DELETE: a delayed/ambiguous remote PUT
+      // could complete after it. The durable unreadable intent is swept after
+      // the one-hour grace window, even if the feature flag is turned OFF.
+      return Response.json({ error: "Private object storage verification failed; protected cleanup is queued." }, { status: 503 });
     }
+
     try {
       const result = await db.transaction(async tx => {
-        const [stored] = await tx.insert(documents).values({
-          organizationId, employeeId, kind,
-          fileName: safeFileName(file.name),
-          mimeType: check.mime,
-          byteSize: bytes.byteLength,
-          sha256: hash,
-          scannedClean: true,
-          scanNote: scan.note,
-          uploadedBy: user.name,
-          uploadedByUserId: user.id,
-          objectStorageKey: storageKey,
-          content: "", // non-base64 compatibility sentinel until reviewed migration
-        }).returning({
+        const [pending] = await tx.select({
+          id: documents.id, scannedClean: documents.scannedClean,
+          sourceKey: documents.sourceKey, objectStorageKey: documents.objectStorageKey,
+        }).from(documents).where(and(
+          eq(documents.id, pendingDocumentId),
+          eq(documents.organizationId, organizationId),
+        )).for("update").limit(1);
+        if (!pending || pending.scannedClean ||
+          pending.sourceKey !== pendingSourceKey ||
+          pending.objectStorageKey !== storageKey) throw new Error("VAULT_PENDING_INTENT_CHANGED");
+
+        const [stored] = await tx.update(documents).set({
+          scannedClean: true, scanNote: scan.note, sourceKey: null,
+        }).where(and(
+          eq(documents.id, pendingDocumentId),
+          eq(documents.organizationId, organizationId),
+          eq(documents.sourceKey, pendingSourceKey),
+          eq(documents.scannedClean, false),
+        )).returning({
           id: documents.id, fileName: documents.fileName,
           byteSize: documents.byteSize, sha256: documents.sha256,
         });
+        if (!stored) throw new Error("VAULT_PENDING_INTENT_CHANGED");
+
         let documentCompliance: typeof hcmEmployeeDocumentCompliance.$inferSelect | null = null;
         if (requirement && complianceRow) {
-          // The employee/requirement/old document must still match: a concurrent
-          // HR waiver, replacement or tenant change cannot be overwritten.
+          // Existing optimistic conditions prevent a concurrent HR waiver,
+          // requirement edit, or replacement from being overwritten.
           [documentCompliance] = await tx.update(hcmEmployeeDocumentCompliance).set({
             documentId: stored.id, expiresAt, status: "submitted",
             verifiedAt: null, verifiedByUserId: null,
@@ -354,10 +388,9 @@ export async function POST(request: Request) {
         storage: "private-object",
       }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
     } catch {
-      // The object was created but the transactional row/audit was not.
-      // Best-effort cleanup; failed cleanup requires orphan reconciliation.
-      await deleteDocumentObject(storageKey).catch(() => {});
-      return Response.json({ error: "Employee document could not be committed; refresh and retry." }, { status: 409 });
+      // The earlier intent transaction survives this rollback; it cannot be
+      // downloaded while scannedClean=false and will be retried by the sweeper.
+      return Response.json({ error: "Private document approval failed; unreadable cleanup intent retained." }, { status: 409 });
     }
   }
 
