@@ -47,6 +47,27 @@ async function employeeAt(width) {
     viewport:{width,height:844},timezoneId:"Asia/Manila",
     ...(employeeState?{storageState:employeeState}:{}),
   });
+  // Headless runner has no supported physical camera. At 390px inject only
+  // a disposable synthetic MediaStream into THIS new browser context to test
+  // the application's preview/stop lifecycle. 320px separately checks real
+  // permission-denied fallback. Neither proves OS/device permission support.
+  if(width===390) {
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator.mediaDevices,"getUserMedia",{
+        configurable:true,
+        value:async constraints => {
+          if(constraints?.audio!==false || !constraints?.video)
+            throw new Error("Unexpected media constraints in synthetic QA");
+          const canvas=document.createElement("canvas");
+          canvas.width=8; canvas.height=8;
+          canvas.getContext("2d").fillRect(0,0,8,8);
+          const stream=canvas.captureStream(1);
+          window.__offlineSyntheticTrack=stream.getVideoTracks()[0];
+          return stream;
+        },
+      });
+    });
+  }
   const page=await context.newPage();
   const errors=[];
   page.on("pageerror",error=>errors.push(String(error.message).slice(0,120)));
@@ -74,12 +95,15 @@ async function employeeAt(width) {
       checks.push("320px camera denied; accessible manual fallback");
     }
     if(width===390) {
-      await context.grantPermissions(["camera"],{origin:base});
       await page.getByRole("button",{name:"Open camera preview"}).click();
       await page.getByText(/Camera preview ready. No photos recorded/).waitFor({timeout:20000});
+      assert.equal(await page.evaluate(() => window.__offlineSyntheticTrack?.readyState),"live",
+        "Synthetic MediaStream must be live before explicit user stop");
       await page.getByRole("button",{name:"Stop camera"}).click();
+      assert.equal(await page.evaluate(() => window.__offlineSyntheticTrack?.readyState),"ended",
+        "Explicit stop must release the synthetic video track");
       assert.equal(await page.getByRole("button",{name:"Stop camera"}).count(),0);
-      checks.push("390px fictional camera preview stopped; no photo stored");
+      checks.push("390px in-browser synthetic MediaStream: live preview, explicit stop, ended video track; OS camera not tested");
     }
 
     if(width===375){

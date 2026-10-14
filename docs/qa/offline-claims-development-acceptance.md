@@ -16,7 +16,7 @@ The `synthetic-employee-hr` job runs against a different ephemeral local Postgre
 - HR can flag/dismiss only a pending claim, with an audit entry. Neither action creates a `time_punches` entry, payroll run, money transfer, biometric photo or agency submission. Malformed PATCH JSON returns HTTP 400.
 - A second app on localhost port 3001 with `FACE_OFFLINE_PUNCH_UI_ENABLED=false` must show the route as unavailable and hide the UI.
 
-Synthetic Chromium verifies **320/375/390/430px** layouts. It tests explicit camera consent, denial/manual fallback, fake-device preview (no captured frames), temporary offline queuing, reconnect submission, HR review, and feature-OFF parity. Screenshots contain **fictional persons only**. The temporary synthetic login handoff file is deleted before any CI artifact upload. Error messages and sanitized evidence JSON are retained for 14 days; screenshots do not contain real PII.
+Synthetic Chromium verifies **320/375/390/430px** layouts. It tests explicit camera consent and denied-permission/manual fallback at 320px; at 390px a test-only, in-browser canvas MediaStream checks UI preview and that explicit stop releases the video track. The stub does **not** validate physical camera access, a browser's real OS grant path, or device drivers. It also tests temporary offline queuing, reconnect submission, HR review, and feature-OFF parity. Screenshots contain **fictional persons only**. The temporary synthetic login handoff file is deleted before any CI artifact upload. Error messages and sanitized evidence JSON are retained for 14 days; screenshots do not contain real PII.
 
 ## Evidence interpretation and remaining holds
 
@@ -27,7 +27,7 @@ For **each exact Git commit**, use the dedicated workflow result and its artifac
 | PostgreSQL 16/18 exact proposal + rollback | Captured by CI; must return PASS | Actual numbered/provenance migration, DBA/clone/restore receipts NOT RUN |
 | Two-employer auth, employee/HR separation, replay, audit | Captured by CI; must return PASS | Qualified HR/security witness of operational procedures NOT RUN |
 | Four viewport mobile simulation, simulated offline/reconnect | Captured by CI; must return PASS | Physical-device/real-network WFM-14 acceptance NOT RUN |
-| On-device consent preview without stored images | Browser simulation only | Privacy/retention notice, actual informed consent and camera-policy approval NOT RUN |
+| On-device consent preview without stored images | Browser simulated track lifecycle and permission-denied fallback; **real grant/device NOT RUN** | Privacy/retention notice, actual informed consent and camera-policy approval NOT RUN |
 | Production activation or financial movement | Prohibited | **NO-GO** |
 
 The existing `#691` WFM human 14-scenario matrix cannot be signed by this script. It still requires separate operational testers and physical device proof. The unnumbered proposal remains unapplied until a verified numbered migration with independent catalog/provenance/rollback review exists; green CI does not mean Neon schema was modified. The existing seven-day `localStorage` queue policy and deletion/retention notices require an actual privacy decision before use with real workers. This development-only source work may be integrated with all flags OFF without creating fictional external signatures.
