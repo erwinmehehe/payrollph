@@ -5,10 +5,17 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { spendIsolatedDatabase, waitForSpendLockWaiters } from "./helpers/spend-isolated-database";
 import { encryptBankAccount } from "../src/lib/bank-account-crypto";
+import { storedMoneyCentavos } from "../src/lib/stored-money-centavos";
 import {
   employees, employeePayProfiles, expenseCategoryPolicies, expenseClaimEvidence, expenseClaims,
   organizations, payrollEntries, payrollRuns, users,
 } from "../src/db/schema";
+
+const cents = (amount: unknown): number => {
+  const parsed = storedMoneyCentavos(amount);
+  assert.notEqual(parsed, null, "Payroll and reimbursement ledger money must be exact centavos");
+  return parsed!;
+};
 
 const readTrace = (value: unknown, name: string): number | null => {
   const inputs = value && typeof value === "object" ? (value as { inputs?: unknown }).inputs : null;
@@ -103,6 +110,12 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
 
     const entries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
     assert.equal(entries.length, 4, "one entry per employee, no duplicates");
+    const [calculatedRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
+    assert.ok(calculatedRun);
+    assert.equal(cents(calculatedRun.grossPay), entries.reduce((sum, row) => sum + cents(row.grossPay), 0),
+      "Employer payroll gross must reconcile to the sum of employee registers");
+    assert.equal(cents(calculatedRun.netPay), entries.reduce((sum, row) => sum + cents(row.netPay), 0),
+      "Employer payroll net must reconcile to the sum of employee registers");
     const byId = new Map(entries.map(row => [row.employeeId, row]));
     const taxed = byId.get(staff[0].id);
     const exempt = byId.get(staff[1].id);
@@ -110,6 +123,33 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     const toLines = (entry: typeof payrollEntries.$inferSelect) => entry.lineItems as Array<{
       code: string; amount: string; notes?: string[];
     }>;
+    const approvalRows = await db.select().from(expenseClaimEvidence);
+    const approvedByClaimId = new Map(approvalRows.map(row => [row.claimId, row]));
+    const submittedByClaimId = new Map(claims.map(claim => [claim.id, claim]));
+    let registerReimbursementCents = 0;
+    let approvedReimbursementCents = 0;
+    for (const employee of staff) {
+      const entry = byId.get(employee.id);
+      assert.ok(entry, "Every worker must have exactly one calculated entry");
+      const claim = claims.find(item => item.employeeId === employee.id);
+      assert.ok(claim, "Every reimbursement must map to a worker in the run");
+      const evidence = approvedByClaimId.get(claim.id);
+      assert.ok(evidence?.approvedAmount, "Reviewed expense must have an approved amount");
+      assert.equal(submittedByClaimId.get(claim.id)?.employeeId, entry.employeeId);
+      const paymentLines = toLines(entry).filter(line => line.code === "EXP-" + claim.id);
+      assert.equal(paymentLines.length, 1, "One and only one payment line per approved claim");
+      const approved = cents(evidence.approvedAmount);
+      const paid = cents(paymentLines[0].amount);
+      assert.ok(approved > 0 && approved <= cents(claim.amount),
+        "Approved cents cannot exceed the submitted claim");
+      assert.equal(paid, approved, "Payroll line must be exactly the approved centavos");
+      approvedReimbursementCents += approved;
+      registerReimbursementCents += paid;
+    }
+    assert.equal(registerReimbursementCents, approvedReimbursementCents,
+      "All payroll reimbursement amounts match the approved employer ledger, centavo for centavo");
+    assert.equal(approvedReimbursementCents, 4_090_002,
+      "Two PHP 450.01 partial approvals and two PHP 20,000 full approvals total PHP 40,900.02");
     const taxableLine = toLines(taxed!).find(line => line.code === "EXP-" + claims[0].id);
     const exemptLine = toLines(exempt!).find(line => line.code === "EXP-" + claims[1].id);
     assert.equal(Number(taxableLine?.amount), 450.01);
@@ -117,6 +157,16 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     assert.ok(taxableLine?.notes?.includes("Taxable reimbursement"));
     assert.ok(exemptLine?.notes?.includes("Non-taxable reimbursement"));
     assert.equal(Number(taxed!.grossPay), Number(exempt!.grossPay));
+    const whtCents = (entry: typeof payrollEntries.$inferSelect) =>
+      cents(toLines(entry).find(line => line.code === "WHT")?.amount ?? "0.00");
+    for (const deduction of ["SSS", "PHIC", "HDMF", "HDMF_VOL"]) {
+      const amount = (entry: typeof payrollEntries.$inferSelect) =>
+        cents(toLines(entry).find(line => line.code === deduction)?.amount ?? "0.00");
+      assert.equal(amount(taxed!), amount(exempt!),
+        "Tax classification must not unexpectedly change statutory contribution " + deduction);
+    }
+    assert.equal(cents(taxed!.netPay) - cents(exempt!.netPay), whtCents(taxed!) - whtCents(exempt!),
+      "Ordinary-worker net pay difference must equal only the withholding difference");
 
     const taxedBase = readTrace(taxed!.trace, "taxableCompensation");
     const exemptBase = readTrace(exempt!.trace, "taxableCompensation");
@@ -134,6 +184,11 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     assert.equal(readTrace(mweExempt.trace, "mweTaxableSupplementaryCompensation"), 0);
     assert.equal(Number(toLines(mweExempt).find(line => line.code === "WHT")?.amount ?? 0), 0);
     assert.ok(Number(toLines(mweTaxed).find(line => line.code === "WHT")?.amount) < 0, "MWE taxable reimbursement is not silently exempted");
+    assert.equal(cents(mweTaxed.grossPay), cents(mweExempt.grossPay),
+      "MWE tax review does not alter the gross approved reimbursement");
+    assert.equal(cents(mweTaxed.netPay) - cents(mweExempt.netPay),
+      whtCents(mweTaxed) - whtCents(mweExempt),
+      "MWE net pay difference must equal only the withholding difference");
     for (const base of ["statutoryMonthlySssCompensation", "statutoryMonthlyPagIbigCompensation"]) {
       assert.equal(readTrace(mweTaxed.trace, base), readTrace(mweExempt.trace, base));
     }
@@ -230,10 +285,20 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
       await holder.query("COMMIT"); competing = await waiting;
     } finally { await holder.query("ROLLBACK"); holder.release(); }
     assert.equal(competing.filter(result => result.status === "fulfilled").length, 1);
+    let settledApprovedCents = 0;
     for (const claim of claims) {
       const [paid] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, claim.id));
       assert.equal(paid.status, "paid"); assert.equal(paid.payrollRunId, run.id);
+      settledApprovedCents += cents(approvedByClaimId.get(claim.id)?.approvedAmount);
     }
+    assert.equal(settledApprovedCents, registerReimbursementCents,
+      "Every settled claim corresponds to exactly one approved payslip reimbursement");
+    const [releasedRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
+    assert.equal(releasedRun.status, "Released");
+    assert.equal(cents(releasedRun.netPay), cents(calculatedRun.netPay),
+      "Releasing the ledger cannot change calculated take-home pay");
+    assert.equal(cents(releasedRun.grossPay), cents(calculatedRun.grossPay),
+      "Releasing the ledger cannot change calculated gross pay");
     await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, laterRun.id));
     await assert.rejects(settlePayrollRun(laterRun.id), /paid_elsewhere|already settled/);
     const [later] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, laterRun.id));

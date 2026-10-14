@@ -28,6 +28,11 @@ This is NOT a substitute for independently verifying real object immutability an
 provider availability throughout the release interval.
 Synthetic MWE and ordinary workers exercise taxable versus non-taxable reimbursements using the
 existing calculator; statutory SSS/Pag-IBIG trace bases must exist and remain equal across each pair.
+A4 exact-centavo accounting assertions independently reconcile each submitted claim and approved
+partial/full amount to precisely one EXP payroll line, sum all EXP lines against approved
+SQL evidence (synthetic total PHP 40,900.02), sum employee gross/net against employer run totals,
+isolate net-pay differences to withholding differences for equivalent ordinary/MWE workers,
+and verify released gross/net and paid claim rows remain equal to the calculated snapshot.
 This certifies implemented behavior, not the legal eligibility of a real employer's tax policy.
 Receipt PUT is preceded by an audited, unreadable document cleanup intent. Metadata attachment and
 intent clearance commit together. Ambiguous PUT failures wait for delayed cleanup; failed DELETE
