@@ -14,3 +14,9 @@ pgdata/
 # Never publish private payroll, government acceptance or bank UAT proof
 /certification/external-private/
 /qa-artifacts/
+
+# Never commit local database export credentials or encrypted recovery artifacts.
+.backup-dev.env
+*.pgdump.age
+*.pgdump.age.json
+*.pgdump.age.verify.json

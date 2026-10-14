@@ -15,3 +15,7 @@ The typed registry in `src/lib/critical-release-flags.ts` lists release-critical
 | PILOT_FOCUS_NAV_ENABLED | Product | OFF | Individually allowlisted employer and UX review |
 
 This is an initial **high-risk registry**, not a claim that all environment variables are typed. Before closing A-7, migrate and test every module-level rollout gate, establish expiry/retirement dates for temporary flags, and enforce a static diff gate that rejects unregistered boolean feature variables. Do not flip a production switch merely because the registry exists.
+
+## Newly introduced direct-flag usage check (A-7 follow-up)
+
+`A-7 New Release-Flag Registration Guard` checks PR and main commit source diffs for **new** direct `process.env.*_ENABLED` (also literal bracket and destructured) reads. A newly referenced flag must appear in `src/lib/critical-release-flags.ts` with its owner, risk and approval. The check is source-only and runs without production secrets, providers or databases; unknown flags fail the build. Existing legacy reads are not retroactively certified, and dynamic/computed environment names, flag retirement schedules, full module conversion and runtime human approval still require separate inventory and review. This guard never changes any flag value or permission.

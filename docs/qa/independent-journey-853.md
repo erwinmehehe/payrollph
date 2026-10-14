@@ -42,7 +42,7 @@ Fill the `runtime.deployedSha` only after observing the exact running build. Add
 Sample observation row (replace only with a genuinely observed private evidence reference):
 
 ```json
-{"status":"PASS","operatorRef":"PERSON-HR01","witnessRef":"PERSON-QA01","evidenceRef":"UAT-JOURNEY0101","defectRef":null,"blockerCode":null}
+{"status":"PASS","operatorRef":"PERSON-HR01","witnessRef":"PERSON-QA01","evidenceRef":"UAT-JOURNEY0101","defectRef":null,"blockerCode":null,"observedAt":"2026-10-14T08:00:00Z"}
 ```
 
 Use `NEEDS_FIX` with a unique `BUG-...` ID; use `BLOCKED` with a blockerCode of DEVICE, ENVIRONMENT, ROLE, DATA, REVIEWER or OTHER and null proof/actor fields; leave unexecuted rows `NOT_RUN`. Do not invent pass results. All safety fields must stay false.
