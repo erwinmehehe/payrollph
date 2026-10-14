@@ -36,10 +36,11 @@ const login = async (context,email) => {
 const assertModalFits = async (page,width) => {
   const bounds = await page.getByRole("dialog",{name:"Web Bundy Time Clock"}).evaluate(el => {
     const r=el.getBoundingClientRect();
-    return {left:r.left,right:r.right};
+    const viewportWidth=document.documentElement.clientWidth;
+    return {left:Math.round(r.left),right:Math.round(r.right),width:Math.round(r.width),viewportWidth};
   });
   assert.ok(bounds.left>=-2 && bounds.right<=width+2,
-    "Offline time clock must stay inside narrow viewport: " + width);
+    "Offline time clock must stay inside narrow viewport: "+width+"; "+JSON.stringify(bounds));
 };
 async function employeeAt(width) {
   const context=await browser.newContext({
