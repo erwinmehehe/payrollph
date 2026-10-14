@@ -199,6 +199,126 @@ export function isApprovedSpendNavigationSource(pr, scope) {
     scope?.spendNavigationTests === true;
 }
 
+// Owner-approved #963 source-only isolation hardening. Complete diff and head
+// are immutable; this never lifts HCM runtime/worker or production holds.
+const HCM_ISOLATION_APPROVED_FILES = [
+  {
+    "filename": ".github/workflows/multi-entity-browser-qa.yml",
+    "status": "modified",
+    "sha": "8010de61b6ecd2cc07fba10a59c5a4d186a3a163"
+  },
+  {
+    "filename": "docs/qa/multi-entity-hcm-development-acceptance.md",
+    "status": "added",
+    "sha": "725af599a2a62ce7fb1f21b2e41f05760bed4bef"
+  },
+  {
+    "filename": "scripts/ess-profile-synthetic-browser.mjs",
+    "status": "modified",
+    "sha": "405381550ea44af4995dc6152981571b70858f11"
+  },
+  {
+    "filename": "scripts/hcm-request-lifecycle-browser.mjs",
+    "status": "modified",
+    "sha": "2bfc7cf619d0d75ee56ef17135414eb201c63bed"
+  },
+  {
+    "filename": "src/app/api/hcm/effective-changes/route.ts",
+    "status": "modified",
+    "sha": "fb4bd6692a33a2130f0ec369fedc854334e718db"
+  },
+  {
+    "filename": "src/app/api/hcm/lifecycle-readiness/route.ts",
+    "status": "modified",
+    "sha": "a093e0edcbfbed3d07752ee89717abc4a069810f"
+  },
+  {
+    "filename": "src/app/api/hcm/people-operations-inbox/route.ts",
+    "status": "modified",
+    "sha": "71d8f6510ceb2dce1316a04bebf0bff6553cf4e2"
+  },
+  {
+    "filename": "src/components/hcm-employment-lifecycle-action-center.tsx",
+    "status": "modified",
+    "sha": "fc7cd323e2ea1c851207cd3b3ff37ed33c4b8c80"
+  },
+  {
+    "filename": "src/components/hcm-people-operations-inbox.tsx",
+    "status": "modified",
+    "sha": "abf4a0cab717f41618913eb96f581ef2a95775d7"
+  },
+  {
+    "filename": "src/components/workspace/people.tsx",
+    "status": "modified",
+    "sha": "66265f277742ec0159a7699fe367cba63687ce48"
+  },
+  {
+    "filename": "src/lib/hcm-client-employer-scope.ts",
+    "status": "added",
+    "sha": "5d85973f9b5a95767a0e63644aa2ec4413094eff"
+  },
+  {
+    "filename": "src/lib/hcm-effective-changes.ts",
+    "status": "modified",
+    "sha": "5e11f82d184a135012955ddee79998ac0fa4481d"
+  },
+  {
+    "filename": "src/lib/hcm-lifecycle-readiness-server.ts",
+    "status": "modified",
+    "sha": "2c4665b9ddf691a615dd75484d41c47495f48730"
+  },
+  {
+    "filename": "src/lib/hcm-people-operations-inbox-server.ts",
+    "status": "modified",
+    "sha": "6a86c8c719f21deba0b97372a273450274475207"
+  },
+  {
+    "filename": "tests/fixtures/hcm-request-lifecycle.jsx",
+    "status": "modified",
+    "sha": "90681980f7bb997a4fa13bf1b101d04e10a778b5"
+  },
+  {
+    "filename": "tests/hcm-client-employer-scope.test.ts",
+    "status": "added",
+    "sha": "a9776ee4f4211f57ec4016fcf1cfca8a565e6205"
+  },
+  {
+    "filename": "tests/hcm-people-intelligence.test.ts",
+    "status": "modified",
+    "sha": "e6dd544c5597bf4a31586fe12723edfa9ad31893"
+  },
+  {
+    "filename": "tests/hcm-people-operations-inbox.test.ts",
+    "status": "modified",
+    "sha": "bc3d6fe973449b480745675741d642a9031d38bb"
+  },
+  {
+    "filename": "tests/hcm-people-ops-daily-triage.test.ts",
+    "status": "modified",
+    "sha": "0d01a88ba391588c6c6001fb5ba87b260e2a0960"
+  },
+  {
+    "filename": "tests/multi-entity-isolation-db.test.ts",
+    "status": "modified",
+    "sha": "361ba2cfcd23e12df3773794ac6439df2767c34a"
+  },
+  {
+    "filename": "tests/workforce-enterprise-analytics.test.ts",
+    "status": "modified",
+    "sha": "36abb56cf1fd137c2a174b15984e3ace011bf834"
+  }
+];
+export function isApprovedHcmIsolationSource(pr, files) {
+  return pr?.number === 963
+    && pr?.head?.sha === "2c0dc90e1cc6994928cd43eaabe250380ca554ce"
+    && files.length === HCM_ISOLATION_APPROVED_FILES.length
+    && new Set(files.map(file => file.filename)).size === files.length
+    && files.every(file => file.previous_filename == null)
+    && HCM_ISOLATION_APPROVED_FILES.every(expected => files.some(file =>
+      file.filename === expected.filename && file.status === expected.status
+      && file.sha === expected.sha));
+}
+
 const FROZEN_LANES = [
   // Treat every component of the exact #969 offline witness set as frozen.
   // Otherwise dropping the test file leaves the docs and QA script outside
@@ -325,7 +445,7 @@ export function evaluateIndependentReview({
   const blockers = [];
   if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
       !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
-       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !isApprovedSpendNavigationSource(pr, scope) &&
+       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !isApprovedSpendNavigationSource(pr, scope) && !isApprovedHcmIsolationSource(pr, files) &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {
