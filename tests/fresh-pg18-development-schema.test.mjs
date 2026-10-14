@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {readFileSync} from "node:fs";
 import {
-  assertDisposablePG18Environment,assertCleanInitialCatalog,summarizeSchema,
+  assertDisposablePG18Environment,assertCleanInitialCatalog,summarizeSchema,assertCOETenantReference,
 } from "../scripts/qa/fresh-pg18-development-schema.mjs";
 
 const safe=Object.freeze({
@@ -94,4 +94,22 @@ test("guard is catalog-only, immutable and not a historical migration executor",
   assert.match(source,/SECOND_PUSH_CHANGED_SCHEMA/);
   assert.doesNotMatch(source,/\b(?:INSERT INTO|DELETE FROM|TRUNCATE TABLE|CREATE TABLE|ALTER TABLE|DROP TABLE)\b/i);
   assert.doesNotMatch(source,/pg_dump|NeonClient|aws s3api|fetch\("https:\/\//i);
+});
+
+
+test("COE document composite unique and FK retain id AND tenant AND employee equality",()=>{
+  const good=[
+    {relation:"documents",name:"documents_org_employee_id_hr_cases_unique",
+      definition:"UNIQUE (id, organization_id, employee_id)"},
+    {relation:"employee_hr_cases",name:"employee_hr_cases_coe_document_tenant_fk",
+      definition:"FOREIGN KEY (coe_document_id, organization_id, employee_id) REFERENCES documents(id, organization_id, employee_id)"},
+  ];
+  assert.equal(assertCOETenantReference(good),true);
+  const wrongTenant=structuredClone(good);
+  wrongTenant[1].definition="FOREIGN KEY (coe_document_id) REFERENCES documents(id)";
+  forbidden(()=>assertCOETenantReference(wrongTenant),"COE_TENANT_FK_MISMATCH");
+  const wrongOrder=structuredClone(good);
+  wrongOrder[0].definition="UNIQUE (organization_id, employee_id, id)";
+  forbidden(()=>assertCOETenantReference(wrongOrder),"COE_TENANT_FK_MISMATCH");
+  forbidden(()=>assertCOETenantReference([]),"COE_TENANT_FK_MISMATCH");
 });
