@@ -107,7 +107,8 @@ test('local gated HTTP proxy rejects strangers, strips gateway credentials, and 
       authorization:req.headers.authorization??null,origin:req.headers.origin??null}));
   });
   const upstreamPort=await listen(backend);
-  const gateway=createPhoneGateway({hostname:host,username,password,upstreamPort});
+  const gateway=createPhoneGateway({hostname:host,
+    authorizeBasic: header => isAuthorizedBasic(header, username, password), upstreamPort});
   const port=await listen(gateway);
   t.after(async()=>{await close(gateway);await close(backend);});
   assert.equal(gateway.address().address,'127.0.0.1');
