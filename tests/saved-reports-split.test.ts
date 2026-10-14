@@ -12,6 +12,11 @@ test("saved report UI is exact-true default OFF and denied for multi-entity",()=
   assert.equal(criticalReleaseFlagEnabled("reportBuilder",{REPORT_BUILDER_UI_ENABLED:value}),false);
  assert.equal(resolveWorkflowUiFlags({REPORT_BUILDER_UI_ENABLED:"true",MULTI_ENTITY_ENABLED:"false"}).reportBuilder,true);
  assert.equal(resolveWorkflowUiFlags({REPORT_BUILDER_UI_ENABLED:"true",MULTI_ENTITY_ENABLED:"true"}).reportBuilder,false);
+ const combined=resolveWorkflowUiFlags({BENEFITS_LOANS_UI_ENABLED:"true",REPORT_BUILDER_UI_ENABLED:"true",MULTI_ENTITY_ENABLED:"false"});
+ assert.equal(combined.benefitsLoans,true,"already-merged benefits feature must survive the saved-report integration");
+ assert.equal(combined.reportBuilder,true);
+ const held=resolveWorkflowUiFlags({BENEFITS_LOANS_UI_ENABLED:"true",REPORT_BUILDER_UI_ENABLED:"true",MULTI_ENTITY_ENABLED:"true"});
+ assert.deepEqual(held,{benefitsLoans:false,reportBuilder:false},"multi-entity hold applies to both features");
 });
 test("projections use only authorized source columns and reject absent filter fields",()=>{
  const input={columns:["Name","Gross","Secret"],rows:[["A","100","private"],["B","200","hidden"]]};
