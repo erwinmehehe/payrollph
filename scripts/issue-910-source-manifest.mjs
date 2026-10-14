@@ -28,7 +28,10 @@ const sources = [
   "drizzle/0119_xendit_payout_provider.sql",
   "drizzle/0120_wfm_punch_evidence.sql",
   "drizzle/0121_multi_entity_v2_scope_transfer.sql",
+  "drizzle/0122_tenant_module_disclosure.sql",
+  "drizzle/0123_multi_entity_forward_schema_repair.sql",
   "docs/sql/issue-910-review-only-forward-predecessor.sql",
+  "docs/sql/issue-910-review-only-0121-schema.sql",
   "docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql",
 ];
 export function sourceManifest(paths = sources) {
