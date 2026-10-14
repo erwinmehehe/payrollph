@@ -7,7 +7,7 @@ const pr = (number, draft = true, date = "2026-10-" + String(number % 20 + 1).pa
 const add = (filename) => ({ filename, status: "added" });
 const files = (...prs) => Object.fromEntries(prs.map((x) => [x.number, []]));
 
-test("up to three review-ready PRs can proceed through the review queue", () => {
+test("review-ready status is reported without a numerical cap", () => {
   const list = [pr(681, false), pr(667, false), pr(668, false), pr(686, true)];
   const result = evaluatePullQueue(list, files(...list), 681);
   assert.equal(result.ready.length, 3);
@@ -15,13 +15,33 @@ test("up to three review-ready PRs can proceed through the review queue", () => 
   assert.equal(result.currentDraft, false);
 });
 
-test("a fourth ready PR is blocked, but draft staging remains available", () => {
-  const list = [pr(681, false), pr(667, false), pr(668, false), pr(686, false)];
+test("four or more review-ready PRs do not block an unrelated safe PR", () => {
+  const list = [pr(681, false), pr(667, false), pr(668, false), pr(686, false),
+    pr(687, false), pr(688, false)];
   const result = evaluatePullQueue(list, files(...list), 686);
-  assert.equal(result.ready.length, 4);
-  assert.match(result.failures.join(" "), /exceeds 3 PRs/);
+  assert.equal(result.ready.length, 6);
+  assert.deepEqual(result.failures, []);
   list[3].draft = true;
-  assert.deepEqual(evaluatePullQueue(list, files(...list), 686).failures, []);
+  const stillSafe = evaluatePullQueue(list, files(...list), 686);
+  assert.equal(stillSafe.ready.length, 5);
+  assert.equal(stillSafe.currentDraft, true);
+  assert.deepEqual(stillSafe.failures, []);
+});
+
+test("migration prefix collisions still block with more than three review-ready PRs", () => {
+  const list = [
+    pr(667, false, "2026-10-08T09:00:00Z"),
+    pr(686, false, "2026-10-09T09:00:00Z"),
+    pr(687, false), pr(688, false), pr(689, false),
+  ];
+  const by = files(...list);
+  by[667] = [add("drizzle/0100_compensation_automation_intents.sql")];
+  by[686] = [add("drizzle/0100_saas_selfserve_recurring_billing.sql")];
+  const result = evaluatePullQueue(list, by, 686);
+  assert.equal(result.ready.length, 5);
+  assert.equal(result.currentCollisions.length, 1);
+  assert.match(result.failures.join(" "), /Migration 0100 is already claimed by #667/);
+  assert.equal(result.failures.length, 1);
 });
 
 test("later SQL 0100 claim is blocked by older canonical migration train", () => {
@@ -82,10 +102,10 @@ test("missing PR and missing file evidence fail closed", () => {
   assert.throws(() => evaluatePullQueue(list, files(...list), 999), /missing from the open PR list/);
 });
 
-test("summary records review-ready pressure without implying merge approval", () => {
+test("summary reports review-ready count without implying merge approval", () => {
   const list = [pr(681, false), pr(667, false), pr(668, false)];
   const summary = formatQueueSummary(evaluatePullQueue(list, files(...list), 681), 681);
-  assert.match(summary, /Review-ready: 3 \/ 3/);
+  assert.match(summary, /Review-ready PR count \(informational; no cap\): 3/);
   assert.match(summary, /Independent reviewer/);
   assert.match(summary, /This gate is read-only/);
 });
