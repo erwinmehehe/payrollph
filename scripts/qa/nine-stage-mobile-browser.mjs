@@ -29,6 +29,14 @@ const browser = await chromium.launch({headless:true});
 // session or weaken production login rate limits. /auth/me is checked below.
 let ownerState;
 let employeeState;
+// Respect the application's real 60-second IP throttle instead of disguising
+// repeated synthetic sign-ins as different clients or changing auth security.
+async function waitForLoginWindow(payload) {
+  const delay = Number(payload?.retryAfterMs);
+  assert.ok(Number.isFinite(delay) && delay >= 0 && delay <= 60_000,
+    "Unexpected login retry window in isolated browser acceptance");
+  await new Promise((resolve) => setTimeout(resolve, Math.ceil(delay) + 350));
+}
 try {
   for(const width of [1440,375,390]) {
     const context = await browser.newContext({
@@ -55,10 +63,15 @@ try {
     const errors = [];
     page.on("pageerror", err => errors.push(String(err.message).slice(0,100)));
     if (!ownerState) {
-      const signed = await context.request.post(base + "/api/auth/login",{
-      data:{email:auth.owner,password:auth.password},
-      headers:{origin:base,"sec-fetch-site":"same-origin"}
-    });
+      const sendLogin = () => context.request.post(base + "/api/auth/login", {
+        data: {email:auth.owner,password:auth.password},
+        headers: {origin:base,"sec-fetch-site":"same-origin"},
+      });
+      let signed = await sendLogin();
+      if (signed.status() === 429) {
+        await waitForLoginWindow(await signed.json());
+        signed = await sendLogin();
+      }
       assert.equal(signed.status(),200);
       ownerState = await context.storageState();
     }
@@ -188,7 +201,7 @@ try {
       employeeErrors.push(String(err.message).slice(0,100)));
     await employeePage.goto(base + "/login", {waitUntil:"domcontentloaded"});
     if (!employeeState) {
-    const employeeLogin = await employeePage.evaluate(async credentials => {
+    const signInBrowser = () => employeePage.evaluate(async credentials => {
       const response = await fetch("/api/auth/login", {
         method:"POST",
         headers:{"content-type":"application/json"},
@@ -197,6 +210,11 @@ try {
       });
       return {status:response.status,body:await response.json()};
     }, {email:auth.employee,password:auth.password});
+    let employeeLogin = await signInBrowser();
+    if (employeeLogin.status === 429) {
+      await waitForLoginWindow(employeeLogin.body);
+      employeeLogin = await signInBrowser();
+    }
     assert.equal(employeeLogin.status,200, "Employee browser sign-in failed");
     assert.equal(employeeLogin.body?.user?.email,auth.employee,
       "Employee login must return the actual fictional worker account");
