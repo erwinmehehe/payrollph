@@ -21,13 +21,13 @@ function reviewed(schedule: "D1" | "D2" = "D1"): Bir1604CReviewedRecord {
   Object.assign(fields, {
     TIN: "333222111", BRANCH_CODE: "0000",
     LAST_NAME: "SANTOS", FIRST_NAME: "MARIA", MIDDLE_NAME: "",
-    REGION_NUM: "0001", EMPLOYMENT_FROM: "01/01/2026",
+    REGION_NUM: "NCR", EMPLOYMENT_FROM: "01/01/2026",
     EMPLOYMENT_TO: "12/31/2026", NATIONALITY: "FILIPINO",
     EMPLOYMENT_STATUS: "R", REASON_SEPARATION: "NA", SUBS_FILING: "Y",
     NET_TAXABLE_COMP_INCOME: "500000.00", TAX_DUE: "5000.00",
     ACTUAL_AMT_WTHLD: "5000.00", PRES_TAX_WTHLD: "5000.00",
   });
-  if (schedule === "D2") fields.FACTOR_USED = "313";
+  if (schedule === "D2") Object.assign(fields, { FACTOR_USED: "313", GROSS_COMP_INCOME: "500000.00", PRES_TOTAL_COMP: "500000.00" });
   return {
     schedule, employeeNo: "EMP001", fields,
     priorEmployerReview: "none-confirmed",
