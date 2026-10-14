@@ -82,7 +82,10 @@ jobs:
           TEST_LOG_PATH="$RUNNER_TEMP/audit-0109-full-test.log" TEST_EXIT="$test_exit" node scripts/qa/report-audit-0109-suite.mjs
           if [ "$test_exit" -ne 0 ]; then
             echo "Failed synthetic test names (not any real employer evidence):"
-            grep -E '^not ok [0-9]+' "$RUNNER_TEMP/audit-0109-full-test.log" | tail -n 65 || true
+            # Nested Node TAP subtests indent 'not ok'; the old ^not ok filter
+            # hid real failures while printing only the aggregate count.
+            # Emit bounded test-name lines only, never entire diagnostic payloads.
+            grep -E '^[[:space:]]*not ok [0-9]+( - |$)' "$RUNNER_TEMP/audit-0109-full-test.log" | tail -n 65 | cut -c1-180 || true
           fi
           test "$test_exit" -eq 0
       - name: Run mapped WFM synthetic scenario groups with 0109 enabled
