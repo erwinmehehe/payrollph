@@ -1,5 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
   assets,
   employees,
@@ -25,7 +26,23 @@ export async function loadPeopleOperationsInbox(
   organizationId: number,
   filters: PeopleOpsFilters = {},
   today = philippineBusinessDate(),
+  legalEntityId: number | null = null,
 ) {
+  // Server-side callers must never silently obtain an All-employers HCM view
+  // when multi-entity is enabled, even if they bypass an HTTP handler.
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) {
+    throw new Error("ENTITY_HCM_ORGANIZATION_REQUIRED");
+  }
+  if (legalEntityId !== null && (!Number.isSafeInteger(legalEntityId) || legalEntityId <= 0)) {
+    throw new Error("ENTITY_HCM_INVALID_EMPLOYER");
+  }
+  if (criticalReleaseFlagEnabled("multiEntity") && legalEntityId === null) {
+    throw new Error("ENTITY_HCM_SCOPE_REQUIRED");
+  }
+  const entityEmployees = db.select({ id: employees.id }).from(employees).where(and(
+    eq(employees.organizationId, organizationId),
+    legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId),
+  ));
   const [
     lifecycle,
     people,
@@ -35,7 +52,9 @@ export async function loadPeopleOperationsInbox(
     separationRows,
     assetRows,
   ] = await Promise.all([
-    loadEmploymentLifecycleReadiness(organizationId, today),
+    legalEntityId === null
+      ? loadEmploymentLifecycleReadiness(organizationId, today)
+      : loadEmploymentLifecycleReadiness(organizationId, today, legalEntityId),
     db.select({
       id: employees.id,
       employeeNo: employees.employeeNo,
@@ -43,24 +62,28 @@ export async function loadPeopleOperationsInbox(
       lastName: employees.lastName,
       status: employees.status,
       startDate: employees.startDate,
-    }).from(employees).where(eq(employees.organizationId, organizationId)),
+    }).from(employees).where(and(eq(employees.organizationId, organizationId),
+      legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId))),
     db.select({
       employeeId: provisioningTasks.employeeId,
       kind: provisioningTasks.kind,
       done: provisioningTasks.done,
-    }).from(provisioningTasks).where(eq(provisioningTasks.organizationId, organizationId)),
+    }).from(provisioningTasks).where(and(eq(provisioningTasks.organizationId, organizationId),
+      legalEntityId === null ? undefined : inArray(provisioningTasks.employeeId, entityEmployees))),
     db.select({
       id: performanceReviews.id,
       employeeId: performanceReviews.employeeId,
       status: performanceReviews.status,
-    }).from(performanceReviews).where(eq(performanceReviews.organizationId, organizationId)),
+    }).from(performanceReviews).where(and(eq(performanceReviews.organizationId, organizationId),
+      legalEntityId === null ? undefined : inArray(performanceReviews.employeeId, entityEmployees))),
     db.select({
       id: positionAssignments.id,
       employeeId: positionAssignments.employeeId,
       assignmentType: positionAssignments.assignmentType,
       effectiveFrom: positionAssignments.effectiveFrom,
       effectiveUntil: positionAssignments.effectiveUntil,
-    }).from(positionAssignments).where(eq(positionAssignments.organizationId, organizationId)),
+    }).from(positionAssignments).where(and(eq(positionAssignments.organizationId, organizationId),
+      legalEntityId === null ? undefined : inArray(positionAssignments.employeeId, entityEmployees))),
     db.select({
       id: separationRecords.id,
       employeeId: separationRecords.employeeId,
@@ -71,12 +94,14 @@ export async function loadPeopleOperationsInbox(
       adminCleared: separationRecords.adminCleared,
       financeCleared: separationRecords.financeCleared,
       hrCleared: separationRecords.hrCleared,
-    }).from(separationRecords).where(eq(separationRecords.organizationId, organizationId)),
+    }).from(separationRecords).where(and(eq(separationRecords.organizationId, organizationId),
+      legalEntityId === null ? undefined : inArray(separationRecords.employeeId, entityEmployees))),
     db.select({
       employeeId: assets.employeeId,
       status: assets.status,
       returnedOn: assets.returnedOn,
-    }).from(assets).where(eq(assets.organizationId, organizationId)),
+    }).from(assets).where(and(eq(assets.organizationId, organizationId),
+      legalEntityId === null ? undefined : inArray(assets.employeeId, entityEmployees))),
   ]);
 
   const rows = buildPeopleOperationsItems({

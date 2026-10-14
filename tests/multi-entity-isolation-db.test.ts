@@ -1,16 +1,22 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../src/db";
 import {
-  employeeEntityBankAccounts, employeeEntityAssignments, employees, legalEntities, legalEntityProfileChangeRequests,
-  legalEntityStatutoryRegistrations, legalEntityTransferLiabilityEvidence, entityTransferRequests,
-  organizations, orgUnits, userEntityPreferences, userLegalEntityGrants, userOrganizations, users,
+  assets, employeeEntityBankAccounts, employeeEntityAssignments, employees, hcmEmploymentTerms,
+  legalEntities, legalEntityProfileChangeRequests, legalEntityStatutoryRegistrations,
+  legalEntityTransferLiabilityEvidence, entityTransferRequests, organizations, orgUnits,
+  provisioningTasks, userEntityPreferences, userLegalEntityGrants, userOrganizations, users,
+  workerEffectiveChanges, workerEmploymentEvents,
 } from "../src/db/schema";
 import { resolveMultiEntityContext, assertEntityResource } from "../src/lib/multi-entity-server";
 import { assertMembership, getAccess } from "../src/lib/access";
 import { ensurePrimaryLegalEntity } from "../src/lib/legal-entity";
+import { loadPeopleOperationsInbox } from "../src/lib/hcm-people-operations-inbox-server";
+import { loadEmploymentLifecycleReadiness } from "../src/lib/hcm-lifecycle-readiness-server";
+import { applyWorkerEffectiveChange, runScheduledWorkerEffectiveChanges, validHcmIsoDate } from "../src/lib/hcm-effective-changes";
 import { employeeScopePredicate } from "../src/lib/multi-entity-personnel-scope";
 import { encryptBankAccount } from "../src/lib/bank-account-crypto";
 import { encryptGovernmentId } from "../src/lib/government-id-crypto";
@@ -52,6 +58,32 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
       { organizationId: tenantA.id, legalEntityId: a2.id, employeeNo: "A2", firstName: "Beta", lastName: "Staff", title: "Staff", avatarInitials: "BS", basicRate: "30000", startDate: "2026-01-01" },
       { organizationId: tenantB.id, legalEntityId: b1.id, employeeNo: "B1", firstName: "Foreign", lastName: "Staff", title: "Staff", avatarInitials: "FS", basicRate: "40000", startDate: "2026-01-01" },
     ]).returning();
+    // Synthetic HCM source rows exercise actual SQL joins, not only the
+    // outer employee filter. Each source belongs to a different employer.
+    await db.insert(hcmEmploymentTerms).values([
+      { organizationId: tenantA.id, employeeId: worker1.id,
+        employmentType: "Contractual", termKind: "fixed_term", effectiveFrom: "2026-01-01",
+        contractEndDate: "2026-10-16", status: "active",
+        reason: "Synthetic A1 source isolation", requestedBy: "Fixture QA" },
+      { organizationId: tenantA.id, employeeId: worker2.id,
+        employmentType: "Contractual", termKind: "fixed_term", effectiveFrom: "2026-01-01",
+        contractEndDate: "2026-10-17", status: "active",
+        reason: "Synthetic A2 source isolation", requestedBy: "Fixture QA" },
+      { organizationId: tenantB.id, employeeId: foreignWorker.id,
+        employmentType: "Contractual", termKind: "fixed_term", effectiveFrom: "2026-01-01",
+        contractEndDate: "2026-10-18", status: "active",
+        reason: "Synthetic foreign tenant source isolation", requestedBy: "Fixture QA" },
+    ]);
+    await db.insert(provisioningTasks).values([
+      { organizationId: tenantA.id, employeeId: worker1.id, kind: "onboarding", title: "A1 HR task" },
+      { organizationId: tenantA.id, employeeId: worker2.id, kind: "onboarding", title: "A2 HR task" },
+      { organizationId: tenantB.id, employeeId: foreignWorker.id, kind: "onboarding", title: "Foreign HR task" },
+    ]);
+    await db.insert(assets).values([
+      { organizationId: tenantA.id, employeeId: worker1.id, type: "Laptop", name: "A1 fixture asset" },
+      { organizationId: tenantA.id, employeeId: worker2.id, type: "Laptop", name: "A2 fixture asset" },
+      { organizationId: tenantB.id, employeeId: foreignWorker.id, type: "Laptop", name: "Foreign fixture asset" },
+    ]);
     // An employee record can never be used as a foreign-tenant assignment or
     // transfer, even if the source/target legal employers are locally valid.
     await assert.rejects(async () => {
@@ -356,16 +388,108 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
       }));
     assert.deepEqual(inScope.map(row => row.id), [worker1.id]);
     assert.ok(!inScope.some(row => row.id === worker2.id || row.id === foreignWorker.id));
-    // SQL predicate and HTTP isolation remain in this core PR; direct HCM
-    // worklist/lifecycle service acceptance is preserved in stacked draft #963.
-    // Those service signatures are deliberately unavailable in core while the
-    // HCM API/SSR and scheduler holds remain active.
-    const otherEmployer = await db.select({ id: employees.id }).from(employees)
-      .where(employeeScopePredicate({
-        organizationId: tenantA.id, legalEntityId: a2.id, orgUnitId: null,
-      }));
-    assert.deepEqual(otherEmployer.map(row => row.id), [worker2.id]);
-    assert.ok(!otherEmployer.some(row => row.id === worker1.id || row.id === foreignWorker.id));
+    // Real SQL regression for the People Operations worklist and lifecycle
+    // endpoint: an HR grant for A1 must not reveal A2 or another tenant.
+    // Direct/async library entrypoints must reject an omitted or invalid
+    // employer under multi-entity mode instead of falling back to All.
+    await assert.rejects(() => loadPeopleOperationsInbox(tenantA.id, {}, "2026-10-13"),
+      /ENTITY_HCM_SCOPE_REQUIRED/);
+    await assert.rejects(() => loadEmploymentLifecycleReadiness(tenantA.id, "2026-10-13"),
+      /ENTITY_HCM_SCOPE_REQUIRED/);
+    for (const invalid of [0, -1, Number.NaN, 1.5]) {
+      await assert.rejects(() => loadPeopleOperationsInbox(tenantA.id, {}, "2026-10-13", invalid),
+        /ENTITY_HCM_INVALID_EMPLOYER/);
+      await assert.rejects(() => loadEmploymentLifecycleReadiness(tenantA.id, "2026-10-13", invalid),
+        /ENTITY_HCM_INVALID_EMPLOYER/);
+    }
+    await assert.rejects(() => loadPeopleOperationsInbox(0, {}, "2026-10-13", a1.id),
+      /ENTITY_HCM_ORGANIZATION_REQUIRED/);
+    await assert.rejects(() => loadEmploymentLifecycleReadiness(0, "2026-10-13", a1.id),
+      /ENTITY_HCM_ORGANIZATION_REQUIRED/);
+
+    const scopedInbox = await loadPeopleOperationsInbox(tenantA.id, { pageSize: 50 },
+      "2026-10-13", a1.id);
+    assert.ok(scopedInbox.rows.length > 0);
+    assert.ok(scopedInbox.rows.some(row => row.category === "onboarding"));
+    assert.ok(scopedInbox.rows.every(row => row.employeeId === worker1.id));
+    for (const name of ["Beta Staff", "Foreign Staff"]) {
+      assert.ok(!JSON.stringify(scopedInbox).includes(name), `A1 leaked ${name}`);
+    }
+    const scopedLifecycle = await loadEmploymentLifecycleReadiness(
+      tenantA.id, "2026-10-13", a1.id);
+    assert.deepEqual(scopedLifecycle.rows.map(row => row.employeeId), [worker1.id]);
+    assert.equal(scopedLifecycle.rows[0].dueDate, "2026-10-16");
+    const otherInbox = await loadPeopleOperationsInbox(tenantA.id, { pageSize: 50 },
+      "2026-10-13", a2.id);
+    assert.ok(otherInbox.rows.length > 0, "A2 must contain actual source rows");
+    assert.ok(otherInbox.rows.some(row => row.category === "onboarding"));
+    assert.ok(otherInbox.rows.every(row => row.employeeId === worker2.id));
+    assert.ok(!JSON.stringify(otherInbox).includes("Alpha Staff"));
+    assert.ok(!JSON.stringify(otherInbox).includes("Foreign Staff"));
+    const otherLifecycle = await loadEmploymentLifecycleReadiness(
+      tenantA.id, "2026-10-13", a2.id);
+    assert.deepEqual(otherLifecycle.rows.map(row => row.employeeId), [worker2.id]);
+    assert.equal(otherLifecycle.rows[0].dueDate, "2026-10-17");
+    // Naming a legal employer from tenant B while querying tenant A must not
+    // pull tenant B's workers or dependent HCM source rows into the response.
+    const foreignIdInbox = await loadPeopleOperationsInbox(tenantA.id, {},
+      "2026-10-13", b1.id);
+    assert.equal(foreignIdInbox.rows.length, 0);
+    assert.equal(foreignIdInbox.summary.total, 0);
+    const foreignIdLifecycle = await loadEmploymentLifecycleReadiness(
+      tenantA.id, "2026-10-13", b1.id);
+    assert.equal(foreignIdLifecycle.rows.length, 0);
+    const foreignTenantInbox = await loadPeopleOperationsInbox(tenantB.id, {},
+      "2026-10-13", b1.id);
+    assert.ok(foreignTenantInbox.rows.length > 0);
+    assert.ok(foreignTenantInbox.rows.every(row => row.employeeId === foreignWorker.id));
+
+    // The release flag OFF retains legacy, tenant-wide HCM reads. It must
+    // never pick up another tenant, even when two employers share the tenant.
+    process.env.MULTI_ENTITY_ENABLED = "false";
+    try {
+      const legacyInbox = await loadPeopleOperationsInbox(tenantA.id, { pageSize: 50 },
+        "2026-10-13");
+      assert.deepEqual([...new Set(legacyInbox.rows.map(row => row.employeeId))].sort((x, y) => x - y),
+        [worker1.id, worker2.id].sort((x, y) => x - y));
+      const legacyLifecycle = await loadEmploymentLifecycleReadiness(tenantA.id, "2026-10-13");
+      assert.deepEqual(legacyLifecycle.rows.map(row => row.employeeId).sort((x, y) => x - y),
+        [worker1.id, worker2.id].sort((x, y) => x - y));
+      assert.ok(!JSON.stringify(legacyInbox).includes("Foreign Staff"));
+    } finally {
+      process.env.MULTI_ENTITY_ENABLED = "true";
+    }
+
+    // A real scheduled HCM record must remain untouched even when a direct
+    // worker or runner is called outside the guarded HTTP/scheduler surfaces.
+    const [scheduled] = await db.insert(workerEffectiveChanges).values({
+      organizationId: tenantA.id, employeeId: worker1.id,
+      changeType: "employment_change", movementType: "status_change",
+      status: "scheduled", effectiveDate: "2026-10-10",
+      reason: "Synthetic frozen HCM queue entry", requestedBy: "Fixture QA",
+    }).returning();
+    const baselineLedger = await db.select({ id: workerEmploymentEvents.id }).from(workerEmploymentEvents)
+      .where(and(eq(workerEmploymentEvents.organizationId, tenantA.id),
+        eq(workerEmploymentEvents.employeeId, worker1.id)));
+    assert.deepEqual(await applyWorkerEffectiveChange(scheduled.id), {
+      skipped: true, reason: "ENTITY_HCM_DEFERRED",
+    });
+    assert.deepEqual(await runScheduledWorkerEffectiveChanges({
+      now: new Date("2026-10-13T00:00:00Z"),
+    }), [{ status: "skipped", reason: "ENTITY_HCM_DEFERRED" }]);
+    const [stillScheduled] = await db.select({ status: workerEffectiveChanges.status,
+      failure: workerEffectiveChanges.failure }).from(workerEffectiveChanges)
+      .where(eq(workerEffectiveChanges.id, scheduled.id));
+    assert.equal(stillScheduled.status, "scheduled");
+    assert.equal(stillScheduled.failure, null);
+    const [stillWorker] = await db.select({ status: employees.status }).from(employees)
+      .where(eq(employees.id, worker1.id));
+    assert.equal(stillWorker.status, "Active");
+    const ledger = await db.select({ id: workerEmploymentEvents.id }).from(workerEmploymentEvents)
+      .where(and(eq(workerEmploymentEvents.organizationId, tenantA.id),
+        eq(workerEmploymentEvents.employeeId, worker1.id)));
+    assert.deepEqual(ledger.map(row => row.id), baselineLedger.map(row => row.id),
+      "A held worker must not create or alter employment events");
     // The same predicate is used by the real workspace loader. Group HR may
     // see both employers inside one tenant, NEVER the other tenant's rows.
     const inGroup = await db.select({ id: employees.id }).from(employees)
@@ -402,4 +526,78 @@ test("an empty tenant gets exactly one active PRIMARY under repeated bootstrap",
   } finally {
     await db.delete(organizations).where(eq(organizations.id, tenant.id));
   }
+});
+
+// Fail closed at the worker entrypoint, even if an API/scheduler caller is
+// changed later. A deferred invocation must not query the HCM queue, claim
+// work, or mark any previously scheduled change as failed.
+test("multi-entity freeze blocks direct and scheduled HCM worker entrypoints without DB access", async () => {
+  const previous = process.env.MULTI_ENTITY_ENABLED;
+  process.env.MULTI_ENTITY_ENABLED = "true";
+  try {
+    assert.deepEqual(await applyWorkerEffectiveChange(-1), {
+      skipped: true, reason: "ENTITY_HCM_DEFERRED",
+    });
+    assert.deepEqual(await runScheduledWorkerEffectiveChanges(), [
+      { status: "skipped", reason: "ENTITY_HCM_DEFERRED" },
+    ]);
+  } finally {
+    if (previous === undefined) delete process.env.MULTI_ENTITY_ENABLED;
+    else process.env.MULTI_ENTITY_ENABLED = previous;
+  }
+});
+
+// Structural defense-in-depth: route handlers are directly importable/callable
+// without passing through the deployed Next.js proxy. Keep the 403 hold as the
+// first decision in every deferred handler, including mutating routes.
+test("all deferred HCM route handlers deny before auth and mutations", () => {
+  const effective = readFileSync("src/app/api/hcm/effective-changes/route.ts", "utf8");
+  assert.match(effective, /function rejectDeferredHcm\(\)/);
+  assert.match(effective, /multiEntityHcmDeferred\(\)/);
+  assert.match(effective, /code: "ENTITY_HCM_DEFERRED"/);
+  assert.match(effective, /"Cache-Control": "private, no-store"/);
+  for (const method of ["GET", "POST", "PATCH"]) {
+    const start = effective.indexOf(`export async function ${method}(`);
+    assert.ok(start >= 0, method);
+    const section = effective.slice(start);
+    const guard = section.indexOf("rejectDeferredHcm()");
+    const session = section.indexOf("getSessionUser()");
+    assert.ok(guard >= 0 && guard < session, `${method} must block before reading the session/DB`);
+  }
+  for (const path of [
+    "src/app/api/hcm/lifecycle-readiness/route.ts",
+    "src/app/api/hcm/people-operations-inbox/route.ts",
+  ]) {
+    const source = readFileSync(path, "utf8");
+    const start = source.indexOf("export async function GET(");
+    assert.ok(start >= 0, path);
+    const handler = source.slice(start);
+    assert.ok(handler.indexOf("multiEntityHcmDeferred()") >= 0 &&
+      handler.indexOf("multiEntityHcmDeferred()") < handler.indexOf("getSessionUser()"), path);
+    assert.match(handler, /code: "ENTITY_HCM_DEFERRED"/);
+    assert.match(handler, /"Cache-Control": "private, no-store"/);
+    assert.match(handler, /organizationId, legalEntityId/,
+      "A scoped response must identify the authorized employer for future UI validation");
+  }
+});
+
+// Validate calendar semantics, not merely a regex shape. PostgreSQL should
+// never be asked to interpret an impossible scheduled employment date.
+test("effective-dated HCM requests accept real ISO calendar dates only", () => {
+  for (const valid of ["2024-02-29", "2026-10-14", "2000-02-29", "9999-12-31"]) {
+    assert.equal(validHcmIsoDate(valid), true, valid);
+  }
+  for (const invalid of [
+    "", "2026-02-29", "2026-02-30", "2026-02-31", "1900-02-29",
+    "2026-04-31", "2026-13-01", "2026-00-01", "2026-01-00",
+    "2026-12-32", "0000-01-01", "2026-1-2", "2026-10-14T00:00:00Z",
+  ]) {
+    assert.equal(validHcmIsoDate(invalid), false, invalid);
+  }
+  const route = readFileSync("src/app/api/hcm/effective-changes/route.ts", "utf8");
+  assert.match(route, /validHcmIsoDate\(effectiveDate\)/);
+  assert.match(route, /Number\.isSafeInteger\(organizationId\)/);
+  assert.match(route, /Number\.isSafeInteger\(employeeId\)/);
+  assert.match(route, /Number\.isSafeInteger\(id\)/);
+  assert.match(route, /Effective-dated HCM change not found/);
 });

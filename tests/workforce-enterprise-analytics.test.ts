@@ -22,5 +22,13 @@ test("enterprise workforce analytics joins the governed WFM and payroll sources"
   assert.ok(reports.includes('"Labor cost"'));
   assert.ok(route.includes('"workforce"'));
   assert.ok(analytics.includes('name: "Workforce operations"'));
+  // Legacy single-employer UX retains workforce as its default. A scoped
+  // legal employer is constrained by the derived safe report selection before
+  // GET, CSV export and report buttons. Never require a React effect to fix it.
   assert.ok(analytics.includes('useState<ReportKey>("workforce")'));
+  assert.ok(analytics.includes('const safeActive: ReportKey = employerScoped && !supportedEmployerReports.includes(active)'));
+  assert.ok(analytics.includes('key: safeActive'));
+  assert.ok(analytics.includes('key: safeActive, format: "csv"'));
+  assert.ok(analytics.includes('REPORTS.filter(report => !employerScoped || supportedEmployerReports.includes(report.key))'));
+  assert.ok(analytics.includes('if (data.multiEntity?.enabled && data.multiEntity.role === "group_hr")'));
 });

@@ -95,18 +95,43 @@ async function employeeProfile(state, width) {
   checks.push("Employee profile " + width + " existing approved ID and empty photo");
   await context.close();
 }
+/** Navigation is SSR-first: a click during React hydration can be dropped.
+ * Retry this read-only tab transition only when the actual workspace state has
+ * not changed; never pretend success or skip the HR review assertions.
+ */
+async function openPeopleWorkspace(page, width) {
+  const destination = page.locator('.app-shell[data-workspace-page="People"]');
+  const nav = width < 600
+    ? page.getByRole("navigation", { name: "Mobile workspace navigation" })
+        .getByRole("button", { name: "Employees", exact: true })
+    : page.locator('[data-nav-name="People"]:visible').first();
+  await page.locator(".app-shell").waitFor({ timeout: 60_000 });
+  let lastFailure;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    if (await destination.count()) return;
+    await nav.click({ timeout: 20_000 });
+    try {
+      await destination.waitFor({ timeout: 12_000 });
+      return;
+    } catch (error) {
+      lastFailure = error;
+      // Do not retry a route that changed away from the isolated /app fixture.
+      if (new URL(page.url()).pathname !== "/app") break;
+    }
+  }
+  const current = await page.locator(".app-shell").first()
+    .getAttribute("data-workspace-page").catch(() => null);
+  throw new Error("Synthetic HR navigation did not reach People after bounded hydration retries: " +
+    JSON.stringify({ width, pathname: new URL(page.url()).pathname,
+      activeWorkspace: current, attemptedClicks: 3 }), { cause: lastFailure });
+}
+
 async function peopleReview(state, width, pending = false) {
   const { page, context } = await open(state, width);
   await page.goto(BASE + "/app?organizationId=" + fixture.organizationA, {
-    waitUntil: "domcontentloaded", timeout: 60_000,
+    waitUntil: "load", timeout: 60_000,
   });
-  if (width < 600) {
-    await page.getByRole("navigation", { name: "Mobile workspace navigation" })
-      .getByRole("button", { name: "Employees", exact: true }).click();
-  } else {
-    await page.locator('[data-nav-name="People"]:visible').first().click();
-  }
-  await page.locator('.app-shell[data-workspace-page="People"]').waitFor();
+  await openPeopleWorkspace(page, width);
   const disclosure = page.locator("details").filter({
     has: page.locator("summary").filter({ hasText: "Government ID verification" }),
   }).first();

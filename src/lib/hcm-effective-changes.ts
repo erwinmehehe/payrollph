@@ -1,4 +1,6 @@
 import { and, eq, isNull, lte, sql } from "drizzle-orm";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { multiEntityHcmDeferred } from "@/lib/multi-entity-hcm-hold";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -31,6 +33,13 @@ function hasChange(changes: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(changes, key);
 }
 
+/** Reject syntactically valid but impossible ISO dates before SQL or scheduling. */
+export function validHcmIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000-")) return false;
+  const date = new Date(value + "T00:00:00.000Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 export function philippineBusinessDate(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now);
 }
@@ -57,6 +66,11 @@ export async function applyWorkerEffectiveChange(
   changeId: number,
   options: { actor?: string; actorUserId?: number | null; now?: Date } = {},
 ) {
+  // The scheduler and HTTP proxy are not sufficient: direct-library callers
+  // must not apply or inspect deferred HCM changes during the entity freeze.
+  if (multiEntityHcmDeferred()) {
+    return { skipped: true as const, reason: "ENTITY_HCM_DEFERRED" as const };
+  }
   const now = options.now ?? new Date();
   const today = philippineBusinessDate(now);
   const actor = options.actor ?? "System scheduler";
@@ -355,6 +369,9 @@ export async function applyWorkerEffectiveChange(
         if (hasChange(changes, "employeeStatus")) nextStatus = nullableText(changes.employeeStatus) ?? employee.status;
       }
 
+      if (criticalReleaseFlagEnabled("multiEntity") && nextLegalEntityId !== employee.legalEntityId) {
+        throw new Error("ENTITY_TRANSFER_REQUIRES_APPROVAL: use the independently reviewed transfer workflow.");
+      }
       const [updatedEmployee] = await tx.update(employees).set({
         orgUnitId: nextOrgUnitId,
         legalEntityId: nextLegalEntityId,
@@ -639,6 +656,11 @@ export async function runScheduledWorkerEffectiveChanges({
   now?: Date;
   limit?: number;
 } = {}) {
+  // A direct scheduled-runner call must also avoid even reading the deferred
+  // HCM queue when the multi-entity pilot freeze is active.
+  if (multiEntityHcmDeferred()) {
+    return [{ status: "skipped", reason: "ENTITY_HCM_DEFERRED" }];
+  }
   const today = philippineBusinessDate(now);
   const rows = await db.select({ id: workerEffectiveChanges.id })
     .from(workerEffectiveChanges)

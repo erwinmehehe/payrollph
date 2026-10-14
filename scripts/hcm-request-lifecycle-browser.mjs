@@ -127,6 +127,16 @@ try {
 
   await page.evaluate(() => window.renderView("inbox", {organizationId:1}));
   const staleInbox = await requestId("people-operations-inbox?organizationId=1");
+  const beforeSameScopeRender = await page.evaluate(() => window.pending.length);
+  await page.evaluate(async () => {
+    window.renderView("inbox", { organizationId: 1 });
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  assert.equal(await page.evaluate(() => window.pending.length), beforeSameScopeRender,
+    "Unchanged employer scope must not restart the request on a parent rerender");
+  assert.equal(await page.evaluate(id => window.pending[id].options.signal.aborted, staleInbox), false,
+    "The original same-scope request must remain active");
+
   await page.evaluate(() => window.renderView("inbox", {organizationId:2}));
   await complete(staleInbox, {error:"STALE_INBOX_ERROR"}, 403);
   await complete(await requestId("people-operations-inbox?organizationId=2"), {error:"Current inbox unavailable"}, 503);
@@ -136,8 +146,84 @@ try {
   await absent("Current inbox unavailable");
   await visible("Loading tenant-scoped HR follow-ups…");
   await complete(await requestId("people-operations-inbox?organizationId=2"), {organizationId:1,items:[{employeeName:"FOREIGN_INBOX_WORKER"}]});
-  await visible("The People Operations Inbox returned an unexpected employer scope.");
+  await visible("The People Operations Inbox returned an unexpected tenant or legal-employer scope.");
   await absent("FOREIGN_INBOX_WORKER");
+
+  // Switching employers inside one tenant is a private-data boundary.
+  // Old responses must not be displayed, even if transport ignores abort.
+  await page.evaluate(() => window.renderView("inbox", {
+    organizationId: 1, multiEntityEnabled: true, legalEntityId: 101,
+  }));
+  const oldEmployer = await requestId("people-operations-inbox?organizationId=1&legalEntityId=101");
+  await page.evaluate(() => window.renderView("inbox", {
+    organizationId: 1, multiEntityEnabled: true, legalEntityId: 102,
+  }));
+  await complete(oldEmployer, { organizationId: 1, legalEntityId: 101,
+    rows: [{ employeeName: "OLD_EMPLOYER_PERSON" }], summary: { total: 1 } });
+  await complete(await requestId("people-operations-inbox?organizationId=1&legalEntityId=102"),
+    { error: "Selected employer unavailable" }, 503);
+  await visible("Selected employer unavailable");
+  await absent("OLD_EMPLOYER_PERSON");
+  const beforeGroupSelection = await page.evaluate(() => window.pending.length);
+  await page.evaluate(() => window.renderView("inbox", {
+    organizationId: 1, multiEntityEnabled: true, legalEntityId: null,
+  }));
+  await visible("Select one authorized legal employer before loading People Operations.");
+  assert.equal(await page.evaluate(() => window.pending.length), beforeGroupSelection,
+    "An unselected legal employer cannot issue an organization-only read");
+  // The lifecycle panel must not retain old private details after a manual
+  // refresh: a user's People permission could have been revoked in the meantime.
+  const lifecycleA = { organizationId: 1, legalEntityId: 101,
+    today: "2026-10-14", policy: { actionWindowDays: 30 },
+    summary: { total: 1, actionRequired: 1, upcoming: 0, inProgress: 0,
+      unconfigured: 0, handoffReady: 0 },
+    rows: [{ employeeId: 11, employeeNo: "A1-001",
+      employeeName: "LIFECYCLE_PRIVATE_A1", employeeStatus: "Active",
+      state: "action_required", severity: "warning", action: "configure_terms",
+      dueDate: null, daysUntil: null, label: "Review source",
+      detail: "Fictional employee workflow", term: null, decision: null }],
+  };
+  await page.evaluate(() => window.renderView("lifecycle", {
+    organizationId: 1, multiEntityEnabled: true, legalEntityId: 101,
+  }));
+  await complete(await requestId("lifecycle-readiness?organizationId=1&legalEntityId=101"), lifecycleA);
+  await visible("LIFECYCLE_PRIVATE_A1");
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await visible("Loading employment lifecycle readiness…");
+  await absent("LIFECYCLE_PRIVATE_A1");
+  const oldLifecycleRefresh = await requestId("lifecycle-readiness?organizationId=1&legalEntityId=101");
+
+  // Same-tenant employer switch: ignore even a successful late response
+  // from A1, then handle the current employer's unavailable backend safely.
+  await page.evaluate(() => window.renderView("lifecycle", {
+    organizationId: 1, multiEntityEnabled: true, legalEntityId: 102,
+  }));
+  await complete(oldLifecycleRefresh, lifecycleA);
+  await absent("LIFECYCLE_PRIVATE_A1");
+  await complete(await requestId("lifecycle-readiness?organizationId=1&legalEntityId=102"),
+    { error: "Selected lifecycle employer unavailable" }, 503);
+  await visible("Selected lifecycle employer unavailable");
+  await absent("LIFECYCLE_PRIVATE_A1");
+
+  // Server echoes must be checked, not trusted solely because the request
+  // URL was scoped; an accidental A2 payload in A1 must fail closed.
+  await page.evaluate(() => window.renderView("lifecycle", {
+    organizationId: 1, multiEntityEnabled: true, legalEntityId: 101,
+  }));
+  await complete(await requestId("lifecycle-readiness?organizationId=1&legalEntityId=101"),
+    { ...lifecycleA, legalEntityId: 102 });
+  await visible("Employment lifecycle returned an unexpected tenant or legal employer.");
+  await absent("LIFECYCLE_PRIVATE_A1");
+
+  const lifecycleRequestCount = await page.evaluate(() => window.pending.length);
+  await page.evaluate(() => window.renderView("lifecycle", {
+    organizationId: 1, multiEntityEnabled: true, legalEntityId: null,
+  }));
+  await visible("Select one authorized legal employer before loading employment lifecycle information.");
+  assert.equal(await page.evaluate(() => window.pending.length), lifecycleRequestCount,
+    "Missing legal employer must not issue an organization-only lifecycle read");
+  await absent("LIFECYCLE_PRIVATE_A1");
+
   assert.deepEqual(errors, []);
-  console.log("HCM request lifecycle browser QA passed: tenant/filter/editor isolation, late history, stale save, refresh/failure states, My Team, Worker 360 and People Ops (StrictMode; transport ignores abort).");
+  console.log("HCM request lifecycle browser QA passed: tenant/filter/editor isolation, late history, stale save, refresh/failure states, My Team, Worker 360, People Ops and legal-employer lifecycle (StrictMode; transport ignores abort).");
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
