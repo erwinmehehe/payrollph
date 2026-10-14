@@ -3143,6 +3143,10 @@ export const applicantPrivacyEvidence = pgTable("applicant_privacy_evidence", {
 /** Confidential HR service requests, scoped to the employee and their employer. */
 export const employeeHrCases = pgTable("employee_hr_cases", {
   id: serial("id").primaryKey(),
+  // Drizzle Kit 0.31.x introspects composite foreign keys in child physical
+  // column order. Align this nullable COE source key before the tenant pair;
+  // no field meaning or ownership constraint changes in fresh dev databases.
+  coeDocumentId: integer("coe_document_id").references(() => documents.id),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
@@ -3152,7 +3156,6 @@ export const employeeHrCases = pgTable("employee_hr_cases", {
   assignedRole: varchar("assigned_role", { length: 24 }).notNull(),
   status: varchar("status", { length: 24 }).notNull().default("open"),
   slaDueAt: timestamp("sla_due_at", { withTimezone: true }).notNull(),
-  coeDocumentId: integer("coe_document_id").references(() => documents.id),
   coeApprovedByUserId: integer("coe_approved_by_user_id").references(() => users.id),
   coeApprovedAt: timestamp("coe_approved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
