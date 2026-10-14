@@ -42,7 +42,7 @@ const empty = () => ({ status: 'NOT_RUN', reviewerRole: '', reviewerRef: '', mak
 export function createWfmWitnessTemplate(sha) {
   assert.match(sha, SHA, 'Exact 40-character SHA required');
   return {
-    version: 1,
+    version: 2,
     purpose: 'fictional-development-wfm-witness',
     sourceSha: sha,
     // Never pre-attest a running app or effective payment flags from Git alone.
@@ -63,7 +63,7 @@ const blank = x => x === '' || x === false;
  */
 export function evaluateWfmWitnessPacket(packet) {
   assert.ok(packet && typeof packet === 'object' && !Array.isArray(packet), 'Invalid witness packet');
-  assert.equal(packet.version, 1, 'Unrecognized witness packet version');
+  assert.equal(packet.version, 2, 'Unrecognized witness packet version; archive v1 and begin a fresh witnessed session');
   assert.equal(packet.purpose, 'fictional-development-wfm-witness', 'Fictional development scope required');
   assert.match(packet.sourceSha ?? '', SHA, 'Invalid source SHA');
   const deploymentRecorded = packet.deployedSha !== null;
@@ -113,6 +113,8 @@ export function evaluateWfmWitnessPacket(packet) {
     assert.ok(validText(outcome.observed), id + ': record observed browser/device outcome privately');
     assert.match(outcome.observedAt ?? '', ISO, id + ': use exact UTC observation timestamp');
     assert.equal(Number.isFinite(Date.parse(outcome.observedAt)), true, id + ': invalid timestamp');
+    assert.ok(Date.parse(outcome.observedAt) <= Date.now() + 5 * 60_000,
+      id + ': future timestamp cannot establish past observation');
     if (SEPARATE_ACTORS.has(id)) {
       assert.match(outcome.makerRef ?? '', PERSON, id + ': record maker');
       assert.match(outcome.checkerRef ?? '', PERSON, id + ': record checker');
