@@ -9,6 +9,19 @@ on:
       - "src/components/workspace/multi-entity-ui.tsx"
       - "src/components/linaw-workspace.tsx"
       - "src/lib/critical-release-flags.ts"
+      # Deferred HCM stays blocked in the live app. In CI, independently
+      # exercise its employer-scoped service and synthetic browser contracts.
+      - "src/lib/hcm-*.ts"
+      - "src/app/api/hcm/effective-changes/route.ts"
+      - "src/app/api/hcm/lifecycle-readiness/route.ts"
+      - "src/app/api/hcm/people-operations-inbox/route.ts"
+      - "src/components/hcm-people-operations-inbox.tsx"
+      - "src/components/hcm-employment-lifecycle-action-center.tsx"
+      - "src/components/workspace/people.tsx"
+      - "tests/hcm-client-employer-scope.test.ts"
+      - "tests/multi-entity-isolation-db.test.ts"
+      - "tests/fixtures/hcm-request-lifecycle.jsx"
+      - "scripts/hcm-request-lifecycle-browser.mjs"
       - "src/lib/dashboard-data.ts"
       - "src/db/schema.ts"
       - "tests/multi-entity-*.test.ts"
@@ -93,6 +106,15 @@ jobs:
         run: npm run db:push
       - name: Seed fictional two-tenant/two-employer roles, workers and draft runs
         run: npx tsx scripts/multi-entity-synthetic-fixture.ts
+      - name: Exercise isolated HCM employer reads and frozen effective-change workers
+        # Only ephemeral PG16, synthetic two-tenant fixture, flags ON locally.
+        # Test invokes actual HCM read services but NEVER unfreezes HTTP,
+        # worker/scheduler or production features.
+        run: >-
+          npx tsx --test --test-concurrency=1
+          tests/multi-entity-isolation-db.test.ts
+          tests/hcm-client-employer-scope.test.ts
+          tests/multi-entity-hcm-hold.test.ts
       - name: Build actual protected Next.js workspace
         run: npm run build
       - name: Install pinned Chromium for end-to-end verification
@@ -129,6 +151,10 @@ jobs:
           exit 1
       - name: Verify real authenticated UI, scoped API denials, role controls and mobile widths
         run: node scripts/multi-entity-synthetic-browser.mjs
+      - name: Exercise isolated HCM employer switching in the synthetic browser
+        # Intercepted requests/fictional names; NOT actual HCM route access.
+        # Real flag-ON HCM routes remain 403 ENTITY_HCM_DEFERRED.
+        run: node scripts/hcm-request-lifecycle-browser.mjs
       - name: Start independently-gated registration localhost server (disposable DB)
         shell: bash
         env:
