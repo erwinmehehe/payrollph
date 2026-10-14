@@ -1,0 +1,418 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Operator-approved P0 #907 encrypted PostgreSQL offsite backup: immutable S3, SSE-KMS, and separate exact-environment GitHub OIDC roles. NOT an automated deployment or backup.",
+  "Parameters": {
+    "BackupBucketName": {
+      "Type": "String",
+      "Description": "Globally unique private us-east-1 bucket. Never deploy before data retention, privacy, and AWS cost approval.",
+      "AllowedPattern": "^payrollph-backup-[a-z0-9-]{5,45}$"
+    },
+    "GitHubOidcProviderArn": {
+      "Type": "String",
+      "Description": "Existing trusted account OIDC provider for https://token.actions.githubusercontent.com; do not create a second provider.",
+      "AllowedPattern": "^arn:aws:iam::[0-9]{12}:oidc-provider/token[.]actions[.]githubusercontent[.]com$"
+    },
+    "BackupOidcSubject": {
+      "Type": "String",
+      "Default": "repo:erwinmehehe@20321511/payrollph@1389899403:environment:payrollph-production-backup",
+      "Description": "Must equal the ACTUAL token sub verified by an administrator on approved GitHub environment. No wildcards. Immutable-ID form is the default for Sep 2026 repo.",
+      "AllowedPattern": "^repo:erwinmehehe(@20321511)?/payrollph(@1389899403)?:environment:payrollph-production-backup$"
+    },
+    "RestoreOidcSubject": {
+      "Type": "String",
+      "Default": "repo:erwinmehehe@20321511/payrollph@1389899403:environment:payrollph-production-restore",
+      "Description": "Exact actual OIDC sub for the separately protected restore environment; never reuse upload identity.",
+      "AllowedPattern": "^repo:erwinmehehe(@20321511)?/payrollph(@1389899403)?:environment:payrollph-production-restore$"
+    }
+  },
+  "Resources": {
+    "BackupKmsKey": {
+      "Type": "AWS::KMS::Key",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "Description": "PayrollPH P0-4 encrypted offsite archive KMS key; retain independently of stack lifecycle",
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "EnableAccountRootGovernedManagement",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:root"
+                }
+              },
+              "Action": "kms:*",
+              "Resource": "*"
+            }
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "Service",
+            "Value": "PayrollPH"
+          },
+          {
+            "Key": "DataClass",
+            "Value": "RestrictedPayroll"
+          },
+          {
+            "Key": "Purpose",
+            "Value": "P0-4-EncryptedArchive"
+          }
+        ]
+      }
+    },
+    "BackupBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BucketName": {
+          "Ref": "BackupBucketName"
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "ObjectLockEnabled": true,
+        "ObjectLockConfiguration": {
+          "ObjectLockEnabled": "Enabled",
+          "Rule": {
+            "DefaultRetention": {
+              "Mode": "COMPLIANCE",
+              "Days": 30
+            }
+          }
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "IgnorePublicAcls": true,
+          "BlockPublicPolicy": true,
+          "RestrictPublicBuckets": true
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerEnforced"
+            }
+          ]
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "aws:kms",
+                "KMSMasterKeyID": {
+                  "Fn::GetAtt": [
+                    "BackupKmsKey",
+                    "Arn"
+                  ]
+                }
+              },
+              "BucketKeyEnabled": true
+            }
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "Service",
+            "Value": "PayrollPH"
+          },
+          {
+            "Key": "DataClass",
+            "Value": "RestrictedPayroll"
+          },
+          {
+            "Key": "Purpose",
+            "Value": "P0-4-EncryptedArchive"
+          }
+        ]
+      }
+    },
+    "BackupBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "BackupBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyInsecureTransport",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "BackupBucket",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Sub": "${BackupBucket.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            },
+            {
+              "Sid": "DenyUploadsWithoutExplicitSseKms",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:PutObject",
+              "Resource": {
+                "Fn::Sub": "${BackupBucket.Arn}/*"
+              },
+              "Condition": {
+                "StringNotEquals": {
+                  "s3:x-amz-server-side-encryption": "aws:kms"
+                }
+              }
+            },
+            {
+              "Sid": "DenyUploadsWithOtherKmsKey",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:PutObject",
+              "Resource": {
+                "Fn::Sub": "${BackupBucket.Arn}/*"
+              },
+              "Condition": {
+                "StringNotEquals": {
+                  "s3:x-amz-server-side-encryption-aws-kms-key-id": {
+                    "Fn::GetAtt": [
+                      "BackupKmsKey",
+                      "Arn"
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Sid": "DenyUploadsWithoutComplianceLock",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:PutObject",
+              "Resource": {
+                "Fn::Sub": "${BackupBucket.Arn}/*"
+              },
+              "Condition": {
+                "StringNotEquals": {
+                  "s3:object-lock-mode": "COMPLIANCE"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BackupUploadRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "Description": "GitHub main/protected backup environment ONLY; read metadata, upload immutable encrypted objects; no delete or decrypt",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "ExactProtectedGitHubEnvironmentOnly",
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": {
+                  "Ref": "GitHubOidcProviderArn"
+                }
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                  "token.actions.githubusercontent.com:sub": {
+                    "Ref": "BackupOidcSubject"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "p0-restricted-upload",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "InspectBucketImmutability",
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetBucketVersioning",
+                    "s3:GetBucketObjectLockConfiguration",
+                    "s3:GetBucketPublicAccessBlock"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "BackupBucket",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Sid": "UploadReadBackEncryptedMetadataOnly",
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:PutObject",
+                    "s3:PutObjectRetention",
+                    "s3:GetObject",
+                    "s3:GetObjectRetention"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "${BackupBucket.Arn}/payrollph/immutable-backups/*"
+                  }
+                },
+                {
+                  "Sid": "EncryptOnlyAndInspectKey",
+                  "Effect": "Allow",
+                  "Action": [
+                    "kms:Encrypt",
+                    "kms:GenerateDataKey",
+                    "kms:DescribeKey"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "BackupKmsKey",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Service",
+            "Value": "PayrollPH"
+          },
+          {
+            "Key": "Purpose",
+            "Value": "P0-4-BackupUpload"
+          }
+        ]
+      }
+    },
+    "RestoreReadOnlyRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "Description": "Separate operator-approved offline recovery workflow; S3 versioned read and KMS decrypt only",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "ExactProtectedGitHubEnvironmentOnly",
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": {
+                  "Ref": "GitHubOidcProviderArn"
+                }
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                  "token.actions.githubusercontent.com:sub": {
+                    "Ref": "RestoreOidcSubject"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "p0-restricted-restore-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadVersionedEncryptedArchivesOnly",
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:GetObjectRetention"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "${BackupBucket.Arn}/payrollph/immutable-backups/*"
+                  }
+                },
+                {
+                  "Sid": "DecryptArchivedSseKmsOnly",
+                  "Effect": "Allow",
+                  "Action": [
+                    "kms:Decrypt"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "BackupKmsKey",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Service",
+            "Value": "PayrollPH"
+          },
+          {
+            "Key": "Purpose",
+            "Value": "P0-4-OfflineRestore"
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "BackupBucketName": {
+      "Value": {
+        "Ref": "BackupBucket"
+      },
+      "Description": "Set BACKUP_S3_BUCKET in BOTH protected environments"
+    },
+    "BackupKmsKeyArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "BackupKmsKey",
+          "Arn"
+        ]
+      },
+      "Description": "Set BACKUP_KMS_KEY_ARN in protected backup environment"
+    },
+    "BackupAwsRoleArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "BackupUploadRole",
+          "Arn"
+        ]
+      },
+      "Description": "Set BACKUP_AWS_ROLE_ARN in protected backup environment"
+    },
+    "RestoreAwsRoleArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "RestoreReadOnlyRole",
+          "Arn"
+        ]
+      },
+      "Description": "Set RESTORE_AWS_ROLE_ARN in protected restore environment"
+    }
+  }
+}
