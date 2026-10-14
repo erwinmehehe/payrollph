@@ -13,16 +13,16 @@ assert.equal(process.env.CI, "true");
 assert.equal(process.env.GITHUB_ACTIONS, "true");
 assert.equal(process.env.QA_URL, base);
 assert.equal(new URL(process.env.DATABASE_URL).hostname, "127.0.0.1");
-assert.equal(process.env.NINE_STAGE_SYNTHETIC_CLOCK, "2026-09-30");
+assert.match(process.env.NINE_STAGE_SYNTHETIC_CLOCK ?? "", /^\d{4}-\d{2}-\d{2}$/);
 assert.equal(process.env.DEMO_MODE, "false");
 const realAnchor = Number(process.env.NINE_STAGE_SYNTHETIC_REAL_ANCHOR);
 const anchorAge = Date.now() - realAnchor;
 assert.ok(Number.isSafeInteger(realAnchor) && anchorAge >= 0 && anchorAge < 30 * 60_000,
   "Synthetic mobile acceptance requires a fresh localhost-only shared clock anchor");
-// The CI server preloads the isolated virtual September cutoff. Chromium must
+// The CI server preloads the isolated current-month-end cutoff. Chromium must
 // render the same fictional calendar, or its first hydration sees October
-// while server markup was generated in September (React hydration error #418).
-const syntheticEpoch = Date.parse("2026-09-30T08:00:00.000Z");
+// while server markup was generated in another month (React hydration error #418).
+const syntheticEpoch = Date.parse(process.env.NINE_STAGE_SYNTHETIC_CLOCK + "T08:00:00.000Z");
 const browser = await chromium.launch({headless:true});
 // Authenticate each fictional actor once; viewport coverage is not a burst
 // login-load test. Reuse only the actual browser cookie jar, never forge a
@@ -37,7 +37,7 @@ try {
     });
     await context.addInitScript(({epoch, anchor}) => {
       // Test page only: match the guarded localhost server's *shared* synthetic
-      // September timeline, not a fresh clock starting at browser navigation.
+      // selected month-end timeline, not a fresh clock at browser navigation.
       // Preserve Date.parse/UTC, constructor overloads and instanceof behavior.
       const RealDate = Date;
       const now = () => epoch + (RealDate.now() - anchor);
@@ -164,7 +164,7 @@ try {
     // Verify an actual authenticated *browser* employee session before
     // asserting the cross-tenant 403. APIRequestContext's cookie jar is not
     // a substitute for an authenticated browser when server session dates
-    // are deliberately virtualized for a synthetic September payroll.
+    // are deliberately virtualized for this synthetic month-end payroll.
     const restricted = await browser.newContext({
       viewport:{width,height:844}, timezoneId:"Asia/Manila",
       ...(employeeState ? {storageState:employeeState} : {}),
