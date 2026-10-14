@@ -1,86 +1,121 @@
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { applicantPrivacyEvidence, auditEvents, jobApplicants, jobRequisitions, organizations, positions } from "@/db/schema";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { workflowEntityHold } from "@/lib/workflow-entity-hold";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 import { randomUUID, createHash } from "node:crypto";
-import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
 import { enforceIntakeProof } from "@/lib/public-intake-proof-server";
-
-const applicationReady = () => criticalReleaseFlagEnabled("recruitmentJourney") && applicantPrivacyControlsEnabled() && criticalReleaseFlagEnabled("publicIntakeProof") &&
-  /^[A-Za-z0-9._-]{2,64}$/.test(process.env.CAREERS_PRIVACY_NOTICE_VERSION ?? "") &&
-  /^https:\/\/[^\s]+$/.test(process.env.CAREERS_PRIVACY_NOTICE_URL ?? "");
-
+import { requireApplicantConsent } from "@/lib/recruitment-applicant-privacy";
+import { careersNoticeConfig, careersSchemaReady, publishedCareersPredicate } from "@/lib/careers-privacy-gates";
+import { readCareersApplicationBody } from "@/lib/careers-intake-body";
 
 export const dynamic = "force-dynamic";
-const unavailable = () => Response.json({ error: "Careers portal not available." }, { status: 404 });
-const listing = (organizationId: number) => and(
-  eq(jobRequisitions.organizationId, organizationId),
-  eq(jobRequisitions.careersPublished, true),
-  sql`${jobRequisitions.status} in ('open', 'interviewing')`,
-  sql`${jobRequisitions.positionId} is not null`,
-);
+const unavailable = () => Response.json({ error: "Careers portal not available." }, {
+  status: 404, headers: { "Cache-Control": "no-store" },
+});
+const notReady = () => Response.json({ error: "Careers application is temporarily unavailable." }, {
+  status: 503, headers: { "Cache-Control": "no-store" },
+});
+const validId = (value: unknown) => Number.isSafeInteger(value) && Number(value) > 0;
+const retryAfter = (retryAfterMs: number) => Math.max(1, Math.ceil(retryAfterMs / 1000));
+
+/** Public listing is deliberately employer-bound and exposes no applicant or
+ * job budget/salary records. Requires BOTH #925 schema and approved careers DDL.
+ */
 export async function GET(request: Request) {
-  if (!criticalReleaseFlagEnabled("recruitmentJourney")) return unavailable();
-  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
-  if (!applicationReady()) return unavailable();
+  const notice = careersNoticeConfig();
+  if (!notice) return unavailable();
+  const hold = workflowEntityHold(); if (hold) return hold;
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
-  if (!Number.isSafeInteger(organizationId) || organizationId <= 0)
-    return Response.json({ error: "Valid employer required." }, { status: 400 });
+  if (!validId(organizationId)) return Response.json({ error: "Valid employer required." }, { status: 400 });
+  if (!await careersSchemaReady()) return notReady();
   const [organization] = await db.select({ name: organizations.name }).from(organizations)
     .where(eq(organizations.id, organizationId)).limit(1);
   if (!organization) return unavailable();
   const jobs = await db.select({
     id: jobRequisitions.id, title: jobRequisitions.title,
     department: jobRequisitions.department, description: jobRequisitions.description,
-    employmentType: jobRequisitions.employmentType, status: jobRequisitions.status,
-  }).from(jobRequisitions).where(listing(organizationId)).limit(60);
+    employmentType: jobRequisitions.employmentType,
+  }).from(jobRequisitions).where(publishedCareersPredicate(organizationId)).limit(60);
   return Response.json({ organization: organization.name, jobs }, {
-    headers: { "Cache-Control": "no-store" },
+    headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
   });
 }
+
+/** Anonymous applicant intake: no resume, bank data, government IDs or
+ * employee-account creation. Every accepted application gets #925 evidence.
+ */
 export async function POST(request: Request) {
-  if (!criticalReleaseFlagEnabled("recruitmentJourney")) return unavailable();
-  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
-  if (!applicationReady()) return unavailable();
+  const notice = careersNoticeConfig();
+  if (!notice) return unavailable();
+  const hold = workflowEntityHold(); if (hold) return hold;
   const denied = enforceSameOriginMutation(request);
   if (denied) return denied;
-  const body = await request.json().catch(() => ({}));
-  // Honeypot field must remain empty. No resume or biometric uploads.
-  if (body.website) return Response.json({ received: true });
+  const body = await readCareersApplicationBody(request);
+  if (body instanceof Response) return body;
+  // No bot-controlled application row is stored for the honeypot case.
+  if (body.website) return Response.json({ received: true }, { status: 202 });
   const organizationId = Number(body.organizationId);
   const requisitionId = Number(body.requisitionId);
-  const fullName = String(body.fullName ?? "").trim();
-  const email = String(body.email ?? "").trim().toLowerCase();
-  const phone = String(body.phone ?? "").trim().slice(0,32);
-  const notes = String(body.notes ?? "").trim().slice(0,1000);
-  const noticeVersion = process.env.CAREERS_PRIVACY_NOTICE_VERSION ?? "";
-  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
-    !Number.isSafeInteger(requisitionId) || requisitionId <= 0 ||
+  const fullName = typeof body.fullName === "string" ? body.fullName.trim() : "";
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 32) : "";
+  const notes = typeof body.notes === "string" ? body.notes.trim().slice(0, 1000) : "";
+  if (!validId(organizationId) || !validId(requisitionId) ||
     fullName.length < 4 || fullName.length > 160 ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 160 ||
-    body.consent !== true || body.privacyNoticeVersion !== noticeVersion)
-    return Response.json({ error: "Name, valid email and data-processing consent are required." }, { status: 422 });
-  const rate = await rateLimitDistributed("careers-application:" + clientIp(request), { limit: 4, windowMs: 15*60_000 });
-  if (rate.mode !== "distributed-postgres") return Response.json({ error: "Security check unavailable." }, { status: 503 });
-  if (!rate.allowed) return Response.json({ error: "Too many applications. Please retry later." }, { status: 429 });
+    body.consent !== true || body.privacyNoticeVersion !== notice.version) {
+    return Response.json({ error: "Name, valid email and documented data-processing consent are required." }, { status: 422 });
+  }
+  // Reuse #925's canonical consent validation. The server assigns the source
+  // reference and capture time; a browser cannot invent or backdate them.
+  const consent = requireApplicantConsent({
+    privacyAccepted: body.consent,
+    privacyNoticeVersion: body.privacyNoticeVersion,
+    privacyEvidenceReference: "careers-web:" + randomUUID(),
+  });
+  const rate = await rateLimitDistributed("careers-application:" + clientIp(request), {
+    limit: 4, windowMs: 15 * 60_000,
+  });
+  if (rate.mode !== "distributed-postgres") return notReady();
+  if (!rate.allowed) return Response.json({ error: "Too many applications. Please retry later." }, {
+    status: 429, headers: { "Retry-After": String(retryAfter(rate.retryAfterMs)) },
+  });
   const proofDenied = await enforceIntakeProof(body, email);
   if (proofDenied) return proofDenied;
-  const byEmail = await rateLimitDistributed("careers-email:" + createHash("sha256").update(organizationId + ":" + email).digest("hex"), { limit: 5, windowMs: 24*60*60_000 });
-  if (byEmail.mode !== "distributed-postgres") return Response.json({ error: "Security check unavailable." }, { status: 503 });
-  if (!byEmail.allowed) return Response.json({ error: "Too many applications." }, { status: 429 });
-  const [job] = await db.select({ id: jobRequisitions.id }).from(jobRequisitions).where(
-    and(listing(organizationId), eq(jobRequisitions.id, requisitionId)),
-  ).limit(1);
+  const perAddress = await rateLimitDistributed("careers-email:" +
+    createHash("sha256").update(organizationId + ":" + email).digest("hex"), {
+    limit: 5, windowMs: 24 * 60 * 60_000,
+  });
+  if (perAddress.mode !== "distributed-postgres") return notReady();
+  if (!perAddress.allowed) return Response.json({ error: "Too many applications." }, {
+    status: 429, headers: { "Retry-After": String(retryAfter(perAddress.retryAfterMs)) },
+  });
+  if (!await careersSchemaReady()) return notReady();
+  const [job] = await db.select({ id: jobRequisitions.id }).from(jobRequisitions).where(and(
+    publishedCareersPredicate(organizationId), eq(jobRequisitions.id, requisitionId),
+  )).limit(1);
   if (!job) return unavailable();
-  // Do not permit the public form to rewrite or bypass existing recruiting stages.
+
+  // One DB transaction commits the candidate, #925 consent and redacted audit.
+  // A concurrent withdraw/position close is rechecked under row locks.
   const created = await db.transaction(async tx => {
-    // Serialize one applicant email per requisition even across app instances.
     await tx.execute(sql`select pg_advisory_xact_lock(4911, hashtext(${organizationId + ":" + requisitionId + ":" + email}))`);
-    await tx.execute(sql`select id from job_requisitions where id = ${requisitionId} and organization_id = ${organizationId} for update`);
-    const [freshJob] = await tx.select({ id: jobRequisitions.id }).from(jobRequisitions).where(and(listing(organizationId), eq(jobRequisitions.id, requisitionId))).limit(1);
+    const [lockedJob] = await tx.select({
+      id: jobRequisitions.id, positionId: jobRequisitions.positionId,
+    }).from(jobRequisitions).where(and(
+      eq(jobRequisitions.organizationId, organizationId), eq(jobRequisitions.id, requisitionId),
+    )).for("update").limit(1);
+    if (!lockedJob?.positionId) return null;
+    const [openPosition] = await tx.select({ id: positions.id }).from(positions).where(and(
+      eq(positions.id, lockedJob.positionId),
+      eq(positions.organizationId, organizationId), eq(positions.status, "open"),
+    )).for("share").limit(1);
+    if (!openPosition) return null;
+    const [freshJob] = await tx.select({ id: jobRequisitions.id }).from(jobRequisitions).where(and(
+      publishedCareersPredicate(organizationId), eq(jobRequisitions.id, requisitionId),
+    )).limit(1);
     if (!freshJob) return null;
     const [existing] = await tx.select({ id: jobApplicants.id }).from(jobApplicants).where(and(
       eq(jobApplicants.organizationId, organizationId), eq(jobApplicants.requisitionId, requisitionId),
@@ -93,14 +128,20 @@ export async function POST(request: Request) {
     }).returning({ id: jobApplicants.id });
     await tx.insert(applicantPrivacyEvidence).values({
       organizationId, applicantId: row.id, legalBasis: "consent",
-      privacyNoticeVersion: noticeVersion,
-      sourceEvidenceReference: "careers-web:" + randomUUID(), consentCapturedAt: new Date(),
+      privacyNoticeVersion: consent.privacyNoticeVersion,
+      sourceEvidenceReference: consent.sourceEvidenceReference,
+      consentCapturedAt: new Date(),
     });
-    await tx.insert(auditEvents).values({ organizationId, actor: "Public careers application",
+    await tx.insert(auditEvents).values({
+      organizationId, actor: "Public careers application",
       action: "Published careers application received", resource: "Applicant #" + row.id,
-      metadata: { applicantId: row.id, requisitionId, noCredentialsGranted: true, privacyNoticeVersion: noticeVersion },
+      metadata: { applicantId: row.id, requisitionId, privacyNoticeVersion: consent.privacyNoticeVersion,
+        noCredentialsGranted: true },
     });
     return row;
   });
-  return Response.json({ received: true }, { status: created ? 201 : 200 });
+  // Identical 202 for duplicate and new rows prevents public email enumeration.
+  return Response.json({ received: true }, {
+    status: 202, headers: { "Cache-Control": "no-store" },
+  });
 }
