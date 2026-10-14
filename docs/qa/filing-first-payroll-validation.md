@@ -27,6 +27,15 @@ these fictional identities. RMC 15-2025 announced version 7.4; this pack does no
 that it is still the newest version. Follow the existing Windows handoff for private
 review and distinguish validator success from an agency submission acknowledgement.
 
+On 2026-10-14, the live official Downloadables page listed **7.4 for taxable years
+2023 onwards** and 7.1 for 2018–2022. Its official 7.4 ZIP was downloaded from
+`https://bir-cdn.bir.gov.ph/BIR/pdf/Alphalist%20Data%20Entry%20and%20Validation%20ver.%207.4.zip`.
+The downloaded ZIP SHA-256 was
+`b4591c13103525d9a081a98fd17c2bf9cab48c382b8f9d20d2eeb3c653c7cbe9`;
+it contains a Windows executable installer. The binary is not committed or
+redistributed. This verifies the listed distribution, not installation, official
+validator execution or format acceptance. Recheck the distribution before use.
+
 ## Same-worker governed journey
 
 The connected acceptance workflow runs two independent disposable PostgreSQL 16
