@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshCw, ShieldAlert } from "lucide-react";
 import { HcmGovernanceWorklistPanel } from "@/components/hcm-governance-worklist-panel";
 
@@ -47,47 +47,50 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
   const [errorState, setErrorState] = useState<{ organizationId: number; message: string } | null>(null);
   const [checkedOrganizationId, setCheckedOrganizationId] = useState<number | null>(null);
 
-  const refresh = useCallback(async () => {
-    const requestId = ++requestGeneration.current;
-    // The effect initiates a request but does not synchronously update React state.
-    // The initial checking indicator derives from the selected employer below.
-    try {
-      const response = await fetch(
-        `/api/hcm/governance-readiness?organizationId=${organizationId}`,
-        { cache: "no-store" },
-      );
-      const payload = await response.json().catch(() => ({}));
-      // Never display an old employer's results after the active workspace
-      // changes or a more recent refresh has been requested.
-      if (requestId !== requestGeneration.current) return;
-      if (!response.ok) {
-        if (response.status === 403) {
-          setErrorState({ organizationId, message: "Company-wide People administrator access is required for this aggregate readiness report." });
-        } else {
-          throw new Error(payload.error ?? "Could not load HCM governance readiness.");
-        }
-        setReport(null);
-        return;
-      }
-      setErrorState(null);
-      setReport(payload as HcmGovernanceReport);
-      setLoadedOrganizationId(organizationId);
-    } catch (caught) {
-      if (requestId !== requestGeneration.current) return;
-      setReport(null);
-      setErrorState({ organizationId, message: caught instanceof Error ? caught.message : "HCM readiness is unavailable." });
-    } finally {
-      if (requestId === requestGeneration.current) {
-        setCheckedOrganizationId(organizationId);
-        setBusy(false);
-      }
-    }
-  }, [organizationId]);
+  // Increment only from a user-initiated refresh event. The effect itself
+  // synchronizes with the HTTP source and receives data asynchronously.
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   useEffect(() => {
-    void refresh();
-    return () => { requestGeneration.current += 1; };
-  }, [refresh]);
+    const requestId = ++requestGeneration.current;
+    const controller = new AbortController();
+    void fetch(
+      `/api/hcm/governance-readiness?organizationId=${organizationId}`,
+      { cache: "no-store", signal: controller.signal },
+    )
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        // Never accept an old employer's data or a superseded refresh.
+        if (requestId !== requestGeneration.current) return;
+        if (!response.ok) {
+          if (response.status === 403) {
+            setErrorState({ organizationId, message: "Company-wide People administrator access is required for this aggregate readiness report." });
+            setReport(null);
+            return;
+          }
+          throw new Error(payload.error ?? "Could not load HCM governance readiness.");
+        }
+        setErrorState(null);
+        setReport(payload as HcmGovernanceReport);
+        setLoadedOrganizationId(organizationId);
+      })
+      .catch((caught) => {
+        if (requestId !== requestGeneration.current) return;
+        if (caught instanceof Error && caught.name === "AbortError") return;
+        setReport(null);
+        setErrorState({ organizationId, message: caught instanceof Error ? caught.message : "HCM readiness is unavailable." });
+      })
+      .finally(() => {
+        if (requestId === requestGeneration.current) {
+          setCheckedOrganizationId(organizationId);
+          setBusy(false);
+        }
+      });
+    return () => {
+      controller.abort();
+      requestGeneration.current += 1;
+    };
+  }, [organizationId, refreshNonce]);
 
   // Render only the report associated with this exact tenant, even during
   // the render before a React effect has run on an organization switch.
@@ -108,7 +111,7 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
         <button
           type="button"
           className="secondary-button"
-          onClick={() => { setBusy(true); setErrorState(null); void refresh(); }}
+          onClick={() => { setBusy(true); setErrorState(null); setRefreshNonce((current) => current + 1); }}
           disabled={busy || !checked}
         >
           <RefreshCw size={14} /> {busy ? "Checking..." : "Refresh checks"}
