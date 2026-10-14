@@ -146,9 +146,15 @@ test("daily triage stays in native People Inbox with source navigation and no wr
   assert.ok(ui.includes("Filter People Operations by responsible team"));
   assert.ok(ui.includes("onPage(row.page)"));
   assert.ok(ui.includes("controller.abort()"));
-  assert.ok(ui.includes("JSON.stringify([organizationId, filters, refreshVersion])"));
+  assert.ok(ui.includes("JSON.stringify([hcmReadScopeKey(scope), filters, refreshVersion])"),
+    "Daily triage cache identity must include selected legal employer");
+  assert.ok(ui.includes("key={hcmReadScopeKey(scope)}"),
+    "Never reuse another legal employer's existing triage data");
+  assert.ok(ui.includes("hcmResponseMatchesReadScope(body, scope)"),
+    "Never accept another legal employer's response");
   assert.ok(ui.includes("response?.key === requestKey ? response : null"));
-  assert.ok(ui.includes("body.organizationId !== organizationId"));
+  assert.ok(ui.includes("hcmResponseMatchesReadScope(body, scope)"),
+    "Daily triage must validate both tenant and legal-employer response identity");
   assert.ok(!ui.includes('method: "POST"'));
   assert.ok(!ui.includes('method: "PATCH"'));
 });
