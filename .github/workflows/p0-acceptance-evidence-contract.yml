@@ -1,0 +1,59 @@
+name: "P0 #691 #853 #579 Independent Evidence Contract (Offline)"
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/qa/wfm-independent-witness.mjs"
+      - "tests/wfm-independent-witness.test.mjs"
+      - "scripts/qa/independent-journey-853.mjs"
+      - "tests/independent-journey-853.test.mjs"
+      - "src/lib/private-parallel-payroll-reconciliation.ts"
+      - "tests/private-parallel-payroll-reconciliation.test.ts"
+      - "docs/qa/wfm-691-independent-witness-handoff.md"
+      - "docs/qa/independent-journey-853.md"
+      - "docs/qa/579-private-no-money-reconciliation-handoff.md"
+      - ".github/workflows/p0-acceptance-evidence-contract.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/qa/wfm-independent-witness.mjs"
+      - "tests/wfm-independent-witness.test.mjs"
+      - "scripts/qa/independent-journey-853.mjs"
+      - "tests/independent-journey-853.test.mjs"
+      - "src/lib/private-parallel-payroll-reconciliation.ts"
+      - "tests/private-parallel-payroll-reconciliation.test.ts"
+      - "docs/qa/wfm-691-independent-witness-handoff.md"
+      - "docs/qa/independent-journey-853.md"
+      - "docs/qa/579-private-no-money-reconciliation-handoff.md"
+      - ".github/workflows/p0-acceptance-evidence-contract.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  evidence-contract:
+    name: "offline-evidence-integrity-only"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CI: "true"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: "WFM witness and independent first-employer structural guards"
+        run: node --test tests/wfm-independent-witness.test.mjs tests/independent-journey-853.test.mjs
+      - name: "Private payroll arithmetic and source independence guards"
+        run: npx --no-install tsx --test tests/private-parallel-payroll-reconciliation.test.ts
+      - name: "No pilot certification inferred"
+        run: |
+          echo "Source/evidence-shape checks only; human UAT, real employers, bank and agency acceptance remain NOT_RUN."
