@@ -225,7 +225,9 @@ try {
     assert.equal(await application.getByRole("button", { name: "Submit request" }).isEnabled(),
       true, "Matching schedule preview should permit a properly configured synthetic request");
 
-    await application.locator('input[type="date"]').nth(0).fill("2026-10-21");
+    const differentDate = new Date(Date.parse(manilaToday + "T00:00:00Z") + 86400000)
+      .toISOString().slice(0, 10);
+    await application.locator('input[type="date"]').nth(0).fill(differentDate);
     assert.equal(await application.getByRole("button", { name: "Submit request" }).isDisabled(),
       true, "Changing an input must invalidate an old successful timing preview");
     assert.equal(await application.getByText(/240 paid min unavailable/).count(), 0,
