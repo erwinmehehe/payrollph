@@ -153,10 +153,9 @@ const SECURITY = {
   'strict-transport-security': 'max-age=86400',
 };
 
-export function createPhoneGateway({ hostname, username, password, upstreamPort = APP_PORT }) {
+export function createPhoneGateway({ hostname, authorizeBasic, upstreamPort = APP_PORT }) {
   assert.match(hostname, /\.ts\.net$/);
-  assert.match(username, /^[a-f0-9]{48}$/);
-  assert.match(password, /^[a-f0-9]{64}$/);
+  assert.equal(typeof authorizeBasic, 'function', 'UAT853_PHONE_AUTH_VALIDATOR_REQUIRED');
   assert.ok(Number.isInteger(upstreamPort) && upstreamPort >= 1024 &&
     upstreamPort <= 65535, 'UAT853_PHONE_INVALID_UPSTREAM_PORT');
   const failures = [];
@@ -182,7 +181,7 @@ export function createPhoneGateway({ hostname, username, password, upstreamPort 
     if (/^\/(?:qa-artifacts|node_modules|\.git|\.env)(?:\/|$)/.test(decodedPath)) {
       writeError(res, 404, 'Not found'); return;
     }
-    if (!isAuthorizedBasic(req.headers.authorization, username, password)) {
+    if (!authorizeBasic(req.headers.authorization)) {
       const now = Date.now();
       while (failures.length && failures[0] < now - 60000) failures.shift();
       if (failures.length >= 20) {
@@ -294,9 +293,12 @@ function main() {
   // Never use a hostname sourced from the credentials file for proxy headers.
   // The trusted hostname comes from the running local Tailscale daemon;
   // the private credential file is used only to authenticate the gateway.
-  const server = createPhoneGateway({
-    hostname, username: credentials.username, password: credentials.password,
-  });
+  // Keep secret file contents inside the authentication callback, not the
+  // reverse-proxy request builder. Only a boolean result reaches the proxy.
+  const authorizeBasic = header => isAuthorizedBasic(
+    header, credentials.username, credentials.password,
+  );
+  const server = createPhoneGateway({ hostname, authorizeBasic });
   server.on('error', () => { console.error('UAT853_PHONE_LOCAL_PORT_UNAVAILABLE'); process.exitCode = 1; });
   server.listen(GATEWAY_PORT, '127.0.0.1', () => {
     console.log('PASS: Basic-auth QA gateway listening ONLY on 127.0.0.1:3001.');
