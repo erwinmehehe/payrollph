@@ -72,6 +72,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P0 external Xendit salary money movement",
     approval: "Independent provider/treasury acceptance and exact employer/legal-entity authorization",
   },
+  benefitsLoans: {
+    env: "BENEFITS_LOANS_UI_ENABLED",
+    owner: "Payroll Operations",
+    risk: "P1 Benefits enrollment, loan schedules and payslip explanations",
+    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
+  },
   recruitmentJourney: {
     env: "RECRUITMENT_JOURNEY_UI_ENABLED",
     owner: "HCM",
