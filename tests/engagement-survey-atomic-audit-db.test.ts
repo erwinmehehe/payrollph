@@ -6,6 +6,7 @@ import { db } from "../src/db";
 import { auditEvents, engagementSurveys, organizations } from "../src/db/schema";
 import {
   closeEngagementSurvey, closedSurveyDisclosure, createEngagementSurveyWithAudit,
+  isOpenSurveyConflict,
 } from "../src/lib/engagement-survey";
 
 test("survey lifecycle and append-only audit receipt commit or roll back together", async () => {
@@ -54,6 +55,29 @@ test("survey lifecycle and append-only audit receipt commit or roll back togethe
   } finally {
     await db.delete(organizations).where(eq(organizations.id, organizationId));
   }
+});
+
+test("only the specific open-survey uniqueness violation is an expected conflict", () => {
+  const openSurvey = { code: "23505", constraint: "engagement_surveys_one_open_per_org" };
+  assert.equal(isOpenSurveyConflict(openSurvey), true);
+  assert.equal(isOpenSurveyConflict({ cause: { cause: openSurvey } }), true,
+    "Drizzle-wrapped Postgres uniqueness errors must preserve the intended conflict");
+  for (const unrelated of [
+    { code: "23505", constraint: "engagement_survey_participants_one_per_worker" },
+    { code: "23505", constraint: "audit_events_pkey" },
+    { code: "23505" },
+    { code: "23503", constraint: "engagement_surveys_one_open_per_org" },
+    { cause: { code: "23505", constraint: "another_table_pkey" } },
+    { cause: null },
+    "23505",
+    null,
+  ]) {
+    assert.equal(isOpenSurveyConflict(unrelated), false,
+      "Unrelated/unspecified database errors must not be disguised as duplicate surveys");
+  }
+  const cyclic: { cause?: unknown } = {};
+  cyclic.cause = cyclic;
+  assert.equal(isOpenSurveyConflict(cyclic), false, "Circular causes must fail closed");
 });
 
 test("closed survey disclosure refuses inconsistent or malformed totals", () => {

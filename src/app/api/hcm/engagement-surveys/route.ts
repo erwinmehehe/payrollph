@@ -8,25 +8,13 @@ import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
   closedSurveyDisclosure, closeEngagementSurvey, createEngagementSurveyWithAudit,
-  listSurveysForTenant, submitAnonymousSurveyRating,
+  isOpenSurveyConflict, listSurveysForTenant, submitAnonymousSurveyRating,
 } from "@/lib/engagement-survey";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
 } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
-
-// Preserve the existing one-open-survey conflict response without disguising
-// an audit-storage failure as a duplicate survey. Drizzle may wrap PG errors.
-function isUniqueViolation(error: unknown): boolean {
-  let current: unknown = error;
-  for (let depth = 0; depth < 4; depth++) {
-    if (!current || typeof current !== "object") return false;
-    if ("code" in current && current.code === "23505") return true;
-    current = "cause" in current ? current.cause : null;
-  }
-  return false;
-}
 
 async function guard(sessionId: number, organizationId: number) {
   const denied = await assertMembership(sessionId, organizationId);
@@ -140,7 +128,7 @@ export async function POST(request: Request) {
       });
       return Response.json({ id: survey.id, status: "open" }, { status: 201 });
     } catch (error) {
-      if (isUniqueViolation(error)) {
+      if (isOpenSurveyConflict(error)) {
         return Response.json({ error: "Only one open survey is allowed for this workspace." }, { status: 409 });
       }
       return Response.json({ error: "Survey could not be safely created." }, { status: 503 });

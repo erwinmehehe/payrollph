@@ -74,6 +74,7 @@ jobs:
             tests/hcm-report-source-db.test.ts \
             tests/engagement-survey-privacy.test.ts \
             tests/engagement-survey-db.test.ts \
+            tests/engagement-survey-atomic-audit-db.test.ts \
             tests/public-api-v1-extended-db.test.ts \
             tests/developer-api-scope-allowlist.test.ts \
             tests/approval-delegated-sod-behavior.test.ts \

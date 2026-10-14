@@ -59,6 +59,23 @@ export async function createEngagementSurveyWithAudit(input: {
   });
 }
 
+/** Only a duplicate of the one-open-survey index is an expected 409 conflict.
+ * Drizzle may wrap Postgres errors in nested causes. A duplicate in an audit
+ * or other unrelated table must not be misreported as a survey conflict.
+ */
+export function isOpenSurveyConflict(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 8; depth++) {
+    if (current === null || typeof current !== "object") return false;
+    if ("code" in current && current.code === "23505" &&
+        "constraint" in current && current.constraint === "engagement_surveys_one_open_per_org") {
+      return true;
+    }
+    current = "cause" in current ? current.cause : null;
+  }
+  return false;
+}
+
 export async function listSurveysForTenant(organizationId: number) {
   return db.select({
     id: engagementSurveys.id,
