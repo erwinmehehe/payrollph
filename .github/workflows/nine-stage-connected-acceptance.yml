@@ -42,6 +42,8 @@ on:
       - "src/lib/critical-release-flags.ts"
       - "tests/compact-mobile-header.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/governed-hire-853-bridge.ts"
+      - "tests/governed-hire-853-evidence.test.mjs"
       - "scripts/qa/isolated-month-end-clock.cjs"
       - "scripts/qa/nine-stage-mobile-browser.mjs"
       - "tests/nine-stage-connected-evidence.test.mjs"
@@ -85,6 +87,8 @@ on:
       - "src/lib/critical-release-flags.ts"
       - "tests/compact-mobile-header.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/governed-hire-853-bridge.ts"
+      - "tests/governed-hire-853-evidence.test.mjs"
       - "scripts/qa/isolated-month-end-clock.cjs"
       - "scripts/qa/nine-stage-mobile-browser.mjs"
       - "tests/nine-stage-connected-evidence.test.mjs"
@@ -211,6 +215,13 @@ jobs:
       - name: Exercise synthetic 375px/390px role and employer switching
         if: success()
         run: node scripts/qa/nine-stage-mobile-browser.mjs
+      - name: Exercise governed candidate-to-worker Hire BP (separate no-money sidecar)
+        run: NODE_OPTIONS="--require=$(pwd)/scripts/qa/isolated-month-end-clock.cjs" npx tsx scripts/qa/governed-hire-853-bridge.ts
+      - name: Validate governed Hire receipt without claiming nine-stage payroll lineage
+        if: always()
+        env:
+          NINE_STAGE_GOVERNED_HIRE_REQUIRED: "true"
+        run: node --test tests/governed-hire-853-evidence.test.mjs
       - name: Validate sanitized source and evidence contract
         if: always()
         env:
@@ -232,6 +243,7 @@ jobs:
           path: |
             qa-artifacts/nine-stage-connected-report.json
             qa-artifacts/nine-stage-mobile-report.json
+            qa-artifacts/governed-hire-853-report.json
           if-no-files-found: warn
           retention-days: 14
       - name: Upload fictional desktop and phone layout screenshots
