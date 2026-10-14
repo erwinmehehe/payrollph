@@ -30,6 +30,20 @@ try {
   git('commit', '-q', '-m', 'merged A2 and A3');
   const newBase = git('rev-parse', 'HEAD');
 
+  // Keep separate historical snapshots: the preflight must read the requested
+  // base COMMIT, not the current working tree or a generated PR merge checkout.
+  writeFileSync(schema,
+    'export const employeeHrCases = pgTable(\\n  "employee_hr_cases",\\n  {}\\n);\\n' +
+    "export const applicantPrivacyEvidence = pgTable(\\n  'applicant_privacy_evidence',\\n  {}\\n);\\n"
+  );
+  git('add', '.');
+  git('commit', '-q', '-m', 'real schema with multiline merged tables');
+  const multilineBase = git('rev-parse', 'HEAD');
+  writeFileSync(schema, '');
+  git('add', '.');
+  git('commit', '-q', '-m', 'malformed empty pinned schema');
+  const emptyBase = git('rev-parse', 'HEAD');
+
   const check = (base, head, extraEnv = {}) => spawnSync('bash', [script], {
     cwd: repo, encoding: 'utf8',
     env: { ...process.env, CI: 'true', A1_A6_DISPOSABLE_MIGRATION_MODE: 'isolated-ci-only',
@@ -50,6 +64,16 @@ try {
     const r = check(newBase, newBase);
     assert.equal(r.status, 1);
     assert.match(r.stderr, /already defines HR-case and\/or applicant-privacy/);
+  });
+  test('rejects multiline Drizzle declarations with both quote styles', () => {
+    const r = check(multilineBase, multilineBase);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stderr, /already defines HR-case and\/or applicant-privacy/);
+  });
+  test('rejects an empty schema rather than approving a degenerate baseline', () => {
+    const r = check(emptyBase, emptyBase);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stderr, /Pinned base Drizzle schema is empty/);
   });
   test('rejects invalid refs rather than silently testing checkout merge SHA', () => {
     const r = check('main', legacyHead);
