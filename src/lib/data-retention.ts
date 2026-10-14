@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { purgeExpiredRejectedApplicants } from "@/lib/recruitment-applicant-retention";
 import { leadRetentionCutoff } from "./lead-retention-policy";
 import { sweepPendingCoeObjects } from "@/lib/hr-case-coe-object-reconciliation";
+import { sweepPendingVaultUploads } from "@/lib/employee-vault-object-reconciliation";
 import {
   emailChangeTokens,
   marketingLeads,
@@ -156,9 +157,12 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
   const applicantPrivacy = await purgeExpiredRejectedApplicants(new Date(now));
   // Preserve main's flag-rollback cleanup of unreadable pending COE objects.
   const pendingCoeObjectRecovery = await sweepPendingCoeObjects(new Date(now));
+  // A committed private upload intent must be recovered even after flag rollback.
+  const pendingVaultObjectRecovery = await sweepPendingVaultUploads(new Date(now));
   return {
     ...(applicantPrivacy.enabled ? { applicantPrivacyPurged: applicantPrivacy.purged } : {}),
     pendingCoeObjectRecovery,
+    pendingVaultObjectRecovery,
     sessions: deletedSessions.length,
     passwordResetTokens: deletedPasswordTokens.length,
     emailChangeTokens: deletedEmailTokens.length,
