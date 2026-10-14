@@ -5,7 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
 import { dirname, resolve } from 'node:path';
@@ -111,18 +111,17 @@ export function verifyGatewayCredentials(credentials, sha, host) {
   assert.match(credentials.password, /^[a-f0-9]{64}$/);
 }
 
-const digest = value => createHash('sha256').update(value).digest();
 export function isAuthorizedBasic(authorization, username, password) {
   if (typeof authorization !== 'string' || !authorization.startsWith('Basic ') ||
       authorization.length > 280) return false;
   try {
-    const original = Buffer.from(authorization.slice(6), 'base64').toString('utf8');
-    const colon = original.indexOf(':');
-    if (colon < 0) return false;
-    const actualU = digest(original.slice(0, colon));
-    const actualP = digest(original.slice(colon + 1));
-    return timingSafeEqual(actualU, digest(username)) &&
-      timingSafeEqual(actualP, digest(password));
+    // Both credentials are cryptographically random, fixed-size hex strings.
+    // Compare the full Basic value in constant time; hashing a password with
+    // a fast, unsalted digest would trigger password-storage security warnings.
+    const supplied = Buffer.from(authorization.slice(6), 'base64');
+    const expected = Buffer.from(username + ':' + password, 'ascii');
+    if (supplied.length !== expected.length) return false;
+    return timingSafeEqual(supplied, expected);
   } catch { return false; }
 }
 
@@ -292,7 +291,12 @@ function main() {
     assert.equal(statSync(PRIVATE_CREDS).mode & 0o077, 0,
       'UAT853_PHONE_PRIVATE_FILE_PERMISSIONS_INVALID');
   }
-  const server = createPhoneGateway(credentials);
+  // Never use a hostname sourced from the credentials file for proxy headers.
+  // The trusted hostname comes from the running local Tailscale daemon;
+  // the private credential file is used only to authenticate the gateway.
+  const server = createPhoneGateway({
+    hostname, username: credentials.username, password: credentials.password,
+  });
   server.on('error', () => { console.error('UAT853_PHONE_LOCAL_PORT_UNAVAILABLE'); process.exitCode = 1; });
   server.listen(GATEWAY_PORT, '127.0.0.1', () => {
     console.log('PASS: Basic-auth QA gateway listening ONLY on 127.0.0.1:3001.');
