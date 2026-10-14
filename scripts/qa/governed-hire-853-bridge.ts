@@ -37,7 +37,7 @@ function safeEnvironment() {
   assert.equal(process.env.GITHUB_ACTIONS, "true");
   assert.equal(process.env.QA_URL, BASE);
   assert.equal(process.env.DEMO_MODE, "false");
-  assert.equal(process.env.NINE_STAGE_SYNTHETIC_CLOCK, "2026-09-30");
+  assert.match(process.env.NINE_STAGE_SYNTHETIC_CLOCK ?? "", /^\d{4}-\d{2}-\d{2}$/);
   for (const key of [
     "PAYMONGO_DISBURSEMENTS_ENABLED", "XENDIT_PAYOUTS_ENABLED",
     "XENDIT_PAYOUTS_LIVE_APPROVED", "WFM_PUNCH_EVIDENCE_ENABLED",
@@ -94,6 +94,9 @@ async function main() {
   assert.ok(auth.password && Number.isSafeInteger(auth.organizationId));
   const alpha = auth.organizationId;
   const beta = auth.otherOrganizationId;
+  const startDate = new Date(Date.parse(
+    process.env.NINE_STAGE_SYNTHETIC_CLOCK + "T00:00:00.000Z") + 86400000,
+  ).toISOString().slice(0, 10);
   const companyRows = await db.select({
     id: organizations.id, name: organizations.name,
   }).from(organizations);
@@ -146,7 +149,7 @@ async function main() {
     organizationId: alpha, employeeNo: "NINE-GOV-BYPASS",
     firstName: "Fictional", lastName: "DirectBypass", title: "Worker",
     region: "NCR", payBasis: "monthly", rateAmount: 28000,
-    startDate: "2026-10-01",
+    startDate: startDate,
   });
   assert.equal(direct.status, 409);
   assert.equal(direct.body.code, "HCM_GOVERNED_HIRE_REQUIRED");
@@ -174,7 +177,7 @@ async function main() {
   const hire = {
     applicantId: candidate.id, employeeNo: "NINE-GOV-002",
     firstName: "Fictional", lastName: "Governed",
-    startDate: "2026-10-01", region: "NCR",
+    startDate: startDate, region: "NCR",
     payBasis: "monthly", rateAmount: 28000,
     standardWorkDaysPerMonth: 22, standardHoursPerDay: 8,
   };
@@ -253,7 +256,7 @@ async function main() {
     db.select().from(positions).where(eq(positions.id, position.id)).limit(1),
   ]);
   assert.equal(worker.employeeNo, "NINE-GOV-002");
-  assert.equal(worker.startDate, "2026-10-01");
+  assert.equal(worker.startDate, startDate);
   assert.equal(payProfile.payBasis, "monthly");
   assert.equal(Number(payProfile.rateAmount), 28000);
   assert.equal(linkedCandidate.hiredEmployeeId, workerId);
@@ -265,7 +268,7 @@ async function main() {
     eq(positionAssignments.employeeId, workerId),
   )).limit(1);
   assert.equal(assignment?.positionId, position.id);
-  assert.equal(assignment?.effectiveFrom, "2026-10-01");
+  assert.equal(assignment?.effectiveFrom, startDate);
   const onboarding = await db.select().from(provisioningTasks).where(and(
     eq(provisioningTasks.organizationId, alpha),
     eq(provisioningTasks.employeeId, workerId),
