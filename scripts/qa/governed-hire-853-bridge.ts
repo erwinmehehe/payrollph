@@ -35,6 +35,7 @@ const report = {
 };
 function save() { writeFileSync(reportPath, JSON.stringify(report, null, 2) + "\n"); }
 const { fixtureClockOffset } = createRequire(import.meta.url)("./synthetic-session-clock.cjs");
+const { boundedSyntheticLoginWaitMs } = createRequire(import.meta.url)("./governed-hire-auth-backoff.cjs");
 function safeEnvironment() {
   // performance uses the real host clock even under the guarded Date preload.
   fixtureClockOffset(process.env, Math.trunc(performance.timeOrigin + performance.now()));
@@ -70,21 +71,18 @@ class Client {
 }
 async function login(email: string, password: string) {
   const client = new Client();
-  // The preceding connected-payroll journey may legitimately exhaust the
-  // same localhost IP's one-minute login budget. Respect the real 429 and
-  // retry once after its server-provided window; never weaken production
-  // throttling, forge request IPs, or bypass authentication.
-  let response = await client.json("/api/auth/login", "POST", { email, password });
-  if (response.status === 429) {
-    const retryAfterMs = Number(response.body.retryAfterMs);
-    assert.ok(Number.isFinite(retryAfterMs) && retryAfterMs >= 0 && retryAfterMs <= 60_000,
-      "Unexpected bounded login retry window in isolated synthetic acceptance");
-    await new Promise((resolve) => setTimeout(resolve, Math.ceil(retryAfterMs) + 350));
-    response = await client.json("/api/auth/login", "POST", { email, password });
+  let result = await client.json("/api/auth/login", "POST", { email, password });
+  if (result.status === 429) {
+    // The prior nine-stage and mobile tests share localhost IP rate limits.
+    // Wait for the *actual* limiter window once; never reset/disable it.
+    const wait = boundedSyntheticLoginWaitMs(result.status, result.body);
+    await new Promise<void>((resolve) => setTimeout(resolve, wait));
+    result = await client.json("/api/auth/login", "POST", { email, password });
   }
-  assert.equal(response.status, 200, "Synthetic login remained unavailable after bounded rate-limit retry");
-  const data = response.body;
-  assert.equal(data.user?.email, email);
+  assert.ok(result.status >= 200 && result.status < 300,
+    "POST /api/auth/login status=" + result.status +
+      " code=" + String(result.body.code ?? "unknown"));
+  assert.equal(result.body.user?.email, email);
   assert.ok(client.cookie, "Missing isolated browser-session login cookie");
   return client;
 }
