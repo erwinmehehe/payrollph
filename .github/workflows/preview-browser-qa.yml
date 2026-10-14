@@ -224,7 +224,7 @@ jobs:
             // A clipped child does not increase document.scrollWidth, so check
             // the embedded simulation CTA itself at narrow phone widths.
             if (name.startsWith("mobile")) {
-              const demoFrame = page.locator("#demo .ls-content").first();
+              const demoFrame = page.locator("#demo.lp-simulation").first();
               const primary = page.locator("#demo .ls-primary").filter({ hasText: "Continue payroll" }).first();
               check((await demoFrame.count()) === 1 && (await primary.count()) === 1,
                 `${name}: the phone payroll simulation is missing its primary action`);
