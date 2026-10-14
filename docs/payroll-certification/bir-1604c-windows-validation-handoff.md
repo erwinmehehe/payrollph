@@ -9,7 +9,7 @@ On a controlled Windows computer:
 3. In the official BIR application, select Form 1604-C, the synthetic employer/branch and tax year 2025. Attempt to import and validate the byte-identical DAT; record the actual messages. Synthetic TINs might be rejected by the official module; do not bypass that validation.
 4. Preserve the actual module version, validation date, file hash, complete report, redacted screenshots and person performing the test in restricted storage. Test invalid identities, dates, amounts and controls as separate negative cases.
 5. An independent authorized payroll/tax reviewer must review the unaltered original result and record yes/no, linking the same DAT SHA-256 and evidence reference. An unperformed or unreviewed run stays **not run**.
-6. Keep PR #959 draft and its release feature disabled until actual acceptance and independent review are evidenced. Official module validation is not proof of a filed or accepted BIR submission.
+6. Keep the already-merged #959 runtime flag disabled  until actual acceptance and independent review are evidenced. Official module validation is not proof of a filed or accepted BIR submission.
 
 Evidence record:
 
