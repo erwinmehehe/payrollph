@@ -95,6 +95,14 @@ export async function createConnectedGovernedWorker(input: {
     organizationId, employeeId, tin: "QA-TIN-1001", tinBranchCode: "0000",
     sssNo: "QA-SSS-1001", philHealthNo: "QA-PHIC-1001", pagIbigNo: "QA-HDMF-1001",
   });
+  // Initial fictional destination is a separate owner-authorized edit BEFORE
+  // any payroll entry exists. Never combine payout and government-ID edits.
+  const payout = await owner.json("/api/employees", "PATCH", {
+    organizationId, employeeId, bankAccount: "QA-ACCOUNT-NOT-REAL-01", bankCode: "BDO",
+    mobile: "QA-ONLY-0001", payoutChangeReason: "Fictional initial destination; no money movement",
+  });
+  assert.equal(payout.status, 200);
+  assert.notEqual(payout.body.pendingApproval, true);
   return { employeeId, applicantId: Number(candidate.id), businessProcessId,
     positionId: position.id, requisitionId: Number(requisition.id),
     positionSource: "approved-fixture-not-a-published-workforce-plan" };
