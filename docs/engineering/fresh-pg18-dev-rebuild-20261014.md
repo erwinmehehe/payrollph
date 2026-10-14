@@ -20,6 +20,15 @@ column order `(id, organization_id, employee_id)`. This is a logically
 equivalent tenant/employee-equality FK, **not removal of a security check**.
 PG catalog assertions verify both constraints still exist and match exactly.
 
+The first ordering attempt was **insufficient**: PG18 exact-head CI still
+reported a constraint-dependency error on the second push at SHA `115ba200`.
+To address Drizzle's composite-FK source-key reordering, the nullable
+`employee_hr_cases.coe_document_id` is now declared ahead of that table's
+`organization_id` and `employee_id` in the **new disposable development schema**.
+The tuple's referenced tenant/employee equality and the FK itself are unchanged.
+This is a candidate fix requiring a **fresh successful exact-head PG18 run**;
+do not claim reproducibility from the source diff alone.
+
 This is a **development source-schema change**, not permission to modify an
 existing production database or historical SQL receipts. Future production
 migration planning must reconcile any existing FK/key order separately.
