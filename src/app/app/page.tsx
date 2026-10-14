@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { LinawWorkspace } from "@/components/linaw-workspace";
 import { SelfServicePortal } from "@/components/self-service-portal";
 import { employeeHrCasesEnabled } from "@/lib/hr-case-activation";
+import { spendPayrollEnabled } from "@/lib/spend-claim-evidence";
 import { getSessionUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/dashboard-data";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, PEOPLE_PAYROLL_ROLES, primaryCompanyOrganizationId, primaryEmployeeOrganizationId } from "@/lib/access";
@@ -39,7 +40,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       const denied = await assertOrganizationSessionPolicy(user.id, employeeOrganizationId);
       if (denied) redirect("/login?ssoRequired=1");
     }
-    return <WorkflowUiProvider flags={resolveWorkflowUiFlags()}><SelfServicePortal hrCasesEnabled={employeeHrCasesEnabled()} /></WorkflowUiProvider>;
+    return <WorkflowUiProvider flags={resolveWorkflowUiFlags()}><SelfServicePortal hrCasesEnabled={employeeHrCasesEnabled()} spendEnabled={spendPayrollEnabled()} /></WorkflowUiProvider>;
   }
 
   const { organizationId: requestedValue, focusEmployeeId: requestedEmployeeId, workspacePage: requestedWorkspacePage } = await searchParams;
@@ -60,7 +61,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       const denied = await assertOrganizationSessionPolicy(user.id, employeeOrganizationId);
       if (denied) redirect("/login?ssoRequired=1");
     }
-    return <WorkflowUiProvider flags={resolveWorkflowUiFlags()}><SelfServicePortal hrCasesEnabled={employeeHrCasesEnabled()} /></WorkflowUiProvider>;
+    return <WorkflowUiProvider flags={resolveWorkflowUiFlags()}><SelfServicePortal hrCasesEnabled={employeeHrCasesEnabled()} spendEnabled={spendPayrollEnabled()} /></WorkflowUiProvider>;
   }
 
   // Newly self-registered company owners must authorize a successful

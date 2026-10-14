@@ -171,6 +171,154 @@ function isPinnedApplicantPrivacySource(files) {
     file.filename === expected.filename && file.status === expected.status && file.sha === expected.sha));
 }
 
+// Owner-approved #896 test-only source exception. Other frozen paths remain held.
+// Bind it to the exact reviewed Spend PR and head as well as immutable test blobs.
+// A new Spend commit requires a new source review; never infer pilot/production approval.
+const SPEND_NAVIGATION_APPROVED_PR = 896;
+const SPEND_NAVIGATION_APPROVED_HEAD = "25e025e695965e0320a52cee06372304bc39ad58";
+const SPEND_NAVIGATION_TEST_BLOBS = new Map([
+  ["tests/hcm-documents-policy-center.test.ts", "67e95f68dfa1166e8bd7fcf798d75d9fe28ba4b4"],
+  ["tests/performance-self-assessment.test.ts", "11b9dcae1fa140559db69a3ef078ea2286334d35"],
+]);
+function isPinnedSpendNavigationTests(files, frozenPaths) {
+  const candidates = files.filter(file => SPEND_NAVIGATION_TEST_BLOBS.has(file.filename));
+  return frozenPaths.length === 2 && candidates.length === 2
+    && new Set(candidates.map(file => file.filename)).size === 2
+    && frozenPaths.every(path => SPEND_NAVIGATION_TEST_BLOBS.has(path))
+    // No rename/copy may smuggle a previously frozen filename through the
+    // Set of frozen paths or rebind either pinned test to a new file.
+    && files.every(file => file.status !== "renamed" && file.status !== "copied"
+      && file.previous_filename == null)
+    && candidates.every(file => file.status === "modified"
+      && file.sha === SPEND_NAVIGATION_TEST_BLOBS.get(file.filename));
+}
+
+export function isApprovedSpendNavigationSource(pr, scope) {
+  return pr?.number === SPEND_NAVIGATION_APPROVED_PR &&
+    pr?.head?.sha === SPEND_NAVIGATION_APPROVED_HEAD &&
+    scope?.spendNavigationTests === true;
+}
+
+// Owner-approved #963 source-only isolation hardening. Complete diff and head
+// are immutable; this never lifts HCM runtime/worker or production holds.
+const HCM_ISOLATION_APPROVED_FILES = [
+  {
+    "filename": ".github/workflows/multi-entity-browser-qa.yml",
+    "status": "modified",
+    "sha": "8010de61b6ecd2cc07fba10a59c5a4d186a3a163"
+  },
+  {
+    "filename": "docs/qa/multi-entity-hcm-development-acceptance.md",
+    "status": "added",
+    "sha": "725af599a2a62ce7fb1f21b2e41f05760bed4bef"
+  },
+  {
+    "filename": "scripts/ess-profile-synthetic-browser.mjs",
+    "status": "modified",
+    "sha": "405381550ea44af4995dc6152981571b70858f11"
+  },
+  {
+    "filename": "scripts/hcm-request-lifecycle-browser.mjs",
+    "status": "modified",
+    "sha": "2bfc7cf619d0d75ee56ef17135414eb201c63bed"
+  },
+  {
+    "filename": "src/app/api/hcm/effective-changes/route.ts",
+    "status": "modified",
+    "sha": "fb4bd6692a33a2130f0ec369fedc854334e718db"
+  },
+  {
+    "filename": "src/app/api/hcm/lifecycle-readiness/route.ts",
+    "status": "modified",
+    "sha": "a093e0edcbfbed3d07752ee89717abc4a069810f"
+  },
+  {
+    "filename": "src/app/api/hcm/people-operations-inbox/route.ts",
+    "status": "modified",
+    "sha": "71d8f6510ceb2dce1316a04bebf0bff6553cf4e2"
+  },
+  {
+    "filename": "src/components/hcm-employment-lifecycle-action-center.tsx",
+    "status": "modified",
+    "sha": "fc7cd323e2ea1c851207cd3b3ff37ed33c4b8c80"
+  },
+  {
+    "filename": "src/components/hcm-people-operations-inbox.tsx",
+    "status": "modified",
+    "sha": "abf4a0cab717f41618913eb96f581ef2a95775d7"
+  },
+  {
+    "filename": "src/components/workspace/people.tsx",
+    "status": "modified",
+    "sha": "66265f277742ec0159a7699fe367cba63687ce48"
+  },
+  {
+    "filename": "src/lib/hcm-client-employer-scope.ts",
+    "status": "added",
+    "sha": "5d85973f9b5a95767a0e63644aa2ec4413094eff"
+  },
+  {
+    "filename": "src/lib/hcm-effective-changes.ts",
+    "status": "modified",
+    "sha": "5e11f82d184a135012955ddee79998ac0fa4481d"
+  },
+  {
+    "filename": "src/lib/hcm-lifecycle-readiness-server.ts",
+    "status": "modified",
+    "sha": "2c4665b9ddf691a615dd75484d41c47495f48730"
+  },
+  {
+    "filename": "src/lib/hcm-people-operations-inbox-server.ts",
+    "status": "modified",
+    "sha": "6a86c8c719f21deba0b97372a273450274475207"
+  },
+  {
+    "filename": "tests/fixtures/hcm-request-lifecycle.jsx",
+    "status": "modified",
+    "sha": "90681980f7bb997a4fa13bf1b101d04e10a778b5"
+  },
+  {
+    "filename": "tests/hcm-client-employer-scope.test.ts",
+    "status": "added",
+    "sha": "a9776ee4f4211f57ec4016fcf1cfca8a565e6205"
+  },
+  {
+    "filename": "tests/hcm-people-intelligence.test.ts",
+    "status": "modified",
+    "sha": "e6dd544c5597bf4a31586fe12723edfa9ad31893"
+  },
+  {
+    "filename": "tests/hcm-people-operations-inbox.test.ts",
+    "status": "modified",
+    "sha": "bc3d6fe973449b480745675741d642a9031d38bb"
+  },
+  {
+    "filename": "tests/hcm-people-ops-daily-triage.test.ts",
+    "status": "modified",
+    "sha": "0d01a88ba391588c6c6001fb5ba87b260e2a0960"
+  },
+  {
+    "filename": "tests/multi-entity-isolation-db.test.ts",
+    "status": "modified",
+    "sha": "361ba2cfcd23e12df3773794ac6439df2767c34a"
+  },
+  {
+    "filename": "tests/workforce-enterprise-analytics.test.ts",
+    "status": "modified",
+    "sha": "36abb56cf1fd137c2a174b15984e3ace011bf834"
+  }
+];
+export function isApprovedHcmIsolationSource(pr, files) {
+  return pr?.number === 963
+    && pr?.head?.sha === "2c0dc90e1cc6994928cd43eaabe250380ca554ce"
+    && files.length === HCM_ISOLATION_APPROVED_FILES.length
+    && new Set(files.map(file => file.filename)).size === files.length
+    && files.every(file => file.previous_filename == null)
+    && HCM_ISOLATION_APPROVED_FILES.every(expected => files.some(file =>
+      file.filename === expected.filename && file.status === expected.status
+      && file.sha === expected.sha));
+}
+
 // Authorized source-only exception candidate: PR #886 at SHA 573dee55628e5898b174656020bb752a98a65d30.
 // Exact immutable blob/status/path set only. Does NOT certify HR/DPO approval,
 // a production migration, a pilot start, or any HCM/WFM feature activation.
@@ -208,6 +356,11 @@ function isPinnedHcm886SurveyAuditFix(files) {
   return HCM886_AUDIT_PINNED_FILES.every(expected => files.some(file =>
     file.filename === expected.filename && file.status === expected.status &&
     file.sha === expected.sha && !Object.hasOwn(file, "previous_filename")));
+}
+
+export function isApprovedHcm886SurveyAuditSource(pr, scope) {
+  return pr?.number === 886 && pr?.head?.sha === HCM886_AUDIT_HEAD_SHA &&
+    scope?.hcm886SurveyAuditFix === true;
 }
 
 const FROZEN_LANES = [
@@ -265,6 +418,7 @@ export function classifyReviewScope(files) {
   const hcmIntakeRegressionDevEvidence = isPinnedHcmIntakeRegressionDevEvidence(files);
   const applicantPrivacySource = isPinnedApplicantPrivacySource(files);
   const hcm886SurveyAuditFix = isPinnedHcm886SurveyAuditFix(files);
+  const spendNavigationTests = isPinnedSpendNavigationTests(files, frozenPaths);
   const sensitivePaths = list.filter(path =>
     ALWAYS_SENSITIVE.some(regex => regex.test(path)) ||
     ["T2", "T3"].includes(tierForPath(path)));
@@ -279,6 +433,7 @@ export function classifyReviewScope(files) {
     hrDocumentLegacyCompatibility,
     applicantPrivacySource,
     hcm886SurveyAuditFix,
+    spendNavigationTests,
     sensitiveFileCount: sensitivePaths.length,
     frozenFileCount: frozenPaths.length,
   };
@@ -333,13 +488,10 @@ export function evaluateIndependentReview({
     refuse("PR_HEAD_OR_FILE_SET_UNVERIFIED");
   }
   const scope = classifyReviewScope(files);
-  const approved886SourceOnly = pr.number === 886 &&
-    pr.head.sha === HCM886_AUDIT_HEAD_SHA && scope.hcm886SurveyAuditFix;
   const blockers = [];
   if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
       !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
-       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource &&
-       !approved886SourceOnly &&
+       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !isApprovedSpendNavigationSource(pr, scope) && !isApprovedHcmIsolationSource(pr, files) && !isApprovedHcm886SurveyAuditSource(pr, scope) &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {

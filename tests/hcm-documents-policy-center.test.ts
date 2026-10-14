@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { employeeNavigationTabs, EMPLOYEE_PAGE_LABELS } from "../src/lib/employee-navigation";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -134,8 +135,8 @@ test("Documents workspace exposes policy, acknowledgement, missing-doc and renew
 });
 
 test("employee self-service includes Documents and only acknowledges its own assignment", () => {
-  assert.ok(employeePortal.includes('documents: { label: "Documents"'));
-  assert.ok(employeePortal.includes('ESS_MORE_TABS: SelfTab[] = ["documents", "performance", "profile"]'));
+  assert.equal(EMPLOYEE_PAGE_LABELS.documents.label, "Documents");
+  assert.ok(employeeNavigationTabs().moreTabs.includes("documents"));
   assert.ok(employeePortal.includes("<EmployeeDocumentsPanel"));
   assert.ok(employeePanel.includes("I acknowledge that I have received and read this exact policy version."));
   assert.ok(employeePanel.includes("/api/self/documents"));

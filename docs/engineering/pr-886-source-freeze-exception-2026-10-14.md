@@ -17,3 +17,10 @@ The corrections fix the already-default-OFF engagement-survey atomic audit, conf
 **Controls retained:** unchanged `PILOT_HCM_WFM_STARTED` and `PILOT_START_EVIDENCE_REF`; only the exact #886 audited bytes bypass the freeze. Any changed head, file, status, rename or extra file fails closed. Existing GitHub branch rules, exact-head CI, risk classification, author/stale-review policies and configured independent approvals still apply. In strict mode the PR remains blocked while draft or without human approval.
 
 Review `scripts/lib/independent-pr-review-policy.mjs`, `scripts/check-independent-pr-review.mjs`, and `tests/independent-pr-review-gate.test.mjs`. Run `node --test tests/independent-pr-review-gate.test.mjs` and applicable full CI. Do not bypass a failed protection check. Once policy is merged, rerun the trusted-main review workflow for #886 and reevaluate the effective diff against current main.
+
+## 14 October 2026 reconciliation and regression repair
+
+- Integrated current trusted `main` without a force update, preserving the already approved Spend #896/#981 and multi-entity HCM #963 policy exceptions and unrelated code.
+- The previous fake #886 GitHub API fixture returned its default `aaaaaaaa...` head, which the review gate correctly rejected. All positive and negative cases now pass the exact pinned `573dee55628e5898b174656020bb752a98a65d30` head to the existing test adapter.
+- New negative test asserts that a future #886 head cannot reuse this source exception. Different PR numbers, changed blobs, added or renamed files, and extra code also remain frozen.
+- No pilot-start flags, production migrations, feature activation, live data, payroll, payout, or production release changes are authorized.

@@ -14,7 +14,10 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { effectiveHcmSourceDrift, effectiveHcmTargetDrift } from "@/lib/hcm-effective-source-integrity";
-import { applyWorkerEffectiveChange, philippineBusinessDate } from "@/lib/hcm-effective-changes";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { multiEntityHcmDeferred } from "@/lib/multi-entity-hcm-hold";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
+import { applyWorkerEffectiveChange, philippineBusinessDate, validHcmIsoDate } from "@/lib/hcm-effective-changes";
 import {
   cancelHcmBusinessProcessForSourceTx,
   findHcmBusinessProcessForSource,
@@ -42,12 +45,18 @@ const MOVEMENT_TYPES = [
 ] as const;
 const EMPLOYEE_STATUSES = ["Active", "On leave"] as const;
 
-function isoDate(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
 function owns(body: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(body, key);
+}
+
+// The proxy is an outer defense, not permission for direct route invocations.
+// Keep all HCM decisions unavailable while the multi-entity pilot is frozen.
+function rejectDeferredHcm(): Response | null {
+  if (!multiEntityHcmDeferred()) return null;
+  return Response.json({
+    error: "HCM APIs are unavailable until multi-entity employer isolation is reviewed.",
+    code: "ENTITY_HCM_DEFERRED",
+  }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
 }
 
 async function assertCompanyWidePeople(userId: number, organizationId: number) {
@@ -59,6 +68,13 @@ async function assertCompanyWidePeople(userId: number, organizationId: number) {
   );
   if (denied) return { error: denied };
   const access = await getAccess(userId, organizationId);
+  const entityScope = await resolveMultiEntityContext({ userId, organizationId });
+  if (!entityScope.ok) return { error: entityScope.response };
+  if (entityScope.context.enabled && !entityScope.context.group) {
+    return { error: Response.json({
+      error: "Entity-scoped users must use the approved legal-employer transfer process and their own scoped People views.",
+    }, { status: 403 }) };
+  }
   if (!access?.companyWide) {
     return { error: Response.json({
       error: "Scheduled effective-dated employment changes require company-wide People access.",
@@ -68,12 +84,15 @@ async function assertCompanyWidePeople(userId: number, organizationId: number) {
 }
 
 export async function GET(request: Request) {
+  const deferred = rejectDeferredHcm();
+  if (deferred) return deferred;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
   const employeeId = url.searchParams.get("employeeId") ? Number(url.searchParams.get("employeeId")) : null;
-  if (!Number.isInteger(organizationId) || (employeeId !== null && !Number.isInteger(employeeId))) {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0
+    || (employeeId !== null && (!Number.isSafeInteger(employeeId) || employeeId <= 0))) {
     return Response.json({ error: "A valid organizationId and optional employeeId are required." }, { status: 400 });
   }
 
@@ -89,10 +108,13 @@ export async function GET(request: Request) {
         ),
   ).orderBy(desc(workerEffectiveChanges.effectiveDate), desc(workerEffectiveChanges.id));
 
-  return Response.json({ changes: rows, today: philippineBusinessDate() });
+  return Response.json({ changes: rows, today: philippineBusinessDate() },
+    { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
+  const deferred = rejectDeferredHcm();
+  if (deferred) return deferred;
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
   const user = await getSessionUser();
@@ -104,7 +126,9 @@ export async function POST(request: Request) {
   const effectiveDate = String(body.effectiveDate ?? "").trim();
   const movementType = String(body.movementType ?? "job_change").trim().toLowerCase();
   const reason = String(body.reason ?? "").trim();
-  if (!Number.isInteger(organizationId) || !Number.isInteger(employeeId) || !isoDate(effectiveDate) || reason.length < 3) {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0
+    || !Number.isSafeInteger(employeeId) || employeeId <= 0
+    || !validHcmIsoDate(effectiveDate) || reason.length < 3) {
     return Response.json({ error: "organizationId, employeeId, effectiveDate, and a reason are required." }, { status: 400 });
   }
   if (!MOVEMENT_TYPES.includes(movementType as (typeof MOVEMENT_TYPES)[number])) {
@@ -167,7 +191,7 @@ export async function POST(request: Request) {
     if (owns(body, bodyKey)) changes[changeKey] = body[bodyKey] === "" ? null : body[bodyKey];
   }
 
-  if (targetPositionId !== null && !Number.isInteger(targetPositionId)) {
+  if (targetPositionId !== null && (!Number.isSafeInteger(targetPositionId) || targetPositionId <= 0)) {
     return Response.json({ error: "targetPositionId must be a valid position id." }, { status: 400 });
   }
   if (targetFte !== null && (!Number.isFinite(targetFte) || targetFte <= 0 || targetFte > 1)) {
@@ -243,6 +267,16 @@ export async function POST(request: Request) {
     )).limit(1);
     if (incumbent) return Response.json({ error: "The target position already has an active incumbent." }, { status: 409 });
   }
+  if (criticalReleaseFlagEnabled("multiEntity") && (
+    movementType === "legal_employer_change"
+    || owns(changes, "legalEntityId")
+    || (targetPosition?.legalEntityId != null && targetPosition.legalEntityId !== employee.legalEntityId)
+  )) {
+    return Response.json({
+      error: "Legal-employer moves require the effective-dated transfer maker-checker process.",
+      code: "ENTITY_TRANSFER_REQUIRES_APPROVAL",
+    }, { status: 409 });
+  }
 
   const integerTargets: Array<[string, unknown]> = [
     ["orgUnitId", changes.orgUnitId],
@@ -254,7 +288,9 @@ export async function POST(request: Request) {
   for (const [key, raw] of integerTargets) {
     if (!owns(changes, key) || raw === null) continue;
     const id = Number(raw);
-    if (!Number.isInteger(id)) return Response.json({ error: `${key} must be a valid id or null.` }, { status: 400 });
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      return Response.json({ error: `${key} must be a valid positive id or null.` }, { status: 400 });
+    }
   }
 
   if (owns(changes, "orgUnitId") && changes.orgUnitId !== null) {
@@ -438,6 +474,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const deferred = rejectDeferredHcm();
+  if (deferred) return deferred;
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
   const user = await getSessionUser();
@@ -446,7 +484,7 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const id = Number(body.id);
   const action = String(body.action ?? "").trim().toLowerCase();
-  if (!Number.isInteger(id) || !["approve", "decline", "cancel", "retry"].includes(action)) {
+  if (!Number.isSafeInteger(id) || id <= 0 || !["approve", "decline", "cancel", "retry"].includes(action)) {
     return Response.json({ error: "A valid change id and approve/decline/cancel/retry action are required." }, { status: 400 });
   }
 
@@ -454,7 +492,11 @@ export async function PATCH(request: Request) {
   if (!change) return Response.json({ error: "Effective-dated HCM change not found." }, { status: 404 });
 
   const gate = await assertCompanyWidePeople(user.id, change.organizationId);
-  if ("error" in gate) return gate.error;
+  // A guessed HCM record ID must not disclose whether another tenant has it.
+  // Return the same response as a missing record for all unauthorized callers.
+  if ("error" in gate) return Response.json({
+    error: "Effective-dated HCM change not found.",
+  }, { status: 404, headers: { "Cache-Control": "private, no-store" } });
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
   const rateDenied = await enforceSensitiveActionRateLimit(request, {

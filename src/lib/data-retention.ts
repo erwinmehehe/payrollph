@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { purgeExpiredRejectedApplicants } from "@/lib/recruitment-applicant-retention";
 import { leadRetentionCutoff } from "./lead-retention-policy";
 import { sweepPendingCoeObjects } from "@/lib/hr-case-coe-object-reconciliation";
+import { sweepPendingSpendReceipts } from "@/lib/spend-receipt-object-reconciliation";
 import {
   emailChangeTokens,
   marketingLeads,
@@ -156,9 +157,12 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
   const applicantPrivacy = await purgeExpiredRejectedApplicants(new Date(now));
   // Preserve main's flag-rollback cleanup of unreadable pending COE objects.
   const pendingCoeObjectRecovery = await sweepPendingCoeObjects(new Date(now));
+  // Recover uncommitted Spend receipts, even when the A4 flag was rolled back.
+  const pendingSpendReceiptRecovery = await sweepPendingSpendReceipts(new Date(now));
   return {
     ...(applicantPrivacy.enabled ? { applicantPrivacyPurged: applicantPrivacy.purged } : {}),
     pendingCoeObjectRecovery,
+    pendingSpendReceiptRecovery,
     sessions: deletedSessions.length,
     passwordResetTokens: deletedPasswordTokens.length,
     emailChangeTokens: deletedEmailTokens.length,
