@@ -2,16 +2,50 @@ import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
 
 export function approvedReimbursementAmount(value: unknown, submitted: unknown): string | null {
   const cents = storedMoneyCentavos(value), cap = storedMoneyCentavos(submitted);
-  return cents !== null && cap !== null && cents > 0 && cents <= cap ? (cents / 100).toFixed(2) : null;
+  return cents !== null && cap !== null && cents > 0 && cents <= cap && cap <= 999999999999 ? (cents / 100).toFixed(2) : null;
 }
 export type ReimbursementClaimSnapshot = {
-  status: string; payrollRunId: number | null; amount: unknown; approvedAmount: unknown;
-  categoryPolicyId: number | null; receiptStorageKey: string | null; receiptSha256: string | null;
+  status: string; payrollRunId: number | null; amount: unknown; approvedAmount?: unknown;
+  categoryPolicyId?: number | null; receiptStorageKey?: string | null; receiptSha256?: string | null;
+  organizationId?: number; employeeId?: number; submittedByUserId?: number | null;
+  approvedByUserId?: number | null; approvedAt?: Date | null; policyMatched?: boolean;
+  receiptByteSize?: number | null; receiptVerifiedAt?: Date | null;
 };
 export function reimbursementEligible(claim: ReimbursementClaimSnapshot, strict: boolean): boolean {
   return claim.status === "approved" && claim.payrollRunId == null &&
-    (!strict || (claim.categoryPolicyId != null && !!claim.receiptStorageKey && !!claim.receiptSha256 &&
+    (!strict || (claim.policyMatched === true && claim.categoryPolicyId != null &&
+      !!claim.receiptStorageKey && receiptObjectIdentityMatches(claim.receiptStorageKey,
+        claim.organizationId ?? 0, claim.employeeId ?? 0) && /^[a-f0-9]{64}$/.test(claim.receiptSha256 ?? "") &&
+      Number.isSafeInteger(claim.submittedByUserId) && Number(claim.submittedByUserId) > 0 &&
+      Number.isSafeInteger(claim.approvedByUserId) && Number(claim.approvedByUserId) > 0 &&
+      claim.submittedByUserId !== claim.approvedByUserId && claim.approvedAt instanceof Date &&
+      Number.isFinite(claim.approvedAt.getTime()) && claim.receiptVerifiedAt instanceof Date &&
+      Number.isFinite(claim.receiptVerifiedAt.getTime()) &&
+      Number.isSafeInteger(claim.receiptByteSize) && Number(claim.receiptByteSize) > 0 && Number(claim.receiptByteSize) <= 5242880 &&
       approvedReimbursementAmount(claim.approvedAmount, claim.amount) !== null));
+}
+
+/** Uses existing ordinary supplementary earnings; calculator math is unchanged. */
+export function reimbursementPayrollInputs(claims: Array<ReimbursementClaimSnapshot & {
+  id: number; category: string; description: string; incurredOn: string; taxable?: boolean;
+}>, enabled: boolean) {
+  if (enabled && claims.some(claim => !reimbursementEligible(claim, true))) {
+    throw new Error("APPROVED_EXPENSE_EVIDENCE_REQUIRED");
+  }
+  const legacy = claims.map(claim => ({ id: claim.id, category: claim.category,
+    description: claim.description, amount: Number(claim.amount), incurredOn: String(claim.incurredOn) }));
+  return {
+    expenses: enabled ? [] : legacy,
+    supplementaryEarnings: enabled ? claims.filter(claim => reimbursementEligible(claim, true)).map(claim => ({
+      id: claim.id, code: "EXP-" + claim.id, earningType: "expense_reimbursement",
+      label: "Expense, " + claim.category, amount: Number(claim.approvedAmount), taxable: claim.taxable === true,
+      includeInSssBase: false, includeInPagIbigBase: false,
+      notes: ["Description: " + claim.description, "Incurred: " + claim.incurredOn,
+        claim.taxable ? "Taxable reimbursement" : "Non-taxable reimbursement",
+        "Receipt SHA-256: " + claim.receiptSha256, "Expense policy: " + claim.categoryPolicyId,
+        "Expense approval: " + claim.approvedByUserId],
+    })) : [],
+  };
 }
 export function reimbursementSettlementDecision(
   claim: ReimbursementClaimSnapshot, runId: number, lineAmount: unknown, strict: boolean,
@@ -37,7 +71,7 @@ export function receiptObjectIdentityMatches(key: string, organizationId: number
 
 /** A private receipt is immutable after initial scan, before claim approval. */
 export function claimCanAttachReceipt(claim: {
-  status: string; payrollRunId: number | null; receiptStorageKey: string | null;
+  status: string; payrollRunId: number | null; receiptStorageKey?: string | null;
 }): boolean {
   return claim.status === "pending" && claim.payrollRunId === null && claim.receiptStorageKey === null;
 }
@@ -46,4 +80,12 @@ export function claimCanAttachReceipt(claim: {
 export function reimbursementLineTaxMatches(taxable: boolean, notes: readonly string[]): boolean {
   const markers = notes.filter(note => note === "Taxable reimbursement" || note === "Non-taxable reimbursement");
   return markers.length === 1 && markers[0] === (taxable ? "Taxable reimbursement" : "Non-taxable reimbursement");
+}
+
+export function reimbursementLineEvidenceMatches(claim: ReimbursementClaimSnapshot, notes: readonly string[]) {
+  return ["Receipt SHA-256: " + claim.receiptSha256, "Expense policy: " + claim.categoryPolicyId,
+    "Expense approval: " + claim.approvedByUserId].every(marker => notes.filter(note => note === marker).length === 1) &&
+    notes.filter(note => note.startsWith("Receipt SHA-256: ")).length === 1 &&
+    notes.filter(note => note.startsWith("Expense policy: ")).length === 1 &&
+    notes.filter(note => note.startsWith("Expense approval: ")).length === 1;
 }

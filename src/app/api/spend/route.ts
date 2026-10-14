@@ -1,13 +1,14 @@
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employees, expenseCategoryPolicies, expenseClaims, expenseReports, expenseReportItems, spendCards, spendCardTransactions } from "@/db/schema";
+import { auditEvents, employees, expenseCategoryPolicies, expenseClaimEvidence, expenseClaims, expenseReports, expenseReportItems, spendCards, spendCardTransactions } from "@/db/schema";
 import { assertOrganizationRole, assertScope, getAccess, ORG_ADMIN_ROLES, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { enforceSameOriginMutation, requireSensitiveActionMfa, enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
 import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { assertSpendModeAvailable, loadSpendClaimEvidence, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
 import { approvedReimbursementAmount } from "@/lib/spend-payroll-reimbursement";
 
 export const dynamic = "force-dynamic";
@@ -65,11 +66,10 @@ export async function GET(request: Request) {
       return { ...r, claimIds, reimbursementStatus };
     }),
     unreportedClaims: claims.filter(c => visible.has(c.employeeId) && c.status === "pending" && !items.some(i => i.claimId === c.id)),
-    spendPayrollEnabled: criticalReleaseFlagEnabled("spendPayroll"),
-    canReviewCategories: criticalReleaseFlagEnabled("spendPayroll") &&
+    ...(spendPayrollEnabled() ? { spendPayrollEnabled: true,
+    canReviewCategories:
       context.access!.companyWide && ["owner", "admin"].includes(context.access!.role),
-    categoryPolicies: criticalReleaseFlagEnabled("spendPayroll") ?
-      await db.select().from(expenseCategoryPolicies).where(eq(expenseCategoryPolicies.organizationId, organizationId)) : [],
+    categoryPolicies: await db.select().from(expenseCategoryPolicies).where(eq(expenseCategoryPolicies.organizationId, organizationId)) } : {}),
   });
 }
 
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   const access = context.access!;
   const action = String(body.action ?? "");
   if (action === "category_policy") {
-    if (!criticalReleaseFlagEnabled("spendPayroll")) return Response.json({ error: "Policy review is disabled." }, { status: 404 });
+    if (!spendPayrollEnabled()) return Response.json({ error: "Policy review is disabled." }, { status: 404 });
     const denied = await assertOrganizationRole(user.id, organizationId, ORG_ADMIN_ROLES);
     if (denied) return denied;
     if (!access.companyWide || !["owner", "admin"].includes(access.role)) {
@@ -106,14 +106,18 @@ export async function POST(request: Request) {
       reviewReference.length < 8 || reviewReference.length > 200) {
       return Response.json({ error: "Valid category, taxable flag, and audit reference required." }, { status: 422 });
     }
-    const [row] = await db.insert(expenseCategoryPolicies).values({
+    const row = await db.transaction(async tx => {
+    const [created] = await tx.insert(expenseCategoryPolicies).values({
       organizationId, category, taxable: body.taxable, reviewReference, reviewedByUserId: user.id,
     }).onConflictDoNothing().returning();
-    if (!row) return Response.json({ error: "Category is already reviewed. Tax changes require a new governed policy." }, { status: 409 });
-    await recordAuditEvent({
+    if (!created) return null;
+    await tx.insert(auditEvents).values({
       organizationId, actor: user.name, action: "Expense category tax treatment approved",
-      resource: String(row.id), metadata: { category, taxable: row.taxable, reviewReference, reviewedByUserId: user.id },
+      resource: String(created.id), metadata: { category, taxable: created.taxable, reviewReference, reviewedByUserId: user.id },
     });
+    return created;
+    });
+    if (!row) return Response.json({ error: "Category is already reviewed. Tax changes require a new governed policy." }, { status: 409 });
     return Response.json(row, { status: 201 });
   }
   if (action === "card") {
@@ -213,22 +217,33 @@ export async function PATCH(request: Request) {
     const items = await tx.select().from(expenseReportItems).where(and(eq(expenseReportItems.organizationId, existing.organizationId), eq(expenseReportItems.reportId, id)));
     if (!items.length) throw new Error("Report has no claims.");
     const claimIds = items.map(i => i.claimId);
-    const spendEnabled = criticalReleaseFlagEnabled("spendPayroll");
+    const spendEnabled = spendPayrollEnabled();
+    if (!spendEnabled) {
+      const legacyClaims = await tx.select().from(expenseClaims).where(and(
+        eq(expenseClaims.organizationId, existing.organizationId), inArray(expenseClaims.id, claimIds),
+      ));
+      await assertSpendModeAvailable(tx, legacyClaims);
+    }
     if (spendEnabled && status === "approved") {
-      const claims = await tx.select().from(expenseClaims).where(and(
+      const coreClaims = await tx.select().from(expenseClaims).where(and(
         eq(expenseClaims.organizationId, existing.organizationId),
         eq(expenseClaims.employeeId, existing.employeeId),
         inArray(expenseClaims.id, claimIds),
-      ));
+      )).orderBy(expenseClaims.id).for("update");
+      const claims = await loadSpendClaimEvidence(tx, coreClaims);
       if (claims.length !== claimIds.length || claims.some(claim =>
-        !claim.receiptStorageKey || !claim.receiptSha256 || claim.categoryPolicyId == null ||
+        !claim.receiptStorageKey || !claim.receiptSha256 || !claim.receiptVerifiedAt ||
+        claim.policyMatched !== true || claim.categoryPolicyId == null ||
+        !claim.submittedByUserId || claim.submittedByUserId === user.id ||
         approvedReimbursementAmount(claim.amount, claim.amount) === null)) {
         throw new Error("Each claim requires a scanned receipt and reviewed tax category before report approval.");
       }
+      for (const claim of claims) await tx.update(expenseClaimEvidence).set({
+        approvedAmount: approvedReimbursementAmount(claim.amount, claim.amount), approvedByUserId: user.id, approvedAt: new Date(),
+      }).where(and(eq(expenseClaimEvidence.claimId, claim.id), eq(expenseClaimEvidence.organizationId, existing.organizationId)));
     }
     const rows = await tx.update(expenseClaims).set({
       status: status, decidedBy: user.name,
-      ...(spendEnabled ? { approvedAmount: status === "approved" ? sql`${expenseClaims.amount}` : null } : {}),
     }).where(and(
       eq(expenseClaims.organizationId, existing.organizationId), eq(expenseClaims.employeeId, existing.employeeId),
       inArray(expenseClaims.id, claimIds), eq(expenseClaims.status, "pending"),

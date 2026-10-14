@@ -97,7 +97,7 @@ export function SpendOperationsPanel({ organizationId, setNotice }: { organizati
         </button>
       </form>}
     </div>}
-    <ExpensesPanel organizationId={organizationId} setNotice={setNotice} />
+    <ExpensesPanel organizationId={organizationId} setNotice={setNotice} reviewModeEnabled={data.spendPayrollEnabled === true} />
     <div className="card" style={{ padding: 18 }}>
       <h3>Corporate card register</h3>
       <form onSubmit={async e => { e.preventDefault(); if (await write("POST", { action: "card", issuer, lastFour, employeeId: cardEmployeeId || null })) { setIssuer(""); setLastFour(""); } }} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

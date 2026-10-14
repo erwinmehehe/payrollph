@@ -5,6 +5,8 @@ import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 const claim = { status: "approved", payrollRunId: null, amount: "500.00", approvedAmount: "450.01",
   categoryPolicyId: 8, receiptStorageKey: "private-documents/1/2/00000000-0000-4000-8000-000000000001",
   receiptSha256: "a".repeat(64) };
+Object.assign(claim, { organizationId: 1, employeeId: 2, submittedByUserId: 1, approvedByUserId: 2,
+  approvedAt: new Date(), policyMatched: true, receiptByteSize: 8, receiptVerifiedAt: new Date() });
 test("spend to payroll stays off until explicitly enabled", () => {
   assert.equal(criticalReleaseFlagEnabled("spendPayroll", {}), false);
   assert.equal(criticalReleaseFlagEnabled("spendPayroll", { SPEND_PAYROLL_REIMBURSEMENTS_ENABLED: "TRUE" }), false);

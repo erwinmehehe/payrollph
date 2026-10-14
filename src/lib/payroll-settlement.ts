@@ -1,7 +1,7 @@
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { reimbursementLineTaxMatches, reimbursementSettlementDecision, receiptObjectIdentityMatches } from "@/lib/spend-payroll-reimbursement";
+import { assertSpendModeAvailable, loadSpendClaimEvidence, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
+import { reimbursementLineEvidenceMatches, reimbursementLineTaxMatches, reimbursementSettlementDecision, receiptObjectIdentityMatches } from "@/lib/spend-payroll-reimbursement";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
 import { exactLoanPaymentReplayMatches, payrollLoanPosting } from "@/lib/payroll-loan-settlement";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
@@ -407,37 +407,34 @@ export async function settlePayrollRun(
       for (const line of storedLines(entry.lineItems)) {
         const expenseId = numericId(line.code, "EXP-");
         if (expenseId) {
-          if (criticalReleaseFlagEnabled("spendPayroll")) {
+          if (spendPayrollEnabled()) {
             if (seenExpenseClaimIds.has(expenseId)) {
               throw new Error("The payroll register contains duplicate expense reimbursement " + expenseId + ".");
             }
             seenExpenseClaimIds.add(expenseId);
           }
-          const [claim] = await tx
+          const claimQuery = tx
             .select()
             .from(expenseClaims)
             .where(and(
               eq(expenseClaims.id, expenseId),
               eq(expenseClaims.organizationId, run.organizationId),
-            ))
-            .limit(1);
+            ));
+          const [coreClaim] = spendPayrollEnabled() ? await claimQuery.for("update").limit(1) : await claimQuery.limit(1);
+          if (coreClaim?.status === "approved") await assertSpendModeAvailable(tx, [coreClaim]);
+          const [claim] = coreClaim ? await loadSpendClaimEvidence(tx, [coreClaim]) : [];
           if (!claim || claim.employeeId !== entry.employeeId) {
             throw new Error(`Expense claim ${expenseId} no longer matches this payroll entry.`);
           }
-          if (criticalReleaseFlagEnabled("spendPayroll")) {
+          if (spendPayrollEnabled()) {
             if (!claim.receiptStorageKey || !receiptObjectIdentityMatches(
                 claim.receiptStorageKey, claim.organizationId, claim.employeeId)) {
               throw new Error("Expense claim " + expenseId + " receipt belongs to another employer or worker.");
             }
-            if (!reimbursementLineTaxMatches(claim.taxable, line.notes)) {
+            if (!reimbursementLineTaxMatches(claim.taxable === true, line.notes) || !reimbursementLineEvidenceMatches(claim, line.notes)) {
               throw new Error("Expense claim " + expenseId + " has a different taxable policy from its approved payslip.");
             }
-            const decision = reimbursementSettlementDecision({
-              status: claim.status, payrollRunId: claim.payrollRunId,
-              amount: claim.amount, approvedAmount: claim.approvedAmount,
-              categoryPolicyId: claim.categoryPolicyId,
-              receiptStorageKey: claim.receiptStorageKey, receiptSha256: claim.receiptSha256,
-            }, run.id, line.amount, true);
+            const decision = reimbursementSettlementDecision(claim, run.id, line.amount, true);
             if (decision === "already_settled") continue;
             if (decision !== "settle") {
               throw new Error(`Expense claim ${expenseId} cannot settle: ${decision}. Recalculate before release.`);

@@ -1,21 +1,22 @@
 import { createHash } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employees, expenseClaims } from "@/db/schema";
+import { auditEvents, employees, expenseClaimEvidence, expenseClaims } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { loadSpendClaimEvidence, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
 import {
   documentObjectKey, putDocumentObject, deleteDocumentObject,
-  documentStorageConfig, signedDocumentObjectUrl,
 } from "@/lib/document-object-storage";
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
-import { enforceSameOriginMutation, enforceSensitiveActionRateLimit } from "@/lib/security-request";
+import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
 import { claimCanAttachReceipt, receiptObjectIdentityMatches } from "@/lib/spend-payroll-reimbursement";
+import { readVerifiedSpendReceipt } from "@/lib/spend-receipt-storage";
 
 export const dynamic = "force-dynamic";
-const enabled = () => criticalReleaseFlagEnabled("spendPayroll") &&
+const enabled = () => spendPayrollEnabled() &&
   criticalReleaseFlagEnabled("employeeDocumentVault") && documentUploadsEnabled();
 const unavailable = () => Response.json({ error: "Private reimbursement receipts are not enabled." }, { status: 404 });
 const validId = (v: number) => Number.isSafeInteger(v) && v > 0;
@@ -46,10 +47,13 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const id = Number(new URL(request.url).searchParams.get("claimId"));
   if (!validId(id)) return Response.json({ error: "Valid claimId required." }, { status: 422 });
-  const [claim] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, id)).limit(1);
-  if (!claim) return Response.json({ error: "Receipt not found." }, { status: 404 });
-  const denied = await authorize(user, claim);
+  const [core] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, id)).limit(1);
+  if (!core) return Response.json({ error: "Receipt not found." }, { status: 404 });
+  const denied = await authorize(user, core);
   if (denied) return denied;
+  const mfa = requireSensitiveActionMfa(user);
+  if (mfa) return mfa;
+  const [claim] = await loadSpendClaimEvidence(db, [core]);
   if (!claim.receiptStorageKey || !claim.receiptSha256) {
     return Response.json({ error: "No scanned receipt exists for this claim." }, { status: 404 });
   }
@@ -57,9 +61,11 @@ export async function GET(request: Request) {
       claim.organizationId, claim.employeeId)) {
     return Response.json({ error: "Private receipt storage identity mismatch." }, { status: 409 });
   }
-  let url: URL;
+  let bytes: Buffer;
   try {
-    url = signedDocumentObjectUrl(claim.receiptStorageKey, "GET", documentStorageConfig());
+    bytes = await readVerifiedSpendReceipt({ key: claim.receiptStorageKey,
+      organizationId: claim.organizationId, employeeId: claim.employeeId,
+      sha256: claim.receiptSha256, byteSize: claim.receiptByteSize ?? 0 });
   } catch {
     return Response.json({ error: "Private receipt storage is unavailable." }, { status: 503 });
   }
@@ -69,8 +75,10 @@ export async function GET(request: Request) {
     metadata: { claimId: claim.id, employeeId: claim.employeeId, userId: user.id,
       sha256: claim.receiptSha256 },
   });
-  return new Response(null, { status: 302, headers: {
-    Location: url.toString(), "Cache-Control": "private, no-store",
+  return new Response(new Uint8Array(bytes), { status: 200, headers: {
+    "Content-Type": claim.receiptMime ?? "application/octet-stream",
+    "Content-Disposition": "attachment; filename*=UTF-8''" + encodeURIComponent(safeFileName(claim.receiptFileName ?? "receipt")),
+    "Cache-Control": "private, no-store",
     "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff",
   } });
 }
@@ -87,10 +95,14 @@ export async function POST(request: Request) {
   if (!validId(id) || !(file instanceof File)) {
     return Response.json({ error: "Valid claimId and one receipt PDF, PNG or JPG are required." }, { status: 422 });
   }
-  const [claim] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, id)).limit(1);
-  if (!claim) return Response.json({ error: "Receipt not found." }, { status: 404 });
-  const denied = await authorize(user, claim);
+  const [core] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, id)).limit(1);
+  if (!core) return Response.json({ error: "Receipt not found." }, { status: 404 });
+  const denied = await authorize(user, core);
   if (denied) return denied;
+  const mfa = requireSensitiveActionMfa(user);
+  if (mfa) return mfa;
+  const [claim] = await loadSpendClaimEvidence(db, [core]);
+  if (claim.categoryPolicyId == null || claim.policyMatched !== true) return Response.json({ error: "Reviewed claim category required." }, { status: 409 });
   if (!claimCanAttachReceipt(claim)) {
     return Response.json({ error: "Claim is already reviewed or already has a receipt." }, { status: 409 });
   }
@@ -114,22 +126,28 @@ export async function POST(request: Request) {
   const hash = createHash("sha256").update(bytes).digest("hex");
   try {
     await putDocumentObject(key, bytes, parsed.mime);
+    await readVerifiedSpendReceipt({ key, organizationId: claim.organizationId,
+      employeeId: claim.employeeId, sha256: hash, byteSize: bytes.byteLength });
   } catch {
+    await deleteDocumentObject(key).catch(() => {});
     return Response.json({ error: "Private receipt storage is unavailable." }, { status: 503 });
   }
   try {
     const saved = await db.transaction(async tx => {
-      const [fresh] = await tx.select().from(expenseClaims).where(and(
+      const [freshCore] = await tx.select().from(expenseClaims).where(and(
         eq(expenseClaims.id, id), eq(expenseClaims.organizationId, claim.organizationId),
       )).for("update").limit(1);
-      if (!fresh || !claimCanAttachReceipt(fresh)) throw new Error("CLAIM_ALREADY_CHANGED");
-      const [updated] = await tx.update(expenseClaims).set({
+      if (!freshCore) throw new Error("CLAIM_ALREADY_CHANGED");
+      const [fresh] = await loadSpendClaimEvidence(tx, [freshCore]);
+      if (!fresh || !claimCanAttachReceipt(fresh) || fresh.policyMatched !== true) throw new Error("CLAIM_ALREADY_CHANGED");
+      const [updated] = await tx.update(expenseClaimEvidence).set({
         receiptStorageKey: key, receiptSha256: hash, receiptMime: parsed.mime,
         receiptFileName: name, receiptScanNote: scan.note.slice(0, 240),
+        receiptByteSize: bytes.byteLength, receiptVerifiedAt: new Date(),
       }).where(and(
-        eq(expenseClaims.id, id), eq(expenseClaims.organizationId, claim.organizationId),
-        eq(expenseClaims.status, "pending"), isNull(expenseClaims.receiptStorageKey),
-      )).returning({ id: expenseClaims.id });
+        eq(expenseClaimEvidence.claimId, id), eq(expenseClaimEvidence.organizationId, claim.organizationId),
+        isNull(expenseClaimEvidence.receiptStorageKey),
+      )).returning({ id: expenseClaimEvidence.claimId });
       if (!updated) throw new Error("CLAIM_ALREADY_CHANGED");
       await tx.insert(auditEvents).values({
         organizationId: claim.organizationId, actor: user.name,

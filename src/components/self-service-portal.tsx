@@ -35,6 +35,7 @@ import { EmployeeExplainPay } from "@/components/employee-explain-pay";
 import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
 import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
 import { EmployeeHrCasesPanel } from "@/components/employee-hr-cases-panel";
+import { ExpensesPanel } from "@/components/wallet-panel";
 import { HcmSelfProbationReviews } from "@/components/hcm-self-probation-reviews";
 import { HcmSelfPerformance } from "@/components/hcm-self-performance";
 import { WebBundyModal } from "@/components/web-bundy-modal";
@@ -206,9 +207,10 @@ type Payload = {
   };
 };
 
-type SelfTab = "home" | "pay" | "time" | "leave" | "documents" | "performance" | "profile";
+type SelfTab = "home" | "pay" | "time" | "leave" | "documents" | "performance" | "profile" | "expenses";
 
 const ESS_TAB_CONFIG: Record<SelfTab, { label: string; mobileLabel?: string; icon: LucideIcon }> = {
+  expenses: { label: "Expenses", icon: WalletCards },
   home: { label: "Home", icon: House },
   pay: { label: "Pay", mobileLabel: "Payslips", icon: WalletCards },
   time: { label: "Time", mobileLabel: "Attendance", icon: Clock },
@@ -263,7 +265,7 @@ function statusTone(status: string) {
   return "neutral";
 }
 
-export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?: boolean } = {}) {
+export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false }: { hrCasesEnabled?: boolean; spendEnabled?: boolean } = {}) {
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demoRole") === "employee";
   const [language, setLanguage] = useState<EssLanguage>("en");
@@ -276,6 +278,8 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
   const [webBundyOpen, setWebBundyOpen] = useState(false);
   const [switchingRole, setSwitchingRole] = useState<DemoRoleId | null>(null);
   const [tab, setTab] = useState<SelfTab>("home");
+  const moreTabs: SelfTab[] = spendEnabled ? [...ESS_MORE_TABS, "expenses"] : ESS_MORE_TABS;
+  const allTabs: SelfTab[] = spendEnabled ? [...ESS_ALL_TABS, "expenses"] : ESS_ALL_TABS;
   const [moreOpen, setMoreOpen] = useState(false);
   const [photoAvailable, setPhotoAvailable] = useState(false);
   const [photoVersion, setPhotoVersion] = useState(0);
@@ -313,6 +317,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
   }
 
   function navigateTo(next: SelfTab) {
+    if (next === "expenses" && !spendEnabled) return;
     setMoreOpen(false);
     setTab(next);
   }
@@ -560,7 +565,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
         </div>
         <div className="workspace-label employee-workspace-label"><span className="pulse-dot" />{t("Employee workspace")}</div>
         <nav className="side-navigation employee-side-nav" aria-label={t("Employee pages")}>
-          {ESS_ALL_TABS.map((value) => {
+          {allTabs.map((value) => {
             const { icon: Icon, label } = ESS_TAB_CONFIG[value];
             return (
               <button
@@ -637,7 +642,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
             <button
               ref={moreButtonRef}
               type="button"
-              className={moreOpen || ESS_MORE_TABS.includes(tab) ? "active" : ""}
+              className={moreOpen || moreTabs.includes(tab) ? "active" : ""}
               aria-expanded={moreOpen}
               aria-controls={moreOpen ? "employee-more-panel" : undefined}
               aria-label="More employee pages"
@@ -658,7 +663,7 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
                   </button>
                 </div>
                 <div className="employee-more-links">
-                  {ESS_MORE_TABS.map((value, index) => {
+                  {moreTabs.map((value, index) => {
                     const { icon: Icon, label, mobileLabel } = ESS_TAB_CONFIG[value];
                     return (
                       <button
@@ -1086,6 +1091,11 @@ export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?:
 
       {tab === "performance" && (
         <HcmSelfPerformance />
+      )}
+      {spendEnabled && tab === "expenses" && data.employer && (
+        <section className="employee-section">
+          <ExpensesPanel organizationId={data.employer.id} reviewModeEnabled setNotice={setError} />
+        </section>
       )}
 
       {tab === "profile" && (

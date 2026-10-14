@@ -21,13 +21,18 @@ function useEmployees(organizationId: number) {
   return employees;
 }
 
-export function ExpensesPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (m: string) => void }) {
+export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = false }: { organizationId: number; setNotice: (m: string) => void; reviewModeEnabled?: boolean }) {
   const employees = useEmployees(organizationId);
   const [claims, setClaims] = useState<any[]>([]);
   const [reviewMode, setReviewMode] = useState(false);
   const [receiptUploadsEnabled, setReceiptUploadsEnabled] = useState(false);
   const [reviewedCategories, setReviewedCategories] = useState<string[]>([]);
   const [uploadingClaim, setUploadingClaim] = useState<number | null>(null);
+  const [reviewEmployees, setReviewEmployees] = useState<Employee[]>([]);
+  const [loadedOrganization, setLoadedOrganization] = useState<number | null>(null);
+  const [claimError, setClaimError] = useState("");
+  const [approvedAmounts, setApprovedAmounts] = useState<Record<number, string>>({});
+  const [decisionBusy, setDecisionBusy] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ employeeId: "", category: "Travel", description: "", amount: "", incurredOn: new Date().toISOString().slice(0, 10) });
 
@@ -38,12 +43,18 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
     let alive = true;
     (async () => {
       const res = await fetch(`/api/expenses?organizationId=${organizationId}`);
-      if (!res.ok) return;
+      if (!res.ok) throw new Error("Expense claims could not load. Please retry.");
       const data = await res.json();
       if (alive) {
         setClaims(data.claims ?? []);
         setReviewMode(data.reimbursementReviewEnabled === true);
         setReceiptUploadsEnabled(data.receiptUploadsEnabled === true);
+        setLoadedOrganization(organizationId);
+        setClaimError("");
+        setReviewEmployees(Array.isArray(data.employees) ? data.employees : []);
+        if (data.reimbursementReviewEnabled === true && data.employees?.length === 1) {
+          setForm(previous => ({ ...previous, employeeId: String(data.employees[0].id) }));
+        }
         const categories: string[] = Array.isArray(data.reviewedCategories)
           ? data.reviewedCategories.filter((item: unknown): item is string => typeof item === "string")
           : [];
@@ -55,7 +66,7 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
           }));
         }
       }
-    })();
+    })().catch(error => { if (alive) setClaimError(error instanceof Error ? error.message : "Expense claims could not load."); });
     return () => { alive = false; };
   }, [organizationId, nonce]);
 
@@ -97,23 +108,35 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
   }
 
   async function decide(id: number, status: "approved" | "rejected") {
+    setDecisionBusy(id);
+    try {
     const res = await fetch("/api/expenses", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status }),
+      body: JSON.stringify({ id, status, ...(reviewMode && status === "approved" ? {
+        approvedAmount: approvedAmounts[id] ?? claims.find(claim => claim.id === id)?.amount,
+      } : {}) }),
     });
     const data = await res.json();
     if (!res.ok) return setNotice(data.error ?? "Could not update claim.");
     setNotice(`Claim ${status}. Approved claims reimburse on the next payroll run.`);
     await load();
+    } catch { setNotice("The decision response was not received. Refresh the claim before retrying."); }
+    finally { setDecisionBusy(null); }
   }
 
-  const pendingTotal = claims.filter((c) => c.status === "approved" && c.payrollRunId == null)
+  const activeReview = reviewModeEnabled || reviewMode;
+  const displayClaims = activeReview && loadedOrganization !== organizationId ? [] : claims;
+  const displayEmployees = activeReview ? (loadedOrganization === organizationId ? reviewEmployees : []) : employees;
+
+  const pendingTotal = displayClaims.filter((c) => c.status === "approved" && c.payrollRunId == null)
     .reduce((s, c) => s + Number(reviewMode ? c.approvedAmount ?? 0 : c.amount), 0);
   const selectableCategories = reviewMode ? reviewedCategories : CATEGORIES;
 
   return (
     <div>
+      {activeReview && claimError && <div role="alert">{claimError} <button type="button" onClick={load}>Retry claims</button></div>}
+      {activeReview && loadedOrganization !== organizationId && !claimError && <p role="status">Loading expense claims…</p>}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Expense claims</h2>
         <button className="primary-button" onClick={() => setOpen(!open)}>
@@ -122,8 +145,8 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
-        <div className="stat-card"><div className="stat-icon mint"><ReceiptText size={18} /></div><p>TOTAL CLAIMS</p><h3>{claims.length}</h3><span>submitted</span></div>
-        <div className="stat-card"><div className="stat-icon amber"><ReceiptText size={18} /></div><p>AWAITING REVIEW</p><h3>{claims.filter((c) => c.status === "pending").length}</h3><span>pending approval</span></div>
+        <div className="stat-card"><div className="stat-icon mint"><ReceiptText size={18} /></div><p>TOTAL CLAIMS</p><h3>{displayClaims.length}</h3><span>submitted</span></div>
+        <div className="stat-card"><div className="stat-icon amber"><ReceiptText size={18} /></div><p>AWAITING REVIEW</p><h3>{displayClaims.filter((c) => c.status === "pending").length}</h3><span>pending approval</span></div>
         <div className="stat-card"><div className="stat-icon blue"><ReceiptText size={18} /></div><p>TO REIMBURSE</p><h3>{peso(pendingTotal)}</h3><span>approved, unpaid</span></div>
       </div>
 
@@ -137,7 +160,7 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
               <label>Employee
                 <select required value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })}>
                   <option value="">Choose…</option>
-                  {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>)}
+                  {displayEmployees.map((emp) => <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>)}
                 </select>
               </label>
               <label>Category
@@ -163,13 +186,13 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
         </div>
       )}
 
-      <div className="card">
+      <div className="card" style={activeReview ? { overflowX: "auto", maxWidth: "100%", minWidth: 0 } : undefined}>
         <table className="data-table">
           <thead><tr><th>EMPLOYEE</th><th>CATEGORY</th><th>DESCRIPTION</th><th>AMOUNT</th><th>STATUS</th><th></th></tr></thead>
           <tbody>
-            {claims.length === 0 && <tr><td colSpan={6}><div className="empty-state">No claims yet.</div></td></tr>}
-            {claims.map((c) => {
-              const emp = employees.find((e) => e.id === c.employeeId);
+            {displayClaims.length === 0 && <tr><td colSpan={6}><div className="empty-state">No claims yet.</div></td></tr>}
+            {displayClaims.map((c) => {
+              const emp = displayEmployees.find((e) => e.id === c.employeeId);
               return (
                 <tr key={c.id}>
                   <td><strong>{emp ? `${emp.firstName} ${emp.lastName}` : c.employeeId}</strong></td>
@@ -178,10 +201,18 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
                   <td>{peso(c.amount)}</td>
                   <td><span className={`status status-${c.status}`}>{c.status}</span></td>
                   <td>
-                    {c.status === "pending" && !c.inExpenseReport && (
-                      <button className="icon-button" title="Approve" onClick={() => decide(c.id, "approved")}>
+                    {c.status === "pending" && !c.inExpenseReport && (!reviewMode || c.canDecide === true) && (
+                      <>
+                      {reviewMode && <label>Approved amount
+                        <input aria-label={"Approved amount for claim " + c.id} type="number" min="0.01" step="0.01" style={{ maxWidth: 140 }}
+                          max={c.amount} value={approvedAmounts[c.id] ?? c.amount}
+                          onChange={event => setApprovedAmounts(values => ({ ...values, [c.id]: event.target.value }))} />
+                      </label>}
+                      <button className="icon-button" title="Approve" aria-label={"Approve claim " + c.id}
+                        disabled={decisionBusy !== null || (reviewMode && !c.receiptVerifiedAt)} onClick={() => decide(c.id, "approved")}>
                         <CheckCircle2 size={15} className="i-green" />
                       </button>
+                      </>
                     )}
                     {reviewMode && receiptUploadsEnabled && !c.receiptSha256 && c.status === "pending" && (
                       <label style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 8 }}>

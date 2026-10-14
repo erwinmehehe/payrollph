@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { eq } from "drizzle-orm";
-import { db } from "../src/db";
+import { spendIsolatedDatabase } from "./helpers/spend-isolated-database";
+import { encryptBankAccount } from "../src/lib/bank-account-crypto";
 import {
-  employees, employeePayProfiles, expenseCategoryPolicies, expenseClaims,
+  employees, employeePayProfiles, expenseCategoryPolicies, expenseClaimEvidence, expenseClaims,
   organizations, payrollEntries, payrollRuns, users,
 } from "../src/db/schema";
-import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
 
 const readTrace = (value: unknown, name: string): number | null => {
   const inputs = value && typeof value === "object" ? (value as { inputs?: unknown }).inputs : null;
@@ -18,6 +18,9 @@ const readTrace = (value: unknown, name: string): number | null => {
 };
 
 test("tax-reviewed reimbursement changes withholding base but never changes SSS/Pag-IBIG bases", async () => {
+  const fixture = await spendIsolatedDatabase();
+  const { db } = fixture;
+  const { drainPayrollQueue, enqueuePayrollRun } = await import("../src/lib/payroll-engine");
   const prior = process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED;
   process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = "true";
   const [org] = await db.insert(organizations).values({
@@ -25,20 +28,23 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
   }).returning();
   let reviewerId: number | null = null;
   try {
-    const [reviewer] = await db.insert(users).values({
+    const [reviewer, maker] = await db.insert(users).values([{
       email: "spend-test-" + org.id + "@example.invalid",
       name: "Synthetic Tax Reviewer",
       passwordHash: "synthetic-not-a-login-hash",
       role: "owner",
-    }).returning();
+    }, { email: "spend-maker-" + org.id + "@example.invalid", name: "Synthetic maker",
+      passwordHash: "synthetic-not-a-login-hash", role: "employee" }]).returning();
     reviewerId = reviewer.id;
     const staff = await db.insert(employees).values([
       { organizationId: org.id, employeeNo: "EXP-TAXED", firstName: "Taxed",
         lastName: "Reimbursed", title: "Associate", avatarInitials: "TR",
-        basicRate: "60000.00", startDate: "2025-01-01" },
+        basicRate: "60000.00", startDate: "2025-01-01",
+        bankCode: "BDO", bankAccount: encryptBankAccount("0000000001") },
       { organizationId: org.id, employeeNo: "EXP-EXEMPT", firstName: "Exempt",
         lastName: "Reimbursed", title: "Associate", avatarInitials: "ER",
-        basicRate: "60000.00", startDate: "2025-01-01" },
+        basicRate: "60000.00", startDate: "2025-01-01",
+        bankCode: "BDO", bankAccount: encryptBankAccount("0000000002") },
     ]).returning();
 
     await db.insert(employeePayProfiles).values(staff.map(employee => ({
@@ -57,17 +63,21 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     const receiptSha = "a".repeat(64);
     const claims = await db.insert(expenseClaims).values(staff.map((employee, i) => ({
       organizationId: org.id, employeeId: employee.id,
-      submittedByUserId: reviewer.id,
-      category: policies[i].category, categoryPolicyId: policies[i].id,
-      taxable: policies[i].taxable,
+      submittedByUserId: maker.id,
+      category: policies[i].category,
       description: "Synthetic reimbursed expense", amount: "450.01",
-      approvedAmount: "450.01", incurredOn: "2026-09-08",
-      receiptStorageKey: "private-documents/" + org.id + "/" + employee.id +
-        "/00000000-0000-4000-8000-00000000000" + (i + 1),
-      receiptSha256: receiptSha, receiptMime: "application/pdf", receiptFileName: "receipt.pdf",
-      receiptScanNote: "Synthetic reviewed scanner result — no real file",
-      status: "approved",
+      incurredOn: "2026-09-08", status: "approved",
     }))).returning();
+    await db.insert(expenseClaimEvidence).values(claims.map((claim, i) => ({
+      claimId: claim.id, organizationId: org.id, employeeId: staff[i].id,
+      categoryPolicyId: policies[i].id, taxable: policies[i].taxable,
+      approvedAmount: "450.01", approvedByUserId: reviewer.id, approvedAt: new Date(),
+      receiptStorageKey: "private-documents/" + org.id + "/" + staff[i].id +
+        "/00000000-0000-4000-8000-00000000000" + (i + 1),
+      receiptSha256: receiptSha, receiptByteSize: 8, receiptVerifiedAt: new Date(),
+      receiptMime: "application/pdf", receiptFileName: "receipt.pdf",
+      receiptScanNote: "Synthetic reviewed scanner result — no real file",
+    })));
     const [run] = await db.insert(payrollRuns).values({
       organizationId: org.id, periodLabel: "A4 Sep 1–15 2026 review",
       periodStart: "2026-09-01", periodEnd: "2026-09-15",
@@ -98,16 +108,45 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     const exemptBase = readTrace(exempt!.trace, "taxableCompensation");
     assert.ok(taxedBase !== null && exemptBase !== null);
     assert.equal(Math.round((taxedBase! - exemptBase!) * 100), 45001);
-    for (const base of ["sssCutoffRemuneration", "pagIbigCutoffCompensation"]) {
+    for (const base of ["statutoryMonthlySssCompensation", "statutoryMonthlyPagIbigCompensation"]) {
       const left = readTrace(taxed!.trace, base);
       const right = readTrace(exempt!.trace, base);
-      if (left !== null && right !== null) assert.equal(left, right,
+      assert.ok(left !== null && right !== null, "Required statutory base trace must exist");
+      assert.equal(left, right,
         "reviewed taxable flag must not distort statutory contribution base " + base);
     }
+    const { settlePayrollRun } = await import("../src/lib/payroll-settlement");
+    const [laterRun] = await db.insert(payrollRuns).values({ organizationId: org.id,
+      periodLabel: "A4 Sep 16-30 synthetic", periodStart: "2026-09-16", periodEnd: "2026-09-30",
+      payDate: "2026-09-30", status: "Draft", scopeLabel: "All locations" }).returning();
+    await enqueuePayrollRun(laterRun.id);
+    await drainPayrollQueue(15, laterRun.id);
+    // Corrupt a register intentionally; no transaction may partially settle it.
+    const originalLines = taxed!.lineItems as unknown[];
+    await db.update(payrollEntries).set({ lineItems: [...originalLines, taxableLine] }).where(eq(payrollEntries.id, taxed!.id));
+    await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, run.id));
+    await assert.rejects(settlePayrollRun(run.id), /duplicate expense reimbursement/);
+    assert.equal((await db.select().from(expenseClaims).where(eq(expenseClaims.id, claims[0].id)))[0].status, "approved");
+    await db.update(payrollEntries).set({ lineItems: originalLines }).where(eq(payrollEntries.id, taxed!.id));
+    // Disabling the gate cannot reinterpret taxable or partially approved A4 data.
+    process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = "false";
+    await assert.rejects(settlePayrollRun(run.id), /Reviewed reimbursements are paused/);
+    process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = "true";
+    const competing = await Promise.allSettled([settlePayrollRun(run.id), settlePayrollRun(run.id)]);
+    assert.equal(competing.filter(result => result.status === "fulfilled").length, 1);
+    for (const claim of claims) {
+      const [paid] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, claim.id));
+      assert.equal(paid.status, "paid"); assert.equal(paid.payrollRunId, run.id);
+    }
+    await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, laterRun.id));
+    await assert.rejects(settlePayrollRun(laterRun.id), /paid_elsewhere|already settled/);
+    const [later] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, laterRun.id));
+    assert.equal(later.status, "Releasing", "Losing cutoff did not release any reimbursement");
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
     if (reviewerId !== null) await db.delete(users).where(eq(users.id, reviewerId));
     if (prior === undefined) delete process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED;
     else process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = prior;
+    await fixture.close();
   }
 });
