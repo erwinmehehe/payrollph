@@ -24,10 +24,16 @@ assert.ok(Number.isSafeInteger(realAnchor) && anchorAge >= 0 && anchorAge < 30 *
 // while server markup was generated in September (React hydration error #418).
 const syntheticEpoch = Date.parse("2026-09-30T08:00:00.000Z");
 const browser = await chromium.launch({headless:true});
+// Keep one real authenticated session per role for all three viewports.
+// The connected nine-stage acceptance already signs in seven synthetic users;
+// repeating six more login attempts can correctly trip the 10/minute shared-IP limit.
+let ownerSessionState = null;
+let employeeSessionState = null;
 try {
   for(const width of [1440,375,390]) {
     const context = await browser.newContext({
       viewport:{ width,height:844 }, timezoneId:"Asia/Manila",
+      ...(ownerSessionState ? {storageState:ownerSessionState} : {}),
     });
     await context.addInitScript(({epoch, anchor}) => {
       // Test page only: match the guarded localhost server's *shared* synthetic
@@ -48,11 +54,19 @@ try {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", err => errors.push(String(err.message).slice(0,100)));
-    const signed = await context.request.post(base + "/api/auth/login",{
-      data:{email:auth.owner,password:auth.password},
-      headers:{origin:base,"sec-fetch-site":"same-origin"}
-    });
-    assert.equal(signed.status(),200);
+    if (!ownerSessionState) {
+      const signed = await context.request.post(base + "/api/auth/login", {
+        data:{email:auth.owner,password:auth.password},
+        headers:{origin:base,"sec-fetch-site":"same-origin"}
+      });
+      assert.equal(signed.status(),200, "Initial fictional owner sign-in failed");
+      ownerSessionState = await context.storageState();
+    } else {
+      const ownerSession = await context.request.get(base + "/api/auth/me");
+      assert.equal(ownerSession.status(),200,"Reused owner session must remain authenticated");
+      const currentOwner = await ownerSession.json();
+      assert.equal(currentOwner.user?.email,auth.owner,"Owner session must retain its identity");
+    }
     await page.goto(base + "/app?organizationId=" + auth.organizationId,
       {waitUntil:"domcontentloaded"});
     await page.locator(".company-switcher").waitFor({timeout:60000});
@@ -144,6 +158,7 @@ try {
     // are deliberately virtualized for a synthetic September payroll.
     const restricted = await browser.newContext({
       viewport:{width,height:844}, timezoneId:"Asia/Manila",
+      ...(employeeSessionState ? {storageState:employeeSessionState} : {}),
     });
     await restricted.addInitScript(({epoch, anchor}) => {
       const RealDate = Date;
@@ -163,18 +178,21 @@ try {
     employeePage.on("pageerror", err =>
       employeeErrors.push(String(err.message).slice(0,100)));
     await employeePage.goto(base + "/login", {waitUntil:"domcontentloaded"});
-    const employeeLogin = await employeePage.evaluate(async credentials => {
-      const response = await fetch("/api/auth/login", {
-        method:"POST",
-        headers:{"content-type":"application/json"},
-        credentials:"same-origin",
-        body:JSON.stringify(credentials),
-      });
-      return {status:response.status,body:await response.json()};
-    }, {email:auth.employee,password:auth.password});
-    assert.equal(employeeLogin.status,200, "Employee browser sign-in failed");
-    assert.equal(employeeLogin.body?.user?.email,auth.employee,
-      "Employee login must return the actual fictional worker account");
+    if (!employeeSessionState) {
+      const employeeLogin = await employeePage.evaluate(async credentials => {
+        const response = await fetch("/api/auth/login", {
+          method:"POST",
+          headers:{"content-type":"application/json"},
+          credentials:"same-origin",
+          body:JSON.stringify(credentials),
+        });
+        return {status:response.status,body:await response.json()};
+      }, {email:auth.employee,password:auth.password});
+      assert.equal(employeeLogin.status,200, "Initial employee browser sign-in failed");
+      assert.equal(employeeLogin.body?.user?.email,auth.employee,
+        "Employee login must return the actual fictional worker account");
+      employeeSessionState = await restricted.storageState();
+    }
     const session = await employeePage.evaluate(async () => {
       const response = await fetch("/api/auth/me",{credentials:"same-origin"});
       return {status:response.status,body:await response.json()};

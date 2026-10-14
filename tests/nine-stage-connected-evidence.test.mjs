@@ -59,3 +59,18 @@ test("stage identities and no-money status are explicit and consistent",
     assert.ok(isAccepted(r), "A failing or incomplete stage cannot be accepted");
   }
 });
+
+
+test("synthetic viewport acceptance reuses real role sessions without bypassing sign-in throttling",()=>{
+  const source=readFileSync("scripts/qa/nine-stage-mobile-browser.mjs","utf8");
+  assert.match(source,/let ownerSessionState = null/);
+  assert.match(source,/let employeeSessionState = null/);
+  assert.match(source,/ownerSessionState = await context\.storageState\(\)/);
+  assert.match(source,/employeeSessionState = await restricted\.storageState\(\)/);
+  assert.match(source,/!ownerSessionState/);
+  assert.match(source,/!employeeSessionState/);
+  assert.match(source,/Reused owner session must remain authenticated/);
+  assert.match(source,/Employee login must return the actual fictional worker account/);
+  assert.match(source,/An authenticated employee must receive 403/);
+  assert.doesNotMatch(source,/TRUSTED_PROXY_HOPS|rate_limit_hits|DISABLE.*RATE_LIMIT|bypass.*rate.*limit/i);
+});
