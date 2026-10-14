@@ -141,7 +141,10 @@ export async function PATCH(request: Request) {
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return failure("Sign in required.",401);
-  const body = await request.json().catch(() => ({}));
+  const payload: unknown = await request.json().catch(() => null);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload))
+    return failure("A JSON object is required.", 400);
+  const body = payload as Record<string, unknown>;
   const organizationId = Number(body.organizationId), id = Number(body.id);
   const action = String(body.action ?? "");
   const note = String(body.note ?? "").trim();
