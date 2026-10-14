@@ -1,4 +1,4 @@
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   benefitEnrollments, deMinimisGrants, earnedWageRequests, employeeCompensationComponents,
@@ -52,7 +52,14 @@ export async function loadReadOnlyFirstPayrollPreview(
  // The normal payroll engine handles all these sources; this first-run preview
  // intentionally supports only a genuinely simple initial fixed-salary cutoff.
  const sourceChecks = [
-  ["time punches", () => reader.select({id:timePunches.id}).from(timePunches).where(eq(timePunches.organizationId,organizationId)).limit(1)],
+  // A punch from a prior or future cutoff must not block an otherwise simple
+  // selected period. In-period punches still fail closed: this preview does not
+  // assemble/approve attendance or calculate time-linked payroll premiums.
+  ["time punches", () => reader.select({id:timePunches.id}).from(timePunches).where(and(
+    eq(timePunches.organizationId,organizationId),
+    gte(timePunches.workDate,periodStart),
+    lte(timePunches.workDate,periodEnd),
+  )).limit(1)],
   ["employee pay revisions", () => reader.select({id:employeePayRevisions.id}).from(employeePayRevisions).where(eq(employeePayRevisions.organizationId,organizationId)).limit(1)],
   ["supplementary earnings", () => reader.select({id:supplementaryEarnings.id}).from(supplementaryEarnings).where(eq(supplementaryEarnings.organizationId,organizationId)).limit(1)],
   ["leave requests", () => reader.select({id:leaveRequests.id}).from(leaveRequests).where(eq(leaveRequests.organizationId,organizationId)).limit(1)],

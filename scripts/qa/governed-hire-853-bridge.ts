@@ -35,6 +35,7 @@ const report = {
 };
 function save() { writeFileSync(reportPath, JSON.stringify(report, null, 2) + "\n"); }
 const { fixtureClockOffset } = createRequire(import.meta.url)("./synthetic-session-clock.cjs");
+const { boundedSyntheticLoginWaitMs } = createRequire(import.meta.url)("./governed-hire-auth-backoff.cjs");
 function safeEnvironment() {
   // performance uses the real host clock even under the guarded Date preload.
   fixtureClockOffset(process.env, Math.trunc(performance.timeOrigin + performance.now()));
@@ -70,8 +71,18 @@ class Client {
 }
 async function login(email: string, password: string) {
   const client = new Client();
-  const data = await client.ok("/api/auth/login", "POST", { email, password });
-  assert.equal(data.user?.email, email);
+  let result = await client.json("/api/auth/login", "POST", { email, password });
+  if (result.status === 429) {
+    // The prior nine-stage and mobile tests share localhost IP rate limits.
+    // Wait for the *actual* limiter window once; never reset/disable it.
+    const wait = boundedSyntheticLoginWaitMs(result.status, result.body);
+    await new Promise<void>((resolve) => setTimeout(resolve, wait));
+    result = await client.json("/api/auth/login", "POST", { email, password });
+  }
+  assert.ok(result.status >= 200 && result.status < 300,
+    "POST /api/auth/login status=" + result.status +
+      " code=" + String(result.body.code ?? "unknown"));
+  assert.equal(result.body.user?.email, email);
   assert.ok(client.cookie, "Missing isolated browser-session login cookie");
   return client;
 }
