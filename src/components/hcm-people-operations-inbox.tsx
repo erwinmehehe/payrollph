@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, CalendarDays, ClipboardList, RefreshCw, UsersRound } from "lucide-react";
 import {
+  hcmReadScopeKey, hcmReadScopeParams, hcmReadScopeValid,
+  hcmResponseMatchesReadScope, type HcmReadScope,
+} from "@/lib/hcm-client-employer-scope";
+import {
   PEOPLE_OPS_TEAMS,
   type PeopleOpsCategory,
   type PeopleOpsPayload,
@@ -57,21 +61,35 @@ function dueLabel(daysUntil: number | null, dueDate: string | null) {
  */
 export function HcmPeopleOperationsInbox({
   organizationId,
+  legalEntityId = null,
+  multiEntityEnabled = false,
   onOpenWorker,
   onPage,
 }: {
   organizationId: number;
+  legalEntityId?: number | null;
+  multiEntityEnabled?: boolean;
   onOpenWorker: (employeeId: number) => boolean;
   onPage: (page: PeopleOpsPage) => void;
 }) {
-  return <ScopedPeopleOperationsInbox key={organizationId} organizationId={organizationId} onOpenWorker={onOpenWorker} onPage={onPage}/>;
+  const scope: HcmReadScope = { organizationId, legalEntityId, multiEntityEnabled };
+  // A group-wide or missing-employer selection is not an HCM permission.
+  // Render no previous worker identifiers and issue no unscoped request.
+  if (!hcmReadScopeValid(scope)) return (
+    <section className="notice notice-amber" role="status">
+      Select one authorized legal employer before loading People Operations.
+    </section>
+  );
+  return <ScopedPeopleOperationsInbox key={hcmReadScopeKey(scope)} scope={scope}
+    onOpenWorker={onOpenWorker} onPage={onPage}/>;
 }
 
-function ScopedPeopleOperationsInbox({ organizationId, onOpenWorker, onPage }: {
-  organizationId: number;
+function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
+  scope: HcmReadScope;
   onOpenWorker: (employeeId: number) => boolean;
   onPage: (page: PeopleOpsPage) => void;
 }) {
+  const { organizationId } = scope;
   const [filters, updateFilters] = useState<{
     priority: PeopleOpsPriority | "all";
     category: PeopleOpsCategory | "all";
@@ -87,19 +105,18 @@ function ScopedPeopleOperationsInbox({ organizationId, onOpenWorker, onPage }: {
     setRefreshVersion((version) => version + 1);
   };
   const [response, setResponse] = useState<{ key: string; data: PeopleOpsPayload | null; error: string } | null>(null);
-  const requestKey = JSON.stringify([organizationId, filters, refreshVersion]);
+  const requestKey = JSON.stringify([hcmReadScopeKey(scope), filters, refreshVersion]);
 
   useEffect(() => {
     const controller = new AbortController();
-    const params = new URLSearchParams({
-      organizationId: String(organizationId),
-      page: String(filters.page),
-      pageSize: "20",
-      priority: filters.priority,
-      category: filters.category,
-      dueWindow: filters.dueWindow,
-      team: filters.team,
-    });
+    const params = hcmReadScopeParams(scope);
+    if (!params) return;
+    params.set("page", String(filters.page));
+    params.set("pageSize", "20");
+    params.set("priority", filters.priority);
+    params.set("category", filters.category);
+    params.set("dueWindow", filters.dueWindow);
+    params.set("team", filters.team);
     if (filters.query) params.set("q", filters.query);
 
     void (async () => {
@@ -111,7 +128,9 @@ function ScopedPeopleOperationsInbox({ organizationId, onOpenWorker, onPage }: {
         const body = await result.json().catch(() => ({}));
         if (!result.ok) throw new Error(body.error ?? "The People Operations Inbox could not be loaded.");
         if (controller.signal.aborted) return;
-        if (body.organizationId !== organizationId) throw new Error("The People Operations Inbox returned an unexpected employer scope.");
+        if (!hcmResponseMatchesReadScope(body, scope)) {
+          throw new Error("The People Operations Inbox returned an unexpected tenant or legal-employer scope.");
+        }
         setResponse({ key: requestKey, data: body as PeopleOpsPayload, error: "" });
       } catch (loadError) {
         if (controller.signal.aborted) return;
@@ -121,7 +140,8 @@ function ScopedPeopleOperationsInbox({ organizationId, onOpenWorker, onPage }: {
     })();
 
     return () => controller.abort();
-  }, [organizationId, filters.page, filters.category, filters.priority, filters.dueWindow, filters.team, filters.query, requestKey]);
+  }, [organizationId, scope.legalEntityId, scope.multiEntityEnabled,
+    filters.page, filters.category, filters.priority, filters.dueWindow, filters.team, filters.query, requestKey]);
 
   const active = response?.key === requestKey ? response : null;
   const data = active?.data ?? null;
