@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const workflow = readFileSync(
   new URL("../.github/workflows/live-rbac-sandbox-smoke.yml", import.meta.url),
@@ -34,4 +38,84 @@ test("readiness and public demo probes never print remote response content", () 
   assert.doesNotMatch(readiness + demo, /cat\s+.*(?:html|json|body|headers)/);
   assert.match(readiness, /\.deploymentSha \| test\("\^\[0-9a-f\]\{40\}\$"\)/);
   assert.match(demo, /--max-time 15/);
+});
+
+/** Exercise the actual Bash step with a local fake curl; no network or live auth. */
+function runRoleSmoke(mode) {
+  const match = roleStep.match(/\n        run: \|\n([\s\S]*)/);
+  assert.ok(match, "the RBAC shell body must be discoverable");
+  const roleScript = match[1].split("\n").map(line => line.replace(/^ {10}/, "")).join("\n");
+  const directory = mkdtempSync(join(tmpdir(), "payrollph-rbac-private-"));
+  try {
+    const curlPath = join(directory, "curl");
+    // This mock intentionally writes credential-like strings into the
+    // response body and cookie jar to test log nondisclosure, not HTTP behavior.
+    writeFileSync(curlPath, [
+      "#!/usr/bin/env node",
+      'const {writeFileSync} = require("node:fs");',
+      "const args = process.argv.slice(2);",
+      'const value = flag => args[args.indexOf(flag) + 1];',
+      'const output = value("-o");',
+      'const cookie = args.includes("-c") ? value("-c") : null;',
+      'const url = args.find(item => item.startsWith("https://")) || "";',
+      'if (!output) process.exit(6);',
+      'if (cookie) writeFileSync(cookie, "SYNTHETIC_PRIVATE_COOKIE_SENTINEL");',
+      "let status = 200;",
+      "let payload = {};",
+      'if (url.includes("/api/auth/demo-switch")) {',
+      '  const role = JSON.parse(value("--data")).role;',
+      '  if (process.env.MOCK_RBAC_MODE === "reject") {',
+      '    status = 403;',
+      '    payload = {error:"SYNTHETIC_PRIVATE_BODY_SENTINEL", token:"SYNTHETIC_PRIVATE_BODY_SENTINEL"};',
+      '  } else {',
+      '    payload = {ok:true,organizationId:1,demoDataMode:"synthetic-redacted",sensitiveFieldsPersisted:false,redirectTo:"/app?demoRole="+role};',
+      '  }',
+      '} else if (url.includes("/api/self/payslips")) {',
+      '  payload = {employee:{employeeNo:"DEMO-001"},employer:{id:1}};',
+      '} else if (url.includes("/api/dashboard")) {',
+      '  payload = {selectedOrganization:{id:1}};',
+      '}',
+      "writeFileSync(output, JSON.stringify(payload));",
+      "process.stdout.write(String(status));",
+    ].join("\n"), { mode: 0o700 });
+    chmodSync(curlPath, 0o700);
+    const sleepPath = join(directory, "sleep");
+    writeFileSync(sleepPath, "#!/bin/sh\nexit 0\n", { mode: 0o700 });
+    const result = spawnSync("bash", ["-c", roleScript], {
+      encoding: "utf8",
+      timeout: 20000,
+      env: {
+        ...process.env,
+        PATH: directory + ":" + process.env.PATH,
+        MOCK_RBAC_MODE: mode,
+        BASE_URL: "https://synthetic-payroll.example.test",
+      },
+    });
+    if (result.error) throw result.error;
+    const transcript = String(result.stdout ?? "") + String(result.stderr ?? "");
+    assert.doesNotMatch(transcript, /SYNTHETIC_PRIVATE_(?:BODY|COOKIE)_SENTINEL/,
+      "raw authentication data must never be written to CI output");
+    return { status: result.status, transcript };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+test("fictional rejected auth hides secret-like response and cookie contents", {
+  skip: process.platform === "win32",
+}, () => {
+  const { status, transcript } = runRoleSmoke("reject");
+  assert.equal(status, 1);
+  assert.match(transcript, /role=owner attempt=1 login_http=403/);
+  assert.match(transcript, /body withheld/);
+});
+
+test("fictional success verifies all six roles without logging response bodies", {
+  skip: process.platform === "win32",
+}, () => {
+  const { status, transcript } = runRoleSmoke("success");
+  assert.equal(status, 0, transcript);
+  for (const role of ["owner", "hr", "payroll", "checker", "bookkeeper", "employee"]) {
+    assert.match(transcript, new RegExp("role=" + role + " attempt=1 login_http=200"));
+  }
 });
