@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { validateBackupEnv, validateRestoreEnv } from "../scripts/local-dev-encrypted-recovery.mjs";
 
@@ -73,7 +74,7 @@ test("recovery source streams ciphertext and restore to networkless Docker, with
 
 test("CLI without required env refuses to run and never attempts a dump",()=>{
   const script=new URL("../scripts/local-dev-encrypted-recovery.mjs",import.meta.url);
-  const result=spawnSync(process.execPath,[script.pathname,"backup"],{
+  const result=spawnSync(process.execPath,[fileURLToPath(script),"backup"],{
     encoding:"utf8",env:{PATH:process.env.PATH||"",SYSTEMROOT:process.env.SYSTEMROOT||""},timeout:10000
   });
   assert.equal(result.status,1);
@@ -83,7 +84,7 @@ test("CLI without required env refuses to run and never attempts a dump",()=>{
 
 test("help mode has no external side effects",()=>{
   const script=new URL("../scripts/local-dev-encrypted-recovery.mjs",import.meta.url);
-  const result=spawnSync(process.execPath,[script.pathname,"--help"],{
+  const result=spawnSync(process.execPath,[fileURLToPath(script),"--help"],{
     encoding:"utf8",env:{PATH:process.env.PATH||"",SYSTEMROOT:process.env.SYSTEMROOT||""},timeout:10000
   });
   assert.equal(result.status,0);
