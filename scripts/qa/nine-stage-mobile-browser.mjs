@@ -64,7 +64,21 @@ try {
     }
     await page.goto(base + "/app?organizationId=" + auth.organizationId,
       {waitUntil:"domcontentloaded"});
-    await page.locator(".company-switcher").waitFor({timeout:60000});
+    try {
+      await page.locator(".company-switcher").waitFor({timeout:60000});
+    } catch (error) {
+      const diagnostic = await page.evaluate(async () => {
+        const response = await fetch("/api/auth/me", {credentials:"same-origin"});
+        return { authStatus: response.status };
+      }).catch(() => ({ authStatus: -1 }));
+      console.error("Synthetic UI route diagnostic:", JSON.stringify({
+        width, route: new URL(page.url()).pathname,
+        authStatus: diagnostic.authStatus,
+        switcherCount: await page.locator(".company-switcher").count(),
+        pageErrorCount: errors.length,
+      }));
+      throw error;
+    }
     const a = await page.evaluate(async id => {
       const response = await fetch("/api/employees?organizationId=" + id);
       return {status:response.status,body:await response.json()};
