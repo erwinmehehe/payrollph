@@ -56,9 +56,9 @@
   .linaw-workspace-context { align-items: flex-start; }
   /* The marketing-only simulated dashboard must not crop its mobile CTA or
      force adjacent money cards beyond the phone-width demonstration frame. */
-  .home-redesign .lp-screen .ls-content { width: 100%; min-width: 0; box-sizing: border-box; }
-  .home-redesign .lp-screen .ls-two { grid-template-columns: minmax(0, 1fr); }
-  .home-redesign .lp-screen .ls-card { min-width: 0; }
-  .home-redesign .lp-screen .ls-primary { min-width: 0; max-width: 100%; }
+  .home-redesign #demo .ls-content { width: 100%; min-width: 0; box-sizing: border-box; }
+  .home-redesign #demo .ls-two { grid-template-columns: minmax(0, 1fr); }
+  .home-redesign #demo .ls-card { min-width: 0; }
+  .home-redesign #demo .ls-primary { min-width: 0; max-width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .journey-step { transition: none; } .journey-step:hover { transform: none; } }
