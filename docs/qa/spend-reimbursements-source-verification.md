@@ -7,7 +7,7 @@ No payroll calculator math changes: reviewed amounts use existing ordinary suppl
 
 ## Executed behavior
 
-`TZ=Asia/Manila npx tsx --test --test-concurrency=1 tests/spend-payroll-reimbursement.test.ts tests/spend-receipts-behavior.test.ts tests/spend-receipt-integrity.test.ts tests/spend-expenses-api.integration.test.ts tests/spend-payroll-integration.test.ts`
+`TZ=Asia/Manila npx tsx --test --test-concurrency=1 tests/spend-payroll-reimbursement.test.ts tests/spend-receipts-behavior.test.ts tests/spend-receipt-integrity.test.ts tests/spend-expenses-api.integration.test.ts tests/spend-payroll-integration.test.ts tests/spend-receipt-recovery.test.ts`
 
 Integration tests create a generated schema with no public-table fallback in disposable localhost PostgreSQL.
 They run actual routes, role/membership/unit authorization, MFA and rate-limit code, SQL constraints,
@@ -19,6 +19,11 @@ decisions/releases, duplicate register lines and double-cutoff settlement are ex
 Synthetic MWE and ordinary workers exercise taxable versus non-taxable reimbursements using the
 existing calculator; statutory SSS/Pag-IBIG trace bases must exist and remain equal across each pair.
 This certifies implemented behavior, not the legal eligibility of a real employer's tax policy.
+Receipt PUT is preceded by an audited, unreadable document cleanup intent. Metadata attachment and
+intent clearance commit together. Ambiguous PUT failures wait for delayed cleanup; failed DELETE
+retains the intent for retry by the leased retention tick, including when Spend is rolled back OFF.
+Executed tests verify pre-PUT reservation, unreadable pending downloads, delayed DELETE retries,
+idempotence, protection of already-referenced receipts and safe pre-migration no-op behavior.
 The unnumbered SQL proposal is rehearsed twice only in that generated namespace.
 
 Default OFF leaves the legacy ORM mapping and JSON response fields unchanged. Tests drop both
@@ -42,10 +47,10 @@ locally, without a supplied reason. No production MFA bypass was introduced.
 - Canonical numbered migration allocation, DBA production lock/rollback review and deployment.
 - Independent Philippine tax review of each category, including MWE and employer-policy acceptance.
 - Authenticated full application/employee-navigation UAT and real device accessibility testing.
-- Real private storage and malware-scanner certification, lifecycle/retention controls, durable recovery
-  of orphan uploads if provider DELETE fails, disaster recovery and receipt legal retention review.
+- Real private storage and malware-scanner certification, lifecycle/retention controls, production
+  recovery/operator acceptance, disaster recovery and receipt legal retention review.
 - Multi-entity activation, payroll provider acceptance, real money movement or government filing.
 
-Receipt cleanup is best effort on failed attachment; source integration does not certify provider deletion.
+Failed provider deletion retains durable cleanup evidence; source integration does not certify a real provider.
 The receipt hash prevents accidental reuse for the same worker, not two different scans of the same invoice.
 All production flags remain OFF until these activation gates have separate evidence.

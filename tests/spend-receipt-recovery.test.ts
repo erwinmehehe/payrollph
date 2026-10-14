@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import test from "node:test";
+import test, { before, after } from "node:test";
 import { eq } from "drizzle-orm";
 import { spendIsolatedDatabase } from "./helpers/spend-isolated-database";
 import { documents, employees, organizations } from "../src/db/schema";
+let fixture: Awaited<ReturnType<typeof spendIsolatedDatabase>>;
+before(async () => { fixture = await spendIsolatedDatabase(); });
+after(async () => { await fixture.close(); });
 
 test("failed Spend receipt DELETE preserves unreadable intent and flag-off sweep recovers it", async () => {
-  const fixture = await spendIsolatedDatabase();
   // Import only after the generated local DB is bound; no live DB or network.
   const { SPEND_PENDING_RECEIPT_PREFIX, reconcilePendingSpendReceipt,
     sweepPendingSpendReceipts } = await import("../src/lib/spend-receipt-object-reconciliation");
@@ -56,16 +57,14 @@ test("failed Spend receipt DELETE preserves unreadable intent and flag-off sweep
   } finally {
     if (prior === undefined) delete process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED;
     else process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = prior;
-    await fixture.close();
   }
 });
 
 test("Spend orphan reconciliation refuses fresh, signed-off, or wrong-employee object", async () => {
-  const fixture = await spendIsolatedDatabase();
   const { SPEND_PENDING_RECEIPT_PREFIX, SPEND_PENDING_RECEIPT_GRACE_MS,
     reconcilePendingSpendReceipt } = await import("../src/lib/spend-receipt-object-reconciliation");
   const { db } = fixture;
-  try {
+  {
     const [org] = await db.insert(organizations).values({
       name: "Synthetic Spend scope", legalName: "Synthetic Spend scope",
     }).returning();
@@ -107,19 +106,14 @@ test("Spend orphan reconciliation refuses fresh, signed-off, or wrong-employee o
       deleteObject: async () => { throw new Error("wrong tenant object"); },
     }), "invalid_identity");
     assert.equal((await db.select().from(documents).where(eq(documents.id, wrong.id))).length, 1);
-  } finally { await fixture.close(); }
+  }
 });
 
-test("Spend route commits pending intent before remote PUT and blocks unknown receipt downloads", () => {
-  const src = readFileSync("src/app/api/expenses/receipts/route.ts", "utf8");
-  const cleanup = readFileSync("src/lib/data-retention.ts", "utf8");
-  const reserved = src.indexOf("pendingDocumentId = await db.transaction(async tx => {");
-  const uploaded = src.indexOf("await putDocumentObject(key, bytes, parsed.mime)", reserved);
-  const authenticated = src.indexOf("await readVerifiedSpendReceipt({ key,", uploaded);
-  const settled = src.indexOf("await tx.update(expenseClaimEvidence).set({", authenticated);
-  assert.ok(reserved >= 0 && reserved < uploaded && uploaded < authenticated && authenticated < settled);
-  assert.match(src, /scannedClean: false, scanNote: "Pending private reimbursement/);
-  assert.match(src, /await reconcilePendingSpendReceipt\(pendingDocumentId\)/);
-  assert.match(cleanup, /await sweepPendingSpendReceipts\(new Date\(now\)\)/);
-  assert.doesNotMatch(src, /await deleteDocumentObject\(key\)\.catch\(\(\) => \{\}\)/);
+test("pre-migration receipt cleanup skips without reading additive metadata or deleting objects", async () => {
+  const { sweepPendingSpendReceipts } = await import("../src/lib/spend-receipt-object-reconciliation");
+  await fixture.pool.query("DROP TABLE expense_claim_evidence");
+  let called = false;
+  const result = await sweepPendingSpendReceipts(new Date(), 50, async () => { called = true; });
+  assert.deepEqual(result, { enabled: false, inspected: 0, deleted: 0, retryRequired: 0 });
+  assert.equal(called, false);
 });
