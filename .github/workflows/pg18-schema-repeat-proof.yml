@@ -55,7 +55,9 @@ jobs:
           cache: 'npm'
       - name: Install pinned dependencies
         run: npm ci
-      - name: Evaluate pinned upstream Drizzle v1 release candidate in disposable CI only
+      - name: Use matched Drizzle v1 RC solely inside disposable schema-proof worker
+        # Do not persist these pre-release packages to the application manifest
+        # or launch a runtime/production migration. Kit and ORM must match.
         run: npm install --no-save --package-lock=false drizzle-kit@1.0.0-rc.4 drizzle-orm@1.0.0-rc.4
       - name: Verify exact ephemeral RC overlays without requiring package manifest rewrite
         run: |
@@ -72,19 +74,3 @@ jobs:
         run: node scripts/qa/verified-pg18-repeat-push.mjs
       - name: Verify no PostgreSQL schema drift after repeat push
         run: node scripts/qa/fresh-pg18-development-schema.mjs compare
-      - name: Generate reproducible candidate package manifest and lockfile (ephemeral only)
-        run: |
-          npm install --package-lock-only --ignore-scripts --save-exact drizzle-orm@1.0.0-rc.4
-          npm install --package-lock-only --ignore-scripts --save-dev --save-exact drizzle-kit@1.0.0-rc.4
-          node -e 'const p=require("./package.json"); const l=require("./package-lock.json"); if(p.dependencies["drizzle-orm"]!=="1.0.0-rc.4"||p.devDependencies["drizzle-kit"]!=="1.0.0-rc.4"||l.packages["node_modules/drizzle-orm"].version!=="1.0.0-rc.4"||l.packages["node_modules/drizzle-kit"].version!=="1.0.0-rc.4")process.exit(1); console.log("Candidate dependency versions verified")'
-      - name: Export candidate manifest and lockfile for controlled review (never auto-commit)
-        uses: actions/upload-artifact@v7
-        with:
-          name: drizzle-rc4-candidate-lockfile
-          path: |
-            package.json
-            package-lock.json
-          retention-days: 1
-          if-no-files-found: error
-      - name: Check app TypeScript compatibility with matched Drizzle v1 RC
-        run: npm run typecheck
