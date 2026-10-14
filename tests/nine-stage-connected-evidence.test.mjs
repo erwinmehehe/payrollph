@@ -10,7 +10,12 @@ const stages = ["Hire","Onboard","Schedule","Clock In","Approve Time","Run Payro
 function isAccepted(r) {
   return Boolean(r && r.result === "PASS" && Array.isArray(r.stages)
     && r.stages.length === stages.length
-    && r.stages.every((s, index) => s?.name === stages[index] && s.status === "PASS"));
+    && r.stages.every((s, index) => s?.name === stages[index] && s.status === "PASS")
+    && (r.lineage?.hireMode !== "governed" || (
+      r.lineage.governedHire?.employeeId === r.lineage.employeeId
+      && ["employeeId", "applicantId", "businessProcessId", "positionId", "requisitionId"]
+        .every(key => Number.isInteger(r.lineage.governedHire?.[key]) && r.lineage.governedHire[key] > 0)
+    )));
 }
 
 test("missing or incomplete connected evidence is never acceptance", () => {
@@ -20,6 +25,17 @@ test("missing or incomplete connected evidence is never acceptance", () => {
   assert.equal(isAccepted({ result: "FAIL", stages: passes }), false);
   assert.equal(isAccepted({ result: "PASS", stages: passes.map((s, i) =>
     i === 5 ? { ...s, status: "FAIL" } : s) }), false);
+});
+
+test("governed journey receipt rejects sidecar worker substitution and incomplete source lineage", () => {
+  const r = { result: "PASS", stages: stages.map(name => ({ name, status: "PASS" })),
+    lineage: { hireMode: "governed", employeeId: 10,
+      governedHire: { employeeId: 10, applicantId: 1, businessProcessId: 2, positionId: 3, requisitionId: 4 } } };
+  assert.equal(isAccepted(r), true);
+  const wrong = structuredClone(r); wrong.lineage.governedHire.employeeId = 11;
+  assert.equal(isAccepted(wrong), false);
+  const missing = structuredClone(r); delete missing.lineage.governedHire.applicantId;
+  assert.equal(isAccepted(missing), false);
 });
 
 test("stage identities and no-money status are explicit and consistent",
@@ -45,6 +61,13 @@ test("stage identities and no-money status are explicit and consistent",
     assert.ok(Number.isInteger(r.lineage.payrollRunId));
     assert.equal(r.lineage.periodStart, r.lineage.periodEnd);
     assert.equal(r.lineage.employeeHireDate, r.lineage.periodStart);
+    if (r.lineage.hireMode === "governed") {
+      assert.equal(r.lineage.governedHire.employeeId, r.lineage.employeeId,
+        "Candidate conversion must be the SAME worker whose time and payroll were released");
+      for (const key of ["applicantId", "businessProcessId", "positionId", "requisitionId"])
+        assert.ok(Number.isInteger(r.lineage.governedHire[key]) && r.lineage.governedHire[key] > 0);
+      assert.equal(r.lineage.governedHire.positionSource, "approved-fixture-not-a-published-workforce-plan");
+    }
     assert.deepEqual(Object.keys(r.lineage.draftHashes).sort(),
       ["BIR","Pag-IBIG","PhilHealth","SSS"].sort());
     assert.ok(Object.values(r.lineage.draftHashes).every(
@@ -57,6 +80,7 @@ test("stage identities and no-money status are explicit and consistent",
       "Connected report must come from the exact checked-out PR commit");
     assert.equal(r.githubRunId, process.env.GITHUB_RUN_ID,
       "Connected report must come from this workflow run");
+    assert.equal(r.lineage.hireMode, process.env.NINE_STAGE_HIRE_MODE ?? "direct");
     assert.equal(r.result, "PASS", "The dedicated connected workflow must pass all nine stages");
     assert.ok(isAccepted(r), "A failing or incomplete stage cannot be accepted");
   }

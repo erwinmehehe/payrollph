@@ -8,6 +8,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
+import { createConnectedGovernedWorker } from "./connected-governed-hire";
 import { hashPassword } from "../../src/lib/crypto";
 import {
   auditEvents, employees, governmentFilingValidations, orgUnits, organizations, payrollEntries,
@@ -159,7 +160,10 @@ async function main() {
   let orgA = 0, orgB = 0, worker = 0, runId = 0, punchId = 0;
   let owner!: Client, hr!: Client, manager!: Client, employee!: Client;
   let payroll!: Client, checker!: Client, tenantB!: Client;
-  let employeeNo = "NINE-001";
+  const employeeNo = "NINE-001";
+  const hireMode = process.env.NINE_STAGE_HIRE_MODE ?? "direct";
+  assert.ok(["direct", "governed"].includes(hireMode), "Unsupported synthetic hire mode");
+  let governedHire: Awaited<ReturnType<typeof createConnectedGovernedWorker>> | undefined;
   let patternId = 0, assignmentId = 0, currentTimesheetId = 0;
   await stage(0, async evidence => {
     const init = new Client();
@@ -171,18 +175,24 @@ async function main() {
     orgA = Number(setup.organizationId);
     assert.ok(orgA > 0);
     owner = await login("owner.nine@linaw.test");
-    const created = await owner.ok("/api/employees", "POST", {
-      organizationId: orgA, employeeNo,
-      firstName: "Fictional", lastName: "Worker",
-      title: "Synthetic Attendance Worker", email: "worker.nine@linaw.test",
-      payBasis: "monthly", rateAmount: 28000,
-      standardWorkDaysPerMonth: 22, standardHoursPerDay: 8,
-      region: "NCR", startDate: workDate, bankAccount: "QA-ACCOUNT-NOT-REAL-01",
-      bankCode: "BDO", mobile: "QA-ONLY-0001",
-      tin: "QA-TIN-1001", sssNo: "QA-SSS-1001",
-      philHealthNo: "QA-PHIC-1001", pagIbigNo: "QA-HDMF-1001", tinBranchCode: "0000",
-    });
-    worker = Number(created.employee?.id);
+    if (hireMode === "governed") {
+      governedHire = await createConnectedGovernedWorker({ organizationId: orgA, workDate, password, owner, login });
+      worker = governedHire.employeeId;
+      evidence.push("Real candidate Hire BP, separate HR/owner approvals, duplicate conversion denied; SAME payroll worker");
+    } else {
+      const created = await owner.ok("/api/employees", "POST", {
+        organizationId: orgA, employeeNo,
+        firstName: "Fictional", lastName: "Worker",
+        title: "Synthetic Attendance Worker", email: "worker.nine@linaw.test",
+        payBasis: "monthly", rateAmount: 28000,
+        standardWorkDaysPerMonth: 22, standardHoursPerDay: 8,
+        region: "NCR", startDate: workDate, bankAccount: "QA-ACCOUNT-NOT-REAL-01",
+        bankCode: "BDO", mobile: "QA-ONLY-0001",
+        tin: "QA-TIN-1001", sssNo: "QA-SSS-1001",
+        philHealthNo: "QA-PHIC-1001", pagIbigNo: "QA-HDMF-1001", tinBranchCode: "0000",
+      });
+      worker = Number(created.employee?.id);
+    }
     assert.ok(worker > 0);
     const [hiredWorker] = await db.select({ startDate: employees.startDate })
       .from(employees).where(eq(employees.id, worker));
@@ -235,10 +245,10 @@ async function main() {
     assert.equal(aEmployee.length, 1);
     assert.equal(bEmployee.length, 1);
     assert.notEqual(Number(aEmployee[0].id), Number(bEmployee[0].id));
-    evidence.push("API employee-create returned worker identity; distinct tenant A/B and seven login sessions");
+    evidence.push("Authoritative " + hireMode + " hire returned worker identity; distinct tenant A/B and seven payroll-role sessions");
     report.lineage = { organizationId: orgA, shadowOrganizationId: orgB, employeeId: worker,
       periodStart, periodEnd, payDate, employeeHireDate: workDate, sourcePunchId: null, payrollRunId: null,
-      separateEmployerSameLocalEmployeeNo: true };
+      separateEmployerSameLocalEmployeeNo: true, hireMode, governedHire: governedHire ?? null };
     // Private localhost browser sign-in handoff, never uploaded as an artifact.
     writeFileSync("qa-artifacts/.nine-stage-browser-auth.json",
       JSON.stringify({ password, organizationId: orgA, otherOrganizationId: orgB,
