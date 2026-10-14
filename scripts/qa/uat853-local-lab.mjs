@@ -162,7 +162,7 @@ function start() {
   assertCleanCheckout();
   assert.ok(!existsSync(PRIVATE), 'UAT853_EXISTING_SESSION_PRESERVE_EVIDENCE_FIRST');
   run('docker', ['version', '--format', '{{.Server.Version}}']);
-  mkdirSync(PRIVATE, { recursive: false, mode: 0o700 });
+  mkdirSync(PRIVATE, { recursive: true, mode: 0o700 });
   const sha = gitSha();
   const state = { kind: 'fictional-local-disposable-pg16', sha,
     container: 'payrollph-uat853-' + sha.slice(0, 12),
