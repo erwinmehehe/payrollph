@@ -24,6 +24,28 @@ DATABASE_URL="postgresql://localhost/..." npm run db:push
 **Never use `db:push` against production to repair drift.** Use the DBA-reviewed
 schema and receipt protocol for staging and production.
 
+**Current Drizzle 0.x limitation (October 2026):** the pinned development
+toolchain (`drizzle-kit@0.31.11` / `drizzle-orm@0.45.4`) can emit a
+phantom `DROP CONSTRAINT documents_org_employee_id_hr_cases_unique` on a
+*second* push to an unchanged PostgreSQL 18 schema. PostgreSQL refuses
+because the existing `employee_hr_cases_coe_document_tenant_fk` depends on
+the unique key. A successful first push or process exit code 0 does **not**
+prove a safe, idempotent second push. Do not use `--force`, `CASCADE`, or
+weaken the composite tenant/employee FK to make it pass.
+
+The isolated `pg18-schema-repeat-proof.yml` CI workflow can exercise
+**matched** `drizzle-kit@1.0.0-rc.4` and `drizzle-orm@1.0.0-rc.4` against
+a newly created, disposable PG18 `app_db`, verify the real composite FK,
+require a strict no-change second push, and compare PostgreSQL catalog
+fingerprints. Those pre-release packages are installed **only in the CI
+worker**, with `--no-save --package-lock=false`. They are **not** approved
+for the application runtime: the RC introduces breaking driver APIs and fails
+this repository's TypeScript typecheck until the runtime and tests are
+migrated. An eventual version upgrade also requires separately reviewed
+historical migration compatibility and production release gates.
+
+
+
 `db:push` reads `src/db/schema.ts` and creates everything it finds there, which
 is the whole current schema. **Check that it actually created tables**: push has
 been seen to report success and create nothing against a non-standard Postgres.

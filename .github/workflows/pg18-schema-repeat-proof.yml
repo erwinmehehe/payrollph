@@ -1,0 +1,76 @@
+name: Disposable PostgreSQL 18 Drizzle Repeat-Push Proof (No Money)
+
+on:
+  pull_request:
+    paths:
+      - 'src/db/schema.ts'
+      - 'scripts/qa/fresh-pg18-development-schema.mjs'
+      - 'scripts/qa/verified-pg18-repeat-push.mjs'
+      - 'tests/fresh-pg18-development-schema.test.mjs'
+      - 'tests/verified-pg18-repeat-push.test.mjs'
+      - '.github/workflows/pg18-schema-repeat-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pg18-idempotence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      FRESH_PG18_DEV_REHEARSAL: 'disposable-ci-only'
+      DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/app_db'
+      DEMO_MODE: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_LIVE_APPROVED: 'false'
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: 'false'
+      WFM_GEOFENCE_PILOT_ENABLED: 'false'
+      WFM_PUNCH_EVIDENCE_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out exact source with no persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Use matched Drizzle v1 RC solely inside disposable schema-proof worker
+        # Do not persist these pre-release packages to the application manifest
+        # or launch a runtime/production migration. Kit and ORM must match.
+        run: npm install --no-save --package-lock=false drizzle-kit@1.0.0-rc.4 drizzle-orm@1.0.0-rc.4
+      - name: Verify exact ephemeral RC overlays without requiring package manifest rewrite
+        run: |
+          node -e 'const {readFileSync}=require("node:fs"); for(const name of ["drizzle-kit","drizzle-orm"]) { const actual=JSON.parse(readFileSync("node_modules/"+name+"/package.json","utf8")).version; if(actual!=="1.0.0-rc.4"){ console.error(name+" version mismatch");process.exit(1); } console.log(name+" evaluated version "+actual) }'
+      - name: Verify fail-closed safety and exact tenancy constraints
+        run: node --test tests/fresh-pg18-development-schema.test.mjs tests/verified-pg18-repeat-push.test.mjs
+      - name: Confirm entirely empty PostgreSQL 18 disposable CI target
+        run: node scripts/qa/fresh-pg18-development-schema.mjs preflight
+      - name: Create current source schema once
+        run: npm run db:push
+      - name: Verify original composite UNIQUE and tenant FK, capture catalog
+        run: node scripts/qa/fresh-pg18-development-schema.mjs capture
+      - name: Refuse non-noop second schema push and silent SQL errors
+        run: node scripts/qa/verified-pg18-repeat-push.mjs
+      - name: Verify no PostgreSQL schema drift after repeat push
+        run: node scripts/qa/fresh-pg18-development-schema.mjs compare
