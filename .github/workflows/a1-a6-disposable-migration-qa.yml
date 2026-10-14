@@ -37,6 +37,16 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Fail closed on stale A1-A6 lineage or already-merged schema before db:push
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+        run: |
+          set -euo pipefail
+          export A1_A6_BASE_SHA="${PR_BASE_SHA:-$(git rev-parse origin/main)}"
+          export A1_A6_HEAD_SHA="${PR_HEAD_SHA:-$(git rev-parse HEAD)}"
+          bash scripts/qa/a1-a6-baseline-preflight.sh
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
