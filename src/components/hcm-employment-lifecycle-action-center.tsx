@@ -106,8 +106,11 @@ function ScopedHcmEmploymentLifecycleActionCenter({
   onOpenEmployee: (employeeId: number) => void;
   onOpenSeparation: () => void;
 }) {
-  const selection = useMemo(() => scope,
-    [scope.organizationId, scope.multiEntityEnabled, scope.legalEntityId]);
+  const selection = useMemo<HcmReadScope>(() => ({
+    organizationId: scope.organizationId,
+    multiEntityEnabled: scope.multiEntityEnabled,
+    legalEntityId: scope.legalEntityId,
+  }), [scope.organizationId, scope.multiEntityEnabled, scope.legalEntityId]);
   const activeRequest = useRef<AbortController | null>(null);
   const [payload, setPayload] = useState<LifecyclePayload | null>(null);
   const [error, setError] = useState("");
