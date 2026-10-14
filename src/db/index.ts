@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { pinVerifiedPgTls } from "@/lib/pg-tls-policy";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -21,7 +22,9 @@ const poolMax = Number(process.env.PG_POOL_MAX);
 export const pool =
   globalForDb.__arenaNextJsPostgresqlPool ??
   new Pool({
-    connectionString: databaseUrl,
+    // Preserve strict certificate and hostname checks when pg v9 changes
+    // the semantics of legacy sslmode=require/prefer/verify-ca aliases.
+    connectionString: pinVerifiedPgTls(databaseUrl, process.env.NODE_ENV === "production"),
     ...(Number.isFinite(poolMax) && poolMax > 0 ? { max: poolMax } : {}),
   });
 
