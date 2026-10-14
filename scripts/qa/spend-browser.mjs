@@ -76,9 +76,18 @@ try {
       await page.screenshot({ path: `qa-artifacts/spend-error-${width}.png`, fullPage: true });
       fail = false; empty = true; await retry.click();
       await retry.waitFor({ state: "hidden" });
-      await page.getByText("No claims yet.", { exact: true }).waitFor();
+      const emptyMessage = page.getByText("No claims yet.", { exact: true });
+      await emptyMessage.waitFor();
       assert.equal(await page.getByRole("alert").count(), 0,
         "successful retry must clear the error instead of retaining stale failure UI");
+      const emptyTextVisible = await emptyMessage.evaluate(node => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const rect = range.getBoundingClientRect();
+        return rect.width > 0 && rect.left >= 0 && rect.right <= window.innerWidth + 1;
+      });
+      assert.equal(emptyTextVisible, true,
+        "successful empty-state message must be readable without horizontal table scrolling at " + width);
       await page.screenshot({ path: `qa-artifacts/spend-empty-${width}.png`, fullPage: true });
       report.checks.push("Loading, exact approval, receipt-required disabled state, error/retry and empty state at " + width);
     }
