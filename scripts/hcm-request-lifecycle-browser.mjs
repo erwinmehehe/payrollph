@@ -136,8 +136,31 @@ try {
   await absent("Current inbox unavailable");
   await visible("Loading tenant-scoped HR follow-ups…");
   await complete(await requestId("people-operations-inbox?organizationId=2"), {organizationId:1,items:[{employeeName:"FOREIGN_INBOX_WORKER"}]});
-  await visible("The People Operations Inbox returned an unexpected employer scope.");
+  await visible("The People Operations Inbox returned an unexpected tenant or legal-employer scope.");
   await absent("FOREIGN_INBOX_WORKER");
+
+  // Switching employers inside one tenant is a private-data boundary.
+  // Old responses must not be displayed, even if transport ignores abort.
+  await page.evaluate(() => window.renderView("inbox", {
+    organizationId: 1, multiEntityEnabled: true, legalEntityId: 101,
+  }));
+  const oldEmployer = await requestId("people-operations-inbox?organizationId=1&legalEntityId=101");
+  await page.evaluate(() => window.renderView("inbox", {
+    organizationId: 1, multiEntityEnabled: true, legalEntityId: 102,
+  }));
+  await complete(oldEmployer, { organizationId: 1, legalEntityId: 101,
+    rows: [{ employeeName: "OLD_EMPLOYER_PERSON" }], summary: { total: 1 } });
+  await complete(await requestId("people-operations-inbox?organizationId=1&legalEntityId=102"),
+    { error: "Selected employer unavailable" }, 503);
+  await visible("Selected employer unavailable");
+  await absent("OLD_EMPLOYER_PERSON");
+  const beforeGroupSelection = await page.evaluate(() => window.pending.length);
+  await page.evaluate(() => window.renderView("inbox", {
+    organizationId: 1, multiEntityEnabled: true, legalEntityId: null,
+  }));
+  await visible("Select one authorized legal employer before loading People Operations.");
+  assert.equal(await page.evaluate(() => window.pending.length), beforeGroupSelection,
+    "An unselected legal employer cannot issue an organization-only read");
   assert.deepEqual(errors, []);
   console.log("HCM request lifecycle browser QA passed: tenant/filter/editor isolation, late history, stale save, refresh/failure states, My Team, Worker 360 and People Ops (StrictMode; transport ignores abort).");
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
