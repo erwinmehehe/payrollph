@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HeartPulse, Plus, RefreshCw, Send, ShieldCheck, Users } from "lucide-react";
+import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
+import { benefitEnrollmentReviewConfirmed, benefitEnrollmentReviewKey } from "@/lib/benefit-enrollment-review";
+import { manilaCalendarDate } from "@/lib/payroll-period-ui";
 
 type HmoPlan = {
   id: number;
@@ -63,12 +66,14 @@ export function HmoBenefitsPanel({
   organizationId: number;
   setNotice: (message: string) => void;
 }) {
+  const enhancedEnrollment = useWorkflowUi().benefitsLoans;
+  const [reviewedKey, setReviewedKey] = useState<string | null>(null);
   const [data, setData] = useState<HmoData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [employeeId, setEmployeeId] = useState(0);
   const [planId, setPlanId] = useState(0);
-  const [startedOn, setStartedOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startedOn, setStartedOn] = useState(() => enhancedEnrollment ? manilaCalendarDate() : new Date().toISOString().slice(0, 10));
   const [dependentEnrollmentId, setDependentEnrollmentId] = useState(0);
   const [dependentName, setDependentName] = useState("");
   const [relationship, setRelationship] = useState("child");
@@ -81,6 +86,7 @@ export function HmoBenefitsPanel({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Could not load HMO administration.");
       setData(payload as HmoData);
+      setReviewedKey(null);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not load HMO administration.");
     } finally {
@@ -98,6 +104,17 @@ export function HmoBenefitsPanel({
     () => new Map((data?.plans ?? []).map((plan) => [plan.id, plan])),
     [data],
   );
+
+  const selectedPlan = planById.get(planId);
+  const selectedEmployee = employeeById.get(employeeId);
+  const reviewKey = selectedPlan && selectedEmployee
+    ? benefitEnrollmentReviewKey({
+      organizationId, employeeId, planId,
+      monthlyContribution: selectedPlan.employeeShare,
+      startedOn,
+    })
+    : null;
+  const reviewConfirmed = benefitEnrollmentReviewConfirmed(reviewedKey, reviewKey);
 
   async function createPlan(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,6 +149,10 @@ export function HmoBenefitsPanel({
   async function enroll(event: React.FormEvent) {
     event.preventDefault();
     if (!employeeId || !planId) return;
+    if (enhancedEnrollment && !reviewConfirmed) {
+      setNotice("Review the employee, HMO plan and effective date before enrolling.");
+      return;
+    }
     const plan = planById.get(planId);
     const response = await fetch("/api/benefits", {
       method: "POST",
@@ -149,6 +170,7 @@ export function HmoBenefitsPanel({
     setNotice("HMO enrollment created. Payroll deduction and automation event are ready.");
     setEmployeeId(0);
     setPlanId(0);
+    setReviewedKey(null);
     await load();
   }
 
@@ -252,19 +274,31 @@ export function HmoBenefitsPanel({
           <div className="card-header"><div><div className="card-kicker">ENROLLMENT</div><h2>Enroll an employee</h2></div></div>
           <form className="setting-form" onSubmit={enroll}>
             <label>Employee
-              <select value={employeeId} onChange={(event) => setEmployeeId(Number(event.target.value))} required>
+              <select value={employeeId} onChange={(event) => { setEmployeeId(Number(event.target.value)); setReviewedKey(null); }} required>
                 <option value="">Choose…</option>
                 {data?.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
               </select>
             </label>
             <label>HMO plan
-              <select value={planId} onChange={(event) => setPlanId(Number(event.target.value))} required>
+              <select value={planId} onChange={(event) => { setPlanId(Number(event.target.value)); setReviewedKey(null); }} required>
                 <option value="">Choose…</option>
                 {data?.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.provider} · {plan.name}</option>)}
               </select>
             </label>
-            <label>Coverage start<input type="date" value={startedOn} onChange={(event) => setStartedOn(event.target.value)} /></label>
-            <div style={{ gridColumn: "1 / -1" }}><button className="primary-button">Create enrollment</button></div>
+            <label>Coverage start<input type="date" value={startedOn} onChange={(event) => { setStartedOn(event.target.value); setReviewedKey(null); }} required={enhancedEnrollment} /></label>
+            {enhancedEnrollment && <div className="notice notice-blue" style={{ gridColumn: "1 / -1" }}>
+              <strong>Review HMO enrollment</strong>
+              <p>Employee: {selectedEmployee ?? "Choose employee"} ·
+                Plan: {selectedPlan?.name ?? "Choose plan"} ·
+                Coverage starts: {startedOn || "Choose date"} ·
+                Monthly employee share: {selectedPlan ? peso(selectedPlan.employeeShare) : "Choose plan"}.</p>
+              <p>This administrator review does not record employee consent. Confirm the separate employee authorization evidence before enrolling.</p>
+              <label><input type="checkbox" checked={reviewConfirmed} disabled={!reviewKey}
+                onChange={(event) => setReviewedKey(event.target.checked ? reviewKey : null)} />
+                I reviewed this employee, HMO plan, amount and effective date.</label>
+            </div>}
+            <div style={{ gridColumn: "1 / -1" }}><button className="primary-button"
+              disabled={enhancedEnrollment && !reviewConfirmed}>Create enrollment</button></div>
           </form>
         </article>
       )}
