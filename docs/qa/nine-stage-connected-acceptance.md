@@ -6,10 +6,14 @@ payroll, record release and four draft filing worksheets. It must never pass bec
 unrelated stage tests succeeded. It explicitly reports FAIL/NOT_RUN when a stage fails.
 
 Run on the PR via **Nine-Stage Connected Payroll Development Acceptance (No Money)**.
-The job is restricted to GitHub-hosted PostgreSQL 16 on 127.0.0.1/app_db and an
-empty database. It explicitly refuses provider keys, payout and filing submission
+The workflow runs PostgreSQL 16 direct/governed Hire plus PostgreSQL 18 governed Hire
+on **separate** GitHub-hosted disposable 127.0.0.1/app_db databases. The PG18 case
+first proves an empty catalog, creates the current Drizzle schema, fingerprints
+its tables/columns/indexes/constraints, repeats the push, and rejects any catalog
+drift. See [PG18 fresh development rebuild](../engineering/fresh-pg18-dev-rebuild-20261014.md). It explicitly refuses provider keys, payout and filing submission
 flags, demo mode, remote hostnames and arbitrary production connections. The job
 builds the exact checked-out commit and uploads sanitized JSON and fictional UI screenshots.
+PG18 additionally uploads a catalog-only schema fingerprint; artifact names identify PG major.
 Synthetic login handoff is removed before artifact upload. The browser job uses
 1440px desktop and 375px/390px Chromium, not a real mobile device.
 
@@ -37,8 +41,9 @@ shim; full React hydration/page-error assertions remain active. An absent, inval
 or more-than-30-minute-old anchor fails closed. This is not actual wall-clock
 attendance or a physical phone.
 Postgres itself, other CI checks and production continue using their real clocks.
-The preload refuses anything except GitHub CI with a local empty PG16 database, payout
-flags OFF and provider keys absent. Its time advances monotonically to retain ordering.
+The preload refuses anything except GitHub CI with local disposable PG16 or PG18,
+payout flags OFF and provider keys absent. The PG18 catalog check explicitly
+verifies the original empty state before initialization. Its time advances monotonically to retain ordering.
 
 Final-month statutory drafts are intentionally NOT generated for a mid-month cutoff,
 and the existing filing guard is not modified. Prior-payroll, overnight, holiday,
