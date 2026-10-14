@@ -7,6 +7,7 @@ const path = "qa-artifacts/governed-hire-853-report.json";
 const required = process.env.NINE_STAGE_GOVERNED_HIRE_REQUIRED === "true";
 
 const { fixtureClockOffset } = createRequire(import.meta.url)("../scripts/qa/synthetic-session-clock.cjs");
+const { boundedSyntheticLoginWaitMs } = createRequire(import.meta.url)("../scripts/qa/governed-hire-auth-backoff.cjs");
 const now = Date.parse("2026-10-14T08:00:00Z");
 const safe = { CI:"true",GITHUB_ACTIONS:"true",QA_URL:"http://127.0.0.1:3000",
  APP_BASE_URL:"http://127.0.0.1:3000",DEMO_MODE:"false",
@@ -15,6 +16,21 @@ const safe = { CI:"true",GITHUB_ACTIONS:"true",QA_URL:"http://127.0.0.1:3000",
  PAYMONGO_DISBURSEMENTS_ENABLED:"false",XENDIT_PAYOUTS_ENABLED:"false",
  XENDIT_PAYOUTS_LIVE_APPROVED:"false",WFM_PUNCH_EVIDENCE_ENABLED:"false",
  WFM_GEOFENCE_PILOT_ENABLED:"false",FINAL_PAY_MANUAL_RELEASE_ENABLED:"false" };
+
+test("governed-Hire CI honors a single bounded 429 window, never bypasses the auth limiter", () => {
+  assert.equal(boundedSyntheticLoginWaitMs(200, {}), null);
+  assert.equal(boundedSyntheticLoginWaitMs(403, { retryAfterMs: 100 }), null);
+  assert.equal(boundedSyntheticLoginWaitMs(429, { retryAfterMs: 0 }), 250);
+  assert.equal(boundedSyntheticLoginWaitMs(429, { retryAfterMs: 1025 }), 1275);
+  assert.equal(boundedSyntheticLoginWaitMs(429, { retryAfterMs: 60000 }), 60250);
+  for (const retryAfterMs of [undefined, null, -1, 60001, 1.2, "5000", Infinity, NaN]) {
+    assert.throws(() => boundedSyntheticLoginWaitMs(429, { retryAfterMs }),
+      /no bounded retryAfterMs/);
+  }
+  assert.throws(() => boundedSyntheticLoginWaitMs(429, {}),
+    /no bounded retryAfterMs/);
+});
+
 test("governed Hire fixture guard rejects remote, live-money and stale-clock targets", () => {
  assert.equal(fixtureClockOffset(safe,now),17*86400000);
  for (const patch of [{CI:"false"},{GITHUB_ACTIONS:"false"},{DEMO_MODE:"true"},
