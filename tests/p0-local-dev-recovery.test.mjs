@@ -65,6 +65,9 @@ test("recovery source streams ciphertext and restore to networkless Docker, with
   assert.match(code,/cmd:"age",args:\["-d","-i"/);
   assert.match(code,/cmd:"docker",args:\["exec","-i",tag,"pg_restore"/);
   assert.match(code,/--network","none"/);
+  assert.match(code,/"image","inspect","postgres:18","--format","{{.Id}}"/);
+  assert.match(code,/restoreImageId\]/);
+  assert.match(code,/disconnectedDocker:true,restoreImageId/);
   assert.match(code,/--single-transaction","--exit-on-error"/);
   assert.match(code,/qa-artifacts", "local-dev-backups"/);
   assert.doesNotMatch(code,/aws s3api|AWS_ACCESS_KEY_ID|s3:\/\/|cloudformation deploy/);
