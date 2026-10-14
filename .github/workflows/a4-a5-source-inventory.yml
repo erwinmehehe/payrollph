@@ -1,0 +1,78 @@
+name: A4 + A5 Merged Source Integrity (Read Only)
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/a4-a5-source-inventory.yml"
+      - "scripts/qa/a1-a6-baseline-preflight.sh"
+      - "scripts/qa/a4-a5-source-inventory.mjs"
+      - "tests/a1-a6-baseline-preflight.test.mjs"
+      - "tests/a4-a5-source-inventory.test.mjs"
+      - "docs/engineering/pr-927-a4-a5-fresh-main-preflight.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: a4-a5-source-acceptance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-preserved-a4:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      A4_A5_INVENTORY_MODE: read-only-ci
+      TZ: Asia/Manila
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Test historical replay guards and merged A4+A5 source with fictional Git fixtures
+        run: |
+          node --test tests/a1-a6-baseline-preflight.test.mjs tests/a4-a5-source-inventory.test.mjs
+      - name: Fetch main history without executing A5 merged source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin \
+            '+refs/heads/main:refs/remotes/origin/main'
+      - name: Verify pinned A4 and A5 merge ancestry and preserved security guards
+        shell: bash
+        env:
+          # Freeze the exact base SHA from the PR event rather than fetching a
+          # moving main ref several minutes after the event was generated.
+          PR_EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            [[ "${PR_EVENT_BASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || {
+              echo "Missing exact pull-request event base SHA" >&2
+              exit 1
+            }
+            export A4_A5_BASE_SHA="${PR_EVENT_BASE_SHA}"
+          else
+            # workflow_dispatch pins main once for this manually run check.
+            export A4_A5_BASE_SHA="$(git rev-parse refs/remotes/origin/main)"
+          fi
+          # Git must contain the event-base commit even if main has since advanced.
+          git cat-file -e "${A4_A5_BASE_SHA}^{commit}" || {
+            echo "Pinned PR base commit is unavailable" >&2
+            exit 1
+          }
+          # This is the merged #896 squash commit, not the obsolete PR head.
+          export A4_A5_SPEND_SHA=361bd6b5d9a9706a2930b0c48a8e0e431fd10bfe
+          # This is the actual two-parent merge commit for #902, not its old PR head.
+          export A4_A5_VAULT_MERGE_SHA=3a4a2edaca9a44064c824d57fcb3f9e88aee72c9
+          node scripts/qa/a4-a5-source-inventory.mjs
+      - name: Publish sanitized source evidence, including on a blocked result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: a4-a5-already-merged-source-inventory
+          path: qa-artifacts/a4-a5-source-inventory.json
+          if-no-files-found: warn
+          retention-days: 14
