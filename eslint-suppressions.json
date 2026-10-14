@@ -64,11 +64,6 @@
       "count": 2
     }
   },
-  "src/components/hcm-governance-readiness-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/hcm-lifecycle-notification-inbox.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
