@@ -45,7 +45,7 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
   const requestGeneration = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [checked, setChecked] = useState(false);
+  const [checkedOrganizationId, setCheckedOrganizationId] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     const requestId = ++requestGeneration.current;
@@ -77,14 +77,13 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
       setError(caught instanceof Error ? caught.message : "HCM readiness is unavailable.");
     } finally {
       if (requestId === requestGeneration.current) {
-        setChecked(true);
+        setCheckedOrganizationId(organizationId);
         setBusy(false);
       }
     }
   }, [organizationId]);
 
   useEffect(() => {
-    setChecked(false);
     void refresh();
     return () => { requestGeneration.current += 1; };
   }, [refresh]);
@@ -92,6 +91,9 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
   // Render only the report associated with this exact tenant, even during
   // the render before a React effect has run on an organization switch.
   const report = loadedOrganizationId === organizationId ? storedReport : null;
+  // Derive completion from the selected employer during render, not an effect.
+  // On A -> B -> A switches, B cannot inherit A\'s completed-check indicator.
+  const checked = checkedOrganizationId === organizationId;
 
   return (
     <section style={{ padding: "12px 16px 4px" }} aria-label="Read-only HCM governance readiness">
