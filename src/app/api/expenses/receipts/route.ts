@@ -1,19 +1,20 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employees, expenseClaimEvidence, expenseClaims } from "@/db/schema";
+import { auditEvents, documents, employees, expenseClaimEvidence, expenseClaims } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { loadSpendClaimEvidence, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
 import {
-  documentObjectKey, putDocumentObject, deleteDocumentObject,
+  documentObjectKey, putDocumentObject,
 } from "@/lib/document-object-storage";
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
 import { claimCanAttachReceipt, receiptObjectIdentityMatches } from "@/lib/spend-payroll-reimbursement";
 import { readVerifiedSpendReceipt } from "@/lib/spend-receipt-storage";
+import { SPEND_PENDING_RECEIPT_PREFIX, reconcilePendingSpendReceipt } from "@/lib/spend-receipt-object-reconciliation";
 
 export const dynamic = "force-dynamic";
 const enabled = () => spendPayrollEnabled() &&
@@ -124,16 +125,59 @@ export async function POST(request: Request) {
   }
   const key = documentObjectKey(claim.organizationId, claim.employeeId);
   const hash = createHash("sha256").update(bytes).digest("hex");
+  const pendingSourceKey = SPEND_PENDING_RECEIPT_PREFIX + randomUUID();
+
+  // Stage unreadable private-object cleanup evidence BEFORE uploading bytes.
+  // A SQL failure here means no remote PUT was attempted.
+  let pendingDocumentId: number;
+  try {
+    pendingDocumentId = await db.transaction(async tx => {
+      const [intent] = await tx.insert(documents).values({
+        organizationId: claim.organizationId, employeeId: claim.employeeId,
+        kind: "expense_receipt",
+        fileName: "Pending private reimbursement receipt",
+        mimeType: parsed.mime, byteSize: bytes.byteLength, sha256: hash,
+        scannedClean: false, scanNote: "Pending verified private reimbursement storage",
+        sourceType: "upload", sourceKey: pendingSourceKey,
+        uploadedBy: user.name, uploadedByUserId: user.id,
+        content: "", objectStorageKey: key,
+      }).returning({ id: documents.id });
+      await tx.insert(auditEvents).values({
+        organizationId: claim.organizationId, actor: user.name,
+        action: "Pending private reimbursement receipt upload recorded",
+        resource: String(intent.id),
+        metadata: { claimId: id, employeeId: claim.employeeId,
+          documentId: intent.id, sha256: hash, actorUserId: user.id },
+      });
+      return intent.id;
+    });
+  } catch {
+    return Response.json({ error: "Private receipt upload could not be reserved." }, { status: 409 });
+  }
+
   try {
     await putDocumentObject(key, bytes, parsed.mime);
     await readVerifiedSpendReceipt({ key, organizationId: claim.organizationId,
       employeeId: claim.employeeId, sha256: hash, byteSize: bytes.byteLength });
   } catch {
-    await deleteDocumentObject(key).catch(() => {});
-    return Response.json({ error: "Private receipt storage is unavailable." }, { status: 503 });
+    // A timed-out PUT may still complete later. Do not DELETE immediately:
+    // the committed intent is recovered by the delayed leased sweep.
+    return Response.json({ error: "Private receipt verification failed; protected cleanup is queued." }, { status: 503 });
   }
+
   try {
     const saved = await db.transaction(async tx => {
+      const [pending] = await tx.select({
+        id: documents.id, scannedClean: documents.scannedClean,
+        sourceKey: documents.sourceKey, objectStorageKey: documents.objectStorageKey,
+      }).from(documents).where(and(
+        eq(documents.id, pendingDocumentId),
+        eq(documents.organizationId, claim.organizationId),
+      )).for("update").limit(1);
+      if (!pending || pending.scannedClean ||
+          pending.sourceKey !== pendingSourceKey ||
+          pending.objectStorageKey !== key) throw new Error("PENDING_RECEIPT_CHANGED");
+
       const [freshCore] = await tx.select().from(expenseClaims).where(and(
         eq(expenseClaims.id, id), eq(expenseClaims.organizationId, claim.organizationId),
       )).for("update").limit(1);
@@ -149,6 +193,15 @@ export async function POST(request: Request) {
         isNull(expenseClaimEvidence.receiptStorageKey),
       )).returning({ id: expenseClaimEvidence.claimId });
       if (!updated) throw new Error("CLAIM_ALREADY_CHANGED");
+      // Receipt metadata and deletion of the recovery intent commit together.
+      // On rollback, the unreadable intent survives and cleanup remains safe.
+      const cleared = await tx.delete(documents).where(and(
+        eq(documents.id, pendingDocumentId),
+        eq(documents.organizationId, claim.organizationId),
+        eq(documents.sourceKey, pendingSourceKey),
+        eq(documents.scannedClean, false),
+      )).returning({ id: documents.id });
+      if (cleared.length !== 1) throw new Error("PENDING_RECEIPT_CHANGED");
       await tx.insert(auditEvents).values({
         organizationId: claim.organizationId, actor: user.name,
         action: "Expense receipt scanned and uploaded", resource: String(id),
@@ -159,7 +212,10 @@ export async function POST(request: Request) {
     });
     return Response.json({ claimId: saved.id, sha256: hash, receiptFileName: name }, { status: 201 });
   } catch {
-    await deleteDocumentObject(key).catch(() => {});
-    return Response.json({ error: "Receipt could not be attached; claim may have changed." }, { status: 409 });
+    // PUT and SHA readback completed: immediate best-effort reconciliation is
+    // safe, but failed DELETE retains the committed intent for the sweeper.
+    await reconcilePendingSpendReceipt(pendingDocumentId).catch(() => {});
+    return Response.json({ error: "Receipt could not be attached; protected cleanup evidence is retained." }, { status: 409 });
   }
+
 }
