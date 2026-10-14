@@ -31,11 +31,11 @@ test("expense API enforces maker-checker, MFA, employer scope, exact approval an
     const staff = await db.insert(employees).values([{ organizationId: orgs[0].id, employeeNo: "A",
       firstName: "Synthetic", lastName: "Claimant", title: "Associate", avatarInitials: "SC", basicRate: "30000", startDate: "2025-01-01" },
     { organizationId: orgs[1].id, employeeNo: "B", firstName: "Other", lastName: "Employer", title: "Associate", avatarInitials: "OE", basicRate: "30000", startDate: "2025-01-01" }]).returning();
-    const accounts = await db.insert(users).values(["maker", "checker", "outsider", "scoped"].map((name, index) => ({
-      name, email: name + "@example.invalid", passwordHash: "synthetic", role: "owner",
-      employeeId: index === 0 ? staff[0].id : null }))).returning();
+    const accounts = await db.insert(users).values(["maker", "checker", "outsider", "scoped", "employee"].map((name, index) => ({
+      name, email: name + "@example.invalid", passwordHash: "synthetic", role: index === 4 ? "employee" : "owner",
+      employeeId: index === 0 || index === 4 ? staff[0].id : null }))).returning();
     await db.insert(userOrganizations).values(accounts.map((user, index) => ({ userId: user.id,
-      organizationId: index === 2 ? orgs[1].id : orgs[0].id, role: "owner",
+      organizationId: index === 2 ? orgs[1].id : orgs[0].id, role: user.role,
       orgUnitId: index === 3 ? unit.id : null })));
     const signed = (index: number) => { actor = { ...accounts[index], totpEnabled: true, mfaVerifiedAt: new Date() }; };
     signed(1);
@@ -91,6 +91,14 @@ test("expense API enforces maker-checker, MFA, employer scope, exact approval an
     const [verified] = await db.select().from(expenseClaimEvidence).where(eq(expenseClaimEvidence.claimId, claim.id));
     assert.equal(verified.receiptSha256, hash); assert.equal(verified.receiptByteSize, bytes.length);
     assert.equal(objects.size, 1, "Failed database attachment deletes the orphan object");
+    signed(4);
+    const ess = await (await api.GET(request("GET", undefined, "?organizationId=" + orgs[0].id))).json();
+    assert.equal(ess.employees.length, 1); assert.equal(ess.employees[0].id, staff[0].id);
+    assert.ok(ess.claims.every((row: { employeeId: number; canDecide: boolean }) => row.employeeId === staff[0].id && !row.canDecide));
+    assert.equal((await api.PATCH(request("PATCH", { id: claim.id, status: "approved" }))).status, 403);
+    assert.equal((await api.GET(request("GET", undefined, "?organizationId=" + orgs[1].id))).status, 403);
+    const selfClaim = await api.POST(request("POST", { ...body, employeeId: staff[1].id }));
+    assert.equal(selfClaim.status, 201); assert.equal((await selfClaim.json()).employeeId, staff[0].id);
     signed(0);
     assert.equal((await api.PATCH(request("PATCH", { id: claim.id, status: "approved" }))).status, 403);
     signed(2);
