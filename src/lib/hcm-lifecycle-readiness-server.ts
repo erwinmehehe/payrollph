@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
   employees,
   hcmEmploymentTermDecisions,
@@ -19,6 +20,17 @@ export async function loadEmploymentLifecycleReadiness(
   today = philippineBusinessDate(),
   legalEntityId: number | null = null,
 ) {
+  // Server-side callers must never silently obtain an All-employers HCM view
+  // when multi-entity is enabled, even if they bypass an HTTP handler.
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) {
+    throw new Error("ENTITY_HCM_ORGANIZATION_REQUIRED");
+  }
+  if (legalEntityId !== null && (!Number.isSafeInteger(legalEntityId) || legalEntityId <= 0)) {
+    throw new Error("ENTITY_HCM_INVALID_EMPLOYER");
+  }
+  if (criticalReleaseFlagEnabled("multiEntity") && legalEntityId === null) {
+    throw new Error("ENTITY_HCM_SCOPE_REQUIRED");
+  }
   const policy = await loadHcmLifecyclePolicy(organizationId);
   const entityEmployees = db.select({ id: employees.id }).from(employees).where(and(
     eq(employees.organizationId, organizationId),
