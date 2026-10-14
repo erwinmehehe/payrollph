@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth";
 import { tickScheduler } from "@/lib/scheduler";
+import { checkPayrollWorkerDispatchGate } from "@/lib/payroll-worker-dispatch-gate";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { operationalSecret } from "@/lib/operational-secret";
 import { enforceSameOriginMutation } from "@/lib/security-request";
@@ -41,6 +42,16 @@ export async function POST(request: Request) {
         status: 503, headers: { "Cache-Control": "no-store" },
       });
     }
+  }
+
+  // Do not trust an earlier GET preflight: a worker can stop before this POST,
+  // and a separately authenticated caller may invoke /api/jobs/tick directly.
+  // Enforce the same default-off production worker prerequisite at the final
+  // mutating boundary, after authentication and before any scheduler work.
+  const worker = await checkPayrollWorkerDispatchGate();
+  if (!worker.ok) {
+    return Response.json({ error: "Payroll worker heartbeat is missing or unhealthy." },
+      { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 
   const result = await tickScheduler(true);

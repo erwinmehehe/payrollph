@@ -6,6 +6,30 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  applicantPrivacy: {
+    env: "APPLICANT_PRIVACY_CONTROLS_ENABLED",
+    owner: "HR Operations / Data Protection Officer",
+    risk: "P1 applicant consent evidence, subject-rights exports and rejected-candidate deletion",
+    approval: "DPO notice/legal basis, migration, private resume deletion and two-tenant retention acceptance",
+  },
+  compactMobileHeader: {
+    env: "COMPACT_MOBILE_HEADER_ENABLED",
+    owner: "Product / Accessibility",
+    risk: "Small-screen organization switcher and account control layout",
+    approval: "Desktop/375/390px authenticated browser and default-off rendering parity",
+  },
+  payrollWorkerHeartbeatRequired: {
+    env: "PAYROLL_WORKER_HEARTBEAT_REQUIRED",
+    owner: "Payroll / Operations",
+    risk: "Scheduler refuses work without a fresh dedicated-worker heartbeat",
+    approval: "Synthetic liveness and independently approved worker hosting; no payout authority",
+  },
+  bir1604cReviewedCandidate: {
+    env: "BIR_1604C_DAT_CANDIDATE_ENABLED",
+    owner: "Philippine Payroll / Tax",
+    risk: "Reviewed draft annual employer DAT and private validation evidence",
+    approval: "Exact-source, role/MFA, maker-checker and official-module acceptance; no filing authority",
+  },
   independentSourceReview: {
     env: "INDEPENDENT_SOURCE_REVIEW_REQUIRED",
     owner: "Repository Maintainer",
@@ -192,11 +216,33 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 overdue approval escalation and stricter payroll maker-checker identity gate",
     approval: "Delegation expiry, distinct-human and scheduler idempotency UAT",
   },
+  employeeDocumentVault: {
+    env: "EMPLOYEE_DOCUMENT_VAULT_ENABLED",
+    owner: "Security and Privacy",
+    risk: "P1 private employee documents in signed object storage",
+    approval: "Object storage, migration reconciliation, malware scanning and view auditing accepted",
+  },
+  employeeHrCases: {
+    env: "EMPLOYEE_HR_CASES_ENABLED",
+    owner: "People Operations",
+    risk: "P1 confidential employee HR requests and COE approvals",
+    approval: "Scoped HR and ESS acceptance, SLA operations and independently signed COE review",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",
     risk: "P2 employer pilot navigation",
     approval: "Named pilot employer opt-in and witnessed UX acceptance",
+  },
+  sanitizedErrorTelemetry: {
+    env: "SAFE_OTEL_ERRORS_ENABLED", owner: "Security / Operations",
+    risk: "Optional remote sanitized error events", approval: "Collector/DPO review and synthetic error payload acceptance",
+  },
+  offboardingClearance: {
+    env: "OFFBOARDING_CLEARANCE_ENABLED",
+    owner: "People Operations and Payroll",
+    risk: "P0 documented clearance waivers, final-pay authority and worker access revocation",
+    approval: "Three-actor final-pay pilot, tenant isolation, waiver evidence and revoked-session rollback UAT",
   },
 } as const;
 

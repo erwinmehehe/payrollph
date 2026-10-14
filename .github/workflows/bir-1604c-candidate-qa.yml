@@ -1,0 +1,123 @@
+name: BIR 1604-C Reviewed DAT Synthetic Browser QA
+
+on:
+  pull_request:
+    paths:
+      - 'src/lib/bir-1604c-*.ts'
+      - 'src/lib/bir-annual-employer-source.ts'
+      - 'src/app/api/bir/annual-employer/**'
+      - 'src/components/workspace/bir-1604c-candidate-panel.tsx'
+      - 'src/components/workspace/panels.tsx'
+      - 'scripts/bir-1604c-synthetic-browser*'
+      - 'tests/bir-1604c*'
+      - '.github/workflows/bir-1604c-candidate-qa.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bir-1604c-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: 'true'
+      TZ: Asia/Manila
+      BIR_SYNTHETIC_BROWSER_QA: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: https://127.0.0.1:3443
+      TRUSTED_APP_ORIGINS: https://127.0.0.1:3443,https://127.0.0.1:3444
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral encryption keys (synthetic only)
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          totp_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$totp_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Seed synthetic employer, employee, MFA and annual BIR records
+        run: npx tsx scripts/bir-1604c-synthetic-browser-fixture.ts
+      - name: Typecheck the filing implementation
+        run: npm run typecheck
+      - name: Build scoped candidate and UI
+        run: npm run build
+      - name: Install synthetic-only Chromium
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Generate ephemeral loopback TLS certificate
+        run: |
+          openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 1 \
+            -keyout /tmp/bir-synthetic-https.key \
+            -out /tmp/bir-synthetic-https.crt \
+            -subj "/CN=localhost" \
+            -addext "subjectAltName=IP:127.0.0.1,DNS:localhost" >/dev/null 2>&1
+      - name: Start flag-on and flag-off servers
+        run: |
+          BIR_1604C_DAT_CANDIDATE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/bir-1604c-on.log 2>&1 &
+          BIR_1604C_DAT_CANDIDATE_ENABLED=false npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/bir-1604c-off.log 2>&1 &
+          for port in 3000 3001; do
+            ready=false
+            for attempt in $(seq 1 60); do
+              if curl --silent --fail "http://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi
+              sleep 1
+            done
+            test "$ready" = true
+          done
+      - name: Start ephemeral HTTPS reverse proxies for Secure MFA session cookies
+        run: |
+          node scripts/bir-1604c-synthetic-https-proxy.mjs > /tmp/bir-1604c-tls.log 2>&1 &
+          for port in 3443 3444; do
+            ready=false
+            for attempt in $(seq 1 30); do
+              if curl --cacert /tmp/bir-synthetic-https.crt --silent --fail "https://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi
+              sleep 1
+            done
+            test "$ready" = true
+          done
+      - name: Test role restrictions, DAT bytes, flag-off and desktop/390px UI
+        run: node --import tsx scripts/bir-1604c-synthetic-browser.mjs
+      - name: Include official-module manual validation instructions
+        if: always()
+        run: |
+          mkdir -p qa-artifacts/bir-1604c
+          cp docs/payroll-certification/bir-1604c-windows-validation-handoff.md qa-artifacts/bir-1604c/VALIDATE-ON-WINDOWS.md
+          cp scripts/bir-1604c-check-exact-test-dat.ps1 qa-artifacts/bir-1604c/VERIFY-DAT-SHA256.ps1
+      - name: Upload only synthetic browser artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bir-1604c-synthetic-browser
+          path: qa-artifacts/bir-1604c
+          if-no-files-found: warn
+          retention-days: 14
