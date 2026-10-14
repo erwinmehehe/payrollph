@@ -56,7 +56,9 @@ on:
       - "tests/qa-synthetic-session-clock.test.ts"
       - "scripts/qa/nine-stage-mobile-browser.mjs"
       - "scripts/qa/fresh-pg18-development-schema.mjs"
+      - "scripts/qa/verified-pg18-repeat-push.mjs"
       - "tests/fresh-pg18-development-schema.test.mjs"
+      - "tests/verified-pg18-repeat-push.test.mjs"
       - "drizzle.config.ts"
       - "src/db/schema.ts"
       - "src/lib/ess-profile-schema.ts"
@@ -117,7 +119,9 @@ on:
       - "tests/qa-synthetic-session-clock.test.ts"
       - "scripts/qa/nine-stage-mobile-browser.mjs"
       - "scripts/qa/fresh-pg18-development-schema.mjs"
+      - "scripts/qa/verified-pg18-repeat-push.mjs"
       - "tests/fresh-pg18-development-schema.test.mjs"
+      - "tests/verified-pg18-repeat-push.test.mjs"
       - "drizzle.config.ts"
       - "src/db/schema.ts"
       - "src/lib/ess-profile-schema.ts"
@@ -217,15 +221,15 @@ jobs:
       - name: PG18 only — prove completely empty disposable database and guarded source before schema push
         if: matrix.postgres == '18'
         run: |
-          node --test tests/fresh-pg18-development-schema.test.mjs
+          node --test tests/fresh-pg18-development-schema.test.mjs tests/verified-pg18-repeat-push.test.mjs
           node scripts/qa/fresh-pg18-development-schema.mjs preflight
       - name: Provision fresh disposable PostgreSQL ${{ matrix.postgres }} from current Drizzle schema
         run: npm run db:push
-      - name: PG18 only — fingerprint schema, repeat push and prove no catalog drift
+      - name: PG18 only — fingerprint schema, strict second push no-op and no catalog drift
         if: matrix.postgres == '18'
         run: |
           node scripts/qa/fresh-pg18-development-schema.mjs capture
-          npm run db:push
+          node scripts/qa/verified-pg18-repeat-push.mjs
           node scripts/qa/fresh-pg18-development-schema.mjs compare
       - name: Apply isolated audit controls and synthetic session clock
         run: |
