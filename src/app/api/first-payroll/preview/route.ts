@@ -6,14 +6,15 @@ import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { firstPayrollInlineAvailable } from "@/lib/first-payroll-inline-gate";
 import { publicFirstPayrollPreviewError } from "@/lib/first-payroll-public-errors";
+import { privatePreviewDenied, privatePreviewJson } from "@/lib/first-payroll-private-response";
 export const dynamic="force-dynamic";
 
 /** Read-only first-payroll preview. Deliberately GET-only, never a payroll-run mutation. */
 export async function GET(request:Request){
  if (!(await firstPayrollInlineAvailable()))
-  return Response.json({error:"First-payroll preview is unavailable."},{status:404});
+  return privatePreviewJson({error:"First-payroll preview is unavailable."},404);
  const user=await getSessionUser();
- if(!user)return Response.json({error:"Authentication required."},{status:401});
+ if(!user)return privatePreviewJson({error:"Authentication required."},401);
  const q=new URL(request.url).searchParams;
  const organizationId=Number(q.get("organizationId"));
  const periodStart=parseMigrationDate(q.get("periodStart")??"");
@@ -21,18 +22,18 @@ export async function GET(request:Request){
  const payDate=parseMigrationDate(q.get("payDate")??"");
  if(!Number.isSafeInteger(organizationId)||organizationId<=0||!periodStart||!periodEnd||!payDate||
    periodStart>periodEnd||payDate<periodEnd||(Date.parse(periodEnd)-Date.parse(periodStart))/86400000>31)
-  return Response.json({error:"Valid employer and pay period (maximum 32 inclusive days) required."},{status:400});
+  return privatePreviewJson({error:"Valid employer and pay period (maximum 32 inclusive days) required."},400);
  const denied=await assertOrganizationRole(user.id,organizationId,PAYROLL_VIEW_ROLES,"Payroll viewer access required.");
- if(denied)return denied;
+ if(denied)return privatePreviewDenied(denied);
  const access=await getAccess(user.id,organizationId);
- if(!access?.companyWide)return Response.json({error:"Company-wide payroll access required."},{status:403});
+ if(!access?.companyWide)return privatePreviewJson({error:"Company-wide payroll access required."},403);
  try {
   const data=await db.transaction(async tx=>{
    await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`);
    return loadReadOnlyFirstPayrollPreview({organizationId,periodStart,periodEnd,payDate},tx);
   });
-  return Response.json(data,{headers:{"Cache-Control":"private, no-store"}});
+  return privatePreviewJson(data);
  }catch(e){
-  return Response.json({error:publicFirstPayrollPreviewError(e)},{status:422});
+  return privatePreviewJson({error:publicFirstPayrollPreviewError(e)},422);
  }
 }
