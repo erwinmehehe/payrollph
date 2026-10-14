@@ -172,6 +172,10 @@ function isPinnedApplicantPrivacySource(files) {
 }
 
 // Owner-approved #896 test-only source exception. Other frozen paths remain held.
+// Bind it to the exact reviewed Spend PR and head as well as immutable test blobs.
+// A new Spend commit requires a new source review; never infer pilot/production approval.
+const SPEND_NAVIGATION_APPROVED_PR = 896;
+const SPEND_NAVIGATION_APPROVED_HEAD = "25e025e695965e0320a52cee06372304bc39ad58";
 const SPEND_NAVIGATION_TEST_BLOBS = new Map([
   ["tests/hcm-documents-policy-center.test.ts", "67e95f68dfa1166e8bd7fcf798d75d9fe28ba4b4"],
   ["tests/performance-self-assessment.test.ts", "11b9dcae1fa140559db69a3ef078ea2286334d35"],
@@ -187,6 +191,12 @@ function isPinnedSpendNavigationTests(files, frozenPaths) {
       && file.previous_filename == null)
     && candidates.every(file => file.status === "modified"
       && file.sha === SPEND_NAVIGATION_TEST_BLOBS.get(file.filename));
+}
+
+export function isApprovedSpendNavigationSource(pr, scope) {
+  return pr?.number === SPEND_NAVIGATION_APPROVED_PR &&
+    pr?.head?.sha === SPEND_NAVIGATION_APPROVED_HEAD &&
+    scope?.spendNavigationTests === true;
 }
 
 const FROZEN_LANES = [
@@ -315,7 +325,7 @@ export function evaluateIndependentReview({
   const blockers = [];
   if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
       !scope.wfmFiveWorkerDevEvidence && !scope.wfm691WitnessDevEvidence &&
-       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !scope.spendNavigationTests &&
+       !scope.hcmIntakeRegressionDevEvidence && !scope.hrDocumentLegacyCompatibility && !scope.applicantPrivacySource && !isApprovedSpendNavigationSource(pr, scope) &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {
