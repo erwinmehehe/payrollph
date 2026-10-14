@@ -12,8 +12,10 @@ export const dynamic = "force-dynamic";
 const unavailable = () => Response.json({ error: "Careers publishing unavailable." }, { status: 404 });
 
 export async function PATCH(request: Request) {
-  if (!careersNoticeConfig()) return unavailable();
+  // A multi-entity request must be denied explicitly even when notice
+  // configuration is absent; never fall through to role or data queries.
   const hold = workflowEntityHold(); if (hold) return hold;
+  if (!careersNoticeConfig()) return unavailable();
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in required." }, { status: 401 });

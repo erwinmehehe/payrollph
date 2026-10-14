@@ -24,9 +24,11 @@ const retryAfter = (retryAfterMs: number) => Math.max(1, Math.ceil(retryAfterMs 
  * job budget/salary records. Requires BOTH #925 schema and approved careers DDL.
  */
 export async function GET(request: Request) {
+  // Reject unsupported legal-employer workflows before evaluating optional
+  // privacy configuration; response stays 403 across disabled notice states.
+  const hold = workflowEntityHold(); if (hold) return hold;
   const notice = careersNoticeConfig();
   if (!notice) return unavailable();
-  const hold = workflowEntityHold(); if (hold) return hold;
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   if (!validId(organizationId)) return Response.json({ error: "Valid employer required." }, { status: 400 });
   if (!await careersSchemaReady()) return notReady();
@@ -47,9 +49,11 @@ export async function GET(request: Request) {
  * employee-account creation. Every accepted application gets #925 evidence.
  */
 export async function POST(request: Request) {
+  // Reject unsupported legal-employer workflows before evaluating optional
+  // privacy configuration; response stays 403 across disabled notice states.
+  const hold = workflowEntityHold(); if (hold) return hold;
   const notice = careersNoticeConfig();
   if (!notice) return unavailable();
-  const hold = workflowEntityHold(); if (hold) return hold;
   const denied = enforceSameOriginMutation(request);
   if (denied) return denied;
   const body = await readCareersApplicationBody(request);
