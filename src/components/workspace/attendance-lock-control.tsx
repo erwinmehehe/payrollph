@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { LockKeyhole, ShieldCheck, UnlockKeyhole } from "lucide-react";
 import type { Notify } from "./types";
-import { Spinner, Status } from "./ui";
+import { ErrorState, Spinner, Status } from "./ui";
 import { useScopedAsyncResource } from "./use-scoped-async-resource";
 
 type LockRow = {
@@ -46,9 +46,8 @@ export function AttendanceLockControl({
     if (!response.ok) throw new Error(body.error ?? "Could not load attendance locks.");
     return body as LockPayload;
   }, [organizationId]);
-  const onLoadError = useCallback((error: Error) => notify(error.message, "err"), [notify]);
   const { data: payload, error: loadError, loading, reload: load } =
-    useScopedAsyncResource(String(organizationId), fetchLocks, onLoadError);
+    useScopedAsyncResource(String(organizationId), fetchLocks);
 
   const coveringLocks = useMemo(
     () => (payload?.locks ?? []).filter((row) =>
@@ -94,7 +93,15 @@ export function AttendanceLockControl({
         <Status value={loading ? "Loading locks" : loadError ? "Lock status unavailable" : cutoffLock ? "Payroll cutoff locked" : attendanceLock ? "Capture locked" : "Open"} />
       </div>
 
-      {!payload?.canManage && (
+      {loadError && (
+        <ErrorState
+          title="Attendance lock status unavailable"
+          detail="Period lock settings could not be loaded. No locks were changed."
+          onRetry={() => void load()}
+        />
+      )}
+
+      {payload && !payload.canManage && (
         <div className="notice notice-slate" style={{ margin: "12px 0 0" }}>
           <ShieldCheck size={14} className="i-green" />
           <span>Lock status is visible here. Company-wide People or Payroll access is required to change period locks.</span>

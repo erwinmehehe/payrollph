@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { appendDistinctToast } from "@/lib/toast-queue";
 import { AlertTriangle, Check, Inbox, X } from "lucide-react";
 import type { Toast, ToastKind } from "./types";
 
@@ -237,16 +238,19 @@ export function useToasts() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seq = useRef(0);
 
-  function notify(message: string, kind: ToastKind = "ok") {
-    if (!message) return;
+  // Stable callbacks prevent toast state updates from retriggering fetch effects
+  // in child panels that include notify in their dependency arrays.
+  const notify = useCallback((message: string, kind: ToastKind = "ok") => {
+    const normalized = message.trim();
+    if (!normalized) return;
     seq.current += 1;
     const id = seq.current;
-    setToasts((current) => [...current, { id, kind, message }]);
-  }
+    setToasts((current) => appendDistinctToast(current, { id, kind, message: normalized }));
+  }, []);
 
-  function dismiss(id: number) {
+  const dismiss = useCallback((id: number) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
-  }
+  }, []);
 
   return { toasts, notify, dismiss };
 }
