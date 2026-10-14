@@ -21,7 +21,7 @@ export function syntheticFilingInput(): Bir1604CCandidateInput {
       if (!administrative.has(field)) fields[field] = "0.00";
     Object.assign(fields, {
       TIN: "33322211" + index, BRANCH_CODE: "0000", LAST_NAME: name,
-      FIRST_NAME: "FICTIONAL", MIDDLE_NAME: "", REGION_NUM: "0001",
+      FIRST_NAME: "FICTIONAL", MIDDLE_NAME: "", REGION_NUM: "NCR",
       EMPLOYMENT_FROM: index === 2 ? "07/01/2025" : "01/01/2025",
       EMPLOYMENT_TO: "12/31/2025", NATIONALITY: "FILIPINO",
       EMPLOYMENT_STATUS: "R", REASON_SEPARATION: "NA", SUBS_FILING: index === 3 ? "N" : "Y",
@@ -30,7 +30,9 @@ export function syntheticFilingInput(): Bir1604CCandidateInput {
       FACTOR_USED: 313, PRES_NONTAX_BASIC_SMW_DAY: "500.00",
       PRES_NONTAX_BASIC_SMW_MONTH: "13041.67", PRES_NONTAX_BASIC_SMW_YEAR: "156500.00",
       PRES_NONTAX_GROSS_COMP_INCOME: "156500.00", PRES_TOTAL_NONTAX_COMP_INCOME: "156500.00",
-      GROSS_COMP_INCOME: "156500.00", NONTAX_BASIC_SAL: "156500.00",
+      // Official 7.4 treats this D2 column as combined taxable compensation.
+      // Exempt wage amounts remain above and in NONTAX_BASIC_SAL, never erased.
+      GROSS_COMP_INCOME: "0.00", NONTAX_BASIC_SAL: "156500.00",
     });
     else {
       const gross = index === 2 ? "300000.00" : "600000.00";

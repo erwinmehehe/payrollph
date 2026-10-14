@@ -99,3 +99,9 @@ test("invalid TLS configuration never leaks the URL, hostname, or password", () 
     }
   }
 });
+
+test("production mode refuses hostless URLs rather than relying on driver defaults", () => {
+  for (const url of ["postgresql:///app_db?sslmode=verify-full", "postgres:///app_db?sslmode=require"]) {
+    assert.throws(() => pinVerifiedPgTls(url, true), /missing database hostname/);
+  }
+});

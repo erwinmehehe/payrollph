@@ -65,6 +65,13 @@ on:
       - "src/lib/saas-billing-schema.ts"
       - "src/lib/workforce-schedule-receipt-schema.ts"
       - "tests/nine-stage-connected-evidence.test.mjs"
+      - "scripts/qa/issue-853-evidence-ledger.mjs"
+      - "scripts/qa/issue-853-synthetic-coverage.mjs"
+      - "tests/issue-853-evidence-ledger.test.mjs"
+      - "tests/issue-853-synthetic-coverage.test.mjs"
+      - "fixtures/issue-853-fictional-tenants.json"
+      - "docs/qa/issue-853-acceptance-pack.md"
+      - "docs/qa/issue-853-two-employer-operator-acceptance.md"
       - "docs/qa/nine-stage-connected-acceptance.md"
       - ".github/workflows/nine-stage-connected-acceptance.yml"
   pull_request:
@@ -128,6 +135,13 @@ on:
       - "src/lib/saas-billing-schema.ts"
       - "src/lib/workforce-schedule-receipt-schema.ts"
       - "tests/nine-stage-connected-evidence.test.mjs"
+      - "scripts/qa/issue-853-evidence-ledger.mjs"
+      - "scripts/qa/issue-853-synthetic-coverage.mjs"
+      - "tests/issue-853-evidence-ledger.test.mjs"
+      - "tests/issue-853-synthetic-coverage.test.mjs"
+      - "fixtures/issue-853-fictional-tenants.json"
+      - "docs/qa/issue-853-acceptance-pack.md"
+      - "docs/qa/issue-853-two-employer-operator-acceptance.md"
       - "docs/qa/nine-stage-connected-acceptance.md"
       - ".github/workflows/nine-stage-connected-acceptance.yml"
   workflow_dispatch:
@@ -286,6 +300,11 @@ jobs:
       - name: Exercise synthetic 375px/390px role and employer switching
         if: success()
         run: node scripts/qa/nine-stage-mobile-browser.mjs
+      - name: Verify explicit two-employer synthetic scope without claiming human UAT
+        if: success()
+        run: |
+          node --test tests/issue-853-evidence-ledger.test.mjs tests/issue-853-synthetic-coverage.test.mjs
+          node scripts/qa/issue-853-synthetic-coverage.mjs
       - name: Exercise governed candidate-to-worker Hire BP (separate no-money sidecar)
         if: always()
         run: NODE_OPTIONS="--require=$(pwd)/scripts/qa/isolated-month-end-clock.cjs" npx tsx scripts/qa/governed-hire-853-bridge.ts
@@ -316,6 +335,7 @@ jobs:
             qa-artifacts/nine-stage-connected-report.json
             qa-artifacts/fresh-pg18-dev-schema.json
             qa-artifacts/nine-stage-mobile-report.json
+            qa-artifacts/issue-853-synthetic-two-tenant-scope.json
             qa-artifacts/governed-hire-853-report.json
             qa-artifacts/bir-validation-corpus/**
           if-no-files-found: warn

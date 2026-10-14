@@ -30,6 +30,10 @@ export function pinVerifiedPgTls(connectionString: string, production: boolean):
     throw configError("unsupported connection URL scheme");
   }
 
+  // Production remote TLS cannot verify a peer hostname when none is specified.
+  // Reject hostless URLs rather than relying on driver/environment fallbacks.
+  if (!parsed.hostname) throw configError("missing database hostname");
+
   // Local ephemeral PG is intentionally plaintext in isolated CI. Do not
   // make that test fixture depend on an external certificate authority.
   if (LOOPBACK_HOSTS.has(parsed.hostname)) return connectionString;

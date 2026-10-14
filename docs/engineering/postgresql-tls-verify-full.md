@@ -6,7 +6,7 @@
 
 ## Implemented source guard
 
-`src/lib/pg-tls-policy.ts` is invoked by `src/db/index.ts` *before* `new Pool` and applies to non-loopback `DATABASE_URL` when `NODE_ENV=production`. It preserves already-canonical `sslmode=verify-full`, upgrades the three historically strict aliases to `verify-full` **in memory**, rejects duplicate/missing/insecure modes and ambiguous `ssl` URL options, and never logs credentials. Isolated loopback PostgreSQL and nonproduction connections retain existing behavior.
+`src/lib/pg-tls-policy.ts` is invoked by `src/db/index.ts` *before* `new Pool` and applies to non-loopback `DATABASE_URL` when `NODE_ENV=production` (including production-mode preview/staging runtimes, not just the Vercel production target). It preserves already-canonical `sslmode=verify-full`, upgrades the three historically strict aliases to `verify-full` **in memory**, rejects missing hostnames, duplicate/missing/insecure modes and ambiguous `ssl` URL options, and never logs credentials. Isolated loopback PostgreSQL and nonproduction connections retain existing behavior.
 
 The guard preserves the current strict semantics; it does **not** prove the actual deployed server certificate or validate network connectivity. It does not edit deployment secrets or Neon. Do not remove this protection during a `pg` major upgrade.
 

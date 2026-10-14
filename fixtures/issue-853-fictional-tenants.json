@@ -1,0 +1,36 @@
+{
+  "schema": "payrollph-issue853-fictional-demo-v1",
+  "classification": "FICTIONAL_ONLY_NO_ACTUAL_EMPLOYEES",
+  "scope": "Development acceptance, not pilot go-live",
+  "period": "October 1-15, 2026 (Asia/Manila)",
+  "organizationA": {
+    "label": "Fictional Harbor A Services",
+    "emailDomain": "harbor-a.invalid",
+    "payBasis": "Choose fictional settings available in app",
+    "worksite": "Fictional Manila Site A"
+  },
+  "organizationB": {
+    "label": "Fictional Riverside B Trading",
+    "emailDomain": "riverside-b.invalid",
+    "payBasis": "Choose fictional settings available in app",
+    "worksite": "Fictional Manila Site B"
+  },
+  "actors": [
+    {"alias":"ownerAB", "membership":["A","B"], "purpose":"Switch companies and release payroll records only"},
+    {"alias":"payrollA", "membership":["A"], "purpose":"Payroll A and deny access to B"},
+    {"alias":"payrollB", "membership":["B"], "purpose":"Payroll B and deny access to A"},
+    {"alias":"checkerAB", "membership":["A","B"], "purpose":"Independent payroll reviewer distinct from payroll officers"},
+    {"alias":"employeeA", "membership":["A"], "purpose":"Clock in and see only A employee records"},
+    {"alias":"employeeB", "membership":["B"], "purpose":"Clock in and see only B employee records"}
+  ],
+  "explicitDenials": [
+    "Payroll A cannot access B payroll via direct API link or user interface",
+    "Employee A cannot access B employee profile or payslip",
+    "No owner or payroll user can submit live funds or agency files"
+  ],
+  "rules": [
+    "Do not create working email addresses or real government identifiers in this JSON",
+    "Create accounts locally in the protected development app with fictional data and an approved test authentication method",
+    "Do not store passwords, tokens or personally identifying information in evidence or GitHub"
+  ]
+}

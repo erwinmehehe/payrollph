@@ -26,7 +26,7 @@ function complete(schedule: "D1" | "D2", tax: string, withheld: number) {
   Object.assign(fields, {
     TIN: tax, BRANCH_CODE: "0000", LAST_NAME: "SANTOS",
     FIRST_NAME: "MARIA", MIDDLE_NAME: "",
-    REGION_NUM: "0001", EMPLOYMENT_FROM: "01/01/2026",
+    REGION_NUM: "NCR", EMPLOYMENT_FROM: "01/01/2026",
     EMPLOYMENT_TO: "12/31/2026", NATIONALITY: "FILIPINO",
     EMPLOYMENT_STATUS: "R", REASON_SEPARATION: "NA", SUBS_FILING: "Y",
     GROSS_COMP_INCOME: "600000.00",
@@ -34,7 +34,7 @@ function complete(schedule: "D1" | "D2", tax: string, withheld: number) {
     TAX_DUE: String(withheld), ACTUAL_AMT_WTHLD: String(withheld),
     PREV_TAX_WTHLD: "0.00", PRES_TAX_WTHLD: String(withheld),
   });
-  if (schedule === "D2") fields.FACTOR_USED = 313;
+  if (schedule === "D2") Object.assign(fields, { FACTOR_USED: 313, GROSS_COMP_INCOME: "0.00", NET_TAXABLE_COMP_INCOME: "0.00" });
   return { schedule, fields };
 }
 
