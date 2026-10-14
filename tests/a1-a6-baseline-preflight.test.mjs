@@ -33,8 +33,8 @@ try {
   // Keep separate historical snapshots: the preflight must read the requested
   // base COMMIT, not the current working tree or a generated PR merge checkout.
   writeFileSync(schema,
-    'export const employeeHrCases = pgTable(\\n  "employee_hr_cases",\\n  {}\\n);\\n' +
-    "export const applicantPrivacyEvidence = pgTable(\\n  'applicant_privacy_evidence',\\n  {}\\n);\\n"
+    'export const employeeHrCases = pgTable(\n  "employee_hr_cases",\n  {}\n);\n' +
+    "export const applicantPrivacyEvidence = pgTable(\n  'applicant_privacy_evidence',\n  {}\n);\n"
   );
   git('add', '.');
   git('commit', '-q', '-m', 'real schema with multiline merged tables');
