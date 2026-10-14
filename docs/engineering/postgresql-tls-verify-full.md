@@ -25,13 +25,13 @@ The guard preserves the current strict semantics; it does **not** prove the actu
 
 ## Read-only protected TLS operator acceptance command (not yet executed)
 
-The committed tool `scripts/verify-postgresql-tls-operator.ts` provides a credential-redacted check against the **actual intended protected database/pooler endpoint**, without writing data. It is **not** an automatic production check and must **never** run from a publicly triggered PR or an unreviewed secret-bearing CI job.
+The committed probe `scripts/verify-postgresql-tls-operator.ts` and explicit launcher `scripts/run-postgresql-tls-acceptance.ts` provide a credential-redacted check against the **actual intended protected database/pooler endpoint**, without writing data. It is **not** an automatic production check and must **never** run from a publicly triggered PR or an unreviewed secret-bearing CI job.
 
 1. A Vercel/database operator first confirms the secret's `sslmode` privately and, if needed, updates the protected `DATABASE_URL` to explicit `sslmode=verify-full` via the authorized secret manager. The tool deliberately rejects legacy aliases even though the runtime compatibility guard converts them in memory. **Do not paste the URL into a shell command, GitHub issue, CI output, or assistant chat.**
 2. In an approved, isolated operator environment with `DATABASE_URL` already injected securely (never on the command line), run:
 
    ```sh
-   PG_TLS_OPERATOR_ACK=authorized-readonly-tls-acceptance npx tsx scripts/verify-postgresql-tls-operator.ts
+   PG_TLS_OPERATOR_ACK=authorized-readonly-tls-acceptance npx tsx scripts/run-postgresql-tls-acceptance.ts
    ```
 
 3. It must return **five PASS lines**: strict secret mode; real provider certificate and hostname; wrong-host certificate rejection; untrusted-CA rejection; strict `pg` read-only `SELECT 1` success. Failures print no credentials, hostnames, CA contents, or raw error messages. A PostgreSQL pooler can terminate frontend TLS, so this probe validates the **frontend PostgreSQL SSLRequest/TLS handshake directly** instead of relying on `pg_stat_ssl` from the backend.

@@ -9,7 +9,6 @@
 import { readFile } from "node:fs/promises";
 import { connect as connectTcp } from "node:net";
 import { checkServerIdentity, connect as connectTls } from "node:tls";
-import { pathToFileURL } from "node:url";
 import type { TLSSocket } from "node:tls";
 import { pinVerifiedPgTls } from "../src/lib/pg-tls-policy";
 
@@ -159,15 +158,3 @@ export async function runOperatorProbe(secretUrl: string | undefined): Promise<v
   console.log("PASS PostgreSQL TLS operator acceptance (record approval privately)");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (process.env.PG_TLS_OPERATOR_ACK !== "authorized-readonly-tls-acceptance") {
-    console.error("FAIL protected operator authorization flag missing; no connection attempted");
-    process.exitCode = 1;
-  } else {
-    runOperatorProbe(process.env.DATABASE_URL).catch(() => {
-      // Never print exception details: error objects may contain credentials.
-      console.error("FAIL protected PostgreSQL TLS acceptance; see private operator runbook");
-      process.exitCode = 1;
-    });
-  }
-}
