@@ -63,8 +63,10 @@ export async function GET(request: Request) {
       },
       { headers: { "Cache-Control": "no-store" } },
     );
-  } catch (error) {
-    console.error("Sanitized readiness evaluation failed", error);
+  } catch {
+    // Never log arbitrary errors: provider messages can contain sensitive
+    // operational details, connection strings or employee-related fields.
+    console.error("Sanitized readiness evaluation failed");
     return Response.json(
       {
         status: "not-ready",

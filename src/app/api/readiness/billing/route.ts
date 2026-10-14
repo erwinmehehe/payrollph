@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const token = process.env.HEALTH_TOKEN?.trim();
   const supplied = request.headers.get("x-health-token");
   if (!token || !constantTimeSecretEqual(supplied, token)) {
-    return Response.json({ error: "Not found." }, { status: 404 });
+    return Response.json({ error: "Not found." }, { status: 404, headers: { "Cache-Control": "no-store" } });
   }
   const now = new Date();
   const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60_000);
@@ -53,6 +53,6 @@ export async function GET(request: Request) {
       attention: degraded ? "Billing operator reconciliation is required." : null,
     }, { status: degraded ? 503 : 200, headers: { "Cache-Control": "no-store" } });
   } catch {
-    return Response.json({ ok: false, error: "Billing telemetry database unavailable." }, { status: 503 });
+    return Response.json({ ok: false, error: "Billing telemetry database unavailable." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }

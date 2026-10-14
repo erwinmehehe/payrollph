@@ -10,12 +10,12 @@ export async function GET(request: Request) {
     if (!expected) {
       return Response.json(
         { error: "Not found." },
-        { status: 404 },
+        { status: 404, headers: { "Cache-Control": "no-store" } },
       );
     }
     const supplied = request.headers.get("x-readiness-token") ?? request.headers.get("x-worker-token");
     if (!constantTimeSecretEqual(supplied, expected)) {
-      return Response.json({ error: "A valid readiness token is required." }, { status: 401 });
+      return Response.json({ error: "A valid readiness token is required." }, { status: 401, headers: { "Cache-Control": "no-store" } });
     }
   }
 
