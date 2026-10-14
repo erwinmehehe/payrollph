@@ -72,7 +72,14 @@ test("retro-pay guide claims match effective-dated revision and settlement behav
   assert.ok(employeesRoute.includes("retroAdjustments"));
   assert.ok(employeesRoute.includes("retroTotal"));
 
-  assert.ok(payrollEngine.includes('eq(employeePayRetroAdjustments.status, "pending")'));
+  // The pending-status filter now lives in the independently tested,
+  // tenant/employee-bound source-run lookup, not the payroll math file.
+  const retroLookup = read("src/lib/payroll-retro-source-lookup.ts");
+  assert.ok(payrollEngine.includes("loadPendingPayrollRetroSources({"));
+  assert.ok(retroLookup.includes('eq(employeePayRetroAdjustments.status, "pending")'));
+  assert.ok(retroLookup.includes("eq(payrollRuns.organizationId, employeePayRetroAdjustments.organizationId)"));
+  assert.ok(retroLookup.includes("eq(payrollRuns.status, \"Released\")"));
+  assert.ok(retroLookup.includes("eq(payrollEntries.employeeId, employeePayRetroAdjustments.employeeId)"));
   assert.ok(payrollEngine.includes('label: `Retro pay, ${retro.sourcePeriodLabel}`'));
   assert.ok(payrollEngine.includes("Effective-dated monthly pay correction from a previously released cutoff"));
   assert.ok(payrollEngine.includes("retroPay="));

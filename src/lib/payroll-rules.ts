@@ -42,7 +42,18 @@ export function computeSss(monthlySalary: number, asOf = "2026-10-08") {
   };
 }
 
+/**
+ * Monthly BASIC Salary (MBS) under PhilHealth Circular 2020-0005 section IV.F
+ * and PA 2025-0002, not gross earnings (OT, allowances, bonuses, 13th month).
+ * Deductions for absences/undertime likewise do not reduce the MBS base.
+ * Sources:
+ * https://www.philhealth.gov.ph/circulars/2020/circ2020-0005.pdf
+ * https://www.philhealth.gov.ph/advisories/2025/PA2025-0002.pdf
+ */
 export function computePhilHealth(monthlySalary: number, asOf = "2026-10-08") {
+  if (!Number.isFinite(monthlySalary) || monthlySalary < 0) {
+    throw new Error("PhilHealth monthly basic salary must be a nonnegative finite number.");
+  }
   const rule = resolveEffectiveRulePack(PHILHEALTH_RULE_PACKS, asOf, "PhilHealth");
   const { salaryFloor, salaryCeiling, premiumRate, employeeShare } = rule.params;
   const base = Math.min(salaryCeiling, Math.max(salaryFloor, monthlySalary));
