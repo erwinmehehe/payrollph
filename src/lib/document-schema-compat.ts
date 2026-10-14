@@ -1,4 +1,5 @@
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import { db } from "@/db";
 import { documents } from "@/db/schema";
 import {
   boolean, integer, jsonb, pgTable, serial, text, timestamp, varchar,
@@ -57,3 +58,31 @@ export const compatibleDocumentColumns = {
 /** Only legacy rows remain visible to non-HR People roles when A-5 is off. */
 export const legacyVisibleDocumentWhere =
   sql`(to_jsonb(${documents})->>'object_storage_key') IS NULL`;
+
+/**
+ * A-5 rollback boundary: legacy HCM actions may verify or waive only a
+ * legacy employee file when the private vault is OFF. Query the physical
+ * document row using the pre-A5-compatible JSON projection so old production
+ * schemas without object_storage_key still work. Private objects remain
+ * governed by the independent maker/checker path after a separate rollout.
+ *
+ * Return false on missing, foreign-employer, foreign-employee or object-backed
+ * evidence. Do not pass a guessed documentId from a request without checking
+ * employer and employee identity.
+ */
+export async function canMutateLegacyHcmDocument(input: {
+  organizationId: number;
+  employeeId: number;
+  documentId: number;
+}): Promise<boolean> {
+  if ([input.organizationId, input.employeeId, input.documentId].some(
+    value => !Number.isSafeInteger(value) || value <= 0,
+  )) return false;
+  const [row] = await db.select({ id: documents.id }).from(documents).where(and(
+    eq(documents.id, input.documentId),
+    eq(documents.organizationId, input.organizationId),
+    eq(documents.employeeId, input.employeeId),
+    legacyVisibleDocumentWhere,
+  )).limit(1);
+  return Boolean(row);
+}
