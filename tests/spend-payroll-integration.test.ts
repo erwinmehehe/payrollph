@@ -189,6 +189,25 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     missingReceipt = 1;
     await assert.rejects(settlePayrollRun(run.id), /RECEIPT_RELEASE_VERIFICATION_FAILED.*RECEIPT_READ_UNAVAILABLE/);
     missingReceipt = null;
+    const [lateClaim] = await db.insert(expenseClaims).values({
+      organizationId: org.id, employeeId: staff[0].id,
+      submittedByUserId: maker.id, category: policies[0].category,
+      description: "Approved after register calculation", amount: "1.01",
+      incurredOn: "2026-09-08", status: "approved",
+    }).returning();
+    await db.insert(expenseClaimEvidence).values({
+      claimId: lateClaim.id, organizationId: org.id, employeeId: staff[0].id,
+      categoryPolicyId: policies[0].id, taxable: true,
+      approvedAmount: "1.01", approvedByUserId: reviewer.id, approvedAt: new Date(),
+      receiptStorageKey: "private-documents/" + org.id + "/" + staff[0].id +
+        "/00000000-0000-4000-8000-000000000005",
+      receiptSha256: createHash("sha256").update("%PDF-late").digest("hex"),
+      receiptByteSize: 9, receiptVerifiedAt: new Date(),
+    });
+    await assert.rejects(settlePayrollRun(run.id), /Newly approved reimbursement .* missing from the payroll register/);
+    assert.equal((await db.select().from(expenseClaims).where(eq(expenseClaims.id, claims[0].id)))[0].status, "approved",
+      "A missing reimbursement must roll back every other reimbursement");
+    await db.delete(expenseClaims).where(eq(expenseClaims.id, lateClaim.id));
     // Disabling the gate cannot reinterpret taxable or partially approved A4 data.
     process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = "false";
     await assert.rejects(settlePayrollRun(run.id), /Reviewed reimbursements are paused/);

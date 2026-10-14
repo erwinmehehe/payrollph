@@ -454,6 +454,18 @@ export async function settlePayrollRun(
       }
     }
 
+    // All payable reimbursements for this calculated workforce must have a
+    // register line. Otherwise a late approval would be silently omitted.
+    // Lock currently approved unlinked claims in deterministic order; existing
+    // per-line locks and compare-and-swap still protect exact-once release.
+    const expectedSpendClaimIds = spendPayrollEnabled() && employeeIds.length
+      ? (await tx.select({ id: expenseClaims.id }).from(expenseClaims).where(and(
+          eq(expenseClaims.organizationId, run.organizationId),
+          inArray(expenseClaims.employeeId, employeeIds),
+          eq(expenseClaims.status, "approved"),
+          isNull(expenseClaims.payrollRunId),
+        )).orderBy(expenseClaims.id).for("update")).map(claim => claim.id)
+      : [];
     const seenExpenseClaimIds = new Set<number>();
     let expensesSettled = 0;
     let advancesSettled = 0;
@@ -790,6 +802,14 @@ export async function settlePayrollRun(
           }
           loanPaymentsSettled += 1;
         }
+      }
+    }
+
+    if (spendPayrollEnabled()) {
+      const missingClaimId = expectedSpendClaimIds.find(id => !seenExpenseClaimIds.has(id));
+      if (missingClaimId !== undefined) {
+        throw new Error("Newly approved reimbursement #" + missingClaimId +
+          " is missing from the payroll register; recalculate before release.");
       }
     }
 

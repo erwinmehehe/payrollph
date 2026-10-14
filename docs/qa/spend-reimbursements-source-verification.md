@@ -21,6 +21,9 @@ before the settlement transaction, checks size/SHA against reviewed evidence and
 closed on missing or altered bytes. Within the SQL release transaction, claim-row locks
 enforce the unchanged receipt key, digest and byte-size snapshot before status is set
 to paid. Tampered/missing object regressions run against a mocked private provider.
+The locked settlement additionally verifies that every currently approved, unpaid
+reimbursement for employees in the payroll run has an exact register line. A late
+approval forces recalculation rather than silently skipping a payable claim.
 This is NOT a substitute for independently verifying real object immutability and
 provider availability throughout the release interval.
 Synthetic MWE and ordinary workers exercise taxable versus non-taxable reimbursements using the
