@@ -18,6 +18,9 @@ export async function createConnectedGovernedWorker(input: {
   login(email: string): Promise<Client>;
 }) {
   const { organizationId, workDate, password, owner, login } = input;
+  const directory = await owner.ok("/api/legal-entities?organizationId=" + organizationId);
+  const legalEmployer = directory.legalEntities?.find((entity: { primaryEntity: boolean }) => entity.primaryEntity);
+  assert.ok(Number(legalEmployer?.id) > 0, "Owner must configure the worker's legal employer before the position/hire");
   const actors = ["connected.hiring", "connected.reviewer"];
   for (const name of actors) {
     const [actor] = await db.insert(users).values({
@@ -31,7 +34,7 @@ export async function createConnectedGovernedWorker(input: {
   }).returning();
   const [position] = await db.insert(positions).values({
     organizationId, jobProfileId: profile.id, code: "CONNECTED-HIRE",
-    annualBudget: "336000.00", status: "approved",
+    legalEntityId: Number(legalEmployer.id), annualBudget: "336000.00", status: "approved",
   }).returning();
   await db.insert(hcmBusinessProcessDefinitions).values({
     organizationId, code: "connected-hire", name: "Fictional independent hire review",
@@ -87,6 +90,7 @@ export async function createConnectedGovernedWorker(input: {
   assert.equal(converted.body.businessProcess?.status, "applied");
   const employeeId = Number(converted.body.employee?.id);
   assert.ok(employeeId > 0);
+  assert.equal(converted.body.employee?.legalEntityId, Number(legalEmployer.id));
   assert.equal((await maker.json("/api/recruitment/hire", "POST", hire)).status, 409);
   const [linked] = await db.select().from(jobApplicants).where(eq(jobApplicants.id, Number(candidate.id)));
   assert.equal(linked.hiredEmployeeId, employeeId);
@@ -104,6 +108,7 @@ export async function createConnectedGovernedWorker(input: {
   assert.equal(payout.status, 200);
   assert.notEqual(payout.body.pendingApproval, true);
   return { employeeId, applicantId: Number(candidate.id), businessProcessId,
+    legalEntityId: Number(legalEmployer.id),
     positionId: position.id, requisitionId: Number(requisition.id),
     positionSource: "approved-fixture-not-a-published-workforce-plan" };
 }

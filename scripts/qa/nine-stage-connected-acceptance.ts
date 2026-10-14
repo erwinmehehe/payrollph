@@ -459,6 +459,8 @@ async function main() {
       && Number(day.patternId) === patternId),
       "Payroll trace must preserve assigned WFM schedule evidence");
     const [persistedRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
+    if (governedHire) assert.equal(persistedRun.legalEntityId, governedHire.legalEntityId,
+      "Hire position, authoritative worker and payroll must share the SAME legal employer");
     const [persistedEntry] = await db.select().from(payrollEntries)
       .where(and(eq(payrollEntries.payrollRunId, runId), eq(payrollEntries.employeeId, worker)));
     assert.equal(persistedRun.organizationId, orgA);
