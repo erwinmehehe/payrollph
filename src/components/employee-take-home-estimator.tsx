@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Calculator, LoaderCircle, ShieldCheck } from "lucide-react";
 import { estimateMonthlyTakeHome, type TakeHomeEstimate } from "@/lib/take-home-estimate";
 import { essText, type EssLanguage } from "@/lib/ess-language";
@@ -19,6 +19,7 @@ function numberInput(value: string) {
 
 export function EmployeeTakeHomeEstimator({ language = "en" }: { language?: EssLanguage }) {
   const t = (text: string) => essText(language, text);
+  const headingId = useId();
   const [payload, setPayload] = useState<BaselinePayload | null>(null);
   const [error, setError] = useState("");
   const [basic, setBasic] = useState("");
@@ -65,22 +66,22 @@ export function EmployeeTakeHomeEstimator({ language = "en" }: { language?: EssL
   const delta = scenario && current ? scenario.netPay - current.netPay : 0;
 
   return (
-    <article className="employee-list-card">
+    <article className="employee-list-card" aria-labelledby={headingId}>
       <div className="employee-list-card-head">
         <div>
           <span className="card-kicker">{t("TAKE-HOME ESTIMATOR")}</span>
-          <h3>{t("What if my pay changes?")}</h3>
+          <h3 id={headingId}>{t("What if my pay changes?")}</h3>
         </div>
         <Calculator size={18} aria-hidden="true" />
       </div>
 
       {!payload && !error && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 14px" }}>
+        <div role="status" aria-live="polite" style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 14px" }}>
           <LoaderCircle size={15} className="i-blue" />
           <span>{t("Loading your current pay baseline...")}</span>
         </div>
       )}
-      {error && <div className="notice notice-amber" style={{ margin: "13px 14px" }}><span>{t(error)}</span></div>}
+      {error && <div role="alert" className="notice notice-amber" style={{ margin: "13px 14px" }}><span>{t(error)}</span></div>}
 
       {payload && current && (
         <div style={{ display: "grid", gap: 12, padding: "13px 14px" }}>
@@ -137,7 +138,7 @@ export function EmployeeTakeHomeEstimator({ language = "en" }: { language?: EssL
               </div>
             </>
           ) : (
-            <div className="notice notice-amber"><span>{t("Enter amounts from 0 to 100,000,000.")}</span></div>
+            <div role="alert" className="notice notice-amber"><span>{t("Enter amounts from 0 to 100,000,000.")}</span></div>
           )}
 
           <div className="employee-rule-note">
