@@ -24,13 +24,13 @@ silently activate the fix or hide overflowing content.
 The historical September QA in `scripts/pilot-payroll-qa.ts` is useful regression
 evidence but its live Web Bundy punch falls outside its seeded September payroll period.
 This harness instead uses real authenticated Web Bundy IN/OUT HTTP operations under a
-**guarded virtual Manila clock of September 30, 2026 at 16:00**, so the punch, timesheet,
+**guarded virtual Manila clock at 16:00 on the current Manila calendar month-end**, so the punch, timesheet,
 final monthly cutoff, released ledger, and draft BIR/SSS/PhilHealth/Pag-IBIG worksheets
 share the same *simulated* payroll work date. The API-created punch is not seeded.
-It is **not actual October 13 wall-clock attendance or a real device event**.
+It is **not real wall-clock attendance or a physical device event**.
 The guarded virtual date runs in the localhost Next.js process and connected test
 process. GitHub CI exports one fresh real-time anchor (milliseconds), which both
-Node and the synthetic Chromium page convert to the same fictional September 30
+Node and the synthetic Chromium page convert to the same selected month-end
 instant. This avoids creating independent virtual clocks at each process start.
 The browser context explicitly uses the Asia/Manila timezone and an isolated Date
 shim; full React hydration/page-error assertions remain active. An absent, invalid
@@ -54,7 +54,8 @@ Failure reports are not a reason to weaken permission gates or application
 security. A failure marks overall acceptance FAIL, preserves sanitized stage evidence,
 and prevents promoting this draft PR as accepted.
 
-The acceptance fixture creates a **same-date newly hired worker** (2026-09-30) and
+The acceptance fixture creates a **same-date newly hired worker** on the selected
+Manila month-end and
 asserts that the HRIS start date matches the simulated work day. An existing
 employee on a final monthly cutoff would need a released earlier-cutoff ledger
 for statutory true-up; the test must not invent that prior ledger or disable
@@ -66,6 +67,28 @@ checks negative acceptance cases and skips artifact conformance without
 claiming any pass. Only the dedicated workflow sets
 `NINE_STAGE_EVIDENCE_REQUIRED=true`; there, missing, failed, wrong-commit,
 or incomplete connected evidence **must fail**.
+
+
+### Why the cutoff is selected at runtime
+
+The simulated server date previously remained fixed at September 30, 2026.
+After fourteen real days, Chromium's genuine cookie store considered the
+server-issued fourteen-day login cookie already expired, redirecting the
+otherwise authenticated synthetic UI test to `/login`. The server and browser
+were using different underlying cookie clocks. No application login, MFA,
+session-expiration or permission policy is changed to address this.
+
+The workflow now chooses the **current Manila month's actual final calendar
+day** once, before any application startup, using
+`scripts/qa/synthetic-month-end.cjs`. It exports that exact value to the
+isolated server, integration script, browser and evidence validator; the clock
+preload verifies that it is a genuine Manila month-end and that the connection
+is disposable localhost PostgreSQL. The browser and server simulate 16:00 on
+that date. The short-lived synthetic login therefore retains normal real
+browser cookie behavior, while the same source-created punch, timesheet,
+payroll run and final-period draft-filing checks remain tied to the **same**
+selected cutoff. Source acceptance at one virtual cutoff does not certify
+other actual payroll periods or real devices.
 
 ## Development-run finding (2026-10-13)
 
@@ -79,7 +102,7 @@ authorized HRIS employee-create API**. That original same-worker payroll lineage
 is intentionally unchanged. The new post-browser **governed Hire sidecar** tests
 a *different fictional future-start worker* in the same isolated employer A.
 It must **never** be reported as if the reviewed candidate was also the released
-September 30 payroll worker.
+original nine-stage payroll worker.
 
 The additive test is \`scripts/qa/governed-hire-853-bridge.ts\` and runs **after**
 all nine payroll stages and A → B → A mobile browser tenant checks so that the
@@ -100,7 +123,7 @@ approval, and final candidate-to-worker conversion. It asserts:
   both approvals and final authorized conversion.
 - One resulting worker, pay profile, position assignment, candidate linkage,
   employee history event and employee-specific onboarding tasks all agree.
-- Duplicate conversion is rejected, and the prior September released payroll
+- Duplicate conversion is rejected, and the prior fictional released payroll
   register remains unchanged.
 
 **Coverage boundary:** the position and BP policy are seeded as isolated
