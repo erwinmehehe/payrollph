@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import {
-  mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync,
+  linkSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -149,6 +149,33 @@ test("unmatched or duplicated employee keys fail closed", () => {
         ...employeeRows("2026-07"), employeeRows("2026-07")[0],
       ]));
     assert.ok(evaluateParallelPayrollReconciliation(manifest, root).issues.some((x) => x.includes("Duplicate employee key")));
+  });
+});
+
+test("source file reuse cannot turn two supposedly independent payroll reports into self-comparison", () => {
+  withFixture((root, manifest) => {
+    const cycle = manifest.cycles[0];
+    // The two source exports are legitimately byte-equal in this test, but
+    // pointing both manifest roles to the SAME file proves no comparison.
+    cycle.linawPayroll = { ...cycle.incumbentPayroll };
+    const report = evaluateParallelPayrollReconciliation(manifest, root, { mode: "pilot" });
+    assert.equal(report.status, "reconciliation-blocked");
+    assert.ok(report.issues.some(issue => issue.includes("file reused across sources")));
+    assert.equal(report.verifiedFileHashCount < 8, true);
+  });
+});
+
+test("hard-linked evidence aliases are rejected even when filenames and hashes differ", () => {
+  withFixture((root, manifest) => {
+    const cycle = manifest.cycles[0];
+    const original = join(root, cycle.incumbentPayroll.filePath);
+    const alias = join(root, cycle.linawPayroll.filePath);
+    rmSync(alias);
+    linkSync(original, alias);
+    const report = evaluateParallelPayrollReconciliation(manifest, root, { mode: "pilot" });
+    assert.equal(report.status, "reconciliation-blocked");
+    assert.ok(report.issues.some(issue => issue.includes("file reused across sources")));
+    assert.ok(!JSON.stringify(report).includes(cycle.incumbentPayroll.filePath));
   });
 });
 
