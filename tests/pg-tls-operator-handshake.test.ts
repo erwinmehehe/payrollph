@@ -9,7 +9,7 @@ import test from "node:test";
 import { requestPostgresTls } from "../scripts/verify-postgresql-tls-operator";
 
 test("PostgreSQL TLS handshake validates peer and rejects bad hostname and trust chain", async (t) => {
-  try { execFileSync("openssl", ["version"], { stdio: "ignore", env: { PATH: process.env.PATH } }); }
+  try { execFileSync("openssl", ["version"], { stdio: "ignore", env: { PATH: process.env.PATH, NODE_ENV: process.env.NODE_ENV } }); }
   catch { t.skip("OpenSSL CLI unavailable for disposable certificate generation"); return; }
 
   const dir = mkdtempSync(join(tmpdir(), "pg-tls-disposable-"));
@@ -21,7 +21,7 @@ test("PostgreSQL TLS handshake validates peer and rejects bad hostname and trust
     // Disposable synthetic identity only; no committed private key or CA.
     execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
       "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost",
-      "-keyout", keyFile, "-out", certFile], { stdio: "ignore", env: { PATH: process.env.PATH } });
+      "-keyout", keyFile, "-out", certFile], { stdio: "ignore", env: { PATH: process.env.PATH, NODE_ENV: process.env.NODE_ENV } });
     const ca = readFileSync(certFile);
     const secureContext = createSecureContext({ key: readFileSync(keyFile), cert: ca });
     server = createServer((socket) => {

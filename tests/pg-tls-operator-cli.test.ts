@@ -12,6 +12,7 @@ function run(authorized: boolean) {
     encoding: "utf8", timeout: 15000,
     env: {
       PATH: process.env.PATH,
+      NODE_ENV: process.env.NODE_ENV,
       DATABASE_URL: url,
       ...(authorized ? { PG_TLS_OPERATOR_ACK: "authorized-readonly-tls-acceptance" } : {}),
     },
