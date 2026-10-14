@@ -127,6 +127,16 @@ try {
 
   await page.evaluate(() => window.renderView("inbox", {organizationId:1}));
   const staleInbox = await requestId("people-operations-inbox?organizationId=1");
+  const beforeSameScopeRender = await page.evaluate(() => window.pending.length);
+  await page.evaluate(async () => {
+    window.renderView("inbox", { organizationId: 1 });
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  assert.equal(await page.evaluate(() => window.pending.length), beforeSameScopeRender,
+    "Unchanged employer scope must not restart the request on a parent rerender");
+  assert.equal(await page.evaluate(id => window.pending[id].options.signal.aborted, staleInbox), false,
+    "The original same-scope request must remain active");
+
   await page.evaluate(() => window.renderView("inbox", {organizationId:2}));
   await complete(staleInbox, {error:"STALE_INBOX_ERROR"}, 403);
   await complete(await requestId("people-operations-inbox?organizationId=2"), {error:"Current inbox unavailable"}, 503);

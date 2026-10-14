@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, ClipboardList, RefreshCw, UsersRound } from "lucide-react";
 import {
   hcmReadScopeKey, hcmReadScopeParams, hcmReadScopeValid,
@@ -72,7 +72,8 @@ export function HcmPeopleOperationsInbox({
   onOpenWorker: (employeeId: number) => boolean;
   onPage: (page: PeopleOpsPage) => void;
 }) {
-  const scope: HcmReadScope = { organizationId, legalEntityId, multiEntityEnabled };
+  const scope = useMemo<HcmReadScope>(() => ({ organizationId, legalEntityId, multiEntityEnabled }),
+    [organizationId, legalEntityId, multiEntityEnabled]);
   // A group-wide or missing-employer selection is not an HCM permission.
   // Render no previous worker identifiers and issue no unscoped request.
   if (!hcmReadScopeValid(scope)) return (
@@ -89,7 +90,6 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
   onOpenWorker: (employeeId: number) => boolean;
   onPage: (page: PeopleOpsPage) => void;
 }) {
-  const { organizationId } = scope;
   const [filters, updateFilters] = useState<{
     priority: PeopleOpsPriority | "all";
     category: PeopleOpsCategory | "all";
@@ -140,7 +140,7 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
     })();
 
     return () => controller.abort();
-  }, [organizationId, scope.legalEntityId, scope.multiEntityEnabled,
+  }, [scope,
     filters.page, filters.category, filters.priority, filters.dueWindow, filters.team, filters.query, requestKey]);
 
   const active = response?.key === requestKey ? response : null;
