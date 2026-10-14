@@ -21,3 +21,21 @@ The guard preserves the current strict semantics; it does **not** prove the actu
 ## Verification
 
 `npx tsx --test tests/pg-tls-policy.test.ts` (pure synthetic URLs, no database access); full `npm run typecheck`, `npm run lint`, `npm test` and security/production-readiness checks on the exact PR head. This source PR alone does **not** close issue #1011; operator certificate/connectivity evidence and protected post-release log review remain open.
+
+
+## Read-only protected TLS operator acceptance command (not yet executed)
+
+The committed tool `scripts/verify-postgresql-tls-operator.ts` provides a credential-redacted check against the **actual intended protected database/pooler endpoint**, without writing data. It is **not** an automatic production check and must **never** run from a publicly triggered PR or an unreviewed secret-bearing CI job.
+
+1. A Vercel/database operator first confirms the secret's `sslmode` privately and, if needed, updates the protected `DATABASE_URL` to explicit `sslmode=verify-full` via the authorized secret manager. The tool deliberately rejects legacy aliases even though the runtime compatibility guard converts them in memory. **Do not paste the URL into a shell command, GitHub issue, CI output, or assistant chat.**
+2. In an approved, isolated operator environment with `DATABASE_URL` already injected securely (never on the command line), run:
+
+   ```sh
+   PG_TLS_OPERATOR_ACK=authorized-readonly-tls-acceptance npx tsx scripts/verify-postgresql-tls-operator.ts
+   ```
+
+3. It must return **five PASS lines**: strict secret mode; real provider certificate and hostname; wrong-host certificate rejection; untrusted-CA rejection; strict `pg` read-only `SELECT 1` success. Failures print no credentials, hostnames, CA contents, or raw error messages. A PostgreSQL pooler can terminate frontend TLS, so this probe validates the **frontend PostgreSQL SSLRequest/TLS handshake directly** instead of relying on `pg_stat_ssl` from the backend.
+4. Keep redacted PASS/FAIL, approved operator identity, environment, date, source SHA, endpoint type (direct or pooler), and rollback record in restricted release evidence; never upload secrets or endpoints into public GitHub/CI. Do not infer real-provider proof from the disposable local handshake regression test.
+5. Run source CI on the exact head, obtain independent release approval, then deploy through the protected workflow and verify the released SHA, health, and warning groups. **Do not merge this PR merely because the operator tool was added or synthetic CI succeeded.**
+
+The script does not alter the environment secret or release a deployment. Test-only certificates are generated ephemerally by OpenSSL in isolated CI and are not committed.
