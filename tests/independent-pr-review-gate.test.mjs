@@ -242,6 +242,8 @@ test("HCM/WFM source review no longer needs pilot evidence in solo or strict mod
     const accepted = review(files);
     assert.equal(accepted.ok,true,filename);
     assert.equal(accepted.scope.hcmWfmFrozen,false);
+    assert.equal(accepted.scope.frozenFileCount,0);
+    assert.equal(accepted.scope.hcmWfmFileCount,1);
     assert.equal(accepted.releaseAuthorized,false);
     const solo = await checkIndependentReview({ ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false",
       PILOT_HCM_WFM_STARTED: "false", PILOT_START_EVIDENCE_REF: "" },

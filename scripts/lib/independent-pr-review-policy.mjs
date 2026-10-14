@@ -23,9 +23,8 @@ const ALWAYS_SENSITIVE = [
 ];
 
 const HCM_WFM_LANES = [
-  // Treat every component of the exact #969 offline witness set as frozen.
-  // Otherwise dropping the test file leaves the docs and QA script outside
-  // the existing WFM path classifiers and bypasses the three-file guarantee.
+  // Keep HCM/WFM source and evidence artifacts sensitive in strict review.
+  // These paths no longer impose a pilot-start prerequisite.
   /^docs\/qa\/wfm-691-independent-witness-handoff\.md$/,
   /^scripts\/qa\/wfm-independent-witness\.mjs$/,
   /^src\/lib\/(?:hcm-|workforce-|wfm-|compensation-|performance-)/,
@@ -74,7 +73,8 @@ export function classifyReviewScope(files) {
     hcmWfmFrozen: false,
     hcmWfmSourceScope: hcmWfmPaths.length > 0,
     sensitiveFileCount: sensitivePaths.length,
-    frozenFileCount: hcmWfmPaths.length,
+    frozenFileCount: 0,
+    hcmWfmFileCount: hcmWfmPaths.length,
   };
 }
 
