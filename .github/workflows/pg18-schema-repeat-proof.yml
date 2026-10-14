@@ -66,7 +66,7 @@ jobs:
       - name: Evaluate pinned upstream Drizzle v1 release candidate in disposable CI only
         run: npm install --no-save --package-lock=false ${{ matrix.packages }}
       - name: Record evaluated Drizzle tool version
-        run: node -p "require('drizzle-kit/package.json').version"
+        run: npm ls drizzle-kit drizzle-orm --depth=0
       - name: Verify fail-closed safety and exact tenancy constraints
         run: node --test tests/fresh-pg18-development-schema.test.mjs tests/verified-pg18-repeat-push.test.mjs
       - name: Confirm entirely empty PostgreSQL 18 disposable CI target
