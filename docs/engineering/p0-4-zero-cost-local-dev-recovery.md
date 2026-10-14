@@ -141,6 +141,12 @@ location. A dump and its private key on the same laptop do not protect
 against losing the whole device. Cloud free tiers are not a substitute
 for confirming data confidentiality, retention and recoverability.
 
+## Verification trust boundaries
+
+The verifier uses the locally cached PostgreSQL 18 Docker image resolved to an immutable image ID. Review the image source before running it. The verification receipt records that ID; it does not certify the image supplier.
+
+The JSON receipt checksum detects accidental changes to the ciphertext. It is not an authentication signature: replacing both archive and receipt can evade the checksum check. Retain the expected digest separately in a protected record and compare any detached backup copy against that trusted value.
+
 ## What counts as success
 
 A passing run proves only that this archive's ciphertext was intact,
