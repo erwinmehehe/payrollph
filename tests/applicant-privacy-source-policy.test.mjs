@@ -18,37 +18,26 @@ function api(changed) {
   };
 }
 
-test("owner exception admits only the complete immutable applicant-privacy source delta", async () => {
-  assert.equal(classifyReviewScope(files).applicantPrivacySource, true);
-  assert.equal(classifyReviewScope(files).hcmWfmFrozen, true);
-  assert.equal(classifyReviewScope(files).requiresIndependentHuman, true, "Sensitivity is preserved");
-  const result = await checkIndependentReview(env, api(files));
-  assert.equal(result.ok, true);
-  assert.equal(result.releaseAuthorized, false);
-  assert.equal(result.approvalCount, 0, "No fabricated human approval");
-  const strict = evaluateIndependentReview({ pr: pr(files), files, expectedHeadSha: head,
-    reviews: [], reviewerAllowlist: "reviewer", permissions: { reviewer: "write" } });
-  assert.equal(strict.ok, false, "Strict reviewer mode still requires its actual review");
-  assert.equal(strict.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"), false);
-});
 
-test("changed bytes, status, missing/duplicate/renamed/extra paths restore the normal freeze", async () => {
-  const changed = [];
-  for (let index = 0; index < files.length; index++) {
-    changed.push(files.map((file, i) => i === index ? { ...file, sha: "0".repeat(40) } : file));
-    changed.push(files.map((file, i) => i === index ? { ...file, sha: undefined } : file));
-    changed.push(files.map((file, i) => i === index ? { ...file, status: "removed" } : file));
-    changed.push(files.map((file, i) => i === index ? { ...file, status: "renamed", previous_filename: "src/lib/hcm-other.ts" } : file));
-  }
-  changed.push(files.slice(1), [...files, files[0]]);
-  for (const filename of ["src/lib/hcm-extra.ts", "src/lib/payroll-engine.ts", "drizzle/0124_extra.sql", ".github/workflows/extra.yml", "tests/extra.test.ts"]) {
-    changed.push([...files, { filename, sha: "b".repeat(40), status: "added" }]);
-  }
-  for (const candidate of changed) {
-    assert.equal(classifyReviewScope(candidate).applicantPrivacySource, false);
-    const result = await checkIndependentReview(env, api(candidate));
-    assert.equal(result.ok, false);
-    assert.ok(result.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
-    assert.equal(result.releaseAuthorized, false);
-  }
+test("applicant privacy source remains sensitive and admits solo review without freeze exceptions", async () => {
+  assert.equal(classifyReviewScope(files).hcmWfmFrozen,false);
+  assert.equal(classifyReviewScope(files).requiresIndependentHuman,true);
+  const result = await checkIndependentReview(env,api(files));
+  assert.equal(result.ok,true);
+  assert.equal(result.releaseAuthorized,false);
+  assert.equal(result.approvalCount,0);
+  const strict = evaluateIndependentReview({pr:pr(files),files,expectedHeadSha:head,
+    reviews:[],reviewerAllowlist:"reviewer",permissions:{reviewer:"write"}});
+  assert.ok(strict.blockers.includes("CURRENT_HEAD_INDEPENDENT_APPROVAL_REQUIRED"));
+  assert.equal(strict.releaseAuthorized,false);
+});
+test("privacy source changes do not require a pinned blob but full head/diff validation remains", async () => {
+  const changed = [...files.map(f=>({...f,sha:"b".repeat(40)})),
+    {filename:"src/lib/hcm-extra.ts",status:"added"}];
+  assert.equal((await checkIndependentReview(env,api(changed))).ok,true);
+  await assert.rejects(()=>checkIndependentReview({...env,PR_HEAD_SHA:"c".repeat(40)},api(changed)),
+    /REVIEW_GATE_PR_HEAD_OR_FILE_SET_UNVERIFIED/);
+  const incomplete = async (url,request)=>url.endsWith("/pulls/925")
+    ? Response.json(pr(changed)) : api(files)(url,request);
+  await assert.rejects(()=>checkIndependentReview(env,incomplete),/REVIEW_GATE_FULL_DIFF_NOT_AVAILABLE/);
 });

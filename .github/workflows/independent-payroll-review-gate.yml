@@ -36,7 +36,7 @@ jobs:
           node-version: "22"
       - name: Verify independent-review policy using synthetic cases
         run: node --test tests/independent-pr-review-gate.test.mjs
-      - name: Assess exact PR head, complete file list, human approvals and pilot freeze
+      - name: Assess exact PR head, complete file list, human approvals
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -44,6 +44,4 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           INDEPENDENT_SOURCE_REVIEW_REQUIRED: ${{ vars.INDEPENDENT_SOURCE_REVIEW_REQUIRED }}
           PAYROLL_INDEPENDENT_REVIEWERS: ${{ vars.PAYROLL_INDEPENDENT_REVIEWERS }}
-          PILOT_HCM_WFM_STARTED: ${{ vars.PILOT_HCM_WFM_STARTED }}
-          PILOT_START_EVIDENCE_REF: ${{ vars.PILOT_START_EVIDENCE_REF }}
         run: node scripts/check-independent-pr-review.mjs
