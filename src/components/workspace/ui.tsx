@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, Check, Inbox, X } from "lucide-react";
 import type { Toast, ToastKind } from "./types";
 
@@ -237,16 +237,23 @@ export function useToasts() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seq = useRef(0);
 
-  function notify(message: string, kind: ToastKind = "ok") {
+  // Stable callbacks prevent error notifications from re-running dependent fetch effects.
+  const notify = useCallback((message: string, kind: ToastKind = "ok") => {
     if (!message) return;
-    seq.current += 1;
-    const id = seq.current;
-    setToasts((current) => [...current, { id, kind, message }]);
-  }
+    const id = ++seq.current;
+    setToasts((current) => {
+      // Leave a persistent error visible until dismissed, without stacking duplicates.
+      if (kind === "err" && current.some((toast) => toast.kind === "err" && toast.message === message)) {
+        return current;
+      }
+      // Bound the tray even if several independent services fail simultaneously.
+      return [...current, { id, kind, message }].slice(-6);
+    });
+  }, []);
 
-  function dismiss(id: number) {
+  const dismiss = useCallback((id: number) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
-  }
+  }, []);
 
   return { toasts, notify, dismiss };
 }
