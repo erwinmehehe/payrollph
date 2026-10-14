@@ -140,8 +140,24 @@ export function DemoRolePicker() {
                     id={`demo-role-tab-${role.id}`}
                     aria-controls="demo-role-panel"
                     aria-selected={active}
+                    tabIndex={active ? 0 : -1}
                     key={role.id}
                     onClick={() => { setSelectedRole(role.id); setError(""); setLiveUnavailable(false); }}
+                    onKeyDown={(event) => {
+                      const index = DEMO_ROLES.findIndex((item) => item.id === role.id);
+                      let next = index;
+                      if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (index + 1) % DEMO_ROLES.length;
+                      else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (index + DEMO_ROLES.length - 1) % DEMO_ROLES.length;
+                      else if (event.key === "Home") next = 0;
+                      else if (event.key === "End") next = DEMO_ROLES.length - 1;
+                      else return;
+                      event.preventDefault();
+                      const target = DEMO_ROLES[next].id;
+                      setSelectedRole(target);
+                      setError("");
+                      setLiveUnavailable(false);
+                      document.getElementById(`demo-role-tab-${target}`)?.focus();
+                    }}
                     className={`flex w-full items-center gap-3 rounded-[18px] px-3.5 py-3.5 text-left transition-all ${
                       active ? "bg-white shadow-[0_10px_28px_-18px_rgba(30,34,70,.45)] ring-1 ring-[#E2E4F0]" : "hover:bg-white/70"
                     }`}
