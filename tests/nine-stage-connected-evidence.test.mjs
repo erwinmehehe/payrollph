@@ -80,6 +80,13 @@ test("stage identities and no-money status are explicit and consistent",
       "Connected report must come from the exact checked-out PR commit");
     assert.equal(r.githubRunId, process.env.GITHUB_RUN_ID,
       "Connected report must come from this workflow run");
+    assert.ok(["16","18"].includes(process.env.NINE_STAGE_PG_MAJOR),
+      "Connected report requires explicit known PG major");
+    assert.equal(r.postgresMajor, Number(process.env.NINE_STAGE_PG_MAJOR),
+      "Connected receipt must match actual disposable PostgreSQL major");
+    assert.equal(r.scope,
+      "synthetic-local-postgres" + process.env.NINE_STAGE_PG_MAJOR + "-only",
+      "Do not claim PG18 journey proof using an earlier PG16 fixture");
     assert.equal(r.lineage.hireMode, process.env.NINE_STAGE_HIRE_MODE ?? "direct");
     assert.equal(r.result, "PASS", "The dedicated connected workflow must pass all nine stages");
     assert.ok(isAccepted(r), "A failing or incomplete stage cannot be accepted");
