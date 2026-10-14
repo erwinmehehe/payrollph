@@ -15,7 +15,6 @@ import {
   employeePayProfiles,
   employeePayRevisions,
   employeeRestDayRevisions,
-  employeePayRetroAdjustments,
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
   employees,
