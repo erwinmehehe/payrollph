@@ -100,4 +100,7 @@ test("HCM list and both legacy review mutations retain private-vault rollback gu
   assert.match(verify, /!vaultEnabled && !await canMutateLegacyHcmDocument/);
   assert.match(waive, /!vaultEnabled && row\.documentId !== null && !await canMutateLegacyHcmDocument/);
   assert.match(verify, /if \(vaultEnabled\)[\s\S]*?verifyEmployeeVaultDocument/);
+  const upload = readFileSync("src/app/api/documents/route.ts", "utf8");
+  assert.match(upload, /!vaultEnabled && complianceRow\.documentId !== null &&[\s\S]*?canMutateLegacyHcmDocument/,
+    "legacy upload must not replace protected private vault evidence after feature rollback");
 });
