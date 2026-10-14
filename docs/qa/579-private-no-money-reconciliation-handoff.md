@@ -1,5 +1,7 @@
 # #579 — private no-money payroll reconciliation handoff
 
+**P0 source-file independence check (October 14, 2026):** Every canonical evidence role — incumbent payroll register, PayrollPH payroll register, incumbent GL journal and PayrollPH GL journal for each month — must refer to a distinct physical source export. Reusing the same file for two manifest fields can make a comparison trivially match, so the private checker now rejects duplicate real paths **and hard-linked file aliases**, across roles and months. Legitimate source exports may have identical values and SHA-256 hashes after normalization, but they must be independently retained files. Matching arithmetic remains **PENDING INDEPENDENT HUMAN REVIEW**, never an authorized bank disbursement or agency filing.
+
 This is a **real-employer operational gate**. A green CI test or fictional payroll run is not a real-source employee-by-employee reconciliation. Do not submit identifiable data, salaries, account numbers, keys, raw source file digests or reviewer identities to public GitHub.
 
 ## Engineering proof now available
