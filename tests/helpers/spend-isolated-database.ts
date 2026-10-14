@@ -13,7 +13,7 @@ export async function spendIsolatedDatabase() {
   assert.equal(url.hostname, "127.0.0.1");
   assert.equal(url.pathname, "/app_db");
   const schema = "qa_spend_" + randomUUID().replaceAll("-", "");
-  const pool = new Pool({ connectionString: url.toString(), options: `-c search_path=${schema}` });
+  const pool = new Pool({ connectionString: url.toString(), options: `-c search_path=${schema}`, application_name: schema });
   const exported = execFileSync(process.execPath, [join(process.cwd(), "node_modules/drizzle-kit/bin.cjs"),
     "export", "--config=drizzle.config.ts"], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024,
     env: { ...process.env, DATABASE_URL: url.toString() } });
@@ -31,4 +31,15 @@ export async function spendIsolatedDatabase() {
     await pool.query(`DROP SCHEMA ${schema} CASCADE`);
     await pool.end();
   } };
+}
+
+/** Observe real blocked transactions, rather than relying on an arbitrary delay. */
+export async function waitForSpendLockWaiters(fixture: { pool: Pool; schema: string }, count: number) {
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    const result = await fixture.pool.query("SELECT count(*)::integer AS total FROM pg_stat_activity WHERE application_name = $1 AND wait_event = 'advisory'", [fixture.schema]);
+    if (result.rows[0].total >= count) return;
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  throw new Error("Expected scoped Spend transactions to wait on the approval/release lock");
 }

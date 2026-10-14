@@ -4,7 +4,8 @@ import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
-import { spendIsolatedDatabase } from "./helpers/spend-isolated-database";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { spendIsolatedDatabase, waitForSpendLockWaiters } from "./helpers/spend-isolated-database";
 import { encryptBankAccount } from "../src/lib/bank-account-crypto";
 import { organizations, employees, users, userOrganizations, orgUnits,
   expenseCategoryPolicies, expenseClaimEvidence, expenseClaims, expenseReports, expenseReportItems, auditEvents, documents,
@@ -57,7 +58,15 @@ test("expense API enforces maker-checker, MFA, employer scope, exact approval an
     const created = await api.POST(request("POST", body)); assert.equal(created.status, 201);
     const claim = await created.json();
     signed(1);
-    assert.equal((await api.PATCH(request("PATCH", { id: claim.id, status: "approved" }))).status, 409);
+    const { lockReviewedSpendOrganization } = await import("../src/lib/spend-claim-evidence");
+    const holder = await pool.connect();
+    try {
+      await holder.query("BEGIN"); await lockReviewedSpendOrganization(drizzle(holder), orgs[0].id);
+      const waitingApproval = api.PATCH(request("PATCH", { id: claim.id, status: "approved" }));
+      await waitForSpendLockWaiters(fixture, 1);
+      assert.equal((await db.select().from(expenseClaims).where(eq(expenseClaims.id, claim.id)))[0].status, "pending");
+      await holder.query("COMMIT"); assert.equal((await waitingApproval).status, 409);
+    } finally { await holder.query("ROLLBACK"); holder.release(); }
     const bytes = Buffer.from("%PDF-1.7"), hash = createHash("sha256").update(bytes).digest("hex");
     Object.assign(process.env, { DOCUMENT_OBJECT_STORAGE_ENDPOINT: "https://objects.example.invalid",
       DOCUMENT_OBJECT_STORAGE_BUCKET: "synthetic-receipts", DOCUMENT_OBJECT_STORAGE_REGION: "us-east-1",

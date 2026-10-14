@@ -1,6 +1,6 @@
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
-import { assertSpendModeAvailable, loadSpendClaimEvidence, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
+import { assertSpendModeAvailable, loadSpendClaimEvidence, lockReviewedSpendOrganization, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
 import { reimbursementEligible, reimbursementLineBenefitTreatmentMatches, reimbursementLineEvidenceMatches, reimbursementLineTaxMatches, reimbursementSettlementDecision, receiptObjectIdentityMatches } from "@/lib/spend-payroll-reimbursement";
 import { readVerifiedSpendReceipt } from "@/lib/spend-receipt-storage";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
@@ -224,6 +224,7 @@ export async function settlePayrollRun(
   const verifiedSpendReceipts = await verifySpendReceiptsBeforeSettlement(runId, preflightRun.organizationId);
 
   return db.transaction(async (tx) => {
+    await lockReviewedSpendOrganization(tx, preflightRun.organizationId);
     const [run] = await tx.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
     if (!run) throw new Error("Payroll run not found.");
     if (run.status !== "Releasing") {

@@ -34,6 +34,10 @@ intent clearance commit together. Ambiguous PUT failures wait for delayed cleanu
 retains the intent for retry by the leased retention tick, including when Spend is rolled back OFF.
 Executed tests verify pre-PUT reservation, unreadable pending downloads, delayed DELETE retries,
 idempotence, protection of already-referenced receipts and safe pre-migration no-op behavior.
+Claim decisions, report creation/decisions and release share an employer-scoped transaction advisory
+lock before row locks. Tests observe actual PostgreSQL advisory-lock waiters for approval and
+competing releases. This closes the late-approval phantom window; OFF mode takes no new lock.
+Signed-provider diagnostics are restricted to safe receipt error codes before surfacing release failures.
 The unnumbered SQL proposal is rehearsed twice only in that generated namespace.
 
 Default OFF leaves the legacy ORM mapping and JSON response fields unchanged. Tests drop both

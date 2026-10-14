@@ -8,7 +8,7 @@ import { enforceSameOriginMutation, requireSensitiveActionMfa, enforceSensitiveA
 import { recordAuditEvent } from "@/lib/audit";
 import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { assertSpendModeAvailable, loadSpendClaimEvidence, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
+import { assertSpendModeAvailable, loadSpendClaimEvidence, lockReviewedSpendOrganization, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
 import { approvedReimbursementAmount } from "@/lib/spend-payroll-reimbursement";
 
 export const dynamic = "force-dynamic";
@@ -165,6 +165,7 @@ export async function POST(request: Request) {
     if (denied) return denied;
     const claimIds = ids.map(Number);
     const report = await db.transaction(async tx => {
+      await lockReviewedSpendOrganization(tx, organizationId);
       await tx.execute(sql`select id from expense_claims where organization_id = ${organizationId} and id in (${sql.join(claimIds.map(id => sql`${id}`), sql`, `)}) for update`);
       const claims = await tx.select().from(expenseClaims).where(and(eq(expenseClaims.organizationId, organizationId), inArray(expenseClaims.id, claimIds), eq(expenseClaims.employeeId, employeeId)));
       if (claims.length !== claimIds.length || claims.some(c => c.status !== "pending" || c.payrollRunId != null)) throw new Error("Claims must belong to the same employee and remain pending.");
@@ -211,6 +212,7 @@ export async function PATCH(request: Request) {
   });
   if (rateDenied) return rateDenied;
   const outcome = await db.transaction(async tx => {
+    await lockReviewedSpendOrganization(tx, existing.organizationId);
     const [report] = await tx.update(expenseReports).set({ status, decidedByUserId: user.id, decidedAt: new Date(), decisionNote: String(body.note ?? "").slice(0, 240) })
       .where(and(eq(expenseReports.id, id), eq(expenseReports.organizationId, existing.organizationId), eq(expenseReports.status, "submitted"))).returning();
     if (!report) throw new Error("Report already decided.");

@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employees, expenseCategoryPolicies, expenseClaimEvidence, expenseClaims, expenseReportItems } from "@/db/schema";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { assertSpendModeAvailable, loadSpendClaimEvidence, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
+import { assertSpendModeAvailable, loadSpendClaimEvidence, lockReviewedSpendOrganization, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
 import { approvedReimbursementAmount } from "@/lib/spend-payroll-reimbursement";
 import { documentUploadsEnabled } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
@@ -240,6 +240,7 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "Approved amount must be exact and cannot exceed the submitted amount." }, { status: 422 });
   }
   const decided = await db.transaction(async tx => {
+    await lockReviewedSpendOrganization(tx, existing.organizationId);
     // This lock pairs with expense report submission's claim-row locks.
     // Checking report membership outside this transaction would permit a
     // concurrent single-claim approval after the report was committed.

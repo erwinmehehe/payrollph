@@ -152,7 +152,7 @@ export async function POST(request: Request) {
       return intent.id;
     });
   } catch {
-    return Response.json({ error: "Private receipt upload could not be reserved." }, { status: 409 });
+    return Response.json({ error: "Could not start this receipt upload. Please try again." }, { status: 409 });
   }
 
   try {
@@ -162,7 +162,7 @@ export async function POST(request: Request) {
   } catch {
     // A timed-out PUT may still complete later. Do not DELETE immediately:
     // the committed intent is recovered by the delayed leased sweep.
-    return Response.json({ error: "Private receipt verification failed; protected cleanup is queued." }, { status: 503 });
+    return Response.json({ error: "Receipt storage could not be verified. Please try again later." }, { status: 503 });
   }
 
   try {
@@ -215,7 +215,7 @@ export async function POST(request: Request) {
     // PUT and SHA readback completed: immediate best-effort reconciliation is
     // safe, but failed DELETE retains the committed intent for the sweeper.
     await reconcilePendingSpendReceipt(pendingDocumentId).catch(() => {});
-    return Response.json({ error: "Receipt could not be attached; protected cleanup evidence is retained." }, { status: 409 });
+    return Response.json({ error: "This receipt could not be saved. The claim may have changed or the receipt may already be in use." }, { status: 409 });
   }
 
 }

@@ -6,6 +6,15 @@ import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 export function spendPayrollEnabled(env: Readonly<Record<string, string | undefined>> = process.env) {
   return criticalReleaseFlagEnabled("spendPayroll", env) && !criticalReleaseFlagEnabled("multiEntity", env);
 }
+
+/** Shared approval/release boundary prevents newly approved claim phantoms.
+ * Acquire before report/claim/ledger row locks; legacy mode takes no new lock.
+ */
+export async function lockReviewedSpendOrganization(database: Pick<typeof db, "execute">, organizationId: number) {
+  if (!spendPayrollEnabled()) return;
+  if (!Number.isSafeInteger(organizationId) || organizationId < 1) throw new Error("Invalid expense employer.");
+  await database.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended('reviewed-expenses:' || ${organizationId}::text, 0))`);
+}
 export type ReviewedExpenseClaim = typeof expenseClaims.$inferSelect &
   Partial<typeof expenseClaimEvidence.$inferSelect> & { policyMatched?: boolean };
 

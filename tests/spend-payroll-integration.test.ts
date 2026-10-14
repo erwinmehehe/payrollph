@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import { eq } from "drizzle-orm";
-import { spendIsolatedDatabase } from "./helpers/spend-isolated-database";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { spendIsolatedDatabase, waitForSpendLockWaiters } from "./helpers/spend-isolated-database";
 import { encryptBankAccount } from "../src/lib/bank-account-crypto";
 import {
   employees, employeePayProfiles, expenseCategoryPolicies, expenseClaimEvidence, expenseClaims,
@@ -218,7 +219,16 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = "false";
     await assert.rejects(settlePayrollRun(run.id), /Reviewed reimbursements are paused/);
     process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = "true";
-    const competing = await Promise.allSettled([settlePayrollRun(run.id), settlePayrollRun(run.id)]);
+    const { lockReviewedSpendOrganization } = await import("../src/lib/spend-claim-evidence");
+    const holder = await fixture.pool.connect();
+    let competing: PromiseSettledResult<Awaited<ReturnType<typeof settlePayrollRun>>>[];
+    try {
+      await holder.query("BEGIN"); await lockReviewedSpendOrganization(drizzle(holder), org.id);
+      const waiting = Promise.allSettled([settlePayrollRun(run.id), settlePayrollRun(run.id)]);
+      await waitForSpendLockWaiters(fixture, 2);
+      assert.equal((await db.select().from(expenseClaims).where(eq(expenseClaims.id, claims[0].id)))[0].status, "approved");
+      await holder.query("COMMIT"); competing = await waiting;
+    } finally { await holder.query("ROLLBACK"); holder.release(); }
     assert.equal(competing.filter(result => result.status === "fulfilled").length, 1);
     for (const claim of claims) {
       const [paid] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, claim.id));
