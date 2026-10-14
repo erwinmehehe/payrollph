@@ -169,6 +169,55 @@ try {
       .onboarding.find(task => task.id === item.id).done, true);
   });
 
+  // P0: use the actual HR Leave form and independent manager approval.
+  // Synthetic Chromium does not constitute independently observed human UAT.
+  let syntheticLeaveId = null;
+  let syntheticLeaveApprovalId = null;
+  await checkpoint(page, "Leave policy and first request through HR UI", async () => {
+    await workspace(page, 1);
+    await page.getByRole("button", { name: "Open Leave requests" }).click();
+    await page.locator('[data-workspace-page="Leave"]').waitFor({ timeout: 60000 });
+    await page.getByRole("button", { name: "Configure policy" }).click();
+    await page.getByLabel("Leave type", { exact: true }).fill("Annual leave");
+    await page.getByLabel("Annual days").fill("15");
+    await page.getByLabel("Payroll treatment").selectOption("paid");
+    await page.getByRole("button", { name: "Save treatment" }).click();
+    await page.getByText("Annual leave payroll treatment saved.").waitFor({ timeout: 60000 });
+
+    await page.getByRole("button", { name: "New leave request" }).click();
+    await page.getByLabel("Employee", { exact: true })
+      .selectOption({ label: "AlphaPrivate Worker" });
+    await page.getByLabel("Start date").fill("2026-10-20");
+    await page.getByLabel("End date").fill("2026-10-20");
+    await page.getByLabel("Days").fill("1");
+    await page.getByRole("button", { name: "Submit request" }).click();
+    await page.getByText("Leave request submitted and queued for approval.")
+      .waitFor({ timeout: 60000 });
+
+    const alpha = await browserRequest(page, "/api/leave?organizationId=1");
+    assert.equal(alpha.status, 200);
+    const request = alpha.body?.requests?.find(row =>
+      row.employeeName === "AlphaPrivate Worker" &&
+      row.leaveType === "Annual leave" && row.startDate === "2026-10-20");
+    assert.ok(request && request.status === "Pending",
+      "Leave must persist as pending for the intended fictional worker");
+    assert.ok(Number.isSafeInteger(request.approvalTaskId) && request.approvalTaskId > 0,
+      "Leave must create a source-linked approval task");
+    syntheticLeaveId = request.id;
+    syntheticLeaveApprovalId = request.approvalTaskId;
+
+    // The requesting HR actor cannot decide a task assigned to someone else.
+    const selfReview = await browserRequest(
+      page, "/api/approvals/" + syntheticLeaveApprovalId, "PATCH",
+      { status: "Approved" },
+    );
+    assert.equal(selfReview.status, 403, "Requesting HR cannot approve its own leave task");
+    const beta = await browserRequest(page, "/api/leave?organizationId=2");
+    assert.equal(beta.status, 200);
+    assert.ok(!beta.body?.requests?.some(row => row.id === syntheticLeaveId),
+      "The second fictional employer cannot inherit Alpha's leave request");
+  });
+
   await checkpoint(page, "Employer switch prevents onboarding data leakage", async () => {
     await workspace(page, 2);
     await page.getByRole("button", { name: "Open Hire & onboard" }).click();
@@ -345,6 +394,26 @@ try {
     assert.ok(!JSON.stringify(data.tasks).includes("BetaPrivate approval"));
   });
 
+  await checkpoint(mp, "Independent manager approves fictional HR leave request", async () => {
+    assert.ok(Number.isSafeInteger(syntheticLeaveId) && Number.isSafeInteger(syntheticLeaveApprovalId));
+    const assigned = mp.locator(".approval-content")
+      .filter({ hasText: "Approve leave request" })
+      .filter({ hasText: "AlphaPrivate Worker" });
+    await assigned.waitFor({ timeout: 60000 });
+    await assigned.getByRole("button", { name: "Review & approve" }).click();
+    await mp.getByRole("button", { name: "Confirm approval", exact: true }).click();
+    await mp.getByText("Approval approved and recorded in the audit trail.")
+      .waitFor({ timeout: 60000 });
+    const leave = await browserRequest(mp, "/api/leave?organizationId=1");
+    assert.equal(leave.status, 200);
+    assert.equal(leave.body?.requests?.find(row => row.id === syntheticLeaveId)?.status,
+      "Approved", "Approved task must update authoritative employee leave");
+    const rereview = await browserRequest(mp,
+      "/api/approvals/" + syntheticLeaveApprovalId, "PATCH",
+      { status: "Approved" });
+    assert.equal(rereview.status, 409, "Already-approved task must refuse repeated decision");
+  });
+
   await checkpoint(mp, "Manager cannot reach another employer's HRIS", async () => {
     const response = await browserRequest(mp, "/api/hcm/my-team?organizationId=2");
     assert.equal(response.status, 403);
@@ -364,6 +433,7 @@ try {
     result: "PASS", mode: "isolated Postgres 16 and local Chromium",
     checkpoints, liveEmployerDataAccessed: false, payrollReleased: false,
     bankTransfersExecuted: false, productionAccepted: false,
+    independentHumanUat: false, physicalPhoneTested: false, realEmployerReconciled: false,
   }));
   await hr.close();
   await manager.close();
