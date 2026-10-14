@@ -124,8 +124,13 @@ export async function postValidatedWebhook(input: {
   headers: Record<string, string>;
   body: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }) {
+  // The optional signal stops collector HTTPS requests that exceed their
+  // delivery deadline, without changing existing webhook call sites.
+  if (input.signal?.aborted) throw new Error("Webhook delivery aborted.");
   const target = await resolveWebhookTarget(input.url);
+  if (input.signal?.aborted) throw new Error("Webhook delivery aborted.");
   const pinned = target.addresses[0];
   if (!pinned) throw new Error("Webhook target has no validated public address.");
 
@@ -136,6 +141,7 @@ export async function postValidatedWebhook(input: {
     const request = transport(url, {
       method: "POST",
       headers: input.headers,
+      signal: input.signal,
       // Pin the request to the exact public IP that passed validation. HTTPS
       // still uses the original URL hostname for Host + SNI/certificate checks.
       lookup: (_hostname, _options, callback) => {

@@ -3035,6 +3035,43 @@ export const jobApplicants = pgTable("job_applicants", {
   uniqueIndex("job_applicants_hired_employee_unique")
     .on(table.hiredEmployeeId)
     .where(sql`${table.hiredEmployeeId} is not null`),
+  unique("job_applicants_org_id_privacy_fk").on(table.organizationId, table.id),
+]);
+
+/**
+ * A-2 applicant privacy: independent additive table so default-off recruiting
+ * does not query columns absent from the live job_applicants schema.
+ * The release migration also installs a composite employer/candidate FK.
+ */
+export const applicantPrivacyEvidence = pgTable("applicant_privacy_evidence", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  applicantId: integer("applicant_id").notNull().references(() => jobApplicants.id, { onDelete: "cascade" }),
+  legalBasis: varchar("legal_basis", { length: 32 }).notNull(),
+  privacyNoticeVersion: varchar("privacy_notice_version", { length: 64 }).notNull(),
+  consentCapturedAt: timestamp("consent_captured_at", { withTimezone: true }).notNull(),
+  sourceEvidenceReference: varchar("source_evidence_reference", { length: 200 }).notNull(),
+  rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+  legalHold: boolean("legal_hold").notNull().default(false),
+  purgedAt: timestamp("purged_at", { withTimezone: true }),
+  purgedByUserId: integer("purged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionRequestedByUserId: integer("deletion_requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionRequestedAt: timestamp("deletion_requested_at", { withTimezone: true }),
+  deletionReason: varchar("deletion_reason", { length: 500 }),
+  deletionReviewedByUserId: integer("deletion_reviewed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionReviewedAt: timestamp("deletion_reviewed_at", { withTimezone: true }),
+  deletionReviewEvidenceReference: varchar("deletion_review_evidence_reference", { length: 200 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("applicant_privacy_org_candidate_unique").on(table.organizationId, table.applicantId),
+  index("applicant_privacy_rejection_due_idx").on(table.organizationId, table.rejectedAt, table.purgedAt),
+  foreignKey({
+    name: "applicant_privacy_employer_fk",
+    columns: [table.organizationId, table.applicantId],
+    foreignColumns: [jobApplicants.organizationId, jobApplicants.id],
+  }).onDelete("cascade"),
+  check("applicant_privacy_legal_basis_check", sql`${table.legalBasis} = 'consent'`),
+  check("applicant_privacy_purged_rejected_check", sql`${table.purgedAt} is null or ${table.rejectedAt} is not null`),
 ]);
 
 /** Confidential HR service requests, scoped to the employee and their employer. */
@@ -3136,6 +3173,31 @@ export const separationRecords = pgTable("separation_records", {
     ${table.preparedByUserId} is null or ${table.approvedByUserId} is null
     or ${table.preparedByUserId} <> ${table.approvedByUserId}
   `),
+]);
+
+/**
+ * A governed exception is distinct from completed departmental clearance.
+ * Retain revoked waivers for audit. The partial uniqueness constraint means
+ * there can be at most one CURRENT waiver per separation and department.
+ */
+export const separationClearanceWaivers = pgTable("separation_clearance_waivers", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  separationId: integer("separation_id").notNull().references(() => separationRecords.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  department: varchar("department", { length: 16 }).notNull(),
+  reason: varchar("reason", { length: 500 }).notNull(),
+  evidenceReference: varchar("evidence_reference", { length: 200 }).notNull(),
+  authorizedByUserId: integer("authorized_by_user_id").notNull().references(() => users.id),
+  authorizedAt: timestamp("authorized_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokedByUserId: integer("revoked_by_user_id").references(() => users.id, { onDelete: "set null" }),
+}, (table) => [
+  uniqueIndex("separation_clearance_waivers_active_unique").on(table.separationId, table.department)
+    .where(sql`${table.revokedAt} is null`),
+  index("separation_clearance_waivers_org_sep_idx").on(table.organizationId, table.separationId),
+  check("separation_clearance_waivers_department_check",
+    sql`${table.department} in ('it', 'admin', 'finance', 'hr')`),
 ]);
 
 export const biometricDevices = pgTable("biometric_devices", {
