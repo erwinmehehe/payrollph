@@ -67,7 +67,7 @@ jobs:
         run: npm install --no-save --package-lock=false ${{ matrix.packages }}
       - name: Verify exact ephemeral RC overlays without requiring package manifest rewrite
         run: |
-          node -e 'const {createRequire}=require("node:module"); const r=createRequire(process.cwd()+"/package.json"); for(const name of ["drizzle-kit","drizzle-orm"]) { const actual=r(name+"/package.json").version; const expected=name==="drizzle-kit"?"1.0.0-rc.4":process.env.CANDIDATE==="kit-and-orm"?"1.0.0-rc.4":"0.45.4"; if(actual!==expected){ console.error(name+" version mismatch");process.exit(1); } console.log(name+" evaluated version "+actual) }'
+          node -e 'const {readFileSync}=require("node:fs"); for(const name of ["drizzle-kit","drizzle-orm"]) { const actual=JSON.parse(readFileSync("node_modules/"+name+"/package.json","utf8")).version; const expected=name==="drizzle-kit"?"1.0.0-rc.4":process.env.CANDIDATE==="kit-and-orm"?"1.0.0-rc.4":"0.45.4"; if(actual!==expected){ console.error(name+" version mismatch");process.exit(1); } console.log(name+" evaluated version "+actual) }'
         env:
           CANDIDATE: ${{ matrix.candidate }}
       - name: Verify fail-closed safety and exact tenancy constraints
@@ -76,7 +76,7 @@ jobs:
         run: node scripts/qa/fresh-pg18-development-schema.mjs preflight
       - name: Create current source schema once
         run: npm run db:push
-      - name: Verify nonpartial unique index and tenant FK, capture catalog
+      - name: Verify original composite UNIQUE and tenant FK, capture catalog
         run: node scripts/qa/fresh-pg18-development-schema.mjs capture
       - name: Refuse non-noop second schema push and silent SQL errors
         run: node scripts/qa/verified-pg18-repeat-push.mjs
