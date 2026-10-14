@@ -123,6 +123,29 @@ test("invalid legacy loan schedule is a non-acknowledgeable release blocker", ()
   assert.ok(result.findings.some((finding) => finding.code === "ENGINE_EXCEPTION"));
 });
 
+test("M-10: retro source-month ambiguity cannot be waived via acknowledgeExceptions", () => {
+  for (const code of [
+    "STATUTORY_RETRO_INVALID_SOURCE",
+    "STATUTORY_RETRO_SOURCE_UNVERIFIED",
+    "STATUTORY_RETRO_PRIOR_MONTH_REVIEW",
+  ]) {
+    const result = evaluatePayrollAssurance([entry({
+      status: "Exception",
+      trace: { flags: [code + ": Retro #42 requires agency review"] },
+    })], []);
+    assert.equal(result.summary.blocking, 1, code);
+    assert.ok(result.findings.some((finding) =>
+      finding.code === "STATUTORY_RETRO_ATTRIBUTION_UNVERIFIED"
+      && finding.severity === "high"
+      && finding.blocking === true
+    ), code);
+  }
+  const sameMonth = evaluatePayrollAssurance([entry({
+    status: "Ready", trace: { flags: [], inputs: ["retroStatutoryAttributionBlockers=0"] },
+  })], []);
+  assert.equal(sameMonth.summary.blocking, 0);
+});
+
 test("ordinary engine warnings remain acknowledgeable, not loan blockers", () => {
   const result = evaluatePayrollAssurance([entry({
     status: "Exception",
