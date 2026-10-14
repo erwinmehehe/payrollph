@@ -153,7 +153,8 @@ test("daily triage stays in native People Inbox with source navigation and no wr
   assert.ok(ui.includes("hcmResponseMatchesReadScope(body, scope)"),
     "Never accept another legal employer's response");
   assert.ok(ui.includes("response?.key === requestKey ? response : null"));
-  assert.ok(ui.includes("body.organizationId !== organizationId"));
+  assert.ok(ui.includes("hcmResponseMatchesReadScope(body, scope)"),
+    "Daily triage must validate both tenant and legal-employer response identity");
   assert.ok(!ui.includes('method: "POST"'));
   assert.ok(!ui.includes('method: "PATCH"'));
 });
