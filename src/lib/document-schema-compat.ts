@@ -1,6 +1,7 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, notLike, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { documents } from "@/db/schema";
+import { documents, hcmEmployeeDocumentCompliance } from "@/db/schema";
+import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
 import {
   boolean, integer, jsonb, pgTable, serial, text, timestamp, varchar,
 } from "drizzle-orm/pg-core";
@@ -86,3 +87,24 @@ export async function canMutateLegacyHcmDocument(input: {
   )).limit(1);
   return Boolean(row);
 }
+
+
+/**
+ * ESS document metadata must be linked to its *own* compliance employee
+ * and tenant. Historical compliance.document_id has only an ID foreign key:
+ * a malformed import can legally attach another employer's or employee's
+ * document. Never use the document ID alone to expose its filename, kind,
+ * upload time or scan state, even after the A-5 feature is switched OFF.
+ *
+ * All columns in this JOIN exist in pre-A5 schemas. A pending vault PUT
+ * is deliberately hidden until storage verification commits its approval.
+ */
+export const employeeDocumentMetadataJoin = and(
+  eq(documents.id, hcmEmployeeDocumentCompliance.documentId),
+  eq(documents.organizationId, hcmEmployeeDocumentCompliance.organizationId),
+  eq(documents.employeeId, hcmEmployeeDocumentCompliance.employeeId),
+  or(
+    isNull(documents.sourceKey),
+    notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"),
+  ),
+);
