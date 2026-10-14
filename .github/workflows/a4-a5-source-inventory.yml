@@ -1,4 +1,4 @@
-name: A4 Merged + A5 Candidate Source Acceptance (Read Only)
+name: A4 + A5 Merged Source Integrity (Read Only)
 on:
   pull_request:
     paths:
@@ -7,6 +7,7 @@ on:
       - "scripts/qa/a4-a5-source-inventory.mjs"
       - "tests/a1-a6-baseline-preflight.test.mjs"
       - "tests/a4-a5-source-inventory.test.mjs"
+      - "docs/engineering/pr-927-a4-a5-fresh-main-preflight.md"
   workflow_dispatch:
 
 permissions:
@@ -30,17 +31,16 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-      - name: Test historical replay guard and merged-owner source contract with fictional Git fixtures
+      - name: Test historical replay guards and merged A4+A5 source with fictional Git fixtures
         run: |
           node --test tests/a1-a6-baseline-preflight.test.mjs tests/a4-a5-source-inventory.test.mjs
-      - name: Fetch merged main and outstanding A5 owner without running PR source
+      - name: Fetch main history without executing A5 merged source
         shell: bash
         run: |
           set -euo pipefail
           git fetch --no-tags origin \
-            '+refs/heads/main:refs/remotes/origin/main' \
-            '+refs/pull/902/head:refs/remotes/origin/a5-owner-902'
-      - name: Verify pinned event-base A4/A5 source and unchanged HCM security guards
+            '+refs/heads/main:refs/remotes/origin/main'
+      - name: Verify pinned A4 and A5 merge ancestry and preserved security guards
         shell: bash
         env:
           # Freeze the exact base SHA from the PR event rather than fetching a
@@ -65,13 +65,14 @@ jobs:
           }
           # This is the merged #896 squash commit, not the obsolete PR head.
           export A4_A5_SPEND_SHA=361bd6b5d9a9706a2930b0c48a8e0e431fd10bfe
-          export A4_A5_VAULT_SHA="$(git rev-parse refs/remotes/origin/a5-owner-902)"
+          # This is the actual two-parent merge commit for #902, not its old PR head.
+          export A4_A5_VAULT_MERGE_SHA=3a4a2edaca9a44064c824d57fcb3f9e88aee72c9
           node scripts/qa/a4-a5-source-inventory.mjs
       - name: Publish sanitized source evidence, including on a blocked result
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: a4-merged-a5-source-inventory
+          name: a4-a5-already-merged-source-inventory
           path: qa-artifacts/a4-a5-source-inventory.json
           if-no-files-found: warn
           retention-days: 14
