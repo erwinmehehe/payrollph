@@ -5,6 +5,7 @@ import {
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
+import { multiEntityHcmDeferred } from "@/lib/multi-entity-hcm-hold";
 import { loadPeopleOperationsInbox } from "@/lib/hcm-people-operations-inbox-server";
 import { PEOPLE_OPS_TEAMS, type PeopleOpsCategory, type PeopleOpsPriority, type PeopleOpsDueWindow, type PeopleOpsTeam } from "@/lib/hcm-people-operations-inbox";
 
@@ -16,6 +17,12 @@ const DUE_WINDOWS = new Set(["all", "overdue", "today", "next7", "next30", "unsc
 const TEAMS = new Set<string>(["all", ...PEOPLE_OPS_TEAMS]);
 
 export async function GET(request: Request) {
+  if (multiEntityHcmDeferred()) {
+    return Response.json({
+      error: "HCM APIs are unavailable until multi-entity employer isolation is reviewed.",
+      code: "ENTITY_HCM_DEFERRED",
+    }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
+  }
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -67,5 +74,6 @@ export async function GET(request: Request) {
 
   // The client binds every result to the requested employer before display.
   // Preserve that fail-closed check by returning the authorized scope.
-  return Response.json({ ...payload, organizationId }, { headers: { "Cache-Control": "private, no-store" } });
+  return Response.json({ ...payload, organizationId, legalEntityId },
+    { headers: { "Cache-Control": "private, no-store" } });
 }
