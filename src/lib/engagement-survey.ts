@@ -153,17 +153,16 @@ export async function closeEngagementSurvey(
       eq(engagementSurveys.status, "open"),
     )).returning({ id: engagementSurveys.id });
     if (!survey) return false;
-    // Callers that supply human approval evidence must commit the audit row
-    // before the close becomes visible. The transaction rolls back on failure.
-    if (audit) {
-      await tx.insert(auditEvents).values({
-        organizationId,
-        actor: audit.actor,
-        action: "Engagement survey closed",
-        resource: "engagement_survey",
-        metadata: { surveyId, actorUserId: audit.actorUserId },
-      });
-    }
+    // Always audit a successful close in the same transaction, including
+    // legacy service callers that have no actor context. Mark that provenance
+    // as unattributed; it must not be mistaken for an HR approval.
+    await tx.insert(auditEvents).values({
+      organizationId,
+      actor: audit?.actor ?? "Unattributed legacy service caller",
+      action: "Engagement survey closed",
+      resource: "engagement_survey",
+      metadata: { surveyId, actorUserId: audit?.actorUserId ?? null },
+    });
     return true;
   });
 }

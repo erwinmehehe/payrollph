@@ -11,8 +11,8 @@ PR #889 has already merged a distinct, gated HCM survey and goals/review impleme
 - Existing mainline `ENGAGEMENT_SURVEY_ENABLED` and `GOALS_REVIEW_CYCLE_ENABLED` flags (strictly OFF unless separately approved).
 - Existing `engagement_surveys`, `engagement_survey_participants`, Performance goals and review cycles.
 - Existing 5-person, **closed-only** disclosure; now also fail-closed on impossible sums and malformed counts.
-- Transactional creation/closure and their matching append-only audit receipts. If audit insertion fails, the survey state also rolls back.
-- Disposable PostgreSQL regression tests for atomic rollback, exactly one successful close audit, and malformed aggregate suppression. The dedicated `HCM Gaps Focused Acceptance` job now runs this new test file explicitly alongside the existing survey tests.
+- Transactional creation/closure and their matching append-only audit receipts. If audit insertion fails, the survey state also rolls back. The legacy service-only close path now records an explicitly **unattributed** receipt instead of bypassing the audit; this is not evidence of human HR approval.
+- Disposable PostgreSQL regression tests for atomic rollback, actual duplicate-open constraint handling, concurrent/tenant-isolated close idempotency, receipt metadata, legacy-call auditing, and malformed aggregate suppression. Audit receipt reads are ordered deterministically. The dedicated `HCM Gaps Focused Acceptance` job runs this test file alongside existing survey tests.
 - An expected HTTP 409 duplicate-open-survey response is now tied to the specific `engagement_surveys_one_open_per_org` index; unrelated uniqueness/audit failures remain HTTP 503. Regression cases cover wrapped Postgres causes and false-positive conflicts.
 
 ## Scope removed from PR #886

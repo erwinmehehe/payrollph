@@ -28,9 +28,24 @@ test("survey lifecycle and append-only audit receipt commit or roll back togethe
     const survey = await createEngagementSurveyWithAudit({
       organizationId, question, createdByUserId: null, actor: "HR maker",
     });
-    const auditRows = () => db.select({ action: auditEvents.action }).from(auditEvents)
-      .where(eq(auditEvents.organizationId, organizationId));
+    const auditRows = () => db.select({
+      action: auditEvents.action,
+      actor: auditEvents.actor,
+      resource: auditEvents.resource,
+      metadata: auditEvents.metadata,
+    }).from(auditEvents).where(eq(auditEvents.organizationId, organizationId))
+      .orderBy(auditEvents.id);
     assert.deepEqual((await auditRows()).map(row => row.action), ["Engagement survey opened"]);
+
+    await assert.rejects(
+      createEngagementSurveyWithAudit({
+        organizationId, question, createdByUserId: null, actor: "HR maker",
+      }),
+      (error: unknown) => isOpenSurveyConflict(error),
+      "Actual PostgreSQL duplicate-open constraint must be classified precisely",
+    );
+    assert.equal((await auditRows()).length, 1,
+      "Rejected duplicate opens must not leave phantom audit receipts");
 
     await assert.rejects(closeEngagementSurvey(organizationId, survey.id, {
       actor: invalidActor, actorUserId: null,
@@ -39,19 +54,52 @@ test("survey lifecycle and append-only audit receipt commit or roll back togethe
       .from(engagementSurveys).where(eq(engagementSurveys.id, survey.id));
     assert.equal(stillOpen.status, "open", "A failed close-audit must not close the survey");
     assert.equal((await auditRows()).length, 1, "No false close audit can survive rollback");
-
+    assert.equal(await closeEngagementSurvey(organizationId + 1, survey.id, {
+      actor: "Other tenant", actorUserId: null,
+    }), false, "Cross-tenant close must not change another organization's survey");
+    const closes = await Promise.all([
+      closeEngagementSurvey(organizationId, survey.id, {
+        actor: "HR checker", actorUserId: null,
+      }),
+      closeEngagementSurvey(organizationId, survey.id, {
+        actor: "HR checker", actorUserId: null,
+      }),
+    ]);
+    assert.equal(closes.filter(Boolean).length, 1,
+      "Concurrent close requests must commit exactly one transition");
     assert.equal(await closeEngagementSurvey(organizationId, survey.id, {
       actor: "HR checker", actorUserId: null,
-    }), true);
-    assert.equal(await closeEngagementSurvey(organizationId, survey.id, {
-      actor: "HR checker", actorUserId: null,
-    }), false, "Repeated closure must be idempotent");
+    }), false, "Repeated closure must remain idempotent");
     const [closed] = await db.select({ status: engagementSurveys.status })
       .from(engagementSurveys).where(eq(engagementSurveys.id, survey.id));
     assert.equal(closed.status, "closed");
-    assert.deepEqual((await auditRows()).map(row => row.action), [
+    const receipts = await auditRows();
+    assert.deepEqual(receipts.map(row => row.action), [
       "Engagement survey opened", "Engagement survey closed",
     ]);
+    assert.deepEqual(receipts.map(row => row.resource), [
+      "engagement_survey", "engagement_survey",
+    ]);
+    assert.deepEqual(receipts.map(row => row.metadata), [
+      { surveyId: survey.id, actorUserId: null },
+      { surveyId: survey.id, actorUserId: null },
+    ]);
+    assert.equal(receipts[1].actor, "HR checker");
+
+    const legacy = await createEngagementSurveyWithAudit({
+      organizationId, question, createdByUserId: null, actor: "Legacy fixture",
+    });
+    assert.equal(await closeEngagementSurvey(organizationId, legacy.id), true,
+      "Existing service-only callers remain compatible");
+    const legacyReceipts = await auditRows();
+    assert.equal(legacyReceipts.length, 4);
+    assert.deepEqual(legacyReceipts.slice(2).map(row => row.action), [
+      "Engagement survey opened", "Engagement survey closed",
+    ]);
+    assert.equal(legacyReceipts[3].actor, "Unattributed legacy service caller",
+      "No close may succeed without an audit receipt, even with no actor context");
+    assert.deepEqual(legacyReceipts[3].metadata,
+      { surveyId: legacy.id, actorUserId: null });
   } finally {
     await db.delete(organizations).where(eq(organizations.id, organizationId));
   }
