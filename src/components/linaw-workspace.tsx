@@ -56,6 +56,10 @@ import {
 import { PayrollRunView } from "@/components/workspace/payroll-run";
 import { PeopleView } from "@/components/workspace/people";
 import { WorkspaceShell, buildNotifications } from "@/components/workspace/shell";
+import {
+  EntityBadge, EntitySwitcher, EntityFilter, EntitySettingsView, EntityTransferInbox,
+  useMultiEntityRequestHeaders,
+} from "@/components/workspace/multi-entity-ui";
 import { TimeView } from "@/components/workspace/time";
 import { WorkforcePlanner } from "@/components/workspace/workforce-planner";
 import { WorkforcePlanningPanel } from "@/components/workforce-planning-panel";
@@ -67,7 +71,7 @@ import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 
-export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -107,6 +111,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
+  useMultiEntityRequestHeaders(data.multiEntity);
   const [page, setPage] = useState(initialPage);
   const [busy, setBusy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -144,9 +149,14 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
   const rolePages = demoRole ? demoRolePages(demoRole) : workspacePagesForRole(effectiveRole);
   const coreModules = data.coreModuleNavigationEnabled === true && data.selectedOrganization.moduleNavigationMode === "core" && !isFreelancer;
   const primaryPages = coreModules ? ["Overview", "People", "Time & attendance", "Payroll", "Approvals", "Reports", "More modules"] : workspacePrimaryPagesForRole(effectiveRole);
+  const entityVisible = data.multiEntity?.enabled && !demoRole && !isFreelancer
+    && data.access?.companyWide === true
+    && ["owner", "admin", "bookkeeper", "hr", "group_hr"].includes(effectiveRole ?? "");
   const availablePages = useMemo(() => {
-    return tenantNavigationPages({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, rolePages, companyWide: data.access?.companyWide, canManageModules: ["owner", "admin", "bookkeeper"].includes(effectiveRole ?? "") }, pilotFocusEnabled && !demoRole);
-  }, [data.access?.companyWide, data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole]);
+    const pages = tenantNavigationPages({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, rolePages, companyWide: data.access?.companyWide, canManageModules: ["owner", "admin", "bookkeeper"].includes(effectiveRole ?? "") }, pilotFocusEnabled && !demoRole);
+    if (entityVisible && !pages.includes("Entities")) pages.push("Entities");
+    return pages;
+  }, [data.access?.companyWide, data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole, entityVisible]);
 
   // Only surface existing HR modules that this role, plan and pilot menu permit.
   const hrisShortcuts = useMemo(
@@ -227,12 +237,28 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
   }
 
   async function decideTask(id: number, status: "Approved" | "Declined") {
+    let confirmed: string | undefined;
+    if (data.multiEntity?.enabled && status === "Approved") {
+      const task = data.tasks.find(row => row.id === id);
+      const linkedRunId = task?.payrollRunId
+        ?? Number(/Payroll run #(\d+)/.exec(task?.detail ?? "")?.[1] ?? 0);
+      const linkedRun = data.payrollRuns.find(run => run.id === linkedRunId);
+      if (linkedRun) {
+        const entity = data.multiEntity.entities.find(e => e.id === linkedRun.legalEntityId);
+        if (!entity) { notify("Legal employer is not available for this approval.", "err"); return; }
+        confirmed = window.prompt(`To approve this payroll, type the legal employer name exactly: ${entity.legalName}`) ?? "";
+        if (confirmed.trim() !== entity.legalName.trim()) {
+          notify("Entity name did not match; payroll approval was not sent.", "err");
+          return;
+        }
+      }
+    }
     setBusy(true);
     try {
       const response = await fetch(`/api/approvals/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, ...(confirmed === undefined ? {} : { confirmLegalEntityName: confirmed }) }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -259,6 +285,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     payDate: string;
     scopeOrgUnitId: number | null;
     legalEntityId: number;
+    confirmLegalEntityName?: string;
   }) {
     setBusy(true);
     try {
@@ -305,12 +332,22 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     runId: number,
     acknowledgeExceptions: boolean,
   ): Promise<{ receipt?: PayrollReleaseReceipt; error?: string }> {
+    let confirmed: string | undefined;
+    if (data.multiEntity?.enabled) {
+      const target = data.payrollRuns.find(run => run.id === runId);
+      const entity = data.multiEntity.entities.find(row => row.id === target?.legalEntityId);
+      if (!entity) return { error: "Legal employer is missing from this payroll run." };
+      confirmed = window.prompt(`To release this payroll, type the legal employer name exactly: ${entity.legalName}`) ?? "";
+      if (confirmed.trim() !== entity.legalName.trim()) {
+        return { error: "Entity name confirmation did not match; release cancelled." };
+      }
+    }
     setBusy(true);
     try {
       const response = await fetch(`/api/payroll-runs/${runId}/release`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ acknowledgeExceptions }),
+        body: JSON.stringify({ acknowledgeExceptions, ...(confirmed === undefined ? {} : { confirmLegalEntityName: confirmed }) }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -398,6 +435,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         allowClientSwitch={allowClientSwitch}
         headerExtras={
           <>
+            {data.multiEntity?.enabled && <EntitySwitcher
+              context={data.multiEntity} organizationId={data.selectedOrganization.id}
+            />}
             {availablePages.includes("Compliance") && (
               <button className="topbar-link" onClick={() => setGovModalOpen(true)}>
                 <ShieldCheck size={13} style={{ color: "var(--brand)" }} /> Gov status
@@ -462,8 +502,16 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
             )}
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
+                key={data.selectedOrganization.id}
                 readiness={data.firstPayrollReadiness}
+                inlineEnabled={inlineFirstPayrollEnabled}
                 guided={isSelfServeCustomer}
+                data={data}
+                onRefresh={refresh}
+                onDecide={decideTask}
+                canDecide={canDecideApprovals}
+                canManageDelegations={canManageDelegations}
+                notify={notify}
                 allowedPages={availablePages}
                 onSettings={setSettingsInitialTab}
                 onPage={setPage}
@@ -482,6 +530,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
           </>
         )}
 
+        {page === "Payroll" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity}
+          organizationId={data.selectedOrganization.id} title="Payroll by entity" />}
         {page === "Payroll" && (
           <PayrollRunView
             data={data}
@@ -499,6 +549,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
           />
         )}
 
+        {page === "People" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity}
+          organizationId={data.selectedOrganization.id} title="People by entity" />}
         {page === "People" && (
           <PeopleView
             data={data}
@@ -535,6 +587,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
           />
         )}
 
+        {page === "Time & attendance" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity}
+          organizationId={data.selectedOrganization.id} title="Time by entity" />}
         {page === "Time & attendance" && (
           <TimeView
             data={data}
@@ -569,12 +623,19 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         )}
 
         {page === "More modules" && availablePages.includes("More modules") && <MoreModules key={data.selectedOrganization.id} organizationId={data.selectedOrganization.id} enabledModules={data.selectedOrganization.enabledModules ?? []} onRefresh={async () => { await refresh(); }} notify={notify} />}
+        {page === "Reports" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity} organizationId={data.selectedOrganization.id} title="Reports by entity" />}
         {page === "Reports" && availablePages.includes("Reports") && <CoreReports
           analytics={(!rolePages || rolePages.includes("Analytics")) ? <AnalyticsView data={data} notify={notify} /> : undefined}
           exports={(!rolePages || rolePages.includes("Exports")) ? <ExportsView data={data} notify={notify} onRefresh={async () => { await refresh(); }} /> : undefined}
         />}
 
+        {page === "Analytics" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity}
+          organizationId={data.selectedOrganization.id} title="Reports by entity" />}
         {page === "Analytics" && <AnalyticsView data={data} notify={notify} />}
+        {page === "Exports" && data.multiEntity?.enabled && <div style={{ marginBottom: 12 }}>
+          <EntityBadge context={data.multiEntity} legalEntityId={data.multiEntity.legalEntityId}
+            label={data.multiEntity.legalEntityId === null ? "All legal entities — select a payer for each export" : undefined} />
+        </div>}
         {page === "Exports" && (
           <ExportsView
             data={data}
@@ -627,6 +688,11 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         {page === "Integrations" && <IntegrationsPage onOpenOutbox={canManageDeliveryOutbox ? () => setOutboxOpen(true) : undefined} />}
         {page === "Developer" && <DeveloperPage organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Automation" && <AutomationStudioPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Entities" && data.multiEntity?.enabled && <>
+          <EntitySettingsView context={data.multiEntity} organizationId={data.selectedOrganization.id} />
+          <EntityTransferInbox context={data.multiEntity} organizationId={data.selectedOrganization.id}
+            onRefresh={async () => { await refresh(); }} />
+        </>}
         {page === "Enterprise" && (
           <>
             <LegalEntitiesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />
@@ -664,6 +730,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
           onCreate={createPayroll}
           busy={busy}
           orgUnits={data.orgUnits ?? []}
+          multiEntity={data.multiEntity}
         />
       )}
       {outboxOpen && canManageDeliveryOutbox && (
@@ -687,6 +754,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       {newHireOpen && (
         <NewHireModal
           organizationId={data.selectedOrganization.id}
+          multiEntity={data.multiEntity}
           onClose={() => setNewHireOpen(false)}
           onCreated={async () => {
             await refresh();

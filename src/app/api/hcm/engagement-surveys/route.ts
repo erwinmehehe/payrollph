@@ -1,14 +1,13 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  engagementSurveyParticipants, engagementSurveys, legalEntities,
+  engagementSurveyParticipants, legalEntities,
 } from "@/db/schema";
 import { assertMembership, getAccess, assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
-  closedSurveyDisclosure, closeEngagementSurvey,
+  closedSurveyDisclosure, closeEngagementSurvey, createEngagementSurveyWithAudit,
   listSurveysForTenant, submitAnonymousSurveyRating,
 } from "@/lib/engagement-survey";
 import {
@@ -16,6 +15,18 @@ import {
 } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
+
+// Preserve the existing one-open-survey conflict response without disguising
+// an audit-storage failure as a duplicate survey. Drizzle may wrap PG errors.
+function isUniqueViolation(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4; depth++) {
+    if (!current || typeof current !== "object") return false;
+    if ("code" in current && current.code === "23505") return true;
+    current = "cause" in current ? current.cause : null;
+  }
+  return false;
+}
 
 async function guard(sessionId: number, organizationId: number) {
   const denied = await assertMembership(sessionId, organizationId);
@@ -124,27 +135,29 @@ export async function POST(request: Request) {
       return Response.json({ error: "Question must be 10-240 characters." }, { status: 422 });
     }
     try {
-      const [survey] = await db.insert(engagementSurveys).values({
-        organizationId, question, createdByUserId: session.id,
-      }).returning({ id: engagementSurveys.id });
-      await recordAuditEvent({
-        organizationId, actor: session.name, action: "Engagement survey opened",
-        resource: "engagement_survey", metadata: { surveyId: survey.id, actorUserId: session.id },
+      const survey = await createEngagementSurveyWithAudit({
+        organizationId, question, createdByUserId: session.id, actor: session.name,
       });
       return Response.json({ id: survey.id, status: "open" }, { status: 201 });
-    } catch {
-      return Response.json({ error: "Only one open survey is allowed for this workspace." }, { status: 409 });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        return Response.json({ error: "Only one open survey is allowed for this workspace." }, { status: 409 });
+      }
+      return Response.json({ error: "Survey could not be safely created." }, { status: 503 });
     }
   }
   if (action === "close") {
     const surveyId = Number(body.surveyId);
     if (!Number.isSafeInteger(surveyId) || surveyId <= 0) return Response.json({ error: "Valid survey required." }, { status: 400 });
-    const closed = await closeEngagementSurvey(organizationId, surveyId);
+    let closed: boolean;
+    try {
+      closed = await closeEngagementSurvey(organizationId, surveyId, {
+        actor: session.name, actorUserId: session.id,
+      });
+    } catch {
+      return Response.json({ error: "Survey could not be safely closed." }, { status: 503 });
+    }
     if (!closed) return Response.json({ error: "Survey not found or already closed." }, { status: 409 });
-    await recordAuditEvent({
-      organizationId, actor: session.name, action: "Engagement survey closed",
-      resource: "engagement_survey", metadata: { surveyId, actorUserId: session.id },
-    });
     return Response.json({ id: surveyId, status: "closed" });
   }
   return Response.json({ error: "Unknown survey action." }, { status: 400 });

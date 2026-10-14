@@ -1,0 +1,118 @@
+name: ESS profile authenticated browser acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/ess-profile-synthetic-*'
+      - 'scripts/employee-import-synthetic-fixture.ts'
+      - 'tests/ess-*'
+      - '.github/workflows/ess-profile-browser-acceptance.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ess-profile-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-ess:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TZ: Asia/Manila
+      CI: 'true'
+      GITHUB_ACTIONS: 'true'
+      ESS_PROFILE_ACCEPTANCE_MODE: synthetic-postgres-only
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      MALWARE_SCAN_URL: http://127.0.0.1:3876/scan
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      PII_LEGACY_READ_ENABLED: 'false'
+      OPENAI_API_KEY: ''
+      NEXT_TELEMETRY_DISABLED: '1'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Generate independent synthetic encryption keys
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          totp_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$totp_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - name: Verify localhost-only schema and create a disposable database
+        run: npm run db:push
+      - name: Seed two fictional employers and authenticated role accounts
+        run: |
+          npx tsx scripts/employee-import-synthetic-fixture.ts
+          npx tsx scripts/ess-profile-synthetic-fixture.ts
+      - name: Confirm S-2 cryptography and two-tenant PostgreSQL constraints
+        run: >-
+          npx tsx --test --test-concurrency=1
+          tests/ess-profile-security.test.ts
+          tests/ess-schema-parity-postgres.test.ts
+          tests/ess-photo-presence-probe.test.ts
+          tests/pii-key-isolation.test.ts
+      - name: Build app with synthetic keys
+        run: npm run build
+      - name: Install disposable Chromium tooling
+        run: |
+          npm install --no-save --package-lock=false playwright
+          npx playwright install --with-deps chromium
+      - name: Run localhost-only scanner and dev app (no deployed target)
+        run: |
+          NODE_ENV=development node scripts/ess-profile-synthetic-scanner.mjs > /tmp/ess-profile-scanner.log 2>&1 &
+          npx next dev --hostname 127.0.0.1 -p 3000 > /tmp/ess-profile-app.log 2>&1 &
+          ready=false
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail "http://127.0.0.1:3000/login" > /dev/null &&
+               test "$(curl --silent -o /dev/null -w '%{http_code}' 'http://127.0.0.1:3876/scan')" = "404"; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if test "$ready" != true; then
+            tail -n 30 /tmp/ess-profile-scanner.log
+            tail -n 50 /tmp/ess-profile-app.log
+            exit 1
+          fi
+      - name: Test real MFA HTTP photos, identifiers and two-tenant HR decisions
+        run: node --import tsx scripts/ess-profile-synthetic-http.mjs
+      - name: Test authenticated desktop and 390px ESS screens
+        run: node --import tsx scripts/ess-profile-synthetic-browser.mjs
+      - name: Upload only fictional UI screenshots and sanitized results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ess-profile-synthetic-screenshots
+          path: qa-artifacts/ess-profile
+          if-no-files-found: warn
+          retention-days: 14

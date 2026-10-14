@@ -1,6 +1,8 @@
 import { and, inArray, isNotNull, lt, or } from "drizzle-orm";
 import { db } from "@/db";
+import { purgeExpiredRejectedApplicants } from "@/lib/recruitment-applicant-retention";
 import { leadRetentionCutoff } from "./lead-retention-policy";
+import { sweepPendingCoeObjects } from "@/lib/hr-case-coe-object-reconciliation";
 import {
   emailChangeTokens,
   marketingLeads,
@@ -151,7 +153,12 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
     .where(lt(marketingLeads.updatedAt, marketingLeadCutoff))
     .returning({ id: marketingLeads.id });
 
+  const applicantPrivacy = await purgeExpiredRejectedApplicants(new Date(now));
+  // Preserve main's flag-rollback cleanup of unreadable pending COE objects.
+  const pendingCoeObjectRecovery = await sweepPendingCoeObjects(new Date(now));
   return {
+    ...(applicantPrivacy.enabled ? { applicantPrivacyPurged: applicantPrivacy.purged } : {}),
+    pendingCoeObjectRecovery,
     sessions: deletedSessions.length,
     passwordResetTokens: deletedPasswordTokens.length,
     emailChangeTokens: deletedEmailTokens.length,

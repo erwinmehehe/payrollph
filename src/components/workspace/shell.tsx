@@ -174,6 +174,7 @@ export function WorkspaceShell({
     <div
       className={`app-shell clean-shell premium-phase-one ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}
       data-workspace-page={page}
+      data-compact-mobile-header={data.compactMobileHeaderEnabled === true ? "true" : undefined}
       data-workspace-role={workspaceRole ?? undefined}
       data-demo-role={displayRole ?? undefined}
     >

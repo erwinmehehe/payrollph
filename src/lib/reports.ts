@@ -21,7 +21,7 @@ export const REPORT_DEFINITIONS: Array<{ key: ReportKey; name: string; descripti
 export async function runReport(
   key: ReportKey,
   organizationId: number,
-  options: { asOf?: string; windowDays?: number } = {},
+  options: { asOf?: string; windowDays?: number; legalEntityId?: number | null } = {},
 ) {
   if (key === "people") {
     return buildHcmPeopleIntelligenceReport({ organizationId, ...options });
@@ -39,7 +39,8 @@ export async function runReport(
         avgBasic: avg(employees.basicRate),
       })
       .from(employees)
-      .where(eq(employees.organizationId, organizationId))
+      .where(and(eq(employees.organizationId, organizationId),
+        options.legalEntityId != null ? eq(employees.legalEntityId, options.legalEntityId) : undefined))
       .groupBy(employees.employmentType, employees.status)
       .orderBy(desc(count()));
 
@@ -54,7 +55,8 @@ export async function runReport(
     const rows = await db
       .select()
       .from(payrollRuns)
-      .where(eq(payrollRuns.organizationId, organizationId))
+      .where(and(eq(payrollRuns.organizationId, organizationId),
+        options.legalEntityId != null ? eq(payrollRuns.legalEntityId, options.legalEntityId) : undefined))
       .orderBy(desc(payrollRuns.id));
 
     return {
@@ -72,11 +74,14 @@ export async function runReport(
   }
 
   if (key === "turnover") {
-    const [{ total }] = await db.select({ total: count() }).from(employees).where(eq(employees.organizationId, organizationId));
+    const [{ total }] = await db.select({ total: count() }).from(employees)
+      .where(and(eq(employees.organizationId, organizationId),
+        options.legalEntityId != null ? eq(employees.legalEntityId, options.legalEntityId) : undefined));
     const grouped = await db
       .select({ status: employees.status, people: count() })
       .from(employees)
-      .where(eq(employees.organizationId, organizationId))
+      .where(and(eq(employees.organizationId, organizationId),
+        options.legalEntityId != null ? eq(employees.legalEntityId, options.legalEntityId) : undefined))
       .groupBy(employees.status);
 
     return {
@@ -92,7 +97,8 @@ export async function runReport(
 
   if (key === "assurance") {
     const [currentRun] = await db.select().from(payrollRuns)
-      .where(eq(payrollRuns.organizationId, organizationId))
+      .where(and(eq(payrollRuns.organizationId, organizationId),
+        options.legalEntityId != null ? eq(payrollRuns.legalEntityId, options.legalEntityId) : undefined))
       .orderBy(desc(payrollRuns.payDate), desc(payrollRuns.id))
       .limit(1);
     if (!currentRun) return { key, columns: REPORT_DEFINITIONS[4].columns, rows: [] };
@@ -113,6 +119,7 @@ export async function runReport(
           lastName: employees.lastName,
         }).from(employees).where(and(
           eq(employees.organizationId, organizationId),
+          options.legalEntityId != null ? eq(employees.legalEntityId, options.legalEntityId) : undefined,
           inArray(employees.id, employeeIds),
         ))
       : [];

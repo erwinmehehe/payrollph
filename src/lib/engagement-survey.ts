@@ -1,7 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  employees, engagementSurveyParticipants, engagementSurveys,
+  auditEvents, employees, engagementSurveyParticipants, engagementSurveys,
 } from "@/db/schema";
 import { ENGAGEMENT_MIN_GROUP_SIZE } from "@/lib/engagement-survey-privacy";
 
@@ -11,8 +11,14 @@ export function closedSurveyDisclosure(input: {
   responseCount: number;
   scoreSum: number;
 }) {
+  // Fail closed if a corrupted or incomplete aggregate reaches disclosure.
+  // A count alone does not prove that a score sum represents valid ratings.
   const eligible = input.status === "closed"
-    && input.responseCount >= ENGAGEMENT_MIN_GROUP_SIZE;
+    && Number.isSafeInteger(input.responseCount)
+    && Number.isSafeInteger(input.scoreSum)
+    && input.responseCount >= ENGAGEMENT_MIN_GROUP_SIZE
+    && input.scoreSum >= input.responseCount
+    && input.scoreSum <= input.responseCount * 5;
   return {
     question: input.question,
     status: input.status,
@@ -24,6 +30,33 @@ export function closedSurveyDisclosure(input: {
       average: Math.round((input.scoreSum / input.responseCount) * 100) / 100,
     } : {}),
   };
+}
+
+/**
+ * Creation and its audit receipt are one transaction. If the append-only audit
+ * table rejects the event, do not leave an unaudited survey behind.
+ */
+export async function createEngagementSurveyWithAudit(input: {
+  organizationId: number;
+  question: string;
+  createdByUserId: number | null;
+  actor: string;
+}) {
+  return db.transaction(async tx => {
+    const [survey] = await tx.insert(engagementSurveys).values({
+      organizationId: input.organizationId,
+      question: input.question,
+      createdByUserId: input.createdByUserId,
+    }).returning({ id: engagementSurveys.id });
+    await tx.insert(auditEvents).values({
+      organizationId: input.organizationId,
+      actor: input.actor,
+      action: "Engagement survey opened",
+      resource: "engagement_survey",
+      metadata: { surveyId: survey.id, actorUserId: input.createdByUserId },
+    });
+    return survey;
+  });
 }
 
 export async function listSurveysForTenant(organizationId: number) {
@@ -87,7 +120,10 @@ export async function submitAnonymousSurveyRating(input: {
   });
 }
 
-export async function closeEngagementSurvey(organizationId: number, surveyId: number) {
+export async function closeEngagementSurvey(
+  organizationId: number, surveyId: number,
+  audit?: { actor: string; actorUserId: number | null },
+) {
   return db.transaction(async tx => {
     await tx.execute(sql`select id from ${engagementSurveys}
       where id = ${surveyId} and organization_id = ${organizationId} for update`);
@@ -99,6 +135,18 @@ export async function closeEngagementSurvey(organizationId: number, surveyId: nu
       eq(engagementSurveys.id, surveyId),
       eq(engagementSurveys.status, "open"),
     )).returning({ id: engagementSurveys.id });
-    return Boolean(survey);
+    if (!survey) return false;
+    // Callers that supply human approval evidence must commit the audit row
+    // before the close becomes visible. The transaction rolls back on failure.
+    if (audit) {
+      await tx.insert(auditEvents).values({
+        organizationId,
+        actor: audit.actor,
+        action: "Engagement survey closed",
+        resource: "engagement_survey",
+        metadata: { surveyId, actorUserId: audit.actorUserId },
+      });
+    }
+    return true;
   });
 }

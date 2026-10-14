@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { HandCoins, HeartPulse, PiggyBank, Plus, X } from "lucide-react";
 import { HmoBenefitsPanel } from "@/components/hmo-benefits-panel";
+import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
+import { benefitEnrollmentReviewConfirmed, benefitEnrollmentReviewKey } from "@/lib/benefit-enrollment-review";
+import { manilaCalendarDate } from "@/lib/payroll-period-ui";
 
 type Plan = { id: number; name: string; category: string; employeeShare: string; employerShare: string; cap: string | null; provider: string | null; enrolled: number };
 type Row = { id: number; name: string; monthlyBasic: string; enrolments: Array<{ id: number; planId: number; monthlyContribution: string; status: string }> };
@@ -16,15 +19,27 @@ const iconFor = (category: string) =>
       : <HandCoins size={19} className="i-green" />;
 
 export function BenefitsPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (message: string) => void }) {
+  const enhancedEnrollment = useWorkflowUi().benefitsLoans;
+  const [reviewedKey, setReviewedKey] = useState<string | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [employees, setEmployees] = useState<Row[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [employeeId, setEmployeeId] = useState(0);
   const [planId, setPlanId] = useState(0);
   const [amount, setAmount] = useState("");
-  const [startedOn, setStartedOn] = useState("2026-03-01");
+  const [startedOn, setStartedOn] = useState(() => enhancedEnrollment ? manilaCalendarDate() : "2026-03-01");
 
   const [nonce, setNonce] = useState(0);
+  const selectedEmployee = employees.find((employee) => employee.id === employeeId);
+  const selectedPlan = plans.find((plan) => plan.id === planId);
+  const reviewKey = selectedEmployee && selectedPlan
+    ? benefitEnrollmentReviewKey({
+      organizationId, employeeId, planId,
+      monthlyContribution: amount.trim() || selectedPlan.employeeShare,
+      startedOn,
+    })
+    : null;
+  const reviewConfirmed = benefitEnrollmentReviewConfirmed(reviewedKey, reviewKey);
   // Fetch inside the effect body so state is never set synchronously during the
   // effect; `load()` just schedules a re-run. `alive` drops stale responses.
   useEffect(() => {
@@ -37,6 +52,7 @@ export function BenefitsPanel({ organizationId, setNotice }: { organizationId: n
         if (!alive) return;
         setPlans(payload.plans);
         setEmployees(payload.employees);
+        setReviewedKey(null);
         setLoaded(true);
       } catch {
         if (alive) setLoaded(true);
@@ -62,6 +78,10 @@ export function BenefitsPanel({ organizationId, setNotice }: { organizationId: n
 
   async function enrol(event: React.FormEvent) {
     event.preventDefault();
+    if (enhancedEnrollment && !reviewConfirmed) {
+      setNotice("Review and confirm the employee, plan and effective date before enrolling.");
+      return;
+    }
     const response = await fetch("/api/benefits", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -79,7 +99,7 @@ export function BenefitsPanel({ organizationId, setNotice }: { organizationId: n
       return;
     }
     setNotice("Employee enrolled. Deductions apply from the next calculated run.");
-    setAmount("");
+    setAmount(""); setReviewedKey(null);
     await load();
   }
 
@@ -118,22 +138,37 @@ export function BenefitsPanel({ organizationId, setNotice }: { organizationId: n
           </div>
           <form onSubmit={enrol} className="setting-form">
             <label>Employee
-              <select value={employeeId} onChange={(event) => setEmployeeId(Number(event.target.value))} required>
+              <select value={employeeId} onChange={(event) => { setEmployeeId(Number(event.target.value)); setReviewedKey(null); }} required>
                 <option value="">Choose…</option>
                 {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
               </select>
             </label>
             <label>Plan
-              <select value={planId} onChange={(event) => setPlanId(Number(event.target.value))} required>
+              <select value={planId} onChange={(event) => { setPlanId(Number(event.target.value)); setReviewedKey(null); }} required>
                 <option value="">Choose…</option>
                 {plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}, {peso(plan.employeeShare)}/mo</option>)}
               </select>
             </label>
             <label>Monthly amount (blank = plan default)
-              <input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="e.g. 2000" />
+              <input value={amount} onChange={(event) => { setAmount(event.target.value); setReviewedKey(null); }} placeholder="e.g. 2000" />
             </label>
-            <label>Starts on<input type="date" value={startedOn} onChange={(event) => setStartedOn(event.target.value)} /></label>
-            <div style={{ gridColumn: "1 / -1" }}><button className="primary-button">Enrol employee</button></div>
+            <label>Starts on<input type="date" value={startedOn} onChange={(event) => { setStartedOn(event.target.value); setReviewedKey(null); }} /></label>
+            {enhancedEnrollment && <div className="notice notice-blue" style={{ gridColumn: "1 / -1" }}>
+              <div>
+                <strong>Review benefit enrollment</strong>
+                <p>Employee: {selectedEmployee?.name ?? "Choose employee"} ·
+                  Plan: {selectedPlan?.name ?? "Choose plan"} ·
+                  Start date: {startedOn || "Choose date"} ·
+                  Monthly employee share: {selectedPlan && reviewKey ? peso(amount.trim() || selectedPlan.employeeShare) : "Verify inputs"}.
+                  The payroll calculation, not this preview, determines deductions.</p>
+                <p>Administrator review is not proof of employee consent. Verify the separate employee authorization record before proceeding.</p>
+                <label><input type="checkbox" checked={reviewConfirmed} disabled={!reviewKey}
+                  onChange={(event) => setReviewedKey(event.target.checked ? reviewKey : null)} />
+                  I reviewed this employee, plan, amount and effective date.</label>
+              </div>
+            </div>}
+            <div style={{ gridColumn: "1 / -1" }}><button className="primary-button"
+              disabled={enhancedEnrollment && !reviewConfirmed}>Enrol employee</button></div>
           </form>
         </article>
       )}
