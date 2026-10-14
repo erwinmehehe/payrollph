@@ -615,6 +615,7 @@ jobs:
             }));
             await page.getByRole("button", { name: /^Open HR Admin demo/i }).click();
             const alert = page.getByRole("alert");
+            await alert.waitFor({ state: "visible", timeout: 10000 });
             check((await alert.count()) === 1 &&
               (await alert.innerText()).includes("Sample demo temporarily unavailable"),
               `${name}: a failed launch must show a readable error`);
