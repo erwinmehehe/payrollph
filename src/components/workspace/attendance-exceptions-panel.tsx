@@ -154,7 +154,7 @@ export function AttendanceExceptionsPanel({
     } finally {
       setLoading(false);
     }
-  }, [endDate, notify, organizationId, startDate]);
+  }, [endDate, organizationId, startDate]);
 
   useEffect(() => {
     void load();
