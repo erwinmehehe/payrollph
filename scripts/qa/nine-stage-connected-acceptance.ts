@@ -26,7 +26,9 @@ const stages: Stage[] = names.map(name => ({ name, status: "NOT_RUN", evidence: 
 const report = {
   schemaVersion: 1, sourceSha: process.env.PR_HEAD_SHA ?? "local",
   virtualGeneratedAt: new Date().toISOString(), githubRunId: process.env.GITHUB_RUN_ID ?? "local", result: "BLOCKED",
-  scope: "synthetic-local-postgres16-only", independentHumanUat: "NOT_RUN",
+  scope: "synthetic-local-postgres" + (process.env.NINE_STAGE_PG_MAJOR ?? "UNSPECIFIED") + "-only",
+  postgresMajor: Number(process.env.NINE_STAGE_PG_MAJOR ?? "0"),
+  independentHumanUat: "NOT_RUN",
   clock: { mode: "CI_GUARDED_VIRTUAL_MANILA_MONTH_END", manilaWorkDate: process.env.NINE_STAGE_SYNTHETIC_CLOCK ?? "NOT_CONFIGURED",
     realWallClockAttendance: false, actualApiCapture: true },
   bankOrPaymentSubmission: "PROHIBITED", officialAgencySubmission: "NOT_RUN",
@@ -54,6 +56,8 @@ function requireSafeTarget() {
   assert.equal(process.env.GITHUB_ACTIONS, "true");
   assert.equal(process.env.QA_URL, BASE);
   assert.equal(process.env.DEMO_MODE, "false");
+  assert.ok(["16","18"].includes(process.env.NINE_STAGE_PG_MAJOR ?? ""),
+    "Nine-stage development acceptance requires an explicit PG16 or PG18 matrix identity");
   assert.equal(process.env.OPENAI_API_KEY ?? "", "");
   assert.equal(process.env.PAYMONGO_SECRET_KEY ?? "", "");
   assert.equal(process.env.XENDIT_SECRET_KEY ?? "", "");
@@ -134,6 +138,10 @@ function denied(code: number, actual: number, label: string) {
 }
 async function main() {
   requireSafeTarget();
+  const version = await pool.query("SELECT current_setting('server_version_num')::integer AS value");
+  assert.equal(Math.floor(Number(version.rows[0]?.value) / 10000),
+    Number(process.env.NINE_STAGE_PG_MAJOR),
+    "Connected acceptance must run on its declared disposable PostgreSQL major version");
   // Browser handoff is never uploaded; create the temporary fixture folder
   // before the first real authenticated step and remove its credential file in CI.
   mkdirSync("qa-artifacts", { recursive: true });

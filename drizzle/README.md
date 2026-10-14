@@ -24,6 +24,8 @@ DATABASE_URL="postgresql://localhost/..." npm run db:push
 **Never use `db:push` against production to repair drift.** Use the DBA-reviewed
 schema and receipt protocol for staging and production.
 
+**Fresh PostgreSQL 18 first-bootstrap acceptance:** The [guarded PG18 development journey](../docs/engineering/fresh-pg18-dev-rebuild-20261014.md) exercises a verified empty localhost database, its strict first source-schema push, and a fictional Hire-to-filing workflow in the PostgreSQL 18 governed-Hire matrix case (with PostgreSQL 16 direct/governed cases). This does not replay archived migrations or authorize production activity. The default Drizzle 0.x repeat-push defect described below remains blocked; the separate CI-only matched-RC repeat-push proof is not an application runtime upgrade.
+
 **Current Drizzle 0.x limitation (October 2026):** the pinned development
 toolchain (`drizzle-kit@0.31.11` / `drizzle-orm@0.45.4`) can emit a
 phantom `DROP CONSTRAINT documents_org_employee_id_hr_cases_unique` on a

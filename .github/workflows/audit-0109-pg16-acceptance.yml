@@ -9,6 +9,8 @@ on:
       - "tests/workforce-issued-demand-db.test.ts"
       - "scripts/qa/apply-audit-0109-isolated.mjs"
       - "scripts/qa/report-audit-0109-suite.mjs"
+      - "scripts/qa/verify-audit-0109-shard-plan.mjs"
+      - "tests/audit-0109-shard-plan.test.mjs"
       - ".github/workflows/audit-0109-pg16-acceptance.yml"
   pull_request:
     branches: [main]
@@ -18,6 +20,8 @@ on:
       - "tests/workforce-issued-demand-db.test.ts"
       - "scripts/qa/apply-audit-0109-isolated.mjs"
       - "scripts/qa/report-audit-0109-suite.mjs"
+      - "scripts/qa/verify-audit-0109-shard-plan.mjs"
+      - "tests/audit-0109-shard-plan.test.mjs"
       - ".github/workflows/audit-0109-pg16-acceptance.yml"
   workflow_dispatch:
 
@@ -30,7 +34,11 @@ permissions:
 
 jobs:
   audited-full-suite:
-    name: exact-checkout-audit-0109-pg16
+    name: exact-checkout-audit-0109-pg16-shard-${{ matrix.shard }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
@@ -58,36 +66,54 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "22"
           cache: npm
       - name: Restore locked dependencies
         run: npm ci
-      - name: Generate ephemeral bank-data key for fictional CI only
+      - name: Generate independent masked bank and government-ID keys for fictional CI only
         shell: bash
-        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Push schema to disposable PostgreSQL 16
         run: npm run db:push
       - name: Apply migration 0109 and prove enabled append-only trigger
         run: node scripts/qa/apply-audit-0109-isolated.mjs
       - name: Repeat affected audit and WFM regression tests against active 0109
         run: npx tsx --test --test-concurrency=1 tests/audit-chain.test.ts tests/workforce-issued-demand-db.test.ts
-      - name: Run all regression tests against active 0109
+      - name: Prove exact, complete test inventory is partitioned with zero exclusions
+        run: node scripts/qa/verify-audit-0109-shard-plan.mjs ${{ matrix.shard }} 4
+      - name: Execute complete regression inventory shard with 0109 trigger enabled
         shell: bash
+        env:
+          AUDIT_SHARD: ${{ matrix.shard }}
+          AUDIT_TOTAL_SHARDS: "4"
         run: |
           test_exit=0
-          npm test > "$RUNNER_TEMP/audit-0109-full-test.log" 2>&1 || test_exit=$?
-          TEST_LOG_PATH="$RUNNER_TEMP/audit-0109-full-test.log" TEST_EXIT="$test_exit" node scripts/qa/report-audit-0109-suite.mjs
-          if [ "$test_exit" -ne 0 ]; then
-            echo "Failed synthetic test names (not any real employer evidence):"
-            grep -E '^not ok [0-9]+' "$RUNNER_TEMP/audit-0109-full-test.log" | tail -n 65 || true
+          node scripts/run-sharded-tests.mjs "$AUDIT_SHARD" "$AUDIT_TOTAL_SHARDS" > "$RUNNER_TEMP/audit-0109-shard.log" 2>&1 || test_exit=$?
+          report_exit=0
+          TEST_LOG_PATH="$RUNNER_TEMP/audit-0109-shard.log" TEST_EXIT="$test_exit" node scripts/qa/report-audit-0109-suite.mjs || report_exit=$?
+          if [ "$test_exit" -ne 0 ] || [ "$report_exit" -ne 0 ]; then
+            echo "Failed synthetic test names only; never emit private diagnostics:"
+            grep -E '^[[:space:]]*not ok [0-9]+( - |$)' "$RUNNER_TEMP/audit-0109-shard.log" | tail -n 65 | cut -c1-180 || true
           fi
           test "$test_exit" -eq 0
+          test "$report_exit" -eq 0
       - name: Run mapped WFM synthetic scenario groups with 0109 enabled
+        if: matrix.shard == 0
         run: node scripts/wfm-pilot-synthetic-evidence.mjs
       - name: Run four Philippine payroll golden suites with 0109 enabled
+        if: matrix.shard == 0
         shell: bash
         run: |
           npm run payroll:golden
@@ -98,9 +124,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: audit-0109-pg16-synthetic-acceptance
+          name: audit-0109-pg16-synthetic-shard-${{ matrix.shard }}
           path: |
-            qa-artifacts/audit-0109-pg16-full-suite.json
+            qa-artifacts/audit-0109-pg16-shard-${{ matrix.shard }}-full-suite.json
             qa-artifacts/wfm-pilot-synthetic-scenario-matrix.json
             qa-artifacts/golden-payroll-certification.json
             qa-artifacts/golden-payroll-phase2a-reconciliation.json

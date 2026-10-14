@@ -55,6 +55,15 @@ on:
       - "tests/qa-synthetic-month-end.test.mjs"
       - "tests/qa-synthetic-session-clock.test.ts"
       - "scripts/qa/nine-stage-mobile-browser.mjs"
+      - "scripts/qa/fresh-pg18-development-schema.mjs"
+      - "scripts/qa/verified-pg18-bootstrap.mjs"
+      - "tests/fresh-pg18-development-schema.test.mjs"
+      - "tests/verified-pg18-bootstrap.test.mjs"
+      - "drizzle.config.ts"
+      - "src/db/schema.ts"
+      - "src/lib/ess-profile-schema.ts"
+      - "src/lib/saas-billing-schema.ts"
+      - "src/lib/workforce-schedule-receipt-schema.ts"
       - "tests/nine-stage-connected-evidence.test.mjs"
       - "docs/qa/nine-stage-connected-acceptance.md"
       - ".github/workflows/nine-stage-connected-acceptance.yml"
@@ -109,6 +118,15 @@ on:
       - "tests/qa-synthetic-month-end.test.mjs"
       - "tests/qa-synthetic-session-clock.test.ts"
       - "scripts/qa/nine-stage-mobile-browser.mjs"
+      - "scripts/qa/fresh-pg18-development-schema.mjs"
+      - "scripts/qa/verified-pg18-bootstrap.mjs"
+      - "tests/fresh-pg18-development-schema.test.mjs"
+      - "tests/verified-pg18-bootstrap.test.mjs"
+      - "drizzle.config.ts"
+      - "src/db/schema.ts"
+      - "src/lib/ess-profile-schema.ts"
+      - "src/lib/saas-billing-schema.ts"
+      - "src/lib/workforce-schedule-receipt-schema.ts"
       - "tests/nine-stage-connected-evidence.test.mjs"
       - "docs/qa/nine-stage-connected-acceptance.md"
       - ".github/workflows/nine-stage-connected-acceptance.yml"
@@ -126,11 +144,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        hire-mode: [direct, governed]
+        include:
+          - hire-mode: direct
+            postgres: "16"
+          - hire-mode: governed
+            postgres: "16"
+          - hire-mode: governed
+            postgres: "18"
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
       NINE_STAGE_HIRE_MODE: ${{ matrix.hire-mode }}
+      NINE_STAGE_PG_MAJOR: ${{ matrix.postgres }}
+      FRESH_PG18_DEV_REHEARSAL: ${{ matrix.postgres == '18' && 'disposable-ci-only' || 'off' }}
       CI: "true"
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       TZ: Asia/Manila
@@ -156,7 +182,7 @@ jobs:
       TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
     services:
       postgres:
-        image: postgres:16
+        image: postgres:${{ matrix.postgres }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -192,9 +218,22 @@ jobs:
           echo "NINE_STAGE_SYNTHETIC_CLOCK=$(node scripts/qa/synthetic-month-end.cjs)" >> "$GITHUB_ENV"
           # The localhost server and synthetic Chromium use one shared anchor.
           echo "NINE_STAGE_SYNTHETIC_REAL_ANCHOR=$(date +%s%3N)" >> "$GITHUB_ENV"
-      - name: Provision empty disposable PG16 and audited controls
+      - name: PG18 only — prove completely empty disposable database and guarded source before schema push
+        if: matrix.postgres == '18'
         run: |
-          npm run db:push
+          node --test tests/fresh-pg18-development-schema.test.mjs tests/verified-pg18-bootstrap.test.mjs
+          node scripts/qa/fresh-pg18-development-schema.mjs preflight
+      - name: Provision fresh disposable PostgreSQL 16 from current Drizzle schema
+        if: matrix.postgres == '16'
+        run: npm run db:push
+      - name: PG18 only — strictly validate the FIRST schema push to an empty disposable database
+        if: matrix.postgres == '18'
+        run: node scripts/qa/verified-pg18-bootstrap.mjs
+      - name: PG18 only — check original COE tenant FK and fingerprint the bootstrapped schema
+        if: matrix.postgres == '18'
+        run: node scripts/qa/fresh-pg18-development-schema.mjs capture
+      - name: Apply isolated audit controls and synthetic session clock
+        run: |
           node scripts/qa/apply-audit-0109-isolated.mjs
           node scripts/qa/synthetic-session-clock.cjs
       - name: Validate guarded synthetic Manila month-end helper
@@ -272,9 +311,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: nine-stage-source-connected-no-money-${{ matrix.hire-mode }}
+          name: nine-stage-source-connected-no-money-pg${{ matrix.postgres }}-${{ matrix.hire-mode }}
           path: |
             qa-artifacts/nine-stage-connected-report.json
+            qa-artifacts/fresh-pg18-dev-schema.json
             qa-artifacts/nine-stage-mobile-report.json
             qa-artifacts/governed-hire-853-report.json
             qa-artifacts/bir-validation-corpus/**
@@ -284,7 +324,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: nine-stage-role-layout-screenshots-${{ matrix.hire-mode }}
+          name: nine-stage-role-layout-screenshots-pg${{ matrix.postgres }}-${{ matrix.hire-mode }}
           path: qa-artifacts/nine-stage-layout-*.png
           if-no-files-found: warn
           retention-days: 14

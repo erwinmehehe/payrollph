@@ -40,7 +40,9 @@ async function alignEmptySessionClock(client, env, realNow = Date.now()) {
   try {
     const identity = await client.query("SELECT current_database() AS name, current_setting('server_version_num')::integer AS version");
     assert.equal(identity.rows[0].name, "app_db");
-    assert.ok(identity.rows[0].version >= 160000 && identity.rows[0].version < 170000);
+    assert.ok((identity.rows[0].version >= 160000 && identity.rows[0].version < 170000) ||
+      (identity.rows[0].version >= 180000 && identity.rows[0].version < 190000),
+      "Only disposable PostgreSQL 16 or PostgreSQL 18 is supported");
     await client.query("LOCK TABLE organizations, users, sessions IN ACCESS EXCLUSIVE MODE");
     const counts = await client.query("SELECT (SELECT count(*) FROM organizations) + (SELECT count(*) FROM users) + (SELECT count(*) FROM sessions) AS records");
     assert.equal(Number(counts.rows[0].records), 0, "Clock preparation requires an empty disposable fixture");
@@ -58,7 +60,7 @@ if (require.main === module) {
   const { Client } = require("pg");
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   client.connect().then(() => alignEmptySessionClock(client, process.env))
-    .then(() => console.log("Empty PG16 session clock aligned; no sessions rewritten"))
+    .then(() => console.log("Empty PG16/18 session clock aligned; no sessions rewritten"))
     .catch(() => { console.error("Disposable session clock preparation failed"); process.exitCode = 1; })
     .finally(() => client.end());
 }

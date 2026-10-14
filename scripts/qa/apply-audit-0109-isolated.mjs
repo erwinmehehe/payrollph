@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import pg from "pg";
 
-// This runner is intentionally limited to a new GitHub Actions PostgreSQL 16
-// service. It is NOT the application migration runner or a production command.
+// This runner is intentionally limited to an empty GitHub Actions PostgreSQL 16/18
+// localhost service. It is NOT the production migration runner.
 const expectedUrl = "postgresql://postgres:postgres@127.0.0.1:5432/app_db";
 assert.equal(process.env.GITHUB_ACTIONS, "true", "GitHub Actions isolation is required");
 assert.equal(process.env.CI, "true", "CI isolation is required");
@@ -23,7 +23,10 @@ try {
       to_regclass('public.organizations')::text AS organization_table
   `);
   assert.equal(server.database_name, "app_db");
-  assert.ok(server.version_num >= 160000 && server.version_num < 170000, "Must be PostgreSQL 16");
+  const major = Math.floor(server.version_num / 10000);
+  assert.ok([16,18].includes(major), "Only disposable PostgreSQL 16/18 is supported");
+  assert.equal(String(major), process.env.NINE_STAGE_PG_MAJOR ?? "16",
+    "The connected acceptance PostgreSQL matrix identity must match actual backend");
   assert.equal(server.encoding, "UTF8", "UTF-8 is mandatory for Philippine payroll trace");
   assert.equal(server.audit_table, "audit_events");
   assert.equal(server.organization_table, "organizations");
@@ -54,7 +57,7 @@ try {
   process.stdout.write(JSON.stringify({
     kind: "isolated-ci-schema-proof",
     externalAcceptance: false,
-    databaseEngine: "PostgreSQL 16",
+    databaseEngine: "PostgreSQL " + major,
     encoding: server.encoding,
     migration: "0109_tamper_evident_audit_chain.sql",
     migrationSha256: createHash("sha256").update(sql).digest("hex"),
