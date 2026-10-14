@@ -33,6 +33,7 @@ export function assertSafeHostEnvironment(env) {
   assert.ok(!env.DATABASE_URL, 'UAT853_REMOVE_INHERITED_DATABASE_URL');
   assert.ok(!env.POSTGRES_URL && !env.POSTGRES_PRISMA_URL,
     'UAT853_REMOVE_INHERITED_POSTGRES_CREDENTIALS');
+  if (env.DOCKER_HOST) assertLocalDockerEndpoint(env.DOCKER_HOST);
 }
 export function assertLoopbackUrl(value) {
   const u = new URL(value);
@@ -70,6 +71,11 @@ export function onlySafeProcessEnvironment(parent, app) {
   const filtered = Object.fromEntries(allowed.filter(k => parent[k] != null)
     .map(k => [k, parent[k]]));
   return { ...filtered, ...app, NODE_ENV: 'development' };
+}
+export function assertLocalDockerEndpoint(value) {
+  assert.ok(typeof value === 'string' &&
+    (value.startsWith('unix:///') || value.startsWith('npipe:////./pipe/')),
+    'UAT853_REMOTE_DOCKER_DAEMON_REFUSED');
 }
 export function assertBoundPort(output) {
   assert.equal(output.trim(), '127.0.0.1:5432',
@@ -135,7 +141,13 @@ function readSession(requireSameSha = true) {
   assert.equal(app.APP_BASE_URL, 'http://127.0.0.1:3000');
   return { state, app };
 }
+function assertLocalDockerDaemon() {
+  const endpoint = run('docker', ['context', 'inspect', '--format',
+    '{{ (index .Endpoints "docker").Host }}']);
+  assertLocalDockerEndpoint(endpoint);
+}
 function assertOwnContainer(state) {
+  assertLocalDockerDaemon();
   const actualLabel = run('docker', ['inspect', '--format',
     '{{ index .Config.Labels "org.payrollph.uat853" }}', state.container]);
   assert.equal(actualLabel, state.sha, 'UAT853_FOREIGN_CONTAINER_REFUSED');
@@ -162,6 +174,7 @@ function start() {
   assertCleanCheckout();
   assert.ok(!existsSync(PRIVATE), 'UAT853_EXISTING_SESSION_PRESERVE_EVIDENCE_FIRST');
   run('docker', ['version', '--format', '{{.Server.Version}}']);
+  assertLocalDockerDaemon();
   mkdirSync(PRIVATE, { recursive: true, mode: 0o700 });
   const sha = gitSha();
   const state = { kind: 'fictional-local-disposable-pg16', sha,
