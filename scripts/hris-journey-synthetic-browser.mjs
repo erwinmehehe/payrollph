@@ -419,7 +419,17 @@ try {
       .filter({ hasText: "AlphaPrivate Worker" });
     await assigned.waitFor({ timeout: 60000 });
     await assigned.getByRole("button", { name: "Review & approve" }).click();
-    await mp.getByRole("button", { name: "Confirm approval", exact: true }).click();
+    // The previous manager approval also emitted this toast. Never treat that
+    // stale toast as evidence of a second source decision; wait for the exact
+    // authenticated PATCH response tied to the new leave approval ID.
+    const [leaveDecision] = await Promise.all([
+      mp.waitForResponse(response =>
+        response.url().endsWith("/api/approvals/" + syntheticLeaveApprovalId) &&
+        response.request().method() === "PATCH", { timeout: 60000 }),
+      mp.getByRole("button", { name: "Confirm approval", exact: true }).click(),
+    ]);
+    assert.equal(leaveDecision.status(), 200,
+      "Independent manager's exact leave approval request must succeed");
     await mp.getByText("Approval approved and recorded in the audit trail.")
       .waitFor({ timeout: 60000 });
     const afterDecision = await browserRequest(mp, "/api/dashboard?organizationId=1");
