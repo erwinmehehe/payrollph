@@ -32,12 +32,26 @@ git merge-base --is-ancestor "$base_sha" "$head_sha" || blocked \
 schema_file="$(mktemp)"
 trap 'rm -f "$schema_file"' EXIT
 git show "${base_sha}:src/db/schema.ts" > "$schema_file" 2>/dev/null || blocked 'Cannot read pinned base Drizzle schema'
+[[ -s "$schema_file" ]] || blocked 'Pinned base Drizzle schema is empty'
+command -v python3 >/dev/null 2>&1 || blocked 'python3 is required for multiline schema preflight'
 
-# The legacy combined script CREATES these tables and checks that neither
-# exists first. They are already owned by merged A-2 and A-3 mainline code.
-# A fresh-main successor must rehearse only remaining reviewed A-4/A-5
-# deltas; it must not drop or replay the already-present tables.
-if grep -Eq 'pgTable[[:space:]]*\([[:space:]]*"(employee_hr_cases|applicant_privacy_evidence)"' "$schema_file"; then
+# Drizzle table declarations are formatted across multiple lines in newer
+# sources. A line-oriented grep silently misses `pgTable(\n "table_name"`
+# and could bootstrap an obsolete pre-A2/A3 database migration on fresh main.
+# Inspect the whole BASE schema, not untrusted head/check-out merge contents.
+# A missing parser, unreadable schema or a merged table must remain a hard deny.
+if python3 - "$schema_file" <<'PY'
+import pathlib
+import re
+import sys
+schema = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+merged_feature_table = re.compile(
+    r"""\bpgTable\s*\(\s*["'](?:employee_hr_cases|applicant_privacy_evidence)["']""",
+    re.MULTILINE,
+)
+sys.exit(0 if merged_feature_table.search(schema) else 1)
+PY
+then
   blocked 'Main schema already defines HR-case and/or applicant-privacy tables; legacy A1-A6 proposal replay is incompatible. Build a fresh-main A4/A5-only rehearsal.'
 fi
 
