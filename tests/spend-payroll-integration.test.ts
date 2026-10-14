@@ -45,11 +45,17 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
         lastName: "Reimbursed", title: "Associate", avatarInitials: "ER",
         basicRate: "60000.00", startDate: "2025-01-01",
         bankCode: "BDO", bankAccount: encryptBankAccount("0000000002") },
+      { organizationId: org.id, employeeNo: "EXP-MWE-TAXED", firstName: "MWE taxed",
+        lastName: "Synthetic", title: "Associate", avatarInitials: "MT", mwe: true,
+        basicRate: "11000.00", startDate: "2025-01-01", bankCode: "BDO", bankAccount: encryptBankAccount("0000000003") },
+      { organizationId: org.id, employeeNo: "EXP-MWE-EXEMPT", firstName: "MWE exempt",
+        lastName: "Synthetic", title: "Associate", avatarInitials: "ME", mwe: true,
+        basicRate: "11000.00", startDate: "2025-01-01", bankCode: "BDO", bankAccount: encryptBankAccount("0000000004") },
     ]).returning();
 
     await db.insert(employeePayProfiles).values(staff.map(employee => ({
       organizationId: org.id, employeeId: employee.id, payBasis: "monthly",
-      rateAmount: "60000.00", standardWorkDaysPerMonth: "22",
+      rateAmount: employee.basicRate, standardWorkDaysPerMonth: "22",
       standardHoursPerDay: "8",
     })));
     const policies = await db.insert(expenseCategoryPolicies).values([
@@ -64,14 +70,14 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     const claims = await db.insert(expenseClaims).values(staff.map((employee, i) => ({
       organizationId: org.id, employeeId: employee.id,
       submittedByUserId: maker.id,
-      category: policies[i].category,
-      description: "Synthetic reimbursed expense", amount: "450.01",
+      category: policies[i % 2].category,
+      description: "Synthetic reimbursed expense", amount: i < 2 ? "500.00" : "20000.00",
       incurredOn: "2026-09-08", status: "approved",
     }))).returning();
     await db.insert(expenseClaimEvidence).values(claims.map((claim, i) => ({
       claimId: claim.id, organizationId: org.id, employeeId: staff[i].id,
-      categoryPolicyId: policies[i].id, taxable: policies[i].taxable,
-      approvedAmount: "450.01", approvedByUserId: reviewer.id, approvedAt: new Date(),
+      categoryPolicyId: policies[i % 2].id, taxable: policies[i % 2].taxable,
+      approvedAmount: i < 2 ? "450.01" : "20000.00", approvedByUserId: reviewer.id, approvedAt: new Date(),
       receiptStorageKey: "private-documents/" + org.id + "/" + staff[i].id +
         "/00000000-0000-4000-8000-00000000000" + (i + 1),
       receiptSha256: receiptSha, receiptByteSize: 8, receiptVerifiedAt: new Date(),
@@ -88,7 +94,7 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     await drainPayrollQueue(15, run.id);
 
     const entries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
-    assert.equal(entries.length, 2, "one entry per employee, no duplicates");
+    assert.equal(entries.length, 4, "one entry per employee, no duplicates");
     const byId = new Map(entries.map(row => [row.employeeId, row]));
     const taxed = byId.get(staff[0].id);
     const exempt = byId.get(staff[1].id);
@@ -114,6 +120,14 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
       assert.ok(left !== null && right !== null, "Required statutory base trace must exist");
       assert.equal(left, right,
         "reviewed taxable flag must not distort statutory contribution base " + base);
+    }
+    const mweTaxed = byId.get(staff[2].id)!, mweExempt = byId.get(staff[3].id)!;
+    assert.equal(readTrace(mweTaxed.trace, "mweTaxableSupplementaryCompensation"), 20000);
+    assert.equal(readTrace(mweExempt.trace, "mweTaxableSupplementaryCompensation"), 0);
+    assert.equal(Number(toLines(mweExempt).find(line => line.code === "WHT")?.amount ?? 0), 0);
+    assert.ok(Number(toLines(mweTaxed).find(line => line.code === "WHT")?.amount) < 0, "MWE taxable reimbursement is not silently exempted");
+    for (const base of ["statutoryMonthlySssCompensation", "statutoryMonthlyPagIbigCompensation"]) {
+      assert.equal(readTrace(mweTaxed.trace, base), readTrace(mweExempt.trace, base));
     }
     const { settlePayrollRun } = await import("../src/lib/payroll-settlement");
     const [laterRun] = await db.insert(payrollRuns).values({ organizationId: org.id,

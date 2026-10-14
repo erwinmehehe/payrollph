@@ -17,6 +17,14 @@ test("centavo exact approved amount cannot exceed claim or become zero", () => {
   assert.equal(approvedReimbursementAmount("500.01", "500.00"), null);
   assert.equal(approvedReimbursementAmount("0", "500.00"), null);
   assert.equal(approvedReimbursementAmount("0.001", "500.00"), null);
+  assert.equal(approvedReimbursementAmount("10000000000.00", "10000000000.00"), null);
+});
+
+test("review evidence rejects unknown/self makers, wrong worker and unverified bytes", () => {
+  for (const changes of [{ submittedByUserId: null }, { submittedByUserId: 2 },
+    { approvedByUserId: null }, { policyMatched: false }, { employeeId: 3 },
+    { receiptVerifiedAt: null }, { receiptByteSize: 5242881 }, { approvedAt: new Date(NaN) },
+    { approvedAmount: "500.01" }]) assert.equal(reimbursementEligible({ ...claim, ...changes }, true), false);
 });
 test("reimbursement is independently reviewed and can settle only once", () => {
   assert.equal(reimbursementEligible(claim, true), true);

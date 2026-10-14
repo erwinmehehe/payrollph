@@ -16,6 +16,9 @@ Only session lookup is injected for route actor fixtures; scanner/object-provide
 Receipt reads hash actual bytes; wrong bytes, truncated/oversized content, identity drift and redirects fail.
 One-time attachment, identical-receipt rejection, employer foreign keys, partial approval, concurrent
 decisions/releases, duplicate register lines and double-cutoff settlement are exercised.
+Synthetic MWE and ordinary workers exercise taxable versus non-taxable reimbursements using the
+existing calculator; statutory SSS/Pag-IBIG trace bases must exist and remain equal across each pair.
+This certifies implemented behavior, not the legal eligibility of a real employer's tax policy.
 The unnumbered SQL proposal is rehearsed twice only in that generated namespace.
 
 Default OFF leaves the legacy ORM mapping and JSON response fields unchanged. Tests drop both

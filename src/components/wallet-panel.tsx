@@ -186,7 +186,9 @@ export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = f
         </div>
       )}
 
-      <div className="card" style={activeReview ? { overflowX: "auto", maxWidth: "100%", minWidth: 0 } : undefined}>
+      <div className="card" role={activeReview ? "region" : undefined}
+        aria-label={activeReview ? "Expense claims register" : undefined} tabIndex={activeReview ? 0 : undefined}
+        style={activeReview ? { overflowX: "auto", maxWidth: "100%", minWidth: 0 } : undefined}>
         <table className="data-table">
           <thead><tr><th>EMPLOYEE</th><th>CATEGORY</th><th>DESCRIPTION</th><th>AMOUNT</th><th>STATUS</th><th></th></tr></thead>
           <tbody>

@@ -62,6 +62,7 @@ try {
       assert.equal(await page.getByText("Upload receipt", { exact: true }).count(), 0);
       assert.equal(await page.getByText("View scanned receipt", { exact: true }).count(), 0);
     }
+    if (mode !== "off") await page.getByRole("region", { name: "Expense claims register" }).evaluate(element => { element.scrollLeft = 0; });
     await page.screenshot({ path: `qa-artifacts/spend-${mode}-${width}.png`, fullPage: true });
     if (mode !== "off") assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, mode + " page overflow at " + width);
     if (mode === "checker") {
