@@ -113,7 +113,13 @@ test("employee app exposes pay time leave and profile as first-class sections", 
   for (const [tab, label] of [["home", "Home"], ["pay", "Pay"], ["time", "Time"], ["leave", "Leave"], ["profile", "Profile"]]) {
     assert.ok(portal.includes(`${tab}: { label: "${label}"`), `missing desktop ${label} navigation`);
   }
-  assert.ok(portal.includes("ESS_ALL_TABS.map((value) => {"), "desktop navigation must expose all employee sections");
+  assert.ok(portal.includes("allTabs.map((value) => {"), "desktop navigation must expose all employee sections");
+  assert.ok(portal.includes('const allTabs: SelfTab[] = spendEnabled ? [...ESS_ALL_TABS, "expenses"] : ESS_ALL_TABS;'),
+    "the desktop Expenses tab must be feature-gated without hiding existing sections");
+  assert.ok(portal.includes('const moreTabs: SelfTab[] = spendEnabled ? [...ESS_MORE_TABS, "expenses"] : ESS_MORE_TABS;'),
+    "the mobile More menu must feature-gate Expenses without hiding existing sections");
+  assert.ok(portal.includes('if (next === "expenses" && !spendEnabled) return;'),
+    "deep navigation into Expenses must remain blocked while Spend is off");
   assert.ok(portal.includes("ESS_PRIMARY_TABS.map((value) => {"), "mobile navigation must keep the primary employee tabs");
   assert.ok(read("src/components/employee-home-dashboard.tsx").includes("employee-latest-pay"));
   assert.ok(portal.includes("employee-pay-breakdown"));
