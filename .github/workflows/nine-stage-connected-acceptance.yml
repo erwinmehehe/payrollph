@@ -216,6 +216,7 @@ jobs:
         if: success()
         run: node scripts/qa/nine-stage-mobile-browser.mjs
       - name: Exercise governed candidate-to-worker Hire BP (separate no-money sidecar)
+        if: always()
         run: NODE_OPTIONS="--require=$(pwd)/scripts/qa/isolated-month-end-clock.cjs" npx tsx scripts/qa/governed-hire-853-bridge.ts
       - name: Validate governed Hire receipt without claiming nine-stage payroll lineage
         if: always()
