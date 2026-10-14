@@ -5,6 +5,16 @@ import {
   buildCompanyLoanSchedule, validateAgencyAmortizationSchedule, previewDiscretionaryLoanDeduction,
 } from "../src/lib/payroll-loan-schedule";
 
+test("company schedule refuses coercible booleans, nulls, arrays and numeric strings", () => {
+  const valid = { principal: "1000.00", months: 1, installmentsPerMonth: 1 as const, annualFlatInterestBasisPoints: 0 };
+  for (const field of ["months", "installmentsPerMonth", "annualFlatInterestBasisPoints"] as const) {
+    for (const value of [true, false, null, [], "1", ""]) {
+      assert.throws(() => buildCompanyLoanSchedule({ ...valid, [field]: value } as unknown as Parameters<typeof buildCompanyLoanSchedule>[0]),
+        /INVALID_LOAN_SCHEDULE/);
+    }
+  }
+});
+
 test("company installments are centavo exact and the final repayment reaches zero", () => {
   for (const [principal, months, rate] of [["1000.01", 3, 0], ["15555.31", 12, 1000], ["0.01", 2, 0]] as const) {
     const run = buildCompanyLoanSchedule({ principal, months, annualFlatInterestBasisPoints: rate, installmentsPerMonth: 2 });

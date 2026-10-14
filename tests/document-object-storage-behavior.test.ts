@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { documentObjectKey, documentStorageConfig, signedDocumentObjectUrl } from "../src/lib/document-object-storage";
 
+import { documentBytesMayBeReleased } from "../src/lib/employee-document-vault";
 const config = {
   endpoint: "https://objects.example.test", bucket: "employee-hr-private", region: "ap-southeast-1",
   accessKeyId: "unit-test-key", secretAccessKey: "unit-test-secret",
@@ -33,4 +34,14 @@ test("object store configuration fails closed without private credentials or HTT
     DOCUMENT_OBJECT_STORAGE_BUCKET: "private-documents", DOCUMENT_OBJECT_STORAGE_REGION: "ap-southeast-1",
     DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: "a", DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: "b",
   }), /HTTPS/);
+});
+
+test("pending private COEs stay unreadable through flag rollback, including staging", () => {
+  const pending = { scannedClean: false, isProduction: false, vaultEnabled: false, hasPrivateObject: true };
+  assert.equal(documentBytesMayBeReleased(pending), false);
+  assert.equal(documentBytesMayBeReleased({ ...pending, vaultEnabled: true }), false);
+  assert.equal(documentBytesMayBeReleased({ ...pending, isProduction: true }), false);
+  assert.equal(documentBytesMayBeReleased({ ...pending, hasPrivateObject: false }), true,
+    "legacy development compatibility remains unchanged when the vault is OFF");
+  assert.equal(documentBytesMayBeReleased({ ...pending, scannedClean: true }), true);
 });

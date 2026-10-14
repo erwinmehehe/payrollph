@@ -8,6 +8,7 @@ import {
   dynamicWorkerGroups,
 } from "@/db/schema";
 import { validDynamicWorkerGroupConditions } from "@/lib/dynamic-worker-group-conditions";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { type GovernedHandoffEvidence, frozenGovernedHandoffEvidence } from "@/lib/governed-approval-handoffs";
 
 export type ApprovalChainStepDefinition = {
@@ -16,6 +17,9 @@ export type ApprovalChainStepDefinition = {
   dueLabel?: string;
   priority?: string;
   minimumAmount?: number;
+  escalationAfterDays?: number;
+  // Advisory recipient only: cannot approve, delegate or change checker authority.
+  escalationRecipient?: string;
   // A group narrows the existing named/role approver; it never replaces one.
   dynamicGroupCode?: string;
   // Frozen when an approval request starts; never accepted from policy input.
@@ -38,6 +42,15 @@ function normalizeApprovalChainSteps(value: unknown): ApprovalChainStepDefinitio
     const dynamicGroupCode = row.dynamicGroupCode == null ? "" : String(row.dynamicGroupCode).trim().toLowerCase();
     if (dynamicGroupCode && !/^[a-z0-9][a-z0-9-]{0,79}$/.test(dynamicGroupCode)) return null;
     const minimumRaw = row.minimumAmount == null || row.minimumAmount === "" ? 0 : Number(row.minimumAmount);
+    const escalationDays = row.escalationAfterDays == null || row.escalationAfterDays === ""
+      ? null : Number(row.escalationAfterDays);
+    const escalationRecipient = row.escalationRecipient == null ? "" : String(row.escalationRecipient).trim().toLowerCase();
+    if (escalationRecipient && (escalationDays === null ||
+      !/^(?:role:(?:hr|finance|owner|manager)|user:[1-9][0-9]{0,9})$/.test(escalationRecipient))) return null;
+    if (escalationRecipient.startsWith("user:") &&
+      !Number.isSafeInteger(Number(escalationRecipient.slice(5)))) return null;
+    if (escalationDays !== null &&
+      (!Number.isSafeInteger(escalationDays) || escalationDays < 1 || escalationDays > 30)) return null;
     if (!label || !approver || !Number.isFinite(minimumRaw) || minimumRaw < 0 || minimumRaw > 999_999_999_999.99) {
       return null;
     }
@@ -51,6 +64,8 @@ function normalizeApprovalChainSteps(value: unknown): ApprovalChainStepDefinitio
       dueLabel: dueLabel.slice(0, 80) || "Review required",
       priority: priority.slice(0, 32) || "Normal",
       minimumAmount,
+      ...(escalationDays !== null ? { escalationAfterDays: escalationDays } : {}),
+      ...(escalationRecipient ? { escalationRecipient } : {}),
       ...(dynamicGroupCode ? { dynamicGroupCode } : {}),
     });
   }
@@ -99,8 +114,30 @@ export function approvalStepsForAmount(
   return steps.filter((step) => Number(step.minimumAmount ?? 0) <= rounded);
 }
 
-export function validateApprovalChainSteps(value: unknown) {
-  return normalizeApprovalChainSteps(value);
+export function approvalEscalationSnapshotHeld(
+  value: unknown,
+  escalationEnabled = criticalReleaseFlagEnabled("approvalChainEscalations"),
+): boolean {
+  // Detect an in-flight extension created while enabled; disabling the flag
+  // must hold it rather than silently resuming it as an ordinary approval.
+  if (escalationEnabled) return false;
+  const steps = normalizeApprovalChainSteps(value);
+  // Never interpret corrupted/unknown frozen approval evidence as a legacy
+  // chain after the feature is rolled back. An invalid snapshot needs an
+  // independent recovery decision before any human approval is committed.
+  if (!steps) return true;
+  return steps.some(step => step.escalationAfterDays !== undefined || step.escalationRecipient !== undefined);
+}
+
+export function validateApprovalChainSteps(
+  value: unknown,
+  escalationEnabled = criticalReleaseFlagEnabled("approvalChainEscalations"),
+) {
+  const steps = normalizeApprovalChainSteps(value);
+  // A newly submitted policy must never silently persist a gated extension
+  // while the capability is OFF. Normal approval policies remain unchanged.
+  if (!escalationEnabled && steps?.some(step => step.escalationAfterDays !== undefined || step.escalationRecipient !== undefined)) return null;
+  return steps;
 }
 
 export async function createApprovalFromConfiguredChain(input: {
@@ -140,6 +177,12 @@ export async function createApprovalFromConfiguredChain(input: {
 
   const steps = normalizeApprovalChainSteps(policy.steps);
   if (!steps) throw new Error(`Approval chain "${chainCode}" has an invalid step definition.`);
+  if (!criticalReleaseFlagEnabled("approvalChainEscalations")
+    && steps.some(step => step.escalationAfterDays !== undefined)) {
+    // A persisted policy can predate a flag being turned OFF; do not create
+    // any new extension-bound approval instances until independently reviewed.
+    throw new Error("This approval chain requires a disabled escalation capability.");
+  }
   const amount = input.amount == null ? null : Math.round(Number(input.amount) * 100) / 100;
   if (amount != null && (!Number.isFinite(amount) || amount < 0)) {
     throw new Error("Approval amount must be a non-negative finite number.");
@@ -277,6 +320,11 @@ export async function advanceApprovalChainAfterDecisionTx(
   }
   if (instance.currentStepIndex !== task.approvalChainStepIndex) {
     throw new Error("Approval chain already advanced to another step.");
+  }
+  // Do not accept or reject an in-flight escalation-dependent chain after an
+  // emergency flag rollback. This check precedes all writes in the transaction.
+  if (approvalEscalationSnapshotHeld(instance.stepsSnapshot)) {
+    throw new Error("Approval escalation capability is disabled; this in-flight chain requires independent review.");
   }
 
   const [step] = await tx.update(approvalChainInstanceSteps).set({

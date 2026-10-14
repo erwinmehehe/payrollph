@@ -2,9 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import {
-  applicantPiiEraseValues, applicantErasureIndependentlyApproved, rejectedApplicantCanPurge, requireApplicantConsent,
+  applicantPiiEraseValues, applicantErasureIndependentlyApproved, applicantPrivacyId, rejectedApplicantCanPurge, requireApplicantConsent,
   sixCalendarMonthsBefore, validApplicantPrivacyDecision,
 } from "../src/lib/recruitment-applicant-privacy";
+
+test("privacy identifiers reject coercion and values outside the serial range", () => {
+  for (const value of [true, false, null, undefined, [], {}, "1e2", "0x10", "", " 1", 0, -1, 1.2, 2_147_483_648]) {
+    assert.equal(applicantPrivacyId(value), null);
+  }
+  assert.equal(applicantPrivacyId("17"), 17);
+  assert.equal(applicantPrivacyId(2_147_483_647), 2_147_483_647);
+});
 
 test("applicant privacy remains OFF by default", () => {
   assert.equal(criticalReleaseFlagEnabled("applicantPrivacy", {}), false);
@@ -23,12 +31,14 @@ test("intake cannot invent consent after candidate has applied", () => {
 });
 test("six-month candidate retention respects calendar-month ends, hires, holds and resumes", () => {
   assert.equal(sixCalendarMonthsBefore(new Date("2027-03-31T12:00:00Z")).toISOString(), "2026-09-30T12:00:00.000Z");
+  assert.equal(sixCalendarMonthsBefore(new Date("2026-10-31T16:30:00Z")).toISOString(), "2026-04-30T16:30:00.000Z", "November 1 Manila maps to May 1 Manila");
   const now = new Date("2027-04-12T00:00:00Z");
   const row = { stage: "rejected", hiredEmployeeId: null, rejectedAt: new Date("2026-10-11T23:59:59Z"),
     legalHold: false, purgedAt: null, resumeUrl: null };
   assert.equal(rejectedApplicantCanPurge(row, now), true);
   assert.equal(rejectedApplicantCanPurge({ ...row, rejectedAt: new Date("2026-10-12T00:00:01Z") }, now), false);
   assert.equal(rejectedApplicantCanPurge({ ...row, hiredEmployeeId: 12 }, now), false);
+  assert.equal(rejectedApplicantCanPurge({ ...row, hiredAt: new Date("2026-09-01") }, now), false);
   assert.equal(rejectedApplicantCanPurge({ ...row, legalHold: true }, now), false);
   assert.equal(rejectedApplicantCanPurge({ ...row, resumeUrl: "object://pending-delete" }, now), false);
   assert.equal(rejectedApplicantCanPurge({ ...row, purgedAt: new Date() }, now), false);

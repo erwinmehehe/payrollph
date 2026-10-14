@@ -22,7 +22,7 @@ import {
   getAccess,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { ONBOARDING_TASKS } from "@/lib/provisioning";
 import { runAutomationEventSafely } from "@/lib/automation";
@@ -656,7 +656,7 @@ export async function POST(request: Request) {
         notInArray(jobApplicants.stage, ["hired", "rejected"]),
       ))
       .returning({ id: jobApplicants.id });
-    if (criticalReleaseFlagEnabled("applicantPrivacy") && closedCandidates.length > 0) {
+    if (applicantPrivacyControlsEnabled() && closedCandidates.length > 0) {
       // Hiring closes the other candidates: start their 6-month retention at
       // actual rejection, but only where original consent evidence exists.
       await tx.update(applicantPrivacyEvidence).set({ rejectedAt: new Date() })

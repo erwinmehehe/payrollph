@@ -14,6 +14,7 @@ import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { documentObjectKey, deleteDocumentObject, putDocumentObject } from "@/lib/document-object-storage";
 import { canStaffOpenEmployeeVault, validExpiryCalendarDate } from "@/lib/employee-document-vault";
+import { legacyDocumentInsertTable, legacyVisibleDocumentWhere } from "@/lib/document-schema-compat";
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
@@ -81,7 +82,13 @@ export async function GET(request: Request) {
     uploadedBy: documents.uploadedBy,
     createdAt: documents.createdAt,
   }).from(documents)
-    .where(eq(documents.organizationId, organizationId))
+    .where(and(
+      eq(documents.organizationId, organizationId),
+      // Turning the A-5 flag back off must NOT reveal confidential 201-file
+      // metadata to bookkeeper/legacy People roles. The object-backed row
+      // remains private even during feature rollback.
+      canStaffOpenEmployeeVault(access.role) ? undefined : legacyVisibleDocumentWhere,
+    ))
     .orderBy(desc(documents.id));
 
   const staff = await db.select({ id: employees.id, first: employees.firstName, last: employees.lastName, orgUnitId: employees.orgUnitId })
@@ -350,7 +357,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const [row] = await db.insert(documents).values({
+  const [row] = await db.insert(legacyDocumentInsertTable).values({
     organizationId,
     employeeId,
     kind,
@@ -363,10 +370,10 @@ export async function POST(request: Request) {
     uploadedBy: user.name,
     content: Buffer.from(bytes).toString("base64"),
   }).returning({
-    id: documents.id,
-    fileName: documents.fileName,
-    byteSize: documents.byteSize,
-    sha256: documents.sha256,
+    id: legacyDocumentInsertTable.id,
+    fileName: legacyDocumentInsertTable.fileName,
+    byteSize: legacyDocumentInsertTable.byteSize,
+    sha256: legacyDocumentInsertTable.sha256,
   });
 
   let compliance = null;

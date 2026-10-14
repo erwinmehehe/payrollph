@@ -1,11 +1,27 @@
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+
+/** Employer scoping remains deferred with the rest of the multi-entity HCM lane. */
+export function applicantPrivacyControlsEnabled(env: Readonly<Record<string, string | undefined>> = process.env) {
+  return criticalReleaseFlagEnabled("applicantPrivacy", env) && !criticalReleaseFlagEnabled("multiEntity", env);
+}
+
 /** Applicant privacy rules. These are policy gates, not a legal conclusion. */
+export function applicantPrivacyId(value: unknown): number | null {
+  if (typeof value !== "number" && (typeof value !== "string" || !/^[1-9]\d*$/.test(value))) return null;
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647 ? id : null;
+}
+
 export function sixCalendarMonthsBefore(now: Date): Date {
   if (!Number.isFinite(now.getTime())) throw new Error("INVALID_RETENTION_CLOCK");
-  const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 6, 1,
-    now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds(), now.getUTCMilliseconds()));
+  // Philippine calendar months, independent of the worker process timezone.
+  const manilaOffset = 8 * 60 * 60_000;
+  const local = new Date(now.getTime() + manilaOffset);
+  const target = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth() - 6, 1,
+    local.getUTCHours(), local.getUTCMinutes(), local.getUTCSeconds(), local.getUTCMilliseconds()));
   const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(now.getUTCDate(), lastDay));
-  return target;
+  target.setUTCDate(Math.min(local.getUTCDate(), lastDay));
+  return new Date(target.getTime() - manilaOffset);
 }
 
 export function requireApplicantConsent(input: {
@@ -25,6 +41,7 @@ export function requireApplicantConsent(input: {
 export type RejectedApplicantRetention = {
   stage: string;
   hiredEmployeeId: number | null;
+  hiredAt?: Date | null;
   rejectedAt: Date | null;
   legalHold: boolean;
   purgedAt: Date | null;
@@ -32,7 +49,7 @@ export type RejectedApplicantRetention = {
 };
 
 export function rejectedApplicantCanPurge(input: RejectedApplicantRetention, now: Date): boolean {
-  return input.stage === "rejected" && input.hiredEmployeeId == null &&
+  return input.stage === "rejected" && input.hiredEmployeeId == null && input.hiredAt == null &&
     input.rejectedAt instanceof Date && Number.isFinite(input.rejectedAt.getTime()) &&
     input.rejectedAt.getTime() <= sixCalendarMonthsBefore(now).getTime() &&
     input.legalHold === false && input.purgedAt === null &&
@@ -41,7 +58,7 @@ export function rejectedApplicantCanPurge(input: RejectedApplicantRetention, now
 
 export function applicantPiiEraseValues(applicantId: number) {
   if (!Number.isSafeInteger(applicantId) || applicantId < 1) throw new Error("INVALID_APPLICANT");
-  // Keep only an anonymous recruiting-stage / referential record.
+  // Keep a pseudonymous recruiting-stage / referential record.
   return {
     fullName: "Redacted applicant #" + applicantId,
     email: "redacted+" + applicantId + "@deleted.invalid",

@@ -79,15 +79,20 @@ test("bank and payout changes always trigger the fresh-tenant payroll pilot", ()
 test("general CI keeps independent payroll and statutory certification mandatory", () => {
   const workflow = read(".github/workflows/ci.yml");
 
-  // Direct CI invocation and npm test both run the same full shared-DB suite.
-  // Validate the npm script's TS + operational MJS expansion so an alias cannot silently
-  // replace the required tests.
+  // The full npm test entrypoint remains runnable locally. CI partitions
+  // the exact same files across disposable PG16 instances and gates "check"
+  // on every shard; it never trades test coverage for CI speed.
   const packageJson = JSON.parse(read("package.json")) as { scripts?: { test?: string } };
   const fullRegressionCommand = /^(?:npx )?tsx --test(?: --test-concurrency=\d+)? tests\/\*\.test\.ts && node --test(?: --test-concurrency=\d+)? tests\/\*\.test\.mjs$/;
   const direct = /npx tsx --test(?: --test-concurrency=\d+)? tests\/\*\.test\.ts/.test(workflow);
   const viaNpm = /- run: npm test(?:\s|$)/.test(workflow)
     && fullRegressionCommand.test(packageJson.scripts?.test ?? "");
-  assert.ok(direct || viaNpm, "CI must run all regression tests");
+  const sharded = /needs: test-shard/.test(workflow)
+    && /shard: \[0, 1, 2, 3\]/.test(workflow)
+    && /node scripts\/run-sharded-tests\.mjs/.test(workflow)
+    && /npm run db:push/.test(workflow)
+    && fullRegressionCommand.test(packageJson.scripts?.test ?? "");
+  assert.ok(direct || viaNpm || sharded, "CI must run all regression tests");
   for (const command of [
     "npm run payroll:golden",
     "npm run payroll:golden:phase2a",

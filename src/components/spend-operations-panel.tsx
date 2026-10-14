@@ -8,12 +8,7 @@ type Claim = { id: number; employeeId: number; description: string; amount: stri
 type Card = { id: number; issuer: string; lastFour: string; employeeId: number | null; status: string };
 type Charge = { id: number; cardId: number; merchant: string; amount: string; spentOn: string };
 type Report = { id: number; title: string; employeeId: number; status: string; totalAmount: string; claimIds: number[]; reimbursementStatus: string };
-type ExpensePolicy = { id: number; category: string; taxable: boolean; reviewReference: string };
-type Data = {
-  employees: Employee[]; cards: Card[]; transactions: Charge[]; reports: Report[];
-  unreportedClaims: Claim[]; categoryPolicies?: ExpensePolicy[];
-  spendPayrollEnabled?: boolean; canReviewCategories?: boolean;
-};
+type Data = { employees: Employee[]; cards: Card[]; transactions: Charge[]; reports: Report[]; unreportedClaims: Claim[] };
 const currency = (v: string) => "₱" + Number(v).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export function SpendOperationsPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (text: string) => void }) {
   const [data, setData] = useState<Data>({ employees: [], cards: [], transactions: [], reports: [], unreportedClaims: [] });
@@ -31,9 +26,6 @@ export function SpendOperationsPanel({ organizationId, setNotice }: { organizati
   const [title, setTitle] = useState("");
   const [claimIds, setClaimIds] = useState<number[]>([]);
   const [error, setError] = useState("");
-  const [policyCategory, setPolicyCategory] = useState("");
-  const [policyTaxable, setPolicyTaxable] = useState(false);
-  const [policyReviewReference, setPolicyReviewReference] = useState("");
   const load = useCallback(() => setReload(n => n + 1), []);
   useEffect(() => {
     let active = true;
@@ -61,42 +53,6 @@ export function SpendOperationsPanel({ organizationId, setNotice }: { organizati
   return <section style={{ display: "grid", gap: 16 }}>
     <header><h2>Spend management</h2><p>Track employer cards and charges separately from employee-paid expenses reimbursed in payroll. These cards are records, not issued payment instruments.</p></header>
     {error && <p role="alert" style={{ color: "#b42318" }}>{error}</p>}
-    {data.spendPayrollEnabled && <div className="card" style={{ padding: 18 }}>
-      <h3>Reviewed expense category tax treatments</h3>
-      <p>Finance reviews the tax treatment, stores evidence and locks the category for future claims.</p>
-      <table className="data-table">
-        <thead><tr><th>Category</th><th>Tax treatment</th><th>Review reference</th></tr></thead>
-        <tbody>{(data.categoryPolicies ?? []).map(policy =>
-          <tr key={policy.id}><td>{policy.category}</td>
-            <td>{policy.taxable ? "Taxable" : "Non-taxable"}</td>
-            <td>{policy.reviewReference}</td></tr>)}</tbody>
-      </table>
-      {data.canReviewCategories && <form style={{ display: "flex", flexWrap: "wrap", gap: 8 }}
-        onSubmit={async event => {
-          event.preventDefault();
-          if (await write("POST", { action: "category_policy",
-            category: policyCategory.trim(), taxable: policyTaxable,
-            reviewReference: policyReviewReference.trim() })) {
-            setPolicyCategory(""); setPolicyReviewReference("");
-          }
-        }}>
-        <label>Category <input required minLength={2} maxLength={60}
-          value={policyCategory} onChange={event => setPolicyCategory(event.target.value)}
-          placeholder="Travel" /></label>
-        <label>Tax treatment <select value={policyTaxable ? "taxable" : "non-taxable"}
-          onChange={event => setPolicyTaxable(event.target.value === "taxable")}>
-          <option value="non-taxable">Non-taxable (review evidence required)</option>
-          <option value="taxable">Taxable</option>
-        </select></label>
-        <label>Review reference <input required minLength={8} maxLength={200}
-          value={policyReviewReference}
-          onChange={event => setPolicyReviewReference(event.target.value)}
-          placeholder="Approved tax treatment reference" /></label>
-        <button type="submit" className="primary-button" disabled={busy}>
-          Approve category policy
-        </button>
-      </form>}
-    </div>}
     <ExpensesPanel organizationId={organizationId} setNotice={setNotice} />
     <div className="card" style={{ padding: 18 }}>
       <h3>Corporate card register</h3>

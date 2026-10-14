@@ -1,9 +1,8 @@
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
-import { settlePayrollLoanBalance } from "@/lib/payroll-loan-settlement";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { reimbursementLineTaxMatches, reimbursementSettlementDecision, receiptObjectIdentityMatches } from "@/lib/spend-payroll-reimbursement";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
+import { exactLoanPaymentReplayMatches, payrollLoanPosting } from "@/lib/payroll-loan-settlement";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
@@ -30,16 +29,14 @@ function money(value: number) {
 }
 
 function storedLines(value: unknown) {
-  if (!Array.isArray(value)) return [] as Array<{ code: string; amount: number; notes: string[] }>;
+  if (!Array.isArray(value)) return [] as Array<{ code: string; amount: number }>;
   return value.flatMap((raw) => {
     if (!raw || typeof raw !== "object") return [];
     const row = raw as Record<string, unknown>;
     if (typeof row.code !== "string") return [];
     const amount = Number(row.amount ?? 0);
     if (!Number.isFinite(amount)) return [];
-    return [{ code: row.code, amount,
-      notes: Array.isArray(row.notes) ? row.notes.filter((v): v is string => typeof v === "string") : [],
-    }];
+    return [{ code: row.code, amount }];
   });
 }
 
@@ -393,7 +390,6 @@ export async function settlePayrollRun(
       }
     }
 
-    const seenExpenseClaimIds = new Set<number>();
     let expensesSettled = 0;
     let advancesSettled = 0;
     let loanPaymentsSettled = 0;
@@ -406,12 +402,6 @@ export async function settlePayrollRun(
       for (const line of storedLines(entry.lineItems)) {
         const expenseId = numericId(line.code, "EXP-");
         if (expenseId) {
-          if (criticalReleaseFlagEnabled("spendPayroll")) {
-            if (seenExpenseClaimIds.has(expenseId)) {
-              throw new Error("The payroll register contains duplicate expense reimbursement " + expenseId + ".");
-            }
-            seenExpenseClaimIds.add(expenseId);
-          }
           const [claim] = await tx
             .select()
             .from(expenseClaims)
@@ -422,25 +412,6 @@ export async function settlePayrollRun(
             .limit(1);
           if (!claim || claim.employeeId !== entry.employeeId) {
             throw new Error(`Expense claim ${expenseId} no longer matches this payroll entry.`);
-          }
-          if (criticalReleaseFlagEnabled("spendPayroll")) {
-            if (!claim.receiptStorageKey || !receiptObjectIdentityMatches(
-                claim.receiptStorageKey, claim.organizationId, claim.employeeId)) {
-              throw new Error("Expense claim " + expenseId + " receipt belongs to another employer or worker.");
-            }
-            if (!reimbursementLineTaxMatches(claim.taxable, line.notes)) {
-              throw new Error("Expense claim " + expenseId + " has a different taxable policy from its approved payslip.");
-            }
-            const decision = reimbursementSettlementDecision({
-              status: claim.status, payrollRunId: claim.payrollRunId,
-              amount: claim.amount, approvedAmount: claim.approvedAmount,
-              categoryPolicyId: claim.categoryPolicyId,
-              receiptStorageKey: claim.receiptStorageKey, receiptSha256: claim.receiptSha256,
-            }, run.id, line.amount, true);
-            if (decision === "already_settled") continue;
-            if (decision !== "settle") {
-              throw new Error(`Expense claim ${expenseId} cannot settle: ${decision}. Recalculate before release.`);
-            }
           }
           if (claim.payrollRunId != null && claim.payrollRunId !== run.id) {
             throw new Error(`Expense claim ${expenseId} was already settled by another payroll run.`);
@@ -661,8 +632,6 @@ export async function settlePayrollRun(
               eq(loanPayments.payrollRunId, run.id),
             ))
             .limit(1);
-          if (existingPayment) continue;
-
           const [loan] = await tx
             .select()
             .from(employeeLoans)
@@ -674,14 +643,23 @@ export async function settlePayrollRun(
           if (!loan || loan.employeeId !== entry.employeeId) {
             throw new Error(`Loan ${loanId} no longer matches this payroll entry.`);
           }
+          // Even an existing payment must bind to this tenant and employee.
+          // When exact settlement is enabled, an amount mismatch is NOT a
+          // successful idempotent replay, and aborts the release transaction.
+          if (existingPayment) {
+            if (criticalReleaseFlagEnabled("exactPayrollLoanSettlement") &&
+                !exactLoanPaymentReplayMatches(plannedDeduction, existingPayment.amount)) {
+              throw new Error(`Loan ${loanId} prior payment amount differs from this release; recalculate payroll.`);
+            }
+            continue;
+          }
           if (loan.status !== "active") {
             throw new Error(`Loan ${loanId} is no longer active; recalculate payroll before release.`);
           }
 
-          // Exact centavos, never one-cent tolerance or floating point
-          // subtraction for an authoritative employee loan ledger.
-          const posting = settlePayrollLoanBalance({
-            plannedDeduction, remainingBalance: loan.remainingBalance,
+          // Exact-centavo validation is an explicit default-off rollout.
+          const posting = payrollLoanPosting({
+            loanId, plannedDeduction, remainingBalance: loan.remainingBalance,
             totalPaid: loan.totalPaid,
           });
           await tx.insert(loanPayments).values({
@@ -702,6 +680,10 @@ export async function settlePayrollRun(
               eq(employeeLoans.organizationId, run.organizationId),
               eq(employeeLoans.status, "active"),
               eq(employeeLoans.remainingBalance, loan.remainingBalance),
+              // Exact posting must not overwrite a concurrent total-paid edit
+              // whose balance happened to remain unchanged.
+              criticalReleaseFlagEnabled("exactPayrollLoanSettlement")
+                ? eq(employeeLoans.totalPaid, loan.totalPaid) : undefined,
             ))
             .returning({ id: employeeLoans.id });
           if (!updatedLoan) {

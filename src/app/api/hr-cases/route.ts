@@ -9,6 +9,7 @@ import {
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { employeeHrCasesEnabled } from "@/lib/hr-case-activation";
 import {
   approvedCoeText, HR_CASE_TYPES, hrCaseDueAt, hrCaseSlaStatus,
   hrCaseTransitionAllowed, hrCaseRoleCanWork, visibleHrCaseMessages,
@@ -18,7 +19,7 @@ import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSens
 
 export const dynamic = "force-dynamic";
 const STATES = new Set(["open", "in_progress", "waiting_employee", "resolved", "closed"]);
-const enabled = () => criticalReleaseFlagEnabled("employeeHrCases");
+const enabled = employeeHrCasesEnabled;
 const unavailable = () => Response.json({ error: "HR cases are not enabled for this release." }, { status: 404 });
 const caseIdValid = (n: number) => Number.isSafeInteger(n) && n > 0;
 const restrictedStaff = (role: string) => !["owner", "admin", "hr", "payroll"].includes(role);

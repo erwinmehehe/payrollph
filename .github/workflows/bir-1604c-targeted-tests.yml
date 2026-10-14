@@ -1,0 +1,33 @@
+name: BIR 1604-C Targeted Validation
+
+on:
+  pull_request:
+    paths:
+      - 'src/lib/bir-1604c-*.ts'
+      - 'src/lib/bir-annual-employer-source.ts'
+      - 'src/app/api/bir/annual-employer/**'
+      - 'src/components/workspace/bir-1604c-candidate-panel.tsx'
+      - 'src/components/workspace/panels.tsx'
+      - 'tests/bir-1604c*.test.ts'
+      - 'tests/bir-annual-entity-route-access.test.ts'
+      - 'src/lib/bir-annual-entity-access.ts'
+      - '.github/workflows/bir-1604c-targeted-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Run every BIR 1604-C unit test (no agency simulation)
+        run: npx tsx --test --test-concurrency=1 tests/bir-1604c*.test.ts tests/bir-annual-entity-route-access.test.ts

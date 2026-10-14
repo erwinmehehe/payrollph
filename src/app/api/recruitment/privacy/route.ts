@@ -3,9 +3,10 @@ import { db } from "@/db";
 import { applicantPrivacyEvidence, auditEvents, jobApplicants } from "@/db/schema";
 import { assertOrganizationRole, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
+import { applicantRetainedCopyHoldSql } from "@/lib/recruitment-applicant-copy-hold";
 import {
-  applicantPiiEraseValues, applicantErasureIndependentlyApproved, validApplicantPrivacyDecision,
+  applicantPiiEraseValues, applicantErasureIndependentlyApproved, applicantPrivacyId, validApplicantPrivacyDecision,
 } from "@/lib/recruitment-applicant-privacy";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
@@ -15,7 +16,6 @@ export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" } as const;
 const roles = ["owner", "admin"] as const;
 const unavailable = () => Response.json({ error: "Applicant privacy actions are disabled." }, { status: 404 });
-const positiveId = (v: number) => Number.isSafeInteger(v) && v > 0;
 
 async function authorize(actorId: number, organizationId: number) {
   const denied = await assertOrganizationRole(actorId, organizationId, roles,
@@ -28,13 +28,13 @@ async function authorize(actorId: number, organizationId: number) {
 
 /** Staff-mediated candidate export after the DPO verifies the data subject's identity. */
 export async function GET(request: Request) {
-  if (!criticalReleaseFlagEnabled("applicantPrivacy")) return unavailable();
+  if (!applicantPrivacyControlsEnabled()) return unavailable();
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const params = new URL(request.url).searchParams;
-  const organizationId = Number(params.get("organizationId"));
-  const applicantId = Number(params.get("applicantId"));
-  if (!positiveId(organizationId) || !positiveId(applicantId)) {
+  const organizationId = applicantPrivacyId(params.get("organizationId"));
+  const applicantId = applicantPrivacyId(params.get("applicantId"));
+  if (organizationId === null || applicantId === null) {
     return Response.json({ error: "Valid organizationId and applicantId required." }, { status: 400 });
   }
   const denied = await authorize(user.id, organizationId);
@@ -79,16 +79,19 @@ export async function GET(request: Request) {
 
 /** Three controlled actions: request -> independent review -> erase. */
 export async function PATCH(request: Request) {
-  if (!criticalReleaseFlagEnabled("applicantPrivacy")) return unavailable();
+  if (!applicantPrivacyControlsEnabled()) return unavailable();
   const origin = enforceSameOriginMutation(request);
   if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const body = await request.json().catch(() => ({}));
-  const organizationId = Number(body.organizationId);
-  const applicantId = Number(body.applicantId);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return Response.json({ error: "Object request required." }, { status: 400, headers: noStore });
+  }
+  const organizationId = applicantPrivacyId(body.organizationId);
+  const applicantId = applicantPrivacyId(body.applicantId);
   const action = String(body.action ?? "");
-  if (!positiveId(organizationId) || !positiveId(applicantId) ||
+  if (organizationId === null || applicantId === null ||
       !["request_delete", "approve_delete", "erase"].includes(action)) {
     return Response.json({ error: "Valid organization, candidate and action required." }, { status: 400 });
   }
@@ -114,7 +117,10 @@ export async function PATCH(request: Request) {
   }
 
   const result = await db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(4101, ${applicantId})`);
     await tx.execute(sql`SELECT id FROM job_applicants WHERE id = ${applicantId}
+      AND organization_id = ${organizationId} FOR UPDATE`);
+    await tx.execute(sql`SELECT id FROM applicant_privacy_evidence WHERE applicant_id = ${applicantId}
       AND organization_id = ${organizationId} FOR UPDATE`);
     const [applicant] = await tx.select().from(jobApplicants).where(and(
       eq(jobApplicants.id, applicantId), eq(jobApplicants.organizationId, organizationId),
@@ -125,7 +131,9 @@ export async function PATCH(request: Request) {
     )).limit(1);
     if (!applicant || !privacy) return "not_found";
     if (privacy.purgedAt) return "already_erased";
-    if (applicant.hiredEmployeeId !== null || privacy.legalHold) return "retention_hold";
+    if (applicant.hiredEmployeeId !== null || applicant.hiredAt !== null || applicant.stage === "hired" || privacy.legalHold) return "retention_hold";
+    const copies = await tx.execute(sql`SELECT ${applicantRetainedCopyHoldSql(applicantId, organizationId)} AS held`);
+    if (copies.rows[0]?.held === true) return "retained_evidence_hold";
     const now = new Date();
     if (action === "request_delete") {
       // A new maker request invalidates any older review.
@@ -139,7 +147,7 @@ export async function PATCH(request: Request) {
       await tx.insert(auditEvents).values({
         organizationId, actor: user.name, action: "Candidate PII deletion requested",
         resource: "Applicant #" + applicantId,
-        metadata: { applicantId, requesterUserId: user.id, reason },
+        metadata: { applicantId, requesterUserId: user.id },
       });
       return "requested";
     }
@@ -156,8 +164,7 @@ export async function PATCH(request: Request) {
         resource: "Applicant #" + applicantId,
         metadata: {
           applicantId, requesterUserId: privacy.deletionRequestedByUserId,
-          reviewerUserId: user.id, reviewEvidenceReference: evidence,
-          approvalReason: String(body.approvalReason).trim(),
+          reviewerUserId: user.id,
         },
       });
       return "reviewed";
@@ -172,6 +179,8 @@ export async function PATCH(request: Request) {
       .where(and(eq(jobApplicants.id, applicantId), eq(jobApplicants.organizationId, organizationId)));
     await tx.update(applicantPrivacyEvidence).set({
       purgedAt: now, purgedByUserId: user.id, rejectedAt: privacy.rejectedAt ?? now,
+      deletionReason: null, sourceEvidenceReference: "erased",
+      deletionReviewEvidenceReference: null,
     }).where(and(eq(applicantPrivacyEvidence.organizationId, organizationId),
       eq(applicantPrivacyEvidence.applicantId, applicantId)));
     await tx.insert(auditEvents).values({
@@ -181,8 +190,7 @@ export async function PATCH(request: Request) {
         applicantId, erasedByUserId: user.id,
         requesterUserId: privacy.deletionRequestedByUserId,
         independentReviewerUserId: privacy.deletionReviewedByUserId,
-        reviewEvidenceReference: privacy.deletionReviewEvidenceReference,
-        retainedAnonymousRecord: true,
+        retainedPseudonymousRecord: true,
       },
     });
     return "erased";

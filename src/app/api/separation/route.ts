@@ -330,6 +330,8 @@ export async function GET(request: Request) {
     offboardingClearanceEnabled: offboardingEnabled,
     canAuthorizeClearanceWaivers: offboardingEnabled && access.companyWide &&
       ["owner", "admin"].includes(access.role),
+    canRevokeLocalAccess: offboardingEnabled && access.companyWide &&
+      ["owner", "admin", "hr"].includes(access.role),
     separations: records.map(({ sep, employee }) => ({
       waivedDepartments: offboardingEnabled ? offboardingClearanceStatus(sep, waiverRows).waived : [],
       clearanceReady: offboardingEnabled
@@ -1100,6 +1102,69 @@ export async function PATCH(request: Request) {
       "Only payroll release roles can release final pay.",
     );
     if (releaseDenied) return releaseDenied;
+  }
+
+  if (action === "revoke_local_access") {
+    // An HR/IT last-day cutoff is not a financial release and cannot mark
+    // external SSO, MDM or provider grants as revoked.
+    if (!criticalReleaseFlagEnabled("offboardingClearance")) {
+      return Response.json({ error: "Offboarding local access cutoff is disabled." }, { status: 404 });
+    }
+    if (!access.companyWide || !["owner", "admin", "hr"].includes(access.role)) {
+      return Response.json({
+        code: "OFFBOARDING_ACCESS_COMPANY_REVIEWER_REQUIRED",
+        error: "Only company-wide HR or administration may revoke local access.",
+      }, { status: 403 });
+    }
+    if (sep.preparedByUserId == null || sep.preparedByUserId === user.id) {
+      return Response.json({
+        code: "OFFBOARDING_ACCESS_INDEPENDENT_REVIEW_REQUIRED",
+        error: "An independent reviewer is required before cutting off local access.",
+      }, { status: 403 });
+    }
+    const evidenceReference = typeof body.localAccessEvidenceReference === "string"
+      ? body.localAccessEvidenceReference.trim() : "";
+    if (evidenceReference.length < 8 || evidenceReference.length > 200) {
+      return Response.json({
+        error: "Provide an 8-200 character local-access cutoff evidence reference.",
+      }, { status: 422 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const limitDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id, action: "separation-local-access-cutoff",
+      resourceId: id, limit: 5, windowMs: 30 * 60_000,
+    });
+    if (limitDenied) return limitDenied;
+    try {
+      const revoked = await db.transaction(async tx => {
+        // Lock the separation before checking effective date and revoking
+        // sessions; final-pay release locks this same row.
+        await tx.execute(sql`SELECT id FROM separation_records WHERE id = ${id}
+          AND organization_id = ${sep.organizationId} FOR UPDATE`);
+        return revokeSeparatedEmployeeAccessTx(tx, {
+          organizationId: sep.organizationId, employeeId: sep.employeeId,
+          separationId: id, actorUserId: user.id, actorName: user.name,
+          mode: "last-day-local-access",
+          cutoffEvidenceReference: evidenceReference,
+        });
+      }, { isolationLevel: "serializable" });
+      return Response.json({
+        ...revoked,
+        scope: "local-application-only",
+        externalProviderCallsMade: false,
+        externalAccessVerified: false,
+        finalPayReleased: false,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code.startsWith("OFFBOARDING_ACCESS_")) {
+        return Response.json({
+          code, error: "Local access cutoff was not eligible or changed during review.",
+        }, { status: 409 });
+      }
+      throw error;
+    }
   }
 
   if (action === "waive_clearance") {

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { employeeHrCasesEnabled } from "@/lib/hr-case-activation";
 import { hrCaseRoleCanWork } from "@/lib/hr-case-policy";
 import { EmployeeHrCaseStaffQueue } from "@/components/employee-hr-case-staff-queue";
 
@@ -18,7 +18,7 @@ export default async function HrCasesPage({
 }: {
   searchParams: Promise<{ organizationId?: string | string[] }>;
 }) {
-  if (!criticalReleaseFlagEnabled("employeeHrCases")) notFound();
+  if (!employeeHrCasesEnabled()) notFound();
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const { organizationId: raw } = await searchParams;

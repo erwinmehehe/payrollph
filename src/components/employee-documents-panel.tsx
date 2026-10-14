@@ -61,7 +61,6 @@ type DocumentRequirement = {
 type Payload = {
   policies: PolicyAssignment[];
   documentRequirements: DocumentRequirement[];
-  vaultEnabled?: boolean;
   summary: {
     acknowledgementRequired: number;
     overdueAcknowledgements: number;
@@ -191,10 +190,8 @@ export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { or
       <header className="employee-section-heading">
         <div>
           <span className="card-kicker">{t("MY DOCUMENTS")}</span>
-          <h2>{t(data.vaultEnabled ? "Policies & employee documents" : "Policies & required documents")}</h2>
-          <p>{t(data.vaultEnabled
-             ? "Read your assigned policies and keep required and optional documents current."
-             : "Read the exact policy version assigned to you, acknowledge it yourself, and keep required employee documents current.")}</p>
+          <h2>{t("Policies & required documents")}</h2>
+          <p>{t("Read the exact policy version assigned to you, acknowledge it yourself, and keep required employee documents current.")}</p>
         </div>
       </header>
 
@@ -294,7 +291,7 @@ export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { or
 
       <article className="employee-list-card" style={{ marginTop: 16 }}>
         <div className="employee-list-card-head">
-          <div><span className="card-kicker">{t(data.vaultEnabled ? "EMPLOYEE DOCUMENTS" : "REQUIRED DOCUMENTS")}</span><h3>{t("Compliance checklist")}</h3></div>
+          <div><span className="card-kicker">{t("REQUIRED DOCUMENTS")}</span><h3>{t("Compliance checklist")}</h3></div>
           <FileText size={17} />
         </div>
         {data.documentRequirements.length === 0 ? (
@@ -302,7 +299,7 @@ export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { or
         ) : data.documentRequirements.map((row) => (
           <div className="employee-leave-row" key={row.complianceId}>
             <div>
-              <strong>{row.name}{data.vaultEnabled ? (row.mandatory ? " · Required" : " · Optional") : ""}</strong>
+              <strong>{row.name}</strong>
               <span>
                 {row.documentId && row.fileName
                   ? <><a href={"/api/documents/" + row.documentId} target="_blank" rel="noreferrer">{row.fileName}</a></>
@@ -320,7 +317,7 @@ export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { or
         <article className="employee-edit-card" style={{ marginTop: 16 }}>
           <div>
             <span className="card-kicker">{t("UPLOAD / RENEW")}</span>
-            <h3 style={{ marginTop: 4 }}>{t(data.vaultEnabled ? "Submit an employee document" : "Submit a required document")}</h3>
+            <h3 style={{ marginTop: 4 }}>{t("Submit a required document")}</h3>
             <p style={{ marginTop: 4 }}>{t("Your upload is malware-scanned and remains Submitted until HR verifies it.")}</p>
           </div>
           <div className="employee-edit-fields">

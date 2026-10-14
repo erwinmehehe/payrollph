@@ -23,7 +23,12 @@ const TYPES = [
   ["general", "General HR request"],
 ] as const;
 
-export function EmployeeHrCasesPanel({ language }: { language: EssLanguage }) {
+export function EmployeeHrCasesPanel({ language, enabled = false }: { language: EssLanguage; enabled?: boolean }) {
+  if (enabled !== true) return null;
+  return <EnabledEmployeeHrCasesPanel language={language} />;
+}
+
+function EnabledEmployeeHrCasesPanel({ language }: { language: EssLanguage }) {
   const t = (text: string) => essText(language, text);
   const [available, setAvailable] = useState(false);
   const [loading, setLoading] = useState(true);

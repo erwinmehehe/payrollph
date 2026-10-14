@@ -7,6 +7,7 @@ import {
   hcmSkills,
   jobApplicants,
   applicantPrivacyEvidence,
+  auditEvents,
   jobProfiles,
   jobRequisitions,
   orgUnits,
@@ -23,9 +24,11 @@ import {
   getAccess,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { careersNoticeConfig, careersSchemaReady } from "@/lib/careers-privacy-gates";
+import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
 import { requireApplicantConsent } from "@/lib/recruitment-applicant-privacy";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { positionControlFingerprint } from "@/lib/hcm-position-business-process";
 import { PlanRequisitionHandoffError, resolvePublishedPlanRequisitionLineage } from "@/lib/workforce-plan-requisition-handoff";
 import { freezeTalentRoleSkills, TalentRoleArchitectureError } from "@/lib/hcm-talent-continuity";
@@ -103,6 +106,19 @@ export async function GET(request: Request) {
     }
   }
 
+  // An active #925 privacy mode requires actual candidate notice evidence.
+  // Never claim a careers publication field when its DBA migration is absent.
+  const privacyConsentRequired = applicantPrivacyControlsEnabled();
+  const careersPublishingReady = !!careersNoticeConfig() &&
+    !criticalReleaseFlagEnabled("multiEntity") && await careersSchemaReady();
+  const publishedIds = new Set<number>();
+  if (careersPublishingReady) {
+    const published = await db.execute<{ id: number }>(sql`
+      select id from job_requisitions where organization_id = ${organizationId}
+        and careers_published = true`);
+    for (const row of published.rows) publishedIds.add(Number(row.id));
+  }
+
   const reqIds = reqs.map((row) => row.id);
   const applicants = reqIds.length
     ? await db.select().from(jobApplicants)
@@ -127,6 +143,7 @@ export async function GET(request: Request) {
       const reqApplicants = applicantsByReq.get(row.id) ?? [];
       return {
         ...row,
+        ...(careersPublishingReady ? { careersPublished: publishedIds.has(row.id) } : {}),
         applicantCount: reqApplicants.length,
         interviewCount: reqApplicants.filter((applicant) => applicant.stage === "interview").length,
         offerCount: reqApplicants.filter((applicant) => applicant.stage === "offer").length,
@@ -138,6 +155,8 @@ export async function GET(request: Request) {
     }),
     applicants,
     access,
+    ...(privacyConsentRequired ? { privacyConsentRequired: true } : {}),
+    ...(careersPublishingReady ? { careersPublishingReady: true } : {}),
   });
 }
 
@@ -433,7 +452,7 @@ export async function POST(request: Request) {
     // This branch does not alter pre-existing HR intake until an approved
     // privacy migration, notice, consent UI and human privacy release enable it.
     let consent: ReturnType<typeof requireApplicantConsent> | null = null;
-    if (criticalReleaseFlagEnabled("applicantPrivacy")) {
+    if (applicantPrivacyControlsEnabled()) {
       try { consent = requireApplicantConsent(body); }
       catch { return Response.json({ error: "Recorded candidate consent, notice version and source evidence are required before intake." }, { status: 422 }); }
     }
@@ -524,6 +543,14 @@ export async function POST(request: Request) {
           sourceEvidenceReference: consent.sourceEvidenceReference,
           consentCapturedAt: new Date(),
         });
+        // #925 privacy mode: candidate+consent+redacted audit commit together.
+        await tx.insert(auditEvents).values({
+          organizationId, actor: user.name,
+          action: "Candidate application received",
+          resource: "Applicant #" + created.id,
+          metadata: { applicantId: created.id, requisitionId, positionId: linkedPosition?.id ?? null,
+            privacyNoticeVersion: consent.privacyNoticeVersion },
+        });
       }
 
       return { created, requisitionTitle: freshReq.title };
@@ -535,12 +562,14 @@ export async function POST(request: Request) {
     });
     if (createdOrResponse instanceof Response) return createdOrResponse;
 
-    await recordAuditEvent({
+    // Legacy flag-OFF behavior remains intact; privacy-mode audit is atomic.
+    if (!consent) await recordAuditEvent({
       organizationId,
       actor: user.name,
       action: "Candidate application received",
       resource: `${fullName} -> ${createdOrResponse.requisitionTitle}`,
-      metadata: { applicantId: createdOrResponse.created.id, requisitionId, positionId: linkedPosition?.id ?? null },
+      metadata: { applicantId: createdOrResponse.created.id, requisitionId,
+        positionId: linkedPosition?.id ?? null },
     });
 
     return Response.json(createdOrResponse.created, { status: 201 });
@@ -656,6 +685,17 @@ export async function PATCH(request: Request) {
       await tx.execute(sql`select pg_advisory_xact_lock(4102, ${linkedPosition.id})`);
     }
 
+    if (applicantPrivacyControlsEnabled()) {
+      await tx.execute(sql`SELECT id FROM job_applicants WHERE id = ${applicantId}
+        AND organization_id = ${applicant.organizationId} FOR UPDATE`);
+      const [privacy] = await tx.select({ purgedAt: applicantPrivacyEvidence.purgedAt })
+        .from(applicantPrivacyEvidence).where(and(
+          eq(applicantPrivacyEvidence.organizationId, applicant.organizationId),
+          eq(applicantPrivacyEvidence.applicantId, applicantId),
+        )).limit(1);
+      if (privacy?.purgedAt) throw new RecruitmentConflict("An erased candidate record is immutable.");
+    }
+
     const [freshApplicant] = await tx.select({
       stage: jobApplicants.stage,
       hiredEmployeeId: jobApplicants.hiredEmployeeId,
@@ -723,7 +763,7 @@ export async function PATCH(request: Request) {
       .set(updateData)
       .where(eq(jobApplicants.id, applicantId))
       .returning();
-    if (stage === "rejected" && criticalReleaseFlagEnabled("applicantPrivacy")) {
+    if (stage === "rejected" && applicantPrivacyControlsEnabled()) {
       // Only applicants with real consent evidence can enter automatic purge.
       // This never fabricates a rejection timestamp for historic candidates.
       await tx.update(applicantPrivacyEvidence).set({ rejectedAt: new Date() })
@@ -754,14 +794,14 @@ export async function PATCH(request: Request) {
     organizationId: applicant.organizationId,
     actor: user.name,
     action: stage ? `Candidate moved to stage: ${stage}` : "Candidate profile updated",
-    resource: applicant.fullName,
+    resource: applicantPrivacyControlsEnabled() ? "Applicant #" + applicantId : applicant.fullName,
     metadata: {
       applicantId,
       requisitionId: req.id,
       positionId: linkedPosition?.id ?? null,
       previousStage: updatedOrResponse.previousStage,
       stage: stage || updatedOrResponse.previousStage,
-      offeredSalary,
+      ...(applicantPrivacyControlsEnabled() ? {} : { offeredSalary }),
     },
   });
 

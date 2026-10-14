@@ -64,21 +64,7 @@ type Compliance = {
   document: null | { id: number; fileName: string; scannedClean: boolean; createdAt: string };
 };
 
-type ExpiryNotice = {
-  id: number;
-  complianceId: number;
-  documentId: number;
-  employeeId: number;
-  employeeName: string;
-  requirementName: string;
-  kind: string;
-  expiresOn: string;
-  milestoneDays: number;
-  createdAt: string;
-};
 type Payload = {
-  vaultEnabled?: boolean;
-  expiryNotices?: ExpiryNotice[];
   policies: Policy[];
   assignments: PolicyAssignment[];
   requirements: Requirement[];
@@ -95,7 +81,6 @@ type Payload = {
     submittedDocuments: number;
     expiringDocuments: number;
     expiredDocuments: number;
-    unacknowledgedExpiryNotices?: number;
   };
 };
 
@@ -152,7 +137,6 @@ export function HcmDocumentsPanel({
   const [requirementName, setRequirementName] = useState("");
   const [requirementKind, setRequirementKind] = useState("government_id");
   const [requirementExpiry, setRequirementExpiry] = useState(false);
-  const [requirementMandatory, setRequirementMandatory] = useState(true);
   const [submissionDueDays, setSubmissionDueDays] = useState(14);
   const [renewalLeadDays, setRenewalLeadDays] = useState(30);
   const [requirementOrgUnitId, setRequirementOrgUnitId] = useState("");
@@ -257,17 +241,6 @@ export function HcmDocumentsPanel({
     }
   }
 
-  async function acknowledgeExpiryNotice(id: number) {
-    setBusy(true);
-    try {
-      await post({ action: "acknowledge-expiry-notice", noticeId: id });
-      await load();
-      setNotice("Document expiry alert marked reviewed. The document requirement remains unchanged.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not acknowledge expiry alert.");
-    } finally { setBusy(false); }
-  }
-
   async function createRequirement() {
     setBusy(true);
     try {
@@ -276,7 +249,7 @@ export function HcmDocumentsPanel({
         code: requirementCode,
         name: requirementName,
         kind: requirementKind,
-        mandatory: requirementMandatory,
+        mandatory: true,
         expiryRequired: requirementExpiry,
         submissionDueDays,
         renewalLeadDays,
@@ -388,52 +361,13 @@ export function HcmDocumentsPanel({
         </div>
       </div>
 
-      <section className="stats-grid" style={{
-        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 170px), 1fr))",
-      }}>
+      <section className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <article className="stat-card"><div className="stat-icon purple"><BookOpen size={19} /></div><p>PUBLISHED POLICIES</p><h3>{data.analytics.publishedPolicies}</h3><span>Version-controlled</span></article>
         <article className="stat-card"><div className="stat-icon amber"><Clock3 size={19} /></div><p>PENDING ACKS</p><h3>{data.analytics.pendingAcknowledgements}</h3><span>{data.analytics.overdueAcknowledgements} overdue</span></article>
         <article className="stat-card"><div className="stat-icon red"><AlertTriangle size={19} /></div><p>MISSING DOCS</p><h3>{data.analytics.missingDocuments}</h3><span>{data.analytics.submittedDocuments} awaiting verification</span></article>
         <article className="stat-card"><div className="stat-icon green"><FileCheck2 size={19} /></div><p>RENEWAL RISK</p><h3>{data.analytics.expiringDocuments + data.analytics.expiredDocuments}</h3><span>{data.analytics.expiringDocuments} expiring · {data.analytics.expiredDocuments} expired</span></article>
       </section>
 
-      {data.vaultEnabled && (
-        <section className="card" aria-label="HR 201 file expiry alerts" style={{ marginTop: 16 }}>
-          <div className="card-header">
-            <div>
-              <div className="card-kicker">EMPLOYEE 201 FILE · PRIVATE HR INBOX</div>
-              <h2>Document expiry alerts</h2>
-              <p>Required verified documents approaching expiry at 30, 14 or 7 days.
-                Only authorized People staff can review these employee files.</p>
-            </div>
-            <span className="status">{data.analytics.unacknowledgedExpiryNotices ?? 0} awaiting review</span>
-          </div>
-          {(data.expiryNotices ?? []).length === 0
-            ? <div className="card-body"><p>No unreviewed expiry alerts. Verified permits,
-                licenses, medical certificates and contracts appear here when a milestone is reached.</p></div>
-            : <div className="card-body" style={{
-                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
-                gap: 12,
-              }}>
-                {(data.expiryNotices ?? []).map(notice => <article key={notice.id}
-                  className="card" style={{ padding: 14, margin: 0 }}>
-                  <p className="card-kicker">{notice.milestoneDays}-DAY EXPIRY REMINDER</p>
-                  <h3 style={{ fontSize: 16, marginBottom: 6 }}>{notice.employeeName}</h3>
-                  <p>{notice.requirementName}</p>
-                  <p style={{ color: "var(--muted)" }}>Expires {dateLabel(notice.expiresOn)}</p>
-                  <div className="run-actions" style={{ flexWrap: "wrap", marginTop: 12 }}>
-                    <a className="secondary-button"
-                      href={"/api/documents/" + notice.documentId}
-                      rel="noopener noreferrer" target="_blank">View document</a>
-                    <button className="primary-button" disabled={busy}
-                      onClick={() => void acknowledgeExpiryNotice(notice.id)}>
-                      Mark reviewed
-                    </button>
-                  </div>
-                </article>)}
-              </div>}
-        </section>
-      )}
       <article className="card" style={{ marginTop: 16 }}>
         <div className="notice notice-slate" style={{ margin: 0 }}>
           <ShieldCheck size={16} className="i-purple" />
@@ -471,17 +405,7 @@ export function HcmDocumentsPanel({
             <div className="setting-form">
               <label>Requirement code<input value={requirementCode} onChange={(e) => setRequirementCode(e.target.value)} placeholder="PRC-LICENSE" /></label>
               <label>Name<input value={requirementName} onChange={(e) => setRequirementName(e.target.value)} placeholder="PRC Professional License" /></label>
-              <label>Document type
-                  {data.vaultEnabled
-                    ? <select value={requirementKind} onChange={event => setRequirementKind(event.target.value)}>
-                        <option value="government_id">Government ID / permit</option>
-                        <option value="professional_license">Professional license</option>
-                        <option value="medical_certificate">Medical certificate</option>
-                        <option value="employment_contract">Employment contract</option>
-                        <option value="other">Other employee document</option>
-                      </select>
-                    : <input value={requirementKind} onChange={event => setRequirementKind(event.target.value)} />}
-                </label>
+              <label>Document type<input value={requirementKind} onChange={(e) => setRequirementKind(e.target.value)} /></label>
               <label>Submission due days<input type="number" min={0} max={365} value={submissionDueDays} onChange={(e) => setSubmissionDueDays(Number(e.target.value))} /></label>
               <label>Renewal lead days<input type="number" min={0} max={365} value={renewalLeadDays} onChange={(e) => setRenewalLeadDays(Number(e.target.value))} /></label>
               <label>Org unit<select value={requirementOrgUnitId} onChange={(e) => setRequirementOrgUnitId(e.target.value)}><option value="">All units</option>{data.orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select></label>
@@ -489,10 +413,6 @@ export function HcmDocumentsPanel({
               <label>Location / region<input value={requirementLocation} onChange={(e) => setRequirementLocation(e.target.value)} placeholder="NCR (optional)" /></label>
               <label>Job profile<select value={requirementJobProfileId} onChange={(e) => setRequirementJobProfileId(e.target.value)}><option value="">All job profiles</option>{data.jobProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.title} · {profile.level}</option>)}</select></label>
               <label><input type="checkbox" checked={requirementExpiry} onChange={(e) => setRequirementExpiry(e.target.checked)} /> Expiry date required</label>
-                {data.vaultEnabled && <label><input type="checkbox"
-                  checked={requirementMandatory}
-                  onChange={event => setRequirementMandatory(event.target.checked)} />
-                  Required document (uncheck for optional)</label>}
             </div>
             <div className="run-actions"><button className="secondary-button" onClick={() => setRequirementOpen(false)}>Cancel</button><button className="primary-button" disabled={busy || !requirementCode || !requirementName} onClick={() => void createRequirement()}>Create requirement</button></div>
           </div>

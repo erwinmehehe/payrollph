@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import {
   CheckCircle2,
   ChevronRight,
@@ -48,6 +49,7 @@ type Requisition = {
   } | null;
   employmentType: string;
   status: string;
+  careersPublished?: boolean;
   description: string;
   applicantCount: number;
   interviewCount: number;
@@ -99,6 +101,12 @@ export function RecruitmentPanel({
   setNotice: (message: string) => void;
   onHired?: () => Promise<void>;
 }) {
+  const careersEnabled = useWorkflowUi().recruitmentJourney;
+  const [publishing, setPublishing] = useState(false);
+  const [privacyConsentRequired, setPrivacyConsentRequired] = useState(false);
+  const [careersPublishingReady, setCareersPublishingReady] = useState(false);
+  const [canPublishCareers, setCanPublishCareers] = useState(false);
+  const [consentEvidenceConfirmed, setConsentEvidenceConfirmed] = useState(false);
   const [requisitions, setRequisitions] = useState<Requisition[]>([]);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [selectedReqId, setSelectedReqId] = useState<number | null>(null);
@@ -112,6 +120,8 @@ export function RecruitmentPanel({
     email: "",
     phone: "",
     notes: "",
+    privacyNoticeVersion: "",
+    privacyEvidenceReference: "",
   });
 
   const [hireForm, setHireForm] = useState({
@@ -138,6 +148,11 @@ export function RecruitmentPanel({
     const nextReqs = payload.requisitions ?? [];
     setRequisitions(nextReqs);
     setApplicants(payload.applicants ?? []);
+    setPrivacyConsentRequired(payload.privacyConsentRequired === true);
+    setCareersPublishingReady(payload.careersPublishingReady === true);
+    setCanPublishCareers(payload.careersPublishingReady === true &&
+      payload.access?.companyWide === true &&
+      ["owner", "admin", "hr"].includes(payload.access?.role));
     setSelectedReqId((current) =>
       current && nextReqs.some((req: Requisition) => req.id === current)
         ? current
@@ -150,21 +165,35 @@ export function RecruitmentPanel({
 
   async function createApplicant(event: React.FormEvent) {
     event.preventDefault();
+    if (privacyConsentRequired && (!consentEvidenceConfirmed ||
+        formApp.privacyNoticeVersion.trim().length < 2 ||
+        formApp.privacyEvidenceReference.trim().length < 8)) {
+      setNotice("Record the candidate's actual consent, notice version and retained evidence reference before adding them.");
+      return;
+    }
+    const { privacyNoticeVersion, privacyEvidenceReference, ...candidate } = formApp;
     const response = await fetch("/api/recruitment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...formApp,
+        ...candidate,
         entityType: "applicant",
         organizationId,
         requisitionId: Number(formApp.requisitionId),
+        ...(privacyConsentRequired ? {
+          privacyAccepted: consentEvidenceConfirmed,
+          privacyNoticeVersion: privacyNoticeVersion.trim(),
+          privacyEvidenceReference: privacyEvidenceReference.trim(),
+        } : {}),
       }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) return setNotice(payload.error ?? "Failed to add candidate.");
 
     setShowAppModal(false);
-    setFormApp({ requisitionId: "", fullName: "", email: "", phone: "", notes: "" });
+    setFormApp({ requisitionId: "", fullName: "", email: "", phone: "", notes: "",
+      privacyNoticeVersion: "", privacyEvidenceReference: "" });
+    setConsentEvidenceConfirmed(false);
     await load();
     setSelectedReqId(payload.requisitionId);
     setNotice("Candidate added to pipeline.");
@@ -283,6 +312,23 @@ export function RecruitmentPanel({
     }
   }
 
+  async function toggleCareers(req: Requisition) {
+    if (publishing || !canPublishCareers || (!req.careersPublished && !req.positionId)) return;
+    setPublishing(true);
+    try {
+      const response = await fetch("/api/careers/admin", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, requisitionId: req.id,
+          published: !req.careersPublished, expectedPublished: req.careersPublished === true }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Publishing failed.");
+      await load();
+      setNotice(body.published ? "Vacancy published on the careers page." : "Vacancy unpublished.");
+    } catch (e) { setNotice(e instanceof Error ? e.message : "Could not publish vacancy."); }
+    finally { setPublishing(false); }
+  }
+
   const activeReq = requisitions.find((row) => row.id === selectedReqId) ?? requisitions[0];
   const reqApplicants = applicants.filter((row) => (activeReq ? row.requisitionId === activeReq.id : false));
   const totalHired = applicants.filter((row) => row.stage === "hired").length;
@@ -312,6 +358,10 @@ export function RecruitmentPanel({
           </p>
         </div>
         <div className="page-actions">
+          {careersEnabled && careersPublishingReady && <a className="secondary-button"
+            href={"/careers?organizationId=" + organizationId} target="_blank" rel="noopener noreferrer">
+            View careers page
+          </a>}
           <button
             className="secondary-button"
             onClick={() => setShowAppModal(true)}
@@ -383,6 +433,28 @@ export function RecruitmentPanel({
               <label>Email<input required type="email" value={formApp.email} onChange={(event) => setFormApp({ ...formApp, email: event.target.value })} /></label>
               <label>Mobile<input value={formApp.phone} onChange={(event) => setFormApp({ ...formApp, phone: event.target.value })} /></label>
               <label style={{ gridColumn: "1 / -1" }}>Recruiter notes<input value={formApp.notes} onChange={(event) => setFormApp({ ...formApp, notes: event.target.value })} /></label>
+              {privacyConsentRequired && <>
+                <p role="note" style={{ gridColumn: "1 / -1", margin: 0 }}>
+                  Candidate privacy controls are active. Do not invent consent or backdate evidence.
+                  Enter the notice version actually presented and the retained, independently verifiable consent reference.
+                  Use public self-application if no candidate consent record exists.
+                </p>
+                <label>Privacy notice version presented
+                  <input required minLength={2} maxLength={64}
+                    value={formApp.privacyNoticeVersion}
+                    onChange={event => setFormApp({ ...formApp, privacyNoticeVersion: event.target.value })}/>
+                </label>
+                <label>Retained consent evidence reference
+                  <input required minLength={8} maxLength={200}
+                    value={formApp.privacyEvidenceReference}
+                    onChange={event => setFormApp({ ...formApp, privacyEvidenceReference: event.target.value })}/>
+                </label>
+                <label style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 8 }}>
+                  <input type="checkbox" required checked={consentEvidenceConfirmed}
+                    onChange={event => setConsentEvidenceConfirmed(event.target.checked)}/>
+                  I confirm the candidate accepted the recorded notice and privacy evidence is retained.
+                </label>
+              </>}
             </div>
             <div className="run-actions">
               <button type="button" className="secondary-button" onClick={() => setShowAppModal(false)}>Cancel</button>
@@ -467,7 +539,15 @@ export function RecruitmentPanel({
               <span style={{ display: "block", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
                 {activeReq.hiredCount} hired · {activeReq.applicantCount} applicants
               </span>
-              {activeReq.planHandoffEvidence?.version === "hcm-plan-requisition-lineage-v1" && (
+              {careersEnabled && canPublishCareers && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            <button type="button" className="secondary-button" disabled={publishing ||
+              (!activeReq.careersPublished && (!activeReq.positionId || !["open","interviewing"].includes(activeReq.status)))}
+              onClick={() => void toggleCareers(activeReq)}>
+              {publishing ? "Updating…" : activeReq.careersPublished ? "Unpublish from careers" : "Publish to careers"}
+            </button>
+            <span role="status">{activeReq.careersPublished ? "Publicly listed" : "Not public"}</span>
+          </div>}
+          {activeReq.planHandoffEvidence?.version === "hcm-plan-requisition-lineage-v1" && (
                 <span style={{ display: "block", fontSize: 10, color: "var(--muted)", marginTop: 5 }}>
                   Plan #{activeReq.planHandoffEvidence.planId} · published baseline v{activeReq.planHandoffEvidence.baselineVersion} · applied execution #{activeReq.planHandoffEvidence.executionId}
                 </span>

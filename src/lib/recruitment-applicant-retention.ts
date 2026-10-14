@@ -1,7 +1,8 @@
-import { and, eq, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, not, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { applicantPrivacyEvidence, auditEvents, jobApplicants } from "@/db/schema";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
+import { applicantRetainedCopyHoldSql } from "@/lib/recruitment-applicant-copy-hold";
 import {
   applicantPiiEraseValues, rejectedApplicantCanPurge, sixCalendarMonthsBefore,
 } from "@/lib/recruitment-applicant-privacy";
@@ -14,7 +15,7 @@ import {
  * stored personal data.
  */
 export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
-  if (!criticalReleaseFlagEnabled("applicantPrivacy")) {
+  if (!applicantPrivacyControlsEnabled()) {
     return { purged: 0, enabled: false as const };
   }
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 ||
@@ -29,15 +30,24 @@ export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
   )).where(and(
     eq(jobApplicants.stage, "rejected"),
     isNull(jobApplicants.hiredEmployeeId),
+    isNull(jobApplicants.hiredAt),
+    isNull(jobApplicants.resumeUrl),
     eq(applicantPrivacyEvidence.legalHold, false),
     isNull(applicantPrivacyEvidence.purgedAt),
     lte(applicantPrivacyEvidence.rejectedAt, cutoff),
+    not(applicantRetainedCopyHoldSql(jobApplicants.id, jobApplicants.organizationId)),
   )).orderBy(applicantPrivacyEvidence.id).limit(limit);
   let purged = 0;
   for (const candidate of due) {
     const didPurge = await db.transaction(async tx => {
+      // Share Hire / recruiting's existing candidate lock so an approved Hire
+      // cannot convert a stale, concurrently erased candidate snapshot.
+      await tx.execute(sql`select pg_advisory_xact_lock(4101, ${candidate.applicantId})`);
       await tx.execute(sql`SELECT id FROM job_applicants
         WHERE id = ${candidate.applicantId} AND organization_id = ${candidate.organizationId}
+        FOR UPDATE`);
+      await tx.execute(sql`SELECT id FROM applicant_privacy_evidence
+        WHERE applicant_id = ${candidate.applicantId} AND organization_id = ${candidate.organizationId}
         FOR UPDATE`);
       const [applicant] = await tx.select().from(jobApplicants).where(and(
         eq(jobApplicants.id, candidate.applicantId),
@@ -49,13 +59,19 @@ export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
       )).limit(1);
       if (!applicant || !privacy || !rejectedApplicantCanPurge({
         stage: applicant.stage, hiredEmployeeId: applicant.hiredEmployeeId,
+        hiredAt: applicant.hiredAt,
         rejectedAt: privacy.rejectedAt, legalHold: privacy.legalHold,
         purgedAt: privacy.purgedAt, resumeUrl: applicant.resumeUrl,
       }, now)) return false;
+      const copies = await tx.execute(sql`SELECT ${applicantRetainedCopyHoldSql(candidate.applicantId, candidate.organizationId)} AS held`);
+      if (copies.rows[0]?.held === true) return false;
       await tx.update(jobApplicants).set(applicantPiiEraseValues(candidate.applicantId))
         .where(and(eq(jobApplicants.id, candidate.applicantId),
           eq(jobApplicants.organizationId, candidate.organizationId)));
-      await tx.update(applicantPrivacyEvidence).set({ purgedAt: now })
+      await tx.update(applicantPrivacyEvidence).set({
+        purgedAt: now, deletionReason: null,
+        sourceEvidenceReference: "erased", deletionReviewEvidenceReference: null,
+      })
         .where(and(eq(applicantPrivacyEvidence.applicantId, candidate.applicantId),
           eq(applicantPrivacyEvidence.organizationId, candidate.organizationId)));
       await tx.insert(auditEvents).values({
@@ -66,7 +82,7 @@ export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
         metadata: {
           applicantId: candidate.applicantId,
           cutoff: cutoff.toISOString().slice(0, 10),
-          retainedAnonymousAudit: true,
+          retainedPseudonymousAudit: true,
         },
       });
       return true;
