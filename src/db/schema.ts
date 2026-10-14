@@ -2234,6 +2234,26 @@ export const hcmEmployeeDocumentCompliance = pgTable(
   ],
 );
 
+/** Per-expiry, per-milestone HR alert ledger; idempotent across scheduler retries. */
+export const hcmDocumentExpiryNotices = pgTable("hcm_document_expiry_notices", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  complianceId: integer("compliance_id").notNull().references(() => hcmEmployeeDocumentCompliance.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  expiresOn: date("expires_on").notNull(),
+  milestoneDays: integer("milestone_days").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+}, (table) => [
+  uniqueIndex("hcm_document_expiry_notice_unique").on(
+    table.complianceId, table.documentId, table.expiresOn, table.milestoneDays,
+  ),
+  index("hcm_document_expiry_notice_inbox_idx").on(table.organizationId, table.acknowledgedAt, table.createdAt),
+  check("hcm_document_expiry_notice_milestone_check", sql`${table.milestoneDays} in (30, 14, 7)`),
+]);
+
 export const invitations = pgTable("invitations", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
