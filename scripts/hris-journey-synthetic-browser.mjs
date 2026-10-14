@@ -185,12 +185,19 @@ try {
     await page.getByText("Annual leave payroll treatment saved.").waitFor({ timeout: 60000 });
 
     await page.getByRole("button", { name: "New leave request" }).click();
-    await page.getByLabel("Employee", { exact: true })
+    // A nested <label><select><option>...</option></select></label> may
+    // expose option text as part of its label; target the visible application
+    // form and select the worker by its rendered option instead.
+    const application = page.locator("article.card").filter({
+      has: page.getByRole("heading", { name: "Submit leave application" }),
+    });
+    await application.waitFor({ timeout: 60000 });
+    await application.locator("select").first()
       .selectOption({ label: "AlphaPrivate Worker" });
-    await page.getByLabel("Start date").fill("2026-10-20");
-    await page.getByLabel("End date").fill("2026-10-20");
-    await page.getByLabel("Days").fill("1");
-    await page.getByRole("button", { name: "Submit request" }).click();
+    await application.locator('input[type="date"]').nth(0).fill("2026-10-20");
+    await application.locator('input[type="date"]').nth(1).fill("2026-10-20");
+    await application.locator('input[type="number"]').first().fill("1");
+    await application.getByRole("button", { name: "Submit request" }).click();
     await page.getByText("Leave request submitted and queued for approval.")
       .waitFor({ timeout: 60000 });
 
