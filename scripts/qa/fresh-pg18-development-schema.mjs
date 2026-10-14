@@ -70,6 +70,26 @@ export function summarizeSchema(relations,columns,constraints,indexes){
   });
 }
 
+/**
+ * The FK must match the *same* id, organization and employee, preventing a
+ * COE document in another tenant from being attached to a confidential case.
+ * Referenced columns are declared in their physical table order to avoid the
+ * Drizzle 0.31.x composite-unique phantom-diff defect.
+ */
+export function assertCOETenantReference(constraints) {
+  const uniqueKey = constraints.find(x => x.relation === "documents" &&
+    x.name === "documents_org_employee_id_hr_cases_unique");
+  const fk = constraints.find(x => x.relation === "employee_hr_cases" &&
+    x.name === "employee_hr_cases_coe_document_tenant_fk");
+  const u=String(uniqueKey?.definition ?? "").replace(/"/g,"").replace(/\s+/g," ");
+  const f=String(fk?.definition ?? "").replace(/"/g,"").replace(/\s+/g," ");
+  if (!/^UNIQUE \(id, organization_id, employee_id\)$/i.test(u) ||
+      !/^FOREIGN KEY \(coe_document_id, organization_id, employee_id\) REFERENCES (?:public\.)?documents\(id, organization_id, employee_id\)/i.test(f)) {
+    reject("COE_TENANT_FK_MISMATCH");
+  }
+  return true;
+}
+
 async function readCatalog(client){
   await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
   try{
@@ -110,6 +130,7 @@ async function main(){
        catalog.identity?.server<180000 || catalog.identity?.server>=190000){
       reject("WRONG_BACKEND_IDENTITY");
     }
+    assertCOETenantReference(catalog.constraints);
     const summary=summarizeSchema(catalog.relations,catalog.columns,catalog.constraints,catalog.indexes);
     const evidence={
       kind:"fictional-fresh-pg18-drizzle-source-schema-v1",
