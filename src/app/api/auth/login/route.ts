@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -6,6 +6,7 @@ import { ensureSeedData } from "@/db/seed";
 import { createSession, publicUser, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
 import { hashPassword, passwordNeedsRehash, sha256, verifyPassword } from "@/lib/crypto";
 import { currentLoginLock, nextFailedLoginState } from "@/lib/login-lockout";
+import { findMatchingBackupCode } from "@/lib/mfa-backup-code";
 import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
 import { verifyTotp } from "@/lib/totp";
 import { enforceSameOriginMutation } from "@/lib/security-request";
@@ -124,14 +125,24 @@ export async function POST(request: Request) {
       }
     }
     if (!totpOk && backupCode) {
-      const codes = Array.isArray(user.backupCodes) ? user.backupCodes as string[] : [];
-      const backupHash = sha256(backupCode);
-      const matchedCode = codes.find((code) => code === backupHash || code === backupCode);
+      const matchedCode = findMatchingBackupCode(
+        user.backupCodes, backupCode, sha256(backupCode),
+      );
       if (matchedCode) {
-        totpOk = true;
-        await db.update(users).set({
-          backupCodes: codes.filter((code) => code !== matchedCode),
-        }).where(eq(users.id, user.id));
+        // Recovery codes are single-use credentials. An unconditional update of
+        // a previously fetched JSON array allows two concurrent logins to both
+        // succeed with the same code. PostgreSQL rechecks the containment
+        // predicate after obtaining the row lock, so only one request wins.
+        // The JSONB minus-text operator removes the matching string atomically
+        // without discarding unrelated codes consumed in parallel.
+        const [consumed] = await db.update(users).set({
+          backupCodes: sql`${users.backupCodes} - ${matchedCode}::text`,
+        }).where(and(
+          eq(users.id, user.id),
+          sql`jsonb_typeof(${users.backupCodes}) = 'array'`,
+          sql`${users.backupCodes} @> jsonb_build_array(${matchedCode}::text)`,
+        )).returning({ id: users.id });
+        totpOk = Boolean(consumed);
       }
     }
     if (!totpOk) {
