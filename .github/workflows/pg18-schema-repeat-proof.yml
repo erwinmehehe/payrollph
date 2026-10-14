@@ -16,14 +16,6 @@ permissions:
 
 jobs:
   pg18-idempotence:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - candidate: kit-only
-            packages: 'drizzle-kit@1.0.0-rc.4'
-          - candidate: kit-and-orm
-            packages: 'drizzle-kit@1.0.0-rc.4 drizzle-orm@1.0.0-rc.4'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -64,12 +56,10 @@ jobs:
       - name: Install pinned dependencies
         run: npm ci
       - name: Evaluate pinned upstream Drizzle v1 release candidate in disposable CI only
-        run: npm install --no-save --package-lock=false ${{ matrix.packages }}
+        run: npm install --no-save --package-lock=false drizzle-kit@1.0.0-rc.4 drizzle-orm@1.0.0-rc.4
       - name: Verify exact ephemeral RC overlays without requiring package manifest rewrite
         run: |
-          node -e 'const {readFileSync}=require("node:fs"); for(const name of ["drizzle-kit","drizzle-orm"]) { const actual=JSON.parse(readFileSync("node_modules/"+name+"/package.json","utf8")).version; const expected=name==="drizzle-kit"?"1.0.0-rc.4":process.env.CANDIDATE==="kit-and-orm"?"1.0.0-rc.4":"0.45.4"; if(actual!==expected){ console.error(name+" version mismatch");process.exit(1); } console.log(name+" evaluated version "+actual) }'
-        env:
-          CANDIDATE: ${{ matrix.candidate }}
+          node -e 'const {readFileSync}=require("node:fs"); for(const name of ["drizzle-kit","drizzle-orm"]) { const actual=JSON.parse(readFileSync("node_modules/"+name+"/package.json","utf8")).version; if(actual!=="1.0.0-rc.4"){ console.error(name+" version mismatch");process.exit(1); } console.log(name+" evaluated version "+actual) }'
       - name: Verify fail-closed safety and exact tenancy constraints
         run: node --test tests/fresh-pg18-development-schema.test.mjs tests/verified-pg18-repeat-push.test.mjs
       - name: Confirm entirely empty PostgreSQL 18 disposable CI target
@@ -82,3 +72,5 @@ jobs:
         run: node scripts/qa/verified-pg18-repeat-push.mjs
       - name: Verify no PostgreSQL schema drift after repeat push
         run: node scripts/qa/fresh-pg18-development-schema.mjs compare
+      - name: Check app TypeScript compatibility with matched Drizzle v1 RC
+        run: npm run typecheck
