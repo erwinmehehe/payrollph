@@ -1,6 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  hcmReadScopeKey, hcmReadScopeParams, hcmReadScopeValid,
+  hcmResponseMatchesReadScope, type HcmReadScope,
+} from "@/lib/hcm-client-employer-scope";
 import { AlertTriangle, CalendarClock, CheckCircle2, RefreshCw, UserRoundCog } from "lucide-react";
 
 type LifecycleRow = {
@@ -74,38 +78,79 @@ function actionLabel(action: LifecycleRow["action"]) {
 
 export function HcmEmploymentLifecycleActionCenter({
   organizationId,
+  legalEntityId = null,
+  multiEntityEnabled = false,
   onOpenEmployee,
   onOpenSeparation,
 }: {
   organizationId: number;
+  legalEntityId?: number | null;
+  multiEntityEnabled?: boolean;
   onOpenEmployee: (employeeId: number) => void;
   onOpenSeparation: () => void;
 }) {
+  const scope: HcmReadScope = { organizationId, legalEntityId, multiEntityEnabled };
+  if (!hcmReadScopeValid(scope)) return (
+    <section className="notice notice-amber" role="status">
+      Select one authorized legal employer before loading employment lifecycle information.
+    </section>
+  );
+  return <ScopedHcmEmploymentLifecycleActionCenter key={hcmReadScopeKey(scope)}
+    scope={scope} onOpenEmployee={onOpenEmployee} onOpenSeparation={onOpenSeparation}/>;
+}
+
+function ScopedHcmEmploymentLifecycleActionCenter({
+  scope, onOpenEmployee, onOpenSeparation,
+}: {
+  scope: HcmReadScope;
+  onOpenEmployee: (employeeId: number) => void;
+  onOpenSeparation: () => void;
+}) {
+  const selection = useMemo(() => scope,
+    [scope.organizationId, scope.multiEntityEnabled, scope.legalEntityId]);
+  const activeRequest = useRef<AbortController | null>(null);
   const [payload, setPayload] = useState<LifecyclePayload | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
     setLoading(true);
     setError("");
+    // A disabled or missing employer selection cannot issue a broad request.
+    const params = hcmReadScopeParams(selection);
+    if (!params) {
+      setPayload(null);
+      setError("Select one legal employer.");
+      setLoading(false);
+      return;
+    }
     try {
       const response = await fetch(
-        `/api/hcm/lifecycle-readiness?organizationId=${organizationId}`,
-        { cache: "no-store" },
+        "/api/hcm/lifecycle-readiness?" + params.toString(),
+        { cache: "no-store", signal: controller.signal },
       );
       const data = await response.json().catch(() => ({}));
+      if (controller.signal.aborted) return;
       if (!response.ok) throw new Error(data.error ?? "Could not load employment lifecycle readiness.");
+      if (!hcmResponseMatchesReadScope(data, selection)) {
+        throw new Error("Employment lifecycle returned an unexpected tenant or legal employer.");
+      }
       setPayload(data as LifecyclePayload);
     } catch (loadError) {
+      if (controller.signal.aborted) return;
       setPayload(null);
       setError(loadError instanceof Error ? loadError.message : "Could not load employment lifecycle readiness.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [organizationId]);
+  }, [selection]);
 
   useEffect(() => {
     void load();
+    return () => activeRequest.current?.abort();
   }, [load]);
 
   const actionable = payload?.rows.filter((row) =>
