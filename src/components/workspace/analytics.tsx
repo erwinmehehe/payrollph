@@ -6,6 +6,8 @@ import type { DashboardData, Notify } from "./types";
 import { EnterpriseBiExportPanel } from "@/components/enterprise-bi-export-panel";
 import { HcmReportBuilderPanel } from "./hcm-report-builder-panel";
 import { GroupEntityReports } from "./multi-entity-ui";
+import { useWorkflowUi } from "./workflow-ui-context";
+import { CustomReportBuilder } from "./custom-report-builder";
 import { PeopleIntelligenceOverview } from "./people-intelligence";
 import type { PeopleIntelligenceSummary } from "@/lib/hcm-people-intelligence";
 import {
@@ -44,6 +46,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
   // Preserve the established flag-OFF default. For multi-entity sessions,
   // safeActive below selects only a certified employer-scoped report before
   // any API request, CSV export, or visible report selection.
+  const customReportsEnabled = useWorkflowUi().reportBuilder;
   const [active, setActive] = useState<ReportKey>("workforce");
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [result, setResult] = useState<ReportResult | null>(null);
@@ -171,6 +174,8 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
 
       {data.multiEntity?.enabled && data.multiEntity.group && <GroupEntityReports
         context={data.multiEntity} organizationId={organizationId} />}
+      {customReportsEnabled && !data.multiEntity?.enabled && <CustomReportBuilder organizationId={organizationId}
+        active={safeActive} report={result} onReport={key => { setActive(key as ReportKey); setState("loading"); }} />}
       <section className="stats-grid">
         <Metric
           label="Runs on record"
