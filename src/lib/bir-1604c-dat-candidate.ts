@@ -12,6 +12,17 @@ const COMMON = ["SCHEDULE_NUM", "FTYPE_CODE", "TIN_EMPYR", "BRANCH_CODE_EMPLYR",
   "RETRN_PERIOD", "SEQ_NUM", "TIN", "BRANCH_CODE", "LAST_NAME", "FIRST_NAME",
   "MIDDLE_NAME", "REGION_NUM"] as const;
 
+// Region is TEXT (maximum four characters), not a zero-padded identifier.
+// Values checked against the official 7.4 distribution's Schedule 1/2 validator.
+export const BIR_1604C_REGION_CODES = [
+  "I", "II", "III", "IV-A", "IV-B", "V", "VI", "VII", "VIII", "IX",
+  "X", "XI", "XII", "XIII", "NCR", "ARMM", "CAR",
+  "1", "2", "3", "4-A", "4-B", "5", "6", "7", "8", "9", "10", "11", "12", "13",
+] as const;
+export function isBir1604cRegionCode(value: unknown): boolean {
+  return typeof value === "string" && BIR_1604C_REGION_CODES.includes(value as never);
+}
+
 const D1_BODY = [
   "PREV_NONTAX_GROSS_COMP_INCOME", "PREV_NONTAX_BASIC_SMW", "PREV_NONTAX_13TH_MONTH",
   "PREV_NONTAX_DE_MINIMIS", "PREV_NONTAX_SSS_ETC", "PREV_NONTAX_SALARIES",
@@ -138,7 +149,11 @@ function formatField(field: string, raw: unknown, rowSchedule: "D1" | "D2") {
     return value.padStart(3, "0");
   }
   if (field === "TIN" || field === "TIN_EMPYR") return digits(value,9,field);
-  if (field === "BRANCH_CODE" || field === "BRANCH_CODE_EMPLYR" || field === "REGION_NUM") {
+  if (field === "REGION_NUM") {
+    if (!isBir1604cRegionCode(value)) throw new Error("BIR REGION_NUM must use a listed region code (for example NCR); never zero-pad it.");
+    return value;
+  }
+  if (field === "BRANCH_CODE" || field === "BRANCH_CODE_EMPLYR") {
     return digits(value,4,field);
   }
   if (field === "LAST_NAME" || field === "FIRST_NAME" || field === "MIDDLE_NAME" || field === "NATIONALITY") {
@@ -168,6 +183,23 @@ function renderRecord(fields: readonly string[], record: Record<string, unknown>
   }).join(",");
 }
 const cents = (n: number) => Math.round(n * 100);
+
+/** Cross-field format checks observed in official 7.4 Schedule 2 validation.
+ * No rate calculation, inferred zero, or automatic remapping is performed.
+ * Exempt MWE wages remain in the prescribed NONTAX fields.
+ */
+export function bir1604cD2TaxableIssues(record: Bir1604CRecord): string[] {
+  if (record.schedule !== "D2") return [];
+  const fields = record.fields;
+  const previous = cents(amount(fields.PREV_TOTAL_TAXABLE, "PREV_TOTAL_TAXABLE"));
+  const present = cents(amount(fields.PRES_TOTAL_COMP, "PRES_TOTAL_COMP"));
+  const combined = cents(amount(fields.GROSS_COMP_INCOME, "GROSS_COMP_INCOME"));
+  const net = cents(amount(fields.NET_TAXABLE_COMP_INCOME, "NET_TAXABLE_COMP_INCOME"));
+  const issues: string[] = [];
+  if (combined !== previous + present) issues.push("D2 GROSS_COMP_INCOME must equal previous plus present taxable compensation; preserve exempt wages in NONTAX fields.");
+  if (net !== combined) issues.push("D2 NET_TAXABLE_COMP_INCOME must equal the combined taxable compensation checked by the official module.");
+  return issues;
+}
 function controlRow(
   schedule: "D1" | "D2", detail: Bir1604CRecord[],
   employerTin: string, employerBranch: string, returnPeriod: string,
@@ -215,6 +247,8 @@ export function buildBir1604cDatCandidate(input: Bir1604CCandidateInput) {
     if (distinct.has(employeeKey)) throw new Error("Duplicate employee TIN and branch in 1604-C filing.");
     distinct.add(employeeKey);
     lines.push(renderRecord(fields, record, row.schedule));
+    const taxableIssues = bir1604cD2TaxableIssues(row);
+    if (taxableIssues.length) throw new Error(taxableIssues.join(" "));
     actualWithheld += amount(record.ACTUAL_AMT_WTHLD, "ACTUAL_AMT_WTHLD");
   }
   const expectedWithheld = amount(input.expectedActualWithheld, "expectedActualWithheld");

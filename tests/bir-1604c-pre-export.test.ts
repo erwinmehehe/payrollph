@@ -21,7 +21,7 @@ function employee(schedule: "D1" | "D2" = "D1", employeeNo = "EMP001"): Bir1604C
   Object.assign(fields, {
     TIN: employeeNo === "EMP001" ? "333222111" : "333222112",
     BRANCH_CODE: "0000", LAST_NAME: "SANTOS", FIRST_NAME: "MARIA",
-    MIDDLE_NAME: "", REGION_NUM: "0001",
+    MIDDLE_NAME: "", REGION_NUM: "NCR",
     EMPLOYMENT_FROM: "01/01/2026", EMPLOYMENT_TO: "12/31/2026",
     NATIONALITY: "FILIPINO", EMPLOYMENT_STATUS: "R",
     REASON_SEPARATION: "NA", SUBS_FILING: "Y",

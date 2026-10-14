@@ -11,7 +11,8 @@
 import {
   BIR_1604C_D1_FIELDS, BIR_1604C_D2_FIELDS,
   BIR_1604C_C1_FIELDS, BIR_1604C_C2_FIELDS,
-  buildBir1604cDatCandidate, type Bir1604CRecord,
+  buildBir1604cDatCandidate, isBir1604cRegionCode, bir1604cD2TaxableIssues,
+  type Bir1604CRecord,
 } from "./bir-1604c-dat-candidate";
 
 export type Bir1604CReviewedRecord = Bir1604CRecord & {
@@ -40,7 +41,7 @@ const AUTO_FIELDS = new Set([
 const DATE_FIELDS = new Set(["RETRN_PERIOD", "EMPLOYMENT_FROM", "EMPLOYMENT_TO"]);
 const IDENTIFIERS: Record<string, number> = {
   TIN_EMPYR: 9, TIN: 9, BRANCH_CODE_EMPLYR: 4,
-  BRANCH_CODE: 4, REGION_NUM: 4,
+  BRANCH_CODE: 4,
 };
 const TEXT_30 = new Set(["LAST_NAME", "FIRST_NAME", "MIDDLE_NAME", "NATIONALITY"]);
 const TEXT_2: Record<string, readonly string[]> = {
@@ -51,7 +52,7 @@ const TEXT_2: Record<string, readonly string[]> = {
 const NUMERIC_EXCEPT_MONEY = new Set(["SEQ_NUM", "FACTOR_USED"]);
 const ADMIN = new Set([
   ...AUTO_FIELDS, ...DATE_FIELDS, ...Object.keys(IDENTIFIERS),
-  ...TEXT_30, ...Object.keys(TEXT_2), ...NUMERIC_EXCEPT_MONEY,
+  ...TEXT_30, ...Object.keys(TEXT_2), ...NUMERIC_EXCEPT_MONEY, "REGION_NUM",
 ]);
 
 export type Bir1604CFieldSpec = { name: string; type: "text" | "date" | "number"; width: number; format: string };
@@ -62,6 +63,7 @@ function specification(name: string): Bir1604CFieldSpec {
   if (name === "FACTOR_USED") return { name, type: "number", width: 3, format: "1-999" };
   if (name === "SCHEDULE_NUM") return { name, type: "text", width: 2, format: "D1/D2 or C1/C2" };
   if (name === "FTYPE_CODE") return { name, type: "text", width: 5, format: "1604C" };
+  if (name === "REGION_NUM") return { name, type: "text", width: 4, format: "listed BIR region code; e.g. NCR, IV-A, 1; no zero padding" };
   if (name in IDENTIFIERS) return { name, type: "text", width: IDENTIFIERS[name], format: "digits; preserve leading zeros" };
   if (TEXT_30.has(name)) return { name, type: "text", width: 30, format: "printable ASCII, max 30" };
   if (name in TEXT_2) return { name, type: "text", width: 2, format: TEXT_2[name].join("/") };
@@ -186,6 +188,8 @@ export function validateBir1604cPreExport(input: {
       }
       if (field in IDENTIFIERS && !new RegExp("^[0-9]{" + IDENTIFIERS[field] + "}$").test(text))
         add("INVALID_IDENTIFIER", field + " must contain exactly " + IDENTIFIERS[field] + " digits.", no, field);
+      else if (field === "REGION_NUM" && !isBir1604cRegionCode(text))
+        add("INVALID_REGION", "Use a listed BIR region code such as NCR; never zero-pad a region.", no, field);
       else if (TEXT_30.has(field) && (text.length > 30 || (field !== "MIDDLE_NAME" && !text.trim())))
         add("INVALID_NAME", field + " must be at most 30 characters and nonblank where required.", no, field);
       else if (field in TEXT_2 && !TEXT_2[field].includes(text))
@@ -240,6 +244,10 @@ export function validateBir1604cPreExport(input: {
       add("THIRTEENTH_EXEMPT_LIMIT", "The combined exempt 13th-month/other-benefits entry exceeds the statutory PHP 90,000 pool. Review its taxable excess.", no, "PRES_NONTAX_13TH_MONTH");
     const withheld = parseAmount(values.ACTUAL_AMT_WTHLD);
     if (withheld !== null) actualCents += withheld;
+    if (row.schedule === "D2" && ["PREV_TOTAL_TAXABLE", "PRES_TOTAL_COMP", "GROSS_COMP_INCOME", "NET_TAXABLE_COMP_INCOME"]
+      .every(field => parseAmount(values[field]) !== null)) {
+      for (const message of bir1604cD2TaxableIssues(row)) add("MWE_TAXABLE_TOTAL", message, no);
+    }
   }
 
   if (expectedCents !== null && actualCents !== expectedCents)
