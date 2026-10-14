@@ -168,11 +168,30 @@ test("#910: 0121 backfill uses immutable run employer, excludes ambiguous histor
       "'year_end_adjustments_run_employer_fk')");
     assert.equal(integrity.count, 13);
     // The source proposal deliberately leaves legacy FKs unvalidated.
-    const notValidated = await one(client,
-      "SELECT count(*)::int AS count FROM pg_constraint WHERE conname IN " +
-      "('employees_tenant_employer_fk','payroll_runs_tenant_employer_fk'," +
-      "'assignment_employee_tenant_fk','transfer_employee_tenant_fk') AND NOT convalidated");
-    assert.equal(notValidated.count,4);
+    // The disposable db:push fixture already creates the two employee/transfer
+    // tenant FKs declared in src/db/schema.ts, and those are VALIDATED.
+    // The post-0121 review-only SQL creates the two legacy employer FKs as
+    // NOT VALID (guard NEW writes without claiming historical row validation).
+    // Requiring all four to be unvalidated would reject stronger constraints.
+    const fourGuards = await client.query(
+      "SELECT conname, convalidated, contype FROM pg_constraint WHERE conname = ANY($1::text[])",
+      [[
+        "employees_tenant_employer_fk", "payroll_runs_tenant_employer_fk",
+        "assignment_employee_tenant_fk", "transfer_employee_tenant_fk",
+      ]],
+    );
+    assert.equal(fourGuards.rows.length, 4);
+    const guardByName = new Map(fourGuards.rows.map(row => [row.conname, row]));
+    for (const name of ["employees_tenant_employer_fk", "payroll_runs_tenant_employer_fk"]) {
+      assert.equal(guardByName.get(name)?.contype, "f", name);
+      assert.equal(guardByName.get(name)?.convalidated, false,
+        name + ": do not invent historical entity validation");
+    }
+    for (const name of ["assignment_employee_tenant_fk", "transfer_employee_tenant_fk"]) {
+      assert.equal(guardByName.get(name)?.contype, "f", name);
+      assert.equal(guardByName.get(name)?.convalidated, true,
+        name + ": present schema-declared tenant FK must stay validated");
+    }
     const assigned = await client.query(
       "SELECT e.id,r.legal_entity_id AS expected,e.legal_entity_id AS actual " +
       "FROM payroll_entries e JOIN payroll_runs r ON r.id=e.payroll_run_id ORDER BY e.id");
