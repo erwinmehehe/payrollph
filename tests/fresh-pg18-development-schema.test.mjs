@@ -113,3 +113,20 @@ test("COE document composite unique and FK retain id AND tenant AND employee equ
   forbidden(()=>assertCOETenantReference(wrongOrder),"COE_TENANT_FK_MISMATCH");
   forbidden(()=>assertCOETenantReference([]),"COE_TENANT_FK_MISMATCH");
 });
+
+
+test("COE composite FK column declarations follow physical child order", () => {
+  const schema = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
+  const start = schema.indexOf('export const employeeHrCases = pgTable("employee_hr_cases"');
+  const end = schema.indexOf('export const employeeHrCaseMessages = pgTable(', start);
+  assert.ok(start >= 0 && end > start, "canonical HR case definition required");
+  const child = schema.slice(start, end);
+  const id = child.indexOf('id: serial("id").primaryKey()');
+  const coe = child.indexOf('coeDocumentId: integer("coe_document_id")');
+  const org = child.indexOf('organizationId: integer("organization_id")');
+  const employee = child.indexOf('employeeId: integer("employee_id")');
+  assert.ok(id >= 0 && id < coe && coe < org && org < employee,
+    "keep the physically ordered COE/organization/employee tuple for Drizzle introspection");
+  assert.match(child, /columns: \[table\.coeDocumentId, table\.organizationId, table\.employeeId\]/);
+  assert.match(child, /foreignColumns: \[documents\.id, documents\.organizationId, documents\.employeeId\]/);
+});
