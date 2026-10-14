@@ -224,11 +224,6 @@
       "count": 1
     }
   },
-  "src/components/workspace/compliance-policy-review-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/workspace/dole-thirteenth-month-report-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -250,11 +245,6 @@
     }
   },
   "src/components/workspace/labor-inspection-readiness-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/workspace/launch-readiness-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }

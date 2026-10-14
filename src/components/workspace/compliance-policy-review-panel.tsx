@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
 import { Status } from "@/components/workspace/ui";
+import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
 
 type Finding = {
   key: string; domain: string; severity: "high" | "medium" | "info" | "pass"; title: string; detail: string;
@@ -18,23 +19,32 @@ function label(severity: Finding["severity"]) {
 }
 
 export function CompliancePolicyReviewPanel({ organizationId }: { organizationId: number }) {
-  const [payload, setPayload] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [showPassing, setShowPassing] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
+  const fetchReview = useCallback(async (signal: AbortSignal): Promise<Payload> => {
+    let response: Response;
     try {
-      const response = await fetch("/api/compliance/policy-review?organizationId=" + organizationId, { cache: "no-store" });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) { setError(body.error ?? "Policy review could not be loaded."); return; }
-      setPayload(body);
-    } catch { setError("Policy review could not be loaded because the server could not be reached."); }
-    finally { setLoading(false); }
+      response = await fetch("/api/compliance/policy-review?organizationId=" + organizationId, {
+        cache: "no-store",
+        signal,
+      });
+    } catch {
+      throw new Error("Policy review could not be loaded because the server could not be reached.");
+    }
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof body.error === "string" ? body.error : "Policy review could not be loaded.");
+    }
+    return body as Payload;
   }, [organizationId]);
 
-  useEffect(() => { void load(); }, [load]);
+  // Scoped request ownership hides previous-employer results immediately,
+  // aborts superseded fetches, and cannot commit a retired response/error.
+  const { data: payload, loading, error: loadError, reload } = useScopedAsyncResource(
+    "compliance-policy-review:" + organizationId,
+    fetchReview,
+  );
+  const error = loadError?.message ?? "";
+
   const findings = useMemo(() => (payload?.findings ?? []).filter((finding) => showPassing || finding.severity !== "pass"), [payload, showPassing]);
 
   return (
@@ -45,7 +55,7 @@ export function CompliancePolicyReviewPanel({ organizationId }: { organizationId
           <h2>Catch risky payroll policy settings before payroll proves them wrong.</h2>
           <p>Reviews actual released pay dates, pay-profile coverage, standard hours, active weekly rest-day scheduling and leave treatment against Philippine labor controls.</p>
         </div>
-        <button className="secondary-button" type="button" disabled={loading} onClick={() => void load()}><RefreshCw size={14} /> {loading ? "Checking…" : "Review policies"}</button>
+        <button className="secondary-button" type="button" disabled={loading} onClick={() => void reload()}><RefreshCw size={14} /> {loading ? "Checking…" : "Review policies"}</button>
       </div>
 
       {error ? <div className="card-body" style={{ paddingTop: 0 }}><div className="notice notice-red" style={{ margin: 0 }}><AlertTriangle size={15} /><span>{error}</span></div></div> : payload ? (
