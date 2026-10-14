@@ -145,6 +145,7 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     });
     let tamperedReceipt: number | null = null;
     let missingReceipt: number | null = null;
+    let unsafeProviderError = false;
     globalThis.fetch = async (url, options) => {
       assert.equal(options?.method, "GET", "Only private signed receipt reads are permitted");
       assert.equal(options?.redirect, "error");
@@ -153,6 +154,7 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
       const name = uri.pathname.split("/").at(-1) ?? "";
       const index = Number(name.slice(-1)) - 1;
       assert.ok(index >= 0 && index < receiptBytes.length, "Signed receipt identity is known");
+      if (unsafeProviderError) throw new Error("Synthetic provider failed at https://objects.example.invalid/?signature=synthetic-private-signature");
       if (missingReceipt === index) return new Response("Synthetic missing receipt", { status: 404 });
       return new Response(new Uint8Array(tamperedReceipt === index ? Buffer.from("%PDF-1.9") : receiptBytes[index]));
     };
@@ -189,6 +191,10 @@ test("tax-reviewed reimbursement changes withholding base but never changes SSS/
     missingReceipt = 1;
     await assert.rejects(settlePayrollRun(run.id), /RECEIPT_RELEASE_VERIFICATION_FAILED.*RECEIPT_READ_UNAVAILABLE/);
     missingReceipt = null;
+    unsafeProviderError = true;
+    await assert.rejects(settlePayrollRun(run.id), (error: unknown) => error instanceof Error &&
+      error.message.includes("RECEIPT_RELEASE_VERIFICATION_FAILED") && !error.message.includes("synthetic-private-signature"));
+    unsafeProviderError = false;
     // Disabling the gate cannot reinterpret taxable or partially approved A4 data.
     process.env.SPEND_PAYROLL_REIMBURSEMENTS_ENABLED = "false";
     await assert.rejects(settlePayrollRun(run.id), /Reviewed reimbursements are paused/);

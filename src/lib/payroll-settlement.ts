@@ -74,7 +74,7 @@ async function verifySpendReceiptsBeforeSettlement(
       if (!line.code.startsWith("EXP-")) continue;
       const claimId = numericId(line.code, "EXP-");
       if (!claimId || line.code !== "EXP-" + claimId || claimEmployees.has(claimId)) {
-        throw new Error("PAYROLL_EXPENSE_DUPLICATE_OR_INVALID_CODE");
+        throw new Error("The payroll register contains a duplicate expense reimbursement or invalid expense code.");
       }
       claimEmployees.set(claimId, entry.employeeId);
     }
@@ -100,8 +100,11 @@ async function verifySpendReceiptsBeforeSettlement(
           employeeId: claim.employeeId, sha256, byteSize,
         });
       } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        const code = ["RECEIPT_IDENTITY_INVALID", "RECEIPT_READ_UNAVAILABLE", "RECEIPT_SIZE_MISMATCH", "RECEIPT_HASH_MISMATCH"]
+          .includes(message) ? message : "RECEIPT_READ_UNAVAILABLE";
         throw new Error("RECEIPT_RELEASE_VERIFICATION_FAILED for claim #" + claim.id + ": " +
-          (error instanceof Error ? error.message : "private receipt unavailable"));
+          code);
       }
       verified.set(claim.id, { employeeId: claim.employeeId, storageKey, sha256, byteSize });
     }));
