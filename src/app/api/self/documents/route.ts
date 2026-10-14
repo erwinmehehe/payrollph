@@ -16,7 +16,9 @@ import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { isMandatoryDocumentMissing } from "@/lib/employee-document-vault";
-import { employeeDocumentMetadataJoin } from "@/lib/document-schema-compat";
+import {
+  employeeDocumentMetadataJoin, employeeDocumentRequirementJoin, employeePolicyVersionJoin,
+} from "@/lib/document-schema-compat";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +72,7 @@ export async function GET() {
       approvedByName: hcmPolicyVersions.approvedByName,
       approvedAt: hcmPolicyVersions.approvedAt,
     }).from(hcmPolicyAssignments)
-      .innerJoin(hcmPolicyVersions, eq(hcmPolicyAssignments.policyId, hcmPolicyVersions.id))
+      .innerJoin(hcmPolicyVersions, employeePolicyVersionJoin)
       .where(and(
         eq(hcmPolicyAssignments.organizationId, employee.organizationId),
         eq(hcmPolicyAssignments.employeeId, employee.id),
@@ -96,7 +98,7 @@ export async function GET() {
       scannedClean: documents.scannedClean,
       uploadedAt: documents.createdAt,
     }).from(hcmEmployeeDocumentCompliance)
-      .innerJoin(hcmDocumentRequirements, eq(hcmEmployeeDocumentCompliance.requirementId, hcmDocumentRequirements.id))
+      .innerJoin(hcmDocumentRequirements, employeeDocumentRequirementJoin)
       .leftJoin(documents, employeeDocumentMetadataJoin)
       .where(and(
         eq(hcmEmployeeDocumentCompliance.organizationId, employee.organizationId),
@@ -167,7 +169,7 @@ export async function POST(request: Request) {
     assignment: hcmPolicyAssignments,
     policy: hcmPolicyVersions,
   }).from(hcmPolicyAssignments)
-    .innerJoin(hcmPolicyVersions, eq(hcmPolicyAssignments.policyId, hcmPolicyVersions.id))
+    .innerJoin(hcmPolicyVersions, employeePolicyVersionJoin)
     .where(and(
       eq(hcmPolicyAssignments.id, assignmentId),
       eq(hcmPolicyAssignments.organizationId, employee.organizationId),
