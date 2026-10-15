@@ -23,12 +23,12 @@ function claimedCompletion() {
   ledger.deviceModel='Fictional physical Android device claim';
   ledger.browserVersion='Fictional mobile Chrome version claim';
   ledger.flags={livePayouts:false,governmentSubmission:false,realEmployeeData:false};
-  ledger.safetyVerification={
+  ledger.runtimeVerification={
     verifiedAtUtc:ago(5),verifierRef:'qa-safety-independent',
-    evidenceRef:'vault://fictional-853/runtime-flags',
-    servedBuildEvidenceRef:'vault://fictional-853/deployed-build',
-    databaseIsolationEvidenceRef:'vault://fictional-853/isolated-db',
-    fixtureVersionEvidenceRef:'vault://fictional-853/fixture-version',
+    payoutAndFilingConfigRef:'vault://fictional-853/runtime-flags',
+    deployedBuildRef:'vault://fictional-853/deployed-build',
+    databaseIsolationRef:'vault://fictional-853/isolated-db',
+    fixtureVersionRef:'vault://fictional-853/fixture-version',
   };
   ledger.identities={
     ownerBothId:'ownerAB',payrollOfficerAId:'payrollA',payrollOfficerBId:'payrollB',
@@ -70,9 +70,9 @@ test('blank v2 initializes 18 staged and 9 cross-tenant NOT_RUN checks without c
   assert.deepEqual(l.tests.filter(s=>s.tenant==='A').map(s=>s.id),STAGES.map(s=>'A_'+s[0]));
   assert.deepEqual(l.tests.filter(s=>s.tenant==='B').map(s=>s.id),STAGES.map(s=>'B_'+s[0]));
   assert.deepEqual(l.flags,{livePayouts:null,governmentSubmission:null,realEmployeeData:null});
-  assert.deepEqual(l.safetyVerification,{
-    verifiedAtUtc:'',verifierRef:'',evidenceRef:'',
-    servedBuildEvidenceRef:'',databaseIsolationEvidenceRef:'',fixtureVersionEvidenceRef:'',
+  assert.deepEqual(l.runtimeVerification,{
+    verifiedAtUtc:'',verifierRef:'',payoutAndFilingConfigRef:'',
+    deployedBuildRef:'',databaseIsolationRef:'',fixtureVersionRef:'',
   });
   assert.ok(l.tests.every(s=>s.observedStatus==='NOT_RUN' && s.blockerCode===''));
   const report=evaluate(l);
@@ -113,12 +113,12 @@ test('Gregorian pay periods and source-persona alignment fail closed',()=>{
 
 test('distinct proof references are mandatory for app build, isolated database and fixture version',()=>{
   const l=claimedCompletion();
-  l.safetyVerification.servedBuildEvidenceRef='';
+  l.runtimeVerification.deployedBuildRef='';
   assert.ok(evaluate(l).problems.some(s=>s.includes('separate private evidence')));
-  l.safetyVerification.servedBuildEvidenceRef='vault://fictional-853/deployed-build';
-  l.safetyVerification.fixtureVersionEvidenceRef=l.safetyVerification.databaseIsolationEvidenceRef;
+  l.runtimeVerification.deployedBuildRef='vault://fictional-853/deployed-build';
+  l.runtimeVerification.fixtureVersionRef=l.runtimeVerification.databaseIsolationRef;
   assert.ok(evaluate(l).problems.some(s=>s.includes('Duplicate private evidence reference')));
-  l.safetyVerification.fixtureVersionEvidenceRef='vault://fictional-853/fixture-version';
+  l.runtimeVerification.fixtureVersionRef='vault://fictional-853/fixture-version';
   assert.equal(evaluate(l).verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
 });
 
@@ -133,13 +133,13 @@ test('source, deployment, runtime flags and independently recorded safety are ma
   l.flags.extra=false;
   assert.ok(evaluate(l).problems.some(s=>s.includes('Unexpected or missing runtime safety flags')));
   delete l.flags.extra;
-  l.safetyVerification.evidenceRef='';
+  l.runtimeVerification.payoutAndFilingConfigRef='';
   assert.ok(evaluate(l).problems.some(s=>s.includes('dated human check')));
-  l.safetyVerification.evidenceRef='vault://fictional-853/runtime-flags';
-  l.safetyVerification.verifierRef=l.tests[0].observedBy;
+  l.runtimeVerification.payoutAndFilingConfigRef='vault://fictional-853/runtime-flags';
+  l.runtimeVerification.verifierRef=l.tests[0].observedBy;
   assert.ok(evaluate(l).problems.some(s=>s.includes('safety verifier must be independent')));
-  l.safetyVerification.verifierRef='qa-safety-independent';
-  l.safetyVerification.verifiedAtUtc=ago(3.5);
+  l.runtimeVerification.verifierRef='qa-safety-independent';
+  l.runtimeVerification.verifiedAtUtc=ago(3.5);
   assert.ok(evaluate(l).problems.some(s=>s.includes('predates running-app safety verification')));
 });
 
@@ -150,9 +150,9 @@ test('impossible or future UTC timestamps cannot support PASS, signoff, or runti
   l.tests[0].observedAtUtc=ago(-1);
   assert.equal(evaluate(l).verdict,'NOT_READY');
   l.tests[0].observedAtUtc=ago(4);
-  l.safetyVerification.verifiedAtUtc='2026-02-30T10:00:00Z';
+  l.runtimeVerification.verifiedAtUtc='2026-02-30T10:00:00Z';
   assert.equal(evaluate(l).verdict,'NOT_READY');
-  l.safetyVerification.verifiedAtUtc=ago(5);
+  l.runtimeVerification.verifiedAtUtc=ago(5);
   l.signoff.signedAtUtc=ago(4.5);
   assert.ok(evaluate(l).problems.some(s=>s.includes('signoff predates an observation')));
   l.signoff.signedAtUtc=ago(3);
