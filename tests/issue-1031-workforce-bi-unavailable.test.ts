@@ -9,7 +9,10 @@ const preflight = readFileSync("docs/sql/issue-1031-workforce-bi-read-only-prefl
 
 test("workforce planning preserves an honest unavailable state when its authoritative GET fails", () => {
   assert.match(planning, /const \[loadError, setLoadError\] = useState<string \| null>\(null\)/);
-  assert.match(planning, /if \(!response\.ok\) \{\s*setLoadError\(/);
+  const firstRead = planning.slice(planning.indexOf("  const load = useCallback("), planning.indexOf("  useEffect(() => { void load(); }, [load]);"));
+  const deniedRead = firstRead.slice(firstRead.indexOf("if (!response.ok) {"), firstRead.indexOf("setProfiles("));
+  assert.match(deniedRead, /setLoadedOrganizationId\(null\)/);
+  assert.match(deniedRead, /setLoadError\(/);
   assert.match(planning, /if \(loadError\) \{[\s\S]*?role="alert"[\s\S]*?Retry[\s\S]*?return \(/);
   const loadRead = planning.slice(planning.indexOf("  const load = useCallback("), planning.indexOf("  useEffect(() => { void load(); }, [load]);"));
   assert.doesNotMatch(loadRead, /setNotice\(/, "initial workforce load must not emit a success-style toast");
@@ -18,7 +21,11 @@ test("workforce planning preserves an honest unavailable state when its authorit
 });
 
 test("allocation fetch failures revoke old access and never present empty planning evidence as success", () => {
-  assert.match(allocations, /if \(!response\.ok\) \{\s*setAccess\(null\);\s*setAllocations\(\[\]\);\s*setSubmissions\(\[\]\)/);
+  const firstRead = allocations.slice(allocations.indexOf("  const load = useCallback("), allocations.indexOf("  useEffect(() => { void load(); }, [load]);"));
+  const deniedRead = firstRead.slice(firstRead.indexOf("if (!response.ok) {"), firstRead.indexOf("setAllocations(payload.allocations"));
+  for (const revocation of ["setLoadedOrganizationId(null);", "setAccess(null);", "setAllocations([]);", "setSubmissions([]);", "setLoadError("]) {
+    assert.ok(deniedRead.includes(revocation), revocation);
+  }
   assert.match(allocations, /if \(loadError\) \{[\s\S]*?role="alert"[\s\S]*?Retry/);
   assert.match(allocations, /if \(loading \|\| \(!loadError && loadedOrganizationId !== organizationId\)\) \{[\s\S]*?Loading workforce allocations/, "withhold previous allocation evidence during load or tenant switch");
   assert.match(allocations, /revision !== loadRevisionRef\.current/);
