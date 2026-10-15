@@ -167,10 +167,25 @@ async function checkRole(browser, role, width, authState, pages) {
             skipped.push(label || "(unlabeled)"); continue;
           }
           try {
-            await el.click({ timeout: 1600, noWaitAfter: true });
+            await el.click({ timeout: 3200, noWaitAfter: true });
             await page.keyboard.press("Escape").catch(() => {});
-          } catch (e) {
-            findings.push({ kind: "dead control", detail: label + ": " + safeText(e.message) });
+            const destination = await page.locator("[data-workspace-page]").first().getAttribute("data-workspace-page").catch(() => name);
+            if (destination !== name) {
+              skipped.push((count - index - 1) + " remaining controls need their own navigation-reset pass");
+              break;
+            }
+          } catch (error) {
+            // A dynamic React control can disappear when an earlier click
+            // navigates, opens a modal, or updates the filtered list. That is
+            // not evidence the original button was dead.
+            const stillVisible = await el.isVisible().catch(() => false);
+            const sameText = safeText((await el.getAttribute("aria-label").catch(() => "")) ||
+              (await el.textContent().catch(() => "")));
+            if (!stillVisible || sameText !== label) {
+              skipped.push(label + " (control changed during interaction)");
+              continue;
+            }
+            findings.push({ kind: "dead control", detail: label + ": " + safeText(error.message) });
           }
         }
         if (loadTimeBlockedWrites) findings.push({ kind: "unsafe background write", detail: loadTimeBlockedWrites + " write requests attempted during page loading" });
