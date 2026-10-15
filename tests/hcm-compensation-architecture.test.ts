@@ -162,10 +162,10 @@ test("compensation budget UI uses only the selected cycle and refreshes concurre
   // Confirm the UI passes the active cycle and that helper rejects other cycles.
   const budgetHelper = readFileSync("src/lib/hcm-compensation-cycle-budget-preview.ts", "utf8");
   assert.ok(panel.includes("summarizeCompensationCycleBudget(activeCycle ?? null, proposals)"));
-  assert.ok(panel.includes("[activeCycle, proposals]"));
+  assert.ok(panel.includes("[access?.companyWide, activeCycle, proposals]"));
   assert.ok(budgetHelper.includes("if (proposal.cycleId !== cycle.id) continue;"));
   assert.ok(panel.includes("response.status === 409) await load()"));
-  assert.ok(panel.includes("Only proposals in your assigned scope are shown"));
+  assert.ok(panel.includes("Only committed proposals in your assigned scope; organization budget is restricted"));
   assert.ok(panel.includes("remaining of"));
 });
 

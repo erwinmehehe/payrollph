@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { runWorkforceBiHttpAcceptance } from "./workforce-bi-http-acceptance";
 
 const base = process.env.SECURITY_SMOKE_URL ?? "http://127.0.0.1:3000";
 const readinessToken = process.env.READINESS_TOKEN ?? "";
@@ -113,8 +114,9 @@ async function main() {
     }),
   });
   assert.equal(setup.status, 201, "valid setup token must bootstrap an empty production database");
-  const setupBody = await setup.json() as { organizationId: number };
+  const setupBody = await setup.json() as { organizationId: number; user: { id: number } };
   assert.ok(Number.isInteger(setupBody.organizationId));
+  assert.ok(Number.isInteger(setupBody.user?.id), "setup must issue a real fictional owner account");
 
   const setCookie = setup.headers.get("set-cookie") ?? "";
   const sessionCookie = setCookie.split(";")[0];
@@ -217,6 +219,15 @@ async function main() {
     headers: { cookie: sessionCookie },
   });
   assert.equal(employeePortalAsOwner.status, 403, "owner session must not impersonate employee self-service");
+
+  // Exercise the REAL authenticated GET routes against TWO fictional employers
+  // in the disposable CI PG16 database, with no application auth bypass.
+  await runWorkforceBiHttpAcceptance({
+    baseUrl: base,
+    organizationId: setupBody.organizationId,
+    ownerUserId: setupBody.user.id,
+    ownerCookie: sessionCookie,
+  });
 
   console.log("Security HTTP smoke passed.");
 }
