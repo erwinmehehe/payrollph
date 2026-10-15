@@ -73,14 +73,18 @@ test("invalid source data never displays monetary amounts", () => {
 test("the parent compensation screen masks stale employer data and stale responses", () => {
   const source = readFileSync("src/components/compensation-panel.tsx", "utf8");
   assert.ok(source.includes("loadedOrganizationId !== organizationId"));
-  const draftReset = source.split("// The workspace retains this component across employer switching. A salary")[1]?.split("// An old-employer salary snapshot")[0] ?? "";
-  assert.match(draftReset, /useEffect\(\(\) => \{/);
-  assert.match(draftReset, /setBandForm\(\{/);
-  assert.match(draftReset, /setCycleForm\(\{/);
-  assert.match(draftReset, /setProposalForm\(\{/);
-  assert.match(draftReset, /setComponentForm\(\{/);
-  assert.match(draftReset, /setAssignmentForm\(\{/);
-  assert.match(draftReset, /\}, \[organizationId\]\);/);
+  // A keyed subtree resets every unsent salary, band, cycle and component
+  // draft before paint. React effect cleanup alone cannot prevent stale forms.
+  assert.match(source, /function CompensationPanel\(props: CompensationPanelProps\)/);
+  assert.match(source, /<ScopedCompensationPanel key=\{props\.organizationId\} \{\.\.\.props\} \/>/);
+  assert.match(source, /function ScopedCompensationPanel\(/);
+  assert.doesNotMatch(source, /useEffect\(\(\) => \{\s*setBandForm\(/);
+  assert.doesNotMatch(source, /useEffect\(\(\) => \{\s*setProposalForm\(/);
+  // Loading state is initially true and is restarted only by user interaction,
+  // not synchronously as a side effect of mounting.
+  assert.match(source, /const \[loading, setLoading\] = useState\(true\)/);
+  assert.match(source, /const refresh = \(\) => \{\s*setLoading\(true\)/);
+  assert.match(source, /useEffect\(\(\) => \{\s*void load\(\);\s*return invalidateInFlightLoad/);
   assert.ok(source.includes("requestSequence.current !== requestId"));
   assert.ok(source.includes("requestSequence.current++"));
   assert.ok(source.includes("setLoadedOrganizationId(organizationId)"));
