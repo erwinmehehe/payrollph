@@ -129,7 +129,7 @@ export function generateSchemaManifest(): SchemaManifest {
 
     const uniqueConstraints = named([
       ...config.uniqueConstraints.map((c) => ({
-        name: c.getName(), columns: c.columns.map((col) => col.name), nullsNotDistinct: c.nullsNotDistinct,
+        name: c.getName() ?? name + "_" + c.columns.map((col) => col.name).join("_") + "_unique", columns: c.columns.map((col) => col.name), nullsNotDistinct: c.nullsNotDistinct,
       })),
       ...config.columns.filter((c) => c.isUnique).map((c) => ({
         name: c.uniqueName ?? name + "_" + c.name + "_unique", columns: [c.name], nullsNotDistinct: c.uniqueType === "not distinct",
