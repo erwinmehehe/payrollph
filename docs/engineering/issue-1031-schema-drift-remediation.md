@@ -42,6 +42,23 @@ filing SQL is a **non-executable proposal pending independent DBA approval**.
 3. tests/issue-1031-financial-schema-preflight.test.mjs: source-only checks
    and a disposable localhost GitHub Actions PostgreSQL rehearsal that
    executes the proposed SQL twice on a fictional fixture and rolls back.
+4. docs/sql/issue-1031-dev-compensation-attendance-payout-repair.sql:
+   additive-only reconstruction of the 7 tables listed as "still absent"
+   above (compensation_bands/_cycles/_proposals/_components,
+   employee_compensation_components, attendance_exception_events,
+   employee_payout_change_requests), in their current final schema.ts shape
+   rather than a replay of the superseded intermediate migrations. Same
+   guard-and-reject pattern as docs/sql/issue-1031-dev-workforce-followups.sql.
+   Locally rehearsed against disposable PostgreSQL 16: full current schema
+   pushed, the 7 tables dropped to simulate this absent state, the repair
+   applied, then a second `drizzle-kit push` and a direct `pg_attribute`/
+   `pg_indexes` comparison confirmed zero further column, nullability, FK or
+   index drift. **Not yet applied to the connected dev branch** — that still
+   needs the same per-table rehearse-on-isolated-clone-then-apply treatment
+   already used for stages 1-2 in
+   docs/engineering/issue-1031-development-schema-restoration.md, performed
+   by whoever holds that Neon connection. tests/issue-1031-dev-compensation-attendance-repair.test.mjs
+   covers it with the same source-only checks as the stage 1/2 tests.
 
 ## Required DBA-controlled release procedure — currently NO-GO
 
