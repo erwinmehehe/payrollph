@@ -161,6 +161,14 @@ export function evaluate(ledger) {
     if (ledger.flags?.[key]!==false) blockers.push(key+' must explicitly be false following runtime verification');
   }
   const safety=ledger.runtimeVerification;
+  // A session cannot retrospectively claim runtime checks or observations made
+  // before this ledger was initialized. Human evidence needs a fresh session.
+  const sessionStart=validDate(ledger.createdUtc)?Date.parse(ledger.createdUtc):null;
+  const predatesSession=value=>sessionStart!==null && validDate(value) &&
+    Date.parse(value)<sessionStart;
+  if (predatesSession(safety?.verifiedAtUtc)) {
+    blockers.push('Runtime safety verification predates ledger session creation');
+  }
   const requiredRuntimeRefs=['payoutAndFilingConfigRef','deployedBuildRef','databaseIsolationRef','fixtureVersionRef'];
   if (!safety || !validDate(safety.verifiedAtUtc) || !meaningful(safety.verifierRef) ||
       requiredRuntimeRefs.some(key=>!EVIDENCE_REF.test(safety[key]||''))) {
@@ -214,6 +222,9 @@ export function evaluate(ledger) {
           scenario.independentReviewer===scenario.observedBy) {
         blockers.push('Observed row missing dated observation, private evidence and distinct reviewer: '+scenario.id);
       }
+      if (predatesSession(scenario.observedAtUtc)) {
+        blockers.push('Observed row predates ledger session creation: '+scenario.id);
+      }
       if (validDate(scenario.observedAtUtc) && validDate(safety?.verifiedAtUtc) &&
           Date.parse(scenario.observedAtUtc)<Date.parse(safety.verifiedAtUtc)) {
         blockers.push('Observed row predates running-app safety verification: '+scenario.id);
@@ -252,6 +263,9 @@ export function evaluate(ledger) {
       !validDate(ledger.signoff.signedAtUtc) ||
       !EVIDENCE_REF.test(ledger.signoff.privateEvidenceRef||'')) {
     blockers.push('Independent reviewer human signoff evidence not supplied');
+  }
+  if (predatesSession(ledger.signoff?.signedAtUtc)) {
+    blockers.push('Human signoff predates ledger session creation');
   }
   if (validDate(ledger.signoff?.signedAtUtc)) {
     const signedAt=Date.parse(ledger.signoff.signedAtUtc);
