@@ -183,13 +183,7 @@ async function checkRole(browser, role, width, authState, pages) {
       results.push(result);
       console.log("NAV_SWEEP " + result.result + " " + role + " " + width + "px " + name +
         (findings.length ? " :: " + findings.map(f => f.kind + ": " + f.detail).join(" | ") : ""));
-      // Reload between pages: closes any overlays and isolates per-route events.
-      if (name !== pages.at(-1)) {
-        current = "reset";
-        await page.goto(BASE + "/app" + (role === "employee" ? "" : "?organizationId=" + fixture.organizationId),
-          { waitUntil: "load", timeout: 60000 });
-        await page.locator("[data-workspace-role='" + role + "']").first().waitFor({ timeout: 60000 });
-      }
+      // The next destination gets a fresh load in its own reporting window.
     }
   } finally { await context.close(); }
 }
