@@ -20,6 +20,7 @@ test("disposable PG16: owner -> HR -> payroll resume, ready preview, zero payrol
   const { ensurePrimaryLegalEntity } = await import("../src/lib/legal-entity");
   const { saveJourneyProgress, readJourneyProgress } = await import("../src/lib/first-payroll-progress");
   const { loadReadOnlyFirstPayrollPreview } = await import("../src/lib/first-payroll-preview");
+  const { loadCanonicalFirstPayrollPreview } = await import("../src/lib/first-payroll-canonical-preview");
   const { encryptBankAccount } = await import("../src/lib/bank-account-crypto");
   const { encryptGovernmentId } = await import("../src/lib/government-id-crypto");
 
@@ -100,6 +101,19 @@ test("disposable PG16: owner -> HR -> payroll resume, ready preview, zero payrol
         periodEnd:"2026-10-15",payDate:"2026-10-15",
       }, tx as unknown as Pick<typeof db,"select">);
     });
+    const canonicalResult = await db.transaction(async tx => {
+      await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`);
+      return loadCanonicalFirstPayrollPreview({
+        organizationId: tenant.id, periodStart: "2026-10-01",
+        periodEnd: "2026-10-15", payDate: "2026-10-15",
+      }, tx as unknown as Pick<typeof db, "select">);
+    });
+    assert.equal(canonicalResult.dryRun, true);
+    assert.equal(canonicalResult.persisted, false);
+    assert.equal(canonicalResult.previewReady, true, JSON.stringify(canonicalResult.blockers));
+    assert.equal(canonicalResult.rows.length, 1);
+    assert.equal(canonicalResult.rows[0].gross, result.rows[0].gross);
+    assert.equal(canonicalResult.rows[0].net, result.rows[0].net);
     const after = await snapshot();
     assert.deepEqual(after,before,"Read-only preview must leave payroll, payslips, progress and audit unchanged");
     assert.equal(result.dryRun,true);
