@@ -40,5 +40,12 @@ test("protected read-only payroll route cannot bypass private response helpers",
   assert.match(source, /PAYROLL_VIEW_ROLES/);
   assert.match(source, /access\?\.companyWide/);
   assert.match(source, /READ ONLY/);
-  assert.match(source, /loadReadOnlyFirstPayrollPreview/);
+  // The complex-pay route must call the canonical worker projection through
+  // the same read-only, repeatable-read transaction; a renamed helper alone
+  // must not satisfy the privacy/authorization contract.
+  assert.match(source, /export async function GET\(/);
+  assert.match(source, /import \{ loadCanonicalFirstPayrollPreview \} from "@\/lib\/first-payroll-canonical-preview"/);
+  assert.match(source, /await tx\.execute\(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`\)/);
+  assert.match(source, /return loadCanonicalFirstPayrollPreview\(\{organizationId,periodStart,periodEnd,payDate\},tx\)/);
+  assert.doesNotMatch(source, /\b(?:db|tx)\.(?:insert|update|delete)\s*\(/);
 });
