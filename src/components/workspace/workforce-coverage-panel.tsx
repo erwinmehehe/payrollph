@@ -349,7 +349,7 @@ export function WorkforceCoveragePanel({
   const selectedAvailabilityEmployeeId = (payload?.employees ?? []).some(
     employee => employee.id === availabilityEmployeeId,
   ) ? availabilityEmployeeId : (payload?.employees[0]?.id ?? 0);
-  const selectedAvailabilityRows = (payload?.availability ?? [])
+  const selectedAvailabilityRows = (loading ? [] : payload?.availability ?? [])
     .filter(row => row.employeeId === selectedAvailabilityEmployeeId &&
       row.effectiveFrom <= endDate &&
       (!row.effectiveUntil || row.effectiveUntil >= startDate))
@@ -389,6 +389,9 @@ export function WorkforceCoveragePanel({
         ));
       }
     } catch (error) {
+      // A failed staffing source must never leave previously loaded employee
+      // preferences presented as the current planning window.
+      setPayload(null);
       notify(error instanceof Error ? error.message : "Could not load coverage planning.", "err");
     } finally {
       setLoading(false);
