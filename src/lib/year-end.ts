@@ -5,8 +5,8 @@ import { recordAuditEvent } from "@/lib/audit";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { annualize, ANNUALIZATION_RULE_VERSION, isSharedBenefitPoolEarningType, type AnnualizationResult } from "@/lib/annualization";
 import { readBasicAndThirteenth, retroSourceTaxYear } from "@/lib/final-pay";
-import { loadFinalPayRetroSourcePeriods } from "@/lib/final-pay-retro-source-lookup";
 import { round2 } from "@/lib/round";
+import { loadFinalPayRetroSourcePeriods } from "@/lib/final-pay-retro-source-lookup";
 
 type LineItem = {
   code?: string;
