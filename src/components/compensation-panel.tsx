@@ -154,6 +154,10 @@ export function CompensationPanel({
   const [loadedOrganizationId, setLoadedOrganizationId] = useState<number | null>(null);
   const [failedLoad, setFailedLoad] = useState<{ organizationId: number; message: string } | null>(null);
   const requestSequence = useRef(0);
+  // Stable cleanup callback invalidates only a superseded compensation read.
+  const invalidateInFlightLoad = useCallback(() => {
+    requestSequence.current++;
+  }, []);
 
   const [bandForm, setBandForm] = useState({
     gradeId: "",
@@ -240,8 +244,8 @@ export function CompensationPanel({
 
   useEffect(() => {
     void load();
-    return () => { requestSequence.current++; };
-  }, [load]);
+    return invalidateInFlightLoad;
+  }, [load, invalidateInFlightLoad]);
 
   async function post(entityType: string, payload: Record<string, unknown>) {
     const response = await fetch("/api/compensation", {
