@@ -94,6 +94,9 @@ export function workspacePrimaryPagesForRole(role: string | null | undefined) {
  */
 export function roleHasPeopleWorkspace(role: string | null | undefined): boolean {
   if (!role) return false;
+  // A manager's unit-scoped People roster is not company-wide HCM directory
+  // entitlement; never use menu visibility to broaden HCM discovery.
+  if (role === "manager") return false;
   const pages = workspacePagesForRole(role);
   return pages ? pages.includes("People") : role === "owner" || role === "admin";
 }

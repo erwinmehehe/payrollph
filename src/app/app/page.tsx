@@ -135,8 +135,8 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       {!pilotFocusEnabled && peopleHomeEnabledForOrganization(data.selectedOrganization.id) && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
     </div>
     <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} inlineFirstPayrollEnabled={inlineFirstPayrollEnabled} pilotFocusEnabled={pilotFocusEnabled} allowPeopleFocus={allowPeopleFocus} allowHirePayrollReview={allowHirePayrollReview} reviewTeamHref={canSeeMyTeam ? "/hcm/my-team?organizationId=" + data.selectedOrganization.id : null} optionalUiCapabilities={{
-      overpaymentPreview: process.env.HCM_OVERPAYMENT_PREVIEW_ENABLED === "true",
-      overpaymentInvestigation: process.env.PAYROLL_OVERPAYMENT_REVIEW_ENABLED === "true",
+      overpaymentPreview: criticalReleaseFlagEnabled("overpaymentPreview"),
+      overpaymentInvestigation: criticalReleaseFlagEnabled("overpaymentInvestigation"),
       tenantReportBuilder: criticalReleaseFlagEnabled("tenantReportBuilder"),
     }} />
   </WorkflowUiProvider>;
