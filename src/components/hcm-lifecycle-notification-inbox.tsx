@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { AlertTriangle, BellRing, CheckCircle2, Clock3, RefreshCw, UserRoundCog } from "lucide-react";
+import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
 import { HcmEmploymentDecisionEvidence } from "@/components/hcm-employment-decision-evidence";
 
 type LifecycleTask = {
@@ -42,39 +43,52 @@ function readable(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function HcmLifecycleNotificationInbox({
-  organizationId,
-  onOpenEmployee,
-  onOpenSeparation,
-}: {
+type LifecycleNotificationProps = {
   organizationId: number;
   onOpenEmployee: (employeeId: number) => void;
   onOpenSeparation: () => void;
-}) {
-  const [payload, setPayload] = useState<Payload | null>(null);
+};
+
+export function HcmLifecycleNotificationInbox(props: LifecycleNotificationProps) {
+  return <LifecycleNotificationContent key={props.organizationId} {...props} />;
+}
+
+function LifecycleNotificationContent({
+  organizationId,
+  onOpenEmployee,
+  onOpenSeparation,
+}: LifecycleNotificationProps) {
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [evidenceDecisionId, setEvidenceDecisionId] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    setError("");
+  const fetchNotifications = useCallback(async (signal: AbortSignal): Promise<Payload> => {
+    let response: Response;
     try {
-      const response = await fetch(
+      response = await fetch(
         `/api/hcm/lifecycle-notifications?organizationId=${organizationId}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal },
       );
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? "Could not load lifecycle notifications.");
-      setPayload(data as Payload);
-    } catch (loadError) {
-      setPayload(null);
-      setError(loadError instanceof Error ? loadError.message : "Could not load lifecycle notifications.");
+    } catch {
+      throw new Error("Could not load lifecycle notifications.");
     }
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(typeof data?.error === "string" ? data.error : "Could not load lifecycle notifications.");
+    }
+    if (!data || !Array.isArray(data.tasks) || !Array.isArray(data.owners) || typeof data.canAssign !== "boolean") {
+      throw new Error("Lifecycle notifications could not be verified.");
+    }
+    return data as Payload;
   }, [organizationId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Employer-keyed remount clears local selected decisions. The shared request
+  // owner aborts retired GETs and never displays stale tasks or failure states.
+  const { data: payload, error: loadError, reload } = useScopedAsyncResource(
+    "hcm-lifecycle-notifications:" + organizationId,
+    fetchNotifications,
+  );
+  const visibleError = error || loadError?.message || "";
 
   async function mutate(taskId: number, action: string, extra: Record<string, unknown> = {}) {
     setBusyId(taskId);
@@ -87,7 +101,7 @@ export function HcmLifecycleNotificationInbox({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Could not update lifecycle notification.");
-      await load();
+      await reload();
     } catch (mutationError) {
       setError(mutationError instanceof Error ? mutationError.message : "Could not update lifecycle notification.");
     } finally {
@@ -112,12 +126,12 @@ export function HcmLifecycleNotificationInbox({
             decisions, worker status, or Separation.
           </p>
         </div>
-        <button className="secondary-button" onClick={() => void load()}>
+        <button className="secondary-button" onClick={() => { setError(""); void reload(); }}>
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
 
-      {error && <div className="notice notice-amber" style={{ marginBottom: 12 }}><AlertTriangle size={15} /><span>{error}</span></div>}
+      {visibleError && <div className="notice notice-amber" style={{ marginBottom: 12 }}><AlertTriangle size={15} /><span>{visibleError}</span></div>}
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))", marginBottom: 14 }}>
         <article className="stat-card">
@@ -278,7 +292,7 @@ export function HcmLifecycleNotificationInbox({
             organizationId={organizationId}
             decisionId={evidenceDecisionId}
             compact
-            onChanged={load}
+            onChanged={reload}
           />
         </div>
       )}

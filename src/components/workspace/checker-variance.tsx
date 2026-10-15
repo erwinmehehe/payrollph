@@ -121,19 +121,27 @@ const priorityCategories: Category[] = [
   "statutory",
 ];
 
-export function CheckerVarianceCenter({
-  run,
-  payrollTask,
-  busy,
-  canDecide,
-  onDecide,
-}: {
+type CheckerVarianceProps = {
   run: PayrollRun;
   payrollTask: Task | null;
   busy: boolean;
   canDecide: boolean;
   onDecide: (id: number, status: "Approved" | "Declined") => Promise<void>;
-}) {
+};
+
+export function CheckerVarianceCenter(props: CheckerVarianceProps) {
+  // Switching the selected run must discard its prior employee details,
+  // filters and fetched variance before the new run can paint.
+  return <CheckerVarianceContent key={props.run.id} {...props} />;
+}
+
+function CheckerVarianceContent({
+  run,
+  payrollTask,
+  busy,
+  canDecide,
+  onDecide,
+}: CheckerVarianceProps) {
   const [payload, setPayload] = useState<VariancePayload | null>(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Category | "all">("all");
@@ -141,8 +149,7 @@ export function CheckerVarianceCenter({
 
   useEffect(() => {
     let alive = true;
-    setPayload(null);
-    setError("");
+    // The run-keyed child starts with empty state; no post-paint clearing.
     (async () => {
       try {
         const response = await fetch(`/api/payroll-runs/${run.id}/variance`, { cache: "no-store" });
