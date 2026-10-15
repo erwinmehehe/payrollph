@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowRight, ClipboardCheck, FileCheck2, RefreshCw, Search, UsersRound,
+  ArrowRight, ClipboardCheck, FileCheck2, RefreshCw, Search, UserPlus, UsersRound,
 } from "lucide-react";
 import {
   buildOnboardingChecklistGroups,
@@ -26,6 +26,7 @@ export function HrisOnboardingChecklist({
   provisioning,
   onRefresh,
   onOpenEmployee,
+  onAddEmployee,
   onOpenDocuments,
   allowHirePayrollReview = false,
 }: {
@@ -34,6 +35,8 @@ export function HrisOnboardingChecklist({
   provisioning: readonly OnboardingTask[] | undefined;
   onRefresh: () => Promise<void>;
   onOpenEmployee: (employeeId: number) => void;
+  /** Launches the existing authorized employee creation workflow, not a second hire record. */
+  onAddEmployee?: () => void;
   onOpenDocuments?: () => void;
   allowHirePayrollReview?: boolean;
 }) {
@@ -152,10 +155,18 @@ export function HrisOnboardingChecklist({
             These tasks are stored in the existing provisioning workflow, not a second checklist.
           </p>
         </div>
-        <button type="button" onClick={() => void refreshSnapshot()} disabled={busyId !== null}
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50">
-          <RefreshCw size={15} aria-hidden="true"/> Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onAddEmployee && (
+            <button type="button" onClick={onAddEmployee}
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-900 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+              <UserPlus size={16} aria-hidden="true"/> Add employee &amp; start onboarding
+            </button>
+          )}
+          <button type="button" onClick={() => void refreshSnapshot()} disabled={busyId !== null}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50">
+            <RefreshCw size={15} aria-hidden="true"/> Refresh
+          </button>
+        </div>
       </div>
 
       {provisioning === undefined ? (
