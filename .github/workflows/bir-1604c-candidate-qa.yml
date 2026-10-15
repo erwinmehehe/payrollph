@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'src/lib/bir-1604c-*.ts'
+      - 'src/lib/bir-2316-*.ts'
+      - 'src/lib/annualization.ts'
+      - 'tests/bir-2316*'
       - 'src/lib/bir-annual-employer-source.ts'
       - 'src/app/api/bir/annual-employer/**'
       - 'src/components/workspace/bir-1604c-candidate-panel.tsx'
@@ -84,8 +87,8 @@ jobs:
             -addext "subjectAltName=IP:127.0.0.1,DNS:localhost" >/dev/null 2>&1
       - name: Start flag-on and flag-off servers
         run: |
-          BIR_1604C_DAT_CANDIDATE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/bir-1604c-on.log 2>&1 &
-          BIR_1604C_DAT_CANDIDATE_ENABLED=false npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/bir-1604c-off.log 2>&1 &
+          BIR_2316_RECONCILIATION_ENABLED=true BIR_1604C_DAT_CANDIDATE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/bir-1604c-on.log 2>&1 &
+          BIR_2316_RECONCILIATION_ENABLED=false BIR_1604C_DAT_CANDIDATE_ENABLED=false npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/bir-1604c-off.log 2>&1 &
           for port in 3000 3001; do
             ready=false
             for attempt in $(seq 1 60); do

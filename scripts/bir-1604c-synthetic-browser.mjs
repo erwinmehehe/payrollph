@@ -249,6 +249,35 @@ try {
     results.push({ checkpoint: "flag-off-legacy-year-end-" + width + "px", result: "pass", evidenceRequests: 0 });
     await context.close();
   }
+  // Execute the actual authenticated printable 2316 route in both flag modes.
+  for (const enabled of [true, false]) {
+    const base = enabled ? "https://127.0.0.1:3443" : "https://127.0.0.1:3444";
+    const url = base + "/api/year-end?format=2316-print&organizationId=" + fixture.organizationId + "&taxYear=2025&employeeId=" + fixture.employeeId;
+    const response = await owner.request.get(url);
+    assert.equal(response.status(), 200, "2316 review uses authorized exact employee source");
+    assert.match(response.headers()["cache-control"], /private/);
+    const html = await response.text();
+    assert.equal(html.includes("data-bir-2316-reconciliation"), enabled);
+    if (enabled) {
+      assert.match(html, /SETTLEMENT_UNVERIFIED/);
+      assert.match(html, /PREVIOUS_EMPLOYER_UNVERIFIED/);
+      assert.match(html, /REQUIRES VERIFIED SOURCE/);
+    }
+    for (const width of [1280, 390]) {
+      const context = await browser.newContext({ viewport: { width, height: 900 }, ignoreHTTPSErrors: true, storageState: await owner.storageState() });
+      const reviewPage = await context.newPage();
+      await reviewPage.goto(url);
+      assert.equal(await reviewPage.locator("[data-bir-2316-reconciliation]").count(), enabled ? 1 : 0);
+      if (enabled) await reviewPage.locator("[data-bir-2316-reconciliation]").scrollIntoViewIfNeeded();
+      await reviewPage.screenshot({ path: outDir + "/2316-review-" + (enabled ? "on-" : "off-") + width + ".png", fullPage: true });
+      await context.close();
+    }
+    const reviewEmployee = await login("employee");
+    const denied = await reviewEmployee.request.get(url);
+    assert.equal(denied.status(), 403, "non-payroll employee cannot access 2316 review");
+    await reviewEmployee.close();
+    results.push({ checkpoint: "2316-review-" + (enabled ? "on" : "off"), result: "pass", widths: [1280, 390], sourceStatusDoesNotProveSettlement: true });
+  }
   await owner.close();
   await writeFile(outDir + "/results.json", JSON.stringify({
     status: "PASS", syntheticOnly: true, validatedByBir: false,
