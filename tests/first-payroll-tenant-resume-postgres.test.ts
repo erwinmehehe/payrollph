@@ -196,10 +196,14 @@ test("disposable PG16: five-worker canonical parity versus a no-release payroll 
       {organizationId:orgA.id,employeeId:workers[1].id,workDate:"2026-10-07",
         timeIn:new Date("2026-10-07T09:00:00+08:00"),
         timeOut:new Date("2026-10-07T18:00:00+08:00"),
+        breakStart:new Date("2026-10-07T12:00:00+08:00"),
+        breakEnd:new Date("2026-10-07T13:00:00+08:00"),
         shiftStart:"09:00",shiftEnd:"18:00",status:"Complete"},
       {organizationId:orgA.id,employeeId:workers[2].id,workDate:"2026-10-08",
         timeIn:new Date("2026-10-08T09:00:00+08:00"),
         timeOut:new Date("2026-10-08T20:00:00+08:00"),
+        breakStart:new Date("2026-10-08T12:00:00+08:00"),
+        breakEnd:new Date("2026-10-08T13:00:00+08:00"),
         shiftStart:"09:00",shiftEnd:"18:00",status:"Complete"},
     ]);
     await db.insert(overtimeRequests).values({
@@ -216,11 +220,14 @@ test("disposable PG16: five-worker canonical parity versus a no-release payroll 
       organizationId:orgA.id,leaveType:"Vacation",annualDays:"15",
       payTreatment:"paid",paidPercentage:"100",active:true,
     });
-    await db.insert(leaveRequests).values({
-      organizationId:orgA.id,employeeId:workers[3].id,leaveType:"Vacation",
+    // The local regular holiday on Oct 10 requires verified eligibility on
+    // the preceding scheduled workday. Approved paid leave on Oct 9 supplies
+    // that evidence for the daily/hourly workers; no artificial punch is added.
+    await db.insert(leaveRequests).values([workers[1],workers[2],workers[3]].map(worker=>({
+      organizationId:orgA.id,employeeId:worker.id,leaveType:"Vacation",
       startDate:"2026-10-09",endDate:"2026-10-09",days:"1",
-      status:"Approved",reason:"Synthetic leave",
-    });
+      status:"Approved",reason:"Synthetic approved leave and holiday eligibility",
+    })));
     await db.insert(holidays).values({organizationId:orgA.id,
       holidayDate:"2026-10-10",name:"Fictional Local Holiday",kind:"regular"});
     await db.insert(employeeLoans).values({
