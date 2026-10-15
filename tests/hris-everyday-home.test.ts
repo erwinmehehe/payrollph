@@ -54,6 +54,18 @@ test("secondary shortcuts and employee search still inherit authorization", () =
   assert.ok(app.includes('data.selectedOrganization.id'));
 });
 
+test("Everyday HR direct hire opens the existing role-gated employee workflow", () => {
+  const checklist = read("src/components/hris-onboarding-checklist.tsx");
+  const workspace = read("src/components/linaw-workspace.tsx");
+  assert.ok(checklist.includes("Add employee &amp; start onboarding"));
+  assert.ok(checklist.includes("onClick={onAddEmployee}"));
+  assert.ok(workspace.includes("onAddEmployee={canUsePeopleOps && !demoRole ? () => setNewHireOpen(true) : undefined}"));
+  assert.ok(workspace.includes("<NewHireModal"));
+  assert.ok(workspace.includes("onCreated={async () => {"));
+  // The shortcut is presentation-only; the existing POST /api/employees is the authority.
+  assert.ok(!checklist.includes('fetch("/api/employees"'));
+});
+
 test("People Home does not lead enrolled Core HR into a paid Action Center dead end", () => {
   const optedIn = { HCM_ENTERPRISE_PLAN_GATE_ENABLED: "true", HCM_ENTERPRISE_PLAN_GATE_ORG_IDS: "17" };
   const enterprise = {
