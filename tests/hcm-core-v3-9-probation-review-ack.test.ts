@@ -194,3 +194,23 @@ test("decision evidence UI distinguishes sealed review evidence from later recei
   assert.ok(component.includes("Receipt acknowledged"));
   assert.ok(component.includes("outside the sealed approval hash"));
 });
+
+test("initial employee probation review read is abortable and never posts from an effect", () => {
+  const ui = read("src/components/hcm-self-probation-reviews.tsx");
+  const effectStart = ui.indexOf("  useEffect(() => {");
+  const effectEnd = ui.indexOf("  }, []);", effectStart);
+  assert.ok(effectStart >= 0 && effectEnd > effectStart);
+  const effect = ui.slice(effectStart, effectEnd);
+  assert.ok(effect.includes("const controller = new AbortController()"));
+  assert.ok(effect.includes("signal: controller.signal"));
+  assert.ok(effect.includes('fetch("/api/self/probation-reviews"'));
+  assert.ok(effect.includes(".then(async (response) => {"));
+  assert.ok(effect.includes("controller.signal.aborted"));
+  assert.ok(effect.includes("return () => controller.abort()"));
+  assert.equal(effect.includes("void load()"), false);
+  assert.equal(effect.includes('method: "POST"'), false);
+  // Receipt acknowledgment remains an explicit, separate user action.
+  assert.ok(ui.includes("if (!confirmed[reviewId]) return;"));
+  assert.ok(ui.includes('method: "POST"'));
+  assert.ok(ui.includes("Receipt acknowledgment recorded. This does not mean you agreed with the review."));
+});
