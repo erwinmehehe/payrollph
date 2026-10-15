@@ -75,3 +75,25 @@ test("M-10: reconciliation rows retain source month and signed centavos but neve
     ["STATUTORY_RETRO_PRIOR_MONTH_REVIEW", "STATUTORY_RETRO_SOURCE_UNVERIFIED", "STATUTORY_RETRO_INVALID_SOURCE"],
   );
 });
+
+
+test("M-10: source amounts that cannot be represented in centavos fail closed", () => {
+  const rows = retroAgencyReconciliationRows({
+    ...period,
+    adjustments: [
+      { ...retro, id: 47, amount: 1.234 },
+      { ...retro, id: 48, amount: 0.01 },
+      { ...retro, id: 49, amount: -0.01 },
+      { ...retro, id: 50, amount: Number.MAX_VALUE },
+    ],
+  });
+  assert.deepEqual(rows.map(row => row.status), [
+    "invalid_adjustment", "same_cutoff_month", "same_cutoff_month", "invalid_adjustment",
+  ]);
+  assert.deepEqual(rows.map(row => row.amountCentavos), [null, 1, -1, null]);
+  assert.equal(rows[0].requiresAgencyReview, true);
+  assert.match(reviewRetroStatutorySourcePeriods({
+    ...period,
+    adjustments: [{ ...retro, id: 47, amount: 1.234 }],
+  })[0], /STATUTORY_RETRO_INVALID_SOURCE/);
+});
