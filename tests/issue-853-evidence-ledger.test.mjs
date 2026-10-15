@@ -1,77 +1,201 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
+import {mkdtemp, readFile, rm, symlink} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {dirname, join, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {makeBlankLedger, evaluate, STAGES, CROSS_TENANT} from '../scripts/qa/issue-853-evidence-ledger.mjs';
 
-test('blank journey cannot pass and includes exactly 18 staged plus 9 shared checks',()=>{
-  const ledger=makeBlankLedger();
-  assert.equal(STAGES.length,9);
-  assert.equal(CROSS_TENANT.length,9);
-  assert.equal(ledger.tests.length,27);
-  assert.equal(new Set(ledger.tests.map(x=>x.id)).size,27);
-  assert.deepEqual(ledger.tests.filter(x=>x.tenant==='A').map(x=>x.id),STAGES.map(x=>'A_'+x[0]));
-  assert.deepEqual(ledger.tests.filter(x=>x.tenant==='B').map(x=>x.id),STAGES.map(x=>'B_'+x[0]));
-  const report=evaluate(ledger);
-  assert.equal(report.verdict,'NOT_READY');
-  assert.equal(report.passed,0);
-  assert.equal(report.blocked,27);
-});
+const repoRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+const script=join(repoRoot,'scripts/qa/issue-853-evidence-ledger.mjs');
+const ago=hours=>new Date(Date.now()-hours*3600_000).toISOString();
 
-test('cannot bypass tenant, reviewer, device, or payout requirements with PASS labels',()=>{
+function claimedCompletion() {
+  // Fictional, deliberately self-reported fixture only; never an authenticated human witness.
   const ledger=makeBlankLedger();
-  for (const row of ledger.tests)row.observedStatus='PASS';
-  const report=evaluate(ledger);
-  assert.equal(report.verdict,'NOT_READY');
-  assert.equal(report.passed,27);
-  assert.ok(report.problems.some(s=>s.includes('distinct reviewer')));
-  ledger.flags.livePayouts=true;
-  assert.ok(evaluate(ledger).problems.some(s=>s.includes('livePayouts')));
-  ledger.tests.pop();
-  assert.ok(evaluate(ledger).problems.some(s=>s.includes('missing or duplicated')));
-});
-
-function prepareClaimedCompletion(){
-  const ledger=makeBlankLedger(),sha='a'.repeat(40);
-  ledger.sourceSha=sha;ledger.deployedSha=sha;
-  ledger.developmentUrl='https://development.example.invalid';
-  ledger.deviceModel='Test Android handset (manual claim)';
-  ledger.browserVersion='Mobile Chrome test-version';
-  ledger.identities={ownerBothId:'ownerAB',payrollOfficerAId:'payrollA',payrollOfficerBId:'payrollB',checkerBothId:'checkerAB',employeeAId:'empA',employeeBId:'empB'};
-  for(const row of ledger.tests){
+  const sha='a'.repeat(40);
+  ledger.sourceSha=sha;
+  ledger.deployedSha=sha;
+  ledger.developmentUrl='https://fictional-qa.example.invalid';
+  ledger.deviceModel='Fictional physical Android device claim';
+  ledger.browserVersion='Fictional mobile Chrome version claim';
+  ledger.flags={livePayouts:false,governmentSubmission:false,realEmployeeData:false};
+  ledger.safetyVerification={
+    verifiedAtUtc:ago(5),verifierRef:'qa-safety-independent',
+    evidenceRef:'vault://fictional-853/runtime-flags',
+  };
+  ledger.identities={
+    ownerBothId:'ownerAB',payrollOfficerAId:'payrollA',payrollOfficerBId:'payrollB',
+    checkerBothId:'checkerAB',employeeAId:'empA',employeeBId:'empB',
+  };
+  for (const row of ledger.tests) {
     row.observedStatus='PASS';
-    row.observedAtUtc='2026-10-14T10:00:00Z';
-    row.observedBy='operator-A';
-    row.evidenceRef='private://evidence-853/'+row.id;
-    row.independentReviewer='reviewer-B';
+    row.observedAtUtc=ago(4);
+    row.observedBy='test-operator';
+    row.evidenceRef='vault://fictional-853/'+row.id;
+    row.independentReviewer='independent-checker';
   }
-  ledger.signoff={independentReviewerId:'reviewer-B',signedAtUtc:'2026-10-14T12:00:00Z',privateEvidenceRef:'private://evidence-853/signoff'};
+  ledger.signoff={
+    independentReviewerId:'independent-checker',
+    signedAtUtc:ago(3),
+    privateEvidenceRef:'vault://fictional-853/signoff',
+  };
   return ledger;
 }
 
-test('all claims must still be labeled self-reported rather than certified human acceptance',()=>{
-  const l=prepareClaimedCompletion(),result=evaluate(l);
+test('blank v2 initializes 18 staged and 9 cross-tenant NOT_RUN checks without claiming safety',()=>{
+  const l=makeBlankLedger();
+  assert.equal(l.schema,'payrollph-issue853-human-acceptance-v2');
+  assert.equal(STAGES.length,9);
+  assert.equal(CROSS_TENANT.length,9);
+  assert.equal(l.tests.length,27);
+  assert.equal(new Set(l.tests.map(s=>s.id)).size,27);
+  assert.deepEqual(l.tests.filter(s=>s.tenant==='A').map(s=>s.id),STAGES.map(s=>'A_'+s[0]));
+  assert.deepEqual(l.tests.filter(s=>s.tenant==='B').map(s=>s.id),STAGES.map(s=>'B_'+s[0]));
+  assert.deepEqual(l.flags,{livePayouts:null,governmentSubmission:null,realEmployeeData:null});
+  assert.deepEqual(l.safetyVerification,{verifiedAtUtc:'',verifierRef:'',evidenceRef:''});
+  assert.ok(l.tests.every(s=>s.observedStatus==='NOT_RUN' && s.blockerCode===''));
+  const report=evaluate(l);
+  assert.equal(report.verdict,'NOT_READY');
+  assert.deepEqual([report.passed,report.needsFix,report.blocked,report.notRun],[0,0,0,27]);
+  assert.ok(report.problems.some(p=>p.includes('runtime verification')));
+});
+
+test('old v1 packet is refused, not silently migrated to v2',()=>{
+  const l=makeBlankLedger();
+  l.schema='payrollph-issue853-human-acceptance-v1';
+  assert.equal(evaluate(l).verdict,'NOT_READY');
+  assert.ok(evaluate(l).problems.some(s=>s.includes('archive v1')));
+});
+
+test('complete fictional operator claims can only be externally verified, never certified by script',()=>{
+  const l=claimedCompletion(), result=evaluate(l);
   assert.equal(result.verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
   assert.equal(result.total,27);
-  assert.equal(result.passed,27);
-  assert.equal(result.problems.length,0);
+  assert.deepEqual([result.passed,result.needsFix,result.blocked,result.notRun],[27,0,0,0]);
+  assert.deepEqual(result.problems,[]);
+  assert.match(result.note,/cannot witness, authenticate or certify/);
+});
+
+test('source, deployment, runtime flags and independently recorded safety are mandatory',()=>{
+  const l=claimedCompletion();
   l.deployedSha='b'.repeat(40);
   assert.equal(evaluate(l).verdict,'NOT_READY');
   l.deployedSha=l.sourceSha;
-  l.tests[5].independentReviewer=l.tests[5].observedBy;
-  assert.equal(evaluate(l).verdict,'NOT_READY');
-  l.tests[5].independentReviewer='reviewer-B';
-  l.tests[4].evidenceRef='https://public.example.net/employee/ssn';
-  assert.equal(evaluate(l).verdict,'NOT_READY');
+  l.flags.livePayouts=null;
+  assert.ok(evaluate(l).problems.some(s=>s.includes('livePayouts')));
+  l.flags.livePayouts=false;
+  l.flags.extra=false;
+  assert.ok(evaluate(l).problems.some(s=>s.includes('Unexpected or missing runtime safety flags')));
+  delete l.flags.extra;
+  l.safetyVerification.evidenceRef='';
+  assert.ok(evaluate(l).problems.some(s=>s.includes('dated human check')));
+  l.safetyVerification.evidenceRef='vault://fictional-853/runtime-flags';
+  l.safetyVerification.verifierRef=l.tests[0].observedBy;
+  assert.ok(evaluate(l).problems.some(s=>s.includes('safety verifier must be independent')));
+  l.safetyVerification.verifierRef='qa-safety-independent';
+  l.safetyVerification.verifiedAtUtc=ago(3.5);
+  assert.ok(evaluate(l).problems.some(s=>s.includes('predates running-app safety verification')));
 });
 
-test('unknown, duplicated and weakened expected cases cannot pass',()=>{
-  const l=prepareClaimedCompletion();
+test('impossible or future UTC timestamps cannot support PASS, signoff, or runtime safety',()=>{
+  const l=claimedCompletion();
+  l.tests[0].observedAtUtc='2026-02-30T10:00:00Z';
+  assert.equal(evaluate(l).verdict,'NOT_READY');
+  l.tests[0].observedAtUtc=ago(-1);
+  assert.equal(evaluate(l).verdict,'NOT_READY');
+  l.tests[0].observedAtUtc=ago(4);
+  l.safetyVerification.verifiedAtUtc='2026-02-30T10:00:00Z';
+  assert.equal(evaluate(l).verdict,'NOT_READY');
+  l.safetyVerification.verifiedAtUtc=ago(5);
+  l.signoff.signedAtUtc=ago(4.5);
+  assert.ok(evaluate(l).problems.some(s=>s.includes('signoff predates an observation')));
+  l.signoff.signedAtUtc=ago(3);
+  l.createdUtc='2026-02-30T10:00:00Z';
+  assert.ok(evaluate(l).problems.some(s=>s.includes('session identity')));
+});
+
+test('modified controls, missing cases, duplicate IDs and non-HTTPS URL cannot become PASS',()=>{
+  const l=claimedCompletion();
   l.tests[0].expected='Any employee is allowed';
   assert.equal(evaluate(l).verdict,'NOT_READY');
   l.tests[0].expected=STAGES[0][2];
   l.tests[1].id=l.tests[0].id;
-  assert.equal(evaluate(l).verdict,'NOT_READY');
+  assert.ok(evaluate(l).problems.some(s=>s.includes('missing or duplicated')));
   l.tests[1].id='A_ONBOARD';
+  l.developmentUrl='https://user:secret@example.invalid';
+  assert.ok(evaluate(l).problems.some(s=>s.includes('credential-free')));
+  l.developmentUrl='https://fictional-qa.example.invalid';
+  l.identities.employeeAId=l.identities.employeeBId;
+  assert.ok(evaluate(l).problems.some(s=>s.includes('All 6 test actor identities must be distinct')));
+});
+
+test('PASS cannot carry stale defects and independent evidence must be distinct across checks',()=>{
+  const l=claimedCompletion();
+  l.tests[0].defectRef='BUG-853-OPEN';
+  assert.ok(evaluate(l).problems.some(s=>s.includes('PASS has unresolved defect')));
+  l.tests[0].defectRef='';
+  l.tests[1].evidenceRef=l.tests[0].evidenceRef;
+  assert.ok(evaluate(l).problems.some(s=>s.includes('Duplicate private evidence reference')));
+  l.tests[1].evidenceRef='vault://fictional-853/A_ONBOARD';
+  l.tests[1].independentReviewer=l.tests[1].observedBy;
+  assert.ok(evaluate(l).problems.some(s=>s.includes('distinct reviewer')));
+  l.tests[1].independentReviewer='independent-checker';
+  l.tests[0].observedBy='independent-checker';
+  assert.ok(evaluate(l).problems.some(s=>s.includes('Final independent reviewer cannot sign off')));
+});
+
+test('NEEDS_FIX requires witnessed observation and opaque BUG ID; BLOCKED and NOT_RUN carry no observations',()=>{
+  const l=claimedCompletion();
+  l.tests[0].observedStatus='NEEDS_FIX';
+  l.tests[0].defectRef='BUG-853-HIRE';
+  let result=evaluate(l);
+  assert.equal(result.needsFix,1);
+  assert.equal(result.passed,26);
+  assert.equal(result.verdict,'NOT_READY');
+  l.tests[0].defectRef='';
+  assert.ok(evaluate(l).problems.some(s=>s.includes('NEEDS_FIX requires opaque BUG-')));
+  l.tests[0].defectRef='BUG-853-HIRE';
+  l.tests[0].observedAtUtc='';
+  assert.ok(evaluate(l).problems.some(s=>s.includes('Observed row missing dated observation')));
+  l.tests[0].observedStatus='BLOCKED';
+  l.tests[0].blockerCode='DEVICE';
+  assert.ok(evaluate(l).problems.some(s=>s.includes('BLOCKED cannot contain claimed observation')));
+  Object.assign(l.tests[0],{
+    observedAtUtc:'',observedBy:'',evidenceRef:'',independentReviewer:'',defectRef:'',
+  });
+  result=evaluate(l);
+  assert.equal(result.blocked,1);
+  assert.equal(result.passed,26);
+  l.tests[0].blockerCode='';
+  assert.ok(evaluate(l).problems.some(s=>s.includes('BLOCKED requires an approved blocker code')));
+  l.tests[0].observedStatus='NOT_RUN';
+  l.tests[0].blockerCode='';
+  l.tests[0].observedAtUtc=ago(4);
+  assert.ok(evaluate(l).problems.some(s=>s.includes('NOT_RUN cannot contain stale observation')));
   l.tests[0].observedStatus='FAIL';
-  l.tests[0].defectRef='private-ticket-853-01';
-  assert.equal(evaluate(l).verdict,'NOT_READY');
+  assert.ok(evaluate(l).problems.some(s=>s.includes('Invalid status')));
+});
+
+test('CLI init is non-overwriting, private-only; check exits 2 without fabricated evidence',async()=>{
+  const home=await mkdtemp(join(tmpdir(),'issue853-v2-test-'));
+  try {
+    const pathname=join(home,'private-evidence','ledger.json');
+    const run=(verb,file)=>spawnSync(process.execPath,[script,verb,file],{encoding:'utf8',cwd:repoRoot});
+    const first=run('init',pathname);
+    assert.equal(first.status,0,first.stderr);
+    assert.match(first.stdout,/All statuses: NOT_RUN/);
+    const saved=JSON.parse(await readFile(pathname,'utf8'));
+    assert.equal(saved.tests.length,27);
+    assert.equal(saved.flags.livePayouts,null);
+    assert.equal(run('check',pathname).status,2);
+    assert.equal(run('init',pathname).status,1,'must refuse overwriting an evidence ledger');
+    assert.equal(run('init',join(repoRoot,'qa-artifacts','issue853-private-test.json')).status,1);
+    const alias=join(home,'symlink-to-repo');
+    await symlink(repoRoot,alias,'dir');
+    assert.equal(run('init',join(alias,'should-not-exist.json')).status,1,'symlink must not redirect private data into checkout');
+  } finally {
+    await rm(home,{recursive:true,force:true});
+  }
 });
