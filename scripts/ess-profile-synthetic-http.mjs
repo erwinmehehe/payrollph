@@ -199,7 +199,9 @@ async function run() {
   assert.equal(returned.headers()["content-type"], "image/png");
   // Next.js may normalize the response to "no-store, max-age=0".
   // Assert the actual no-cache security property, not optional wording.
-  assert.match(returned.headers()["cache-control"] || "", /(?:^|,\\s*)no-store(?:,|$)/);
+  assert.ok((returned.headers()["cache-control"] || "").toLowerCase()
+    .split(",").map(value => value.trim()).includes("no-store"),
+  "Sensitive profile images must never be cached");
   assert.equal(createHash("sha256").update(await returned.body()).digest("hex"),
     createHash("sha256").update(png).digest("hex"));
   await expect("A cannot see B photo", get(a, PHOTO), 404);
