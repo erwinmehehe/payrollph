@@ -23,6 +23,9 @@ test("disposable PostgreSQL: source isolation, immutable final pay and default-o
     const [annual] = await db.insert(yearEndAdjustments).values({ organizationId: orgIds[0], employeeId: people[0].id, taxYear: 2025, grossCompensation: "10000.00", taxWithheld: "1000.00", adjustment: "200.00", payrollRunId: run.id, status: "settled" }).returning();
     const lines = [{ code: "WHT", amount: "-1000.00" }, { code: "YE-TAX-" + annual.id, amount: "-200.00" }];
     const [entry] = await db.insert(payrollEntries).values({ payrollRunId: run.id, employeeId: people[0].id, grossPay: "10000", deductions: "1200", netPay: "8800", lineItems: lines }).returning();
+    // An intentionally inconsistent foreign-tenant run must not enter tenant A's totals.
+    const [foreignRun] = await db.insert(payrollRuns).values({ organizationId: orgIds[1], legalEntityId: entities[1].id, periodLabel: "Foreign fictional run", periodStart: "2025-12-01", periodEnd: "2025-12-31", payDate: "2025-12-31", status: "Released" }).returning();
+    await db.insert(payrollEntries).values({ payrollRunId: foreignRun.id, employeeId: people[0].id, grossPay: "1000", deductions: "999", netPay: "1", lineItems: [{ code: "WHT", amount: "-999.00" }] });
     const scope = { organizationId: orgIds[0], employeeId: people[0].id, legalEntityId: entities[0].id, taxYear: 2025, adjustmentId: annual.id, before: "1000.00", expectedAdjustment: "200.00" };
     // A disabled child or parent must return before requesting a transaction.
     db.transaction = (() => { throw new Error("Flag-off reader attempted DB transaction"); }) as typeof db.transaction;
@@ -33,6 +36,10 @@ test("disposable PostgreSQL: source isolation, immutable final pay and default-o
     assert.equal(await loadYearEnd2316Withholding(scope), undefined);
     assert.equal(await loadFinalPay2316Withholding(orgIds[0], people[0].id, 1), undefined);
     process.env.BIR_2316_RECONCILIATION_ENABLED = "true";
+    db.transaction = (() => Promise.reject(new Error("Synthetic private database details must not escape"))) as typeof db.transaction;
+    const unavailable = await loadYearEnd2316Withholding(scope);
+    assert.deepEqual(unavailable?.issues, ["WITHHOLDING_LOOKUP_UNAVAILABLE"]);
+    assert.equal(unavailable?.actualPresentWithheld, null);
     let readTransactions = 0;
     db.transaction = ((callback, config) => original(async tx => {
       const state = await tx.execute(sql`show transaction_read_only`);

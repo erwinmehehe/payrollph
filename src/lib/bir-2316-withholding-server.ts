@@ -32,7 +32,7 @@ export async function loadYearEnd2316Withholding(scope: Scope & { adjustmentId: 
     const data = await ledger(tx, scope);
     return releasedBir2316Withholding({ ...scope, historicalCount: data.historicalCount,
       boundRunId: source.payrollRunId }, data.entries);
-  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+  }, { isolationLevel: "repeatable read", accessMode: "read only" }).catch(() => unknownBir2316Withholding("WITHHOLDING_LOOKUP_UNAVAILABLE"));
 }
 export async function loadFinalPay2316Withholding(organizationId: number, employeeId: number, separationId: number) {
   if (!bir2316WithholdingEnabled()) return undefined;
@@ -58,5 +58,5 @@ export async function loadFinalPay2316Withholding(organizationId: number, employ
     return finalPayBir2316Withholding({ ...source, baseline, before: annual.taxWithheld,
       expectedAdjustment: annual.adjustment, appliedTaxCollection: snapshot.appliedTaxCollection,
       unpaidTaxWithholding: snapshot.unpaidTaxWithholding });
-  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+  }, { isolationLevel: "repeatable read", accessMode: "read only" }).catch(() => unknownBir2316Withholding("WITHHOLDING_LOOKUP_UNAVAILABLE"));
 }

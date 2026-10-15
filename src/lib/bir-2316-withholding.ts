@@ -34,7 +34,7 @@ export function releasedBir2316Withholding(scope: WithholdingScope, entries: Wit
           if (entry.runId !== scope.boundRunId) return unknown("WITHHOLDING_BINDING_MISMATCH");
           matched++; applied -= value;
         }
-      } else if (/^(?:WHT|YE-TAX|TAX|WITHHOLD)/i.test(code) || /withholding tax|tax refund|tax collection/i.test(String(line.label ?? ""))) return unknown("WITHHOLDING_CODE_UNVERIFIED");
+      } else if (/^(?:WHT|YE-TAX|TAX|WITHHOLD)/i.test(code) || /withholding tax|income tax|tax refund|tax collection/i.test(String(line.label ?? ""))) return unknown("WITHHOLDING_CODE_UNVERIFIED");
       if (!Number.isSafeInteger(actual) || !Number.isSafeInteger(applied)) return unknown("WITHHOLDING_TOTAL_INVALID");
     }
     if (regular !== 1) return unknown("WITHHOLDING_WHT_MISSING_OR_DUPLICATE");
