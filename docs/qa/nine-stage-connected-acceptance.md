@@ -1,6 +1,6 @@
 # #853 — Connected nine-stage first-payroll development acceptance
 
-This workflow uses the **same fictional worker and same *simulated* Manila calendar day** for actual
+This workflow tests **two separate fictional employers** in one disposable PostgreSQL database. Each has its **own fictional worker and the same *simulated* Manila calendar day** for actual
 Web Bundy capture, independently reviewed source correction, WFM timecard, calculated
 payroll, record release and four draft filing worksheets. It must never pass because
 unrelated stage tests succeeded. It explicitly reports FAIL/NOT_RUN when a stage fails.
@@ -51,6 +51,8 @@ Final-month statutory drafts are intentionally NOT generated for a mid-month cut
 and the existing filing guard is not modified. Prior-payroll, overnight, holiday,
 rest-day, and OT premium tests run separately and do not certify that those scenarios
 occurred in this particular source-connected one-worker journey.
+
+Both A and B must complete Hire, Onboard, Schedule, Clock In, Approve Time, Run Payroll, Review, Release Records and Prepare Draft Filing Evidence using their own scoped source records. Employer B is no longer permitted to be only a shadow tenant. The connected report retains A and B stage arrays, distinct source-punch/run IDs and four hashes per employer; its fail-closed validator rejects any missing B stage.
 
 Individual PASS here is only synthetic engineering evidence. Independent employer
 operator UAT, 14 WFM human/device scenarios, real employer centavo reconciliation,

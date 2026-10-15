@@ -5,9 +5,8 @@
  * No app credentials, real employee records, data migrations, or HTTP actions.
  * Node 22+, no third-party dependencies.
  */
-import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,7 +32,20 @@ export const CROSS_TENANT = Object.freeze([
   ['RESUME_AFTER_LOGIN', 'Owner / Payroll Officer', 'Log out and resume the correct employer/stage from saved state'],
   ['INDEPENDENT_HUMAN_NAVIGATION', 'Independent Human Reviewer', 'Finish full journey without a developer guiding the screen'],
 ]);
-const ALLOWED_STATUS = new Set(['NOT_RUN', 'PASS', 'FAIL', 'BLOCKED']);
+const ALLOWED_STATUS = new Set(['NOT_RUN', 'PASS', 'NEEDS_FIX', 'BLOCKED']);
+const BLOCKER_CODES = new Set(['DEVICE', 'ENVIRONMENT', 'ROLE', 'DATA', 'REVIEWER', 'OTHER']);
+const DEFECT_REF = /^BUG-[A-Z0-9][A-Z0-9-]{2,79}$/;
+// Controls with a single explicit authenticated fixture persona. HR/manager multi-role
+// cases still require an independent human to inspect the actual authorization trace.
+const SCENARIO_ACTORS = Object.freeze({
+  A_CLOCK_IN:'employeeAId', B_CLOCK_IN:'employeeBId',
+  A_RUN_PAYROLL:'payrollOfficerAId', B_RUN_PAYROLL:'payrollOfficerBId',
+  A_REVIEW:'checkerBothId', B_REVIEW:'checkerBothId',
+  A_RELEASE_RECORDS:'ownerBothId', B_RELEASE_RECORDS:'ownerBothId',
+  A_FILING_EVIDENCE:'payrollOfficerAId', B_FILING_EVIDENCE:'payrollOfficerBId',
+  SWITCH_375:'ownerBothId', SWITCH_390:'ownerBothId',
+  PAYROLL_A_DENIED_B:'payrollOfficerAId', EMPLOYEE_A_DENIED_B:'employeeAId',
+});
 const SOURCE_SHA = /^[a-f\d]{40}$/;
 const UTC = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/;
 const EVIDENCE_REF = /^(?:private|vault|local):\/\/[A-Za-z0-9/_:.#-]{4,240}$/;
@@ -44,13 +56,13 @@ function checks() {
     for (const [stage, performerRole, expected] of STAGES) {
       suite.push({id: `${tenant}_${stage}`, tenant, performerRole, expected,
         observedStatus: 'NOT_RUN', observedAtUtc: '', observedBy: '', evidenceRef: '',
-        independentReviewer: '', notes: '', defectRef: ''});
+        independentReviewer: '', notes: '', defectRef: '', blockerCode: ''});
     }
   }
   for (const [id, performerRole, expected] of CROSS_TENANT) {
     suite.push({id, tenant: 'A+B', performerRole, expected,
       observedStatus: 'NOT_RUN', observedAtUtc: '', observedBy: '', evidenceRef: '',
-      independentReviewer: '', notes: '', defectRef: ''});
+      independentReviewer: '', notes: '', defectRef: '', blockerCode: ''});
   }
   return suite;
 }
@@ -71,13 +83,14 @@ export function makeBlankLedger() {
     tenantA: 'Fictional Harbor A Services',
     tenantB: 'Fictional Riverside B Trading',
     identities: { ownerBothId: '', payrollOfficerAId: '', payrollOfficerBId: '', checkerBothId: '', employeeAId: '', employeeBId: '' },
-    // Record observed effective values only after checking the actual deployed app.
     flags: { livePayouts: null, governmentSubmission: null, realEmployeeData: null },
-    runtimeVerification: { verifiedAtUtc: '', deployedBuildRef: '',
-      databaseIsolationRef: '', payoutAndFilingConfigRef: '', fixtureVersionRef: '' },
+    runtimeVerification: {
+      verifiedAtUtc: '', verifierRef: '', payoutAndFilingConfigRef: '',
+      deployedBuildRef: '', databaseIsolationRef: '', fixtureVersionRef: '',
+    },
     tests: checks(),
     signoff: { independentReviewerId: '', signedAtUtc: '', privateEvidenceRef: '' },
-    IMPORTANT: 'This JSON is an unverified private operator claim. No PASS is auto-generated; independent observation cannot be authenticated by this script.',
+    IMPORTANT: 'Version 2: all runtime safety flags start UNVERIFIED (null). Only a human who checked the running app may set false and supply safetyVerification. No independent observation is authenticated by this script.',
   };
 }
 
@@ -85,18 +98,36 @@ function validDate(s) {
   if (typeof s !== 'string' || !UTC.test(s)) return false;
   const timestamp = Date.parse(s);
   if (!Number.isFinite(timestamp) || timestamp > Date.now()) return false;
-  // Date.parse silently normalizes impossible calendar dates, so demand an exact UTC round-trip.
-  const canonical = s.replace(/(?:\.(\d{1,3}))?Z$/, (_match, ms) => '.' + (ms || '').padEnd(3, '0') + 'Z');
+  // Date.parse silently normalizes impossible dates (for example February 30).
+  const canonical = s.includes('.')
+    ? s.replace(/\.(\d{1,3})Z$/, (_match, ms) => '.' + ms.padEnd(3, '0') + 'Z')
+    : s.slice(0, -1) + '.000Z';
   return new Date(timestamp).toISOString() === canonical;
 }
-function validCalendarDate(day) {
-  if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
-  // Date.parse normalizes impossible dates (e.g. February 30); compare exact UTC day.
-  const timestamp = Date.parse(day + 'T00:00:00.000Z');
-  return Number.isFinite(timestamp) &&
-    new Date(timestamp).toISOString().slice(0, 10) === day;
-}
 function meaningful(s) { return typeof s === 'string' && s.trim().length > 0; }
+
+function validManilaPayPeriod(period) {
+  if (typeof period !== 'string') return false;
+  const dates=period.split('/');
+  if (dates.length!==2) return false;
+  const calendarDate=value=>{
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const d=new Date(value+'T00:00:00Z');
+    return Number.isFinite(d.getTime()) && d.toISOString().slice(0,10)===value;
+  };
+  return dates.every(calendarDate) && dates[0]<=dates[1];
+}
+
+
+function validDevelopmentUrl(value) {
+  if (typeof value !== 'string' || !value.startsWith('https://')) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && Boolean(url.hostname) &&
+      !url.username && !url.password && !url.hash;
+  } catch { return false; }
+}
+
 
 /**
  * Pure validation; never writes to DB or touches app. Observed statuses are
@@ -104,103 +135,128 @@ function meaningful(s) { return typeof s === 'string' && s.trim().length > 0; }
  */
 export function evaluate(ledger) {
   const blockers=[];
-  const usedProofRefs = new Set();
-  function trackProof(ref, label) {
-    if (!EVIDENCE_REF.test(ref || '')) {
-      blockers.push('Private evidence reference required: ' + label);
-    } else if (usedProofRefs.has(ref)) {
-      blockers.push('Private evidence reference reused: ' + label);
-    } else {
-      usedProofRefs.add(ref);
-    }
-  }
+  const expected=checks();
   if (!ledger || ledger.schema!=='payrollph-issue853-human-acceptance-v2') {
-    return {verdict: 'NOT_READY', total:27, passed:0, failed:0, blocked:27,
-      problems: ['Invalid evidence schema; refuse to infer a successful acceptance']};
+    return {verdict:'NOT_READY', total:27, passed:0, needsFix:0, blocked:0, notRun:27,
+      problems:['Invalid evidence schema; archive v1 privately and start a blank v2 session']};
   }
   if (ledger.scope!=='FICTIONAL_DEVELOPMENT_NO_MONEY') blockers.push('Wrong scope');
-  // Do not infer these from the Git checkout, or from a blank ledger.
-  const runtime = ledger.runtimeVerification;
-  if (!runtime || !validDate(runtime.verifiedAtUtc)) {
-    blockers.push('Actual runtime verification UTC timestamp is missing, invalid or in the future');
-  }
-  for (const key of ['deployedBuildRef','databaseIsolationRef','payoutAndFilingConfigRef','fixtureVersionRef']) {
-    trackProof(runtime?.[key], 'runtime.' + key);
-  }
-  const period = (ledger.manilaPayPeriod || '').split('/');
-  if (period.length !== 2 || !period.every(validCalendarDate) || period[0] > period[1]) {
-    blockers.push('Record the actual tested Manila pay period');
-  }
   if (ledger.databaseClassification!=='FICTIONAL_ONLY') blockers.push('Database must be classified as fictional');
+  if (!validManilaPayPeriod(ledger.manilaPayPeriod)) blockers.push('Invalid Gregorian Manila pay period or reversed cutoff');
+  if (!validDate(ledger.createdUtc) || typeof ledger.recordId!=='string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ledger.recordId)) {
+    blockers.push('Invalid private ledger session identity or created UTC time');
+  }
   if (!SOURCE_SHA.test(ledger.sourceSha||'')) blockers.push('Source SHA must be an exact 40-character Git commit');
   if (!SOURCE_SHA.test(ledger.deployedSha||'')) blockers.push('Deployment SHA must be an exact 40-character Git commit');
   if (ledger.sourceSha!==ledger.deployedSha) blockers.push('Deployed SHA does not equal reviewed source SHA');
-  if (!/^https:\/\//.test(ledger.developmentUrl||'')) blockers.push('A real development HTTPS URL has not been recorded');
-  for (const [flag, value] of Object.entries(ledger.flags||{})) {
-    if (value!==false) blockers.push(`${flag} must remain false`);
+  if (!validDevelopmentUrl(ledger.developmentUrl)) blockers.push('A credential-free development HTTPS URL must be recorded');
+
+  const requiredFlags=['livePayouts','governmentSubmission','realEmployeeData'];
+  if (!ledger.flags || typeof ledger.flags!=='object' || Array.isArray(ledger.flags) ||
+      Object.keys(ledger.flags).sort().join(',')!==[...requiredFlags].sort().join(',')) {
+    blockers.push('Unexpected or missing runtime safety flags');
   }
-  for (const required of ['livePayouts','governmentSubmission','realEmployeeData']) {
-    if (ledger.flags?.[required]!==false) blockers.push(`${required} must explicitly be false`);
+  for (const key of requiredFlags) {
+    if (ledger.flags?.[key]!==false) blockers.push(key+' must explicitly be false following runtime verification');
   }
-  if (!meaningful(ledger.deviceModel) || !meaningful(ledger.browserVersion)) blockers.push('Record actual tested device/browser');
-  if (!ledger.identities || Object.values(ledger.identities).some(x=>!meaningful(x))) {
-    blockers.push('Record pseudonymous IDs for owner, payroll A, payroll B, checker and both employees');
-  } else if (new Set(Object.values(ledger.identities)).size !== 6) {
+  const safety=ledger.runtimeVerification;
+  // A session cannot retrospectively claim runtime checks or observations made
+  // before this ledger was initialized. Human evidence needs a fresh session.
+  const sessionStart=validDate(ledger.createdUtc)?Date.parse(ledger.createdUtc):null;
+  const predatesSession=value=>sessionStart!==null && validDate(value) &&
+    Date.parse(value)<sessionStart;
+  if (predatesSession(safety?.verifiedAtUtc)) {
+    blockers.push('Runtime safety verification predates ledger session creation');
+  }
+  const requiredRuntimeRefs=['payoutAndFilingConfigRef','deployedBuildRef','databaseIsolationRef','fixtureVersionRef'];
+  if (!safety || !validDate(safety.verifiedAtUtc) || !meaningful(safety.verifierRef) ||
+      requiredRuntimeRefs.some(key=>!EVIDENCE_REF.test(safety[key]||''))) {
+    blockers.push('Runtime safety flags require a dated human check and separate private evidence for effective flags, served build, database isolation and fixture version');
+  }
+  if (!meaningful(ledger.deviceModel) || !meaningful(ledger.browserVersion)) {
+    blockers.push('Record actual tested device/browser');
+  }
+  const requiredActors=['ownerBothId','payrollOfficerAId','payrollOfficerBId','checkerBothId','employeeAId','employeeBId'];
+  if (!ledger.identities || typeof ledger.identities!=='object' || Array.isArray(ledger.identities) ||
+      Object.keys(ledger.identities).sort().join(',')!==[...requiredActors].sort().join(',') ||
+      requiredActors.some(key=>!meaningful(ledger.identities[key]))) {
+    blockers.push('Record all six pseudonymous identities with exact role keys');
+  } else if (new Set(Object.values(ledger.identities)).size!==requiredActors.length) {
     blockers.push('All 6 test actor identities must be distinct');
   }
-  // Single-role actions must use the matching, separately declared operator.
-  // Multi-role HR/manager observations remain for the independent human witness to verify.
-  const requiredActor = {
-    A_CLOCK_IN: 'employeeAId', B_CLOCK_IN: 'employeeBId',
-    A_RUN_PAYROLL: 'payrollOfficerAId', B_RUN_PAYROLL: 'payrollOfficerBId',
-    A_REVIEW: 'checkerBothId', B_REVIEW: 'checkerBothId',
-    A_RELEASE_RECORDS: 'ownerBothId', B_RELEASE_RECORDS: 'ownerBothId',
-    A_FILING_EVIDENCE: 'payrollOfficerAId', B_FILING_EVIDENCE: 'payrollOfficerBId',
-    SWITCH_375: 'ownerBothId', SWITCH_390: 'ownerBothId',
-    PAYROLL_A_DENIED_B: 'payrollOfficerAId', EMPLOYEE_A_DENIED_B: 'employeeAId',
-  };
-  const expected=checks();
-  const expectedIds=expected.map(x=>x.id);
+  const expectedById=new Map(expected.map(s=>[s.id,s]));
   const incoming=Array.isArray(ledger.tests)?ledger.tests:[];
-  if (incoming.length!==expected.length || new Set(incoming.map(x=>x.id)).size!==expected.length ||
-      !expectedIds.every(id=>incoming.some(x=>x.id===id))) blockers.push('Mandatory journey/tenant checks missing or duplicated');
-  let passed=0,failed=0,blocked=0;
+  if (incoming.length!==expected.length || new Set(incoming.map(s=>s?.id)).size!==expected.length ||
+      !expected.every(s=>incoming.some(row=>row?.id===s.id))) {
+    blockers.push('Mandatory journey/tenant checks missing or duplicated');
+  }
+  let passed=0,needsFix=0,blocked=0,notRun=0;
+  const observations=[];
+  const usedEvidence=[
+    ...requiredRuntimeRefs.map(key=>safety?.[key]),
+    ledger.signoff?.privateEvidenceRef,
+  ].filter(Boolean);
   for (const scenario of incoming) {
-    if (!expectedIds.includes(scenario.id)) {blockers.push('Unrecognized test ID');continue;}
-    const canon=expected.find(x=>x.id===scenario.id);
-    if (scenario.tenant!==canon.tenant || scenario.performerRole!==canon.performerRole || scenario.expected!==canon.expected) {
-      blockers.push(`Modified expected control: ${scenario.id}`);
+    const canonical=expectedById.get(scenario?.id);
+    if (!canonical) {blockers.push('Unrecognized test ID');continue;}
+    if (scenario.tenant!==canonical.tenant || scenario.performerRole!==canonical.performerRole ||
+        scenario.expected!==canonical.expected) {
+      blockers.push('Modified expected control: '+scenario.id);
     }
     if (!ALLOWED_STATUS.has(scenario.observedStatus)) {
-      blockers.push(`Invalid status: ${scenario.id}`);continue;
+      blockers.push('Invalid status: '+scenario.id);continue;
     }
-    if (scenario.observedStatus==='PASS') {
-      passed++;
+    const observed=scenario.observedStatus==='PASS' || scenario.observedStatus==='NEEDS_FIX';
+    if (observed) {
+      observations.push(scenario);
+      usedEvidence.push(scenario.evidenceRef);
+      const requiredActorKey=SCENARIO_ACTORS[scenario.id];
+      if (requiredActorKey && meaningful(ledger.identities?.[requiredActorKey]) &&
+          scenario.observedBy!==ledger.identities[requiredActorKey]) {
+        blockers.push('Wrong recorded persona for observed control: '+scenario.id);
+      }
       if (!validDate(scenario.observedAtUtc) || !meaningful(scenario.observedBy) ||
           !EVIDENCE_REF.test(scenario.evidenceRef||'') ||
           !meaningful(scenario.independentReviewer) ||
           scenario.independentReviewer===scenario.observedBy) {
-        blockers.push(`PASS missing dated observation, private evidence and distinct reviewer: ${scenario.id}`);
+        blockers.push('Observed row missing dated observation, private evidence and distinct reviewer: '+scenario.id);
       }
-      trackProof(scenario.evidenceRef, scenario.id);
-      if (validDate(runtime?.verifiedAtUtc) && validDate(scenario.observedAtUtc) &&
-          Date.parse(scenario.observedAtUtc) < Date.parse(runtime.verifiedAtUtc)) {
-        blockers.push(`PASS precedes runtime verification: ${scenario.id}`);
+      if (predatesSession(scenario.observedAtUtc)) {
+        blockers.push('Observed row predates ledger session creation: '+scenario.id);
       }
-      const actorKey = requiredActor[scenario.id];
-      if (actorKey && scenario.observedBy !== ledger.identities?.[actorKey]) {
-        blockers.push(`PASS operator must match the recorded ${actorKey} persona: ${scenario.id}`);
+      if (validDate(scenario.observedAtUtc) && validDate(safety?.verifiedAtUtc) &&
+          Date.parse(scenario.observedAtUtc)<Date.parse(safety.verifiedAtUtc)) {
+        blockers.push('Observed row predates running-app safety verification: '+scenario.id);
       }
-    } else if(scenario.observedStatus==='FAIL') {
-      failed++;
-      if (!meaningful(scenario.defectRef)) blockers.push(`FAIL missing defect reference: ${scenario.id}`);
-    } else {
+      if (meaningful(scenario.blockerCode)) blockers.push('Observed row carries a blocker code: '+scenario.id);
+      if (scenario.observedStatus==='PASS') {
+        passed++;
+        if (meaningful(scenario.defectRef)) blockers.push('PASS has unresolved defect: '+scenario.id);
+      } else {
+        needsFix++;
+        if (!DEFECT_REF.test(scenario.defectRef||'')) blockers.push('NEEDS_FIX requires opaque BUG- defect ID: '+scenario.id);
+      }
+    } else if (scenario.observedStatus==='BLOCKED') {
       blocked++;
-      if (scenario.observedStatus === 'NOT_RUN' &&
-          [scenario.observedAtUtc, scenario.observedBy, scenario.evidenceRef,
-            scenario.independentReviewer, scenario.defectRef].some(meaningful)) {
-        blockers.push(`NOT_RUN cannot retain claimed observation evidence: ${scenario.id}`);
-      }
+      if (!BLOCKER_CODES.has(scenario.blockerCode)) blockers.push('BLOCKED requires an approved blocker code: '+scenario.id);
+      if (['observedAtUtc','observedBy','evidenceRef','independentReviewer','defectRef']
+          .some(key=>meaningful(scenario[key]))) blockers.push('BLOCKED cannot contain claimed observation: '+scenario.id);
+    } else {
+      notRun++;
+      if (['observedAtUtc','observedBy','evidenceRef','independentReviewer','defectRef','blockerCode']
+          .some(key=>meaningful(scenario[key]))) blockers.push('NOT_RUN cannot contain stale observation: '+scenario.id);
+    }
+  }
+  if (usedEvidence.length!==new Set(usedEvidence).size) blockers.push('Duplicate private evidence reference');
+  const operators=new Set(observations.map(row=>row.observedBy));
+  if (meaningful(safety?.verifierRef) &&
+      (operators.has(safety.verifierRef) || Object.values(ledger.identities||{}).includes(safety.verifierRef))) {
+    blockers.push('Runtime safety verifier must be independent of test operators');
+  }
+  for (const row of observations) {
+    if (operators.has(row.independentReviewer)) {
+      blockers.push('Independent reviewer cannot be another test operator: '+row.id);
     }
   }
   if (!ledger.signoff || !meaningful(ledger.signoff.independentReviewerId) ||
@@ -208,34 +264,32 @@ export function evaluate(ledger) {
       !EVIDENCE_REF.test(ledger.signoff.privateEvidenceRef||'')) {
     blockers.push('Independent reviewer human signoff evidence not supplied');
   }
-  trackProof(ledger.signoff?.privateEvidenceRef, 'signoff');
+  if (predatesSession(ledger.signoff?.signedAtUtc)) {
+    blockers.push('Human signoff predates ledger session creation');
+  }
   if (validDate(ledger.signoff?.signedAtUtc)) {
-    const signedAt = Date.parse(ledger.signoff.signedAtUtc);
-    if (validDate(runtime?.verifiedAtUtc) && signedAt < Date.parse(runtime.verifiedAtUtc)) {
-      blockers.push('Independent signoff precedes runtime verification');
+    const signedAt=Date.parse(ledger.signoff.signedAtUtc);
+    if (validDate(safety?.verifiedAtUtc) && signedAt<Date.parse(safety.verifiedAtUtc)) {
+      blockers.push('Human signoff predates verified runtime safety');
     }
-    for (const row of incoming) {
-      if (row.observedStatus === 'PASS' && validDate(row.observedAtUtc) &&
-          signedAt < Date.parse(row.observedAtUtc)) {
-        blockers.push(`Independent signoff precedes PASS: ${row.id}`);
-      }
+    if (observations.some(s=>validDate(s.observedAtUtc) && Date.parse(s.observedAtUtc)>signedAt)) {
+      blockers.push('Human signoff predates an observation');
+    }
+    if (operators.has(ledger.signoff.independentReviewerId)) {
+      blockers.push('Final independent reviewer cannot sign off their own operator observations');
+    }
+    if (observations.length && !observations.some(s=>s.independentReviewer===ledger.signoff.independentReviewerId)) {
+      blockers.push('Final reviewer is not recorded among independent observation reviewers');
     }
   }
-  if (meaningful(ledger.signoff?.independentReviewerId) &&
-      (Object.values(ledger.identities || {}).includes(ledger.signoff.independentReviewerId) ||
-       incoming.some(row => row.observedBy === ledger.signoff.independentReviewerId))) {
-    blockers.push('Independent signoff reviewer cannot be a journey operator');
-  }
-  const all=expected.length;
-  const ready=passed===all && failed===0 && blocked===0 && blockers.length===0;
+  const ready=passed===expected.length && needsFix===0 && blocked===0 && notRun===0 && blockers.length===0;
   return {
-    verdict: ready ? 'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION' : 'NOT_READY',
-    total:all,passed,failed,blocked,
+    verdict:ready?'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION':'NOT_READY',
+    total:expected.length,passed,needsFix,blocked,notRun,
     problems:[...new Set(blockers)],
-    note:'This tool cannot witness, authenticate or certify real human activity. A reviewer must validate primary evidence separately.',
+    note:'This tool cannot witness, authenticate or certify actual human activity. Private primary evidence must be independently examined; #853 remains NO-GO without external acceptance.',
   };
 }
-
 function outsideWorkingDir(path) {
   // Anchor to the actual checkout, not the caller's arbitrary subdirectory.
   const absolute=resolve(path),root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
@@ -253,9 +307,12 @@ async function main() {
   if (verb==='init') {
     const ledger=makeBlankLedger();
     await mkdir(dirname(path),{recursive:true,mode:0o700});
+    // An outside-repository symlink must not redirect private evidence into the checkout.
+    outsideWorkingDir(resolve(await realpath(dirname(path)),'private-ledger.json'));
     await writeFile(path,JSON.stringify(ledger,null,2)+'\n',{flag:'wx',mode:0o600});
     process.stdout.write(`CREATED_PRIVATE_LEDGER\nScenarios: ${ledger.tests.length}\nAll statuses: NOT_RUN\n`);
   } else {
+    outsideWorkingDir(await realpath(path));
     const content=JSON.parse(await readFile(path,'utf8'));
     const result=evaluate(content);
     // Print only aggregate counts and validator problem codes; not private evidence or names.
