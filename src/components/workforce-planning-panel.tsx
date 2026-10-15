@@ -312,6 +312,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [forecastPlanCreating, setForecastPlanCreating] = useState<number | null>(null);
   const [costVisible, setCostVisible] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showArchitecture, setShowArchitecture] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
@@ -355,10 +356,14 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const response = await fetch(`/api/workforce-planning?organizationId=${organizationId}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) return setNotice(payload.error ?? "Could not load workforce planning.");
+      if (!response.ok) {
+        setLoadError(typeof payload.error === "string" ? payload.error : "Could not load workforce planning.");
+        return;
+      }
       setProfiles(payload.profiles ?? []);
       setJobFamilies(payload.jobFamilies ?? []);
       setJobLevels(payload.jobLevels ?? []);
@@ -391,10 +396,12 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         setPositionExecutions(executionPayload.executions ?? []);
         setPositionExecutionCanApply(Boolean(executionPayload.access?.canApply));
       }
+    } catch {
+      setLoadError("Could not reach workforce planning. The service may be temporarily unavailable.");
     } finally {
       setLoading(false);
     }
-  }, [organizationId, setNotice]);
+  }, [organizationId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -819,6 +826,25 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       ? `Requisition #${payload.id} opened from position ${position.code} with verified plan #${payload.planHandoffEvidence.planId}, baseline v${payload.planHandoffEvidence.baselineVersion}, execution #${payload.planHandoffEvidence.executionId}.`
       : `Requisition #${payload.id} opened from approved standalone position ${position.code}.`);
     onPage("Recruitment");
+  }
+
+  // A failed authoritative read must not render empty counts or allow writes
+  // that could be mistaken for a valid zero-worker workforce plan.
+  if (loadError) {
+    return (
+      <div>
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">HCM STRUCTURE &amp; WORKFORCE PLANNING</div>
+            <h1>Workforce planning</h1>
+          </div>
+        </div>
+        <div className="notice notice-amber" role="alert" style={{ marginBottom: 16 }}>
+          <span><strong>Workforce planning is unavailable.</strong> {loadError} No planning records or totals are displayed until the request succeeds.</span>
+          <button className="secondary-button" type="button" onClick={() => void load()} disabled={loading}>Retry</button>
+        </div>
+      </div>
+    );
   }
 
   return (
