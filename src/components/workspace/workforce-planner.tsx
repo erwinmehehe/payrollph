@@ -788,7 +788,7 @@ export function WorkforcePlanner({
       )}
       </div>
       <div tabIndex={0} role="tabpanel" id="wfm-panel-team" aria-labelledby="wfm-tab-team" hidden={workspaceTab !== 'team'}>{workspaceTab === "team" && <WorkforceTeamRosterPanel organizationId={organizationId} canManage={canManage || data.access?.role === "manager"} notify={notify} onScheduleChanged={() => { void loadCatalog(); void loadPreview(); }} />}</div>
-      <div tabIndex={0} role="tabpanel" id="wfm-panel-coverage" aria-labelledby="wfm-tools" hidden={workspaceTab !== 'coverage'}>{workspaceTab === "coverage" && <WorkforceCoveragePanel data={data} notify={notify} canManage={canManage} />}</div>
+      <div tabIndex={0} role="tabpanel" id="wfm-panel-coverage" aria-labelledby="wfm-tools" hidden={workspaceTab !== 'coverage'}>{workspaceTab === "coverage" && <WorkforceCoveragePanel key={organizationId} data={data} notify={notify} canManage={canManage} />}</div>
       <div tabIndex={0} role="tabpanel" id="wfm-panel-timesheets" aria-labelledby="wfm-tools" hidden={workspaceTab !== 'timesheets'}>{workspaceTab === "timesheets" && <WorkforceTimesheetPanel initialPeriod={timesheetPeriod} data={data} notify={notify} canManage={canManage} />}</div>
       <div tabIndex={0} role="tabpanel" id="wfm-panel-overtime" aria-labelledby="wfm-tools" hidden={workspaceTab !== 'overtime'}>{workspaceTab === "overtime" && <WorkforceOvertimePanel data={data} notify={notify} />}</div>
       <div tabIndex={0} role="tabpanel" id="wfm-panel-swaps" aria-labelledby="wfm-tools" hidden={workspaceTab !== 'swaps'}>{workspaceTab === "swaps" && <WorkforceScheduleSwapPanel data={data} notify={notify} />}</div>
