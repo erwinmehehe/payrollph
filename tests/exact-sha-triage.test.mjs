@@ -26,3 +26,23 @@ test('failure has link but not invented root cause or UAT',()=>{
  assert.equal(s.entries.length,CHECKS.length);
 });
 test('invalid target rejected',()=>assert.throws(()=>summarize('main',[])));
+
+test('live RBAC smoke failure is visible at the exact deployed SHA without certifying release',()=>{
+ const live=run(96,'live-rbac-sandbox-smoke.yml','failure');
+ const summary=summarize(sha,[live],{96:1234});
+ const status=summary.entries.find(x=>x.name==='Live RBAC Sandbox Smoke');
+ assert.equal(status.status,'FAILED');
+ assert.match(status.jobUrl,/actions\/runs\/96\/job\/1234/);
+ assert.equal(summary.releaseAuthorization,'NO_GO_NOT_EVALUATED');
+ assert.equal(summary.humanAcceptance,'NOT_RUN_EXTERNAL');
+ assert.match(render(summary),/Live RBAC Sandbox Smoke \| FAILED/);
+});
+test('an older or not-triggered live smoke cannot pass a newer commit',()=>{
+ const previous=run(97,'live-rbac-sandbox-smoke.yml','success','b'.repeat(40));
+ const status=summarize(sha,[previous]).entries.find(x=>x.name==='Live RBAC Sandbox Smoke');
+ assert.equal(status.status,'NOT_TRIGGERED');
+ assert.equal(status.runUrl,null);
+ const actual=summarize(sha,[run(98,'live-rbac-sandbox-smoke.yml','success')])
+   .entries.find(x=>x.name==='Live RBAC Sandbox Smoke');
+ assert.equal(actual.status,'PASS');
+});
