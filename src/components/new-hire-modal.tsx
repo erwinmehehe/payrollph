@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRight, Layers, X } from "lucide-react";
 import { WAGE_ORDERS } from "@/lib/wage-orders";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
+import { philippineCalendarDay } from "@/lib/philippine-calendar-day";
 import type { DashboardData } from "@/components/workspace/types";
 
 /**
@@ -40,7 +41,7 @@ export function NewHireModal({
     rateAmount: "",
     standardWorkDaysPerMonth: "22",
     standardHoursPerDay: "8",
-    startDate: new Date().toISOString().slice(0, 10),
+    startDate: philippineCalendarDay(new Date()),
     region: "NCR",
     restDay: "",
     mwe: false,

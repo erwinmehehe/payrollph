@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
+import { philippineCalendarDay } from "@/lib/philippine-calendar-day";
 import {
   CheckCircle2,
   ChevronRight,
@@ -129,7 +130,7 @@ export function RecruitmentPanel({
     firstName: "",
     middleName: "",
     lastName: "",
-    startDate: new Date().toISOString().slice(0, 10),
+    startDate: philippineCalendarDay(new Date()),
     payBasis: "monthly",
     rateAmount: "",
     standardWorkDaysPerMonth: "22",
@@ -239,7 +240,7 @@ export function RecruitmentPanel({
       firstName: names.firstName,
       middleName: names.middleName,
       lastName: names.lastName,
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: philippineCalendarDay(new Date()),
       payBasis: "monthly",
       rateAmount: String(applicant.offeredSalary ?? requisition?.salaryMax ?? requisition?.salaryMin ?? ""),
       standardWorkDaysPerMonth: "22",
