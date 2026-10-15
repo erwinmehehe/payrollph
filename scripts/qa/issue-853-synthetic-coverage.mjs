@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * Scope-bound automated receipt for #853. The existing connected CI proves
- * a full fictional Employer A journey, a separate B shadow tenant, and
- * negative tenant / mobile checks. It does NOT prove B's nine-stage payroll
- * or a single actual human observation. Never promote these to UAT PASS.
+ * two complete fictional employer payroll journeys against one disposable
+ * database, plus isolated tenant/mobile denials. It does NOT establish any
+ * independently witnessed human observation. Never promote these to UAT PASS.
  *
  * No application reads, no credentials, no historical DB migration.
  */
@@ -34,14 +34,32 @@ export function buildIssue853SyntheticScope(connected,mobile,sha) {
   assert.equal(mobile?.independentHumanUat,false);
   assert.deepEqual(connected?.stages?.map(s=>s.name),NAMES);
   assert.ok(connected.stages.every(s=>s.status==='PASS'));
+  assert.deepEqual(connected?.employerBStages?.map(s=>s.name),NAMES);
+  assert.ok(connected.employerBStages.every(s=>s.status==='PASS'),
+    'Employer B MUST actually finish all nine stages, not just tenant isolation');
   assert.ok(connected?.lineage?.organizationId>0);
   assert.ok(connected?.lineage?.shadowOrganizationId>0);
   assert.notEqual(connected.lineage.organizationId,connected.lineage.shadowOrganizationId);
   assert.equal(connected.lineage.separateEmployerSameLocalEmployeeNo,true);
   assert.ok(connected.lineage.sourcePunchId>0 && connected.lineage.payrollRunId>0);
+  const employerB=connected?.lineage?.employerB;
+  assert.equal(employerB?.organizationId,connected.lineage.shadowOrganizationId);
+  assert.equal(employerB?.employeeId,connected.lineage.employerBWorkerId);
+  assert.ok(Number.isInteger(employerB?.employeeId) && employerB.employeeId>0);
+  assert.notEqual(employerB.employeeId,connected.lineage.employeeId);
+  assert.equal(employerB.periodStart,connected.lineage.periodStart);
+  assert.equal(employerB.periodEnd,connected.lineage.periodEnd);
+  assert.equal(employerB.payDate,connected.lineage.payDate);
+  assert.ok(Number.isInteger(employerB.sourcePunchId) && employerB.sourcePunchId>0);
+  assert.ok(Number.isInteger(employerB.payrollRunId) && employerB.payrollRunId>0);
+  assert.notEqual(employerB.sourcePunchId,connected.lineage.sourcePunchId);
+  assert.notEqual(employerB.payrollRunId,connected.lineage.payrollRunId);
   const hashes=connected?.lineage?.draftHashes;
   assert.deepEqual(Object.keys(hashes||{}).sort(),['BIR','Pag-IBIG','PhilHealth','SSS'].sort());
   assert.ok(Object.values(hashes).every(value=>typeof value==='string'&&HEX.test(value)));
+  const bHashes=employerB?.draftHashes;
+  assert.deepEqual(Object.keys(bHashes||{}).sort(),['BIR','Pag-IBIG','PhilHealth','SSS'].sort());
+  assert.ok(Object.values(bHashes).every(value=>typeof value==='string'&&HEX.test(value)));
   const negatives=connected.negativeControls;
   for(const control of [
     'tenant B-only owner denied A employees',
@@ -49,6 +67,16 @@ export function buildIssue853SyntheticScope(connected,mobile,sha) {
     'tenant B cannot inspect the released tenant A payroll',
     'payroll maker cannot approve checker task',
     'duplicate record release rejected',
+    'tenant B-only payroll officer denied A payroll',
+    'tenant A HR cannot read B onboarding',
+    'tenant A HR denied B roster',
+    'B employee cannot approve own attendance',
+    'A-only payroll cannot read B calculated register',
+    'B payroll maker cannot self-approve',
+    'B checker cannot release payroll records',
+    'duplicate B record release denied',
+    'B-only owner cannot read A released payroll',
+    'BIR A payroll denied B draft',
   ])assert.ok(match(negatives,control),'Missing cross-tenant or separation evidence: '+control);
   for(const width of [375,390]) {
     assert.ok(mobile?.widths?.includes(width),'Missing required viewport');
@@ -60,15 +88,15 @@ export function buildIssue853SyntheticScope(connected,mobile,sha) {
   assert.equal(STAGES.length,9);
   assert.equal(CROSS_TENANT.length,9);
   return {
-    schema:'payrollph-issue853-synthetic-two-tenant-scope-v1',
+    schema:'payrollph-issue853-synthetic-two-tenant-scope-v2',
     sourceSha:sha,
     result:'SYNTHETIC_SCOPE_PASS_NOT_INDEPENDENT_UAT',
     environment:connected.scope,
     employerCount:2,
-    fullyAutomatedEmployerJourneys:1,
+    fullyAutomatedEmployerJourneys:2,
     employerA:{automatedStagesPassed:NAMES.length,automatedStagesTotal:NAMES.length},
-    employerB:{automatedStagesPassed:0,automatedStagesTotal:NAMES.length,
-      status:'SHADOW_TENANT_ISOLATION_ONLY_FULL_PAYROLL_NOT_RUN'},
+    employerB:{automatedStagesPassed:NAMES.length,automatedStagesTotal:NAMES.length,
+      status:'FULL_SOURCE_CONNECTED_SYNTHETIC_NO_MONEY'},
     automatedControls:{
       aPayrollDeniedB:true,bOwnerDeniedA:true,bPayrollDeniedA:true,
       protectedMakerChecker:true,authenticatedBDirectoryDeniedByEmployeeA:true,
@@ -79,7 +107,7 @@ export function buildIssue853SyntheticScope(connected,mobile,sha) {
       status:'ALL_NOT_RUN',independentlyWitnessed:false},
     releaseAuthorization:'NO_GO',
     evidenceClassification:'SANITIZED_MACHINE_METADATA_NO_CREDENTIALS_OR_EMPLOYEE_ROWS',
-    note:'Only Employer A completed all nine stages. Employer B is an isolation shadow. Separate B full payroll and 27 human-observed checks remain NOT_RUN.',
+    note:'Both fictional employers completed nine isolated-source HTTP stages in disposable PostgreSQL. Independent 27-case human UAT, physical devices and real employer parallel payroll remain NOT_RUN.',
   };
 }
 
@@ -100,7 +128,7 @@ function main() {
   mkdirSync('qa-artifacts',{recursive:true});
   writeFileSync('qa-artifacts/issue-853-synthetic-two-tenant-scope.json',
     JSON.stringify(receipt,null,2)+'\n',{flag:'wx',mode:0o600});
-  process.stdout.write('ISSUE_853_SYNTHETIC_A_AND_B_SHADOW_PASS; B_PAYROLL_NOT_RUN; HUMAN_0_OF_27\n');
+  process.stdout.write('ISSUE_853_SYNTHETIC_A_AND_B_9_OF_9; HUMAN_0_OF_27\n');
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   try { main(); } catch { process.stderr.write('ISSUE_853_SYNTHETIC_SCOPE_BLOCKED\n');process.exitCode=1; }
