@@ -41,6 +41,7 @@ import {
   philippineBusinessDate,
 } from "@/lib/hcm-compensation";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { projectCompensationReadCatalogs } from "@/lib/hcm-compensation-read-projection";
 import { cancelHcmBusinessProcessForSourceTx, findHcmBusinessProcessForSource, startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
 import { compensationEvidenceFromDefinition, compensationReviewFingerprint, freezeCompensationReview, type HcmCompensationReview } from "@/lib/hcm-compensation-business-process";
 
@@ -343,19 +344,33 @@ export async function GET(request: Request) {
     };
   });
 
+  const scopedProposals = proposals.filter((row) => visibleIds.has(row.employeeId));
+  const catalog = projectCompensationReadCatalogs({
+    access,
+    workers: enrichedEmployees,
+    proposals: scopedProposals,
+    assignments,
+    positions: positionRows,
+    jobProfiles: profilesByJob,
+    jobGrades: grades,
+    legalEntities: entities,
+    bands,
+    cycles,
+  });
+
   return Response.json({
     access,
     currentUserId: user.id,
     today,
     employees: enrichedEmployees,
-    jobProfiles: profilesByJob,
-    jobGrades: grades,
-    legalEntities: entities,
-    positions: positionRows,
+    jobProfiles: catalog.jobProfiles,
+    jobGrades: catalog.jobGrades,
+    legalEntities: catalog.legalEntities,
+    positions: catalog.positions,
     assignments: assignments.filter((row) => visibleIds.has(row.employeeId)),
-    bands,
-    cycles,
-    proposals: proposals.filter((row) => visibleIds.has(row.employeeId)).map((proposal) => {
+    bands: catalog.bands,
+    cycles: catalog.cycles,
+    proposals: scopedProposals.map((proposal) => {
       const band = bands.find((row) => row.id === proposal.bandId);
       const review = compensationReviews.find((item) => item.sourceKey === String(proposal.id));
       return {
@@ -365,7 +380,13 @@ export async function GET(request: Request) {
         rangePosition: band ? rangePosition(Number(proposal.proposedAnnual), Number(band.minimumAnnual), Number(band.maximumAnnual)) : null,
       };
     }),
-    components,
+    // Never ship component creator/internal fields unrelated to the UI.
+    components: components.map((row) => ({
+      id: row.id, code: row.code, name: row.name,
+      kind: row.kind, amountFrequency: row.amountFrequency,
+      taxable: row.taxable, includeInSssBase: row.includeInSssBase,
+      includeInPagIbigBase: row.includeInPagIbigBase, active: row.active,
+    })),
     componentAssignments: componentAssignments.filter((row) => visibleIds.has(row.employeeId)),
     compensationEvents: events.filter((row) => visibleIds.has(row.employeeId)).slice(0, 200),
     promotions: promotionChanges.filter((row) => visibleIds.has(row.employeeId)),
