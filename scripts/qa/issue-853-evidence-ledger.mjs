@@ -57,7 +57,7 @@ function checks() {
 
 export function makeBlankLedger() {
   return {
-    schema: 'payrollph-issue853-human-acceptance-v1',
+    schema: 'payrollph-issue853-human-acceptance-v2',
     recordId: randomUUID(),
     createdUtc: new Date().toISOString(),
     scope: 'FICTIONAL_DEVELOPMENT_NO_MONEY',
@@ -71,14 +71,24 @@ export function makeBlankLedger() {
     tenantA: 'Fictional Harbor A Services',
     tenantB: 'Fictional Riverside B Trading',
     identities: { ownerBothId: '', payrollOfficerAId: '', payrollOfficerBId: '', checkerBothId: '', employeeAId: '', employeeBId: '' },
-    flags: { livePayouts: false, governmentSubmission: false, realEmployeeData: false },
+    flags: { livePayouts: null, governmentSubmission: null, realEmployeeData: null },
+    safetyVerification: { verifiedAtUtc: '', verifierRef: '', evidenceRef: '' },
     tests: checks(),
     signoff: { independentReviewerId: '', signedAtUtc: '', privateEvidenceRef: '' },
-    IMPORTANT: 'This JSON is an unverified private operator claim. No PASS is auto-generated; independent observation cannot be authenticated by this script.',
+    IMPORTANT: 'Version 2: all runtime safety flags start UNVERIFIED (null). Only a human who checked the running app may set false and supply safetyVerification. No independent observation is authenticated by this script.',
   };
 }
 
-function validDate(s) { return typeof s === 'string' && UTC.test(s) && !Number.isNaN(Date.parse(s)); }
+function validDate(s) {
+  if (typeof s !== 'string' || !UTC.test(s)) return false;
+  const timestamp = Date.parse(s);
+  if (!Number.isFinite(timestamp) || timestamp > Date.now()) return false;
+  // Date.parse silently normalizes impossible dates (for example February 30).
+  const canonical = s.includes('.')
+    ? s.replace(/\.(\d{1,3})Z$/, (_match, ms) => '.' + ms.padEnd(3, '0') + 'Z')
+    : s.slice(0, -1) + '.000Z';
+  return new Date(timestamp).toISOString() === canonical;
+}
 function meaningful(s) { return typeof s === 'string' && s.trim().length > 0; }
 
 /**
@@ -87,7 +97,7 @@ function meaningful(s) { return typeof s === 'string' && s.trim().length > 0; }
  */
 export function evaluate(ledger) {
   const blockers=[];
-  if (!ledger || ledger.schema!=='payrollph-issue853-human-acceptance-v1') {
+  if (!ledger || ledger.schema!=='payrollph-issue853-human-acceptance-v2') {
     return {verdict: 'NOT_READY', total:27, passed:0, failed:0, blocked:27,
       problems: ['Invalid evidence schema; refuse to infer a successful acceptance']};
   }
@@ -102,6 +112,14 @@ export function evaluate(ledger) {
   }
   for (const required of ['livePayouts','governmentSubmission','realEmployeeData']) {
     if (ledger.flags?.[required]!==false) blockers.push(`${required} must explicitly be false`);
+  }
+  // A template cannot assert that payments/filing are OFF before anyone has
+  // checked the actual running application. Keep historical v1 ledgers archived;
+  // never silently promote their prefilled false flags to witnessed evidence.
+  const safety = ledger.safetyVerification;
+  if (!safety || !validDate(safety.verifiedAtUtc) ||
+      !meaningful(safety.verifierRef) || !EVIDENCE_REF.test(safety.evidenceRef||'')) {
+    blockers.push('Runtime safety flags require a dated human check and private evidence');
   }
   if (!meaningful(ledger.deviceModel) || !meaningful(ledger.browserVersion)) blockers.push('Record actual tested device/browser');
   if (!ledger.identities || Object.values(ledger.identities).some(x=>!meaningful(x))) {
@@ -132,6 +150,10 @@ export function evaluate(ledger) {
           scenario.independentReviewer===scenario.observedBy) {
         blockers.push(`PASS missing dated observation, private evidence and distinct reviewer: ${scenario.id}`);
       }
+      if (validDate(scenario.observedAtUtc) && validDate(safety?.verifiedAtUtc) &&
+          Date.parse(scenario.observedAtUtc)<Date.parse(safety.verifiedAtUtc)) {
+        blockers.push(`PASS predates running-app safety verification: ${scenario.id}`);
+      }
     } else if(scenario.observedStatus==='FAIL') {
       failed++;
       if (!meaningful(scenario.defectRef)) blockers.push(`FAIL missing defect reference: ${scenario.id}`);
@@ -143,6 +165,19 @@ export function evaluate(ledger) {
       !validDate(ledger.signoff.signedAtUtc) ||
       !EVIDENCE_REF.test(ledger.signoff.privateEvidenceRef||'')) {
     blockers.push('Independent reviewer human signoff evidence not supplied');
+  }
+  if (validDate(ledger.signoff?.signedAtUtc)) {
+    const signedAt = Date.parse(ledger.signoff.signedAtUtc);
+    if (validDate(safety?.verifiedAtUtc) && signedAt < Date.parse(safety.verifiedAtUtc)) {
+      blockers.push('Human signoff predates verified runtime safety');
+    }
+    if (incoming.some(s => s.observedStatus==='PASS' && validDate(s.observedAtUtc) &&
+        Date.parse(s.observedAtUtc)>signedAt)) {
+      blockers.push('Human signoff predates an observed PASS');
+    }
+    if (incoming.some(s => s.observedStatus==='PASS' && s.observedBy===ledger.signoff.independentReviewerId)) {
+      blockers.push('Final independent reviewer cannot sign off their own operator observations');
+    }
   }
   const all=expected.length;
   const ready=passed===all && failed===0 && blocked===0 && blockers.length===0;
