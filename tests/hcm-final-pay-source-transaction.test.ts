@@ -100,6 +100,31 @@ test("final-pay freeze includes retro adjustment source periods and invalidates 
   assert.notEqual(snapshot(changed), frozen);
 });
 
+test("M-5: unverified retro source dates remain null in frozen evidence and cannot be silently approved", () => {
+  const unverified = fixture();
+  unverified.retroSourcePeriods = [
+    { id: 42, sourcePeriodStart: null, sourcePeriodEnd: null },
+  ];
+  const frozen = finalPaySourceFingerprint(unverified);
+  assert.deepEqual(frozen.retroSourcePeriods, [
+    { id: 42, sourcePeriodStart: null, sourcePeriodEnd: null },
+  ], "null must not serialize into a fictitious date or a literal string");
+
+  const newlyVerified = fixture();
+  newlyVerified.retroSourcePeriods = [
+    { id: 42, sourcePeriodStart: "2025-12-16", sourcePeriodEnd: "2025-12-31" },
+  ];
+  assert.notEqual(snapshot(unverified), snapshot(newlyVerified),
+    "changed source provenance must invalidate the prior approval fingerprint");
+
+  const literal = fixture();
+  literal.retroSourcePeriods = [
+    { id: 42, sourcePeriodStart: "null", sourcePeriodEnd: "null" },
+  ];
+  assert.notEqual(snapshot(unverified), snapshot(literal),
+    "missing source dates must remain distinct from user-supplied text");
+});
+
 test("new separation freezes its authorized after-status without accepting a changed pre-transition source", () => {
   const original = fixture();
   original.employee.status = "Active";
