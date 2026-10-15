@@ -6,6 +6,7 @@ import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Segmented, Spinner, Status } from "./ui";
 import { useScopedAsyncResource } from "./use-scoped-async-resource";
 import { resolveScopedOption, type ScopedOptionSelection } from "@/lib/scoped-option-selection";
+import { scheduleSwapDraftPreflight, swapDecisionReadiness } from "@/lib/workforce-swap-review-handoff";
 
 type SwapRow = {
   id: number;
@@ -71,6 +72,32 @@ export function WorkforceScheduleSwapPanel({
   const { data: payload, error: loadError, loading, reload: load } =
     useScopedAsyncResource(scopeKey, fetchSwaps, onLoadError);
   const swaps = useMemo(() => payload ?? [], [payload]);
+  const reviewerUserId = data.user?.id ?? null;
+  // Decision notes cannot cross an employer or a different visibility scope.
+  const [decisionDrafts, setDecisionDrafts] = useState<{
+    scopeKey: string; byRequest: Record<number, string>;
+  }>({ scopeKey: "", byRequest: {} });
+  const scopedDecisionNotes = decisionDrafts.scopeKey === scopeKey ? decisionDrafts.byRequest : {};
+  const draftPreflight = scheduleSwapDraftPreflight({
+    organizationId,
+    requesterEmployeeId,
+    counterpartyEmployeeId,
+    requesterWorkDate,
+    counterpartyWorkDate,
+    reason,
+    authorizedEmployeeIds: data.employees.map((employee) => employee.id),
+    pendingSnapshot: payload ? swaps : null,
+  });
+
+  function updateDecisionNote(requestId: number, value: string) {
+    setDecisionDrafts((current) => ({
+      scopeKey,
+      byRequest: {
+        ...(current.scopeKey === scopeKey ? current.byRequest : {}),
+        [requestId]: value.slice(0, 240),
+      },
+    }));
+  }
 
   async function mutate(action: "create_request" | "decide_request", payload: Record<string, unknown>, success: string) {
     setSaving(action === "create_request" ? "create" : String(payload.requestId ?? "decision"));
@@ -97,15 +124,8 @@ export function WorkforceScheduleSwapPanel({
   }
 
   async function createSwap() {
-    if (
-      !requesterEmployeeId
-      || !counterpartyEmployeeId
-      || requesterEmployeeId === counterpartyEmployeeId
-      || !requesterWorkDate
-      || !counterpartyWorkDate
-      || !reason.trim()
-    ) {
-      notify("Choose two different employees, both work dates, and a reason.", "err");
+    if (!draftPreflight.canSubmit) {
+      notify(draftPreflight.detail, "err");
       return;
     }
     await mutate("create_request", {
@@ -113,18 +133,37 @@ export function WorkforceScheduleSwapPanel({
       counterpartyEmployeeId,
       requesterWorkDate,
       counterpartyWorkDate,
-      reason,
+      reason: reason.trim(),
     }, "Schedule swap submitted for independent review.");
   }
 
   async function decide(requestId: number, decision: "approved" | "rejected") {
-    await mutate(
+    const current = swaps.find((swap) => swap.id === requestId && swap.organizationId === organizationId);
+    if (!current) {
+      notify("The selected swap is unavailable. Refresh the request list before deciding.", "err");
+      return;
+    }
+    const readiness = swapDecisionReadiness(current, organizationId, reviewerUserId);
+    if (!readiness.canDecide) {
+      notify(readiness.detail, "err");
+      return;
+    }
+    const decisionNote = (scopedDecisionNotes[requestId] ?? "").trim();
+    const accepted = await mutate(
       "decide_request",
-      { requestId, decision },
+      { requestId, decision, decisionNote },
       decision === "approved"
         ? "Schedule swap approved after server-side revalidation."
         : "Schedule swap rejected.",
     );
+    if (accepted) {
+      setDecisionDrafts((currentDrafts) => {
+        if (currentDrafts.scopeKey !== scopeKey) return currentDrafts;
+        const byRequest = { ...currentDrafts.byRequest };
+        delete byRequest[requestId];
+        return { scopeKey, byRequest };
+      });
+    }
   }
 
   const pending = swaps.filter((swap) => swap.status === "pending").length;
@@ -196,9 +235,14 @@ export function WorkforceScheduleSwapPanel({
             </label>
             <label>Employee B date<input type="date" value={counterpartyWorkDate} onChange={(event) => setCounterpartyWorkDate(event.target.value)} /></label>
             <label>Reason<input value={reason} maxLength={240} onChange={(event) => setReason(event.target.value)} /></label>
+            <div className={"notice " + (draftPreflight.state === "blocked" ? "notice-amber" : "notice-slate")}
+              role="status" aria-live="polite" data-swaps-draft-preflight={draftPreflight.state}>
+              <ShieldCheck size={15} aria-hidden="true" />
+              <span><strong>Request preflight:</strong> {draftPreflight.detail}</span>
+            </div>
           </div>
           <div className="run-actions">
-            <button className="primary-button brand" disabled={saving !== null || !requesterEmployeeId || !counterpartyEmployeeId || requesterEmployeeId === counterpartyEmployeeId} onClick={() => void createSwap()}>
+            <button className="primary-button brand" disabled={saving !== null || !draftPreflight.canSubmit} onClick={() => void createSwap()}>
               {saving === "create" ? <Spinner label="Saving" /> : <ArrowLeftRight size={14} />} Submit swap
             </button>
           </div>
@@ -235,6 +279,7 @@ export function WorkforceScheduleSwapPanel({
                 {visible.map((swap) => {
                   const requester = employees.get(swap.requesterEmployeeId);
                   const counterparty = employees.get(swap.counterpartyEmployeeId);
+                  const decisionReadiness = swapDecisionReadiness(swap, organizationId, reviewerUserId);
                   return (
                     <tr key={swap.id}>
                       <td>
@@ -249,16 +294,46 @@ export function WorkforceScheduleSwapPanel({
                       </td>
                       <td>
                         {swap.status === "pending" ? (
-                          <span className="action-group">
-                            <button className="tiny-button approve" disabled={saving !== null} onClick={() => void decide(swap.id, "approved")}>
-                              <Check size={13} /> Approve
-                            </button>
-                            <button className="tiny-button decline" disabled={saving !== null} onClick={() => void decide(swap.id, "rejected")}>
-                              <X size={13} /> Reject
-                            </button>
-                          </span>
+                          <div data-swaps-review-readiness={decisionReadiness.code}>
+                            {decisionReadiness.canDecide ? (
+                              <>
+                                <label htmlFor={`swap-decision-note-${organizationId}-${swap.id}`}
+                                  className="id" style={{ display: "block", marginBottom: 4 }}>
+                                  Decision note (optional)
+                                </label>
+                                <input
+                                  id={`swap-decision-note-${organizationId}-${swap.id}`}
+                                  type="text"
+                                  maxLength={240}
+                                  value={scopedDecisionNotes[swap.id] ?? ""}
+                                  onChange={(event) => updateDecisionNote(swap.id, event.target.value)}
+                                  disabled={saving !== null}
+                                  placeholder="Reason for this decision"
+                                  style={{ width: "100%", minWidth: 120, marginBottom: 7 }}
+                                />
+                                <span className="action-group">
+                                  <button className="tiny-button approve" disabled={saving !== null} onClick={() => void decide(swap.id, "approved")}>
+                                    <Check size={13} /> Approve
+                                  </button>
+                                  <button className="tiny-button decline" disabled={saving !== null} onClick={() => void decide(swap.id, "rejected")}>
+                                    <X size={13} /> Reject
+                                  </button>
+                                </span>
+                                <small className="id" style={{ display: "block", marginTop: 5 }}>
+                                  Live roster, MFA and reviewer authority are rechecked on the server.
+                                </small>
+                              </>
+                            ) : <span className="id">{decisionReadiness.detail}</span>}
+                          </div>
                         ) : (
-                          <span className="id">{swap.decidedBy ? `By ${swap.decidedBy}` : "Final"}</span>
+                          <div>
+                            <span className="id">{swap.decidedBy ? `By ${swap.decidedBy}` : "Final"}</span>
+                            {swap.decisionNote && (
+                              <span className="id" style={{ display: "block", marginTop: 4 }}>
+                                Decision note: {swap.decisionNote}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
                     </tr>
