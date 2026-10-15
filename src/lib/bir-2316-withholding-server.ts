@@ -55,7 +55,7 @@ export async function loadFinalPay2316Withholding(organizationId: number, employ
           frozen && typeof frozen === "object" && frozen.entryId === e.id && frozen.runId === e.runId && frozen.payDate === e.payDate && JSON.stringify(frozen.lineItems) === JSON.stringify(e.lineItems))))
       return unknownBir2316Withholding("FINAL_PAY_FROZEN_LEDGER_CHANGED");
     const baseline = releasedBir2316Withholding({ ...scope, historicalCount: data.historicalCount }, data.entries);
-    return finalPayBir2316Withholding({ ...source, baseline, before: annual.taxWithheld,
+    return finalPayBir2316Withholding({ ...source, taxYear: scope.taxYear, baseline, before: annual.taxWithheld,
       expectedAdjustment: annual.adjustment, appliedTaxCollection: snapshot.appliedTaxCollection,
       unpaidTaxWithholding: snapshot.unpaidTaxWithholding });
   }, { isolationLevel: "repeatable read", accessMode: "read only" }).catch(() => unknownBir2316Withholding("WITHHOLDING_LOOKUP_UNAVAILABLE"));

@@ -83,7 +83,7 @@ async function main() {
     retirementPay: 0, otherBenefits: 0, loanDeductions: 0 });
   const [separation] = await db.insert(separationRecords).values({ organizationId: org.id, employeeId: employee.id,
     separationType: "resignation", noticeDate: "2025-12-01", lastDay: "2025-12-31", status: "released",
-    releasedAt: new Date(), releaseReference: "Fictional legacy shortfall only", preparedByUserId: actorIds[0],
+    releasedAt: new Date("2025-12-31T02:00:00Z"), releaseReference: "Fictional legacy shortfall only", preparedByUserId: actorIds[0],
     approvedByUserId: actorIds[1], releasedByUserId: actorIds[2], taxAdjustment: String(final.taxAdjustment),
     grossFinalPay: String(final.grossFinalPay), netFinalPay: String(final.netFinalPay),
     computationSnapshot: { annualization: final.annualization, appliedTaxCollection: final.appliedTaxCollection,

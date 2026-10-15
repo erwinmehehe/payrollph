@@ -48,7 +48,7 @@ export function releasedBir2316Withholding(scope: WithholdingScope, entries: Wit
 /** Frozen final-pay allocation is a posted release record, not bank/BIR proof. */
 export function finalPayBir2316Withholding(input: {
   baseline: Bir2316Withholding; before: unknown; expectedAdjustment: unknown;
-  status: string; releasedAt: unknown; releaseReference: unknown;
+  taxYear: number; status: string; releasedAt: unknown; releaseReference: unknown;
   preparedByUserId: number | null; approvedByUserId: number | null; releasedByUserId: number | null;
   appliedTaxCollection: unknown; unpaidTaxWithholding: unknown; taxAdjustment: unknown;
   grossFinalPay: unknown; netFinalPay: unknown; finalStatutoryDeductions: unknown; loanDeductions: unknown;
@@ -58,6 +58,8 @@ export function finalPayBir2316Withholding(input: {
   const releaseTime = input.releasedAt instanceof Date ? input.releasedAt.getTime() : Date.parse(String(input.releasedAt ?? ""));
   if (input.status !== "released" || !Number.isFinite(releaseTime) || String(input.releaseReference ?? "").trim().length < 8 ||
       actors.some(id => !Number.isInteger(id) || Number(id) <= 0) || new Set(actors).size !== 3) return unknown("FINAL_PAY_RELEASE_UNVERIFIED");
+  if (!Number.isInteger(input.taxYear) || Number(new Intl.DateTimeFormat("en", { timeZone: "Asia/Manila", year: "numeric" }).format(new Date(releaseTime))) !== input.taxYear)
+    return unknown("FINAL_PAY_CROSS_YEAR_RELEASE_UNVERIFIED");
   const before = cents(input.before), expected = cents(input.expectedAdjustment, true);
   const collected = cents(input.appliedTaxCollection), unpaid = cents(input.unpaidTaxWithholding);
   const adjustment = cents(input.taxAdjustment, true), gross = cents(input.grossFinalPay), net = cents(input.netFinalPay);

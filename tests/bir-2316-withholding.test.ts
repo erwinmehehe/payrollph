@@ -44,7 +44,7 @@ function finalCase() {
     grossCompensationYtd: 600000, statutoryContributionsYtd: 0, taxWithheldYtd: 5000, mwe: false,
     leaveMonetizationPay: 0, separationPay: 0, retirementPay: 0, otherBenefits: 0, loanDeductions: 0 });
   return { result, input: { baseline: { actualPresentWithheld: "5000.00", appliedAdjustment: "0.00", issues: [] as string[], entryIds: [5] },
-    before: 5000, expectedAdjustment: result.annualization.adjustment, status: "released", releasedAt: new Date(), releaseReference: "fictional-release",
+    taxYear: 2025, before: 5000, expectedAdjustment: result.annualization.adjustment, status: "released", releasedAt: new Date("2025-12-31T02:00:00Z"), releaseReference: "fictional-release",
     preparedByUserId: 1, approvedByUserId: 2, releasedByUserId: 3, appliedTaxCollection: result.appliedTaxCollection,
     unpaidTaxWithholding: result.unpaidTaxWithholding, taxAdjustment: result.taxAdjustment, grossFinalPay: result.grossFinalPay,
     netFinalPay: result.netFinalPay, finalStatutoryDeductions: result.finalStatutoryDeductions, loanDeductions: result.loanDeductions } };
@@ -65,7 +65,7 @@ test("released final-pay refund uses actual net release and cannot infer missing
   const r = finalPayBir2316Withholding({ ...input, expectedAdjustment: -200, appliedTaxCollection: 0, unpaidTaxWithholding: 0,
     taxAdjustment: 200, grossFinalPay: 0, netFinalPay: 200 });
   assert.equal(r.actualPresentWithheld, "4800.00"); assert.equal(r.appliedAdjustment, "-200.00"); assert.deepEqual(r.issues, []);
-  for (const change of [{ status: "approved" }, { preparedByUserId: 2 }, { releaseReference: "" }, { appliedTaxCollection: undefined },
+  for (const change of [{ releasedAt: new Date("2025-12-31T16:00:00Z") }, { status: "approved" }, { preparedByUserId: 2 }, { releaseReference: "" }, { appliedTaxCollection: undefined },
     { unpaidTaxWithholding: undefined }, { netFinalPay: 1 }, { appliedTaxCollection: 999999 }]) assert.equal(finalPayBir2316Withholding({ ...input, ...change }).actualPresentWithheld, null);
 });
 
