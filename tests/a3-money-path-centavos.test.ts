@@ -136,9 +136,9 @@ test("premium, late/undertime and repeat-input cases keep exact pay-line totals"
     tardiness: 50, // 15 / 60 * 200
     undertime: 100, // 30 / 60 * 200
     taxable: 18_155, // 19,720 - 875 - 440 - 100 - 50 - 100
-    withholding: 1_160.70, // (18,155 - 10,417) * 15%
-    deductions: 2_725.70, // 875 + 440 + 100 + 50 + 100 + 1,160.70
-    net: 16_994.30, // 19,720 - 2,725.70
+    withholding: 1_235.10, // 937.50 + (18,155 - 16,667) * 20%
+    deductions: 2_800.10, // 875 + 440 + 100 + 50 + 100 + 1,235.10
+    net: 16_919.90, // 19,720 - 2,800.10
     uncollected: 0, // 19,720 covers 2,725.70 in deductions
   });
   const hourly = fictionalCutoff({ basis: "hourly", rate: 125, regularMinutes: 4_800,
