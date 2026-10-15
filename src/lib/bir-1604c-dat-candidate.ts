@@ -259,15 +259,82 @@ export function buildBir1604cDatCandidate(input: Bir1604CCandidateInput) {
     const selected = input.records.filter(row => row.schedule === schedule);
     if (selected.length) lines.push(controlRow(schedule, selected, tin, branch, period));
   }
+  const content = `${lines.join("\r\n")}\r\n`;
+  assertBir1604cDatIntegrity(content, input);
   // RMC 15-2025 Annex B: <TIN><BC><MMDDYYYY><FORM>.DAT
   const officialNameConvention = `${tin}${branch}1231${input.taxYear}1604C.DAT`;
   return {
     officialNameConvention,
     candidateFilename: `DRAFT-UNVALIDATED-${officialNameConvention}`,
     encoding: "ASCII" as const,
-    content: `${lines.join("\r\n")}\r\n`,
+    content,
     recordCount: input.records.length,
     validatedByBir: false as const,
     note: "STRUCTURAL CANDIDATE ONLY. Validate current BIR layout, controls, naming and exact file bytes with official BIR Alphalist Module before filing.",
   };
+}
+
+/** Check the exact serialized candidate, independently of official-module success.
+ * Alphalist 7.4 accepted a fictional file missing both controls in manual testing.
+ * This guard does not certify tax calculations or authorize submission.
+ */
+export function assertBir1604cDatIntegrity(content: string, expected: Pick<Bir1604CCandidateInput,
+  "employerTin" | "employerBranch" | "taxYear" | "expectedEmployees" | "expectedActualWithheld">) {
+  const fail = () => { throw new Error("1604-C DAT integrity check failed: header, identity, population or control totals differ."); };
+  if (!/^[\x20-\x7E\r\n]*$/.test(content) || !content.endsWith("\r\n")) fail();
+  const rows = content.slice(0, -2).split("\r\n").map(line => {
+    const values: string[] = [];
+    let position = 0;
+    while (position < line.length) {
+      const match = /^(?:"((?:[^"\r\n]|"")*)"|([^",\r\n]+))(,|$)/.exec(line.slice(position));
+      if (!match) return fail();
+      values.push(match[1] === undefined ? match[2] : match[1].replaceAll('""', '"'));
+      position += match[0].length;
+      if (match[3] === "," && position === line.length) fail();
+    }
+    return values;
+  });
+  const identity = [expected.employerTin, expected.employerBranch, `12/31/${expected.taxYear}`];
+  if (JSON.stringify(rows[0]) !== JSON.stringify(["H1604C", ...identity])) fail();
+  const details = new Map<string, string[][]>([["D1", []], ["D2", []]]);
+  const controls = new Map<string, string[]>();
+  let controlsStarted = false;
+  let count = 0;
+  let withheld = BigInt(0);
+  const money = (value: string) => {
+    if (!/^\d{11}\.\d{2}$/.test(value)) return fail();
+    return BigInt(value.replace(".", ""));
+  };
+  const employees = new Set<string>();
+  for (const row of rows.slice(1)) {
+    const kind = row[0];
+    if (row[1] !== "1604C" || row.slice(2, 5).some((v, i) => v !== identity[i])) fail();
+    if (kind === "D1" || kind === "D2") {
+      if (controlsStarted) fail();
+      const fields = kind === "D1" ? BIR_1604C_D1_FIELDS : BIR_1604C_D2_FIELDS;
+      if (row.length !== fields.length || row[5] !== String(++count).padStart(6, "0")) fail();
+      const employee = row[6] + "-" + row[7];
+      if (employees.has(employee)) fail();
+      employees.add(employee);
+      withheld += money(row[fields.indexOf("ACTUAL_AMT_WTHLD")]);
+      details.get(kind)!.push(row);
+    } else if (kind === "C1" || kind === "C2") {
+      controlsStarted = true;
+      if (controls.has(kind)) fail();
+      controls.set(kind, row);
+    } else fail();
+  }
+  if (!count || count !== expected.expectedEmployees || withheld !== BigInt(cents(amount(expected.expectedActualWithheld, "expectedActualWithheld")))) fail();
+  for (const kind of ["D1", "D2"] as const) {
+    const selected = details.get(kind)!;
+    const control = controls.get(kind === "D1" ? "C1" : "C2");
+    if (!selected.length) { if (control) fail(); continue; }
+    const fields = kind === "D1" ? BIR_1604C_D1_FIELDS : BIR_1604C_D2_FIELDS;
+    const totals = kind === "D1" ? BIR_1604C_C1_FIELDS : BIR_1604C_C2_FIELDS;
+    if (!control || control.length !== totals.length) return fail();
+    for (const [index, field] of totals.slice(5).entries()) {
+      const total = selected.reduce((sum, row) => sum + money(row[fields.indexOf(field as never)]), BigInt(0));
+      if (money(control[index + 5]) !== total) fail();
+    }
+  }
 }
