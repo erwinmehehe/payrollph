@@ -19,6 +19,7 @@ assert.equal(new URL(process.env.DATABASE_URL).pathname, "/app_db");
 mkdirSync(dir, { recursive: true });
 const results = [];
 const broken = process.env.NAV_SWEEP_INJECT_BROKEN === "true";
+const proofOnly = process.env.NAV_SWEEP_ONLY_OWNER === "true";
 // Read-only navigation + view controls. Mutation methods are intercepted, even
 // if a seemingly harmless button hides a write action.
 const SAFE_CONTROL = /^(?:more|close|dismiss|cancel|back|next|previous|open|view|show|hide|expand|collapse|details|preview|search|filter|clear filter|help|info|overview|summary|refresh view|history|about)/i;
@@ -62,6 +63,14 @@ async function checkRole(browser, role, width, authState, pages) {
       await route.abort("blockedbyclient");
     } else await route.continue();
   });
+  if (broken && role === "owner" && width === 1280) {
+    await page.route("**/app?organizationId=*", async route => {
+      if (current === "Overview") {
+        await route.fulfill({ status: 500, contentType: "text/html",
+          body: "<h1>Deliberately broken Overview route - synthetic proof</h1>" });
+      } else await route.continue();
+    });
+  }
   page.on("console", msg => { if (msg.type() === "error") errors.push({ page: current, kind: "console", detail: safeText(msg.text()) }); });
   page.on("pageerror", err => errors.push({ page: current, kind: "exception", detail: safeText(err.stack ?? err.message) }));
   page.on("requestfailed", req => {
@@ -141,8 +150,7 @@ async function checkRole(browser, role, width, authState, pages) {
         // the benign body copy of a payroll screen.
         const alerts = await page.locator(ERROR_SELECTOR).allTextContents();
         for (const message of alerts.map(safeText).filter(Boolean)) findings.push({ kind: "visible error", detail: message });
-        if (broken && role === "owner" && width === 1280 && name === "Overview")
-          findings.push({ kind: "deliberately injected", detail: "NAV_SWEEP_INJECT_BROKEN synthetic console failure" });
+
         // Click only unambiguously non-destructive controls. A label not on the
         // safe vocabulary is explicitly SKIPPED, not silently marked tested.
         const controls = page.locator(".app-main button:visible, .app-main a:visible, .employee-workspace-body button:visible, .employee-workspace-body a:visible");
@@ -188,9 +196,11 @@ async function checkRole(browser, role, width, authState, pages) {
 test("read-only navigation and runtime error sweep (real roles, both viewports)", { timeout: 900000 }, async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const { role, pages } of manifest.roles) {
+    for (const { role, pages: allPages } of manifest.roles) {
+      if (proofOnly && role !== "owner") continue;
+      const pages = proofOnly ? ["Overview"] : allPages;
       const state = await login(browser, role);
-      for (const width of [1280, 390]) await checkRole(browser, role, width, state, pages);
+      for (const width of (proofOnly ? [1280] : [1280, 390])) await checkRole(browser, role, width, state, pages);
     }
   } finally {
     await browser.close();
