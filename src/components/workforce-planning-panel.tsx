@@ -828,6 +828,20 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     onPage("Recruitment");
   }
 
+  // Prevent previous-organization values from appearing during an in-flight
+  // organization switch or manual Retry. Only successful reads render controls.
+  if (loading) {
+    return (
+      <div className="page-heading" role="status" aria-busy="true">
+        <div>
+          <div className="eyebrow">HCM STRUCTURE &amp; WORKFORCE PLANNING</div>
+          <h1>Workforce planning</h1>
+          <p>Loading authorized workforce planning records…</p>
+        </div>
+      </div>
+    );
+  }
+
   // A failed authoritative read must not render empty counts or allow writes
   // that could be mistaken for a valid zero-worker workforce plan.
   if (loadError) {
