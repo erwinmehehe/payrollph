@@ -73,7 +73,12 @@ function inventory() {
   if (entries.length !== 169 || new Set(identifiers).size !== 169) {
     throw new Error("Expected 169 unique source-declared object checks; re-review source drift");
   }
-  return entries;
+  return entries.sort((a, b) =>
+    a.prefix.localeCompare(b.prefix) ||
+    a.kind.localeCompare(b.kind) ||
+    a.table.localeCompare(b.table) ||
+    a.name.localeCompare(b.name)
+  );
 }
 
 function buildReadOnlySql(entries) {
