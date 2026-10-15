@@ -13,13 +13,15 @@ test("workforce planning preserves an honest unavailable state when its authorit
   assert.match(planning, /if \(loadError\) \{[\s\S]*?role="alert"[\s\S]*?Retry[\s\S]*?return \(/);
   const loadRead = planning.slice(planning.indexOf("  const load = useCallback("), planning.indexOf("  useEffect(() => { void load(); }, [load]);"));
   assert.doesNotMatch(loadRead, /setNotice\(/, "initial workforce load must not emit a success-style toast");
-  assert.match(planning, /if \(loading\) \{[\s\S]*?role="status" aria-busy="true"/, "withhold stale organization data while loading");
+  assert.match(planning, /if \(loading \|\| \(!loadError && loadedOrganizationId !== organizationId\)\) \{[\s\S]*?role="status" aria-busy="true"/, "withhold stale organization data while loading or switching tenants");
+  assert.match(planning, /revision !== loadRevisionRef\.current/);
 });
 
 test("allocation fetch failures revoke old access and never present empty planning evidence as success", () => {
   assert.match(allocations, /if \(!response\.ok\) \{\s*setAccess\(null\);\s*setAllocations\(\[\]\);\s*setSubmissions\(\[\]\)/);
   assert.match(allocations, /if \(loadError\) \{[\s\S]*?role="alert"[\s\S]*?Retry/);
-  assert.match(allocations, /if \(loading\) \{[\s\S]*?Loading workforce allocations/, "withhold previous allocation evidence during load");
+  assert.match(allocations, /if \(loading \|\| \(!loadError && loadedOrganizationId !== organizationId\)\) \{[\s\S]*?Loading workforce allocations/, "withhold previous allocation evidence during load or tenant switch");
+  assert.match(allocations, /revision !== loadRevisionRef\.current/);
   const initialRead = allocations.slice(allocations.indexOf("  const load = useCallback("), allocations.indexOf("  useEffect(() => { void load(); }, [load]);"));
   assert.doesNotMatch(initialRead, /setNotice\(/, "initial allocation load must not emit a success-style toast");
 });
