@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PayrollUnderpaymentPanel } from "@/components/payroll-underpayment-panel";
 import { PayrollOverpaymentWorkbench } from "@/components/payroll-overpayment-workbench";
 import { PayrollOverpaymentPreviewPanel } from "@/components/payroll-overpayment-preview-panel";
 import { summarizeCompensationCycleBudget } from "@/lib/hcm-compensation-cycle-budget-preview";
 import { visibleCompensationCommittedIncrease } from "@/lib/hcm-compensation-read-projection";
+import { HcmCompensationWhatIfDetails } from "@/components/hcm-compensation-whatif-details";
+import { previewCompensationProposal } from "@/lib/hcm-compensation-proposal-whatif";
 import {
   BadgeDollarSign,
   CalendarDays,
@@ -129,19 +131,32 @@ function pct(value: number | null) {
   return value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(1)}%`;
 }
 
-export function CompensationPanel({
+type CompensationPanelProps = {
+  organizationId: number;
+  setNotice: (message: string) => void;
+  // Default-off payroll evidence requires an authorized viewer and a
+  // separate release-gate, independent of compensation what-if permissions.
+  canViewPayrollEvidence?: boolean;
+  previewEnabled?: boolean;
+  investigationEnabled?: boolean;
+};
+
+/**
+ * A compensation form contains proposed salary amounts and free-text reasons.
+ * Remount by employer so those drafts, old authorizations and fetched source
+ * rows are discarded synchronously at the render boundary.
+ */
+export function CompensationPanel(props: CompensationPanelProps) {
+  return <ScopedCompensationPanel key={props.organizationId} {...props} />;
+}
+
+function ScopedCompensationPanel({
   organizationId,
   setNotice,
   canViewPayrollEvidence = false,
   previewEnabled = false,
   investigationEnabled = false,
-}: {
-  organizationId: number;
-  setNotice: (message: string) => void;
-  canViewPayrollEvidence?: boolean;
-  previewEnabled?: boolean;
-  investigationEnabled?: boolean;
-}) {
+}: CompensationPanelProps) {
   const [access, setAccess] = useState<Access | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -156,6 +171,13 @@ export function CompensationPanel({
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [events, setEvents] = useState<CompensationEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedOrganizationId, setLoadedOrganizationId] = useState<number | null>(null);
+  const [failedLoad, setFailedLoad] = useState<{ organizationId: number; message: string } | null>(null);
+  const requestSequence = useRef(0);
+  // Stable cleanup callback invalidates only a superseded compensation read.
+  const invalidateInFlightLoad = useCallback(() => {
+    requestSequence.current++;
+  }, []);
 
   const [bandForm, setBandForm] = useState({
     gradeId: "",
@@ -201,15 +223,27 @@ export function CompensationPanel({
     reason: "",
   });
 
+  // Keyed scope ensures fresh forms for each employer. Resetting five React
+  // states in an effect would run after paint and leak draft pay inputs during
+  // an employer switch, besides causing cascading render updates.
+
+  // An old-employer salary snapshot must never be rendered during a switch.
+  // Late responses cannot replace a newer authorized employer response.
   const load = useCallback(async () => {
-    setLoading(true);
+    const requestId = ++requestSequence.current;
+    // Start the network read immediately; React state is updated only after
+    // its awaited response, not synchronously from the mount effect.
     try {
-      const response = await fetch(`/api/compensation?organizationId=${organizationId}`, { cache: "no-store" });
+      const response = await fetch("/api/compensation?organizationId=" + organizationId, { cache: "no-store" });
       const body = await response.json().catch(() => ({}));
+      if (requestSequence.current !== requestId) return;
       if (!response.ok) throw new Error(body.error ?? "Could not load compensation.");
-      setAccess(body.access ?? null);
+      if (!body.access || typeof body.access.companyWide !== "boolean" || !Array.isArray(body.employees)) {
+        throw new Error("Authorized compensation data is incomplete. Refresh to retry.");
+      }
+      setAccess(body.access);
       setCurrentUserId(Number.isInteger(body.currentUserId) ? body.currentUserId : null);
-      setEmployees(body.employees ?? []);
+      setEmployees(body.employees);
       setJobProfiles(body.jobProfiles ?? []);
       setJobGrades(body.jobGrades ?? []);
       setLegalEntities(body.legalEntities ?? []);
@@ -220,16 +254,30 @@ export function CompensationPanel({
       setComponentAssignments(body.componentAssignments ?? []);
       setPromotions(body.promotions ?? []);
       setEvents(body.compensationEvents ?? []);
+      setLoadedOrganizationId(organizationId);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not load compensation.");
+      if (requestSequence.current !== requestId) return;
+      const message = error instanceof Error ? error.message : "Could not load compensation.";
+      setFailedLoad({ organizationId, message });
+      setLoadedOrganizationId(null);
+      setNotice(message);
     } finally {
-      setLoading(false);
+      if (requestSequence.current === requestId) setLoading(false);
     }
   }, [organizationId, setNotice]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateInFlightLoad;
+  }, [load, invalidateInFlightLoad]);
+
+  // Only an explicit user action (or an awaited mutation) starts a manual
+  // loading transition. The mount effect is strictly asynchronous.
+  const refresh = () => {
+    setLoading(true);
+    setFailedLoad(null);
+    void load();
+  };
 
   async function post(entityType: string, payload: Record<string, unknown>) {
     const response = await fetch("/api/compensation", {
@@ -262,8 +310,8 @@ export function CompensationPanel({
   }
 
   const activeCycle = cycles.find((cycle) => cycle.status === "active");
-  // Company budgets are server-redacted for unit-scoped HR. Never substitute
-  // a guessed budget; compute only scheduled/applied visible-worker increases.
+  // The API redacts organization budgets for unit-scoped HR. Do not
+  // reconstruct them in this screen from partial/visible proposals.
   const budgetPreview = useMemo(
     () => access?.companyWide
       ? summarizeCompensationCycleBudget(activeCycle ?? null, proposals)
@@ -279,10 +327,59 @@ export function CompensationPanel({
     : visibleCommitted;
   const selectedEmployeeId = Number(proposalForm.employeeId);
   const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId) ?? null;
+  const selectedCycle = cycles.find(
+    (cycle) => cycle.id === Number(proposalForm.cycleId) && cycle.status === "active",
+  ) ?? null;
+  const selectedBand = bands.find(
+    (band) => band.id === Number(proposalForm.bandId) && band.active,
+  ) ?? null;
+  const hasExistingWorkerProposal = Boolean(selectedCycle && selectedEmployee && proposals.some(
+    (proposal) => proposal.employeeId === selectedEmployee.id &&
+      proposal.cycleId === selectedCycle.id &&
+      ["proposed", "scheduled", "applied", "failed"].includes(proposal.status),
+  ));
+  // The full cycle pool must never be inferred from a scoped manager response.
+  const authorizedSelectedCycleBudget = useMemo(
+    () => access?.companyWide
+      ? summarizeCompensationCycleBudget(selectedCycle, proposals)
+      : null,
+    [access?.companyWide, selectedCycle, proposals],
+  );
+  // No new fetch or mutation: this uses only values already returned by the
+  // authorized source-owned compensation panel.
+  const proposalImpact = selectedEmployee && selectedCycle && proposalForm.proposedAnnual.trim()
+    ? previewCompensationProposal({
+        currentAnnual: selectedEmployee.annualPay,
+        proposedAnnual: proposalForm.proposedAnnual,
+        selectedBand,
+        authorizedCycleBudget: access?.companyWide ? authorizedSelectedCycleBudget : null,
+        hasExistingProposal: hasExistingWorkerProposal,
+      })
+    : null;
   const selectedPromotionOptions = promotions.filter(
     (promotion) => promotion.employeeId === selectedEmployeeId,
   );
   const canApprove = access?.role === "owner" || access?.role === "admin";
+
+  // The workspace can retain this component while the selected employer
+  // changes. Withhold all compensation records until the exact new source
+  // has been fetched successfully.
+  if (loading || loadedOrganizationId !== organizationId || !access) {
+    return (
+      <section role="status" aria-live="polite" data-hcm-compensation-source="unavailable">
+        <div className="notice notice-slate" style={{ marginTop: 16 }}>
+          {failedLoad?.organizationId === organizationId && !loading
+            ? failedLoad.message
+            : "Loading authorized compensation data for the selected employer."}
+        </div>
+        {failedLoad?.organizationId === organizationId && !loading && (
+          <button type="button" className="secondary-button" onClick={refresh}>
+            <RefreshCw size={14} /> Retry compensation data
+          </button>
+        )}
+      </section>
+    );
+  }
 
   return (
     <div>
@@ -296,7 +393,7 @@ export function CompensationPanel({
           </p>
         </div>
         <div className="page-actions">
-          <button className="secondary-button" onClick={() => void load()} disabled={loading}>
+          <button className="secondary-button" onClick={refresh} disabled={loading}>
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
@@ -511,6 +608,7 @@ export function CompensationPanel({
             </select>
             <input type="number" value={proposalForm.proposedAnnual} onChange={(event) => setProposalForm({ ...proposalForm, proposedAnnual: event.target.value })} placeholder="Proposed annual pay" />
             <textarea value={proposalForm.reason} onChange={(event) => setProposalForm({ ...proposalForm, reason: event.target.value })} placeholder="Reason for proposed change" />
+            {proposalImpact && <HcmCompensationWhatIfDetails impact={proposalImpact} companyWide={access.companyWide} />}
             <button
               className="secondary-button"
               onClick={async () => {
