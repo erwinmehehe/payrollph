@@ -40,6 +40,7 @@ import {
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, retroSourceTaxYear, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
+import { loadFinalPayRetroSourcePeriods } from "@/lib/final-pay-retro-source-lookup";
 import { reviewFinalPayLoans, matchesRecordedFinalPayLoanReview } from "@/lib/final-pay-loan-authority";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
@@ -151,21 +152,11 @@ async function loadFinalPaySources(input: {
       if (match) retroIds.add(Number(match[1]));
     }
   }
-  const retroSourcePeriods = retroIds.size
-    ? await reader.select({
-        id: employeePayRetroAdjustments.id,
-        sourcePeriodStart: payrollRuns.periodStart,
-        sourcePeriodEnd: payrollRuns.periodEnd,
-      })
-      .from(employeePayRetroAdjustments)
-      .innerJoin(payrollRuns, eq(employeePayRetroAdjustments.sourcePayrollRunId, payrollRuns.id))
-      .where(and(
-        eq(employeePayRetroAdjustments.organizationId, input.organizationId),
-        eq(employeePayRetroAdjustments.employeeId, input.employeeId),
-        eq(payrollRuns.organizationId, input.organizationId),
-        inArray(employeePayRetroAdjustments.id, [...retroIds]),
-      ))
-    : [];
+  const retroSourcePeriods = await loadFinalPayRetroSourcePeriods({
+    organizationId: input.organizationId,
+    employeeId: input.employeeId,
+    adjustmentIds: [...retroIds],
+  }, reader);
   const retroSourceYearById = new Map(retroSourcePeriods.map((row) => [
     row.id,
     retroSourceTaxYear(String(row.sourcePeriodStart), String(row.sourcePeriodEnd)),

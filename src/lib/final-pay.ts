@@ -63,6 +63,11 @@ export function readBasicAndThirteenth(lineItems: unknown, attribution?: RetroSo
       }
       eligibleRetroBasic = originalYear === attribution!.taxYear;
     }
+    // M-5: HOLIDAY_UNWORKED is holiday pay, not an ordinary BASIC wage
+    // line. DOLE's statutory 13th-month minimum generally excludes holiday
+    // pay. An employer whose agreement or established practice integrates
+    // it into basic salary needs separate reviewed policy evidence; never
+    // silently interpret this line as BASIC or change past entitlements here.
     if (
       code === "BASIC"
       || eligibleRetroBasic
