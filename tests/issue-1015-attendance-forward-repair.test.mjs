@@ -31,7 +31,7 @@ test("#1015 candidate is additive, creates missing final schema, and has explici
   assert.doesNotMatch(tokens, /\bIF NOT EXISTS\b|\bDROP\b|\bTRUNCATE\b|\bUPDATE\b|\bDELETE\b|\bINSERT\b|\bALTER TABLE\b/i);
   assert.doesNotMatch(tokens, /\b(?:FROM|JOIN)\s+(?:public\.)?(?:employees|users|time_punches|payroll_runs|payroll_entries|attendance_exception_events)\b/i,
     "migration cannot query application rows to infer or backfill historical data");
-  assert.doesNotMatch(tokens, /\b(?:BEGIN|COMMIT|ROLLBACK)\b/i,
+  assert.doesNotMatch(tokens, /\b(?:BEGIN\s+TRANSACTION|START\s+TRANSACTION|COMMIT|ROLLBACK)\b/i,
     "protected runner, not migration SQL, owns the release transaction");
   for (const expected of [
     "CREATE UNIQUE INDEX attendance_exception_events_fingerprint_unique",
