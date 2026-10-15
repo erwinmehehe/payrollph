@@ -82,6 +82,8 @@ test("production demo unit HR auth is secret gated and separate from ordinary HR
   assert.match(route, /constantTimeSecretEqual\(request\.headers\.get\("x-readiness-token"\), expected\)/);
   assert.match(route, /scopedOrgUnitId === null \? DEMO_ACCOUNTS\[role\]/);
   assert.match(route, /email: "hr\.unit\.demo@linaw\.ph"/);
+  assert.match(route, /localPasswordEnabled: scopedOrgUnitId === null/);
+  assert.match(route, /randomToken\(32\)/);
   assert.equal((route.match(/orgUnitId: scopedOrgUnitId/g) ?? []).length, 2);
   assert.match(fixtureSource, /organization\.name !== "Loom & Local" \|\| otherOrganization/);
   assert.match(fixtureSource, /status: "proposed"/);
