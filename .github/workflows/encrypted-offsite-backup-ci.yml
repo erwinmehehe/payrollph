@@ -1,6 +1,7 @@
 name: Encrypted Offsite Backup Contract (Synthetic PostgreSQL 18)
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "scripts/lib/protected-offsite-backup-policy.mjs"
@@ -10,6 +11,7 @@ on:
       - "scripts/backup-neon-offsite-encrypted.sh"
       - "scripts/verify-protected-offsite-restore.sh"
       - "scripts/rehearse-encrypted-offsite-backup.sh"
+      - "docs/engineering/p0-4-synthetic-offline-restore-evidence.md"
       - "scripts/sql/protected-neon-backup-source.sql"
       - ".github/workflows/protected-neon-offsite-backup.yml"
       - ".github/workflows/protected-neon-offsite-restore.yml"
@@ -26,6 +28,7 @@ on:
       - "scripts/backup-neon-offsite-encrypted.sh"
       - "scripts/verify-protected-offsite-restore.sh"
       - "scripts/rehearse-encrypted-offsite-backup.sh"
+      - "docs/engineering/p0-4-synthetic-offline-restore-evidence.md"
       - ".github/workflows/encrypted-offsite-backup-ci.yml"
       - "tests/protected-offsite-backup.test.mjs"
       - "tests/protected-offsite-restore.test.mjs"
@@ -78,9 +81,17 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq age
-      - name: Synthetic PG18 custom dump, age round-trip, wrong-key rejection, restore
+      - name: Fictional PG18 encrypted detached-copy recovery into networkless PG18
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
         run: bash scripts/rehearse-encrypted-offsite-backup.sh
+      - name: Upload sanitized synthetic-only evidence (NO archive or private keys)
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-fictional-offline-restore-proof
+          path: qa-artifacts/dr-offsite-synthetic.json
+          if-no-files-found: error
+          retention-days: 7
 
 # This test never sees production data, credentials, AWS, or provider money.
