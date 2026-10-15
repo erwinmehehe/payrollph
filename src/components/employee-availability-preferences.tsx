@@ -80,9 +80,16 @@ export function EmployeeAvailabilityPreferences({ language = "en" }: { language?
   }, []);
 
   useEffect(() => {
-    // No synchronous state transitions from the mount effect.
-    void load();
-    return () => controllerRef.current?.abort();
+    // Schedule the first read after this effect and guard unmounts before the
+    // microtask. No state-mutating load runs synchronously in the effect.
+    let active = true;
+    queueMicrotask(() => {
+      if (active) void load();
+    });
+    return () => {
+      active = false;
+      controllerRef.current?.abort();
+    };
   }, [load]);
 
   const refresh = () => {
