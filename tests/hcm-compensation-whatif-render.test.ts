@@ -73,7 +73,7 @@ test("invalid source data never displays monetary amounts", () => {
 test("the parent compensation screen masks stale employer data and stale responses", () => {
   const source = readFileSync("src/components/compensation-panel.tsx", "utf8");
   assert.ok(source.includes("loadedOrganizationId !== organizationId"));
-  const draftReset = source.split("A salary")[1]?.split("// An old-employer salary snapshot")[0] ?? "";
+  const draftReset = source.split("// The workspace retains this component across employer switching. A salary")[1]?.split("// An old-employer salary snapshot")[0] ?? "";
   assert.match(draftReset, /useEffect\(\(\) => \{/);
   assert.match(draftReset, /setBandForm\(\{/);
   assert.match(draftReset, /setCycleForm\(\{/);
