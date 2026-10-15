@@ -298,7 +298,9 @@ export function WorkforcePlanAllocationPanel({
     );
   }
 
-  if (loading && !access) {
+  // Always withhold previous employer's allocation evidence during Retry
+  // and organization changes, even if old access state was still populated.
+  if (loading) {
     return (
       <article className="card" style={{ marginBottom: 16 }}>
         <div className="empty-state">Loading workforce allocations...</div>
