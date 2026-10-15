@@ -255,7 +255,7 @@ try {
     const url = base + "/api/year-end?format=2316-print&organizationId=" + fixture.organizationId + "&taxYear=2025&employeeId=" + fixture.employeeId;
     const response = await owner.request.get(url);
     assert.equal(response.status(), 200, "2316 review uses authorized exact employee source");
-    assert.match(response.headers()["cache-control"], /private/);
+    assert.match(response.headers()["cache-control"], /no-store/, "framework response must prevent browser and shared-cache storage");
     const html = await response.text();
     assert.equal(html.includes("data-bir-2316-reconciliation"), enabled);
     if (enabled) {

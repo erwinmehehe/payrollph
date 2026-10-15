@@ -106,7 +106,7 @@ test("flag off matches pre-change HTML and text snapshots; exact true enables nu
     process.env.BIR_2316_RECONCILIATION_ENABLED = "true";
     const html = renderBir2316ReviewHtml(htmlInput());
     assert.match(html, /Numbered 2316 reconciliation/); assert.match(html, /SETTLEMENT_UNVERIFIED/);
-    assert.match(html, /REQUIRES VERIFIED SOURCE/); assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /REQUIRES VERIFIED SOURCE/); assert.doesNotMatch(html, /<script\b/i);
     assert.match(renderForm2316(textInput()), /Alphalist DAT validation does not validate this certificate/);
   } finally { if (saved === undefined) delete process.env.BIR_2316_RECONCILIATION_ENABLED; else process.env.BIR_2316_RECONCILIATION_ENABLED = saved; }
 });
