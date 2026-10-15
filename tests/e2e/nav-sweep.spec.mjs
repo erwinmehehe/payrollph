@@ -23,7 +23,7 @@ const proofOnly = process.env.NAV_SWEEP_ONLY_OWNER === "true";
 // Read-only navigation + view controls. Mutation methods are intercepted, even
 // if a seemingly harmless button hides a write action.
 const SAFE_CONTROL = /^(?:more|close|dismiss|cancel|back|next|previous|open|view|show|hide|expand|collapse|details|preview|search|filter|clear filter|help|info|overview|summary|refresh view|history|about)/i;
-const DANGEROUS = /(?:submit|payroll|process|release|approve|reject|decline|delete|remove|archive|publish|send|file|remit|transfer|withdraw|disburse|payout|payment|save|create|add|edit|update|record|apply|import|upload|download|export|sync|generate|run|calculate|clock|punch|sign out|logout|upgrade|enable|disable|retry|confirm|reconcile|recalculate|execute|start|stop)/i;
+const DANGEROUS = /\b(?:submit|payroll|process|release|approve|reject|decline|delete|remove|archive|publish|send|file|remit|transfer|withdraw|disburse|payout|payment|save|create|add|edit|update|record|apply|import|upload|download|export|sync|generate|run|calculate|clock|punch|sign out|logout|upgrade|enable|disable|retry|confirm|reconcile|recalculate|execute|start|stop)\b|^open\s+(?:SSS|PhilHealth|Pag-IBIG)\b/i;
 const ERROR_SELECTOR = ".toast.err, .empty-state.error, [role='alert'], .notice-red, .notice-danger, .notice.error, .error-banner, [data-sonner-toast][data-type='error']";
 const safeText = (s) => (s ?? "").replace(/\s+/g, " ").slice(0, 380);
 
