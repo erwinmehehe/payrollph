@@ -1,7 +1,10 @@
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  benefitEnrollments, deMinimisGrants, earnedWageRequests, employeeCompensationComponents,
+  attendanceCorrectionRequests, benefitEnrollments, calamityAdvisories, deMinimisGrants,
+  earnedWageRequests, employeeCompensationComponents, employeeRestDayRevisions,
+  employeeScheduleAssignments, employeeWorksiteAssignments, expenseClaims, leaveConversions,
+  overtimeRequests, scheduleOverrides, yearEndAdjustments,
   employeeLoans, employeeMweClassifications, employeePayProfiles, employeePayRevisions,
   employees, firstPayrollJourneyProgress, historicalPayrollEntries, holidays, legalEntities,
   leaveRequests, organizations, payPolicies, payrollRuns, supplementaryEarnings,
@@ -48,52 +51,139 @@ export async function loadReadOnlyFirstPayrollPreview(
  if(!memberRows.some(r=>r.role==="checker"))blockers.push("No active independent Checker role is assigned.");
  if(!people.length)blockers.push("No active employees in the selected period.");
 
- // Unmodeled inputs that could affect this or earlier cutoffs force blockers
- // rather than a falsely precise payslip. Only strictly future-dated leave,
- // supplementary earnings and employer holidays are irrelevant to this cutoff.
- // The normal payroll engine handles all these sources; this first-run preview
- // intentionally supports only a genuinely simple initial fixed-salary cutoff.
- const sourceChecks = [
-  // A punch from a prior or future cutoff must not block an otherwise simple
-  // selected period. In-period punches still fail closed: this preview does not
-  // assemble/approve attendance or calculate time-linked payroll premiums.
-  ["time punches", () => reader.select({id:timePunches.id}).from(timePunches).where(and(
-    eq(timePunches.organizationId,organizationId),
-    gte(timePunches.workDate,periodStart),
-    lte(timePunches.workDate,periodEnd),
-  )).limit(1)],
-  ["employee pay revisions", () => reader.select({id:employeePayRevisions.id}).from(employeePayRevisions).where(eq(employeePayRevisions.organizationId,organizationId)).limit(1)],
-  ["supplementary earnings", () => reader.select({id:supplementaryEarnings.id}).from(supplementaryEarnings).where(and(
-    eq(supplementaryEarnings.organizationId,organizationId),
+ // The canonical payroll worker reads employee-specific attendance, compensation,
+ // leave, benefit, WFM and statutory history. The lightweight GET cannot price
+ // those sources until the worker's *same* assembler is factored into a query-
+ // only shared function. In the meantime, check the actual selected employee
+ // cohort and cutoff. An unrelated worker's loan/punch must not suppress an
+ // otherwise simple worker's estimate, but an affected worker receives NO money.
+ const employeeIds=people.map(employee=>employee.id);
+ const scopedChecks=[
+  ["time punches",()=>reader.select({employeeId:timePunches.employeeId}).from(timePunches).where(and(
+    eq(timePunches.organizationId,organizationId),inArray(timePunches.employeeId,employeeIds),
+    gte(timePunches.workDate,periodStart),lte(timePunches.workDate,periodEnd),
+  )).groupBy(timePunches.employeeId)],
+  ["employee pay revisions",()=>reader.select({employeeId:employeePayRevisions.employeeId}).from(employeePayRevisions).where(and(
+    eq(employeePayRevisions.organizationId,organizationId),inArray(employeePayRevisions.employeeId,employeeIds),
+    lte(employeePayRevisions.effectiveDate,periodEnd),
+  )).groupBy(employeePayRevisions.employeeId)],
+  ["supplementary earnings",()=>reader.select({employeeId:supplementaryEarnings.employeeId}).from(supplementaryEarnings).where(and(
+    eq(supplementaryEarnings.organizationId,organizationId),inArray(supplementaryEarnings.employeeId,employeeIds),
     lte(supplementaryEarnings.effectiveDate,periodEnd),
-  )).limit(1)],
-  ["leave requests", () => reader.select({id:leaveRequests.id}).from(leaveRequests).where(and(
-    eq(leaveRequests.organizationId,organizationId),
-    // Starts on/before the cutoff: past leave remains conservative; crossing the
-    // cutoff boundary still blocks. Future-only leave cannot affect this period.
+  )).groupBy(supplementaryEarnings.employeeId)],
+  ["leave requests",()=>reader.select({employeeId:leaveRequests.employeeId}).from(leaveRequests).where(and(
+    eq(leaveRequests.organizationId,organizationId),inArray(leaveRequests.employeeId,employeeIds),
     lte(leaveRequests.startDate,periodEnd),
-  )).limit(1)],
-  ["de minimis grants", () => reader.select({id:deMinimisGrants.id}).from(deMinimisGrants).where(eq(deMinimisGrants.organizationId,organizationId)).limit(1)],
-  ["wage advances", () => reader.select({id:earnedWageRequests.id}).from(earnedWageRequests).where(eq(earnedWageRequests.organizationId,organizationId)).limit(1)],
-  ["employee loans", () => reader.select({id:employeeLoans.id}).from(employeeLoans).where(eq(employeeLoans.organizationId,organizationId)).limit(1)],
-  ["custom pay policies", () => reader.select({id:payPolicies.id}).from(payPolicies).where(eq(payPolicies.organizationId,organizationId)).limit(1)],
-  ["employer-specific holidays", () => reader.select({id:holidays.id}).from(holidays).where(and(
-    eq(holidays.organizationId,organizationId),
-    lte(holidays.holidayDate,periodEnd),
-  )).limit(1)],
-  ["historical payroll entries", () => reader.select({id:historicalPayrollEntries.id}).from(historicalPayrollEntries).where(eq(historicalPayrollEntries.organizationId,organizationId)).limit(1)],
-  ["MWE classification history", () => reader.select({id:employeeMweClassifications.id}).from(employeeMweClassifications).where(eq(employeeMweClassifications.organizationId,organizationId)).limit(1)],
-  ["benefit enrollment", () => reader.select({id:benefitEnrollments.id}).from(benefitEnrollments).where(eq(benefitEnrollments.organizationId,organizationId)).limit(1)],
-  ["recurring compensation", () => reader.select({id:employeeCompensationComponents.id}).from(employeeCompensationComponents).where(eq(employeeCompensationComponents.organizationId,organizationId)).limit(1)],
-  ["retroactive adjustments", () => reader.select({id:employeePayRetroAdjustments.id}).from(employeePayRetroAdjustments).where(eq(employeePayRetroAdjustments.organizationId,organizationId)).limit(1)],
-  ["previous payroll runs", () => reader.select({id:payrollRuns.id}).from(payrollRuns).where(eq(payrollRuns.organizationId,organizationId)).limit(1)],
+  )).groupBy(leaveRequests.employeeId)],
+  ["de minimis grants",()=>reader.select({employeeId:deMinimisGrants.employeeId}).from(deMinimisGrants).where(and(
+    eq(deMinimisGrants.organizationId,organizationId),inArray(deMinimisGrants.employeeId,employeeIds),
+    lte(deMinimisGrants.effectiveOn,periodEnd),
+    or(isNull(deMinimisGrants.endedOn),gte(deMinimisGrants.endedOn,periodStart)),
+  )).groupBy(deMinimisGrants.employeeId)],
+  ["wage advances",()=>reader.select({employeeId:earnedWageRequests.employeeId}).from(earnedWageRequests).where(and(
+    eq(earnedWageRequests.organizationId,organizationId),inArray(earnedWageRequests.employeeId,employeeIds),
+  )).groupBy(earnedWageRequests.employeeId)],
+  ["employee loans",()=>reader.select({employeeId:employeeLoans.employeeId}).from(employeeLoans).where(and(
+    eq(employeeLoans.organizationId,organizationId),inArray(employeeLoans.employeeId,employeeIds),
+  )).groupBy(employeeLoans.employeeId)],
+  ["historical payroll entries",()=>reader.select({employeeId:historicalPayrollEntries.employeeId}).from(historicalPayrollEntries).where(and(
+    eq(historicalPayrollEntries.organizationId,organizationId),inArray(historicalPayrollEntries.employeeId,employeeIds),
+    lte(historicalPayrollEntries.payDate,payDate),
+  )).groupBy(historicalPayrollEntries.employeeId)],
+  ["MWE classification history",()=>reader.select({employeeId:employeeMweClassifications.employeeId}).from(employeeMweClassifications).where(and(
+    eq(employeeMweClassifications.organizationId,organizationId),inArray(employeeMweClassifications.employeeId,employeeIds),
+    lte(employeeMweClassifications.effectiveFrom,payDate),
+  )).groupBy(employeeMweClassifications.employeeId)],
+  ["benefit enrollment",()=>reader.select({employeeId:benefitEnrollments.employeeId}).from(benefitEnrollments).where(and(
+    eq(benefitEnrollments.organizationId,organizationId),inArray(benefitEnrollments.employeeId,employeeIds),
+    lte(benefitEnrollments.startedOn,periodEnd),
+    or(isNull(benefitEnrollments.endedOn),gte(benefitEnrollments.endedOn,periodStart)),
+  )).groupBy(benefitEnrollments.employeeId)],
+  ["recurring compensation",()=>reader.select({employeeId:employeeCompensationComponents.employeeId}).from(employeeCompensationComponents).where(and(
+    eq(employeeCompensationComponents.organizationId,organizationId),
+    inArray(employeeCompensationComponents.employeeId,employeeIds),
+    lte(employeeCompensationComponents.effectiveFrom,periodEnd),
+    or(isNull(employeeCompensationComponents.effectiveUntil),gte(employeeCompensationComponents.effectiveUntil,periodStart)),
+  )).groupBy(employeeCompensationComponents.employeeId)],
+  ["retroactive adjustments",()=>reader.select({employeeId:employeePayRetroAdjustments.employeeId}).from(employeePayRetroAdjustments).where(and(
+    eq(employeePayRetroAdjustments.organizationId,organizationId),
+    inArray(employeePayRetroAdjustments.employeeId,employeeIds),
+  )).groupBy(employeePayRetroAdjustments.employeeId)],
+  ["expense claims",()=>reader.select({employeeId:expenseClaims.employeeId}).from(expenseClaims).where(and(
+    eq(expenseClaims.organizationId,organizationId),inArray(expenseClaims.employeeId,employeeIds),
+  )).groupBy(expenseClaims.employeeId)],
+  ["leave conversions",()=>reader.select({employeeId:leaveConversions.employeeId}).from(leaveConversions).where(and(
+    eq(leaveConversions.organizationId,organizationId),inArray(leaveConversions.employeeId,employeeIds),
+  )).groupBy(leaveConversions.employeeId)],
+  ["overtime approvals",()=>reader.select({employeeId:overtimeRequests.employeeId}).from(overtimeRequests).where(and(
+    eq(overtimeRequests.organizationId,organizationId),inArray(overtimeRequests.employeeId,employeeIds),
+    gte(overtimeRequests.workDate,periodStart),lte(overtimeRequests.workDate,periodEnd),
+  )).groupBy(overtimeRequests.employeeId)],
+  ["rest-day revisions",()=>reader.select({employeeId:employeeRestDayRevisions.employeeId}).from(employeeRestDayRevisions).where(and(
+    eq(employeeRestDayRevisions.organizationId,organizationId),inArray(employeeRestDayRevisions.employeeId,employeeIds),
+    lte(employeeRestDayRevisions.effectiveDate,periodEnd),
+  )).groupBy(employeeRestDayRevisions.employeeId)],
+  ["workforce schedule assignments",()=>reader.select({employeeId:employeeScheduleAssignments.employeeId}).from(employeeScheduleAssignments).where(and(
+    eq(employeeScheduleAssignments.organizationId,organizationId),inArray(employeeScheduleAssignments.employeeId,employeeIds),
+    lte(employeeScheduleAssignments.effectiveFrom,periodEnd),
+    or(isNull(employeeScheduleAssignments.effectiveUntil),gte(employeeScheduleAssignments.effectiveUntil,periodStart)),
+  )).groupBy(employeeScheduleAssignments.employeeId)],
+  ["workforce schedule overrides",()=>reader.select({employeeId:scheduleOverrides.employeeId}).from(scheduleOverrides).where(and(
+    eq(scheduleOverrides.organizationId,organizationId),inArray(scheduleOverrides.employeeId,employeeIds),
+    gte(scheduleOverrides.workDate,periodStart),lte(scheduleOverrides.workDate,periodEnd),
+  )).groupBy(scheduleOverrides.employeeId)],
+  ["worksite assignment history",()=>reader.select({employeeId:employeeWorksiteAssignments.employeeId}).from(employeeWorksiteAssignments).where(and(
+    eq(employeeWorksiteAssignments.organizationId,organizationId),
+    inArray(employeeWorksiteAssignments.employeeId,employeeIds),
+    lte(employeeWorksiteAssignments.effectiveFrom,periodEnd),
+    or(isNull(employeeWorksiteAssignments.effectiveUntil),gte(employeeWorksiteAssignments.effectiveUntil,periodStart)),
+  )).groupBy(employeeWorksiteAssignments.employeeId)],
+  ["year-end tax adjustments",()=>reader.select({employeeId:yearEndAdjustments.employeeId}).from(yearEndAdjustments).where(and(
+    eq(yearEndAdjustments.organizationId,organizationId),inArray(yearEndAdjustments.employeeId,employeeIds),
+    eq(yearEndAdjustments.taxYear,Number(payDate.slice(0,4))),
+  )).groupBy(yearEndAdjustments.employeeId)],
+  ["attendance corrections",()=>reader.select({employeeId:attendanceCorrectionRequests.employeeId}).from(attendanceCorrectionRequests).where(and(
+    eq(attendanceCorrectionRequests.organizationId,organizationId),
+    inArray(attendanceCorrectionRequests.employeeId,employeeIds),
+    gte(attendanceCorrectionRequests.workDate,periodStart),
+    lte(attendanceCorrectionRequests.workDate,periodEnd),
+  )).groupBy(attendanceCorrectionRequests.employeeId)],
  ] as const;
- // Each closure is a concrete Drizzle table read, never a union-table mutation.
- const observed = await Promise.all(sourceChecks.map(async ([name,load])=>({name,present:(await load()).length>0})));
- for(const check of observed){
-   if(check.present)blockers.push("Full payroll-context reconciliation required: "+check.name+" is recorded.");
+ const workerBlockers=new Map<number,string[]>();
+ // groupBy fetches only distinct employee IDs, never monetary or personal rows.
+ if(employeeIds.length>0){
+  const matches=await Promise.all(scopedChecks.map(async ([name,load])=>({
+    name,ids:(await load()).map(row=>row.employeeId),
+  })));
+  for(const match of matches){
+   for(const id of match.ids){
+    if(!employeeIds.includes(id))throw Error("Preview source returned an out-of-scope employee.");
+    workerBlockers.set(id,[
+      ...(workerBlockers.get(id)??[]),
+      "Full payroll-context reconciliation required: "+match.name+" is recorded for this employee.",
+    ]);
+   }
+  }
  }
- const hasUnreconciledContext=observed.some(check=>check.present);
+ // Policies, local holiday calendars, calamity advisories and prior runs can
+ // affect more than one employee and remain organization-wide fail-closed gates.
+ const globalChecks=[
+  ["custom pay policies",()=>reader.select({id:payPolicies.id}).from(payPolicies).where(eq(payPolicies.organizationId,organizationId)).limit(1)],
+  ["employer-specific holidays",()=>reader.select({id:holidays.id}).from(holidays).where(and(
+    eq(holidays.organizationId,organizationId),lte(holidays.holidayDate,periodEnd),
+  )).limit(1)],
+  ["previous payroll runs",()=>reader.select({id:payrollRuns.id}).from(payrollRuns).where(eq(payrollRuns.organizationId,organizationId)).limit(1)],
+  ["calamity advisories",()=>reader.select({id:calamityAdvisories.id}).from(calamityAdvisories).where(and(
+    eq(calamityAdvisories.organizationId,organizationId),eq(calamityAdvisories.active,true),
+    lte(calamityAdvisories.startDate,periodEnd),gte(calamityAdvisories.endDate,periodStart),
+  )).limit(1)],
+ ] as const;
+ const globalObserved=await Promise.all(globalChecks.map(async ([name,load])=>({
+  name,present:(await load()).length>0,
+ })));
+ for(const source of globalObserved){
+  if(source.present)blockers.push("Full payroll-context reconciliation required: "+source.name+" is recorded.");
+ }
  const asOf=statutoryRuleVersionsForDate(payDate);
  const holidayCalendar=nationalHolidayCalendarForDate(periodEnd);
  const byEmployee=new Map(profiles.map(p=>[p.employeeId,p]));
@@ -114,8 +204,8 @@ export async function loadReadOnlyFirstPayrollPreview(
    if(profile&&profile.payBasis!=="monthly")problems.push("Daily/hourly payroll requires approved worked-time inputs.");
    let gross:number|null=null,sss:number|null=null,philHealth:number|null=null,
        pagIbig:number|null=null,withholding:number|null=null,net:number|null=null;
-   if(hasUnreconciledContext)problems.push("Calculated amounts withheld until all recorded payroll inputs are reconciled.");
-   if(!hasUnreconciledContext&&blockers.length===0&&problems.length===0&&profile&&profile.payBasis==="monthly"&&legal){
+   problems.push(...(workerBlockers.get(employee.id)??[]));
+   if(blockers.length===0&&problems.length===0&&profile&&profile.payBasis==="monthly"&&legal){
      try{
        const calc=calculateEmployeePay({
          employee,punches:[],advisories:[],unitName:"Unassigned",
@@ -146,6 +236,7 @@ export async function loadReadOnlyFirstPayrollPreview(
  const warnings=[
   "First-payroll preview is provisional, read-only and not a payslip, approval, ledger entry or payment instruction.",
   "A ready preview does not replace per-period timesheet, attendance-lock, statutory, assurance or independent release checks.",
+  "Per-worker simple estimates are withheld where complex inputs are recorded; they are not certified payroll amounts.",
  ];
  return {dryRun:true as const,persisted:false as const,previewReady:allBlockers.length===0,
    rows,blockers:allBlockers,warnings,statutoryRuleVersions:asOf};

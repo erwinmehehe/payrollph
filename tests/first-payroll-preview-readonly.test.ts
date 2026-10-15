@@ -20,6 +20,7 @@ test("first-payroll preview never exposes a write-capable database dependency", 
         return query;
       };
       query.where = () => query;
+      query.groupBy = () => query;
       query.limit = () => query;
       query.then = (done: (rows: unknown[]) => unknown) => Promise.resolve(tables[table] ?? []).then(done);
       return query;
@@ -61,7 +62,7 @@ test("first-time fixed-salary tenant can reach preview-ready with only read oper
   const reader=new Proxy({select(){
     let table="";const chain:Record<string,unknown>={};
     chain.from=(t:Parameters<typeof getTableName>[0])=>{table=getTableName(t);return chain;};
-    chain.where=()=>chain;chain.limit=()=>chain;
+    chain.where=()=>chain;chain.groupBy=()=>chain;chain.limit=()=>chain;
     chain.then=(resolve:(value:unknown[])=>unknown)=>Promise.resolve(rows[table]??[]).then(resolve);
     return chain;
   }},{get(target,field){if(field==="select")return target.select;writes++;throw Error("Write attempted");}}) as unknown as Pick<typeof db,"select">;
@@ -86,7 +87,7 @@ test("multi-employer preview refuses unscoped worker disclosure",async()=>{
  };
  const reader={select(){let table="";const q:Record<string,unknown>={};
   q.from=(target:Parameters<typeof getTableName>[0])=>{table=getTableName(target);return q;};
-  q.where=()=>q;q.limit=()=>q;
+  q.where=()=>q;q.groupBy=()=>q;q.limit=()=>q;
   q.then=(resolve:(items:unknown[])=>unknown)=>Promise.resolve(tables[table]??[]).then(resolve);
   return q;
  }} as unknown as Pick<typeof db,"select">;
@@ -123,14 +124,14 @@ test("first-payroll simple preview scopes punch guard to selected tenant and inc
   const scenarios = [
     { name: "prior/future and other-tenant punches ignored",
       punches: [
-        { id: 1, organizationId, workDate: "2026-09-30" },
-        { id: 2, organizationId, workDate: "2026-10-16" },
-        { id: 3, organizationId: 44, workDate: "2026-10-08" },
+        { id: 1, organizationId, employeeId: 5, workDate: "2026-09-30" },
+        { id: 2, organizationId, employeeId: 5, workDate: "2026-10-16" },
+        { id: 3, organizationId: 44, employeeId: 5, workDate: "2026-10-08" },
       ], expectedReady: true },
     { name: "first cutoff day must block",
-      punches: [{ id: 4, organizationId, workDate: periodStart }], expectedReady: false },
+      punches: [{ id: 4, organizationId, employeeId: 5, workDate: periodStart }], expectedReady: false },
     { name: "last cutoff day must block",
-      punches: [{ id: 5, organizationId, workDate: periodEnd }], expectedReady: false },
+      punches: [{ id: 5, organizationId, employeeId: 5, workDate: periodEnd }], expectedReady: false },
   ];
   for (const scenario of scenarios) {
     let punchWhereChecked = false, writes = 0;
@@ -145,6 +146,7 @@ test("first-payroll simple preview scopes punch guard to selected tenant and inc
         condition = clause;
         return chain;
       };
+      chain.groupBy = () => chain;
       chain.limit = () => chain;
       chain.then = (resolve: (rows: unknown[]) => unknown) => {
         if (table !== "time_punches") return Promise.resolve(data[table] ?? []).then(resolve);
@@ -154,12 +156,14 @@ test("first-payroll simple preview scopes punch guard to selected tenant and inc
         assert.match(parsed.sql, /work_date/);
         assert.match(parsed.sql, />=/);
         assert.match(parsed.sql, /<=/);
-        assert.deepEqual(parsed.params, [organizationId, periodStart, periodEnd]);
+        assert.match(parsed.sql, /employee_id/);
+        assert.deepEqual(parsed.params, [organizationId, 5, periodStart, periodEnd]);
         punchWhereChecked = true;
         // Test adapter applies the exact SQL query's organization and inclusive date predicates.
-        const [org, start, end] = parsed.params as [number, string, string];
+        const [org, employeeId, start, end] = parsed.params as [number, number, string, string];
         const scoped = scenario.punches.filter(p =>
-          p.organizationId === org && p.workDate >= start && p.workDate <= end);
+          p.organizationId === org && p.employeeId === employeeId &&
+          p.workDate >= start && p.workDate <= end);
         return Promise.resolve(scoped.slice(0, 1)).then(resolve);
       };
       return chain;
@@ -227,7 +231,8 @@ test("future-only optional payroll records cannot block an earlier cutoff, while
           selected = getTableName(target); return chain;
         };
         chain.where = (clause: SQL) => { condition = clause; return chain; };
-        chain.limit = () => chain;
+        chain.groupBy = () => chain;
+      chain.limit = () => chain;
         chain.then = (done: (rows: unknown[]) => unknown) => {
           if (selected !== table) return Promise.resolve(base[selected] ?? []).then(done);
           assert.ok(condition, table + " must have an explicit SQL scope");
@@ -235,9 +240,14 @@ test("future-only optional payroll records cannot block an earlier cutoff, while
           assert.match(parsed.sql, /organization_id/);
           assert.match(parsed.sql, new RegExp(dateColumn));
           assert.match(parsed.sql, /<=/);
-          assert.deepEqual(parsed.params, [organizationId, periodEnd]);
+          if (table === "holidays") {
+            assert.deepEqual(parsed.params, [organizationId, periodEnd]);
+          } else {
+            assert.match(parsed.sql, /employee_id/);
+            assert.deepEqual(parsed.params, [organizationId, 5, periodEnd]);
+          }
           checked = true;
-          const record = { id: 77, organizationId, [rowDateField]: date };
+          const record = { id: 77, organizationId, employeeId: 5, [rowDateField]: date };
           return Promise.resolve(date <= periodEnd ? [record] : []).then(done);
         };
         return chain;
