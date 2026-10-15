@@ -60,7 +60,7 @@ function schemaTables() {
 }
 
 function runtimeSources() {
-  // This is an AST inspection of static runtime SQL literals from the exact
+  // This is a conservative scan of runtime SQL DDL candidates from the exact
   // historical helper list. Dynamic SQL is separately flagged, not certified.
   const docs = readFileSync(path("docs/engineering/runtime-schema-writer-audit.md"), "utf8");
   const names = unique(["src/lib/core-schema-compat.ts", ...[...docs.matchAll(/src\/lib\/[a-z0-9-]+\.ts/g)].map(m => m[0])]);
@@ -68,24 +68,13 @@ function runtimeSources() {
   for (const filename of names) {
     if (!existsSync(path(filename))) throw Error("RUNTIME_WRITER_SOURCE_MISSING_" + filename);
     const content = readFileSync(path(filename), "utf8");
-    const sf = ts.createSourceFile(filename, content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-    if (sf.parseDiagnostics.length) throw Error("RUNTIME_WRITER_AST_FAILED_" + filename);
-    function visit(node) {
-      let text = null;
-      if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) text = node.text;
-      else if (ts.isTemplateExpression(node)) text = node.head.text + node.templateSpans.map(x => " ?DYNAMIC? " + x.literal.text).join("");
-      if (text !== null) {
-        // Name extraction is from AST-verified *literal contents*, not source
-        // code comments. Only static CREATE TABLE candidates are attributed.
-        const re = /\bCREATE\s+(?:UNLOGGED\s+|TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"([^"]+)"|(?:public\.)?([a-z_][a-z_0-9]*))/gi;
-        for (const match of text.matchAll(re)) {
-          const name = match[1] || match[2];
-          tables.set(name, unique([...(tables.get(name) ?? []), filename]));
-        }
-      }
-      ts.forEachChild(node, visit);
+    // Conservative static source-text scan: candidates can include comments,
+    // and dynamic SQL is not proven. The DBA must inspect each cited helper.
+    const re = /\bCREATE\s+(?:UNLOGGED\s+|TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"([^"]+)"|(?:public\.)?([a-z_][a-z_0-9]*))/gi;
+    for (const match of content.matchAll(re)) {
+      const name = match[1] || match[2];
+      tables.set(name, unique([...(tables.get(name) ?? []), filename]));
     }
-    visit(sf);
   }
   return tables;
 }
