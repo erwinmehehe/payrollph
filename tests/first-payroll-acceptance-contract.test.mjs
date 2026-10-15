@@ -11,6 +11,10 @@ test("#993 PG18 parity runs against a verified empty disposable backend with no 
   assert.match(yml,/DATABASE_URL: postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db/);
   assert.match(yml,/PAYMONGO_DISBURSEMENTS_ENABLED: "false"/);
   assert.match(yml,/XENDIT_PAYOUTS_ENABLED: "false"/);
+  assert.match(yml,/XENDIT_PAYOUTS_LIVE_APPROVED: "false"/);
+  assert.match(yml,/FINAL_PAY_MANUAL_RELEASE_ENABLED: "false"/);
+  assert.match(yml,/WFM_GEOFENCE_PILOT_ENABLED: "false"/);
+  assert.match(yml,/WFM_PUNCH_EVIDENCE_ENABLED: "false"/);
   assert.match(yml,/fresh-pg18-development-schema\.mjs preflight/);
   assert.match(yml,/verified-pg18-bootstrap\.mjs/);
   assert.match(yml,/fresh-pg18-development-schema\.mjs capture/);
