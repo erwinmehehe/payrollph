@@ -22,6 +22,13 @@ The dev-only additive SQL file `docs/sql/issue-1031-dev-workforce-bi-repair.sql`
 
 ## Dev apply/acceptance
 
+**Schema applied successfully on the connected fictional development default** on 2026-10-15. The operator re-read the exact GitHub source file (blob SHA `764b3d569276e388203e5cc524a1eb759e603165`) and checked the PostgreSQL project ID, branch ID `br-lucky-sound-b79i56jw`, database `neondb`, absent target tables, and unchanged starting aggregate counts (8 employee records, 3 payroll runs, 6 memberships). The 55 additive SQL statements executed in a single PostgreSQL `DO` transaction with an exact target-branch guard; the server returned success.
+
+**Post-apply verification:** all 11 expected relations now exist on the default branch, with no missing columns across 23 relevant current Drizzle models. The existing counts remained 8/3/6, and permission sets/assignments, positions, profiles and timesheets were still empty. Catalog inspection shows 5 permission-assignment FKs, the group-pair CHECK and reviewed unique indexes.
+
+This is **structural and data-preservation verification only**. Authenticated browser/API calls for the authorized and unauthorized test roles, the Vercel deployed commit and service/error logs must still be checked before #1031 is closed. The dev repair is not a fabricated historical receipt and must not be replayed by the protected production migration runner.
+
+
 1. Confirm connected Neon project/branch/database and the latest GitHub source migration checksum, and retain the preserved clone for recovery. Ensure the branch remains non-default and no Vercel connection is switched.
 2. Apply the reviewed **exact dev-only source** on the development default using only additive DDL, transactionally, while avoiding independent ad-hoc snippets. Reject any catalog mismatch; do not construct history receipts.
 3. Check all required tables and Drizzle columns, indexes, FK constraints, 8/3/6 aggregate invariants and no default permission assignments.
