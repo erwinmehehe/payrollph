@@ -23,8 +23,9 @@ function uniquePositiveIds(rows) {
 function includesForbiddenKey(value) {
   const privateKeys = new Set([
     "disbursementAccount", "disbursementAccountName", "disbursementBankCode",
+    "bankAccount", "bankCode", "tin", "sssNo", "philHealthNo", "pagIbigNo",
     "birTin", "birBranchCode", "sssEmployerNo", "philHealthEmployerNo",
-    "pagIbigEmployerNo", "annualBudget",
+    "pagIbigEmployerNo", "annualBudget", "notes",
   ]);
   if (Array.isArray(value)) return value.some(includesForbiddenKey);
   if (!object(value)) return false;
@@ -80,12 +81,15 @@ export function verifyLiveCompensationPrivacy(company, scoped) {
     company.proposals.some((g) => g.id === p.id && g.employeeId === p.employeeId)),
     "scoped proposals must match global HR source records");
 
+  // A unique fictional canary proves value confidentiality without wrongly
+  // flagging two legitimate workers whose unrelated pay amounts happen to match.
+  const privateFixture = company.proposals.filter((p) =>
+    hiddenIds.has(p.employeeId) && p.reason === "QA1046 other unit private proposal");
+  requireSafe(privateFixture.length === 1, "missing distinctive other-unit salary canary");
   const scopedText = JSON.stringify(scoped);
-  for (const proposal of company.proposals.filter((p) => hiddenIds.has(p.employeeId))) {
-    requireSafe(!scopedText.includes(String(proposal.reason)) &&
-      !scopedText.includes(String(proposal.proposedAnnual)),
-      "another unit's identifiable proposal content leaked");
-  }
+  requireSafe(!scopedText.includes(privateFixture[0].reason) &&
+    !scopedText.includes(String(privateFixture[0].proposedAnnual)),
+    "another unit's identifiable proposal content leaked");
   requireSafe(!includesForbiddenKey(scoped) && !includesForbiddenKey(company),
     "internal legal, bank, statutory or position-budget keys were serialized");
 
