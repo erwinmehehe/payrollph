@@ -5,27 +5,30 @@ import type { ConnectedImpactFinding, ConnectedImpactReport } from "@/lib/payrol
 
 type ViewData = ConnectedImpactReport & { runId: number; runStatus: string };
 
-export function PayrollConnectedImpactPanel({
-  runId,
-  onPage,
-  allowedPages,
-}: {
+type PayrollConnectedImpactProps = {
   runId: number;
   onPage: (page: string) => void;
   allowedPages: readonly string[];
-}) {
+};
+
+export function PayrollConnectedImpactPanel(props: PayrollConnectedImpactProps) {
+  return <PayrollConnectedImpactContent key={props.runId} {...props} />;
+}
+
+function PayrollConnectedImpactContent({
+  runId,
+  onPage,
+  allowedPages,
+}: PayrollConnectedImpactProps) {
   const [report, setReport] = useState<ViewData | null>(null);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(true);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    setReport(null);
-    setError("");
-    setLoading(true);
-    setEnabled(true);
+    // runId is keyed above; only an explicit Refresh event resets this view.
     void fetch("/api/payroll-runs/" + runId + "/connected-impact", {
       cache: "no-store",
       signal: controller.signal,
@@ -48,6 +51,15 @@ export function PayrollConnectedImpactPanel({
     return () => controller.abort();
   }, [runId, reload]);
 
+  function refresh() {
+    // Reset synchronously with the user event, not inside a mount effect.
+    setReport(null);
+    setError("");
+    setLoading(true);
+    setEnabled(true);
+    setReload((n) => n + 1);
+  }
+
   if (!enabled) return null;
   return (
     <section className="card" aria-label="Payroll connected impact review" style={{ marginBottom: 16 }}>
@@ -57,7 +69,7 @@ export function PayrollConnectedImpactPanel({
             <strong>Upstream payroll impact review</strong>
             <span>HRIS · WFM · HCM — cutoff-specific, read-only evidence</span>
           </div>
-          <button className="secondary-button" disabled={loading} onClick={() => setReload((n) => n + 1)}>
+          <button className="secondary-button" disabled={loading} onClick={refresh}>
             Refresh review
           </button>
         </div>
