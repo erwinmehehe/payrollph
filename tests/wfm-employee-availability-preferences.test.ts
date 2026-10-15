@@ -141,6 +141,7 @@ test("the employee and manager workspaces use the same source without cross-empl
   const component = readFileSync("src/components/employee-availability-preferences.tsx", "utf8");
   const coverage = readFileSync("src/components/workspace/workforce-coverage-panel.tsx", "utf8");
   const planner = readFileSync("src/components/workspace/workforce-planner.tsx", "utf8");
+  const portal = readFileSync("src/components/self-service-portal.tsx", "utf8");
   assert.ok(panel.includes('process.env.NEXT_PUBLIC_WFM_EMPLOYEE_AVAILABILITY_ENABLED === "true"'));
   assert.ok(panel.includes("<EmployeeAvailabilityPreferences language={language} />"));
   assert.ok(component.includes('fetch("/api/self/availability"'));
@@ -155,6 +156,7 @@ test("the employee and manager workspaces use the same source without cross-empl
   assert.ok(coverage.includes("(payload?.employees ?? []).map("));
   assert.ok(!coverage.includes("data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.firstName} {employee.lastName}</option>)"));
   assert.ok(planner.includes("<WorkforceCoveragePanel key={organizationId}"));
+  assert.ok(portal.includes("<EmployeeWorkforcePanel key={data.employer.id + ':' + data.employee.id}"));
   const html = renderToStaticMarkup(createElement(EmployeeAvailabilityPreferences, { language: "en" }));
   assert.match(html, /My availability and preferred shifts/);
   assert.match(html, /Save preference/);
