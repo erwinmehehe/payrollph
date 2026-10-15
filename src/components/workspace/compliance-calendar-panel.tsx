@@ -108,9 +108,9 @@ export function ComplianceCalendarPanel({ organizationId }: { organizationId: nu
     }
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(typeof body.error === "string" ? body.error : "Compliance calendar could not be loaded.");
+      throw new Error(typeof body?.error === "string" ? body.error : "Compliance calendar could not be loaded.");
     }
-    if (!Array.isArray(body.items) || !Array.isArray(body.applicableMonths) || typeof body.note !== "string") {
+    if (!body || !Array.isArray(body.items) || !Array.isArray(body.applicableMonths) || typeof body.note !== "string") {
       throw new Error("Compliance calendar returned an invalid response.");
     }
     return body as Payload;
