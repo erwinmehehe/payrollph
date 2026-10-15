@@ -178,6 +178,13 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   const canManageTime = roleCanManageTime(effectiveRole);
   const canDecideApprovals = roleCanDecideApprovals(effectiveRole);
   const canManageDelegations = roleCanManageDelegations(effectiveRole);
+  // Remount role/tenant-sensitive payroll-adjacent panels on employer, actor
+  // or permissions changes so old records and draft inputs cannot render even
+  // for a single paint before their next async read resolves.
+  const sourceBoundModuleKey = [
+    data.user?.id, data.selectedOrganization.id, effectiveRole,
+    data.access?.companyWide, data.access?.orgUnitName,
+  ].join(":");
   const canManageDeliveryOutbox = effectiveRole === "owner" || effectiveRole === "admin";
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
@@ -653,12 +660,12 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
         {page === "Compliance" && (
           <CompliancePage data={data} setNotice={noticeAdapter} onOpenGovModal={() => setGovModalOpen(true)} />
         )}
-        {page === "Loans" && <LoansPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} canManageGovRemittance={data.access?.companyWide === true && ["owner", "admin", "bookkeeper", "payroll"].includes(effectiveRole ?? "")} />}
+        {page === "Loans" && <LoansPanel key={sourceBoundModuleKey} organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} canManageGovRemittance={data.access?.companyWide === true && ["owner", "admin", "bookkeeper", "payroll"].includes(effectiveRole ?? "")} />}
         {page === "Benefits" && <BenefitsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Documents" && <HcmDocumentsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
-        {page === "Expenses" && <SpendOperationsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
-        {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
+        {page === "De minimis" && <DeMinimisPanel key={sourceBoundModuleKey} organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
+        {page === "Expenses" && <SpendOperationsPanel key={sourceBoundModuleKey} organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
+        {page === "Earned wage" && <EwaPanel key={sourceBoundModuleKey} organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
         {page === "Recruitment" && (
           <>
             {availablePages.includes("Recruitment") &&
