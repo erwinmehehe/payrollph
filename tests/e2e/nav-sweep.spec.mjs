@@ -104,6 +104,7 @@ async function checkRole(browser, role, width, authState, pages) {
     await page.waitForTimeout(700);
     for (const name of pages) {
       current = name;
+      blocked = 0;
       const started = Date.now();
       const before = errors.length;
       const findings = [];
