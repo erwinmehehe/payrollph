@@ -36,3 +36,32 @@ export function normalizeRuntimeDatabaseIdentity(value: unknown): RuntimeDatabas
     inRecovery: row.inRecovery,
   };
 }
+
+// Fixed-name public catalog objects only; this never establishes whether an
+// individual migration ran, whether a column type matches source, or release approval.
+export type RuntimeCompensationTableEvidence = Readonly<{
+  compensationTablesPresent: number;
+  compensationTablesExpected: 6;
+  migrationLedgerTablesPresent: number;
+  migrationLedgerTablesExpected: 3;
+  evidenceScope: "CATALOG_TABLE_PRESENCE_ONLY_NOT_MIGRATION_APPROVAL";
+}>;
+
+export function normalizeRuntimeCompensationTableEvidence(value: unknown): RuntimeCompensationTableEvidence {
+  if (!value || typeof value !== "object") throw new Error("READINESS_SCHEMA_EVIDENCE_NOT_AVAILABLE");
+  const row = value as Record<string, unknown>;
+  const count = (key: string, upper: number): number => {
+    const value = row[key];
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > upper) {
+      throw new Error("READINESS_SCHEMA_EVIDENCE_NOT_AVAILABLE");
+    }
+    return value;
+  };
+  return {
+    compensationTablesPresent: count("compensationTablesPresent", 6),
+    compensationTablesExpected: 6,
+    migrationLedgerTablesPresent: count("migrationLedgerTablesPresent", 3),
+    migrationLedgerTablesExpected: 3,
+    evidenceScope: "CATALOG_TABLE_PRESENCE_ONLY_NOT_MIGRATION_APPROVAL",
+  };
+}
