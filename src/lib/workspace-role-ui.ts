@@ -10,6 +10,9 @@ export const ROLE_PRIMARY_PAGES: Partial<Record<string, readonly string[]>> = {
 };
 
 export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> = {
+  // Managers are unit-scoped. Do not expose payroll, statutory or company-wide
+  // administration workbenches that their API permissions explicitly deny.
+  manager: ["Overview", "People", "Workforce", "Leave", "Approvals", "Performance"],
   group_hr: ["Overview", "People", "Analytics", "Entities"],
   hr: [
     "Overview",
