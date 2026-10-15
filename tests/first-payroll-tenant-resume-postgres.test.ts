@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 const isolated = (() => {
   if (process.env.CI !== "true" || process.env.GITHUB_ACTIONS !== "true" ||
