@@ -7,7 +7,10 @@ export const CHECKS=[
  ['Payout Payroll Isolation','payout-payroll-isolation.yml'],
  ['Production Pilot Payroll QA','pilot-payroll-qa.yml'],
  ['Nine-Stage Connected Payroll Development Acceptance (No Money)','nine-stage-connected-acceptance.yml'],
- ['WFM 14-Scenario Synthetic Evidence Matrix','wfm-pilot-synthetic-evidence.yml']
+ ['WFM 14-Scenario Synthetic Evidence Matrix','wfm-pilot-synthetic-evidence.yml'],
+ // Production smoke may be NOT_TRIGGERED on PRs; never call its absence PASS.
+ // Track its real deployment/role results at the *exact* checked SHA.
+ ['Live RBAC Sandbox Smoke','live-rbac-sandbox-smoke.yml']
 ];
 const fullSha=/^[0-9a-f]{40}$/;
 const apiRoot='https://api.github.com/repos/erwinmehehe/payrollph/';
