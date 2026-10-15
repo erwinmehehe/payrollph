@@ -54,6 +54,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 advisory wage-order effective-date warnings",
     approval: "Cutoff boundary behavior and unchanged payroll golden amounts",
   },
+  wfmEmployeeAvailability: {
+    env: "WFM_EMPLOYEE_AVAILABILITY_ENABLED",
+    owner: "WFM Operations / HR Privacy",
+    risk: "P1 employee-entered weekly availability and shift preferences; protected personnel scheduling evidence",
+    approval: "Two-employer ESS/manager authorization, availability source-schema verification, mobile browser and real shift-coverage pilot acceptance; no payroll authority",
+  },
   wfmGreedyRoster: {
     env: "WFM_GREEDY_ROSTER_ENABLED",
     owner: "WFM Product / PH People Operations",
