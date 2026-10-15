@@ -197,7 +197,9 @@ async function run() {
   await expect("B photo HEAD succeeds", b.head(PHOTO), 200);
   const returned = await expect("B retrieves own photo", get(b, PHOTO), 200);
   assert.equal(returned.headers()["content-type"], "image/png");
-  assert.match(returned.headers()["cache-control"] || "", /private.*no-store/);
+  // Next.js may normalize the response to "no-store, max-age=0".
+  // Assert the actual no-cache security property, not optional wording.
+  assert.match(returned.headers()["cache-control"] || "", /(?:^|,\\s*)no-store(?:,|$)/);
   assert.equal(createHash("sha256").update(await returned.body()).digest("hex"),
     createHash("sha256").update(png).digest("hex"));
   await expect("A cannot see B photo", get(a, PHOTO), 404);
