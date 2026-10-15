@@ -37,3 +37,18 @@ test("wallet employee fetch cancels obsolete requests and gates every render, no
   assert.match(src, /return visibleScopedEmployeeDirectory\(snapshot, organizationId, allowed\)/);
   assert.doesNotMatch(src, /\.then\(setEmployees\)/);
 });
+
+test("payroll-adjacent UI discards prior employer and role state at render boundary", () => {
+  const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
+  const key = workspace.slice(workspace.indexOf("const sourceBoundModuleKey ="));
+  for (const binding of [
+    "data.user?.id", "data.selectedOrganization.id", "effectiveRole",
+    "data.access?.companyWide", "data.access?.orgUnitName",
+  ]) {
+    assert.ok(key.includes(binding), "scope key missing " + binding);
+  }
+  for (const component of ["LoansPanel", "DeMinimisPanel", "SpendOperationsPanel", "EwaPanel"]) {
+    assert.ok(workspace.includes("<" + component + " key={sourceBoundModuleKey}"),
+      component + " must remount on every employer/role change");
+  }
+});
