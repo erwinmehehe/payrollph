@@ -84,11 +84,6 @@
       "count": 1
     }
   },
-  "src/components/hcm-self-probation-reviews.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/hmo-benefits-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
