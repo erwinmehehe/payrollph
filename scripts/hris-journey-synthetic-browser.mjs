@@ -169,6 +169,53 @@ try {
       .onboarding.find(task => task.id === item.id).done, true);
   });
 
+  await checkpoint(page, "Everyday HR direct hire creates one real onboarding source", async () => {
+    await workspace(page, 1);
+    await page.getByRole("button", { name: "Open Hire & onboard" }).click();
+    await page.getByRole("heading", { name: "Onboarding checklist" }).waitFor();
+    await page.getByRole("button", { name: "Add employee & start onboarding" }).click();
+    const hire = page.getByRole("dialog", { name: "Add employee" });
+    await hire.waitFor();
+    await hire.getByLabel("First name").fill("Journey");
+    await hire.getByLabel("Last name").fill("Newhire");
+    await hire.getByLabel("Job title").fill("Synthetic HR");
+    await hire.getByLabel("Monthly rate").fill("24000");
+    await hire.getByLabel("Start date").fill("2026-10-15");
+
+    // This is the real protected UI/API, not a seeded fake completed hire.
+    const [create] = await Promise.all([
+      page.waitForResponse(response =>
+        response.url().endsWith("/api/employees") && response.request().method() === "POST"),
+      hire.getByRole("button", { name: "Create & onboard" }).click(),
+    ]);
+    assert.equal(create.status(), 201, "Source employee creation must succeed from Everyday HR");
+    const created = await create.json();
+    const id = created?.employee?.id;
+    assert.ok(Number.isSafeInteger(id) && id > 0);
+    assert.equal(created.employee.organizationId, 1);
+    assert.equal(created.employee.firstName, "Journey");
+    assert.equal(created.employee.lastName, "Newhire");
+    assert.ok(Array.isArray(created.onboarding) && created.onboarding.length > 0,
+      "The owning employee-create API must persist real provisioning tasks");
+
+    await hire.waitFor({ state: "hidden" });
+    const search = page.getByRole("searchbox", { name: "Search onboarding checklists" });
+    await search.fill("Journey Newhire");
+    await page.getByRole("heading", { name: "Journey Newhire" }).waitFor({ timeout: 60000 });
+    const source = await browserRequest(page, "/api/provisioning?organizationId=1");
+    assert.equal(source.status, 200);
+    const actual = source.body?.employees?.find(worker => worker.employeeId === id);
+    assert.ok(actual && actual.onboarding.length > 0, "Checklist must be linked to exactly the new source employee");
+    assert.ok(actual.onboarding.every(task => task.employeeId === id && !task.done));
+    assert.ok(!JSON.stringify(source.body).includes("BetaPrivate"),
+      "A's checklist must never include the other fictional employer's records");
+
+    const other = await browserRequest(page, "/api/provisioning?organizationId=2");
+    assert.equal(other.status, 200);
+    assert.ok(!other.body?.employees?.some(worker => worker.employeeId === id),
+      "B must not expose newly hired A worker by overlapping identifiers");
+  });
+
   // P0: use the actual HR Leave form and independent manager approval.
   // Synthetic Chromium does not constitute independently observed human UAT.
   let syntheticLeaveId = null;
@@ -403,6 +450,10 @@ try {
       "/hcm/my-team?organizationId=2",
       "Review team must not retain the previous employer ID");
     const betaFind = await hydratedEmployeeSearch(mobilePage);
+    assert.equal(await betaFind.inputValue(), "",
+      "Employer switching must discard a prior tenant's employee search");
+    await betaFind.fill("Journey Newhire");
+    await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
     await betaFind.fill("AlphaPrivate");
     await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
     await betaFind.fill("BetaPrivate");
