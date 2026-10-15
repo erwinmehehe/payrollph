@@ -183,3 +183,47 @@ export function projectCompensationReadCatalogs(input: CompensationCatalogInput)
       })) : [],
   };
 }
+
+
+/**
+ * For a unit-scoped HR viewer, only approved/scheduled positive salary
+ * increases on already-visible worker proposals may appear in the summary.
+ * Do not infer or fabricate a company budget using this figure.
+ */
+export function visibleCompensationCommittedIncrease(
+  cycleId: number | null,
+  proposals: readonly {
+    id: number;
+    cycleId: number;
+    status: string;
+    currentAnnual: string;
+    proposedAnnual: string;
+  }[],
+): number | null {
+  if (cycleId === null) return null;
+  if (!validId(cycleId)) return null;
+  let committedCents = 0;
+  const seen = new Set<number>();
+  const parseMoney = (raw: string): number | null => {
+    if (typeof raw !== "string") return null;
+    const matched = /^(\d{1,12})(?:\.(\d{1,2}))?$/.exec(raw.trim());
+    if (!matched) return null;
+    const cents = Number(matched[1]) * 100 +
+      Number((matched[2] ?? "").padEnd(2, "0") || "0");
+    return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
+  };
+  for (const row of proposals) {
+    if (row.cycleId !== cycleId) continue;
+    if (!validId(row.id) || seen.has(row.id)) return null;
+    seen.add(row.id);
+    if (["declined", "rejected", "cancelled", "failed"].includes(row.status)) continue;
+    if (row.status === "proposed") continue; // Not committed.
+    if (!["scheduled", "applied"].includes(row.status)) return null;
+    const current = parseMoney(row.currentAnnual);
+    const next = parseMoney(row.proposedAnnual);
+    if (current === null || next === null) return null;
+    committedCents += Math.max(0, next - current);
+    if (!Number.isSafeInteger(committedCents)) return null;
+  }
+  return committedCents / 100;
+}
