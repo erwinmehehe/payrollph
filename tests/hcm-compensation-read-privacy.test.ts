@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   projectCompensationReadCatalogs,
+  visibleCompensationCommittedIncrease,
   type CompensationCatalogAccess,
 } from "../src/lib/hcm-compensation-read-projection";
 
@@ -176,4 +177,30 @@ test("source GET enforces org role before projecting only allowlisted catalog an
   for(const mutator of ["db.insert(", "db.update(", "db.delete(", "fetch(", "process.env"]) {
     assert.ok(!projection.includes(mutator), "Projection cannot write or fetch.");
   }
+});
+
+
+test("unit-scoped committed increases are centavo-safe, visible-only and not a budget", () => {
+  const rows = [
+    {id: 1, cycleId: 9, status: "scheduled", currentAnnual: "200000.00", proposedAnnual: "212345.67"},
+    {id: 2, cycleId: 9, status: "applied", currentAnnual: "100000.00", proposedAnnual: "101000.01"},
+    {id: 3, cycleId: 9, status: "proposed", currentAnnual: "0.00", proposedAnnual: "99999.99"},
+    {id: 4, cycleId: 9, status: "cancelled", currentAnnual: "0.00", proposedAnnual: "19999.99"},
+    {id: 5, cycleId: 9, status: "scheduled", currentAnnual: "120000.00", proposedAnnual: "110000.00"},
+    {id: 6, cycleId: 12, status: "scheduled", currentAnnual: "0.00", proposedAnnual: "987654.32"},
+  ];
+  assert.equal(visibleCompensationCommittedIncrease(9, rows), 13345.68);
+  assert.equal(visibleCompensationCommittedIncrease(12, rows), 987654.32);
+  assert.equal(visibleCompensationCommittedIncrease(null, rows), null);
+  assert.equal(visibleCompensationCommittedIncrease(9, [rows[0], rows[0]]), null);
+  assert.equal(visibleCompensationCommittedIncrease(9, [
+    {...rows[0], proposedAnnual: "212345.678"},
+  ]), null);
+  assert.equal(visibleCompensationCommittedIncrease(9, [
+    {...rows[0], status: "unknown"},
+  ]), null);
+  const panel = readFileSync("src/components/compensation-panel.tsx", "utf8");
+  assert.match(panel, /access\?\.companyWide\s*\?\s*summarizeCompensationCycleBudget/);
+  assert.ok(panel.includes("visibleCompensationCommittedIncrease(activeCycle?.id ?? null, proposals)"));
+  assert.ok(panel.includes("organization budget is restricted"));
 });
