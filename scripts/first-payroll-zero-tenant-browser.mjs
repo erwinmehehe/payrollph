@@ -118,6 +118,24 @@ try{
     const response = await fetch(url, { credentials: "same-origin", cache: "no-store" });
     return response.status;
   }, path);
+  // Use the same authenticated Chromium cookie jar as the positive controls.
+  // A 401 from an anonymous test is NOT proof of tenant or HR role isolation.
+  const previewPath = (organizationId) =>
+    "/api/first-payroll/preview?organizationId=" + organizationId +
+    "&periodStart=2026-10-01&periodEnd=2026-10-15&payDate=2026-10-15";
+  const expectPreviewDenied = async (organizationId, label) => {
+    const evidence = await active.evaluate(async (url) => {
+      const response = await fetch(url, { credentials:"same-origin", cache:"no-store" });
+      const payload = await response.json();
+      return {status:response.status, cache:response.headers.get("cache-control"),
+        keys:Object.keys(payload)};
+    }, previewPath(organizationId));
+    assert.equal(evidence.status, 403, label + ": authorized session must be denied");
+    assert.equal(evidence.cache, "private, no-store",
+      label + ": denied monetary API must never be cached");
+    assert.deepEqual(evidence.keys, ["error"], label + ": no gross, net, rows or statutory amounts");
+    report.steps.push(label + ": preview GET 403, no-store, no payroll data");
+  };
   const sessionOwner = await active.evaluate(async () => {
     const response = await fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" });
     const payload = await response.json();
@@ -133,6 +151,7 @@ try{
     "Unrelated tenant's legal entities must be denied to a signed-in owner");
   assert.equal(await browserGet("/api/first-payroll/progress?organizationId=1"), 403,
     "A signed-in owner is not a global cross-tenant reader");
+  await expectPreviewDenied(1, "owner: foreign-tenant canonical preview");
   report.steps.push("owner: unrelated employer and progress routes deny tenant crossover");
 
   const employerStep=owner.steps.nth(0);
@@ -192,6 +211,7 @@ try{
   await closeStep(exportsStep);
 
   const hr=await enter("hcm-hr@example.test");
+  await expectPreviewDenied(fixture.organizationId, "HR: same-tenant payroll preview role");
   const timeStep=hr.steps.nth(2);
   const timePanel=await captureStep("hr","time",timeStep,"Review attendance");
   await timePanel.getByLabel("Pay period start").fill("2026-10-01");
@@ -215,6 +235,8 @@ try{
     panel.getByRole("button",{name:"Preview first payroll (no writes)"}).click(),
   ]);
   assert.equal(previewResponse.status(),200,"Preview endpoint refused safe inputs");
+  assert.equal(previewResponse.headers()["cache-control"], "private, no-store",
+    "Canonical payroll figures must be private and non-cacheable");
   const preview=await previewResponse.json();
   assert.equal(preview.dryRun,true);
   assert.equal(preview.persisted,false);
