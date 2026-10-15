@@ -58,7 +58,7 @@ async function checkRole(browser, role, width, authState, pages) {
   // DELETE is aborted, not merely ignored after it reaches the server.
   await context.route("**/*", async route => {
     const req = route.request();
-    if (new URL(req.url()).origin === BASE && !["GET", "HEAD", "OPTIONS"].includes(req.method())) {
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method())) {
       blocked++;
       await route.abort("blockedbyclient");
     } else await route.continue();
