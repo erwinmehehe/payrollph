@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, CircleDollarSign, Send, ShieldCheck, UsersRound, XCircle } from "lucide-react";
 
 type Plan = {
@@ -82,6 +82,8 @@ export function WorkforcePlanAllocationPanel({
   const [access, setAccess] = useState<AllocationAccess | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadedOrganizationId, setLoadedOrganizationId] = useState<number | null>(null);
+  const loadRevisionRef = useRef(0);
   const [savingAllocation, setSavingAllocation] = useState(false);
   const [savingSubmission, setSavingSubmission] = useState(false);
   const [actingSubmissionId, setActingSubmissionId] = useState<number | null>(null);
@@ -101,6 +103,7 @@ export function WorkforcePlanAllocationPanel({
   const [decisionNotes, setDecisionNotes] = useState<Record<number, string>>({});
 
   const load = useCallback(async () => {
+    const revision = ++loadRevisionRef.current;
     setLoading(true);
     setLoadError(null);
     try {
@@ -109,7 +112,9 @@ export function WorkforcePlanAllocationPanel({
         { cache: "no-store" },
       );
       const payload = await response.json().catch(() => ({}));
+      if (revision !== loadRevisionRef.current) return;
       if (!response.ok) {
+        setLoadedOrganizationId(null);
         setAccess(null);
         setAllocations([]);
         setSubmissions([]);
@@ -119,13 +124,17 @@ export function WorkforcePlanAllocationPanel({
       setAllocations(payload.allocations ?? []);
       setSubmissions(payload.submissions ?? []);
       setAccess(payload.access ?? null);
+      setLoadedOrganizationId(organizationId);
     } catch {
-      setAccess(null);
-      setAllocations([]);
-      setSubmissions([]);
-      setLoadError("Could not reach workforce allocation planning.");
+      if (revision === loadRevisionRef.current) {
+        setLoadedOrganizationId(null);
+        setAccess(null);
+        setAllocations([]);
+        setSubmissions([]);
+        setLoadError("Could not reach workforce allocation planning.");
+      }
     } finally {
-      setLoading(false);
+      if (revision === loadRevisionRef.current) setLoading(false);
     }
   }, [organizationId]);
 
@@ -300,7 +309,7 @@ export function WorkforcePlanAllocationPanel({
 
   // Always withhold previous employer's allocation evidence during Retry
   // and organization changes, even if old access state was still populated.
-  if (loading) {
+  if (loading || (!loadError && loadedOrganizationId !== organizationId)) {
     return (
       <article className="card" style={{ marginBottom: 16 }}>
         <div className="empty-state">Loading workforce allocations...</div>
