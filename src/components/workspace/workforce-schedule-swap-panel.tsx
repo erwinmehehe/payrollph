@@ -73,11 +73,12 @@ export function WorkforceScheduleSwapPanel({
     useScopedAsyncResource(scopeKey, fetchSwaps, onLoadError);
   const swaps = useMemo(() => payload ?? [], [payload]);
   const reviewerUserId = data.user?.id ?? null;
+  const decisionScopeKey = JSON.stringify([scopeKey, reviewerUserId]);
   // Decision notes cannot cross an employer or a different visibility scope.
   const [decisionDrafts, setDecisionDrafts] = useState<{
     scopeKey: string; byRequest: Record<number, string>;
   }>({ scopeKey: "", byRequest: {} });
-  const scopedDecisionNotes = decisionDrafts.scopeKey === scopeKey ? decisionDrafts.byRequest : {};
+  const scopedDecisionNotes = decisionDrafts.scopeKey === decisionScopeKey ? decisionDrafts.byRequest : {};
   const draftPreflight = scheduleSwapDraftPreflight({
     organizationId,
     requesterEmployeeId,
@@ -91,9 +92,9 @@ export function WorkforceScheduleSwapPanel({
 
   function updateDecisionNote(requestId: number, value: string) {
     setDecisionDrafts((current) => ({
-      scopeKey,
+      scopeKey: decisionScopeKey,
       byRequest: {
-        ...(current.scopeKey === scopeKey ? current.byRequest : {}),
+        ...(current.scopeKey === decisionScopeKey ? current.byRequest : {}),
         [requestId]: value.slice(0, 240),
       },
     }));
@@ -158,10 +159,10 @@ export function WorkforceScheduleSwapPanel({
     );
     if (accepted) {
       setDecisionDrafts((currentDrafts) => {
-        if (currentDrafts.scopeKey !== scopeKey) return currentDrafts;
+        if (currentDrafts.scopeKey !== decisionScopeKey) return currentDrafts;
         const byRequest = { ...currentDrafts.byRequest };
         delete byRequest[requestId];
-        return { scopeKey, byRequest };
+        return { scopeKey: decisionScopeKey, byRequest };
       });
     }
   }
