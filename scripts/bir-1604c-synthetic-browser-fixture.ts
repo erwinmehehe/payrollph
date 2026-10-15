@@ -88,7 +88,8 @@ async function main() {
     grossFinalPay: String(final.grossFinalPay), netFinalPay: String(final.netFinalPay),
     computationSnapshot: { annualization: final.annualization, appliedTaxCollection: final.appliedTaxCollection,
       unpaidTaxWithholding: final.unpaidTaxWithholding, sourceFingerprint: { employeeLegalEntityId: entity.id,
-        released: [{ entryId: entry.id, runId: run.id, payDate: run.payDate, lineItems: entry.lineItems }] } },
+        released: [{ entryId: entry.id, runId: run.id, periodStart: run.periodStart, periodEnd: run.periodEnd,
+          payDate: run.payDate, grossPay: Number(entry.grossPay), lineItems: entry.lineItems, trace: entry.trace }] } },
   }).returning();
   await db.insert(subscriptions).values({ organizationId: org.id, plan: "Core", status: "active" });
   writeFileSync("/tmp/bir-1604c-qa-fixture.json", JSON.stringify({
