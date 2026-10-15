@@ -1,7 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, historicalPayrollEntries, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit";
+import { auditEvents, employees, historicalPayrollEntries, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { annualize, ANNUALIZATION_RULE_VERSION, isSharedBenefitPoolEarningType, type AnnualizationResult } from "@/lib/annualization";
 import { readBasicAndThirteenth, retroSourceTaxYear } from "@/lib/final-pay";
@@ -123,7 +122,18 @@ export async function runYearEndAnnualization(
 ) {
   await ensureMigrationSchema();
 
-  const releasedRuns = await db
+  // All source reads, calculations, adjustment replacement and audit evidence
+  // share ONE serializable database snapshot. A failure rolls back the old
+  // adjustment deletion as well as any inserted replacements.
+  return db.transaction(async tx => {
+    // Serialize competing annualization requests for the same employer/year.
+    // A different employer or tax year does not share this advisory lock.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(
+      hashtext('payrollph.year-end.annualization'),
+      hashtext(${organizationId}::text || ':' || ${taxYear}::text)
+    )`);
+
+  const releasedRuns = await tx
     .select()
     .from(payrollRuns)
     .where(and(
@@ -134,7 +144,7 @@ export async function runYearEndAnnualization(
 
   let includedRun: typeof payrollRuns.$inferSelect | null = null;
   if (options.includePayrollRunId != null) {
-    const [candidate] = await db.select().from(payrollRuns).where(and(
+    const [candidate] = await tx.select().from(payrollRuns).where(and(
       eq(payrollRuns.id, options.includePayrollRunId),
       eq(payrollRuns.organizationId, organizationId),
     )).limit(1);
@@ -152,16 +162,16 @@ export async function runYearEndAnnualization(
     ? [...releasedRuns, includedRun]
     : releasedRuns;
   const runIds = runs.map((run) => run.id);
-  const staff = await db.select().from(employees).where(eq(employees.organizationId, organizationId));
+  const staff = await tx.select().from(employees).where(eq(employees.organizationId, organizationId));
 
   const entries = runIds.length
-    ? await db.select().from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds))
+    ? await tx.select().from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds))
     : [];
 
   // A company can switch payroll providers mid-year. Imported payroll history is
   // preserved as source-of-truth totals and participates in annualization without
   // being recalculated under the current Linaw rule tables.
-  const importedHistory = await db
+  const importedHistory = await tx
     .select()
     .from(historicalPayrollEntries)
     .where(and(
@@ -197,7 +207,7 @@ export async function runYearEndAnnualization(
   for (const [employeeId, adjustmentIds] of adjustmentIdsByEmployee) {
     const sources = await loadFinalPayRetroSourcePeriods({
       organizationId, employeeId, adjustmentIds: [...adjustmentIds],
-    });
+    }, tx);
     sourceYearsByEmployee.set(employeeId, new Map(sources.map((row) => [
       row.id, retroSourceTaxYear(String(row.sourcePeriodStart), String(row.sourcePeriodEnd)),
     ])));
@@ -253,7 +263,7 @@ export async function runYearEndAnnualization(
     totals.set(entry.employeeId, bucket);
   }
 
-  const existingAdjustments = await db.select().from(yearEndAdjustments).where(and(
+  const existingAdjustments = await tx.select().from(yearEndAdjustments).where(and(
     eq(yearEndAdjustments.organizationId, organizationId),
     eq(yearEndAdjustments.taxYear, taxYear),
   ));
@@ -262,10 +272,8 @@ export async function runYearEndAnnualization(
       `Year-end tax adjustments for ${taxYear} have already been settled in payroll and cannot be recomputed in place. Use a separately audited correction instead.`,
     );
   }
-  await db.delete(yearEndAdjustments).where(and(
-    eq(yearEndAdjustments.organizationId, organizationId),
-    eq(yearEndAdjustments.taxYear, taxYear),
-  ));
+  // Do not delete any previous adjustment until every employee has been
+  // calculated. The subsequent delete/insert/audit are one atomic commit.
 
   const rows: Array<{
     employee: typeof staff[number];
@@ -330,8 +338,15 @@ export async function runYearEndAnnualization(
     });
   }
 
+  // Recheck settled adjustments while holding the transaction's lock; no
+  // concurrent annualization may interleave its read/delete/replacement.
+  await tx.delete(yearEndAdjustments).where(and(
+    eq(yearEndAdjustments.organizationId, organizationId),
+    eq(yearEndAdjustments.taxYear, taxYear),
+  ));
+
   if (rows.length) {
-    await db.insert(yearEndAdjustments).values(rows.map(({
+    await tx.insert(yearEndAdjustments).values(rows.map(({
       employee,
       result,
       periods,
@@ -388,7 +403,8 @@ export async function runYearEndAnnualization(
   const refunds = rows.filter((row) => row.result.outcome === "refund");
   const collections = rows.filter((row) => row.result.outcome === "collect");
 
-  await recordAuditEvent({
+  // Audit and financial rows must commit or roll back together.
+  await tx.insert(auditEvents).values({
     organizationId,
     actor,
     action: "Year-end annualization computed",
@@ -418,4 +434,5 @@ export async function runYearEndAnnualization(
     includedPayrollRunId: options.includePayrollRunId ?? null,
     boundPayrollRunId: options.bindToPayrollRunId ?? null,
   };
+  }, { isolationLevel: "serializable" });
 }
