@@ -33,7 +33,6 @@ export function EnterpriseBiExportPanel({
   }, [today]);
 
   const [definitions, setDefinitions] = useState<Definition[]>([]);
-  const [loadedOrganizationId, setLoadedOrganizationId] = useState<number | null>(null);
   const [dataset, setDataset] = useState("payroll_runs");
   const [legalEntities, setLegalEntities] = useState<ScopeOption[]>([]);
   const [orgUnits, setOrgUnits] = useState<ScopeOption[]>([]);
@@ -44,49 +43,60 @@ export function EnterpriseBiExportPanel({
   const [format, setFormat] = useState("csv");
   const [startDate, setStartDate] = useState(isoDate(ninetyDaysAgo));
   const [endDate, setEndDate] = useState(isoDate(today));
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadRevision, setReloadRevision] = useState(0);
+  // Tie the response status to both the organization and the request revision.
+  // A tenant switch or Retry therefore renders as pending *before* effects run.
+  const [resolvedRead, setResolvedRead] = useState<{
+    organizationId: number;
+    revision: number;
+    error: string | null;
+  } | null>(null);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    setLoadError(null);
-    setLoadedOrganizationId(null);
-    (async () => {
-      try {
-        const response = await fetch(`/api/bi-exports?organizationId=${organizationId}`, { cache: "no-store" });
+    const controller = new AbortController();
+    // Effects initiate the external read; only asynchronous response callbacks
+    // update React state. Cleanup cancels superseded or unmounted reads.
+    void fetch(`/api/bi-exports?organizationId=${organizationId}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
         const payload = await response.json().catch(() => ({}));
-        if (!alive) return;
         if (!response.ok) throw new Error(payload.error ?? "Could not load BI export definitions.");
-        setLoadError(null);
+        return payload;
+      })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
         setDefinitions(Array.isArray(payload.datasets) ? payload.datasets : []);
         setLegalEntities(Array.isArray(payload.scopes?.legalEntities) ? payload.scopes.legalEntities : []);
         setOrgUnits(Array.isArray(payload.scopes?.orgUnits) ? payload.scopes.orgUnits : []);
         setDynamicGroups(Array.isArray(payload.scopes?.dynamicGroups) ? payload.scopes.dynamicGroups : []);
-        setLoadedOrganizationId(organizationId);
-      } catch (error) {
-        if (alive) {
-          // An earlier tenant or successful load is not evidence that this
-          // organization can export. Clear all scopes on a failed read.
-          setDefinitions([]);
-          setLegalEntities([]);
-          setOrgUnits([]);
-          setDynamicGroups([]);
-          setLoadedOrganizationId(null);
-          setLoadError(error instanceof Error ? error.message : "Could not load BI export definitions.");
-        }
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
+        setResolvedRead({ organizationId, revision: reloadRevision, error: null });
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        // An earlier employer's metadata must not authorize the next one.
+        setDefinitions([]);
+        setLegalEntities([]);
+        setOrgUnits([]);
+        setDynamicGroups([]);
+        setResolvedRead({
+          organizationId,
+          revision: reloadRevision,
+          error: error instanceof Error ? error.message : "Could not load BI export definitions.",
+        });
+      });
+    return () => controller.abort();
   }, [organizationId, reloadRevision]);
 
-  // Do not display or export another organization's cached dataset/scopes
-  // between a tenant switch and the completion of a new authenticated read.
-  const definitionsReady = !loading && !loadError && loadedOrganizationId === organizationId;
+  // Until the exact organization AND retry revision have completed, the
+  // current request is pending and all cached metadata is hidden.
+  const readSettled = resolvedRead?.organizationId === organizationId
+    && resolvedRead?.revision === reloadRevision;
+  const loading = !readSettled;
+  const loadError = readSettled ? (resolvedRead?.error ?? null) : null;
+  const definitionsReady = readSettled && !loadError;
   const scopedDefinitions = definitionsReady ? definitions : [];
   const scopedLegalEntities = definitionsReady ? legalEntities : [];
   const scopedOrgUnits = definitionsReady ? orgUnits : [];
