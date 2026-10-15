@@ -4,13 +4,14 @@
 # fictional sample; all compensation HTTP probes themselves use GET.
 set -euo pipefail
 umask 077
+readiness_token="${PRODUCTION_READINESS_TOKEN:-}"
 
 if [[ "$(printenv CI 2>/dev/null || true)" != "true" ||
       "$(printenv GITHUB_ACTIONS 2>/dev/null || true)" != "true" ||
       "$(printenv GITHUB_REF 2>/dev/null || true)" != "refs/heads/main" ||
       "$(printenv BASE_URL 2>/dev/null || true)" != "https://erwinmehehe-payrollph.vercel.app" ||
       ! "$(printenv EXPECTED_COMMIT_SHA 2>/dev/null || true)" =~ ^[0-9a-f]{40}$ ||
-      "$(printenv PRODUCTION_READINESS_TOKEN 2>/dev/null | wc -c)" -lt 32 ]]; then
+      ${#readiness_token} -lt 32 ]]; then
   echo "::error::Compensation production acceptance requires protected, exact-main GitHub Actions context."
   exit 2
 fi
