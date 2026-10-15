@@ -16,13 +16,16 @@ import { employeePayRetroAdjustments, payrollEntries, payrollRuns } from "@/db/s
 export async function loadPendingPayrollRetroSources(input: {
   organizationId: number;
   employeeIds: readonly number[];
+  // A caller-provided query-only transaction is mandatory for no-write previews.
+  reader?: Pick<typeof db, "select">;
 }) {
   if (!Number.isSafeInteger(input.organizationId) || input.organizationId <= 0
     || input.employeeIds.some(id => !Number.isSafeInteger(id) || id <= 0)) {
     throw new Error("Invalid retro source tenant or worker identity");
   }
   if (input.employeeIds.length === 0) return [];
-  return db.select({
+  const reader = input.reader ?? db;
+  return reader.select({
     id: employeePayRetroAdjustments.id,
     employeeId: employeePayRetroAdjustments.employeeId,
     amount: employeePayRetroAdjustments.amount,
@@ -33,7 +36,7 @@ export async function loadPendingPayrollRetroSources(input: {
     eq(payrollRuns.id, employeePayRetroAdjustments.sourcePayrollRunId),
     eq(payrollRuns.organizationId, employeePayRetroAdjustments.organizationId),
     eq(payrollRuns.status, "Released"),
-    exists(db.select({ id: payrollEntries.id }).from(payrollEntries).where(and(
+    exists(reader.select({ id: payrollEntries.id }).from(payrollEntries).where(and(
       eq(payrollEntries.payrollRunId, employeePayRetroAdjustments.sourcePayrollRunId),
       eq(payrollEntries.employeeId, employeePayRetroAdjustments.employeeId),
     ))),

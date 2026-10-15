@@ -2,7 +2,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PAYROLL_VIEW_ROLES } from "@/lib/access";
 import { parseMigrationDate } from "@/lib/migration-date";
 import { MAX_PAYROLL_PERIOD_DAYS, inclusivePeriodDays, validIsoDate } from "@/lib/payroll-period-validation";
-import { loadReadOnlyFirstPayrollPreview } from "@/lib/first-payroll-preview";
+import { loadCanonicalFirstPayrollPreview } from "@/lib/first-payroll-canonical-preview";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { firstPayrollInlineAvailable } from "@/lib/first-payroll-inline-gate";
@@ -32,7 +32,7 @@ export async function GET(request:Request){
  try {
   const data=await db.transaction(async tx=>{
    await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`);
-   return loadReadOnlyFirstPayrollPreview({organizationId,periodStart,periodEnd,payDate},tx);
+   return loadCanonicalFirstPayrollPreview({organizationId,periodStart,periodEnd,payDate},tx);
   });
   return privatePreviewJson(data);
  }catch(e){

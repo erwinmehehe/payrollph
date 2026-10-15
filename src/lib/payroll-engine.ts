@@ -75,6 +75,7 @@ import {
   type DeMinimisType,
 } from "@/lib/ph-compliance";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
+import { formatPayrollPeriodLabel } from "@/lib/payroll-period-ui";
 import { statutoryRuleVersionsForDate } from "@/lib/ph-statutory-rule-packs";
 import { resolveMweClassification, type MweClassificationRecord } from "@/lib/mwe-classification";
 import { isSharedBenefitPoolEarningType, sharedBenefitPoolCutoffTreatment } from "@/lib/annualization";
@@ -471,22 +472,106 @@ export async function drainPayrollQueue(maxJobs = 50, targetRunId?: number) {
   return results;
 }
 
-async function processPayrollChunk(input: {
+type PayrollChunkRequest = {
   runId: number;
   organizationId: number;
   chunkIndex: number;
   chunkSize: number;
+};
+
+/** Same authoritative input assembly as the real worker, with a query-only
+ * dependency and a synthetic nonpersisted run. The response deliberately
+ * excludes payslip text, individual source rows and payout details. */
+export type CanonicalPayrollPreviewRow = {
+  employeeId: number;
+  gross: number | null;
+  sss: number | null;
+  philHealth: number | null;
+  pagIbig: number | null;
+  withholding: number | null;
+  net: number | null;
+  blockers: string[];
+};
+
+type PreviewRun = Pick<typeof payrollRuns.$inferSelect,
+  "id" | "organizationId" | "legalEntityId" | "scopeOrgUnitId" |
+  "employeeCount" | "periodLabel" | "periodStart" | "periodEnd" | "payDate"
+>;
+type PayrollProjectionOptions = {
+  reader: Pick<typeof db, "select">;
+  run: PreviewRun;
+  employeeIds: readonly number[];
+};
+
+/** Caller must establish authorization and a READ ONLY, REPEATABLE READ
+ * transaction before invoking this function. No global database reads or
+ * mutation-capable handle are used in the projection branch. */
+export async function projectCanonicalPayrollReadOnly(input: {
+  organizationId: number;
+  legalEntityId: number;
+  periodStart: string;
+  periodEnd: string;
+  payDate: string;
+  employeeIds: readonly number[];
+  employeeCount: number;
+}, reader: Pick<typeof db, "select">): Promise<CanonicalPayrollPreviewRow[]> {
+  if (!Number.isSafeInteger(input.organizationId) || input.organizationId < 1 ||
+    !Number.isSafeInteger(input.legalEntityId) || input.legalEntityId < 1 ||
+    input.employeeCount < 0 || input.employeeCount > 200 ||
+    input.employeeIds.length > input.employeeCount ||
+    input.employeeIds.some(id => !Number.isSafeInteger(id) || id < 1) ||
+    new Set(input.employeeIds).size !== input.employeeIds.length) {
+    throw new Error("Preview employer or employee cohort is invalid or exceeds 200 workers.");
+  }
+  if (input.employeeIds.length === 0) return [];
+  const periodLabel = formatPayrollPeriodLabel(input.periodStart, input.periodEnd);
+  const syntheticRun: PreviewRun = {
+    id: -1,
+    organizationId: input.organizationId,
+    legalEntityId: input.legalEntityId,
+    scopeOrgUnitId: null,
+    employeeCount: input.employeeCount,
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    payDate: input.payDate,
+    periodLabel,
+  };
+  const result = await executePayrollChunk({
+    runId: -1,
+    organizationId: input.organizationId,
+    chunkIndex: 0,
+    chunkSize: input.employeeCount,
+    preview: {reader, run: syntheticRun, employeeIds: input.employeeIds},
+  });
+  if (!("previewRows" in result)) throw new Error("Payroll preview did not enter read-only mode.");
+  return result.previewRows;
+}
+
+async function processPayrollChunk(input: PayrollChunkRequest) {
+  const result = await executePayrollChunk(input);
+  if ("previewRows" in result) throw new Error("A preview cannot enter the payroll worker queue.");
+  return result;
+}
+
+async function executePayrollChunk(input: PayrollChunkRequest & {
+  preview?: PayrollProjectionOptions;
 }) {
-  await ensureLeavePayrollSchema();
-  await ensureEmployeePayProfiles(input.organizationId);
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
+  // Never invoke schema bootstrapping from a read-only financial projection.
+  if (!input.preview) {
+    await ensureLeavePayrollSchema();
+    await ensureEmployeePayProfiles(input.organizationId);
+  }
+  const reader: Pick<typeof db, "select"> = input.preview?.reader ?? db;
+  const [run] = input.preview
+    ? [input.preview.run]
+    : await reader.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
   if (!run) throw new Error("Payroll run missing");
-  const [organization] = await db.select().from(organizations)
+  const [organization] = await reader.select().from(organizations)
     .where(eq(organizations.id, input.organizationId))
     .limit(1);
   if (!organization) throw new Error("Payroll organization missing");
   const [legalEntity] = run.legalEntityId
-    ? await db.select().from(legalEntities).where(and(
+    ? await reader.select().from(legalEntities).where(and(
         eq(legalEntities.id, run.legalEntityId),
         eq(legalEntities.organizationId, input.organizationId),
       )).limit(1)
@@ -524,7 +609,7 @@ async function processPayrollChunk(input: {
           eq(employees.status, "Active"),
           lte(employees.startDate, run.periodEnd),
         );
-  const allEmployees = await db.select().from(employees)
+  const allEmployees = await reader.select().from(employees)
     .where(employeeWhere)
     .orderBy(asc(employees.id));
 
@@ -533,31 +618,38 @@ async function processPayrollChunk(input: {
       "Payroll employee scope changed after calculation was queued. Recalculate so the run uses one consistent active-employee cohort.",
     );
   }
-  const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
-  // Authenticate all account snapshots before writing any payroll entry for this chunk.
+  if (input.preview && input.preview.employeeIds.some(
+    id => !allEmployees.some(worker => worker.id === id),
+  )) throw new Error("Preview workers must belong to the exact legal employer and active cutoff.");
+  const chunk = input.preview
+    ? allEmployees.filter(worker => input.preview!.employeeIds.includes(worker.id))
+    : allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
+  // Snapshot sealing is exclusively a persisted payroll side effect.
   const sealedPaymentBankAccounts = new Map<number, string | null>();
-  for (const employee of chunk) {
-    sealedPaymentBankAccounts.set(employee.id, sealPayrollPaymentBankAccount(employee.bankAccount));
+  if (!input.preview) {
+    for (const employee of chunk) {
+      sealedPaymentBankAccounts.set(employee.id, sealPayrollPaymentBankAccount(employee.bankAccount));
+    }
   }
   const chunkIds = chunk.map((employee) => employee.id);
   const payProfileRows = chunkIds.length
-    ? await db.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
+    ? await reader.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
     : [];
   const payRevisionRows = chunkIds.length
-    ? await db.select().from(employeePayRevisions).where(and(
+    ? await reader.select().from(employeePayRevisions).where(and(
         eq(employeePayRevisions.organizationId, input.organizationId),
         inArray(employeePayRevisions.employeeId, chunkIds),
         lte(employeePayRevisions.effectiveDate, run.periodEnd),
       )).orderBy(asc(employeePayRevisions.effectiveDate), asc(employeePayRevisions.id))
     : [];
   const restDayRevisionRows = chunkIds.length
-    ? await db.select().from(employeeRestDayRevisions).where(and(
+    ? await reader.select().from(employeeRestDayRevisions).where(and(
         eq(employeeRestDayRevisions.organizationId, input.organizationId),
         inArray(employeeRestDayRevisions.employeeId, chunkIds),
       )).orderBy(asc(employeeRestDayRevisions.effectiveDate), asc(employeeRestDayRevisions.id))
     : [];
   const mweClassificationRows = chunkIds.length
-    ? await db.select().from(employeeMweClassifications).where(and(
+    ? await reader.select().from(employeeMweClassifications).where(and(
         eq(employeeMweClassifications.organizationId, input.organizationId),
         inArray(employeeMweClassifications.employeeId, chunkIds),
         eq(employeeMweClassifications.status, "approved"),
@@ -598,17 +690,18 @@ async function processPayrollChunk(input: {
     restDayRevisionsByEmployee.set(revision.employeeId, [...(restDayRevisionsByEmployee.get(revision.employeeId) ?? []), revision]);
   }
   if (chunk.length === 0) {
+    if (input.preview) return { previewRows: [] as CanonicalPayrollPreviewRow[] };
     await finalizeRun(input.runId);
     return { done: true, chunkIndex: input.chunkIndex, processedEmployees: 0 };
   }
 
-  const advisories = await db.select().from(calamityAdvisories).where(and(
+  const advisories = await reader.select().from(calamityAdvisories).where(and(
     eq(calamityAdvisories.organizationId, input.organizationId),
     eq(calamityAdvisories.active, true),
     lte(calamityAdvisories.startDate, run.periodEnd),
     gte(calamityAdvisories.endDate, run.periodStart),
   ));
-  const holidayRows = await db.select().from(holidays).where(
+  const holidayRows = await reader.select().from(holidays).where(
     or(isNull(holidays.organizationId), eq(holidays.organizationId, input.organizationId)),
   );
   const holidayWindowStart = addDays(String(run.periodStart), -14);
@@ -626,13 +719,13 @@ async function processPayrollChunk(input: {
     }] : [];
   });
 
-  const units = await db.select().from(orgUnits).where(eq(orgUnits.organizationId, input.organizationId));
+  const units = await reader.select().from(orgUnits).where(eq(orgUnits.organizationId, input.organizationId));
   const unitMap = new Map(units.map((unit) => [unit.id, unit]));
 
   // Pay-rule execution is loaded once per payroll chunk, then resolved
   // independently for each employee and work date. Only approved/effective
   // policies can execute, and v1 supports additive worked-time premiums only.
-  const payPolicyRows = await db.select().from(payPolicies).where(and(
+  const payPolicyRows = await reader.select().from(payPolicies).where(and(
     eq(payPolicies.organizationId, input.organizationId),
     eq(payPolicies.active, true),
     lte(payPolicies.effectiveFrom, workforcePricingWindowEnd),
@@ -643,7 +736,7 @@ async function processPayrollChunk(input: {
   )).orderBy(asc(payPolicies.id));
   const payPolicyIds = payPolicyRows.map((policy) => policy.id);
   const payPolicyRuleRows = payPolicyIds.length
-    ? await db.select().from(payPolicyRules)
+    ? await reader.select().from(payPolicyRules)
         .where(inArray(payPolicyRules.policyId, payPolicyIds))
         .orderBy(asc(payPolicyRules.policyId), asc(payPolicyRules.id))
     : [];
@@ -681,23 +774,23 @@ async function processPayrollChunk(input: {
   const scheduleWindowStart = holidayWindowStart;
   const scheduleWindowEnd = workforcePricingWindowEnd;
   const [workforceShiftRows, workforcePatternRows] = await Promise.all([
-    db.select().from(shiftDefinitions).where(eq(shiftDefinitions.organizationId, input.organizationId)),
-    db.select().from(schedulePatterns).where(eq(schedulePatterns.organizationId, input.organizationId)),
+    reader.select().from(shiftDefinitions).where(eq(shiftDefinitions.organizationId, input.organizationId)),
+    reader.select().from(schedulePatterns).where(eq(schedulePatterns.organizationId, input.organizationId)),
   ]);
   const workforcePatternIds = workforcePatternRows.map((pattern) => pattern.id);
   const workforcePatternDayRows = workforcePatternIds.length
-    ? await db.select().from(schedulePatternDays)
+    ? await reader.select().from(schedulePatternDays)
         .where(inArray(schedulePatternDays.patternId, workforcePatternIds))
         .orderBy(asc(schedulePatternDays.patternId), asc(schedulePatternDays.dayIndex))
     : [];
   const workforcePatternDayIds = workforcePatternDayRows.map((day) => day.id);
   const workforcePatternSegmentRows = workforcePatternDayIds.length
-    ? await db.select().from(schedulePatternSegments)
+    ? await reader.select().from(schedulePatternSegments)
         .where(inArray(schedulePatternSegments.patternDayId, workforcePatternDayIds))
         .orderBy(asc(schedulePatternSegments.patternDayId), asc(schedulePatternSegments.segmentOrder))
     : [];
   const workforceAssignmentRows = chunkIds.length
-    ? await db.select().from(employeeScheduleAssignments).where(and(
+    ? await reader.select().from(employeeScheduleAssignments).where(and(
         eq(employeeScheduleAssignments.organizationId, input.organizationId),
         inArray(employeeScheduleAssignments.employeeId, chunkIds),
         lte(employeeScheduleAssignments.effectiveFrom, scheduleWindowEnd),
@@ -712,7 +805,7 @@ async function processPayrollChunk(input: {
       )
     : [];
   const workforceOverrideRows = chunkIds.length
-    ? await db.select().from(scheduleOverrides).where(and(
+    ? await reader.select().from(scheduleOverrides).where(and(
         eq(scheduleOverrides.organizationId, input.organizationId),
         inArray(scheduleOverrides.employeeId, chunkIds),
         gte(scheduleOverrides.workDate, scheduleWindowStart),
@@ -724,7 +817,7 @@ async function processPayrollChunk(input: {
       )
     : [];
   const workforceWorksiteAssignmentRows = chunkIds.length
-    ? await db.select().from(employeeWorksiteAssignments).where(and(
+    ? await reader.select().from(employeeWorksiteAssignments).where(and(
         eq(employeeWorksiteAssignments.organizationId, input.organizationId),
         inArray(employeeWorksiteAssignments.employeeId, chunkIds),
         lte(employeeWorksiteAssignments.effectiveFrom, run.periodEnd),
@@ -739,7 +832,7 @@ async function processPayrollChunk(input: {
       )
     : [];
   const overtimeRequestRows = chunkIds.length
-    ? await db.select().from(overtimeRequests).where(and(
+    ? await reader.select().from(overtimeRequests).where(and(
         eq(overtimeRequests.organizationId, input.organizationId),
         inArray(overtimeRequests.employeeId, chunkIds),
         gte(overtimeRequests.workDate, run.periodStart),
@@ -782,17 +875,17 @@ async function processPayrollChunk(input: {
   // Load the benefit catalogue and this chunk's active enrolments. Without this
   // the calculation function accepts benefits but nothing ever supplies them,
   // which would make the deduction silently inert.
-  const plans = await db.select().from(benefitPlans).where(eq(benefitPlans.active, true));
+  const plans = await reader.select().from(benefitPlans).where(eq(benefitPlans.active, true));
   const planById = new Map(plans.map((plan) => [plan.id, plan]));
   const enrolments = plans.length === 0
     ? []
-    : await db.select().from(benefitEnrollments).where(and(
+    : await reader.select().from(benefitEnrollments).where(and(
         eq(benefitEnrollments.organizationId, input.organizationId),
         eq(benefitEnrollments.status, "active"),
       ));
   const activeEnrollmentIds = enrolments.map((row) => row.id);
   const dependentRows = activeEnrollmentIds.length
-    ? await db.select().from(benefitDependents).where(and(
+    ? await reader.select().from(benefitDependents).where(and(
         eq(benefitDependents.organizationId, input.organizationId),
         eq(benefitDependents.status, "active"),
         inArray(benefitDependents.enrollmentId, activeEnrollmentIds),
@@ -830,12 +923,12 @@ async function processPayrollChunk(input: {
   // Approved-but-unpaid expense claims and approved-but-unrecovered advances
   // are pulled per chunk only, so a large run never loads the whole ledger.
   const [leavePolicyRows, approvedLeaveRows] = await Promise.all([
-    db.select().from(leavePolicies).where(and(
+    reader.select().from(leavePolicies).where(and(
       eq(leavePolicies.organizationId, input.organizationId),
       eq(leavePolicies.active, true),
     )),
     chunkIds.length
-      ? db.select().from(leaveRequests).where(and(
+      ? reader.select().from(leaveRequests).where(and(
           eq(leaveRequests.organizationId, input.organizationId),
           eq(leaveRequests.status, "Approved"),
           inArray(leaveRequests.employeeId, chunkIds),
@@ -869,23 +962,28 @@ async function processPayrollChunk(input: {
   }
 
   const legacyOpenClaims = chunkIds.length
-    ? await db.select().from(expenseClaims).where(and(
+    ? await reader.select().from(expenseClaims).where(and(
         eq(expenseClaims.organizationId, input.organizationId),
         eq(expenseClaims.status, "approved"),
         inArray(expenseClaims.employeeId, chunkIds),
       ))
     : [];
-  await assertSpendModeAvailable(db, legacyOpenClaims);
-  const openClaims = await loadSpendClaimEvidence(db, legacyOpenClaims);
+  // A read-only projection must not use the mutable global database's schema
+  // probes. Legacy approved claims require reviewed Spend evidence or block.
+  if (input.preview && legacyOpenClaims.length > 0 && !spendPayrollEnabled()) {
+    throw new Error("Approved expense claims need reviewed Spend payroll evidence.");
+  }
+  if (!input.preview) await assertSpendModeAvailable(db, legacyOpenClaims);
+  const openClaims = await loadSpendClaimEvidence(reader, legacyOpenClaims);
   const openAdvances = chunkIds.length
-    ? await db.select().from(earnedWageRequests).where(and(
+    ? await reader.select().from(earnedWageRequests).where(and(
         eq(earnedWageRequests.organizationId, input.organizationId),
         eq(earnedWageRequests.status, "approved"),
         inArray(earnedWageRequests.employeeId, chunkIds),
       ))
     : [];
   const openSupplementaryEarnings = chunkIds.length
-    ? await db.select().from(supplementaryEarnings).where(and(
+    ? await reader.select().from(supplementaryEarnings).where(and(
         eq(supplementaryEarnings.organizationId, input.organizationId),
         eq(supplementaryEarnings.status, "approved"),
         inArray(supplementaryEarnings.employeeId, chunkIds),
@@ -894,7 +992,7 @@ async function processPayrollChunk(input: {
       ))
     : [];
   const recurringCompensationRows = chunkIds.length
-    ? await db.select({
+    ? await reader.select({
         assignmentId: employeeCompensationComponents.id,
         employeeId: employeeCompensationComponents.employeeId,
         amount: employeeCompensationComponents.amount,
@@ -927,7 +1025,7 @@ async function processPayrollChunk(input: {
         ))
     : [];
   const approvedYearEndAdjustments = chunkIds.length
-    ? await db.select().from(yearEndAdjustments).where(and(
+    ? await reader.select().from(yearEndAdjustments).where(and(
         eq(yearEndAdjustments.organizationId, input.organizationId),
         eq(yearEndAdjustments.payrollRunId, run.id),
         eq(yearEndAdjustments.status, "approved"),
@@ -945,7 +1043,7 @@ async function processPayrollChunk(input: {
   }
 
   const deMinimis = chunkIds.length
-    ? await db.select().from(deMinimisGrants).where(and(
+    ? await reader.select().from(deMinimisGrants).where(and(
         eq(deMinimisGrants.organizationId, input.organizationId),
         eq(deMinimisGrants.active, true),
         inArray(deMinimisGrants.employeeId, chunkIds),
@@ -982,7 +1080,7 @@ async function processPayrollChunk(input: {
   }
 
   const activeLoans = chunkIds.length
-    ? await db.select().from(employeeLoans).where(and(
+    ? await reader.select().from(employeeLoans).where(and(
         eq(employeeLoans.organizationId, input.organizationId),
         eq(employeeLoans.status, "active"),
         inArray(employeeLoans.employeeId, chunkIds),
@@ -992,6 +1090,7 @@ async function processPayrollChunk(input: {
   const pendingRetroAdjustments = await loadPendingPayrollRetroSources({
     organizationId: input.organizationId,
     employeeIds: chunkIds,
+    reader,
   });
   const retroByEmployee = new Map<number, typeof pendingRetroAdjustments>();
   for (const retro of pendingRetroAdjustments) {
@@ -1005,7 +1104,7 @@ async function processPayrollChunk(input: {
   }
 
   const openConversions = chunkIds.length
-    ? await db.select().from(leaveConversions).where(and(
+    ? await reader.select().from(leaveConversions).where(and(
         eq(leaveConversions.organizationId, input.organizationId),
         eq(leaveConversions.status, "approved"),
         inArray(leaveConversions.employeeId, chunkIds),
@@ -1028,7 +1127,7 @@ async function processPayrollChunk(input: {
   const monthStart = `${periodEndText.slice(0, 7)}-01`;
 
   const priorMonthEntries = chunkIds.length
-    ? await db.select({
+    ? await reader.select({
         employeeId: payrollEntries.employeeId,
         grossPay: payrollEntries.grossPay,
         lineItems: payrollEntries.lineItems,
@@ -1050,7 +1149,7 @@ async function processPayrollChunk(input: {
   const taxYearStart = `${String(run.payDate).slice(0, 4)}-01-01`;
   const priorImportedPayrollEmployees = new Set<number>(
     chunkIds.length
-      ? (await db.select({ employeeId: historicalPayrollEntries.employeeId })
+      ? (await reader.select({ employeeId: historicalPayrollEntries.employeeId })
           .from(historicalPayrollEntries)
           .where(and(
             eq(historicalPayrollEntries.organizationId, input.organizationId),
@@ -1063,7 +1162,7 @@ async function processPayrollChunk(input: {
   );
 
   const priorDeMinimisEntries = chunkIds.length
-    ? await db.select({
+    ? await reader.select({
         employeeId: payrollEntries.employeeId,
         lineItems: payrollEntries.lineItems,
         payDate: payrollRuns.payDate,
@@ -1289,6 +1388,7 @@ async function processPayrollChunk(input: {
   let chunkGross = 0;
   let chunkNet = 0;
   let chunkExceptions = 0;
+  const previewRows: CanonicalPayrollPreviewRow[] = [];
 
   for (const employee of chunk) {
     const employeeHolidayScopeIds = orgUnitAncestors(employee.orgUnitId, unitMap);
@@ -1382,7 +1482,7 @@ async function processPayrollChunk(input: {
         )),
     ];
 
-    const punches = await db.select().from(timePunches).where(and(
+    const punches = await reader.select().from(timePunches).where(and(
       eq(timePunches.organizationId, input.organizationId),
       eq(timePunches.employeeId, employee.id),
       gte(timePunches.workDate, run.periodStart),
@@ -1433,7 +1533,7 @@ async function processPayrollChunk(input: {
     )];
 
     const holidayEligibilityAttendance = holidayEligibilityDates.length
-      ? await db.select().from(timePunches).where(and(
+      ? await reader.select().from(timePunches).where(and(
           eq(timePunches.organizationId, input.organizationId),
           eq(timePunches.employeeId, employee.id),
           inArray(timePunches.workDate, holidayEligibilityDates),
@@ -1614,6 +1714,32 @@ async function processPayrollChunk(input: {
       isFinalCutoffOfMonth,
     });
 
+    // This is the identical calculateEmployeePay(input) call used by the live
+    // worker: all effective salary, attendance, leave, premiums, policies,
+    // benefits, loans and prior statutory values were assembled above.
+    // DO NOT persist source data, audit events, entries, payslips or snapshots
+    // when the projection is running inside its read-only transaction.
+    if (input.preview) {
+      const moneyValues = [calc.gross, calc.net];
+      const exception = calc.status === "Exception" || moneyValues.some(
+        amount => !Number.isFinite(amount),
+      );
+      const deduction = (code: string) => Math.abs(Number(
+        calc.lineItems.find(item => item.code === code)?.amount ?? 0,
+      ));
+      previewRows.push({
+        employeeId: employee.id,
+        gross: exception ? null : calc.gross,
+        sss: exception ? null : deduction("SSS"),
+        philHealth: exception ? null : deduction("PHIC"),
+        pagIbig: exception ? null : deduction("HDMF"),
+        withholding: exception ? null : deduction("WHT"),
+        net: exception ? null : calc.net,
+        blockers: exception ? ["Canonical payroll calculation has unresolved exceptions."] : [],
+      });
+      continue;
+    }
+
     chunkGross += calc.gross;
     chunkNet += calc.net;
     if (calc.status === "Exception") chunkExceptions += 1;
@@ -1669,11 +1795,15 @@ async function processPayrollChunk(input: {
 
   }
 
+  // This is the sole exit from the projection before all run updates,
+  // finalization and audit writes below.
+  if (input.preview) return { previewRows };
+
   const processedChunks = input.chunkIndex + 1;
   const totalChunks = Math.max(1, Math.ceil(allEmployees.length / input.chunkSize));
   const done = processedChunks >= totalChunks;
 
-  const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
+  const [fresh] = await reader.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
   await db.update(payrollRuns).set({
     status: done ? "Needs review" : "Processing",
     grossPay: money(Number(fresh?.grossPay ?? 0) + chunkGross),
