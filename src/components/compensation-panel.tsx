@@ -131,9 +131,15 @@ function pct(value: number | null) {
 export function CompensationPanel({
   organizationId,
   setNotice,
+  canViewPayrollEvidence = false,
+  previewEnabled = false,
+  investigationEnabled = false,
 }: {
   organizationId: number;
   setNotice: (message: string) => void;
+  canViewPayrollEvidence?: boolean;
+  previewEnabled?: boolean;
+  investigationEnabled?: boolean;
 }) {
   const [access, setAccess] = useState<Access | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -754,9 +760,9 @@ export function CompensationPanel({
         </div>
       </article>
 
-      <PayrollOverpaymentWorkbench organizationId={organizationId} setNotice={setNotice} />
-      <PayrollOverpaymentPreviewPanel organizationId={organizationId} />
-      <PayrollUnderpaymentPanel organizationId={organizationId} setNotice={setNotice} />
+      {canViewPayrollEvidence && investigationEnabled && <PayrollOverpaymentWorkbench organizationId={organizationId} setNotice={setNotice} />}
+      {canViewPayrollEvidence && previewEnabled && <PayrollOverpaymentPreviewPanel organizationId={organizationId} />}
+      {canViewPayrollEvidence && <PayrollUnderpaymentPanel organizationId={organizationId} setNotice={setNotice} />}
 
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
