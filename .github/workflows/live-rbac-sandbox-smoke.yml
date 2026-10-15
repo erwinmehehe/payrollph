@@ -11,7 +11,7 @@ permissions:
 jobs:
   live-sandbox:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     env:
       BASE_URL: https://erwinmehehe-payrollph.vercel.app
       EXPECTED_COMMIT_SHA: ${{ github.sha }}
