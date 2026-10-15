@@ -656,8 +656,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
         {page === "Loans" && <LoansPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} canManageGovRemittance={data.access?.companyWide === true && ["owner", "admin", "bookkeeper", "payroll"].includes(effectiveRole ?? "")} />}
         {page === "Benefits" && <BenefitsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Documents" && <HcmDocumentsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "Expenses" && <SpendOperationsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
+        {page === "Expenses" && <SpendOperationsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
         {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Recruitment" && (
           <>
