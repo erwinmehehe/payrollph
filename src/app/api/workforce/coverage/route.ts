@@ -849,7 +849,7 @@ export async function GET(request: Request) {
       ? db.select().from(employeeAvailabilityRules).where(and(
           eq(employeeAvailabilityRules.organizationId, organizationId),
           inArray(employeeAvailabilityRules.employeeId, employeeIds),
-          lte(employeeAvailabilityRules.effectiveFrom, endDate),
+          lte(employeeAvailabilityRules.effectiveFrom, addDays(endDate, 1)),
         )).orderBy(asc(employeeAvailabilityRules.employeeId), asc(employeeAvailabilityRules.weekday))
       : [],
     worksiteIds.length
@@ -1617,7 +1617,7 @@ export async function POST(request: Request) {
       const availabilityRows = await db.select().from(employeeAvailabilityRules).where(and(
         eq(employeeAvailabilityRules.organizationId, organizationId),
         eq(employeeAvailabilityRules.employeeId, employee.id),
-        lte(employeeAvailabilityRules.effectiveFrom, requirement.workDate),
+        lte(employeeAvailabilityRules.effectiveFrom, addDays(String(requirement.workDate), 1)),
       ));
       const rules: AvailabilityRule[] = availabilityRows.map((row) => ({
         id: row.id,
@@ -2006,7 +2006,7 @@ export async function POST(request: Request) {
     const availabilityRows = await db.select().from(employeeAvailabilityRules).where(and(
       eq(employeeAvailabilityRules.organizationId, organizationId),
       eq(employeeAvailabilityRules.employeeId, employeeId),
-      lte(employeeAvailabilityRules.effectiveFrom, shiftRow.workDate),
+      lte(employeeAvailabilityRules.effectiveFrom, addDays(String(shiftRow.workDate), 1)),
     ));
     const availability: AvailabilityRule[] = availabilityRows.map((row) => ({
       id: row.id,
@@ -2112,7 +2112,7 @@ export async function POST(request: Request) {
         ? await db.select().from(employeeAvailabilityRules).where(and(
             eq(employeeAvailabilityRules.organizationId, organizationId),
             inArray(employeeAvailabilityRules.employeeId, currentEmployeeIds),
-            lte(employeeAvailabilityRules.effectiveFrom, requirement.workDate),
+            lte(employeeAvailabilityRules.effectiveFrom, addDays(String(requirement.workDate), 1)),
           ))
         : [];
       const currentCoverage = await coverageRows({
