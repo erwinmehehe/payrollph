@@ -44,16 +44,24 @@ export async function provisionPublicDemoCompensationScope(organizationId: numbe
       throw new Error("The fictional MKT unit must be active and effective.");
     }
 
-    const [scopedWorker] = await tx.select({ id: employees.id }).from(employees).where(and(
+    const [scopedWorker] = await tx.select({
+      id: employees.id, employeeNo: employees.employeeNo, email: employees.email,
+    }).from(employees).where(and(
       eq(employees.organizationId, organizationId),
       eq(employees.orgUnitId, unit.id),
     )).orderBy(employees.id).limit(1);
-    const [otherWorker] = await tx.select({ id: employees.id }).from(employees).where(and(
+    const [otherWorker] = await tx.select({
+      id: employees.id, employeeNo: employees.employeeNo, email: employees.email,
+    }).from(employees).where(and(
       eq(employees.organizationId, organizationId),
       ne(employees.orgUnitId, unit.id),
     )).orderBy(employees.id).limit(1);
-    if (!scopedWorker || !otherWorker) {
-      throw new Error("Fictional demo must contain employees in at least two units.");
+    const syntheticWorker = (row: { employeeNo: string; email: string | null } | undefined) =>
+      Boolean(row && /^LL-10[1-8]$/.test(row.employeeNo) &&
+        row.email?.endsWith("@linaw.ph"));
+    if (!scopedWorker || !otherWorker ||
+        !syntheticWorker(scopedWorker) || !syntheticWorker(otherWorker)) {
+      throw new Error("Only the known fictional demo workers may be used for salary acceptance.");
     }
 
     const [cycle] = await tx.insert(compensationCycles).values({
