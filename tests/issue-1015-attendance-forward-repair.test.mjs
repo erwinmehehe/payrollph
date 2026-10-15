@@ -29,7 +29,7 @@ test("#1015 candidate is additive, creates missing final schema, and has explici
   assert.match(tokens, /ISSUE1015_EXISTING_ATTENDANCE_RELATION_REQUIRES_MANUAL_REVIEW/);
   assert.match(tokens, /ISSUE1015_PARENT_INTEGER_PK_MISSING_OR_DRIFTED/);
   assert.match(tokens, /ISSUE1015_ORPHANED_ATTENDANCE_SCHEMA_OBJECT_REQUIRES_MANUAL_REVIEW/);
-  assert.match(tokens, /DO \\$issue1015_attendance_postflight\\$/);
+  assert.ok(tokens.includes("DO $issue1015_attendance_postflight$"), "migration must include atomic catalog postflight");
   assert.match(tokens, /ISSUE1015_POSTFLIGHT_SCHEMA_INCOMPLETE/);
   assert.doesNotMatch(tokens, /\bIF\s+NOT\s+EXISTS\b|\bDROP\s+(?:TABLE|INDEX|SCHEMA|DATABASE)\b|\bTRUNCATE\b|\bUPDATE\s+(?:public\.)?\w+\b|\bDELETE\s+FROM\b|\bINSERT\s+INTO\b|\bALTER\s+TABLE\b/i);
   assert.doesNotMatch(tokens, /\b(?:FROM|JOIN)\s+(?:public\.)?(?:employees|users|time_punches|payroll_runs|payroll_entries|attendance_exception_events)\b/i,
