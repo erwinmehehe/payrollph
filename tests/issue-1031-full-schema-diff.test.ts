@@ -35,3 +35,26 @@ test("missing constraint, extra column, and changed unique flag all fail",()=>{
  assert.equal(rows.find(x=>x.object==="unreviewed")?.status,"EXTRA");
  assert.equal(rows.find(x=>x.kind==="index")?.status,"DRIFT");
 });
+
+test("case-sensitive literal content and internal spaces must not normalize away", () => {
+ const withLabel: SchemaManifest={
+   ...manifest,
+   tables:[{...manifest.tables[0]!,
+     columns:[...manifest.tables[0]!.columns,
+       {name:"label",type:"text",nullable:false,default:"'Approved  By HR'",identity:null}]
+   }]
+ };
+ const catalog: CatalogRow[]=[
+   ...observed,{table_name:"synthetic_payroll",kind:"column",object_name:"label",
+     type:"text",nullable:false,default:"'approved by HR'",identity:null}
+ ];
+ const result=diffSchema(withLabel,catalog);
+ assert.equal(result.find(x=>x.kind==="column"&&x.object==="label")?.status,"DRIFT");
+});
+
+test("serial primary key cannot accept an arbitrary nextval sequence", () => {
+ const wrong=observed.map(x=>x.kind==="column"&&x.object_name==="id"
+   ? {...x,default:"nextval('unrelated_payroll_sequence'::regclass)"} : x);
+ const result=diffSchema(manifest,wrong);
+ assert.equal(result.find(x=>x.kind==="column"&&x.object==="id")?.status,"DRIFT");
+});
