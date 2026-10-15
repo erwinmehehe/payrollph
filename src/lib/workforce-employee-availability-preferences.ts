@@ -59,7 +59,7 @@ export function parseEmployeeAvailabilityDraft(
   const {
     weekday, startTime, endTime, availabilityType, effectiveFrom, effectiveUntil, notes,
   } = body;
-  if (!Number.isInteger(weekday) || (weekday as number) < 0 || (weekday as number) > 6 ||
+  if (typeof weekday !== "number" || !Number.isInteger(weekday) || weekday < 0 || weekday > 6 ||
       typeof startTime !== "string" || !HH_MM.test(startTime) ||
       typeof endTime !== "string" || !HH_MM.test(endTime) ||
       timeMinute(startTime) >= timeMinute(endTime) ||
@@ -85,7 +85,7 @@ export function parseEmployeeAvailabilityDraft(
     return { ok: false, error: "Optional notes must be 240 characters or fewer." };
   }
   return { ok: true, value: {
-    weekday: weekday as number,
+    weekday,
     startTime,
     endTime,
     availabilityType,
@@ -100,10 +100,10 @@ export function parseAvailabilityRemoval(
 ): { ok: true; ruleId: number } | { ok: false; error: string } {
   const body = objectValue(input);
   if (!body || body.action !== "remove" || Object.keys(body).some(key => !REMOVE_KEYS.has(key)) ||
-      !Number.isSafeInteger(body.ruleId) || (body.ruleId as number) <= 0) {
+      typeof body.ruleId !== "number" || !Number.isSafeInteger(body.ruleId) || body.ruleId <= 0) {
     return { ok: false, error: "A valid owned availability rule is required. Employer and employee IDs are not accepted." };
   }
-  return { ok: true, ruleId: body.ruleId as number };
+  return { ok: true, ruleId: body.ruleId };
 }
 
 function effectiveOverlap(a: EmployeeAvailabilityDraft, b: EmployeeAvailabilityDraft) {
