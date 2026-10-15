@@ -37,11 +37,12 @@ test("live-floor manual refresh and polling use one abortable request owner", ()
     "setSnapshot({ scopeKey: requestedScope, data: value as FloorSnapshot });",
     "if (value?.page !== page)",
     "if (document.visibilityState === \"visible\") void load();",
-    "return () => { pendingRequest.current?.abort(); clearInterval(interval); };",
+    "return () => { active = false; pendingRequest.current?.abort(); clearInterval(interval); };",
     "{activeSnapshot && <>",
   ]) {
     assert.ok(code.includes(token), `missing client guard: ${token}`);
   }
+  assert.match(code, /queueMicrotask\(\(\) => \{\s*if \(active\) void load\(\)/);
   assert.ok(!code.includes("void load(controller.signal)"));
   assert.ok(code.includes("Not proof of onsite presence or an absence finding."));
 });
@@ -55,6 +56,6 @@ test("changing employers remounts live-floor filters, paging and request owner b
   assert.match(code, /const \[page, setPage\] = useState\(1\)/);
   assert.match(code, /const \[view, setView\] = useState/);
   assert.match(code, /const \[search, setSearch\] = useState\(""/);
-  assert.match(code, /return \(\) => \{ pendingRequest\.current\?\.abort\(\); clearInterval\(interval\); \}/);
+  assert.match(code, /return \(\) => \{ active = false; pendingRequest\.current\?\.abort\(\); clearInterval\(interval\); \}/);
   assert.doesNotMatch(code, /useEffect\(\(\) => \{ setPage\(1\); setSearch\(""\); setView\("all"\)/);
 });
