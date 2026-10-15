@@ -679,6 +679,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
                   provisioning={data.provisioning}
                   onRefresh={async () => { await refresh(data.selectedOrganization.id); }}
                   onOpenEmployee={openHrEmployee}
+                  onAddEmployee={canUsePeopleOps && !demoRole ? () => setNewHireOpen(true) : undefined}
                   allowHirePayrollReview={allowHirePayrollReview && !demoRole}
                   onOpenDocuments={availablePages.includes("Documents") ? () => setPage("Documents") : undefined}
                 />
