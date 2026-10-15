@@ -87,7 +87,10 @@ jobs:
           cat /tmp/payrollph-security.log
           exit 1
 
-      - name: Run adversarial HTTP smoke probes
+      - name: Run adversarial HTTP and two-employer Workforce/BI acceptance
+        env:
+          CI: "true"
+          WORKFORCE_BI_HTTP_ACCEPTANCE_MODE: isolated-ci-only
         run: npx tsx scripts/security-http-smoke.ts
 
       - name: Show server log on failure

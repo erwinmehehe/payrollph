@@ -5,6 +5,7 @@ import { PayrollUnderpaymentPanel } from "@/components/payroll-underpayment-pane
 import { PayrollOverpaymentWorkbench } from "@/components/payroll-overpayment-workbench";
 import { PayrollOverpaymentPreviewPanel } from "@/components/payroll-overpayment-preview-panel";
 import { summarizeCompensationCycleBudget } from "@/lib/hcm-compensation-cycle-budget-preview";
+import { visibleCompensationCommittedIncrease } from "@/lib/hcm-compensation-read-projection";
 import { HcmCompensationWhatIfDetails } from "@/components/hcm-compensation-whatif-details";
 import { previewCompensationProposal } from "@/lib/hcm-compensation-proposal-whatif";
 import {
@@ -301,12 +302,21 @@ function ScopedCompensationPanel({
   }
 
   const activeCycle = cycles.find((cycle) => cycle.status === "active");
+  // The API redacts organization budgets for unit-scoped HR. Do not
+  // reconstruct them in this screen from partial/visible proposals.
   const budgetPreview = useMemo(
-    () => summarizeCompensationCycleBudget(activeCycle ?? null, proposals),
-    [activeCycle, proposals],
+    () => access?.companyWide
+      ? summarizeCompensationCycleBudget(activeCycle ?? null, proposals)
+      : null,
+    [access?.companyWide, activeCycle, proposals],
   );
-  const committedSpend = budgetPreview?.state === "available"
-    ? budgetPreview.committedAnnual : null;
+  const visibleCommitted = useMemo(
+    () => visibleCompensationCommittedIncrease(activeCycle?.id ?? null, proposals),
+    [activeCycle?.id, proposals],
+  );
+  const committedSpend = access?.companyWide
+    ? budgetPreview?.state === "available" ? budgetPreview.committedAnnual : null
+    : visibleCommitted;
   const selectedEmployeeId = Number(proposalForm.employeeId);
   const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId) ?? null;
   const selectedCycle = cycles.find(
@@ -406,13 +416,13 @@ function ScopedCompensationPanel({
           <strong>{budgetPeso(committedSpend)}</strong>
           <small>{!activeCycle
             ? "no active cycle"
-            : budgetPreview?.state !== "available"
-              ? "Budget preview unavailable. Refresh the authoritative source."
-              : access?.companyWide
-                ? budgetPreview.overCommittedAnnual > 0
+            : !access?.companyWide
+              ? "Only committed proposals in your assigned scope; organization budget is restricted"
+              : budgetPreview?.state !== "available"
+                ? "Budget preview unavailable. Refresh the authoritative source."
+                : budgetPreview.overCommittedAnnual > 0
                   ? `${budgetPeso(budgetPreview.overCommittedAnnual)} over the recorded budget; review source controls`
-                  : `${budgetPeso(budgetPreview.remainingAnnual)} remaining of ${budgetPeso(activeCycle.budgetPool)} pool`
-                : "Only proposals in your assigned scope are shown"}
+                  : `${budgetPeso(budgetPreview.remainingAnnual)} remaining of ${budgetPeso(activeCycle.budgetPool)} pool`}
           </small>
         </article>
         <article className="stat-card">

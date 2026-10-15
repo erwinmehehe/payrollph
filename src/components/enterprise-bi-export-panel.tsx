@@ -43,36 +43,74 @@ export function EnterpriseBiExportPanel({
   const [format, setFormat] = useState("csv");
   const [startDate, setStartDate] = useState(isoDate(ninetyDaysAgo));
   const [endDate, setEndDate] = useState(isoDate(today));
-  const [loading, setLoading] = useState(true);
+  const [reloadRevision, setReloadRevision] = useState(0);
+  // Tie the response status to both the organization and the request revision.
+  // A tenant switch or Retry therefore renders as pending *before* effects run.
+  const [resolvedRead, setResolvedRead] = useState<{
+    organizationId: number;
+    revision: number;
+    error: string | null;
+  } | null>(null);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const response = await fetch(`/api/bi-exports?organizationId=${organizationId}`, { cache: "no-store" });
+    const controller = new AbortController();
+    // Effects initiate the external read; only asynchronous response callbacks
+    // update React state. Cleanup cancels superseded or unmounted reads.
+    void fetch(`/api/bi-exports?organizationId=${organizationId}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
         const payload = await response.json().catch(() => ({}));
-        if (!alive) return;
         if (!response.ok) throw new Error(payload.error ?? "Could not load BI export definitions.");
+        return payload;
+      })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
         setDefinitions(Array.isArray(payload.datasets) ? payload.datasets : []);
         setLegalEntities(Array.isArray(payload.scopes?.legalEntities) ? payload.scopes.legalEntities : []);
         setOrgUnits(Array.isArray(payload.scopes?.orgUnits) ? payload.scopes.orgUnits : []);
         setDynamicGroups(Array.isArray(payload.scopes?.dynamicGroups) ? payload.scopes.dynamicGroups : []);
-      } catch (error) {
-        if (alive) notify(error instanceof Error ? error.message : "Could not load BI export definitions.", "err");
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
-  }, [organizationId, notify]);
+        setResolvedRead({ organizationId, revision: reloadRevision, error: null });
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        // An earlier employer's metadata must not authorize the next one.
+        setDefinitions([]);
+        setLegalEntities([]);
+        setOrgUnits([]);
+        setDynamicGroups([]);
+        setResolvedRead({
+          organizationId,
+          revision: reloadRevision,
+          error: error instanceof Error ? error.message : "Could not load BI export definitions.",
+        });
+      });
+    return () => controller.abort();
+  }, [organizationId, reloadRevision]);
 
-  const selected = definitions.find((definition) => definition.key === dataset);
-  const visibleOrgUnits = orgUnits.filter((unit) =>
+  // Until the exact organization AND retry revision have completed, the
+  // current request is pending and all cached metadata is hidden.
+  const readSettled = resolvedRead?.organizationId === organizationId
+    && resolvedRead?.revision === reloadRevision;
+  const loading = !readSettled;
+  const loadError = readSettled ? (resolvedRead?.error ?? null) : null;
+  const definitionsReady = readSettled && !loadError;
+  const scopedDefinitions = definitionsReady ? definitions : [];
+  const scopedLegalEntities = definitionsReady ? legalEntities : [];
+  const scopedOrgUnits = definitionsReady ? orgUnits : [];
+  const scopedDynamicGroups = definitionsReady ? dynamicGroups : [];
+  const selected = scopedDefinitions.find((definition) => definition.key === dataset);
+  const visibleOrgUnits = scopedOrgUnits.filter((unit) =>
     !legalEntityId || unit.legalEntityId == null || String(unit.legalEntityId) === legalEntityId
   );
 
   async function requestExport() {
+    if (!definitionsReady) {
+      notify("BI export definitions have not loaded for this organization.", "err");
+      return;
+    }
     if (!startDate || !endDate) {
       notify("Choose a start and end date for the BI export.", "err");
       return;
@@ -138,15 +176,23 @@ export function EnterpriseBiExportPanel({
           </span>
         </div>
 
+        {loading && <div className="empty-state" role="status">Loading BI export definitions…</div>}
+        {loadError && (
+          <div className="notice notice-amber" role="alert" style={{ marginBottom: 14 }}>
+            <span><strong>BI exports are unavailable.</strong> {loadError} Export definitions and access scopes must load successfully before any export is enabled.</span>
+            <button className="secondary-button" type="button" disabled={loading} onClick={() => setReloadRevision((value) => value + 1)}>Retry</button>
+          </div>
+        )}
+
         <div className="setting-form" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr" }}>
           <label>
             Dataset
-            <select value={dataset} disabled={loading} onChange={(event) => {
+            <select value={dataset} disabled={!definitionsReady} onChange={(event) => {
               const next = event.target.value;
               setDataset(next);
               if (next === "payroll_runs") setDynamicGroupCode("");
             }}>
-              {definitions.map((definition) => (
+              {scopedDefinitions.map((definition) => (
                 <option key={definition.key} value={definition.key}>{definition.name}</option>
               ))}
             </select>
@@ -178,13 +224,13 @@ export function EnterpriseBiExportPanel({
                 const next = event.target.value;
                 setLegalEntityId(next);
                 if (orgUnitId) {
-                  const unit = orgUnits.find((item) => String(item.id) === orgUnitId);
+                  const unit = scopedOrgUnits.find((item) => String(item.id) === orgUnitId);
                   if (next && unit?.legalEntityId != null && String(unit.legalEntityId) !== next) setOrgUnitId("");
                 }
               }}
             >
               <option value="">All legal entities</option>
-              {legalEntities.map((entity) => (
+              {scopedLegalEntities.map((entity) => (
                 <option key={entity.id} value={entity.id}>{entity.code} · {entity.name}</option>
               ))}
             </select>
@@ -206,7 +252,7 @@ export function EnterpriseBiExportPanel({
               onChange={(event) => setDynamicGroupCode(event.target.value)}
             >
               <option value="">{dataset === "payroll_runs" ? "Employee scope not applicable" : "All employees"}</option>
-              {dynamicGroups.map((group) => (
+              {scopedDynamicGroups.map((group) => (
                 <option key={group.id} value={group.code}>{group.name} · {group.code}</option>
               ))}
             </select>
@@ -229,7 +275,7 @@ export function EnterpriseBiExportPanel({
         )}
 
         <div className="run-actions" style={{ marginTop: 14 }}>
-          <button type="button" className="primary-button brand" disabled={loading || exporting || !definitions.length} onClick={() => void requestExport()}>
+          <button type="button" className="primary-button brand" disabled={!definitionsReady || exporting || !scopedDefinitions.length} onClick={() => void requestExport()}>
             {format === "json" || format === "ndjson" ? <FileJson2 size={14} /> : <Download size={14} />}
             {exporting ? "Generating…" : `Export ${format.toUpperCase()}`}
           </button>

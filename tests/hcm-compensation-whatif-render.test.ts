@@ -89,6 +89,12 @@ test("the parent compensation screen masks stale employer data and stale respons
   assert.ok(source.includes("requestSequence.current++"));
   assert.ok(source.includes("setLoadedOrganizationId(organizationId)"));
   assert.ok(source.includes("setFailedLoad("));
+  // This what-if integration must retain #1047's server-backed budget
+  // redaction in the parent, never restoring a guessed organization pool.
+  assert.match(source, /access\\?\\.companyWide\\s*\\?\\s*summarizeCompensationCycleBudget/);
+  assert.ok(source.includes("visibleCompensationCommittedIncrease(activeCycle?.id ?? null, proposals)"));
+  assert.ok(source.includes("organization budget is restricted"));
+  assert.ok(source.includes("authorizedCycleBudget: access?.companyWide ? authorizedSelectedCycleBudget : null"));
   assert.ok(source.includes("<HcmCompensationWhatIfDetails"));
   assert.ok(source.includes("companyWide={access.companyWide}"));
   const component = readFileSync("src/components/hcm-compensation-whatif-details.tsx", "utf8");

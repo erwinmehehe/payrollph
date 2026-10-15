@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, ClipboardList, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CalendarDays, RefreshCw, ShieldCheck } from "lucide-react";
+import { Worker360History } from "@/components/hcm-worker-360-history";
 import type { Worker360Summary } from "@/lib/hcm-worker-360-contract";
 import { validWorker360Date } from "@/lib/hcm-worker-360-projection";
 
@@ -20,10 +21,6 @@ function dateText(value: string | null) {
   return new Intl.DateTimeFormat("en-PH", {
     timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric",
   }).format(date);
-}
-
-function eventLabel(value: string) {
-  return value.replace(/[_:-]+/g, " ").replace(/^./, (first) => first.toUpperCase());
 }
 
 export function Worker360Client({
@@ -191,34 +188,8 @@ function ScopedWorker360({ organizationId, employeeId, initialAsOfDate }: {
                 <p className="mt-5 text-xs text-slate-500">Historical job title, manager and department are intentionally not inferred from today&#39;s mutable position record.</p>
               </section>
 
-              <section aria-labelledby="worker360-history" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center gap-2 text-emerald-800">
-                  <ClipboardList size={16} aria-hidden="true" />
-                  <p className="text-xs font-bold uppercase tracking-wide">Employment event source</p>
-                </div>
-                <h2 id="worker360-history" className="mt-2 text-xl font-bold">Recorded events</h2>
-                <p className="mt-2 text-xs text-slate-500">Source: worker_employment_events · Effective on or before {dateText(asOfDate)}</p>
-                {history?.items.length === 0 &&
-                  <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">No events were returned by this source preview. Legacy or unlinked events may exist elsewhere.</p>}
-                {history && history.items.length > 0 && (
-                  <ol className="mt-4 divide-y divide-slate-100">
-                    {history.items.map((event) => (
-                      <li key={event.id} className="flex items-start justify-between gap-3 py-3">
-                        <div>
-                          <p className="text-sm font-semibold">{eventLabel(event.eventType)}</p>
-                          <p className="mt-1 text-xs text-slate-500">{dateText(event.effectiveDate)}</p>
-                          {event.positionAssignmentId && <p className="mt-1 text-xs text-slate-500">Linked assignment #{event.positionAssignmentId}</p>}
-                        </div>
-                        <span className="shrink-0 text-xs text-slate-500">Event #{event.id}</span>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-                {history?.hasMore &&
-                  <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-950">
-                    Showing only the first 25 source events. This preview is incomplete.
-                  </p>}
-              </section>
+              {history && <Worker360History key={scope} organizationId={organizationId}
+                employeeId={employeeId} asOfDate={asOfDate} preview={history} />}
             </div>
             <p className="mt-6 max-w-4xl text-xs text-slate-500">
               Worker 360 provides a bounded, source-linked view. It is not proof of complete employment history, verified statutory compliance, payroll settlement or independently approved HR decisions. All changes must occur in their owning workflows.
