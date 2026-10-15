@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { EmployeeAvailabilityPreferences } from "../src/components/employee-availability-preferences";
+import { availabilityConflictForShift, preferredForShift } from "../src/lib/workforce-coverage";
 import {
   addAvailabilityDays,
   availabilityRemovalDecision,
@@ -162,4 +163,55 @@ test("the employee and manager workspaces use the same source without cross-empl
   assert.match(html, /Save preference/);
   assert.match(html, /Overnight windows should be entered as two separate days/);
   assert.doesNotMatch(html, /organizationId|employeeId|Approved schedule/);
+});
+
+
+test("overnight shifts respect following-day unavailability and full split-day preference coverage", () => {
+  const shift = { id: 12, startTime: "22:00", endTime: "06:00", spansMidnight: true };
+  const monday = {
+    id: 1, employeeId: 11, weekday: 1, startTime: "22:00",
+    endTime: "23:59", availabilityType: "preferred" as const,
+    effectiveFrom: "2026-10-05", effectiveUntil: null,
+  };
+  const tuesday = {
+    id: 2, employeeId: 11, weekday: 2, startTime: "00:00",
+    endTime: "06:00", availabilityType: "preferred" as const,
+    effectiveFrom: "2026-10-06", effectiveUntil: null,
+  };
+  assert.equal(preferredForShift({
+    rules: [monday, tuesday], date: "2026-10-05", shift,
+  }), true, "continuous Monday 22:00-24:00 + Tuesday 00:00-06:00 matches entire overnight shift");
+  assert.equal(preferredForShift({ rules: [monday], date: "2026-10-05", shift }), false,
+    "a next-day preference is required; do not invent it");
+  assert.equal(preferredForShift({
+    rules: [{ ...monday, endTime: "23:58" }, tuesday], date: "2026-10-05", shift,
+  }), false, "a missing minute means preference is not a full-shift match");
+  assert.equal(preferredForShift({
+    rules: [monday, { ...tuesday, effectiveFrom: "2026-10-07" }],
+    date: "2026-10-05", shift,
+  }), false, "future-dated following-day preferences cannot be applied early");
+
+  const unavailableTuesday = {
+    ...tuesday, availabilityType: "unavailable" as const,
+    startTime: "02:00", endTime: "04:00",
+  };
+  assert.equal(availabilityConflictForShift({
+    rules: [unavailableTuesday], date: "2026-10-05", shift,
+  }), true, "next-day unavailability must be an overnight scheduling exclusion");
+  assert.equal(availabilityConflictForShift({
+    rules: [{ ...unavailableTuesday, startTime: "06:00", endTime: "08:00" }],
+    date: "2026-10-05", shift,
+  }), false, "time windows touching only at shift end do not overlap");
+  assert.equal(availabilityConflictForShift({
+    rules: [{ ...unavailableTuesday, effectiveUntil: "2026-10-05" }],
+    date: "2026-10-05", shift,
+  }), false, "expired rule must not block the next day");
+  assert.equal(availabilityConflictForShift({
+    rules: [{ ...monday, availabilityType: "unavailable", startTime: "00:00", endTime: "03:00" }],
+    date: "2026-10-05", shift,
+  }), false, "early Monday morning does not apply to Monday night/Tuesday morning");
+  assert.equal(availabilityConflictForShift({
+    rules: [{ ...unavailableTuesday, weekday: 3 }],
+    date: "2026-10-05", shift,
+  }), false, "Wednesday-only rule does not apply to Tuesday's shift segment");
 });
