@@ -48,7 +48,9 @@ export async function loadReadOnlyFirstPayrollPreview(
  if(!memberRows.some(r=>r.role==="checker"))blockers.push("No active independent Checker role is assigned.");
  if(!people.length)blockers.push("No active employees in the selected period.");
 
- // Any unmodeled inputs force a blocker rather than a falsely precise payslip.
+ // Unmodeled inputs that could affect this or earlier cutoffs force blockers
+ // rather than a falsely precise payslip. Only strictly future-dated leave,
+ // supplementary earnings and employer holidays are irrelevant to this cutoff.
  // The normal payroll engine handles all these sources; this first-run preview
  // intentionally supports only a genuinely simple initial fixed-salary cutoff.
  const sourceChecks = [
@@ -61,13 +63,24 @@ export async function loadReadOnlyFirstPayrollPreview(
     lte(timePunches.workDate,periodEnd),
   )).limit(1)],
   ["employee pay revisions", () => reader.select({id:employeePayRevisions.id}).from(employeePayRevisions).where(eq(employeePayRevisions.organizationId,organizationId)).limit(1)],
-  ["supplementary earnings", () => reader.select({id:supplementaryEarnings.id}).from(supplementaryEarnings).where(eq(supplementaryEarnings.organizationId,organizationId)).limit(1)],
-  ["leave requests", () => reader.select({id:leaveRequests.id}).from(leaveRequests).where(eq(leaveRequests.organizationId,organizationId)).limit(1)],
+  ["supplementary earnings", () => reader.select({id:supplementaryEarnings.id}).from(supplementaryEarnings).where(and(
+    eq(supplementaryEarnings.organizationId,organizationId),
+    lte(supplementaryEarnings.effectiveDate,periodEnd),
+  )).limit(1)],
+  ["leave requests", () => reader.select({id:leaveRequests.id}).from(leaveRequests).where(and(
+    eq(leaveRequests.organizationId,organizationId),
+    // Starts on/before the cutoff: past leave remains conservative; crossing the
+    // cutoff boundary still blocks. Future-only leave cannot affect this period.
+    lte(leaveRequests.startDate,periodEnd),
+  )).limit(1)],
   ["de minimis grants", () => reader.select({id:deMinimisGrants.id}).from(deMinimisGrants).where(eq(deMinimisGrants.organizationId,organizationId)).limit(1)],
   ["wage advances", () => reader.select({id:earnedWageRequests.id}).from(earnedWageRequests).where(eq(earnedWageRequests.organizationId,organizationId)).limit(1)],
   ["employee loans", () => reader.select({id:employeeLoans.id}).from(employeeLoans).where(eq(employeeLoans.organizationId,organizationId)).limit(1)],
   ["custom pay policies", () => reader.select({id:payPolicies.id}).from(payPolicies).where(eq(payPolicies.organizationId,organizationId)).limit(1)],
-  ["employer-specific holidays", () => reader.select({id:holidays.id}).from(holidays).where(eq(holidays.organizationId,organizationId)).limit(1)],
+  ["employer-specific holidays", () => reader.select({id:holidays.id}).from(holidays).where(and(
+    eq(holidays.organizationId,organizationId),
+    lte(holidays.holidayDate,periodEnd),
+  )).limit(1)],
   ["historical payroll entries", () => reader.select({id:historicalPayrollEntries.id}).from(historicalPayrollEntries).where(eq(historicalPayrollEntries.organizationId,organizationId)).limit(1)],
   ["MWE classification history", () => reader.select({id:employeeMweClassifications.id}).from(employeeMweClassifications).where(eq(employeeMweClassifications.organizationId,organizationId)).limit(1)],
   ["benefit enrollment", () => reader.select({id:benefitEnrollments.id}).from(benefitEnrollments).where(eq(benefitEnrollments.organizationId,organizationId)).limit(1)],

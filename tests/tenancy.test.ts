@@ -107,11 +107,17 @@ test("payroll authority separates preparation, approval, release and live disbur
   assert.ok(exportsRoute.includes("requireReleaseSeparation: true"));
 });
 
-test("payroll creation validates real dates and caps a cutoff at 16 days", () => {
+test("payroll creation validates real dates and shares the 16-day cutoff with preview", () => {
   const source = read("src/app/api/payroll-runs/route.ts");
-  assert.ok(source.includes("validIsoDate"));
-  assert.ok(source.includes("MAX_PAYROLL_PERIOD_DAYS = 16"));
-  assert.ok(source.includes("inclusivePeriodDays"));
+  const preview = read("src/app/api/first-payroll/preview/route.ts");
+  const validator = read("src/lib/payroll-period-validation.ts");
+  for (const route of [source, preview]) {
+    assert.ok(route.includes('from "@/lib/payroll-period-validation"'));
+    assert.ok(route.includes("validIsoDate"));
+    assert.ok(route.includes("MAX_PAYROLL_PERIOD_DAYS"));
+    assert.ok(route.includes("inclusivePeriodDays"));
+  }
+  assert.ok(validator.includes("export const MAX_PAYROLL_PERIOD_DAYS = 16;"));
 });
 
 test("payslip exports are bound to the exact payroll run, not only its period label", () => {

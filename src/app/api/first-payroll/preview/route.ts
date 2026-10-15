@@ -1,6 +1,7 @@
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PAYROLL_VIEW_ROLES } from "@/lib/access";
 import { parseMigrationDate } from "@/lib/migration-date";
+import { MAX_PAYROLL_PERIOD_DAYS, inclusivePeriodDays, validIsoDate } from "@/lib/payroll-period-validation";
 import { loadReadOnlyFirstPayrollPreview } from "@/lib/first-payroll-preview";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
@@ -21,8 +22,9 @@ export async function GET(request:Request){
  const periodEnd=parseMigrationDate(q.get("periodEnd")??"");
  const payDate=parseMigrationDate(q.get("payDate")??"");
  if(!Number.isSafeInteger(organizationId)||organizationId<=0||!periodStart||!periodEnd||!payDate||
-   periodStart>periodEnd||payDate<periodEnd||(Date.parse(periodEnd)-Date.parse(periodStart))/86400000>31)
-  return privatePreviewJson({error:"Valid employer and pay period (maximum 32 inclusive days) required."},400);
+   !validIsoDate(periodStart)||!validIsoDate(periodEnd)||!validIsoDate(payDate)||
+   periodStart>periodEnd||payDate<periodEnd||inclusivePeriodDays(periodStart,periodEnd)>MAX_PAYROLL_PERIOD_DAYS)
+  return privatePreviewJson({error:`Valid employer and pay period (maximum ${MAX_PAYROLL_PERIOD_DAYS} inclusive days) required.`},400);
  const denied=await assertOrganizationRole(user.id,organizationId,PAYROLL_VIEW_ROLES,"Payroll viewer access required.");
  if(denied)return privatePreviewDenied(denied);
  const access=await getAccess(user.id,organizationId);

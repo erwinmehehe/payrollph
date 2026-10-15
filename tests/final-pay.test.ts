@@ -23,6 +23,20 @@ test("13th-month base uses basic earnings and effective-dated retro only", () =>
   assert.equal(parsed.taxWithheld, 700);
 });
 
+test("M-5: unworked regular-holiday pay is not silently counted as basic salary", () => {
+  const lines = [
+    { code: "BASIC", label: "Basic / worked pay including worked holiday regular wage", amount: "1000.00" },
+    { code: "HOLIDAY_UNWORKED", label: "Unworked regular-holiday pay", amount: "500.00" },
+    { code: "HOLIDAY_PREMIUM", label: "Worked holiday premium", amount: "500.00" },
+    { code: "OT", label: "Overtime", amount: "250.00" },
+  ];
+  const source = readBasicAndThirteenth(lines);
+  assert.equal(source.basic, 1000, "only ordinary BASIC earnings enter the statutory default");
+  assert.equal(source.thirteenthPaid, 0);
+  // This tests the minimum/default classification, not an employer-specific
+  // contract or established practice that integrates holiday pay into basic.
+});
+
 test("13th-month excludes retro BASIC from a prior year even if paid this year", () => {
   const parsed = readBasicAndThirteenth([
     { code: "BASIC", amount: "2000.00" },

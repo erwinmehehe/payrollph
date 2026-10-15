@@ -30,7 +30,7 @@ export type FinalPayFingerprintInputs = {
     pagIbigEmployee: string | number; payDate: string;
   }>;
   retroSourcePeriods?: Array<{
-    id: number; sourcePeriodStart: string; sourcePeriodEnd: string;
+    id: number; sourcePeriodStart: string | null; sourcePeriodEnd: string | null;
   }>;
   loans: Array<{
     id: number; loanType: string; totalPaid: string | number;
@@ -98,8 +98,8 @@ export function finalPaySourceFingerprint(sources: FinalPayFingerprintInputs) {
       .sort((a, b) => a.id - b.id)
       .map((row) => ({
         id: row.id,
-        sourcePeriodStart: String(row.sourcePeriodStart),
-        sourcePeriodEnd: String(row.sourcePeriodEnd),
+        sourcePeriodStart: row.sourcePeriodStart === null ? null : String(row.sourcePeriodStart),
+        sourcePeriodEnd: row.sourcePeriodEnd === null ? null : String(row.sourcePeriodEnd),
       })),
     // Comparisons detect changes to loan deduction review evidence without
     // disclosing private external document references in the stored snapshot.

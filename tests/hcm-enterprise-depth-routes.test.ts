@@ -42,7 +42,7 @@ test("Worker 360 JSON API must enforce paid depth before reading worker history"
   const authorize = route.indexOf("assertOrganizationRole(");
   const scope = route.indexOf('!["owner", "admin", "hr"].includes(access.role)');
   const paid = route.indexOf("denyOptInEnterpriseHcmPlan(organizationId)");
-  const source = route.indexOf("loadWorker360Summary(organizationId, employeeId, asOfDate)");
+  const source = route.indexOf("loadWorker360Summary(organizationId, employeeId, asOfDate");
   assert.ok(authorize >= 0 && scope > authorize && paid > scope && source > paid);
   assert.equal(route.split("denyOptInEnterpriseHcmPlan(organizationId)").length - 1, 1);
   assert.ok(route.includes("if (planDenied) return planDenied;"));

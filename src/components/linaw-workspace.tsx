@@ -489,6 +489,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
                 reviewTeamHref={reviewTeamHref}
                 onPage={setPage}
                 employees={canUsePeopleOps ? data.employees : []}
+                provisioning={canUsePeopleOps ? data.provisioning : undefined}
+                approvalTasks={data.tasks}
                 onOpenEmployee={canUsePeopleOps ? openHrEmployee : undefined}
               />
             )}
