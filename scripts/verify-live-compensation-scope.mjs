@@ -68,6 +68,18 @@ export function verifyLiveCompensationPrivacy(company, scoped) {
     globalIds.size > scopedIds.size, "distinct in-unit and out-of-unit workers required");
   requireSafe([...scopedIds].every((id) => globalIds.has(id)),
     "unit workers must be a subset of global HR workers");
+  // Public demo seeding has exactly these three fictional MKT-unit people.
+  // Without this check a leaked other-unit employee could appear as an
+  // extra subset of the global employee IDs and escape detection.
+  const seededUnitWorkers = new Set([
+    "Mariel Santos", "Jonas Reyes", "Aira Villanueva",
+  ]);
+  const responseUnitWorkers = scoped.employees.map((person) =>
+    String(person.firstName) + " " + String(person.lastName));
+  requireSafe(responseUnitWorkers.length === seededUnitWorkers.size &&
+    responseUnitWorkers.every((name) => seededUnitWorkers.has(name)) &&
+    new Set(responseUnitWorkers).size === seededUnitWorkers.size,
+    "unit response must contain precisely the seeded MKT workers");
   const hiddenIds = new Set([...globalIds].filter((id) => !scopedIds.has(id)));
 
   requireSafe(Array.isArray(company.proposals) && Array.isArray(scoped.proposals) &&
@@ -86,6 +98,8 @@ export function verifyLiveCompensationPrivacy(company, scoped) {
   const privateFixture = company.proposals.filter((p) =>
     hiddenIds.has(p.employeeId) && p.reason === "QA1046 other unit private proposal");
   requireSafe(privateFixture.length === 1, "missing distinctive other-unit salary canary");
+  requireSafe(!scoped.bands.some((band) => band.id === privateFixture[0].bandId),
+    "other-unit proposal's salary band leaked");
   const scopedText = JSON.stringify(scoped);
   requireSafe(!scopedText.includes(privateFixture[0].reason) &&
     !scopedText.includes(String(privateFixture[0].proposedAnnual)),
