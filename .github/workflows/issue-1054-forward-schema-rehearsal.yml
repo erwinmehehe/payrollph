@@ -1,0 +1,80 @@
+name: Issue 1054 WFM Availability Forward Schema Rehearsal (Synthetic CI)
+
+on:
+  pull_request:
+    paths:
+      - "drizzle/0125_wfm_availability_open_shifts_forward_repair.sql"
+      - "tests/wfm-1054-forward-migration-postgres.test.mjs"
+      - ".github/workflows/issue-1054-forward-schema-rehearsal.yml"
+  push:
+    branches: [main]
+    paths:
+      - "drizzle/0125_wfm_availability_open_shifts_forward_repair.sql"
+      - "tests/wfm-1054-forward-migration-postgres.test.mjs"
+      - ".github/workflows/issue-1054-forward-schema-rehearsal.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-postgres:
+    name: Guard, catalog parity and rollback (PG${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      MIGRATION_REHEARSAL_MODE: isolated-ci-only
+      ISSUE_1054_REHEARSAL: isolated-ci-only
+      WFM_REHEARSAL_PG_MAJOR: ${{ matrix.postgres }}
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      WFM_EMPLOYEE_AVAILABILITY_ENABLED: "false"
+      NEXT_PUBLIC_WFM_EMPLOYEE_AVAILABILITY_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout exact PR source without retained credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Fail-closed CI localhost target guard
+        run: node --test tests/isolated-migration-target.test.mjs
+      - name: Bootstrap fresh disposable Drizzle schema only
+        run: npm run db:push
+      - name: Compare exact candidate against Drizzle catalog and prove rollback
+        run: |
+          mkdir -p qa-artifacts/issue-1054
+          node --check tests/wfm-1054-forward-migration-postgres.test.mjs
+          node --test tests/wfm-1054-forward-migration-postgres.test.mjs | tee qa-artifacts/issue-1054/pg-${{ matrix.postgres }}.log
+          sha256sum drizzle/0125_wfm_availability_open_shifts_forward_repair.sql > qa-artifacts/issue-1054/pg-${{ matrix.postgres }}.sha256
+          printf 'isolated-ci-rollback-only\nnot-applied-to-neon\nnot-production-approval\n' > qa-artifacts/issue-1054/deployment-state.txt
+      - name: Retain isolated synthetic evidence (never production receipts)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: issue-1054-synthetic-pg${{ matrix.postgres }}
+          path: qa-artifacts/issue-1054/
+          retention-days: 14
+          if-no-files-found: warn
