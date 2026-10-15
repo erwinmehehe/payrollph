@@ -18,6 +18,8 @@ function claimedCompletion() {
   ledger.sourceSha=sha;
   ledger.deployedSha=sha;
   ledger.developmentUrl='https://fictional-qa.example.invalid';
+  ledger.databaseClassification='FICTIONAL_ONLY';
+  ledger.manilaPayPeriod='2026-10-01/2026-10-15';
   ledger.deviceModel='Fictional physical Android device claim';
   ledger.browserVersion='Fictional mobile Chrome version claim';
   ledger.flags={livePayouts:false,governmentSubmission:false,realEmployeeData:false};
@@ -59,6 +61,8 @@ function claimedCompletion() {
 test('blank v2 initializes 18 staged and 9 cross-tenant NOT_RUN checks without claiming safety',()=>{
   const l=makeBlankLedger();
   assert.equal(l.schema,'payrollph-issue853-human-acceptance-v2');
+  assert.equal(l.databaseClassification,null);
+  assert.equal(l.manilaPayPeriod,'');
   assert.equal(STAGES.length,9);
   assert.equal(CROSS_TENANT.length,9);
   assert.equal(l.tests.length,27);
