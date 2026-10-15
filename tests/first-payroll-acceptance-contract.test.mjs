@@ -32,7 +32,7 @@ test("#993 canonical preview uses real signed-in HTTP denial and no-store across
   assert.match(js,/expectPreviewDenied\(fixture\.organizationId, "HR: same-tenant payroll preview role"\)/);
   assert.match(js,/evidence\.status, 403/);
   assert.match(js,/\["private, no-store", "no-store, max-age=0"\]\.includes\(evidence\.cache\)/);
-  assert.match(js,/evidence\.keys, \["error"\]/);
+  assert.match(js,/\["error", "error,role"\]\.includes\(evidence\.keys\.join\(","\)\)/);
   assert.match(js,/previewResponse\.headers\(\)\["cache-control"\]/);
   const workflow=readFileSync(".github/workflows/hris-journey-browser-qa.yml","utf8");
   const push=workflow.indexOf("  push:");

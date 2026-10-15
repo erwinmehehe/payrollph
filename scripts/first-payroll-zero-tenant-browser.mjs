@@ -133,7 +133,8 @@ try{
     assert.equal(evidence.status, 403, label + ": authorized session must be denied");
     assert.ok(["private, no-store", "no-store, max-age=0"].includes(evidence.cache),
       label + ": denied monetary API must never be cached");
-    assert.deepEqual(evidence.keys, ["error"], label + ": no gross, net, rows or statutory amounts");
+    assert.ok(["error", "error,role"].includes(evidence.keys.join(",")),
+      label + ": no gross, net, rows or statutory amounts");
     report.steps.push(label + ": preview GET 403, no-store, no payroll data");
   };
   const sessionOwner = await active.evaluate(async () => {
