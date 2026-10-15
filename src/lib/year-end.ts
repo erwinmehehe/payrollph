@@ -4,7 +4,9 @@ import { employees, historicalPayrollEntries, payrollEntries, payrollRuns, yearE
 import { recordAuditEvent } from "@/lib/audit";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { annualize, ANNUALIZATION_RULE_VERSION, isSharedBenefitPoolEarningType, type AnnualizationResult } from "@/lib/annualization";
-import { readBasicAndThirteenth } from "@/lib/final-pay";
+import { readBasicAndThirteenth, retroSourceTaxYear } from "@/lib/final-pay";
+import { loadFinalPayRetroSourcePeriods } from "@/lib/final-pay-retro-source-lookup";
+import { round2 } from "@/lib/round";
 
 type LineItem = {
   code?: string;
@@ -167,6 +169,40 @@ export async function runYearEndAnnualization(
       sql`extract(year from ${historicalPayrollEntries.payDate}) = ${taxYear}`,
     ));
 
+  // M-5: a later-year RETRO-* settlement changes gross/tax cashflow in the
+  // pay year, but its 13th-month BASIC belongs to the verified original year.
+  // Reject missing, Draft, foreign-tenant, wrong-worker and cross-year sources
+  // instead of assuming the settlement's pay date is the source year.
+  const adjustmentIdsByEmployee = new Map<number, Set<number>>();
+  const employeeIds = new Set(staff.map((employee) => employee.id));
+  for (const entry of entries) {
+    if (!employeeIds.has(entry.employeeId)) {
+      throw new Error("FINAL_PAY_RETRO_SOURCE_YEAR_UNVERIFIED: released payroll contains a foreign worker.");
+    }
+    if (!Array.isArray(entry.lineItems)) continue;
+    for (const item of entry.lineItems) {
+      const code = String((item as { code?: unknown } | null)?.code ?? "").toUpperCase();
+      if (!code.startsWith("RETRO-")) continue;
+      const match = /^RETRO-(\d+)$/.exec(code);
+      const id = match ? Number(match[1]) : NaN;
+      if (!Number.isSafeInteger(id) || id <= 0) {
+        throw new Error("FINAL_PAY_RETRO_SOURCE_YEAR_UNVERIFIED: invalid settled retro adjustment identity.");
+      }
+      const ids = adjustmentIdsByEmployee.get(entry.employeeId) ?? new Set<number>();
+      ids.add(id);
+      adjustmentIdsByEmployee.set(entry.employeeId, ids);
+    }
+  }
+  const sourceYearsByEmployee = new Map<number, Map<number, number | null>>();
+  for (const [employeeId, adjustmentIds] of adjustmentIdsByEmployee) {
+    const sources = await loadFinalPayRetroSourcePeriods({
+      organizationId, employeeId, adjustmentIds: [...adjustmentIds],
+    });
+    sourceYearsByEmployee.set(employeeId, new Map(sources.map((row) => [
+      row.id, retroSourceTaxYear(String(row.sourcePeriodStart), String(row.sourcePeriodEnd)),
+    ])));
+  }
+
   const totals = new Map<number, {
     gross: number;
     basic: number;
@@ -183,7 +219,10 @@ export async function runYearEndAnnualization(
   for (const entry of entries) {
     const bucket = totals.get(entry.employeeId) ?? { gross: 0, basic: 0, contributions: 0, tax: 0, thirteenthPaid: 0, deMinimisExempt: 0, deMinimisExcess: 0, otherBenefits: 0, mweTaxableSupplementaryCompensation: 0, periods: 0, importedPeriods: 0 };
     const parsed = sumContributionsAndTax(entry.lineItems, entry.trace);
-    const basic = readBasicAndThirteenth(entry.lineItems);
+    const basic = readBasicAndThirteenth(entry.lineItems, {
+      taxYear,
+      sourceYearByAdjustmentId: sourceYearsByEmployee.get(entry.employeeId) ?? new Map(),
+    });
     bucket.gross += Math.max(0, Number(entry.grossPay) - parsed.reimbursements);
     bucket.basic += basic.basic;
     bucket.contributions += parsed.contributions;
@@ -326,7 +365,7 @@ export async function runYearEndAnnualization(
         basicSalaryEarned,
         thirteenthEntitlement,
         thirteenthAlreadyPaid,
-        thirteenthStillDue: Math.max(0, thirteenthEntitlement - thirteenthAlreadyPaid),
+        thirteenthStillDue: round2(Math.max(0, thirteenthEntitlement - thirteenthAlreadyPaid)),
         deMinimisExempt,
         deMinimisExcess,
         otherBenefits,
