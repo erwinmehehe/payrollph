@@ -10,7 +10,10 @@ const workflow = readFileSync(
   new URL("../.github/workflows/live-rbac-sandbox-smoke.yml", import.meta.url),
   "utf8",
 );
-const roleStep = workflow.split("- name: Verify all six RBAC personas on production")[1];
+// Limit the fixture to this step's YAML body. A following workflow step must
+// never become part of the extracted Bash (or leak its private environment).
+const roleStep = workflow.split("- name: Verify all six RBAC personas on production")[1]
+  ?.split(/\n      - name: /, 1)[0];
 
 test("production smoke keeps authenticated payloads out of GitHub Actions logs", () => {
   assert.ok(roleStep, "RBAC smoke step must be present");
@@ -45,6 +48,8 @@ function runRoleSmoke(mode) {
   const match = roleStep.match(/\n        run: \|\n([\s\S]*)/);
   assert.ok(match, "the RBAC shell body must be discoverable");
   const roleScript = match[1].split("\n").map(line => line.replace(/^ {10}/, "")).join("\n");
+  assert.doesNotMatch(roleScript, /- name: Verify deployed fictional HR compensation privacy/,
+    "subsequent YAML step must not be injected into the Bash fixture");
   const directory = mkdtempSync(join(tmpdir(), "payrollph-rbac-private-"));
   try {
     const curlPath = join(directory, "curl");
