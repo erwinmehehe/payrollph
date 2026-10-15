@@ -1,6 +1,6 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from "drizzle-orm";
+import { and, desc, eq, exists, gte, inArray, isNull, like, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -158,11 +158,23 @@ async function loadFinalPaySources(input: {
         sourcePeriodEnd: payrollRuns.periodEnd,
       })
       .from(employeePayRetroAdjustments)
-      .innerJoin(payrollRuns, eq(employeePayRetroAdjustments.sourcePayrollRunId, payrollRuns.id))
+      // Match M-10's source-proof standard. A referenced run date is not
+      // evidence of prior-year basic salary unless the run was Released in
+      // this tenant and actually paid this employee. LEFT JOIN retains a
+      // null source for failed provenance; readBasicAndThirteenth then blocks
+      // calculation instead of wrongly crediting the settlement year.
+      .leftJoin(payrollRuns, and(
+        eq(employeePayRetroAdjustments.sourcePayrollRunId, payrollRuns.id),
+        eq(payrollRuns.organizationId, input.organizationId),
+        eq(payrollRuns.status, "Released"),
+        exists(reader.select({ id: payrollEntries.id }).from(payrollEntries).where(and(
+          eq(payrollEntries.payrollRunId, employeePayRetroAdjustments.sourcePayrollRunId),
+          eq(payrollEntries.employeeId, employeePayRetroAdjustments.employeeId),
+        ))),
+      ))
       .where(and(
         eq(employeePayRetroAdjustments.organizationId, input.organizationId),
         eq(employeePayRetroAdjustments.employeeId, input.employeeId),
-        eq(payrollRuns.organizationId, input.organizationId),
         inArray(employeePayRetroAdjustments.id, [...retroIds]),
       ))
     : [];
