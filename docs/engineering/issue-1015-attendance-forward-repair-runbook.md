@@ -17,12 +17,14 @@ The Vercel target is named `production` even though the connected sample workspa
 `drizzle/0124_attendance_exception_forward_repair.sql` is an **append-only numbered source file**, not an ad hoc replay of archived `0067` and `0088`. It creates the current Drizzle final-state relation **only if the target relation is completely absent**:
 
 - Requires four existing public parent tables with integer primary keys, otherwise fails before any DDL.
+- Refuses orphaned SERIAL sequence, primary-key/index names or an existing target relation; partial historical DDL requires separate DBA diagnosis rather than an unguarded retry.
 - Explicit, schema-qualified public table with the 23 expected columns, defaults, ownership/SLA/resolution fields, five FKs and two named CHECK constraints.
 - Creates exactly five required indexes, including the four-key tenant/employee/date/fingerprint uniqueness constraint.
+- Before the protected runner's journal commit, an in-transaction **catalog-only postflight** requires 23 columns, the five named valid indexes, five validated foreign keys, two named validated CHECKs and one primary key. This guards against an incomplete DDL result but does **not** replace the separate 36-point independent read-only schema audit.
 - Performs **no application row reads, writes, historical SLA backfill, payroll mutations, grants, runtime DDL, or journal writes in the SQL body**. The existing reviewed runner must own its transaction, advisory lock, and atomic execution receipt.
 - Refuses an existing table or incompatible parent, rather than `IF NOT EXISTS` masking drift. DBA must review any partial/other-schema existing state separately.
 
-The repository test `tests/issue-1015-attendance-forward-repair.test.mjs` rehearses the **exact file** in a random, disposable localhost CI PostgreSQL 16 database. It checks a missing/wrong-type parent fails without creating the target; on valid parents it checks all 36 catalog objects and synthetic tenant-specific uniqueness, FK and CHECK constraints; it proves rerun is blocked and **rolls back and deletes the scratch database**. This test must PASS before source approval.
+The repository test `tests/issue-1015-attendance-forward-repair.test.mjs` rehearses the **exact file** in a random, disposable localhost CI PostgreSQL 16 database. It checks missing, wrongly typed and non-PK parent prerequisites, orphaned sequence/index names and existing-table replay refusal; on valid parents it checks all 36 catalog objects, tenant-scoped uniqueness, both CHECK constraints and all FK deletion policies on synthetic data. It **rolls back and deletes the scratch database**. This test must PASS before source approval.
 
 ## Required human DBA/security gates — STOP if any fail
 

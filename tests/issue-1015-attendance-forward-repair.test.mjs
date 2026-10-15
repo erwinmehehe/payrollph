@@ -28,6 +28,9 @@ test("#1015 candidate is additive, creates missing final schema, and has explici
   assert.match(tokens, /CREATE TABLE public\.attendance_exception_events\s*\(/);
   assert.match(tokens, /ISSUE1015_EXISTING_ATTENDANCE_RELATION_REQUIRES_MANUAL_REVIEW/);
   assert.match(tokens, /ISSUE1015_PARENT_INTEGER_PK_MISSING_OR_DRIFTED/);
+  assert.match(tokens, /ISSUE1015_ORPHANED_ATTENDANCE_SCHEMA_OBJECT_REQUIRES_MANUAL_REVIEW/);
+  assert.match(tokens, /DO \\$issue1015_attendance_postflight\\$/);
+  assert.match(tokens, /ISSUE1015_POSTFLIGHT_SCHEMA_INCOMPLETE/);
   assert.doesNotMatch(tokens, /\bIF\s+NOT\s+EXISTS\b|\bDROP\s+(?:TABLE|INDEX|SCHEMA|DATABASE)\b|\bTRUNCATE\b|\bUPDATE\s+(?:public\.)?\w+\b|\bDELETE\s+FROM\b|\bINSERT\s+INTO\b|\bALTER\s+TABLE\b/i);
   assert.doesNotMatch(tokens, /\b(?:FROM|JOIN)\s+(?:public\.)?(?:employees|users|time_punches|payroll_runs|payroll_entries|attendance_exception_events)\b/i,
     "migration cannot query application rows to infer or backfill historical data");
@@ -85,7 +88,37 @@ test("#1015 migration requires complete isolated PG, detects prerequisite drift 
     await assert.rejects(() => scratch.query(migrationSql), (error) =>
       error.code === "P0001" && /ISSUE1015_PARENT_INTEGER_PK_MISSING_OR_DRIFTED/.test(error.message));
     await scratch.query("DROP TABLE public.time_punches");
-    await scratch.query("CREATE TABLE public.time_punches (id integer PRIMARY KEY)");
+
+    // An integer id without a real PRIMARY KEY is not a valid prerequisite.
+    await scratch.query("CREATE TABLE public.time_punches (id integer)");
+    await assert.rejects(() => scratch.query(migrationSql), (error) =>
+      error.code === "P0001" && /ISSUE1015_PARENT_INTEGER_PK_MISSING_OR_DRIFTED/.test(error.message));
+    await scratch.query("ALTER TABLE public.time_punches ADD PRIMARY KEY (id)");
+
+    // A partial historical attempt may have reserved a SERIAL sequence or an
+    // index name even though its intended table is completely absent.
+    await scratch.query("CREATE SEQUENCE public.attendance_exception_events_id_seq");
+    await assert.rejects(() => scratch.query(migrationSql), (error) =>
+      error.code === "P0001" &&
+      /ISSUE1015_ORPHANED_ATTENDANCE_SCHEMA_OBJECT_REQUIRES_MANUAL_REVIEW/.test(error.message));
+    await scratch.query("DROP SEQUENCE public.attendance_exception_events_id_seq");
+
+    await scratch.query("CREATE TABLE public.issue1015_index_collision_fixture (id integer)");
+    await scratch.query("CREATE INDEX attendance_exception_events_open_idx ON public.issue1015_index_collision_fixture(id)");
+    await assert.rejects(() => scratch.query(migrationSql), (error) =>
+      error.code === "P0001" &&
+      /ISSUE1015_ORPHANED_ATTENDANCE_SCHEMA_OBJECT_REQUIRES_MANUAL_REVIEW/.test(error.message));
+    await scratch.query("DROP TABLE public.issue1015_index_collision_fixture");
+
+    await scratch.query("CREATE TABLE public.attendance_exception_events (id integer)");
+    await assert.rejects(() => scratch.query(migrationSql), (error) =>
+      error.code === "P0001" &&
+      /ISSUE1015_EXISTING_ATTENDANCE_RELATION_REQUIRES_MANUAL_REVIEW/.test(error.message));
+    await scratch.query("DROP TABLE public.attendance_exception_events");
+
+    assert.equal((await scratch.query(
+      "SELECT pg_catalog.to_regclass('public.attendance_exception_events') AS relation",
+    )).rows[0].relation, null);
 
     // Execute the ACTUAL proposed SQL inside a rollback-only transaction.
     await scratch.query("BEGIN");
@@ -131,6 +164,18 @@ test("#1015 migration requires complete isolated PG, detects prerequisite drift 
       (error) => error.code === "23514", "invalid severity must be rejected");
     await scratch.query("ROLLBACK TO SAVEPOINT invalid_severity");
 
+    await scratch.query("SAVEPOINT invalid_status");
+    await assert.rejects(() => scratch.query(
+      "UPDATE public.attendance_exception_events SET status = 'unreviewed' WHERE id = $1", [alpha.id],
+    ), (error) => error.code === "23514", "invalid status must be rejected");
+    await scratch.query("ROLLBACK TO SAVEPOINT invalid_status");
+
+    await scratch.query("SAVEPOINT missing_employee");
+    await assert.rejects(() => scratch.query(
+      "UPDATE public.attendance_exception_events SET employee_id = 999 WHERE id = $1", [alpha.id],
+    ), (error) => error.code === "23503", "employee must reference an existing fictional employee");
+    await scratch.query("ROLLBACK TO SAVEPOINT missing_employee");
+
     await scratch.query("SAVEPOINT missing_owner");
     await assert.rejects(() => scratch.query(
       "UPDATE public.attendance_exception_events SET owner_user_id = 999 WHERE id = $1", [alpha.id],
@@ -143,6 +188,36 @@ test("#1015 migration requires complete isolated PG, detects prerequisite drift 
     assert.deepEqual(currentRows, [
       { organization_id: 1, status: "open" }, { organization_id: 2, status: "open" },
     ]);
+
+    // All ON DELETE policies are exercised only against disposable synthetic
+    // rows and rolled back before the scratch database is removed.
+    await scratch.query("SAVEPOINT fk_delete_policies");
+    await scratch.query(
+      "UPDATE public.attendance_exception_events SET punch_id=1, owner_user_id=1, resolved_by_user_id=1 WHERE id=$1",
+      [alpha.id],
+    );
+    await scratch.query("DELETE FROM public.time_punches WHERE id=1");
+    await scratch.query("DELETE FROM public.users WHERE id=1");
+    const cleared = (await scratch.query(
+      "SELECT punch_id,owner_user_id,resolved_by_user_id FROM public.attendance_exception_events WHERE id=$1",
+      [alpha.id],
+    )).rows[0];
+    assert.deepEqual(cleared, { punch_id: null, owner_user_id: null, resolved_by_user_id: null },
+      "punch/owner/resolver references must SET NULL on parent deletion");
+    await scratch.query("DELETE FROM public.organizations WHERE id=1");
+    assert.equal((await scratch.query(
+      "SELECT count(*)::integer AS n FROM public.attendance_exception_events WHERE id=$1", [alpha.id],
+    )).rows[0].n, 0, "organization deletion must cascade to the matching synthetic exception");
+    await scratch.query("ROLLBACK TO SAVEPOINT fk_delete_policies");
+    await scratch.query("RELEASE SAVEPOINT fk_delete_policies");
+
+    await scratch.query("SAVEPOINT employee_delete_policy");
+    await scratch.query("DELETE FROM public.employees WHERE id=1");
+    assert.equal((await scratch.query(
+      "SELECT count(*)::integer AS n FROM public.attendance_exception_events WHERE id=$1", [alpha.id],
+    )).rows[0].n, 0, "employee deletion must cascade to the matching synthetic exception");
+    await scratch.query("ROLLBACK TO SAVEPOINT employee_delete_policy");
+    await scratch.query("RELEASE SAVEPOINT employee_delete_policy");
 
     await scratch.query("ROLLBACK");
     inTransaction = false;

@@ -45,6 +45,28 @@ BEGIN
     RAISE EXCEPTION 'ISSUE1015_PARENT_INTEGER_PK_MISSING_OR_DRIFTED: %',
       missing_or_invalid_parents USING ERRCODE = 'P0001';
   END IF;
+
+  -- An interrupted historical DDL may leave the SERIAL sequence or a name
+  -- reserved on a different table even when the target relation is absent.
+  -- Refuse that partial namespace state BEFORE any new DDL is attempted.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_class object
+    JOIN pg_catalog.pg_namespace ns ON ns.oid = object.relnamespace
+    WHERE ns.nspname = 'public'
+      AND object.relname = ANY (ARRAY[
+        'attendance_exception_events_id_seq',
+        'attendance_exception_events_pkey',
+        'attendance_exception_events_fingerprint_unique',
+        'attendance_exception_events_open_idx',
+        'attendance_exception_events_employee_idx',
+        'attendance_exception_events_owner_idx',
+        'attendance_exception_events_sla_idx'
+      ])
+  ) THEN
+    RAISE EXCEPTION 'ISSUE1015_ORPHANED_ATTENDANCE_SCHEMA_OBJECT_REQUIRES_MANUAL_REVIEW'
+      USING ERRCODE = 'P0001';
+  END IF;
 END
 $issue1015_attendance_preflight$;
 
@@ -96,6 +118,63 @@ CREATE INDEX attendance_exception_events_sla_idx
   ON public.attendance_exception_events
     (organization_id, status, sla_due_at);
 
--- Release runner must validate post-migration catalog parity and store its
--- immutable full-path SHA receipt ATOMICALLY with this SQL under a signed change.
--- Successful CI, existence of this file, or a new table alone is NOT release approval.
+-- This catalog-only assertion executes IN THE SAME TRANSACTION as the
+-- table creation and the protected runner's forward-migration journal insert.
+-- Catch incomplete DDL before a committed journal entry could claim success.
+-- A separate, independent 36-object read-only postflight is still mandatory.
+DO $issue1015_attendance_postflight$
+DECLARE
+  target_oid oid := pg_catalog.to_regclass('public.attendance_exception_events');
+  column_count integer;
+  named_index_count integer;
+  foreign_key_count integer;
+  named_check_count integer;
+  primary_key_count integer;
+BEGIN
+  SELECT pg_catalog.count(*) INTO column_count
+  FROM pg_catalog.pg_attribute a
+  WHERE a.attrelid = target_oid AND a.attnum > 0 AND NOT a.attisdropped;
+
+  SELECT pg_catalog.count(*) INTO named_index_count
+  FROM pg_catalog.pg_index ix
+  JOIN pg_catalog.pg_class idx ON idx.oid = ix.indexrelid
+  WHERE ix.indrelid = target_oid AND ix.indisvalid AND ix.indisready
+    AND (
+      (idx.relname = 'attendance_exception_events_fingerprint_unique' AND ix.indisunique)
+      OR (idx.relname = ANY (ARRAY[
+        'attendance_exception_events_open_idx',
+        'attendance_exception_events_employee_idx',
+        'attendance_exception_events_owner_idx',
+        'attendance_exception_events_sla_idx'
+      ]) AND NOT ix.indisunique)
+    );
+
+  SELECT pg_catalog.count(*) INTO foreign_key_count
+  FROM pg_catalog.pg_constraint c
+  WHERE c.conrelid = target_oid AND c.contype = 'f' AND c.convalidated;
+
+  SELECT pg_catalog.count(*) INTO named_check_count
+  FROM pg_catalog.pg_constraint c
+  WHERE c.conrelid = target_oid AND c.contype = 'c' AND c.convalidated
+    AND c.conname = ANY (ARRAY[
+      'attendance_exception_events_severity_check',
+      'attendance_exception_events_status_check'
+    ]);
+
+  SELECT pg_catalog.count(*) INTO primary_key_count
+  FROM pg_catalog.pg_constraint c
+  WHERE c.conrelid = target_oid AND c.contype = 'p' AND c.convalidated;
+
+  IF target_oid IS NULL
+     OR column_count <> 23 OR named_index_count <> 5
+     OR foreign_key_count <> 5 OR named_check_count <> 2
+     OR primary_key_count <> 1 THEN
+    RAISE EXCEPTION 'ISSUE1015_POSTFLIGHT_SCHEMA_INCOMPLETE'
+      USING ERRCODE = 'P0001';
+  END IF;
+END
+$issue1015_attendance_postflight$;
+
+-- The protected release runner must atomically journal the exact path and SHA
+-- with this DDL. Full 36/36 read-only parity and independent DBA sign-off
+-- remain separate release requirements. No CI result grants rollout approval.
