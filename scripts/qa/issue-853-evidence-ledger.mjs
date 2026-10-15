@@ -84,9 +84,9 @@ export function makeBlankLedger() {
     tenantB: 'Fictional Riverside B Trading',
     identities: { ownerBothId: '', payrollOfficerAId: '', payrollOfficerBId: '', checkerBothId: '', employeeAId: '', employeeBId: '' },
     flags: { livePayouts: null, governmentSubmission: null, realEmployeeData: null },
-    safetyVerification: {
-      verifiedAtUtc: '', verifierRef: '', evidenceRef: '',
-      servedBuildEvidenceRef: '', databaseIsolationEvidenceRef: '', fixtureVersionEvidenceRef: '',
+    runtimeVerification: {
+      verifiedAtUtc: '', verifierRef: '', payoutAndFilingConfigRef: '',
+      deployedBuildRef: '', databaseIsolationRef: '', fixtureVersionRef: '',
     },
     tests: checks(),
     signoff: { independentReviewerId: '', signedAtUtc: '', privateEvidenceRef: '' },
@@ -160,8 +160,8 @@ export function evaluate(ledger) {
   for (const key of requiredFlags) {
     if (ledger.flags?.[key]!==false) blockers.push(key+' must explicitly be false following runtime verification');
   }
-  const safety=ledger.safetyVerification;
-  const requiredRuntimeRefs=['evidenceRef','servedBuildEvidenceRef','databaseIsolationEvidenceRef','fixtureVersionEvidenceRef'];
+  const safety=ledger.runtimeVerification;
+  const requiredRuntimeRefs=['payoutAndFilingConfigRef','deployedBuildRef','databaseIsolationRef','fixtureVersionRef'];
   if (!safety || !validDate(safety.verifiedAtUtc) || !meaningful(safety.verifierRef) ||
       requiredRuntimeRefs.some(key=>!EVIDENCE_REF.test(safety[key]||''))) {
     blockers.push('Runtime safety flags require a dated human check and separate private evidence for effective flags, served build, database isolation and fixture version');
