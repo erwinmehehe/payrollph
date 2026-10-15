@@ -293,7 +293,9 @@ export function WorkspaceShell({
           {settingsAvailable && (
             <button
               type="button"
-              className={"sidebar-settings-link " + (page === "Settings" ? "active" : "")}
+              className={"sidebar-settings-link nav-item " + (page === "Settings" ? "active" : "")}
+              data-nav-name="Settings"
+              aria-label="Settings"
               onClick={() => go("Settings")}
               aria-current={page === "Settings" ? "page" : undefined}
               title={rail ? "Settings" : undefined}

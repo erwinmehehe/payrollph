@@ -73,7 +73,7 @@ import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 
-export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null, optionalUiCapabilities = { overpaymentPreview: false, overpaymentInvestigation: false, tenantReportBuilder: false } }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null; optionalUiCapabilities?: { overpaymentPreview: boolean; overpaymentInvestigation: boolean; tenantReportBuilder: boolean } }) {
   const searchParams = useSearchParams();
   const workflowUi = useWorkflowUi();
   const requestedDemoRole = searchParams.get("demoRole");
@@ -178,6 +178,13 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   const canManageTime = roleCanManageTime(effectiveRole);
   const canDecideApprovals = roleCanDecideApprovals(effectiveRole);
   const canManageDelegations = roleCanManageDelegations(effectiveRole);
+  // Remount role/tenant-sensitive payroll-adjacent panels on employer, actor
+  // or permissions changes so old records and draft inputs cannot render even
+  // for a single paint before their next async read resolves.
+  const sourceBoundModuleKey = [
+    data.user?.id, data.selectedOrganization.id, effectiveRole,
+    data.access?.companyWide, data.access?.orgUnitName,
+  ].join(":");
   const canManageDeliveryOutbox = effectiveRole === "owner" || effectiveRole === "admin";
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
@@ -581,7 +588,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
         )}
 
         {page === "Planning" && <WorkforcePlanningPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} onPage={setPage} />}
-        {page === "Compensation" && <CompensationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Compensation" && <CompensationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canViewPayrollEvidence={data.access?.companyWide === true && ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(effectiveRole ?? "")} previewEnabled={optionalUiCapabilities.overpaymentPreview && ["owner", "admin", "checker"].includes(effectiveRole ?? "")} investigationEnabled={optionalUiCapabilities.overpaymentInvestigation} />}
         {page === "Workforce" && (
           <WorkforcePlanner
             key={[data.user?.id, data.selectedOrganization.id, data.access?.role, data.access?.companyWide, data.access?.orgUnitName].join(":")}
@@ -631,13 +638,13 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
         {page === "More modules" && availablePages.includes("More modules") && <MoreModules key={data.selectedOrganization.id} organizationId={data.selectedOrganization.id} enabledModules={data.selectedOrganization.enabledModules ?? []} onRefresh={async () => { await refresh(); }} notify={notify} />}
         {page === "Reports" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity} organizationId={data.selectedOrganization.id} title="Reports by entity" />}
         {page === "Reports" && availablePages.includes("Reports") && <CoreReports
-          analytics={(!rolePages || rolePages.includes("Analytics")) ? <AnalyticsView data={data} notify={notify} /> : undefined}
+          analytics={(!rolePages || rolePages.includes("Analytics")) ? <AnalyticsView data={data} notify={notify} tenantReportBuilderEnabled={optionalUiCapabilities.tenantReportBuilder} /> : undefined}
           exports={(!rolePages || rolePages.includes("Exports")) ? <ExportsView data={data} notify={notify} onRefresh={async () => { await refresh(); }} /> : undefined}
         />}
 
         {page === "Analytics" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity}
           organizationId={data.selectedOrganization.id} title="Reports by entity" />}
-        {page === "Analytics" && <AnalyticsView data={data} notify={notify} />}
+        {page === "Analytics" && <AnalyticsView data={data} notify={notify} tenantReportBuilderEnabled={optionalUiCapabilities.tenantReportBuilder} />}
         {page === "Exports" && data.multiEntity?.enabled && <div style={{ marginBottom: 12 }}>
           <EntityBadge context={data.multiEntity} legalEntityId={data.multiEntity.legalEntityId}
             label={data.multiEntity.legalEntityId === null ? "All legal entities — select a payer for each export" : undefined} />
@@ -655,12 +662,12 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
         {page === "Compliance" && (
           <CompliancePage data={data} setNotice={noticeAdapter} onOpenGovModal={() => setGovModalOpen(true)} />
         )}
-        {page === "Loans" && <LoansPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Loans" && <LoansPanel key={sourceBoundModuleKey} organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} canManageGovRemittance={data.access?.companyWide === true && ["owner", "admin", "bookkeeper", "payroll"].includes(effectiveRole ?? "")} />}
         {page === "Benefits" && <BenefitsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Documents" && <HcmDocumentsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "Expenses" && <SpendOperationsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "De minimis" && <DeMinimisPanel key={sourceBoundModuleKey} organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
+        {page === "Expenses" && <SpendOperationsPanel key={sourceBoundModuleKey} organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
+        {page === "Earned wage" && <EwaPanel key={sourceBoundModuleKey} organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
         {page === "Recruitment" && (
           <>
             {availablePages.includes("Recruitment") &&
