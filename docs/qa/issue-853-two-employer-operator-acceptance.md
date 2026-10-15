@@ -88,7 +88,7 @@ node scripts/qa/issue-853-evidence-ledger.mjs check "$HOME\LinawPrivateQA\issue8
 node --test tests/issue-853-evidence-ledger.test.mjs
 ```
 
-`check` exits nonzero for missing checks, stale SHA, missing/duplicated personas, missing private evidence, money/filing enabled, mismatched reviewer or unrun tests. It rejects duplicate private evidence references, future-dated observations, mismatched single-persona actions, and an operator self-signing as independent reviewer. It does **not** print private evidence contents. Even when all operator claims are filled, its result is `SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION`—not a certification that a human actually witnessed the tests.
+`check` exits nonzero for missing checks, stale SHA, missing/duplicated personas, missing private evidence, money/filing enabled, mismatched reviewer or unrun tests. It rejects duplicate private evidence references, invalid Gregorian calendar dates in `manilaPayPeriod`, future-dated UTC observations (without clock-skew exceptions), observations dated before verified runtime safety, signoff dated before a witnessed PASS, mismatched single-persona actions, and an operator self-signing as independent reviewer. Finish the runtime attestation before starting the witnessed cases, and apply independent human signoff only after the last actual observation. It does **not** print private evidence contents. Even when all operator claims are filled, its result is `SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION`—not a certification that a human actually witnessed the tests.
 
 ## Evidence and dispositions
 
