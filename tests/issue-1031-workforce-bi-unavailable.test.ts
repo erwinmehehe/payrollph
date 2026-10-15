@@ -41,7 +41,13 @@ test("BI errors revoke stale datasets and scopes, disable export, and provide ma
   assert.match(bi, /\[organizationId, reloadRevision\]/);
   assert.match(bi, /loadError && \([\s\S]*?role="alert"[\s\S]*?Retry/);
   assert.match(bi, /disabled=\{!definitionsReady \|\| exporting \|\| !scopedDefinitions\.length\}/);
-  assert.match(bi, /loadedOrganizationId === organizationId/, "a prior tenant\'s definitions cannot enable an export");
+  assert.match(bi, /resolvedRead\?\.organizationId === organizationId/, "a prior tenant's definitions cannot enable an export");
+  assert.match(bi, /resolvedRead\?\.revision === reloadRevision/, "a prior retry cannot authorize export before the new fetch settles");
+  assert.match(bi, /const loading = !readSettled/, "derive pending status before effects run");
+  assert.match(bi, /signal: controller\.signal/, "cancel stale or unmounted BI requests");
+  assert.match(bi, /return \(\) => controller\.abort\(\)/, "cleanup aborts stale requests");
+  const effectIntro = bi.slice(bi.indexOf("  useEffect(() => {"), bi.indexOf(".then(async (response) => {"));
+  assert.doesNotMatch(effectIntro, /set(?:Loading|LoadError|Definitions|ResolvedRead)\(/, "no synchronous effect state writes");
   assert.match(bi, /scopedLegalEntities\.map/);
   assert.match(bi, /scopedOrgUnits\.filter/);
   assert.match(bi, /scopedDynamicGroups\.map/);
