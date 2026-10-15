@@ -1,0 +1,117 @@
+name: Navigation runtime error sweep
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nav-runtime-sweep-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nav-runtime-sweep:
+    name: Browser navigation runtime sweep
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: https://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      CORE_MODULE_NAVIGATION_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral test-only encryption keys
+        shell: bash
+        run: |
+          for name in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - name: Apply schema to disposable PostgreSQL
+        run: npm run db:push
+      - name: Derive real navigation inventory and scan error call sites
+        run: npx tsx scripts/nav-sweep-manifest.ts
+      - name: Reuse existing synthetic tenant fixture
+        run: npx tsx scripts/core-modules-synthetic-fixture.ts
+      - name: Add missing fictional role accounts
+        run: npx tsx scripts/nav-sweep-seed-roles.ts
+      - name: Build application with default-off flags untouched
+        run: npm run build
+      - name: Install isolated Playwright Chromium
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start local-only application
+        shell: bash
+        run: |
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/payrollph-nav-sweep.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/payrollph-nav-sweep.log
+          exit 1
+      - name: Focused Settings navigation regression at desktop and 390px
+        run: NAV_SWEEP_FOCUS_ROLE=owner NAV_SWEEP_FOCUS_PAGE=Settings node --import tsx --test tests/e2e/nav-sweep.spec.mjs
+      - name: Prove deliberately broken Overview route is caught (negative test)
+        shell: bash
+        run: |
+          if NAV_SWEEP_INJECT_BROKEN=true NAV_SWEEP_ONLY_OWNER=true node --import tsx --test tests/e2e/nav-sweep.spec.mjs; then
+            echo "ERROR: intentionally broken route escaped detection"
+            exit 1
+          fi
+          node -e 'const r=require("./qa-artifacts/nav-sweep/report.json"); if (!r.injectedFailure || r.failed < 1 || !r.results.some(x=>x.findings.some(f=>f.kind==="navigation" && f.detail.includes("HTTP 500 GET /app")))) process.exit(1)'
+          cp qa-artifacts/nav-sweep/report.md qa-artifacts/nav-sweep/negative-proof.md
+          cp qa-artifacts/nav-sweep/report.json qa-artifacts/nav-sweep/negative-proof.json
+      - name: Run navigation and runtime error sweep
+        run: node --import tsx --test tests/e2e/nav-sweep.spec.mjs
+      - name: Upload route-role reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nav-sweep-report
+          path: qa-artifacts/nav-sweep/
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Upload server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nav-sweep-server-log
+          path: /tmp/payrollph-nav-sweep.log
+          retention-days: 7
+          if-no-files-found: ignore
