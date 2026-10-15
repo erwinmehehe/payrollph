@@ -125,13 +125,11 @@ async function checkRole(browser, role, width, authState, pages) {
             await page.getByRole("button", { name: "Open navigation" }).click({ timeout: 12000 });
             await page.locator(".app-shell.drawer-open").waitFor({ timeout: 12000 });
           }
-          let item = page.locator(".sidebar [data-nav-name]").filter({ hasNot: page.locator("nonexistent") });
           if (name === "Settings") {
-            const settings = page.locator(".sidebar .sidebar-settings-link");
-            if (await settings.count()) await settings.click({ timeout: 12000 });
-            else { item = page.locator('.sidebar [data-nav-name="Settings"]'); await item.click({ timeout: 12000 }); }
+            const settings = page.locator('.sidebar button[data-nav-name="Settings"]');
+            await settings.waitFor({ state: "visible", timeout: 12000 });
+            await settings.click({ timeout: 12000 });
           } else {
-            item = page.locator(".sidebar [data-nav-name]").filter({ hasNot: page.locator("nonexistent") }).locator("xpath=.");
             let target = page.locator('.sidebar [data-nav-name="' + name.replaceAll('"', '\\"') + '"]');
             if (await target.count() === 0) {
               const more = page.locator(".sidebar .nav-more-toggle");
@@ -156,10 +154,32 @@ async function checkRole(browser, role, width, authState, pages) {
         // Click only unambiguously non-destructive controls. A label not on the
         // safe vocabulary is explicitly SKIPPED, not silently marked tested.
         const controls = page.locator(".app-main button:visible, .app-main a:visible, .employee-workspace-body button:visible, .employee-workspace-body a:visible");
-        const count = Math.min(await controls.count(), 220);
+        // Element handles preserve the identity of originally visible controls.
+        // Live nth() locators can point at a different button after React
+        // changes the page or opens a dialog.
+        const elements = (await controls.elementHandles()).slice(0, 220);
+        const count = elements.length;
+        async function closeSafeDialogs() {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const dialog = page.locator('[role="dialog"]:visible').last();
+            if (!(await dialog.count())) return;
+            const closer = dialog.locator('button.modal-close:visible, button[aria-label="Close"]:visible, button[aria-label="Dismiss"]:visible').first();
+            if (await closer.count()) await closer.click({ timeout: 4000 });
+            else await page.keyboard.press("Escape");
+            if (!(await page.locator('[role="dialog"]:visible').count())) return;
+          }
+          throw new Error("An open dialog could not be dismissed using its visible close control.");
+        }
         for (let index = 0; index < count; index++) {
-          const el = controls.nth(index);
-          if (!(await el.count()) || !(await el.isVisible().catch(() => false)) || !(await el.isEnabled().catch(() => false))) continue;
+          const el = elements[index];
+          if (!(await el.evaluate(node => node.isConnected).catch(() => false))) {
+            skipped.push("Detached control after prior interaction (index " + index + ")");
+            continue;
+          }
+          if (!(await el.isVisible().catch(() => false)) || !(await el.isEnabled().catch(() => false))) {
+            skipped.push("Control no longer visible or enabled (index " + index + ")");
+            continue;
+          }
           const label = safeText((await el.getAttribute("aria-label")) || (await el.textContent()) || (await el.getAttribute("title")));
           const href = await el.getAttribute("href");
           if (!label || DANGEROUS.test(label) || !SAFE_CONTROL.test(label) ||
@@ -167,25 +187,40 @@ async function checkRole(browser, role, width, authState, pages) {
             skipped.push(label || "(unlabeled)"); continue;
           }
           try {
-            await el.click({ timeout: 3200, noWaitAfter: true });
+            await closeSafeDialogs();
+            const beforeClickPage = await page.locator("[data-workspace-page]").first().getAttribute("data-workspace-page").catch(() => name);
+            if (beforeClickPage !== name) {
+              skipped.push((count - index) + " controls remaining after navigation to " + beforeClickPage);
+              break;
+            }
+            if (!(await el.evaluate(node => node.isConnected).catch(() => false))) {
+              skipped.push(label + " (detached during UI rerender)");
+              continue;
+            }
+            await el.click({ timeout: 4000, noWaitAfter: true });
+            await closeSafeDialogs();
             await page.keyboard.press("Escape").catch(() => {});
             const destination = await page.locator("[data-workspace-page]").first().getAttribute("data-workspace-page").catch(() => name);
             if (destination !== name) {
-              skipped.push((count - index - 1) + " remaining controls need their own navigation-reset pass");
+              skipped.push((count - index - 1) + " controls remaining after navigation to " + destination);
               break;
             }
           } catch (error) {
-            // A dynamic React control can disappear when an earlier click
-            // navigates, opens a modal, or updates the filtered list. That is
-            // not evidence the original button was dead.
-            const stillVisible = await el.isVisible().catch(() => false);
-            const sameText = safeText((await el.getAttribute("aria-label").catch(() => "")) ||
-              (await el.textContent().catch(() => "")));
-            if (!stillVisible || sameText !== label) {
-              skipped.push(label + " (control changed during interaction)");
+            if (!(await el.evaluate(node => node.isConnected).catch(() => false))) {
+              skipped.push(label + " (detached during React update)");
               continue;
             }
-            findings.push({ kind: "dead control", detail: label + ": " + safeText(error.message) });
+            const geometry = await el.evaluate(node => {
+              const rect = node.getBoundingClientRect();
+              const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
+              const top = document.elementFromPoint(x, y);
+              return { x: Math.round(x), y: Math.round(y),
+                width: Math.round(rect.width), height: Math.round(rect.height),
+                elementAtCenter: top?.tagName ?? null,
+                centerWithinControl: top === node || node.contains(top) };
+            }).catch(() => null);
+            findings.push({ kind: "dead control", detail: label + ": " +
+              safeText(error.message) + (geometry ? " / " + JSON.stringify(geometry) : "") });
           }
         }
         if (loadTimeBlockedWrites) findings.push({ kind: "unsafe background write", detail: loadTimeBlockedWrites + " write requests attempted during page loading" });
@@ -194,8 +229,17 @@ async function checkRole(browser, role, width, authState, pages) {
         findings.push({ kind: "navigation", detail: safeText(e.stack ?? e.message ?? String(e)) });
       }
       findings.push(...errors.slice(before).map(({ kind, detail }) => ({ kind, detail })));
+      let screenshot = null;
+      if (findings.length) {
+        const screenshots = dir + "/screenshots";
+        mkdirSync(screenshots, { recursive: true });
+        const file = screenshots + "/" + role + "-" + width + "-" +
+          name.replace(/[^a-z0-9-]+/gi, "-") + ".png";
+        try { await page.screenshot({ path: file, animations: "disabled" }); screenshot = file; }
+        catch { /* Keep the log even if the browser cannot capture a screenshot. */ }
+      }
       const result = { role, page: name, viewport: width, result: findings.length ? "FAIL" : "PASS",
-        elapsedMs: Date.now() - started, findings, skippedControls: skipped.length,
+        elapsedMs: Date.now() - started, findings, screenshot, skippedControls: skipped.length,
         skippedExamples: [...new Set(skipped)].slice(0, 10) };
       results.push(result);
       console.log("NAV_SWEEP " + result.result + " " + role + " " + width + "px " + name +
@@ -227,12 +271,12 @@ test("read-only navigation and runtime error sweep (real roles, both viewports)"
       "# PayrollPH navigation and runtime sweep", "",
       "Disposable PostgreSQL and fictional accounts only. No payroll submission or filing.", "",
       "Total: " + report.total + " | Pass: " + report.passed + " | Fail: " + report.failed, "",
-      "| Role | Viewport | Page | Result | Failure details | Skipped controls |",
-      "| --- | --- | --- | --- | --- | --- |",
+      "| Role | Viewport | Page | Result | Failure details | Screenshot | Skipped controls |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
       ...results.map(r => "| " + r.role + " | " + r.viewport + "px | " +
         r.page.replaceAll("|", "/") + " | " + r.result + " | " +
         r.findings.map(f => f.kind + ": " + f.detail).join("; ").replaceAll("|", "/").replaceAll("\n", " ").slice(0, 400) +
-        " | " + r.skippedControls + " |"),
+        " | " + (r.screenshot ?? "—") + " | " + r.skippedControls + " |"),
     ].join("\n"));
     console.log("NAV_SWEEP_REPORT " + dir + "/report.md :: " + report.passed + " passed / " + report.failed + " failed");
   }
