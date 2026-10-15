@@ -87,21 +87,6 @@ async function checkRole(browser, role, width, authState, pages) {
     }
   });
   try {
-    current = pages[0];
-    const initialResponse = await page.goto(BASE + "/app" + (role === "employee" ? "" : "?organizationId=" + fixture.organizationId), {
-      waitUntil: "load", timeout: 30000,
-    });
-    if (!initialResponse || initialResponse.status() < 200 || initialResponse.status() >= 300) {
-      const status = initialResponse?.status() ?? "no response";
-      const entry = { role, page: pages[0], viewport: width, result: "FAIL", elapsedMs: 0,
-        findings: [{ kind: "navigation", detail: "HTTP " + status + " GET /app" }],
-        skippedControls: 0, skippedExamples: [] };
-      results.push(entry);
-      console.log("NAV_SWEEP FAIL " + role + " " + width + "px " + pages[0] + " :: HTTP " + status + " GET /app");
-      return;
-    }
-    await page.locator("[data-workspace-role='" + role + "']").first().waitFor({ timeout: 30000 });
-    await page.waitForTimeout(700);
     for (const name of pages) {
       current = name;
       blocked = 0;
