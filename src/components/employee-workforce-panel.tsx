@@ -5,6 +5,7 @@ import { CalendarDays, CheckCircle2, PencilLine, RefreshCcw } from "lucide-react
 import { manilaWorkDate, summarizeUpcomingWeek, upcomingSevenDays } from "@/lib/workforce-employee-upcoming-week";
 import { essText, type EssLanguage } from "@/lib/ess-language";
 import { EmployeeScheduleReceipts } from "./employee-schedule-receipts";
+import { EmployeeAvailabilityPreferences } from "./employee-availability-preferences";
 
 type ScheduleSegment = {
   shiftDefinitionId: number;
@@ -194,6 +195,8 @@ export function EmployeeWorkforcePanel({ language = "en" }: { language?: EssLang
 
   return (
     <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
+      {process.env.NEXT_PUBLIC_WFM_EMPLOYEE_AVAILABILITY_ENABLED === "true" &&
+        <EmployeeAvailabilityPreferences language={language} />}
       {payload && (
         <article className="employee-list-card" data-employee-upcoming-week>
           <div className="employee-list-card-head">

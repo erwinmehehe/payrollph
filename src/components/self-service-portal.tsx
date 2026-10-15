@@ -1025,7 +1025,7 @@ export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false
               <div><span>{t("Out")}</span><strong>{timeLabel(today?.timeOut ?? null)}</strong></div>
             </div>
           </div>
-          <EmployeeWorkforcePanel language={language} />
+          <EmployeeWorkforcePanel key={(data.employer?.id ?? "no-employer") + ":" + data.employee.id} language={language} />
           <article className="employee-list-card">
             <div className="employee-list-card-head">
               <div><span className="card-kicker">{t("RECENT ATTENDANCE")}</span><h3>{t("Last")} {data.attendance.recent.length} {t("records")}</h3></div>

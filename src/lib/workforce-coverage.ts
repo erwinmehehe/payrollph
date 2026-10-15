@@ -69,23 +69,45 @@ export function availabilityRuleApplies(
   return true;
 }
 
+/**
+ * Project a recurring wall-clock rule onto the shift's current and next
+ * calendar days. A shift starting before midnight can still be blocked by
+ * an unavailable rule that only applies after midnight the next day.
+ *
+ * Legacy manager-created overnight rules (start > end) remain supported.
+ * For the employee UI, 23:59 is the last minute of that day, so include the
+ * last minute through the midnight boundary, without inventing next-day
+ * availability.
+ */
+function shiftAvailabilityWindows(rule: AvailabilityRule, date: string, includeNextDay: boolean) {
+  const windows: Array<{ start: number; end: number }> = [];
+  const add = (day: string, offset: number) => {
+    if (!availabilityRuleApplies(rule, day)) return;
+    const window = interval(rule.startTime, rule.endTime);
+    const end = rule.endTime.slice(0, 5) === "23:59" && window.end === 1439
+      ? 1440 : window.end;
+    windows.push({ start: window.start + offset, end: end + offset });
+  };
+  add(date, 0);
+  if (includeNextDay) {
+    const next = new Date(date + "T00:00:00Z");
+    if (!Number.isFinite(next.getTime())) throw new Error("Invalid shift work date.");
+    next.setUTCDate(next.getUTCDate() + 1);
+    add(next.toISOString().slice(0, 10), 1440);
+  }
+  return windows;
+}
+
 export function availabilityConflictForShift(input: {
   rules: AvailabilityRule[];
   date: string;
   shift: ShiftWindow;
 }) {
-  const shift = interval(
-    input.shift.startTime,
-    input.shift.endTime,
-    input.shift.spansMidnight,
-  );
-
-  return input.rules.some((rule) => {
-    if (rule.availabilityType !== "unavailable") return false;
-    if (!availabilityRuleApplies(rule, input.date)) return false;
-    const unavailable = interval(rule.startTime, rule.endTime);
-    return unavailable.start < shift.end && shift.start < unavailable.end;
-  });
+  const shift = interval(input.shift.startTime, input.shift.endTime, input.shift.spansMidnight);
+  const includeNextDay = shift.end > 1440;
+  return input.rules.some(rule => rule.availabilityType === "unavailable" &&
+    shiftAvailabilityWindows(rule, input.date, includeNextDay).some(unavailable =>
+      unavailable.start < shift.end && shift.start < unavailable.end));
 }
 
 export function preferredForShift(input: {
@@ -93,18 +115,23 @@ export function preferredForShift(input: {
   date: string;
   shift: ShiftWindow;
 }) {
-  const shift = interval(
-    input.shift.startTime,
-    input.shift.endTime,
-    input.shift.spansMidnight,
-  );
-
-  return input.rules.some((rule) => {
-    if (rule.availabilityType !== "preferred") return false;
-    if (!availabilityRuleApplies(rule, input.date)) return false;
-    const preferred = interval(rule.startTime, rule.endTime);
-    return preferred.start <= shift.start && preferred.end >= shift.end;
-  });
+  const shift = interval(input.shift.startTime, input.shift.endTime, input.shift.spansMidnight);
+  const includeNextDay = shift.end > 1440;
+  const windows = input.rules
+    .filter(rule => rule.availabilityType === "preferred")
+    .flatMap(rule => shiftAvailabilityWindows(rule, input.date, includeNextDay))
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  // A preferred-shift recommendation is earned only if the entire shift has
+  // continuous preferred evidence. Separate midnight rules can form that
+  // evidence; a missing minute must not be mistaken for full coverage.
+  let coveredTo = shift.start;
+  for (const window of windows) {
+    if (window.end <= coveredTo) continue;
+    if (window.start > coveredTo) return false;
+    coveredTo = Math.max(coveredTo, window.end);
+    if (coveredTo >= shift.end) return true;
+  }
+  return false;
 }
 
 export function computeCoverage(input: {
