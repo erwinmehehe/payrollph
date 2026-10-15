@@ -10,19 +10,20 @@ const peso = (v: number | string) =>
 
 const CATEGORIES = ["Travel", "Meals", "Equipment", "Internet", "Training", "Other"];
 
-function useEmployees(organizationId: number) {
+function useEmployees(organizationId: number, allowed: boolean) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   useEffect(() => {
+    if (!allowed) { setEmployees([]); return; }
     fetch(`/api/employees?organizationId=${organizationId}`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setEmployees)
       .catch(() => setEmployees([]));
-  }, [organizationId]);
+  }, [organizationId, allowed]);
   return employees;
 }
 
-export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = false }: { organizationId: number; setNotice: (m: string) => void; reviewModeEnabled?: boolean }) {
-  const employees = useEmployees(organizationId);
+export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = false, canLoadEmployeeDirectory = true }: { organizationId: number; setNotice: (m: string) => void; reviewModeEnabled?: boolean; canLoadEmployeeDirectory?: boolean }) {
+  const employees = useEmployees(organizationId, canLoadEmployeeDirectory);
   const [claims, setClaims] = useState<any[]>([]);
   const [reviewMode, setReviewMode] = useState(false);
   const [receiptUploadsEnabled, setReceiptUploadsEnabled] = useState(false);
