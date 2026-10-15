@@ -28,7 +28,7 @@ ORDER BY name;
 
 ## Forward-only candidate and executable engineering verification
 
-**Integration sequencing:** This PR is stacked on #1057, which reserves `0124_attendance_exception_forward_repair.sql`. This candidate is `0125` and is not eligible for independent merge ahead of #1057. Once #1057 lands on `main`, retarget this PR to `main` and revalidate exact-head checks. This is source ordering only, never migration authorization.
+**Integration sequencing (2026-10-15):** PR #1057 was merged into `main` as commit `e1e47324c8d5523a6a01c851c4f3b8d738e858d0` and reserves `0124_attendance_exception_forward_repair.sql`. This #1054 candidate is numbered `0125` and #1058 now targets `main`. The branch must pass fresh exact-head checks before any source merge. This is source ordering only, **never database migration or release authorization**.
 
 `drizzle/0125_wfm_availability_open_shifts_forward_repair.sql` creates **only** the three WFM tables and the current `src/db/schema.ts` indexes/FKs. It includes `open_shifts.job_profile_id` and `open_shifts_role_idx`. It does not add the incompatible legacy staffing uniqueness index or replay `0039`.
 

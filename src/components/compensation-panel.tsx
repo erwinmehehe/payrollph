@@ -134,6 +134,11 @@ function pct(value: number | null) {
 type CompensationPanelProps = {
   organizationId: number;
   setNotice: (message: string) => void;
+  // Default-off payroll evidence requires an authorized viewer and a
+  // separate release-gate, independent of compensation what-if permissions.
+  canViewPayrollEvidence?: boolean;
+  previewEnabled?: boolean;
+  investigationEnabled?: boolean;
 };
 
 /**
@@ -148,6 +153,9 @@ export function CompensationPanel(props: CompensationPanelProps) {
 function ScopedCompensationPanel({
   organizationId,
   setNotice,
+  canViewPayrollEvidence = false,
+  previewEnabled = false,
+  investigationEnabled = false,
 }: CompensationPanelProps) {
   const [access, setAccess] = useState<Access | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -860,9 +868,9 @@ function ScopedCompensationPanel({
         </div>
       </article>
 
-      <PayrollOverpaymentWorkbench organizationId={organizationId} setNotice={setNotice} />
-      <PayrollOverpaymentPreviewPanel organizationId={organizationId} />
-      <PayrollUnderpaymentPanel organizationId={organizationId} setNotice={setNotice} />
+      {canViewPayrollEvidence && investigationEnabled && <PayrollOverpaymentWorkbench organizationId={organizationId} setNotice={setNotice} />}
+      {canViewPayrollEvidence && previewEnabled && <PayrollOverpaymentPreviewPanel organizationId={organizationId} />}
+      {canViewPayrollEvidence && <PayrollUnderpaymentPanel organizationId={organizationId} setNotice={setNotice} />}
 
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header">

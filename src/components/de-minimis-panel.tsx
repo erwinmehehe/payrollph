@@ -37,7 +37,7 @@ type Grant = {
   };
 };
 
-export function DeMinimisPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (message: string) => void }) {
+export function DeMinimisPanel({ organizationId, setNotice, canLoadEmployeeDirectory = false }: { organizationId: number; setNotice: (message: string) => void; canLoadEmployeeDirectory?: boolean }) {
   const [rules, setRules] = useState<Rule[]>([]);
   const [grants, setGrants] = useState<Grant[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -61,7 +61,7 @@ export function DeMinimisPanel({ organizationId, setNotice }: { organizationId: 
     (async () => {
       const [grantRes, staffRes] = await Promise.all([
         fetch(`/api/de-minimis?organizationId=${organizationId}`, { cache: "no-store" }),
-        fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }),
+        canLoadEmployeeDirectory ? fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }) : Promise.resolve(null),
       ]);
       if (grantRes.ok) {
         const data = await grantRes.json();
@@ -69,7 +69,7 @@ export function DeMinimisPanel({ organizationId, setNotice }: { organizationId: 
         setRules(data.rules ?? []);
         setGrants(data.grants ?? []);
       }
-      if (staffRes.ok) {
+      if (staffRes?.ok) {
         const staff = await staffRes.json();
         if (!alive) return;
         setEmployees(staff);
@@ -78,7 +78,7 @@ export function DeMinimisPanel({ organizationId, setNotice }: { organizationId: 
     return () => {
       alive = false;
     };
-  }, [organizationId, nonce]);
+  }, [organizationId, nonce, canLoadEmployeeDirectory]);
 
   const selectedRule = rules.find((rule) => rule.type === form.benefitType);
 

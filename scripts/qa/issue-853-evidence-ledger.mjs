@@ -57,28 +57,45 @@ function checks() {
 
 export function makeBlankLedger() {
   return {
-    schema: 'payrollph-issue853-human-acceptance-v1',
+    schema: 'payrollph-issue853-human-acceptance-v2',
     recordId: randomUUID(),
     createdUtc: new Date().toISOString(),
     scope: 'FICTIONAL_DEVELOPMENT_NO_MONEY',
     sourceSha: '',
     deployedSha: '',
     developmentUrl: '',
-    databaseClassification: 'FICTIONAL_ONLY',
+    databaseClassification: null,
     deviceModel: '',
     browserVersion: '',
-    manilaPayPeriod: '2026-10-01/2026-10-15',
+    manilaPayPeriod: '',
     tenantA: 'Fictional Harbor A Services',
     tenantB: 'Fictional Riverside B Trading',
     identities: { ownerBothId: '', payrollOfficerAId: '', payrollOfficerBId: '', checkerBothId: '', employeeAId: '', employeeBId: '' },
-    flags: { livePayouts: false, governmentSubmission: false, realEmployeeData: false },
+    // Record observed effective values only after checking the actual deployed app.
+    flags: { livePayouts: null, governmentSubmission: null, realEmployeeData: null },
+    runtimeVerification: { verifiedAtUtc: '', deployedBuildRef: '',
+      databaseIsolationRef: '', payoutAndFilingConfigRef: '', fixtureVersionRef: '' },
     tests: checks(),
     signoff: { independentReviewerId: '', signedAtUtc: '', privateEvidenceRef: '' },
     IMPORTANT: 'This JSON is an unverified private operator claim. No PASS is auto-generated; independent observation cannot be authenticated by this script.',
   };
 }
 
-function validDate(s) { return typeof s === 'string' && UTC.test(s) && !Number.isNaN(Date.parse(s)); }
+function validDate(s) {
+  if (typeof s !== 'string' || !UTC.test(s)) return false;
+  const timestamp = Date.parse(s);
+  if (!Number.isFinite(timestamp) || timestamp > Date.now()) return false;
+  // Date.parse silently normalizes impossible calendar dates, so demand an exact UTC round-trip.
+  const canonical = s.replace(/(?:\.(\d{1,3}))?Z$/, (_match, ms) => '.' + (ms || '').padEnd(3, '0') + 'Z');
+  return new Date(timestamp).toISOString() === canonical;
+}
+function validCalendarDate(day) {
+  if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  // Date.parse normalizes impossible dates (e.g. February 30); compare exact UTC day.
+  const timestamp = Date.parse(day + 'T00:00:00.000Z');
+  return Number.isFinite(timestamp) &&
+    new Date(timestamp).toISOString().slice(0, 10) === day;
+}
 function meaningful(s) { return typeof s === 'string' && s.trim().length > 0; }
 
 /**
@@ -87,11 +104,33 @@ function meaningful(s) { return typeof s === 'string' && s.trim().length > 0; }
  */
 export function evaluate(ledger) {
   const blockers=[];
-  if (!ledger || ledger.schema!=='payrollph-issue853-human-acceptance-v1') {
+  const usedProofRefs = new Set();
+  function trackProof(ref, label) {
+    if (!EVIDENCE_REF.test(ref || '')) {
+      blockers.push('Private evidence reference required: ' + label);
+    } else if (usedProofRefs.has(ref)) {
+      blockers.push('Private evidence reference reused: ' + label);
+    } else {
+      usedProofRefs.add(ref);
+    }
+  }
+  if (!ledger || ledger.schema!=='payrollph-issue853-human-acceptance-v2') {
     return {verdict: 'NOT_READY', total:27, passed:0, failed:0, blocked:27,
       problems: ['Invalid evidence schema; refuse to infer a successful acceptance']};
   }
   if (ledger.scope!=='FICTIONAL_DEVELOPMENT_NO_MONEY') blockers.push('Wrong scope');
+  // Do not infer these from the Git checkout, or from a blank ledger.
+  const runtime = ledger.runtimeVerification;
+  if (!runtime || !validDate(runtime.verifiedAtUtc)) {
+    blockers.push('Actual runtime verification UTC timestamp is missing, invalid or in the future');
+  }
+  for (const key of ['deployedBuildRef','databaseIsolationRef','payoutAndFilingConfigRef','fixtureVersionRef']) {
+    trackProof(runtime?.[key], 'runtime.' + key);
+  }
+  const period = (ledger.manilaPayPeriod || '').split('/');
+  if (period.length !== 2 || !period.every(validCalendarDate) || period[0] > period[1]) {
+    blockers.push('Record the actual tested Manila pay period');
+  }
   if (ledger.databaseClassification!=='FICTIONAL_ONLY') blockers.push('Database must be classified as fictional');
   if (!SOURCE_SHA.test(ledger.sourceSha||'')) blockers.push('Source SHA must be an exact 40-character Git commit');
   if (!SOURCE_SHA.test(ledger.deployedSha||'')) blockers.push('Deployment SHA must be an exact 40-character Git commit');
@@ -109,6 +148,17 @@ export function evaluate(ledger) {
   } else if (new Set(Object.values(ledger.identities)).size !== 6) {
     blockers.push('All 6 test actor identities must be distinct');
   }
+  // Single-role actions must use the matching, separately declared operator.
+  // Multi-role HR/manager observations remain for the independent human witness to verify.
+  const requiredActor = {
+    A_CLOCK_IN: 'employeeAId', B_CLOCK_IN: 'employeeBId',
+    A_RUN_PAYROLL: 'payrollOfficerAId', B_RUN_PAYROLL: 'payrollOfficerBId',
+    A_REVIEW: 'checkerBothId', B_REVIEW: 'checkerBothId',
+    A_RELEASE_RECORDS: 'ownerBothId', B_RELEASE_RECORDS: 'ownerBothId',
+    A_FILING_EVIDENCE: 'payrollOfficerAId', B_FILING_EVIDENCE: 'payrollOfficerBId',
+    SWITCH_375: 'ownerBothId', SWITCH_390: 'ownerBothId',
+    PAYROLL_A_DENIED_B: 'payrollOfficerAId', EMPLOYEE_A_DENIED_B: 'employeeAId',
+  };
   const expected=checks();
   const expectedIds=expected.map(x=>x.id);
   const incoming=Array.isArray(ledger.tests)?ledger.tests:[];
@@ -132,17 +182,49 @@ export function evaluate(ledger) {
           scenario.independentReviewer===scenario.observedBy) {
         blockers.push(`PASS missing dated observation, private evidence and distinct reviewer: ${scenario.id}`);
       }
+      trackProof(scenario.evidenceRef, scenario.id);
+      if (validDate(runtime?.verifiedAtUtc) && validDate(scenario.observedAtUtc) &&
+          Date.parse(scenario.observedAtUtc) < Date.parse(runtime.verifiedAtUtc)) {
+        blockers.push(`PASS precedes runtime verification: ${scenario.id}`);
+      }
+      const actorKey = requiredActor[scenario.id];
+      if (actorKey && scenario.observedBy !== ledger.identities?.[actorKey]) {
+        blockers.push(`PASS operator must match the recorded ${actorKey} persona: ${scenario.id}`);
+      }
     } else if(scenario.observedStatus==='FAIL') {
       failed++;
       if (!meaningful(scenario.defectRef)) blockers.push(`FAIL missing defect reference: ${scenario.id}`);
     } else {
       blocked++;
+      if (scenario.observedStatus === 'NOT_RUN' &&
+          [scenario.observedAtUtc, scenario.observedBy, scenario.evidenceRef,
+            scenario.independentReviewer, scenario.defectRef].some(meaningful)) {
+        blockers.push(`NOT_RUN cannot retain claimed observation evidence: ${scenario.id}`);
+      }
     }
   }
   if (!ledger.signoff || !meaningful(ledger.signoff.independentReviewerId) ||
       !validDate(ledger.signoff.signedAtUtc) ||
       !EVIDENCE_REF.test(ledger.signoff.privateEvidenceRef||'')) {
     blockers.push('Independent reviewer human signoff evidence not supplied');
+  }
+  trackProof(ledger.signoff?.privateEvidenceRef, 'signoff');
+  if (validDate(ledger.signoff?.signedAtUtc)) {
+    const signedAt = Date.parse(ledger.signoff.signedAtUtc);
+    if (validDate(runtime?.verifiedAtUtc) && signedAt < Date.parse(runtime.verifiedAtUtc)) {
+      blockers.push('Independent signoff precedes runtime verification');
+    }
+    for (const row of incoming) {
+      if (row.observedStatus === 'PASS' && validDate(row.observedAtUtc) &&
+          signedAt < Date.parse(row.observedAtUtc)) {
+        blockers.push(`Independent signoff precedes PASS: ${row.id}`);
+      }
+    }
+  }
+  if (meaningful(ledger.signoff?.independentReviewerId) &&
+      (Object.values(ledger.identities || {}).includes(ledger.signoff.independentReviewerId) ||
+       incoming.some(row => row.observedBy === ledger.signoff.independentReviewerId))) {
+    blockers.push('Independent signoff reviewer cannot be a journey operator');
   }
   const all=expected.length;
   const ready=passed===all && failed===0 && blocked===0 && blockers.length===0;

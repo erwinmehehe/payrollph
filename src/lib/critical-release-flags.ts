@@ -218,6 +218,18 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 scoped employee/org-unit/pay statement API reads and event feed",
     approval: "Tenant-isolation integration tests, API token scope review and privacy acceptance",
   },
+  overpaymentPreview: {
+    env: "HCM_OVERPAYMENT_PREVIEW_ENABLED",
+    owner: "Payroll / HR Operations",
+    risk: "P1 read-only released-payroll discrepancy preview with sensitive wage evidence",
+    approval: "Role/MFA gates, default-off API/UI parity, synthetic tenant-isolation acceptance; no payroll deduction authority",
+  },
+  overpaymentInvestigation: {
+    env: "PAYROLL_OVERPAYMENT_REVIEW_ENABLED",
+    owner: "Payroll / Independent Checker",
+    risk: "P1 historical wage-discrepancy investigation requiring sensitive source evidence",
+    approval: "Independent finance review, tenant isolation, data minimization and default-off regression; no money-moving permission",
+  },
   tenantReportBuilder: {
     env: "TENANT_REPORT_BUILDER_ENABLED",
     owner: "People Analytics",

@@ -35,7 +35,7 @@ const peso = (value: string | number) =>
 
 const LOAN_TYPES = SUPPORTED_PAYROLL_LOAN_TYPES;
 
-export function LoansPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (m: string) => void }) {
+export function LoansPanel({ organizationId, setNotice, canLoadEmployeeDirectory = false, canManageGovRemittance = false }: { organizationId: number; setNotice: (m: string) => void; canLoadEmployeeDirectory?: boolean; canManageGovRemittance?: boolean }) {
   const scheduleEnabled = useWorkflowUi().benefitsLoans;
   const [loans, setLoans] = useState<Loan[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -72,7 +72,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
     (async () => {
       const [loanRes, empRes] = await Promise.all([
         fetch(`/api/loans?organizationId=${organizationId}`, { cache: "no-store" }),
-        fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }),
+        canLoadEmployeeDirectory ? fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }) : Promise.resolve(null),
       ]);
       if (loanRes.ok) {
         const data = await loanRes.json();
@@ -87,7 +87,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
         });
         setSummary(data.summary ?? { totalActiveLoans: 0, totalPendingApproval: 0, totalOutstanding: 0, totalPaidOff: 0 });
       }
-      if (empRes.ok) {
+      if (empRes?.ok) {
         const staff = await empRes.json();
         if (!alive) return;
         setEmployees(staff);
@@ -98,7 +98,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
     return () => {
       alive = false;
     };
-  }, [organizationId, nonce]);
+  }, [organizationId, nonce, canLoadEmployeeDirectory]);
 
   async function createLoan(e: React.FormEvent) {
     e.preventDefault();
@@ -429,7 +429,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
         </div>
       </article>
     
-      <GovernmentLoanRemittancePanel organizationId={organizationId} setNotice={setNotice} />
+      {canManageGovRemittance && <GovernmentLoanRemittancePanel organizationId={organizationId} setNotice={setNotice} />}
 </div>
   );
 }
