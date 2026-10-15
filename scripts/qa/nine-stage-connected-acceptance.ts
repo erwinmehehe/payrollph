@@ -621,6 +621,307 @@ async function main() {
     evidence.push("all four HTTP worksheet byte hashes match recorded SHA256; draft-only, never submitted");
     evidence.push("attempted post-release punch rewrite rejected with original times unchanged");
   });
+
+  // The first company's successful payroll is not enough to prove that B can
+  // actually operate. Execute B through all nine real localhost HTTP stages
+  // against the SAME disposable database, with distinct B-only actors.
+  let bPatternId = 0, bAssignmentId = 0, bPunchId = 0, bTimesheetId = 0, bRunId = 0;
+  let bHr!: Client, bManager!: Client, bEmployee!: Client;
+  let bPayroll!: Client, bChecker!: Client;
+  const bLineage: Record<string, unknown> = {
+    organizationId: orgB, employeeId: bWorker,
+    periodStart, periodEnd, payDate,
+    sourcePunchId: null, payrollRunId: null, draftHashes: null,
+    hireMode: "direct_api",
+  };
+  report.lineage.employerB = bLineage;
+  await stageB(0, async evidence => {
+    const [aWorker] = await db.select().from(employees).where(
+      and(eq(employees.id, worker), eq(employees.organizationId, orgA)));
+    const [bHired] = await db.select().from(employees).where(
+      and(eq(employees.id, bWorker), eq(employees.organizationId, orgB)));
+    assert.ok(aWorker && bHired && aWorker.id !== bHired.id);
+    assert.equal(aWorker.employeeNo, bHired.employeeNo,
+      "Both employers must isolate an overlapping local worker number");
+    assert.equal(bHired.startDate, workDate);
+    const bDirectory = await tenantB.ok("/api/employees?organizationId=" + orgB);
+    assert.equal(bDirectory.length, 1);
+    assert.equal(Number(bDirectory[0].id), bWorker);
+    const [unit] = await db.insert(orgUnits).values({
+      organizationId: orgB, type: "department", code: "NINE-B-QA",
+      name: "Fictional B Schedule Team",
+    }).returning();
+    await db.update(employees).set({ orgUnitId: unit.id }).where(
+      and(eq(employees.id, bWorker), eq(employees.organizationId, orgB)));
+    const bSpecs = [
+      { key: "hrb", role: "hr" }, { key: "managerb", role: "manager" },
+      { key: "employeeb", role: "employee" }, { key: "payrollb", role: "payroll" },
+      { key: "checkerb", role: "checker" },
+    ];
+    const bUsers = await db.insert(users).values(bSpecs.map(entry => ({
+      email: entry.key + ".nine@linaw.test", name: "Fictional B " + entry.key,
+      role: entry.role, passwordHash: hashPassword(password),
+      employeeId: entry.role === "employee" ? bWorker : null,
+      totpEnabled: false, backupCodes: [],
+    }))).returning();
+    await db.insert(userOrganizations).values(bUsers.map((user, i) => ({
+      userId: user.id, organizationId: orgB, role: bSpecs[i].role,
+      orgUnitId: bSpecs[i].role === "manager" ? unit.id : null,
+      workerEmployeeId: bSpecs[i].role === "employee" ? bWorker : null,
+    })));
+    [bHr, bManager, bEmployee, bPayroll, bChecker] = await Promise.all(
+      bSpecs.map(entry => login(entry.key + ".nine@linaw.test")));
+    const deniedA = await bPayroll.json("/api/payroll-runs?organizationId=" + orgA);
+    denied(403, deniedA.status, "tenant B-only payroll officer denied A payroll");
+    const deniedB = await payroll.json("/api/payroll-runs?organizationId=" + orgB);
+    denied(403, deniedB.status, "tenant A payroll officer denied B payroll after B hire");
+    evidence.push("B employee created by authorized B owner API; same local employeeNo, distinct ID; five B-only sessions");
+  });
+  await stageB(1, async evidence => {
+    const before = await bHr.ok("/api/provisioning?organizationId=" + orgB);
+    const record = before.employees?.find((item: any) => Number(item.employeeId) === bWorker);
+    assert.ok(record?.onboarding?.length >= 5, "B employee onboarding tasks missing");
+    for (const task of record.onboarding) {
+      await bHr.ok("/api/provisioning", "PATCH", {
+        organizationId: orgB, employeeId: bWorker, id: task.id, done: true,
+      });
+    }
+    const after = await bHr.ok("/api/provisioning?organizationId=" + orgB);
+    const verified = after.employees.find((item: any) => Number(item.employeeId) === bWorker);
+    assert.ok(verified.onboarding.every((task: any) => task.done));
+    const aDenied = await hr.json("/api/provisioning?organizationId=" + orgB);
+    denied(403, aDenied.status, "tenant A HR cannot read B onboarding");
+    evidence.push("B HR completed B-only worker onboarding and A-only HR was denied");
+  });
+  await stageB(2, async evidence => {
+    const shift = await bHr.ok("/api/workforce/schedules", "POST", {
+      organizationId: orgB, action: "create_shift", code: "NINE-B-SHIFT",
+      name: "B Fictional One-Hour Shift", startTime: hhmm(shiftStart),
+      endTime: hhmm(shiftEnd), breakMinutes: 0,
+    });
+    const shiftId = Number(shift.shift?.id);
+    assert.ok(shiftId > 0);
+    const pattern = await bHr.ok("/api/workforce/schedules", "POST", {
+      organizationId: orgB, action: "create_pattern", code: "NINE-B-PATTERN",
+      name: "B Fictional Day Pattern", cycleDays: 1,
+      days: [{ isRestDay: false, label: "Work",
+        segments: [{ shiftDefinitionId: shiftId }] }],
+    });
+    bPatternId = Number(pattern.pattern?.id);
+    assert.ok(bPatternId > 0);
+    const assigned = await bHr.ok("/api/workforce/schedules", "POST", {
+      organizationId: orgB, action: "assign_schedule",
+      employeeId: bWorker, patternId: bPatternId,
+      effectiveFrom: workDate, effectiveUntil: workDate, anchorDate: workDate,
+      reason: "Authorized fictional B schedule; no other tenant writes",
+    });
+    bAssignmentId = Number(assigned.assignment?.id);
+    assert.ok(bAssignmentId > 0);
+    const roster = await bHr.ok("/api/workforce/team-roster?organizationId=" +
+      orgB + "&startDate=" + workDate + "&page=1");
+    assert.ok(roster.rows?.some((row: any) => Number(row.employee?.id) === bWorker));
+    const deniedA = await hr.json("/api/workforce/team-roster?organizationId=" +
+      orgB + "&startDate=" + workDate + "&page=1");
+    denied(403, deniedA.status, "tenant A HR denied B roster");
+    evidence.push("B-only shift and schedule persisted with B HR authorization");
+  });
+  await stageB(3, async evidence => {
+    const clockIn = await bEmployee.ok("/api/web-bundy", "POST", {
+      organizationId: orgB, employeeId: bWorker, actionType: "clock_in",
+    });
+    bPunchId = Number(clockIn.punch?.id);
+    assert.ok(bPunchId > 0);
+    assert.equal(Number(clockIn.punch?.employeeId), bWorker);
+    const duplicate = await bEmployee.json("/api/web-bundy", "POST", {
+      organizationId: orgB, employeeId: bWorker, actionType: "clock_in",
+    });
+    denied(409, duplicate.status, "duplicate B Web Bundy IN rejected");
+    const clockOut = await bEmployee.ok("/api/web-bundy", "POST", {
+      organizationId: orgB, employeeId: bWorker, actionType: "clock_out",
+    });
+    assert.equal(Number(clockOut.punch?.id), bPunchId);
+    assert.equal(clockOut.punch?.source, "web_bundy");
+    assert.equal(clockOut.punch?.workDate, workDate);
+    const [stored] = await db.select().from(timePunches).where(eq(timePunches.id, bPunchId));
+    assert.equal(stored.organizationId, orgB);
+    assert.equal(stored.employeeId, bWorker);
+    assert.equal(stored.source, "web_bundy");
+    bLineage.sourcePunchId = bPunchId;
+    evidence.push("B-only signed employee IN/OUT under the shared virtual Manila month-end");
+  });
+  await stageB(4, async evidence => {
+    const requested = await bEmployee.ok("/api/self/workforce", "POST", {
+      action: "request_correction", punchId: bPunchId,
+      proposedTimeIn: shiftStart.toISOString(), proposedTimeOut: shiftEnd.toISOString(),
+      reason: "Fictional B source correction before payroll cutoff",
+    });
+    assert.ok(Number(requested.correction?.id) > 0);
+    const unauthorized = await bEmployee.json(
+      "/api/workforce/attendance-corrections", "POST", {
+        organizationId: orgB, action: "decide_request",
+        requestId: requested.correction.id, decision: "approved",
+      });
+    denied(403, unauthorized.status, "B employee cannot approve own attendance");
+    const corrected = await bManager.ok(
+      "/api/workforce/attendance-corrections", "POST", {
+        organizationId: orgB, action: "decide_request",
+        requestId: requested.correction.id, decision: "approved",
+        decisionNote: "B manager review on fictional source event",
+      });
+    assert.equal(corrected.punch?.status, "Corrected");
+    await tenantB.ok("/api/workforce/timesheets", "POST", {
+      organizationId: orgB, action: "update_policy", active: true, enforcementMode: "block",
+    });
+    const submitted = await bEmployee.ok("/api/workforce/timesheets", "POST", {
+      organizationId: orgB, action: "submit", employeeId: bWorker,
+      periodStart, periodEnd,
+    });
+    bTimesheetId = Number(submitted.timesheet?.id);
+    assert.ok(bTimesheetId > 0);
+    assert.equal(Number(submitted.timesheet?.blockerCount), 0,
+      "B employee's actual source timecard has blocking exceptions");
+    const approved = await bManager.ok("/api/workforce/timesheets", "POST", {
+      organizationId: orgB, action: "decide", timesheetId: bTimesheetId,
+      decision: "approved", decisionNote: "Separate fictional B manager review",
+    });
+    assert.equal(approved.timesheet?.status, "approved");
+    assert.notEqual(approved.timesheet?.submittedByUserId, approved.timesheet?.decidedByUserId);
+    const [timecard] = await db.select().from(workforceTimesheets)
+      .where(eq(workforceTimesheets.id, bTimesheetId));
+    assert.equal(timecard.organizationId, orgB);
+    assert.equal(timecard.employeeId, bWorker);
+    assert.ok((timecard.snapshot as any)?.days?.some((day: any) =>
+      day.date === workDate && day.punches?.some((entry: any) =>
+        Number(entry.id) === bPunchId && entry.source === "web_bundy")));
+    const lock = await bHr.ok("/api/workforce/attendance-locks", "POST", {
+      organizationId: orgB, action: "lock_period", periodStart, periodEnd,
+      lockType: "payroll_cutoff", reason: "B approved fictional cutoff",
+    });
+    assert.ok(lock.lock?.id);
+    evidence.push("B manager approved B-specific source timesheet and HR locked B payroll cutoff");
+  });
+  await stageB(5, async evidence => {
+    const run = await bPayroll.ok("/api/payroll-runs", "POST", {
+      organizationId: orgB, periodStart, periodEnd, payDate, processNow: true,
+    });
+    bRunId = Number(run.run?.id);
+    assert.ok(bRunId > 0 && bRunId !== runId);
+    const register = await bPayroll.ok("/api/payroll-runs?runId=" + bRunId + "&include=entries");
+    assert.equal(register.entries?.length, 1);
+    const entry = register.entries.find((row: any) => Number(row.employeeId) === bWorker);
+    assert.ok(entry && Number(entry.netPay) > 0);
+    assert.equal(entry.status, "Ready");
+    assert.equal(Number(run.run?.exceptions), 0, "Unexpected B payroll exceptions");
+    assert.equal(entry.trace?.payableTime?.mode, "calendar-segmented");
+    assert.ok((entry.trace?.payableTime?.segments ?? []).some((segment: any) =>
+      Number(segment.punchId) === bPunchId && segment.sourceWorkDate === workDate
+      && Number(segment.minutes) > 0));
+    assert.ok((entry.trace?.workforceSchedule?.days ?? []).some((day: any) =>
+      day.date === workDate && Number(day.assignmentId) === bAssignmentId
+      && Number(day.patternId) === bPatternId));
+    const [stored] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, bRunId));
+    assert.equal(stored.organizationId, orgB);
+    assert.equal(stored.periodStart, periodStart);
+    assert.equal(stored.periodEnd, periodEnd);
+    const aDenied = await payroll.json("/api/payroll-runs?runId=" + bRunId + "&include=entries");
+    denied(403, aDenied.status, "A-only payroll cannot read B calculated register");
+    bLineage.payrollRunId = bRunId;
+    bLineage.timesheetId = bTimesheetId;
+    bLineage.scheduleAssignmentId = bAssignmentId;
+    evidence.push("B payroll entry traces B-only Web Bundy punch, schedule and approved timecard");
+  });
+  await stageB(6, async evidence => {
+    const checkerUser = (await db.select({ id: users.id }).from(users)
+      .where(eq(users.email, "checkerb.nine@linaw.test")))[0];
+    assert.ok(checkerUser?.id);
+    const submitted = await bPayroll.ok(
+      "/api/payroll-runs/" + bRunId + "/submit-review", "POST",
+      { approverUserId: checkerUser.id });
+    assert.ok(submitted.task?.id);
+    const selfCheck = await bPayroll.json(
+      "/api/approvals/" + submitted.task.id, "PATCH", { status: "Approved" });
+    denied(403, selfCheck.status, "B payroll maker cannot self-approve");
+    const checked = await bChecker.ok(
+      "/api/approvals/" + submitted.task.id, "PATCH", { status: "Approved" });
+    assert.ok(checked);
+    evidence.push("B payroll submission approved by B-only checker, not maker");
+  });
+  await stageB(7, async evidence => {
+    const deniedChecker = await bChecker.json(
+      "/api/payroll-runs/" + bRunId + "/release", "POST",
+      { acknowledgeExceptions: false });
+    denied(403, deniedChecker.status, "B checker cannot release payroll records");
+    const checklist = await tenantB.ok(
+      "/api/payroll-runs/" + bRunId + "/release-checklist");
+    assert.equal(checklist.ready, true);
+    const released = await tenantB.ok(
+      "/api/payroll-runs/" + bRunId + "/release", "POST",
+      { acknowledgeExceptions: false });
+    assert.equal(Number(released.receipt?.employeeCount), 1);
+    assert.equal(released.receipt?.bankExport?.status, "waiting");
+    const [stored] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, bRunId));
+    assert.equal(stored.status, "Released");
+    assert.equal(stored.organizationId, orgB);
+    const again = await tenantB.json(
+      "/api/payroll-runs/" + bRunId + "/release", "POST",
+      { acknowledgeExceptions: false });
+    denied(409, again.status, "duplicate B record release denied");
+    const deniedA = await tenantB.json("/api/payroll-runs?runId=" + runId + "&include=entries");
+    denied(403, deniedA.status, "B-only owner cannot read A released payroll");
+    const events = await db.select({ action: auditEvents.action }).from(auditEvents)
+      .where(eq(auditEvents.organizationId, orgB));
+    assert.ok(events.some(item => item.action === "Payroll released"));
+    evidence.push("B owner released payroll RECORDS once; bank export waiting and A payroll denied");
+  });
+  await stageB(8, async evidence => {
+    const forms = [
+      { agency: "BIR", form: "1601-C" }, { agency: "SSS", form: "R-3" },
+      { agency: "PhilHealth", form: "RF-1" }, { agency: "Pag-IBIG", form: "MCRF" },
+    ];
+    const hashes: Record<string, string> = {};
+    for (const form of forms) {
+      const input = { organizationId: orgB, runId: bRunId, ...form };
+      const generated = await bPayroll.ok(
+        "/api/compliance/filing-validations", "POST", input);
+      assert.equal(generated.record?.status, "generated");
+      assert.equal(Number(generated.record?.organizationId), orgB);
+      assert.equal(Number(generated.record?.payrollRunId), bRunId);
+      assert.match(generated.record?.fileSha256 ?? "", /^[a-f0-9]{64}$/);
+      const recordId = Number(generated.record.id);
+      const file = await bPayroll.request(
+        "/api/compliance/filing-validations/" + recordId + "/file?organizationId=" + orgB);
+      assert.equal(file.status, 200);
+      const bytes = Buffer.from(await file.arrayBuffer());
+      assert.match(bytes.toString("utf8"),
+        /DRAFT ONLY, not a certified government submission file/);
+      const digest = createHash("sha256").update(bytes).digest("hex");
+      assert.equal(digest, generated.record.fileSha256);
+      assert.equal(file.headers.get("x-filing-sha256"), digest);
+      const workerDenied = await bEmployee.request(
+        "/api/compliance/filing-validations/" + recordId + "/file?organizationId=" + orgB);
+      denied(403, workerDenied.status, form.agency + " B employee draft denial");
+      const aPayrollDenied = await payroll.request(
+        "/api/compliance/filing-validations/" + recordId + "/file?organizationId=" + orgB);
+      denied(403, aPayrollDenied.status, form.agency + " A payroll denied B draft");
+      const duplicate = await bPayroll.ok(
+        "/api/compliance/filing-validations", "POST", input);
+      assert.equal(duplicate.created, false);
+      hashes[form.agency] = digest;
+    }
+    const rows = await db.select().from(governmentFilingValidations)
+      .where(eq(governmentFilingValidations.payrollRunId, bRunId));
+    assert.equal(rows.length, 4);
+    assert.ok(rows.every(item => item.organizationId === orgB
+      && item.status === "generated" && item.agencyReference === null));
+    const aRows = await db.select().from(governmentFilingValidations)
+      .where(eq(governmentFilingValidations.payrollRunId, runId));
+    assert.equal(aRows.length, 4);
+    bLineage.draftHashes = hashes;
+    evidence.push("B payroll officer downloaded four hash-bound DRAFT agency worksheets; no submissions");
+  });
+  assert.equal(bLineage.sourcePunchId, bPunchId);
+  assert.equal(bLineage.payrollRunId, bRunId);
+
   assert.equal(report.lineage.sourcePunchId, punchId);
   assert.equal(report.lineage.payrollRunId, runId);
 }
@@ -631,7 +932,8 @@ main().catch(error => {
   process.exitCode = 1;
 }).finally(async () => {
   save();
-  console.log("Nine-stage result=" + report.result + " statuses="
-    + stages.map(s => s.name + ":" + s.status).join(", "));
+  console.log("Nine-stage result=" + report.result
+    + " employerA=" + stages.map(s => s.name + ":" + s.status).join(", ")
+    + " employerB=" + employerBStages.map(s => s.name + ":" + s.status).join(", "));
   await pool.end();
 });
