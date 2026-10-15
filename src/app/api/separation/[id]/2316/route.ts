@@ -1,3 +1,4 @@
+import { loadFinalPay2316Withholding } from "@/lib/bir-2316-withholding-server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, separationRecords } from "@/db/schema";
@@ -107,7 +108,9 @@ export async function GET(
   }
 
   const taxYear = Number(String(separation.lastDay).slice(0, 4));
+  const withholdingEvidence = await loadFinalPay2316Withholding(separation.organizationId, employee.id, separation.id);
   const body = renderForm2316({
+    withholdingEvidence,
     taxYear,
     employerName: organization.legalName ?? organization.name,
     employerTin: `${employerTin}-${employerBranch}`,

@@ -259,7 +259,8 @@ try {
     const html = await response.text();
     assert.equal(html.includes("data-bir-2316-reconciliation"), enabled);
     if (enabled) {
-      assert.match(html, /SETTLEMENT_UNVERIFIED/);
+      assert.doesNotMatch(html, /SETTLEMENT_UNVERIFIED/);
+      assert.match(html, /Item 25A[^<]*<\/dt><dd>5,000\.00/);
       assert.match(html, /PREVIOUS_EMPLOYER_UNVERIFIED/);
       assert.match(html, /REQUIRES VERIFIED SOURCE/);
     }
@@ -275,6 +276,19 @@ try {
     const reviewEmployee = await login("employee");
     const denied = await reviewEmployee.request.get(url);
     assert.equal(denied.status(), 403, "non-payroll employee cannot access 2316 review");
+    const finalUrl = base + "/api/separation/" + fixture.separationId + "/2316";
+    const finalResponse = await owner.request.get(finalUrl);
+    assert.equal(finalResponse.status(), 200);
+    const finalText = await finalResponse.text();
+    assert.match(finalResponse.headers()["cache-control"], /no-store/);
+    if (enabled) {
+      assert.match(finalText, /UNSETTLED_ADJUSTMENT/);
+      const actualLine = finalText.split("\n").find(line => line.includes("Item 25A"));
+      assert.ok(actualLine.includes(Number(fixture.actualFinalWithheld).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })));
+      const unpaidLine = finalText.split("\n").find(line => line.includes("Uncollected tax adjustment"));
+      assert.ok(unpaidLine.includes(Number(fixture.uncollectedTax).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })));
+    } else assert.ok(!finalText.includes("Uncollected tax adjustment"));
+    assert.equal((await reviewEmployee.request.get(finalUrl)).status(), 403);
     await reviewEmployee.close();
     results.push({ checkpoint: "2316-review-" + (enabled ? "on" : "off"), result: "pass", widths: [1280, 390], sourceStatusDoesNotProveSettlement: true });
   }
