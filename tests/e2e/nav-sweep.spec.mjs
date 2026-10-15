@@ -289,19 +289,40 @@ async function checkRole(browser, role, width, authState, pages) {
 }
 
 test("read-only navigation and runtime error sweep (real roles, both viewports)", { timeout: 3600000 }, async () => {
-  const browser = await chromium.launch({ headless: true });
+  let activeRole = "setup";
+  let activeViewport = 0;
   try {
     for (const { role, pages: allPages } of manifest.roles) {
       if (proofOnly && role !== "owner") continue;
       if (focusRole && role !== focusRole) continue;
+      activeRole = role;
       const pages = proofOnly ? ["Overview"] : focusPage
         ? allPages.filter(name => name === focusPage) : allPages;
       assert.ok(pages.length, "Requested focus page is not in role navigation: " + role + "/" + focusPage);
-      const state = await login(browser, role);
-      for (const width of (proofOnly ? [1280] : [1280, 390])) await checkRole(browser, role, width, state, pages);
+      // Bound Chromium's memory lifetime to a single role. A previous complete
+      // CI sweep lost the browser after 238 successful pages, before the remaining
+      // pages had run. Fresh contexts alone did not prevent that process failure.
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const state = await login(browser, role);
+        for (const width of (proofOnly ? [1280] : [1280, 390])) {
+          activeViewport = width;
+          await checkRole(browser, role, width, state, pages);
+        }
+      } finally {
+        await browser.close();
+      }
     }
+  } catch (error) {
+    // Preserve a FAIL in the artifact even if the browser process dies. Previously
+    // the report could show "238 passed / 0 failed" for an incomplete sweep.
+    const detail = safeText(error?.stack ?? error?.message ?? String(error));
+    results.push({ role: activeRole, page: "SWEEP_INFRASTRUCTURE",
+      viewport: activeViewport, result: "FAIL", elapsedMs: 0,
+      findings: [{ kind: "infrastructure", detail }], screenshot: null,
+      skippedControls: 0, skippedExamples: [] });
+    console.error("NAV_SWEEP_INFRASTRUCTURE_FAIL " + activeRole + " " + activeViewport + "px " + detail);
   } finally {
-    await browser.close();
     const failed = results.filter(r => r.result === "FAIL");
     const report = {
       generatedAt: new Date().toISOString(), syntheticOnly: true, productionDataUsed: false,
