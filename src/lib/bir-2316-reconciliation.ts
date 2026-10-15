@@ -1,3 +1,4 @@
+import type { Bir2316Withholding } from "./bir-2316-withholding";
 /** Read-only review of September 2021 ENCS items. Never computes payroll tax,
  * fills missing evidence with zero, signs a certificate or authorizes filing. */
 export const BIR_2316_NON_TAX_ITEMS = ["29", "30", "31", "32", "33", "34", "35", "36", "37"] as const;
@@ -28,7 +29,7 @@ export function bir2316Centavos(value: Money, signed = false): number | null {
   const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
   return Number.isSafeInteger(cents) ? (negative ? -cents : cents) : null;
 }
-export function reviewBir2316Summary(source: Bir2316ReviewSource, evidence?: Bir2316MappingEvidence) {
+export function reviewBir2316Summary(source: Bir2316ReviewSource, evidence?: Bir2316MappingEvidence, withholding?: Bir2316Withholding) {
   const issues: Array<{ code: string; message: string }> = [];
   const add = (code: string, message: string) => issues.push({ code, message });
   const read = (value: Money, field: string, signed = false) => {
@@ -56,9 +57,24 @@ export function reviewBir2316Summary(source: Bir2316ReviewSource, evidence?: Bir
   if (!evidence) {
     add("DETAIL_MAPPING_UNVERIFIED", "Items 29–37 and 39–51B require reviewed present-employer category mapping.");
     add("PREVIOUS_EMPLOYER_UNVERIFIED", "Previous employer taxable compensation and withholding are unknown; absence is not a confirmed zero.");
-    add("SETTLEMENT_UNVERIFIED", "Actual collection/refund and present-employer released withholding are unverified, even if the source status says settled.");
+    const actual = bir2316Centavos(withholding?.actualPresentWithheld);
+    const applied = bir2316Centavos(withholding?.appliedAdjustment, true);
+    if (!withholding || actual === null || applied === null || withholding.issues.length)
+      add("SETTLEMENT_UNVERIFIED", withholding
+        ? "Actual collection/refund and present-employer released withholding need review; a settled label alone is insufficient."
+        : "Actual collection/refund and present-employer released withholding are unverified, even if the source status says settled.");
+    for (const code of withholding?.issues ?? []) add(code, "Released withholding evidence requires correction or independent review.");
+    if (actual !== null && applied !== null && before !== null && actual !== before + applied)
+      add("ACTUAL_LEDGER_MISMATCH", "Actual released withholding differs from the reviewed opening plus applied adjustment.");
+    if (applied !== null && adjustment !== null && applied !== adjustment)
+      add("UNSETTLED_ADJUSTMENT", "Tax adjustment has an uncollected balance or unapplied refund.");
+    if (withholding) {
+      row("internal", "Applied collection (+) / refund (-) in released records", applied);
+      row("internal", "Uncollected tax adjustment", applied === null || adjustment === null ? null : Math.max(0, adjustment - applied));
+      row("internal", "Unapplied tax refund", applied === null || adjustment === null ? null : Math.max(0, applied - adjustment));
+    }
     add("PERA_CREDIT_UNVERIFIED", "Item 27 requires explicit PERA credit review.");
-    for (const [item, label] of [["22", "Previous employer taxable compensation"], ["23", "Combined taxable compensation"], ["25A", "Actual present employer withholding"], ["25B", "Previous employer withholding"], ["26", "Combined adjusted withholding"], ["27", "PERA credit"], ["28", "Total taxes withheld including PERA"]]) row(item, label, null);
+    for (const [item, label] of [["22", "Previous employer taxable compensation"], ["23", "Combined taxable compensation"], ["25A", "Actual present employer withholding"], ["25B", "Previous employer withholding"], ["26", "Combined adjusted withholding"], ["27", "PERA credit"], ["28", "Total taxes withheld including PERA"]]) row(item, label, item === "25A" ? actual : null);
   } else {
     const allowed = new Set<string>([...BIR_2316_NON_TAX_ITEMS, ...BIR_2316_TAX_ITEMS]);
     if (Object.keys(evidence.detailItems).some(item => !allowed.has(item)))
