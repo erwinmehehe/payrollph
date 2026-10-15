@@ -69,6 +69,12 @@ test("every mapped category is required explicitly and category sum drift is blo
   const e = evidence(); e.detailItems["39"] = "499999.99";
   assert.ok(codes(source(), e).includes("DETAIL_TOTAL_MISMATCH"));
 });
+test("unmapped detail items and benefit exemptions exceeding the official cap are blocked", () => {
+  const unknown = evidence(); unknown.detailItems["99"] = "1.00";
+  assert.ok(codes(source(), unknown).includes("UNMAPPED_DETAIL_ITEM"));
+  const over = evidence(); over.detailItems["34"] = "90000.01";
+  assert.ok(codes(source(), over).includes("EXEMPT_BENEFIT_CAP"));
+});
 test("MWE exempt wages must be included in total exempt mapping without changing tax calculations", () => {
   const s = { ...source(), grossCompensation: "156500.00", nonTaxable: "156500.00", taxableIncome: "0.00", taxDue: "0.00", withheldBeforeYearEnd: "0.00", yearEndAdjustment: "0.00" };
   const e = evidence(); for (const key of Object.keys(e.detailItems)) e.detailItems[key] = "0.00";

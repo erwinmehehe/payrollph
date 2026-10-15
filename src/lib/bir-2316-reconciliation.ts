@@ -60,6 +60,12 @@ export function reviewBir2316Summary(source: Bir2316ReviewSource, evidence?: Bir
     add("PERA_CREDIT_UNVERIFIED", "Item 27 requires explicit PERA credit review.");
     for (const [item, label] of [["22", "Previous employer taxable compensation"], ["23", "Combined taxable compensation"], ["25A", "Actual present employer withholding"], ["25B", "Previous employer withholding"], ["26", "Combined adjusted withholding"], ["27", "PERA credit"], ["28", "Total taxes withheld including PERA"]]) row(item, label, null);
   } else {
+    const allowed = new Set<string>([...BIR_2316_NON_TAX_ITEMS, ...BIR_2316_TAX_ITEMS]);
+    if (Object.keys(evidence.detailItems).some(item => !allowed.has(item)))
+      add("UNMAPPED_DETAIL_ITEM", "Unknown detail item cannot be silently omitted from form totals.");
+    const exemptBenefits = bir2316Centavos(evidence.detailItems["34"]);
+    if (exemptBenefits !== null && exemptBenefits > 9000000)
+      add("EXEMPT_BENEFIT_CAP", "Item 34 cannot exceed the prescribed PHP 90,000 exempt benefit cap.");
     const sumItems = (items: readonly string[]) => {
       let total = 0;
       for (const item of items) {
