@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { employees, organizations, userOrganizations, users } from "@/db/schema";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
 import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
-import { hashPassword } from "@/lib/crypto";
+import { hashPassword, randomToken } from "@/lib/crypto";
 import { DEMO_MODE, ensureSeedData } from "@/db/seed";
 import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
@@ -114,7 +114,9 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number, scope
       .values({
         email: account.email,
         name: account.name,
-        passwordHash: hashPassword("LinawDemo2026!"),
+        // Scoped acceptance has no known password or local login path.
+        passwordHash: hashPassword(scopedOrgUnitId === null ? "LinawDemo2026!" : randomToken(32)),
+        localPasswordEnabled: scopedOrgUnitId === null,
         role: account.userRole,
         totpEnabled: false,
         backupCodes: [],
@@ -128,6 +130,7 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number, scope
         name: account.name,
         role: account.userRole,
         employeeId,
+        ...(scopedOrgUnitId === null ? {} : { localPasswordEnabled: false }),
       })
       .where(eq(users.id, user.id))
       .returning();
