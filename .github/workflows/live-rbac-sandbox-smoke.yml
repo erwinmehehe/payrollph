@@ -16,6 +16,12 @@ jobs:
       BASE_URL: https://erwinmehehe-payrollph.vercel.app
       EXPECTED_COMMIT_SHA: ${{ github.sha }}
     steps:
+      - name: Checkout exact GitHub Actions commit (read-only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
       - name: Wait for exact production deployment
         env:
           PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
