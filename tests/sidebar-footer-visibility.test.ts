@@ -17,7 +17,7 @@ test("Overview and mockup pages never conceal workspace account navigation", () 
   assert.match(shell, /data-nav-name="Settings"/);
   assert.match(shell, /aria-label="Settings"/);
   assert.match(globals, /grid-template-rows:\s*auto\s+auto\s+minmax\(0,\s*1fr\)\s+auto\s*;/);
-  assert.match(globals, /\.side-navigation\s*\{[^}]*min-height:\s*0\s*;/s);
+  assert.match(globals, /\.side-navigation\s*\{[^}]*min-height:\s*0\s*;/);
 
   // Runtime verification for both widths remains in nav-sweep.spec.mjs.
   const sweep = readFileSync("tests/e2e/nav-sweep.spec.mjs", "utf8");
