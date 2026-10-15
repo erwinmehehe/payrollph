@@ -1,0 +1,58 @@
+name: Issue 1031 Full Schema Diff Regression
+
+on:
+  push:
+    paths:
+      - "scripts/lib/issue-1031-schema-manifest.ts"
+      - "scripts/check-issue-1031-full-schema-diff.ts"
+      - "src/lib/issue-1031-full-schema-diff.ts"
+      - "tests/issue-1031-full-schema-*.test.ts"
+      - ".github/workflows/issue-1031-schema-diff-ci.yml"
+  pull_request:
+    paths:
+      - "scripts/lib/issue-1031-schema-manifest.ts"
+      - "scripts/check-issue-1031-full-schema-diff.ts"
+      - "src/lib/issue-1031-full-schema-diff.ts"
+      - "tests/issue-1031-full-schema-*.test.ts"
+      - ".github/workflows/issue-1031-schema-diff-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-and-catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fixture
+          POSTGRES_USER: fixture
+          POSTGRES_DB: issue1031_schema_fixture
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fixture -d issue1031_schema_fixture"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: TypeScript compile check
+        run: npm run typecheck
+      - name: Generate complete AST/Drizzle source manifest (no database access)
+        run: ./node_modules/.bin/tsx scripts/issue-1031-print-schema-manifest.ts > /tmp/issue1031-manifest.json
+      - name: Pure structural diff tests
+        run: ./node_modules/.bin/tsx --test tests/issue-1031-full-schema-diff.test.ts
+      - name: Disposable PostgreSQL 16 drift-injection proof
+        env:
+          ISSUE1031_DISPOSABLE_PG_URL: postgresql://fixture:fixture@127.0.0.1:5432/issue1031_schema_fixture
+        run: ./node_modules/.bin/tsx --test tests/issue-1031-full-schema-postgres.test.ts
