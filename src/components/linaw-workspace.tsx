@@ -73,7 +73,7 @@ import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 
-export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null, optionalUiCapabilities = { overpaymentPreview: false, overpaymentInvestigation: false, tenantReportBuilder: false } }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null; optionalUiCapabilities?: { overpaymentPreview: boolean; overpaymentInvestigation: boolean; tenantReportBuilder: boolean } }) {
   const searchParams = useSearchParams();
   const workflowUi = useWorkflowUi();
   const requestedDemoRole = searchParams.get("demoRole");
@@ -579,7 +579,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
         )}
 
         {page === "Planning" && <WorkforcePlanningPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} onPage={setPage} />}
-        {page === "Compensation" && <CompensationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Compensation" && <CompensationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canViewPayrollEvidence={data.access?.companyWide === true && ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(effectiveRole ?? "")} previewEnabled={optionalUiCapabilities.overpaymentPreview && ["owner", "admin", "checker"].includes(effectiveRole ?? "")} investigationEnabled={optionalUiCapabilities.overpaymentInvestigation} />}
         {page === "Workforce" && (
           <WorkforcePlanner
             key={[data.user?.id, data.selectedOrganization.id, data.access?.role, data.access?.companyWide, data.access?.orgUnitName].join(":")}
@@ -629,13 +629,13 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
         {page === "More modules" && availablePages.includes("More modules") && <MoreModules key={data.selectedOrganization.id} organizationId={data.selectedOrganization.id} enabledModules={data.selectedOrganization.enabledModules ?? []} onRefresh={async () => { await refresh(); }} notify={notify} />}
         {page === "Reports" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity} organizationId={data.selectedOrganization.id} title="Reports by entity" />}
         {page === "Reports" && availablePages.includes("Reports") && <CoreReports
-          analytics={(!rolePages || rolePages.includes("Analytics")) ? <AnalyticsView data={data} notify={notify} /> : undefined}
+          analytics={(!rolePages || rolePages.includes("Analytics")) ? <AnalyticsView data={data} notify={notify} tenantReportBuilderEnabled={optionalUiCapabilities.tenantReportBuilder} /> : undefined}
           exports={(!rolePages || rolePages.includes("Exports")) ? <ExportsView data={data} notify={notify} onRefresh={async () => { await refresh(); }} /> : undefined}
         />}
 
         {page === "Analytics" && data.multiEntity?.enabled && <EntityFilter context={data.multiEntity}
           organizationId={data.selectedOrganization.id} title="Reports by entity" />}
-        {page === "Analytics" && <AnalyticsView data={data} notify={notify} />}
+        {page === "Analytics" && <AnalyticsView data={data} notify={notify} tenantReportBuilderEnabled={optionalUiCapabilities.tenantReportBuilder} />}
         {page === "Exports" && data.multiEntity?.enabled && <div style={{ marginBottom: 12 }}>
           <EntityBadge context={data.multiEntity} legalEntityId={data.multiEntity.legalEntityId}
             label={data.multiEntity.legalEntityId === null ? "All legal entities — select a payer for each export" : undefined} />
