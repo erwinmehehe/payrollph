@@ -23,6 +23,7 @@ const names = [
 ];
 type Stage = { name: string; status: "PASS" | "FAIL" | "BLOCKED" | "NOT_RUN"; evidence: string[]; reason?: string };
 const stages: Stage[] = names.map(name => ({ name, status: "NOT_RUN", evidence: [] }));
+const employerBStages: Stage[] = names.map(name => ({ name, status: "NOT_RUN", evidence: [] }));
 const report = {
   schemaVersion: 1, sourceSha: process.env.PR_HEAD_SHA ?? "local",
   virtualGeneratedAt: new Date().toISOString(), githubRunId: process.env.GITHUB_RUN_ID ?? "local", result: "BLOCKED",
@@ -33,7 +34,7 @@ const report = {
     realWallClockAttendance: false, actualApiCapture: true },
   bankOrPaymentSubmission: "PROHIBITED", officialAgencySubmission: "NOT_RUN",
   physicalDeviceUat: "NOT_RUN", realEmployerReconciliation: "NOT_RUN",
-  stages, negativeControls: [] as string[],
+  stages, employerBStages, negativeControls: [] as string[],
   lineage: {} as Record<string, unknown>,
 };
 const password = "FictionalOnly!" + randomUUID().replaceAll("-", "").slice(0, 20);
@@ -127,10 +128,22 @@ async function stage(index: number, action: (evidence: string[]) => Promise<void
   }
 }
 function save() {
-  report.result = stages.every(s => s.status === "PASS") ? "PASS"
-    : stages.some(s => s.status === "FAIL") ? "FAIL" : "PARTIAL";
+  const allStages = [...stages, ...employerBStages];
+  report.result = allStages.every(s => s.status === "PASS") ? "PASS"
+    : allStages.some(s => s.status === "FAIL") ? "FAIL" : "PARTIAL";
   mkdirSync("qa-artifacts", { recursive: true });
   writeFileSync(PATH, JSON.stringify(report, null, 2) + "\n");
+}
+async function stageB(index: number, action: (evidence: string[]) => Promise<void>) {
+  const item = employerBStages[index];
+  try {
+    await action(item.evidence);
+    item.status = "PASS";
+  } catch (error) {
+    item.status = "FAIL";
+    item.reason = error instanceof Error ? error.message.slice(0, 260) : "Unclassified test failure";
+    throw error;
+  }
 }
 function denied(code: number, actual: number, label: string) {
   assert.equal(actual, code, label + " must fail closed at HTTP " + code);
@@ -165,7 +178,7 @@ async function main() {
   const periodStart = workDate;
   const periodEnd = workDate;
   const payDate = dateInManila(new Date(now.getTime() + 86400000));
-  let orgA = 0, orgB = 0, worker = 0, runId = 0, punchId = 0;
+  let orgA = 0, orgB = 0, worker = 0, bWorker = 0, runId = 0, punchId = 0;
   let owner!: Client, hr!: Client, manager!: Client, employee!: Client;
   let payroll!: Client, checker!: Client, tenantB!: Client;
   const employeeNo = "NINE-001";
@@ -215,12 +228,6 @@ async function main() {
       name: "Fictional Connected Employer B", legalName: "Fictional Connected Employer B Inc.",
     }).returning();
     orgB = other.id;
-    await db.insert(employees).values({
-      organizationId: orgB, employeeNo,
-      firstName: "Fictional", lastName: "Tenant B",
-      title: "Isolation Only", avatarInitials: "FB", basicRate: "28000",
-      startDate: workDate,
-    });
     const specs = [
       { key: "hr", role: "hr" }, { key: "manager", role: "manager" },
       { key: "employee", role: "employee" }, { key: "payroll", role: "payroll" },
@@ -244,6 +251,23 @@ async function main() {
     [hr, manager, employee, payroll, checker, tenantB] = await Promise.all(
       specs.map(x => login(x.key.toLowerCase() + ".nine@linaw.test")),
     );
+    // Employer B must be a real synthetic employee created through the authorized
+    // application API, not a DB-only shadow record with no pay/onboarding setup.
+    const bHire = await tenantB.ok("/api/employees", "POST", {
+      organizationId: orgB, employeeNo,
+      firstName: "Fictional", lastName: "Worker B",
+      title: "Synthetic Attendance Worker", email: "worker-b.nine@linaw.test",
+      payBasis: "monthly", rateAmount: 28000,
+      standardWorkDaysPerMonth: 22, standardHoursPerDay: 8,
+      region: "NCR", startDate: workDate,
+      bankAccount: "QA-ACCOUNT-NOT-REAL-02", bankCode: "BDO",
+      mobile: "QA-ONLY-0002", tin: "QA-TIN-2002",
+      sssNo: "QA-SSS-2002", philHealthNo: "QA-PHIC-2002",
+      pagIbigNo: "QA-HDMF-2002", tinBranchCode: "0000",
+    });
+    bWorker = Number(bHire.employee?.id);
+    assert.ok(bWorker > 0 && bWorker !== worker, "B must have an independently created worker");
+
     const bReadA = await tenantB.json("/api/employees?organizationId=" + orgA);
     denied(403, bReadA.status, "tenant B-only owner denied A employees");
     const payrollReadB = await payroll.json("/api/payroll-runs?organizationId=" + orgB);
@@ -253,8 +277,11 @@ async function main() {
     assert.equal(aEmployee.length, 1);
     assert.equal(bEmployee.length, 1);
     assert.notEqual(Number(aEmployee[0].id), Number(bEmployee[0].id));
+    assert.equal(Number(bEmployee[0].id), bWorker);
+    assert.equal(String(bEmployee[0].employeeNo), employeeNo);
     evidence.push("Authoritative " + hireMode + " hire returned worker identity; distinct tenant A/B and seven payroll-role sessions");
     report.lineage = { organizationId: orgA, shadowOrganizationId: orgB, employeeId: worker,
+      employerBWorkerId: bWorker,
       periodStart, periodEnd, payDate, employeeHireDate: workDate, sourcePunchId: null, payrollRunId: null,
       separateEmployerSameLocalEmployeeNo: true, hireMode, governedHire: governedHire ?? null };
     // Private localhost browser sign-in handoff, never uploaded as an artifact.
