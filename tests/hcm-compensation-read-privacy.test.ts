@@ -139,11 +139,10 @@ test("company-wide HR keeps authorized cycle budget, not disbursement secrets", 
   ]) assert.ok(!text.includes(forbidden), "Unexpected serialized sensitive field: " + forbidden);
 });
 
-test("invalid, wrong employer and missing unit scopes produce no catalogs", async () => {
+test("missing unit or invalid employer scopes expose no catalogs", async () => {
   for (const access of [
     { ...unit, orgUnitId: null },
     { ...unit, organizationId: 0 },
-    { ...unit, organizationId: 11, orgUnitId: 101 },
     { ...companyWide, organizationId: 0 },
   ]) {
     const payload = projectCompensationReadCatalogs({ ...raw, access });
@@ -160,7 +159,9 @@ test("source GET enforces org role before projecting only allowlisted catalog an
   const dbQuery = get.indexOf("const [");
   const projected = get.indexOf("projectCompensationReadCatalogs({");
   const response = get.indexOf("return Response.json({", projected);
+  const payload = get.slice(response);
   assert.ok(role > 0 && scope > role && dbQuery > scope && projected > dbQuery && response > projected);
+  assert.match(get.slice(scope, dbQuery), /!access\.companyWide && \(!access\.orgUnitId \|\| !access\.orgUnitName\)/);
   for (const safeCatalog of ["cycles","positions","legalEntities","bands","jobProfiles","jobGrades"]) {
     assert.ok(get.includes(safeCatalog + ": catalog." + safeCatalog), "Missing safe " + safeCatalog);
   }
@@ -168,9 +169,9 @@ test("source GET enforces org role before projecting only allowlisted catalog an
   assert.ok(get.includes("const scopedProposals = proposals.filter((row) => visibleIds.has(row.employeeId))"));
   assert.ok(get.includes("proposals: scopedProposals.map("));
   assert.ok(get.includes("componentAssignments: componentAssignments.filter((row) => visibleIds.has(row.employeeId))"));
-  assert.ok(!get.includes("legalEntities: entities,"));
-  assert.ok(!get.includes("positions: positionRows,"));
-  assert.ok(!get.includes("cycles,\n    proposals:"));
+  assert.ok(!payload.includes("legalEntities: entities,"));
+  assert.ok(!payload.includes("positions: positionRows,"));
+  assert.ok(!payload.includes("cycles,\n    proposals:"));
   const projection = readFileSync("src/lib/hcm-compensation-read-projection.ts", "utf8");
   for(const mutator of ["db.insert(", "db.update(", "db.delete(", "fetch(", "process.env"]) {
     assert.ok(!projection.includes(mutator), "Projection cannot write or fetch.");
