@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CalendarDays,
@@ -10,6 +10,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Status } from "@/components/workspace/ui";
+import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
 
 type CalendarStatus =
   | "complete"
@@ -94,30 +95,34 @@ function prettyDate(value: string | null) {
 }
 
 export function ComplianceCalendarPanel({ organizationId }: { organizationId: number }) {
-  const [payload, setPayload] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [attentionOnly, setAttentionOnly] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const fetchCalendar = useCallback(async (signal: AbortSignal): Promise<Payload> => {
+    let response: Response;
     try {
-      const response = await fetch(`/api/compliance/calendar?organizationId=${organizationId}`, { cache: "no-store" });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setError(body.error ?? "Compliance calendar could not be loaded.");
-        return;
-      }
-      setPayload(body);
+      response = await fetch("/api/compliance/calendar?organizationId=" + organizationId, {
+        cache: "no-store",
+        signal,
+      });
     } catch {
-      setError("Compliance calendar could not be loaded because the server could not be reached.");
-    } finally {
-      setLoading(false);
+      throw new Error("Compliance calendar could not be loaded because the server could not be reached.");
     }
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof body.error === "string" ? body.error : "Compliance calendar could not be loaded.");
+    }
+    if (!Array.isArray(body.items) || !Array.isArray(body.applicableMonths) || typeof body.note !== "string") {
+      throw new Error("Compliance calendar returned an invalid response.");
+    }
+    return body as Payload;
   }, [organizationId]);
 
-  useEffect(() => { void load(); }, [load]);
+  // Discard previous-employer data before paint and abort retired responses,
+  // including errors that arrive after a fast A-to-B employer switch.
+  const { data: payload, loading, error: loadError, reload } = useScopedAsyncResource(
+    "compliance-calendar:" + organizationId,
+    fetchCalendar,
+  );
+  const error = loadError?.message ?? "";
 
   const items = useMemo(
     () => (payload?.items ?? []).filter((item) => !attentionOnly || urgent.has(item.status)),
@@ -137,7 +142,7 @@ export function ComplianceCalendarPanel({ organizationId }: { organizationId: nu
             BIR withholding and mandatory contribution deadlines are shown beside the remittance evidence PayrollPH actually holds.
           </p>
         </div>
-        <button className="secondary-button" type="button" disabled={loading} onClick={() => void load()}>
+        <button className="secondary-button" type="button" disabled={loading} onClick={() => void reload()}>
           <RefreshCw size={14} /> {loading ? "Checking…" : "Refresh"}
         </button>
       </div>
