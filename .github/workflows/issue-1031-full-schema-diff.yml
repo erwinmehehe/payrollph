@@ -1,0 +1,72 @@
+name: Issue 1031 Full Production Schema Diff (Read Only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact reviewed 40-character main commit SHA
+        required: true
+        type: string
+      expected_database_name:
+        description: DBA-reviewed database name (never credentials)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payrollph-production-schema-read-only
+  cancel-in-progress: false
+
+jobs:
+  full-schema-diff:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+      EXPECTED_PRODUCTION_DATABASE_NAME: ${{ inputs.expected_database_name }}
+    steps:
+      - name: Require exact reviewed main SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$REVIEWED_SHA" != "$GITHUB_SHA" ] || [ -z "$EXPECTED_PRODUCTION_DATABASE_NAME" ]; then
+            echo "Source must be current, exact, reviewed main SHA."
+            exit 1
+          fi
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Run catalog-only schema diff
+        env:
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          GITHUB_REF: ${{ github.ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$PRODUCTION_DATABASE_URL" ]; then
+            echo "Dedicated protected catalog-only connection is missing."
+            exit 1
+          fi
+          ./node_modules/.bin/tsx scripts/check-issue-1031-full-schema-diff.ts > full-schema-diff.json
+      - name: Retain reviewed structural-only output
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: issue-1031-full-schema-diff
+          path: full-schema-diff.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Evidence boundary
+        if: always()
+        run: |
+          echo "CATALOG_ONLY_NOT_MIGRATION_RECEIPT_OR_RELEASE_APPROVAL"
+          echo "No historical migration execution or payroll/payout approval is inferred."
