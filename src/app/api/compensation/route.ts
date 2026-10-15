@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   compensationBands,
@@ -14,6 +14,7 @@ import {
   jobGrades,
   jobProfiles,
   legalEntities,
+  orgUnits,
   positionAssignments,
   positions,
   workerEffectiveChanges,
@@ -41,6 +42,7 @@ import {
   philippineBusinessDate,
 } from "@/lib/hcm-compensation";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { projectCompensationReadCatalogs } from "@/lib/hcm-compensation-read-projection";
 import { cancelHcmBusinessProcessForSourceTx, findHcmBusinessProcessForSource, startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
 import { compensationEvidenceFromDefinition, compensationReviewFingerprint, freezeCompensationReview, type HcmCompensationReview } from "@/lib/hcm-compensation-business-process";
 
@@ -247,6 +249,24 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  // An HR membership with a foreign/deleted unit must not read even cycle metadata.
+  // getAccess() may return an unresolved orgUnitName for non-manager roles.
+  if (!access.companyWide && (!access.orgUnitId || !access.orgUnitName)) {
+    return Response.json({ error: "An active unit in the selected employer is required for compensation." }, { status: 403 });
+  }
+  if (!access.companyWide) {
+    const today = philippineBusinessDate();
+    const [activeUnit] = await db.select({ id: orgUnits.id }).from(orgUnits).where(and(
+      eq(orgUnits.id, access.orgUnitId!),
+      eq(orgUnits.organizationId, organizationId),
+      eq(orgUnits.active, true),
+      or(isNull(orgUnits.effectiveFrom), lte(orgUnits.effectiveFrom, today)),
+      or(isNull(orgUnits.effectiveUntil), gte(orgUnits.effectiveUntil, today)),
+    )).limit(1);
+    if (!activeUnit) {
+      return Response.json({ error: "The selected employer unit is inactive or out of scope." }, { status: 403 });
+    }
+  }
 
   const [
     staff,
@@ -343,32 +363,104 @@ export async function GET(request: Request) {
     };
   });
 
+  const scopedProposals = proposals.filter((row) => visibleIds.has(row.employeeId));
+  const catalog = projectCompensationReadCatalogs({
+    access,
+    workers: enrichedEmployees,
+    proposals: scopedProposals,
+    assignments,
+    positions: positionRows,
+    jobProfiles: profilesByJob,
+    jobGrades: grades,
+    legalEntities: entities,
+    bands,
+    cycles,
+  });
+
   return Response.json({
     access,
     currentUserId: user.id,
     today,
-    employees: enrichedEmployees,
-    jobProfiles: profilesByJob,
-    jobGrades: grades,
-    legalEntities: entities,
-    positions: positionRows,
-    assignments: assignments.filter((row) => visibleIds.has(row.employeeId)),
-    bands,
-    cycles,
-    proposals: proposals.filter((row) => visibleIds.has(row.employeeId)).map((proposal) => {
+    employees: enrichedEmployees.map((employee) => ({
+      id: employee.id,
+      firstName: employee.firstName,
+      lastName: employee.lastName,
+      title: employee.title,
+      annualPay: employee.annualPay,
+      positionId: employee.positionId,
+      jobProfileId: employee.jobProfileId,
+      gradeId: employee.gradeId,
+      salaryBand: employee.salaryBand ? {
+        id: employee.salaryBand.id,
+        jobProfileId: employee.salaryBand.jobProfileId,
+        gradeId: employee.salaryBand.gradeId,
+        legalEntityId: employee.salaryBand.legalEntityId,
+        locationCode: employee.salaryBand.locationCode,
+        currency: employee.salaryBand.currency,
+        minimumAnnual: employee.salaryBand.minimumAnnual,
+        midpointAnnual: employee.salaryBand.midpointAnnual,
+        maximumAnnual: employee.salaryBand.maximumAnnual,
+        effectiveFrom: employee.salaryBand.effectiveFrom,
+        effectiveUntil: employee.salaryBand.effectiveUntil,
+        active: employee.salaryBand.active,
+      } : null,
+      compaRatio: employee.compaRatio,
+      rangePosition: employee.rangePosition,
+    })),
+    jobProfiles: catalog.jobProfiles,
+    jobGrades: catalog.jobGrades,
+    legalEntities: catalog.legalEntities,
+    positions: catalog.positions,
+    assignments: assignments.filter((row) => visibleIds.has(row.employeeId)).map((row) => ({
+      id: row.id, employeeId: row.employeeId, positionId: row.positionId,
+      assignmentType: row.assignmentType,
+    })),
+    bands: catalog.bands,
+    cycles: catalog.cycles,
+    proposals: scopedProposals.map((proposal) => {
       const band = bands.find((row) => row.id === proposal.bandId);
       const review = compensationReviews.find((item) => item.sourceKey === String(proposal.id));
       return {
-        ...proposal,
+        id: proposal.id,
+        employeeId: proposal.employeeId,
+        cycleId: proposal.cycleId,
+        bandId: proposal.bandId,
+        currentAnnual: proposal.currentAnnual,
+        proposedAnnual: proposal.proposedAnnual,
+        reason: proposal.reason,
+        status: proposal.status,
+        failure: proposal.failure,
+        submittedByUserId: proposal.submittedByUserId,
+        workerEffectiveChangeId: proposal.workerEffectiveChangeId,
         hcmReview: review ? { id: review.id, status: review.status } : null,
         compaRatio: band ? compaRatio(Number(proposal.proposedAnnual), Number(band.midpointAnnual)) : null,
         rangePosition: band ? rangePosition(Number(proposal.proposedAnnual), Number(band.minimumAnnual), Number(band.maximumAnnual)) : null,
       };
     }),
-    components,
-    componentAssignments: componentAssignments.filter((row) => visibleIds.has(row.employeeId)),
-    compensationEvents: events.filter((row) => visibleIds.has(row.employeeId)).slice(0, 200),
-    promotions: promotionChanges.filter((row) => visibleIds.has(row.employeeId)),
+    // Never ship component creator/internal fields unrelated to the UI.
+    components: components.map((row) => ({
+      id: row.id, code: row.code, name: row.name,
+      kind: row.kind, amountFrequency: row.amountFrequency,
+      taxable: row.taxable, includeInSssBase: row.includeInSssBase,
+      includeInPagIbigBase: row.includeInPagIbigBase, active: row.active,
+    })),
+    componentAssignments: componentAssignments.filter((row) => visibleIds.has(row.employeeId)).map((row) => ({
+      id: row.id, employeeId: row.employeeId, componentId: row.componentId,
+      amount: row.amount, effectiveFrom: row.effectiveFrom,
+      effectiveUntil: row.effectiveUntil, status: row.status,
+      reason: row.reason, requestedByUserId: row.requestedByUserId,
+      requestedBy: row.requestedBy, approvedBy: row.approvedBy,
+    })),
+    compensationEvents: events.filter((row) => visibleIds.has(row.employeeId)).slice(0, 200).map((row) => ({
+      id: row.id, employeeId: row.employeeId, eventType: row.eventType,
+      effectiveDate: row.effectiveDate, previousAnnual: row.previousAnnual,
+      newAnnual: row.newAnnual, actorName: row.actorName,
+    })),
+    promotions: promotionChanges.filter((row) => visibleIds.has(row.employeeId)).map((row) => ({
+      id: row.id, employeeId: row.employeeId,
+      effectiveDate: row.effectiveDate, status: row.status,
+      targetPositionId: row.targetPositionId,
+    })),
   });
 }
 
