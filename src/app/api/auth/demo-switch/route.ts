@@ -12,6 +12,9 @@ import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { publicDemoRequestAllowed } from "@/lib/demo-host";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
+import { operationalSecret } from "@/lib/operational-secret";
+import { constantTimeSecretEqual } from "@/lib/security-secret";
+import { provisionPublicDemoCompensationScope } from "@/lib/public-demo-compensation-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -80,8 +83,18 @@ const DEMO_ACCOUNTS: Record<DemoRoleId, DemoAccount> = {
   },
 };
 
-async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
-  const account = DEMO_ACCOUNTS[role];
+async function ensureDemoAccount(role: DemoRoleId, organizationId: number, scopedOrgUnitId: number | null = null) {
+  if (scopedOrgUnitId !== null &&
+      (role !== "hr" || !Number.isSafeInteger(scopedOrgUnitId) || scopedOrgUnitId <= 0)) {
+    throw new Error("Only a valid fictional HR unit may use the scoped demo identity.");
+  }
+  // Never mutate/re-scope the ordinary demo HR login used by the website.
+  const account: DemoAccount = scopedOrgUnitId === null ? DEMO_ACCOUNTS[role] : {
+    email: "hr.unit.demo@linaw.ph",
+    name: "Fictional Unit HR",
+    userRole: "hr",
+    membershipRole: "hr",
+  };
 
   let employeeId: number | null = null;
   if (account.employeeEmail) {
@@ -126,13 +139,13 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
       userId: user.id,
       organizationId,
       role: account.membershipRole,
-      orgUnitId: null,
+      orgUnitId: scopedOrgUnitId,
     })
     .onConflictDoUpdate({
       target: [userOrganizations.userId, userOrganizations.organizationId],
       set: {
         role: account.membershipRole,
-        orgUnitId: null,
+        orgUnitId: scopedOrgUnitId,
       },
     });
 
@@ -173,6 +186,30 @@ export async function POST(request: Request) {
     return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
   }
 
+  // This special persona is available only to the guarded production CI
+  // acceptance runner, never as a public role switch or privilege toggle.
+  const body = await request.json().catch(() => ({}));
+  const requestedRole = String(body.role ?? "");
+  if (!isDemoRole(requestedRole)) {
+    return Response.json({ error: "Unknown demo role." }, { status: 400 });
+  }
+  const scopedHrRequested = body.scope === "unit";
+  if ((body.scope !== undefined && !scopedHrRequested) ||
+      (scopedHrRequested && requestedRole !== "hr")) {
+    return Response.json({ error: "Unsupported demo scope." }, { status: 400 });
+  }
+  if (scopedHrRequested) {
+    let expected: string | null;
+    try {
+      expected = operationalSecret("readiness");
+    } catch {
+      return Response.json({ error: "Demo acceptance unavailable." }, { status: 503 });
+    }
+    if (!expected || !constantTimeSecretEqual(request.headers.get("x-readiness-token"), expected)) {
+      return Response.json({ error: "Not found." }, { status: 404 });
+    }
+  }
+
   // The public sandbox must never provision fixed demo identities on a
   // production database that already holds a real employer workspace.
   if (process.env.NODE_ENV === "production") {
@@ -203,12 +240,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = await request.json().catch(() => ({}));
-  const requestedRole = String(body.role ?? "");
-  if (!isDemoRole(requestedRole)) {
-    return Response.json({ error: "Unknown demo role." }, { status: 400 });
-  }
-
   const [loom] = await db
     .select()
     .from(organizations)
@@ -223,7 +254,9 @@ export async function POST(request: Request) {
   // block Owner/HR/Payroll/Checker/Bookkeeper from opening the sandbox.
   let activeUser: Awaited<ReturnType<typeof ensureDemoAccount>>;
   try {
-    activeUser = await ensureDemoAccount(requestedRole, loom.id);
+    const scopedUnitId = scopedHrRequested
+      ? await provisionPublicDemoCompensationScope(loom.id) : null;
+    activeUser = await ensureDemoAccount(requestedRole, loom.id, scopedUnitId);
   } catch (error) {
     console.error("Requested demo persona provisioning failed", requestedRole, error);
     return Response.json(
@@ -259,6 +292,7 @@ export async function POST(request: Request) {
     ok: true,
     demoDataMode: "synthetic-redacted",
     sensitiveFieldsPersisted: false,
+    scope: scopedHrRequested ? "unit" : "company",
     user: {
       id: activeUser.id,
       email: activeUser.email,
