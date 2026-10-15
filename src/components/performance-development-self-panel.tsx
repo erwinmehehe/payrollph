@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { BookOpenCheck, CheckCircle2, RefreshCw } from "lucide-react";
+import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
 
 type Milestone = {
   id: number;
@@ -37,21 +38,37 @@ export function PerformanceDevelopmentSelfPanel({
 }: {
   setNotice: (message: string) => void;
 }) {
-  const [plans, setPlans] = useState<Plan[]>([]);
   const [drafts, setDrafts] = useState<Record<number, { content: string; progressPercent: string }>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    const response = await fetch("/api/self/performance/development-plans", { cache: "no-store" });
+  const fetchPlans = useCallback(async (signal: AbortSignal): Promise<Plan[]> => {
+    let response: Response;
+    try {
+      response = await fetch("/api/self/performance/development-plans", {
+        cache: "no-store",
+        signal,
+      });
+    } catch {
+      throw new Error("Could not load your skill development plans.");
+    }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not load your skill development plans.");
-      return;
+      throw new Error(typeof payload?.error === "string" ? payload.error : "Could not load your skill development plans.");
     }
-    setPlans(payload.plans ?? []);
-  }, [setNotice]);
-
-  useEffect(() => { void load(); }, [load]);
+    if (!Array.isArray(payload?.plans)) {
+      throw new Error("Skill development plans could not be verified.");
+    }
+    return payload.plans as Plan[];
+  }, []);
+  const reportLoadError = useCallback((cause: Error) => setNotice(cause.message), [setNotice]);
+  // Retired self-service responses and errors cannot mutate a newer mounted
+  // view; failed GETs never create fictional empty development plans.
+  const { data: currentPlans, reload } = useScopedAsyncResource(
+    "self-performance-development",
+    fetchPlans,
+    reportLoadError,
+  );
+  const plans = currentPlans ?? [];
 
   async function addProgress(plan: Plan) {
     const draft = drafts[plan.id] ?? { content: "", progressPercent: "" };
@@ -72,7 +89,7 @@ export function PerformanceDevelopmentSelfPanel({
         return;
       }
       setDrafts((current) => ({ ...current, [plan.id]: { content: "", progressPercent: "" } }));
-      await load();
+      await reload();
       setNotice("Development progress added.");
     } finally {
       setSavingId(null);
@@ -92,7 +109,7 @@ export function PerformanceDevelopmentSelfPanel({
         setNotice(payload.error ?? "Could not update development milestone.");
         return;
       }
-      await load();
+      await reload();
       setNotice(status === "completed" ? "Development milestone completed." : "Development milestone started.");
     } finally {
       setSavingId(null);
@@ -109,7 +126,7 @@ export function PerformanceDevelopmentSelfPanel({
           <h3>My development plans</h3>
           <p>These plans are linked to persistent competency gaps found in completed performance evidence. Progress updates do not change compensation or payroll.</p>
         </div>
-        <button className="secondary-button" type="button" onClick={() => void load()}><RefreshCw size={14} /> Refresh</button>
+        <button className="secondary-button" type="button" onClick={() => void reload()}><RefreshCw size={14} /> Refresh</button>
       </div>
 
       <div style={{ display: "grid", gap: 12 }}>

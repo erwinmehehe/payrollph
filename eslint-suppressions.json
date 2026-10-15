@@ -129,11 +129,6 @@
       "count": 1
     }
   },
-  "src/components/performance-development-self-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/performance-follow-through-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -242,16 +237,6 @@
   "src/components/workspace/panels.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 2
-    }
-  },
-  "src/components/workspace/payroll-assurance-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/workspace/payroll-connected-impact-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
     }
   },
   "src/components/workspace/payroll-month-close-panel.tsx": {
