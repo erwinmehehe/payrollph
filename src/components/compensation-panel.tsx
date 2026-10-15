@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PayrollUnderpaymentPanel } from "@/components/payroll-underpayment-panel";
 import { PayrollOverpaymentWorkbench } from "@/components/payroll-overpayment-workbench";
 import { PayrollOverpaymentPreviewPanel } from "@/components/payroll-overpayment-preview-panel";
 import { summarizeCompensationCycleBudget } from "@/lib/hcm-compensation-cycle-budget-preview";
+import { HcmCompensationWhatIfDetails } from "@/components/hcm-compensation-whatif-details";
 import { previewCompensationProposal } from "@/lib/hcm-compensation-proposal-whatif";
 import {
   BadgeDollarSign,
@@ -150,6 +151,9 @@ export function CompensationPanel({
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [events, setEvents] = useState<CompensationEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedOrganizationId, setLoadedOrganizationId] = useState<number | null>(null);
+  const [failedLoad, setFailedLoad] = useState<{ organizationId: number; message: string } | null>(null);
+  const requestSequence = useRef(0);
 
   const [bandForm, setBandForm] = useState({
     gradeId: "",
@@ -195,15 +199,23 @@ export function CompensationPanel({
     reason: "",
   });
 
+  // An old-employer salary snapshot must never be rendered during a switch.
+  // Late responses cannot replace a newer authorized employer response.
   const load = useCallback(async () => {
+    const requestId = ++requestSequence.current;
     setLoading(true);
+    setFailedLoad(null);
     try {
-      const response = await fetch(`/api/compensation?organizationId=${organizationId}`, { cache: "no-store" });
+      const response = await fetch("/api/compensation?organizationId=" + organizationId, { cache: "no-store" });
       const body = await response.json().catch(() => ({}));
+      if (requestSequence.current !== requestId) return;
       if (!response.ok) throw new Error(body.error ?? "Could not load compensation.");
-      setAccess(body.access ?? null);
+      if (!body.access || typeof body.access.companyWide !== "boolean" || !Array.isArray(body.employees)) {
+        throw new Error("Authorized compensation data is incomplete. Refresh to retry.");
+      }
+      setAccess(body.access);
       setCurrentUserId(Number.isInteger(body.currentUserId) ? body.currentUserId : null);
-      setEmployees(body.employees ?? []);
+      setEmployees(body.employees);
       setJobProfiles(body.jobProfiles ?? []);
       setJobGrades(body.jobGrades ?? []);
       setLegalEntities(body.legalEntities ?? []);
@@ -214,15 +226,21 @@ export function CompensationPanel({
       setComponentAssignments(body.componentAssignments ?? []);
       setPromotions(body.promotions ?? []);
       setEvents(body.compensationEvents ?? []);
+      setLoadedOrganizationId(organizationId);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not load compensation.");
+      if (requestSequence.current !== requestId) return;
+      const message = error instanceof Error ? error.message : "Could not load compensation.";
+      setFailedLoad({ organizationId, message });
+      setLoadedOrganizationId(null);
+      setNotice(message);
     } finally {
-      setLoading(false);
+      if (requestSequence.current === requestId) setLoading(false);
     }
   }, [organizationId, setNotice]);
 
   useEffect(() => {
     void load();
+    return () => { requestSequence.current++; };
   }, [load]);
 
   async function post(entityType: string, payload: Record<string, unknown>) {
@@ -297,6 +315,26 @@ export function CompensationPanel({
     (promotion) => promotion.employeeId === selectedEmployeeId,
   );
   const canApprove = access?.role === "owner" || access?.role === "admin";
+
+  // The workspace can retain this component while the selected employer
+  // changes. Withhold all compensation records until the exact new source
+  // has been fetched successfully.
+  if (loading || loadedOrganizationId !== organizationId || !access) {
+    return (
+      <section role="status" aria-live="polite" data-hcm-compensation-source="unavailable">
+        <div className="notice notice-slate" style={{ marginTop: 16 }}>
+          {failedLoad?.organizationId === organizationId && !loading
+            ? failedLoad.message
+            : "Loading authorized compensation data for the selected employer."}
+        </div>
+        {failedLoad?.organizationId === organizationId && !loading && (
+          <button type="button" className="secondary-button" onClick={() => void load()}>
+            <RefreshCw size={14} /> Retry compensation data
+          </button>
+        )}
+      </section>
+    );
+  }
 
   return (
     <div>
@@ -525,58 +563,7 @@ export function CompensationPanel({
             </select>
             <input type="number" value={proposalForm.proposedAnnual} onChange={(event) => setProposalForm({ ...proposalForm, proposedAnnual: event.target.value })} placeholder="Proposed annual pay" />
             <textarea value={proposalForm.reason} onChange={(event) => setProposalForm({ ...proposalForm, reason: event.target.value })} placeholder="Reason for proposed change" />
-            {proposalImpact && (
-              <div className="notice notice-slate" role="status" aria-live="polite"
-                style={{ margin: 0, display: "grid", gap: 6 }}>
-                <strong>Proposed salary impact · read-only what-if</strong>
-                {proposalImpact.state === "ready" ? (
-                  <>
-                    <span>
-                      Current {budgetPeso(proposalImpact.currentAnnual)} → proposed {budgetPeso(proposalImpact.proposedAnnual)}
-                      {" · "}change {proposalImpact.changeAnnual > 0 ? "+" : ""}
-                      {budgetPeso(proposalImpact.changeAnnual)}
-                      {proposalImpact.changePercent !== null && <> ({pct(proposalImpact.changePercent)})</>}
-                    </span>
-                    <span>
-                      Proposed compa-ratio {pct(proposalImpact.proposedCompaRatioPercent)}
-                      {" · "}salary-band position {pct(proposalImpact.proposedRangePositionPercent)}
-                    </span>
-                    {!proposalImpact.withinSelectedBand && (
-                      <strong>The proposed salary is outside the selected band's recorded range.
-                        The server must independently verify eligibility and applicable band.</strong>
-                    )}
-                    {proposalImpact.hasExistingProposal && (
-                      <strong>This worker already has an in-flight or applied proposal in the selected cycle.
-                        Review the existing source record; no additional budget estimate is shown.</strong>
-                    )}
-                    {access?.companyWide && proposalImpact.remainingIfAllProceedAnnual !== null && (
-                      <span>
-                        Hypothetical pool remaining if existing pending proposals and this new increase all proceed:
-                        {" "}{budgetPeso(proposalImpact.remainingIfAllProceedAnnual)}
-                      </span>
-                    )}
-                    {access?.companyWide && proposalImpact.possibleBudgetOverageAnnual !== null &&
-                        proposalImpact.possibleBudgetOverageAnnual > 0 && (
-                      <strong>
-                        Potential budget excess: {budgetPeso(proposalImpact.possibleBudgetOverageAnnual)}.
-                        Independent HR/Finance and source checks are still required.
-                      </strong>
-                    )}
-                    {access?.companyWide && proposalImpact.remainingIfAllProceedAnnual === null && (
-                      <span>Full budget estimate unavailable or an existing worker proposal needs review.</span>
-                    )}
-                    {!access?.companyWide && (
-                      <span>Company-wide compensation budget totals are not available in your role's view.</span>
-                    )}
-                  </>
-                ) : <span>{proposalImpact.reason}</span>}
-                <small>
-                  This is a provisional comparison of currently loaded records, not a salary change,
-                  band-eligibility decision, budget reservation, HR/Finance approval or payroll instruction.
-                  The governing server checks current evidence again on submission and decision.
-                </small>
-              </div>
-            )}
+            {proposalImpact && <HcmCompensationWhatIfDetails impact={proposalImpact} companyWide={access.companyWide} />}
             <button
               className="secondary-button"
               onClick={async () => {
