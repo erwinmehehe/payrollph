@@ -77,8 +77,31 @@ export function HcmSelfProbationReviews() {
     }
   }
 
+  // The initial GET is an external subscription: resolve it asynchronously
+  // and abort it on unmount (including React Strict Mode remounts). Do not
+  // synchronously reset React state from an effect. Refresh and POST receipt
+  // acknowledgment continue to use the existing event-driven load() path.
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void fetch("/api/self/probation-reviews", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error ?? "Could not load probation reviews.");
+        return data as Payload;
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setPayload(data);
+      })
+      .catch((caught) => {
+        if (controller.signal.aborted) return;
+        setPayload(null);
+        setError(caught instanceof Error ? caught.message : "Could not load probation reviews.");
+      });
+    return () => controller.abort();
   }, []);
 
   async function acknowledge(reviewId: number) {
