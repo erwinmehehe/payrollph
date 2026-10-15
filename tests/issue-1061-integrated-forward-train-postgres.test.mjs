@@ -216,9 +216,20 @@ test("PG16/18: 0115-0123 exact source, denied writes, money invariants and total
       [runA, workerA]
     )).rows[0].id;
     const seededMoney = await money(db);
-    const originalNavigation = (await db.query(
-      "SELECT module_navigation_mode FROM organizations WHERE id=$1", [tenantA]
-    )).rows[0].module_navigation_mode;
+    // db:push can omit the optional 0122 module preference columns.
+    // In that legacy state the migration must backfill "all" for existing
+    // tenants while setting "core" only as the default for future inserts.
+    const navigationColumnPresent = (await db.query(
+      "SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_attribute a " +
+      "WHERE a.attrelid='public.organizations'::regclass " +
+      "AND a.attname='module_navigation_mode' AND a.attnum>0 " +
+      "AND NOT a.attisdropped) AS present"
+    )).rows[0].present;
+    const originalNavigation = navigationColumnPresent
+      ? (await db.query(
+          "SELECT module_navigation_mode FROM organizations WHERE id=$1", [tenantA]
+        )).rows[0].module_navigation_mode
+      : "all";
 
     for (const name of TRAIN) {
       await db.query(source(name));
