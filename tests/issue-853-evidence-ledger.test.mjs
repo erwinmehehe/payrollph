@@ -24,15 +24,27 @@ function claimedCompletion() {
   ledger.safetyVerification={
     verifiedAtUtc:ago(5),verifierRef:'qa-safety-independent',
     evidenceRef:'vault://fictional-853/runtime-flags',
+    servedBuildEvidenceRef:'vault://fictional-853/deployed-build',
+    databaseIsolationEvidenceRef:'vault://fictional-853/isolated-db',
+    fixtureVersionEvidenceRef:'vault://fictional-853/fixture-version',
   };
   ledger.identities={
     ownerBothId:'ownerAB',payrollOfficerAId:'payrollA',payrollOfficerBId:'payrollB',
     checkerBothId:'checkerAB',employeeAId:'empA',employeeBId:'empB',
   };
+  const personaByCase={
+    A_CLOCK_IN:'employeeAId',B_CLOCK_IN:'employeeBId',
+    A_RUN_PAYROLL:'payrollOfficerAId',B_RUN_PAYROLL:'payrollOfficerBId',
+    A_REVIEW:'checkerBothId',B_REVIEW:'checkerBothId',
+    A_RELEASE_RECORDS:'ownerBothId',B_RELEASE_RECORDS:'ownerBothId',
+    A_FILING_EVIDENCE:'payrollOfficerAId',B_FILING_EVIDENCE:'payrollOfficerBId',
+    SWITCH_375:'ownerBothId',SWITCH_390:'ownerBothId',
+    PAYROLL_A_DENIED_B:'payrollOfficerAId',EMPLOYEE_A_DENIED_B:'employeeAId',
+  };
   for (const row of ledger.tests) {
     row.observedStatus='PASS';
     row.observedAtUtc=ago(4);
-    row.observedBy='test-operator';
+    row.observedBy=ledger.identities[personaByCase[row.id]]||'test-operator';
     row.evidenceRef='vault://fictional-853/'+row.id;
     row.independentReviewer='independent-checker';
   }
@@ -54,7 +66,10 @@ test('blank v2 initializes 18 staged and 9 cross-tenant NOT_RUN checks without c
   assert.deepEqual(l.tests.filter(s=>s.tenant==='A').map(s=>s.id),STAGES.map(s=>'A_'+s[0]));
   assert.deepEqual(l.tests.filter(s=>s.tenant==='B').map(s=>s.id),STAGES.map(s=>'B_'+s[0]));
   assert.deepEqual(l.flags,{livePayouts:null,governmentSubmission:null,realEmployeeData:null});
-  assert.deepEqual(l.safetyVerification,{verifiedAtUtc:'',verifierRef:'',evidenceRef:''});
+  assert.deepEqual(l.safetyVerification,{
+    verifiedAtUtc:'',verifierRef:'',evidenceRef:'',
+    servedBuildEvidenceRef:'',databaseIsolationEvidenceRef:'',fixtureVersionEvidenceRef:'',
+  });
   assert.ok(l.tests.every(s=>s.observedStatus==='NOT_RUN' && s.blockerCode===''));
   const report=evaluate(l);
   assert.equal(report.verdict,'NOT_READY');
@@ -76,6 +91,31 @@ test('complete fictional operator claims can only be externally verified, never 
   assert.deepEqual([result.passed,result.needsFix,result.blocked,result.notRun],[27,0,0,0]);
   assert.deepEqual(result.problems,[]);
   assert.match(result.note,/cannot witness, authenticate or certify/);
+});
+
+test('Gregorian pay periods and source-persona alignment fail closed',()=>{
+  const l=claimedCompletion();
+  l.manilaPayPeriod='2026-02-30/2026-03-01';
+  assert.ok(evaluate(l).problems.some(s=>s.includes('Invalid Gregorian Manila pay period')));
+  l.manilaPayPeriod='2026-10-15/2026-10-01';
+  assert.equal(evaluate(l).verdict,'NOT_READY');
+  l.manilaPayPeriod='2026-10-01/2026-10-15';
+  l.tests.find(s=>s.id==='A_CLOCK_IN').observedBy=l.identities.employeeBId;
+  assert.ok(evaluate(l).problems.some(s=>s.includes('Wrong recorded persona for observed control: A_CLOCK_IN')));
+  l.tests.find(s=>s.id==='A_CLOCK_IN').observedBy=l.identities.employeeAId;
+  l.tests.find(s=>s.id==='PAYROLL_A_DENIED_B').observedBy=l.identities.payrollOfficerBId;
+  assert.ok(evaluate(l).problems.some(s=>s.includes('Wrong recorded persona for observed control: PAYROLL_A_DENIED_B')));
+});
+
+test('distinct proof references are mandatory for app build, isolated database and fixture version',()=>{
+  const l=claimedCompletion();
+  l.safetyVerification.servedBuildEvidenceRef='';
+  assert.ok(evaluate(l).problems.some(s=>s.includes('separate private evidence')));
+  l.safetyVerification.servedBuildEvidenceRef='vault://fictional-853/deployed-build';
+  l.safetyVerification.fixtureVersionEvidenceRef=l.safetyVerification.databaseIsolationEvidenceRef;
+  assert.ok(evaluate(l).problems.some(s=>s.includes('Duplicate private evidence reference')));
+  l.safetyVerification.fixtureVersionEvidenceRef='vault://fictional-853/fixture-version';
+  assert.equal(evaluate(l).verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
 });
 
 test('source, deployment, runtime flags and independently recorded safety are mandatory',()=>{
