@@ -188,7 +188,8 @@ export async function POST(request: Request) {
 
   // This special persona is available only to the guarded production CI
   // acceptance runner, never as a public role switch or privilege toggle.
-  const body = await request.json().catch(() => ({}));
+  const rawBody = await request.json().catch(() => ({}));
+  const body = rawBody && typeof rawBody === "object" && !Array.isArray(rawBody) ? rawBody : {};
   const requestedRole = String(body.role ?? "");
   if (!isDemoRole(requestedRole)) {
     return Response.json({ error: "Unknown demo role." }, { status: 400 });
