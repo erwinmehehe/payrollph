@@ -1,6 +1,6 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, exists, gte, inArray, isNull, like, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -40,6 +40,7 @@ import {
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, retroSourceTaxYear, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
+import { loadFinalPayRetroSourcePeriods } from "@/lib/final-pay-retro-source-lookup";
 import { reviewFinalPayLoans, matchesRecordedFinalPayLoanReview } from "@/lib/final-pay-loan-authority";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
@@ -151,33 +152,11 @@ async function loadFinalPaySources(input: {
       if (match) retroIds.add(Number(match[1]));
     }
   }
-  const retroSourcePeriods = retroIds.size
-    ? await reader.select({
-        id: employeePayRetroAdjustments.id,
-        sourcePeriodStart: payrollRuns.periodStart,
-        sourcePeriodEnd: payrollRuns.periodEnd,
-      })
-      .from(employeePayRetroAdjustments)
-      // Match M-10's source-proof standard. A referenced run date is not
-      // evidence of prior-year basic salary unless the run was Released in
-      // this tenant and actually paid this employee. LEFT JOIN retains a
-      // null source for failed provenance; readBasicAndThirteenth then blocks
-      // calculation instead of wrongly crediting the settlement year.
-      .leftJoin(payrollRuns, and(
-        eq(employeePayRetroAdjustments.sourcePayrollRunId, payrollRuns.id),
-        eq(payrollRuns.organizationId, input.organizationId),
-        eq(payrollRuns.status, "Released"),
-        exists(reader.select({ id: payrollEntries.id }).from(payrollEntries).where(and(
-          eq(payrollEntries.payrollRunId, employeePayRetroAdjustments.sourcePayrollRunId),
-          eq(payrollEntries.employeeId, employeePayRetroAdjustments.employeeId),
-        ))),
-      ))
-      .where(and(
-        eq(employeePayRetroAdjustments.organizationId, input.organizationId),
-        eq(employeePayRetroAdjustments.employeeId, input.employeeId),
-        inArray(employeePayRetroAdjustments.id, [...retroIds]),
-      ))
-    : [];
+  const retroSourcePeriods = await loadFinalPayRetroSourcePeriods({
+    organizationId: input.organizationId,
+    employeeId: input.employeeId,
+    adjustmentIds: [...retroIds],
+  }, reader);
   const retroSourceYearById = new Map(retroSourcePeriods.map((row) => [
     row.id,
     retroSourceTaxYear(String(row.sourcePeriodStart), String(row.sourcePeriodEnd)),
