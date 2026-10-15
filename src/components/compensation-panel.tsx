@@ -130,13 +130,24 @@ function pct(value: number | null) {
   return value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(1)}%`;
 }
 
-export function CompensationPanel({
-  organizationId,
-  setNotice,
-}: {
+type CompensationPanelProps = {
   organizationId: number;
   setNotice: (message: string) => void;
-}) {
+};
+
+/**
+ * A compensation form contains proposed salary amounts and free-text reasons.
+ * Remount by employer so those drafts, old authorizations and fetched source
+ * rows are discarded synchronously at the render boundary.
+ */
+export function CompensationPanel(props: CompensationPanelProps) {
+  return <ScopedCompensationPanel key={props.organizationId} {...props} />;
+}
+
+function ScopedCompensationPanel({
+  organizationId,
+  setNotice,
+}: CompensationPanelProps) {
   const [access, setAccess] = useState<Access | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -203,38 +214,16 @@ export function CompensationPanel({
     reason: "",
   });
 
-  // The workspace retains this component across employer switching. A salary
-  // proposal or its free-text reason drafted for one employer must never carry
-  // into another employer's compensation form after its data loads.
-  useEffect(() => {
-    setBandForm({
-      gradeId: "", jobProfileId: "", legalEntityId: "", locationCode: "PH",
-      minimumAnnual: "", midpointAnnual: "", maximumAnnual: "",
-      effectiveFrom: "", effectiveUntil: "",
-    });
-    setCycleForm({
-      name: "", startDate: "", endDate: "", effectiveDate: "", budgetPool: "",
-    });
-    setProposalForm({
-      employeeId: "", cycleId: "", bandId: "", workerEffectiveChangeId: "",
-      proposedAnnual: "", reason: "",
-    });
-    setComponentForm({
-      code: "", name: "", kind: "allowance", amountFrequency: "monthly",
-      taxable: true, includeInSssBase: true, includeInPagIbigBase: true,
-    });
-    setAssignmentForm({
-      employeeId: "", componentId: "", amount: "", effectiveFrom: "",
-      effectiveUntil: "", reason: "",
-    });
-  }, [organizationId]);
+  // Keyed scope ensures fresh forms for each employer. Resetting five React
+  // states in an effect would run after paint and leak draft pay inputs during
+  // an employer switch, besides causing cascading render updates.
 
   // An old-employer salary snapshot must never be rendered during a switch.
   // Late responses cannot replace a newer authorized employer response.
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
-    setLoading(true);
-    setFailedLoad(null);
+    // Start the network read immediately; React state is updated only after
+    // its awaited response, not synchronously from the mount effect.
     try {
       const response = await fetch("/api/compensation?organizationId=" + organizationId, { cache: "no-store" });
       const body = await response.json().catch(() => ({}));
@@ -272,6 +261,14 @@ export function CompensationPanel({
     void load();
     return invalidateInFlightLoad;
   }, [load, invalidateInFlightLoad]);
+
+  // Only an explicit user action (or an awaited mutation) starts a manual
+  // loading transition. The mount effect is strictly asynchronous.
+  const refresh = () => {
+    setLoading(true);
+    setFailedLoad(null);
+    void load();
+  };
 
   async function post(entityType: string, payload: Record<string, unknown>) {
     const response = await fetch("/api/compensation", {
@@ -358,7 +355,7 @@ export function CompensationPanel({
             : "Loading authorized compensation data for the selected employer."}
         </div>
         {failedLoad?.organizationId === organizationId && !loading && (
-          <button type="button" className="secondary-button" onClick={() => void load()}>
+          <button type="button" className="secondary-button" onClick={refresh}>
             <RefreshCw size={14} /> Retry compensation data
           </button>
         )}
@@ -378,7 +375,7 @@ export function CompensationPanel({
           </p>
         </div>
         <div className="page-actions">
-          <button className="secondary-button" onClick={() => void load()} disabled={loading}>
+          <button className="secondary-button" onClick={refresh} disabled={loading}>
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
