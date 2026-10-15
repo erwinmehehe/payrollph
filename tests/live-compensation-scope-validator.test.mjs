@@ -12,7 +12,7 @@ function fixture() {
     employees: [{ id: 100, firstName: "Unit" }, { id: 101, firstName: "Other" }],
     proposals: [
       { id: 201, employeeId: 100, reason: "Visible review", proposedAnnual: "290000.00" },
-      { id: 202, employeeId: 101, reason: "Other unit review", proposedAnnual: "950000.00" },
+      { id: 202, employeeId: 101, reason: "QA1046 other unit private proposal", proposedAnnual: "950000.00" },
     ],
     bands: [{ id: 301 }, { id: 302 }],
     legalEntities: [],
@@ -44,7 +44,7 @@ test("live response contract fails closed for budget, worker and proposal leaks"
     (g, u) => { u.access.orgUnitId = null; },
     (g, u) => { u.employees.push({ id: 101 }); },
     (g, u) => { u.proposals.push({ id: 202, employeeId: 101, proposedAnnual: "950000.00" }); },
-    (g, u) => { u.note = "Other unit review"; },
+    (g, u) => { u.note = "QA1046 other unit private proposal"; },
     (g, u) => { u.legalEntities.push({ disbursementAccount: "PRIVATE" }); },
     (g, u) => { g.cycles[0].budgetPool = null; },
     (g, u) => { u.bands.push({ id: 302 }); },
