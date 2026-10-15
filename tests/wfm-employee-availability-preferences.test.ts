@@ -135,6 +135,11 @@ test("self API enforces opt-in flag, employee identity, cross-tenant boundaries,
   assert.ok(manager.includes("availabilityConflictForShift"));
   assert.ok(manager.includes("preferredForShift"));
   assert.ok(manager.includes("employeeAvailabilityRules"));
+  // Cross-midnight employee preferences must be loaded through the following
+  // date; otherwise the engine cannot see Tuesday rules for Monday night.
+  assert.ok(manager.includes("lte(employeeAvailabilityRules.effectiveFrom, addDays(endDate, 1))"));
+  assert.equal(manager.split("lte(employeeAvailabilityRules.effectiveFrom, addDays(String(requirement.workDate), 1))").length - 1, 2);
+  assert.ok(manager.includes("lte(employeeAvailabilityRules.effectiveFrom, addDays(String(shiftRow.workDate), 1))"));
 });
 
 test("the employee and manager workspaces use the same source without cross-employer HTML", () => {
