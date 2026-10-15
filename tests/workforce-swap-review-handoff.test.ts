@@ -110,6 +110,8 @@ test("swap manager UI uses source-only preflight and independent reviewer handof
   assert.match(panel, /data\.user\?\.id/);
   assert.match(panel, /decisionNote/);
   assert.match(panel, /maxLength=\{240\}/);
+  assert.match(panel, /const decisionScopeKey = JSON\.stringify\(\[scopeKey, reviewerUserId\]\)/);
+  assert.match(panel, /currentDrafts\.scopeKey !== decisionScopeKey/);
   assert.match(panel, /scopeKey/);
   assert.match(panel, /data-swaps-review-readiness/);
   assert.match(panel, /server/i);
