@@ -1164,27 +1164,23 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                           </button>
                         )}
                         {scenario.status === "submitted" && <button className="secondary-button" onClick={() => onPage("Approvals")}><CheckCircle2 size={14} /> Open approvals</button>}
-                        {scenario.status === "approved" && (() => {
-                          const currentBaseline = scenario.planId ? currentBaselineByPlan.get(scenario.planId) : null;
-                          if (currentBaseline?.scenarioId === scenario.id) {
-                            return <span className="status status-verified"><CheckCircle2 size={13} /> Current baseline</span>;
-                          }
-                          if (!scenario.planId) {
-                            return <span className="status">Link plan to publish</span>;
-                          }
-                          if (scenario.scopeOrgUnitId != null || scenario.worksiteId != null) {
-                            return <span className="status">What-if only</span>;
-                          }
-                          return (
+                        {scenario.status === "approved" && (
+                          scenario.planId && currentBaselineByPlan.get(scenario.planId)?.scenarioId === scenario.id ? (
+                            <span className="status status-verified"><CheckCircle2 size={13} /> Current baseline</span>
+                          ) : !scenario.planId ? (
+                            <span className="status">Link plan to publish</span>
+                          ) : scenario.scopeOrgUnitId != null || scenario.worksiteId != null ? (
+                            <span className="status">What-if only</span>
+                          ) : (
                             <button
                               className="primary-button"
                               disabled={baselinePublishing === scenario.id}
                               onClick={() => void publishBaseline(scenario.id)}
                             >
-                              <CheckCircle2 size={14} /> {baselinePublishing === scenario.id ? "Publishing..." : currentBaseline ? "Publish new baseline" : "Publish baseline"}
+                              <CheckCircle2 size={14} /> {baselinePublishing === scenario.id ? "Publishing..." : currentBaselineByPlan.get(scenario.planId)?.id ? "Publish new baseline" : "Publish baseline"}
                             </button>
-                          );
-                        })()}
+                          )
+                        )}
                       </div>
                     </td>
                   </tr>
