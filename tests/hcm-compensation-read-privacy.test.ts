@@ -172,7 +172,12 @@ test("source GET enforces org role before projecting only allowlisted catalog an
   assert.ok(get.includes("componentAssignments: componentAssignments.filter((row) => visibleIds.has(row.employeeId))"));
   assert.ok(!payload.includes("legalEntities: entities,"));
   assert.ok(!payload.includes("positions: positionRows,"));
-  assert.ok(!payload.includes("cycles,\n    proposals:"));
+  // Reject a raw `cycles,` shorthand property only, not the explicit
+  // projected value `cycles: catalog.cycles`. The former could serialize
+  // unredacted pool metadata; the latter is the allowlisted, role-scoped value.
+  assert.doesNotMatch(payload, /^\\s*cycles,\\s*$/m);
+  assert.ok(payload.includes("cycles: catalog.cycles"));
+  assert.ok(payload.includes("proposals: scopedProposals.map("));
   const projection = readFileSync("src/lib/hcm-compensation-read-projection.ts", "utf8");
   for(const mutator of ["db.insert(", "db.update(", "db.delete(", "fetch(", "process.env"]) {
     assert.ok(!projection.includes(mutator), "Projection cannot write or fetch.");
