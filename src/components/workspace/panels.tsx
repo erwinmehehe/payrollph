@@ -466,6 +466,12 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
   ).slice(0, 7);
   const payrollExceptions = data.payrollRuns.reduce((sum, run) => sum + run.exceptions, 0);
   const releasedRuns = data.payrollRuns.filter((run) => run.status === "Released").length;
+  // A compliance landing page can be available to HR and independent checkers
+  // without granting access to every payroll/statutory sub-workbench.
+  const complianceRole = data.access?.role ?? "";
+  const companyWideCompliance = data.access?.companyWide === true;
+  const mayViewPayrollClose = companyWideCompliance && ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(complianceRole);
+  const mayOperateStatutoryEvidence = companyWideCompliance && ["owner", "admin", "bookkeeper", "payroll"].includes(complianceRole);
 
   return (
     <>
@@ -547,12 +553,12 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
         />
       </div>
 
-      <div style={{ marginTop: 16 }}>
+      {mayViewPayrollClose && <div style={{ marginTop: 16 }}>
         <PayrollMonthClosePanel
           organizationId={data.selectedOrganization.id}
           notify={(message) => setNotice(message)}
         />
-      </div>
+      </div>}
 
       <div style={{ marginTop: 16 }}>
         <LaborInspectionDrillPanel
@@ -565,13 +571,13 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
         <ComplianceCalendarPanel organizationId={data.selectedOrganization.id} />
       </div>
 
-      <div style={{ marginTop: 16 }}>
+      {mayOperateStatutoryEvidence && <div style={{ marginTop: 16 }}>
         <StatutoryRemittancePanel
           organizationId={data.selectedOrganization.id}
           defaultMonth={defaultMonth}
           notify={(message) => setNotice(message)}
         />
-      </div>
+      </div>}
 
       {data.advisories.length > 0 && (
         <section className="card calamity-card" style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", marginTop: 16 }}>
@@ -586,11 +592,13 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
         </section>
       )}
 
-      <YearEndPanel key={[data.user?.id, data.selectedOrganization.id, data.multiEntity?.enabled ? data.multiEntity.legalEntityId ?? "all" : "legacy", data.access?.role].join(":")} organizationId={data.selectedOrganization.id} setNotice={setNotice} birCandidateEnabled={data.bir1604cCandidateEnabled === true} />
-      <DoleThirteenthMonthReportPanel
-        organizationId={data.selectedOrganization.id}
-        notify={(message) => setNotice(message)}
-      />
+      {mayOperateStatutoryEvidence && <>
+        <YearEndPanel key={[data.user?.id, data.selectedOrganization.id, data.multiEntity?.enabled ? data.multiEntity.legalEntityId ?? "all" : "legacy", data.access?.role].join(":")} organizationId={data.selectedOrganization.id} setNotice={setNotice} birCandidateEnabled={data.bir1604cCandidateEnabled === true} />
+        <DoleThirteenthMonthReportPanel
+          organizationId={data.selectedOrganization.id}
+          notify={(message) => setNotice(message)}
+        />
+      </>}
     </>
   );
 }
