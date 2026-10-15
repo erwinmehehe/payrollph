@@ -248,6 +248,11 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  // An HR membership with a foreign/deleted unit must not read even cycle metadata.
+  // getAccess() may return an unresolved orgUnitName for non-manager roles.
+  if (!access.companyWide && (!access.orgUnitId || !access.orgUnitName)) {
+    return Response.json({ error: "An active unit in the selected employer is required for compensation." }, { status: 403 });
+  }
 
   const [
     staff,
