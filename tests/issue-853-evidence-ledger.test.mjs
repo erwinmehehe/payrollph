@@ -14,6 +14,7 @@ const ago=hours=>new Date(Date.now()-hours*3600_000).toISOString();
 function claimedCompletion() {
   // Fictional, deliberately self-reported fixture only; never an authenticated human witness.
   const ledger=makeBlankLedger();
+  ledger.createdUtc=ago(6); // Fictional historical test session precedes every claimed action.
   const sha='a'.repeat(40);
   ledger.sourceSha=sha;
   ledger.deployedSha=sha;
@@ -79,6 +80,19 @@ test('blank v2 initializes 18 staged and 9 cross-tenant NOT_RUN checks without c
   assert.equal(report.verdict,'NOT_READY');
   assert.deepEqual([report.passed,report.needsFix,report.blocked,report.notRun],[0,0,0,27]);
   assert.ok(report.problems.some(p=>p.includes('runtime verification')));
+});
+
+test('runtime verification, observations and signoff cannot predate the ledger session',()=>{
+  const l=claimedCompletion();
+  assert.equal(evaluate(l).verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
+  l.createdUtc=ago(4.5);
+  assert.ok(evaluate(l).problems.some(p=>p.includes('Runtime safety verification predates ledger session creation')));
+  l.createdUtc=ago(3.8);
+  assert.ok(evaluate(l).problems.some(p=>p.includes('Observed row predates ledger session creation')));
+  l.createdUtc=ago(2);
+  assert.ok(evaluate(l).problems.some(p=>p.includes('Human signoff predates ledger session creation')));
+  l.createdUtc=ago(6);
+  assert.equal(evaluate(l).verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
 });
 
 test('old v1 packet is refused, not silently migrated to v2',()=>{
