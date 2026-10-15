@@ -66,7 +66,7 @@ export function renderBir2316ReviewHtml(input: Bir2316ReviewInput) {
     ["Employee statutory contributions", money(input.statutoryContributions)],
   ];
   const reconciliation = criticalReleaseFlagEnabled("bir2316Reconciliation")
-    ? `<div data-bir-2316-reconciliation style="overflow-wrap:anywhere">${section("Numbered 2316 reconciliation — reviewed evidence required", bir2316ReviewLines(reviewBir2316Summary(input, input.reviewEvidence)))}</div>` : "";
+    ? `<div data-bir-2316-reconciliation style="overflow-wrap:anywhere">${section("Numbered 2316 reconciliation â€” reviewed evidence required", bir2316ReviewLines(reviewBir2316Summary(input, input.reviewEvidence)))}</div>` : "";
   const body = [
     section("Part I - Employee information", [
       ["Tax year", String(input.taxYear)],

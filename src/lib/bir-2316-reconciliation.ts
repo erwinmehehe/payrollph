@@ -52,9 +52,9 @@ export function reviewBir2316Summary(source: Bir2316ReviewSource, evidence?: Bir
   const row = (item: string, label: string, centavos: number | null) => rows.push({ item, label, centavos });
   row("19", "Present gross compensation", gross); row("20 / 38", "Present exempt compensation", exempt);
   row("21 / 52", "Present taxable compensation", taxable); row("24", "Annual tax due (source calculation)", due);
-  row("internal", "Expected adjusted withholding — not released-ledger evidence", expected);
+  row("internal", "Expected adjusted withholding â€” not released-ledger evidence", expected);
   if (!evidence) {
-    add("DETAIL_MAPPING_UNVERIFIED", "Items 29–37 and 39–51B require reviewed present-employer category mapping.");
+    add("DETAIL_MAPPING_UNVERIFIED", "Items 29â€“37 and 39â€“51B require reviewed present-employer category mapping.");
     add("PREVIOUS_EMPLOYER_UNVERIFIED", "Previous employer taxable compensation and withholding are unknown; absence is not a confirmed zero.");
     add("SETTLEMENT_UNVERIFIED", "Actual collection/refund and present-employer released withholding are unverified, even if the source status says settled.");
     add("PERA_CREDIT_UNVERIFIED", "Item 27 requires explicit PERA credit review.");
@@ -112,7 +112,7 @@ export function reviewBir2316Summary(source: Bir2316ReviewSource, evidence?: Bir
 export function bir2316ReviewLines(result: ReturnType<typeof reviewBir2316Summary>) {
   const format = (value: number | null) => value === null || !Number.isSafeInteger(value) ? "REQUIRES VERIFIED SOURCE" :
     (value / 100).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return [...result.rows.map(row => ["Item " + row.item + " — " + row.label, format(row.centavos)] as [string, string]),
+  return [...result.rows.map(row => ["Item " + row.item + " â€” " + row.label, format(row.centavos)] as [string, string]),
     ...result.issues.map(issue => [issue.code, issue.message] as [string, string]),
     ["Certificate status", result.notice] as [string, string]];
 }

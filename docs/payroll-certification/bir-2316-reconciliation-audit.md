@@ -1,4 +1,4 @@
-# 2316 draft and worksheet audit — 15 October 2026
+# 2316 draft and worksheet audit â€” 15 October 2026
 
 ## Source and scope
 
@@ -11,7 +11,7 @@ The annualization text draft and printable HTML worksheet already exist. Neither
 1. The legacy worksheet tolerates a one-cent final withholding difference (0.011 threshold). The new numbered-item check uses exact integer centavos, rejects unknown/nonfinite/unsafe/more-than-two-decimal amounts and reports every centavo mismatch.
 2. Legacy output adds the *expected* annual adjustment to withholding; a settled label cannot prove actual collection/refund. New review distinguishes expected adjustment from applied adjustment and actual present-employer ledger withholding. Tests execute computeFinalPay with collection exceeding final gross and preserve the actual collected amount while reporting shortfall.
 3. Previous-employer fields remain unverified in current endpoint sources. New review shows items22/25B as unknown, never silently zero; explicit none-confirmed evidence is distinct from verified prior taxable income/withholding. Item19 remains present gross, not combined gross. Item23 combines present/prior taxable income; items26/28 combine withholding and explicit PERA credit.
-4. Present-employer exempt/taxable category mapping is incomplete. Every financial item29–37 and39–51B must be explicit in the read-only mapping checker, including zero values, and sum exactly to items38/52. It never invents basic/allowance/commission/union-dues splits or recomputes tax. MWE statutory wage/premiums require their explicit category split; benefits-only nonTaxable cannot be represented as complete gross-minus-taxable reconciliation.
+4. Present-employer exempt/taxable category mapping is incomplete. Every financial item29â€“37 and39â€“51B must be explicit in the read-only mapping checker, including zero values, and sum exactly to items38/52. It never invents basic/allowance/commission/union-dues splits or recomputes tax. MWE statutory wage/premiums require their explicit category split; benefits-only nonTaxable cannot be represented as complete gross-minus-taxable reconciliation.
 5. Legacy text incorrectly suggests Alphalist-module validation makes a 2316 certificate ready. Flag-on output instead states that Alphalist DAT validation does not validate the employee certificate. Applicable signatures and employee delivery remain separate.
 
 ## Default-off rollout

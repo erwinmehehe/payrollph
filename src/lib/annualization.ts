@@ -217,7 +217,7 @@ export function renderForm2316(input: {
     "",
     `Rule version: ${r.ruleVersion}`,
     ...(criticalReleaseFlagEnabled("bir2316Reconciliation") ? [
-      "NUMBERED 2316 RECONCILIATION — INTERNAL REVIEW ONLY",
+      "NUMBERED 2316 RECONCILIATION â€” INTERNAL REVIEW ONLY",
       ...bir2316ReviewLines(reviewBir2316Summary({
         grossCompensation: r.grossCompensation, nonTaxable: r.nonTaxable, taxableIncome: r.taxableIncome,
         taxDue: r.taxDue, withheldBeforeYearEnd: r.taxWithheld, yearEndAdjustment: r.adjustment,
