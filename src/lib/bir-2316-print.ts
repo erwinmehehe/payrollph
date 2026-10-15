@@ -1,9 +1,12 @@
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+import { reviewBir2316Summary, bir2316ReviewLines, type Bir2316MappingEvidence } from "./bir-2316-reconciliation";
 /**
  * Printable internal BIR Form 2316 review worksheet.
  * NOT the prescribed BIR form, a signed certificate, or substituted-filing proof.
  * Fields not recoverable from annualization are not guessed.
  */
 export type Bir2316ReviewInput = {
+  reviewEvidence?: Bir2316MappingEvidence;
   taxYear: number;
   employerName: string;
   employerTin: string;
@@ -62,6 +65,8 @@ export function renderBir2316ReviewHtml(input: Bir2316ReviewInput) {
     ["Exempt de minimis benefits", money(input.deMinimis)],
     ["Employee statutory contributions", money(input.statutoryContributions)],
   ];
+  const reconciliation = criticalReleaseFlagEnabled("bir2316Reconciliation")
+    ? `<div data-bir-2316-reconciliation style="overflow-wrap:anywhere">${section("Numbered 2316 reconciliation — reviewed evidence required", bir2316ReviewLines(reviewBir2316Summary(input, input.reviewEvidence)))}</div>` : "";
   const body = [
     section("Part I - Employee information", [
       ["Tax year", String(input.taxYear)],
@@ -108,7 +113,7 @@ footer{margin:20px 0 0;border-top:1px solid #c8d2d4;padding:10px;color:#42505c;f
 <p class="muted">This worksheet helps payroll reviewers map approved compensation data to BIR Form No. 2316 (September 2021 ENCS).
 Use the official BIR certificate and complete all applicable fields before authorized employer and employee signatures.</p></header>
 <p class="muted">Use your browser's Print command to save this review copy as a PDF.</p>
-${body}
+${body}${reconciliation}
 <aside class="warning"><strong>Required before issuing an official certificate</strong><ul>${notices}</ul></aside>
 <footer>This document was assembled from annualization source records, not from an accepted filing. No signatures,
 certification or BIR acceptance are asserted. Never upload this worksheet as the prescribed Form 2316.</footer>

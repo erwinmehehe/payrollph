@@ -76,7 +76,7 @@ async function main() {
   await db.insert(subscriptions).values({ organizationId: org.id, plan: "Core", status: "active" });
   writeFileSync("/tmp/bir-1604c-qa-fixture.json", JSON.stringify({
     organizationId: org.id, legalEntityId: entity.id,
-    employeeNo: employee.employeeNo, year: 2025,
+    employeeNo: employee.employeeNo, employeeId: employee.id, year: 2025,
   }), { mode: 0o600 });
   console.log("Synthetic 1604-C employer/year/identity and MFA personas seeded; no live accounts or actual BIR evidence.");
   await pool.end();
