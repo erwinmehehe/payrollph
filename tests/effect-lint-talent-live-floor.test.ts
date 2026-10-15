@@ -12,6 +12,7 @@ test("private internal role comparisons remount by employer and load asynchronou
   assert.match(source, /const \[loading, setLoading\] = useState\(true\)/);
   assert.doesNotMatch(source, /const load = useCallback\(async \(signal\?: AbortSignal\) => \{\s*setLoading\(true\)/);
   assert.match(source, /new AbortController\(\)/);
+  assert.match(source, /queueMicrotask\(\(\) => \{\s*if \(!controller\.signal\.aborted\) void load\(controller\.signal\)/);
   assert.match(source, /return \(\) => controller\.abort\(\)/);
   assert.ok(source.includes('onClick={() => { setLoading(true); setError(""); setResult(null); void load(); }}'));
   assert.match(source, /if \(signal\?\.aborted\) return/);
@@ -22,6 +23,8 @@ test("live floor starts loading per mount, page or click; polling is read-only a
   assert.match(source, /WorkforceLiveFloorContent key=\{props\.organizationId\}/);
   assert.match(source, /const \[loading, setLoading\] = useState\(true\)/);
   assert.doesNotMatch(source, /const requestedScope = liveFloorScopeKey\(organizationId, page\);\s*setLoading\(true\)/);
+  assert.match(source, /queueMicrotask\(\(\) => \{\s*if \(active\) void load\(\)/);
+  assert.match(source, /return \(\) => \{ active = false; pendingRequest\.current\?\.abort\(\)/);
   assert.match(source, /if \(document\.visibilityState === "visible"\) void load\(\)/);
   assert.match(source, /pendingRequest\.current\?\.abort\(\)/);
   assert.match(source, /setSnapshot\(\{ scopeKey: requestedScope, data: value as FloorSnapshot \}\)/);

@@ -77,7 +77,11 @@ function TalentContinuityContent({ organizationId }: { organizationId: number })
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal);
+    // The request runs after effect setup, never in its synchronous phase.
+    // Strict Mode cleanup can cancel this scheduled read before it starts.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
     return () => controller.abort();
   }, [load]);
 

@@ -81,11 +81,16 @@ function WorkforceLiveFloorContent({ organizationId, onOpenAttendance }: Workfor
   }, [organizationId, page]);
 
   useEffect(() => {
-    void load();
+    let active = true;
+    // Mount starts loading by default. Defer fetch initiation until after
+    // effect setup and prevent a retired page/tenant from starting a read.
+    queueMicrotask(() => {
+      if (active) void load();
+    });
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") void load();
     }, 60_000);
-    return () => { pendingRequest.current?.abort(); clearInterval(interval); };
+    return () => { active = false; pendingRequest.current?.abort(); clearInterval(interval); };
   }, [load]);
 
   const visibleRows = useMemo(() => {
