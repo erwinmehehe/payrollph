@@ -228,6 +228,8 @@ test("disposable PG16: five-worker canonical parity versus a no-release payroll 
       referenceNo:"SYNTHETIC-LOAN",principal:"3000",monthlyAmortization:"500",
       cutoffDeduction:"250",remainingBalance:"2000",status:"active",
       requestedByUserId:actors[1].id,reviewedByUserId:actors[3].id,
+      reviewedAt:new Date("2026-09-30T12:00:00Z"),
+      reviewEvidenceReference:"SYNTHETIC-INDEPENDENT-REVIEW-ONLY",
       deductionAuthorizationReference:"SYNTHETIC-APPROVAL-REFERENCE",
     });
     await db.insert(supplementaryEarnings).values({
