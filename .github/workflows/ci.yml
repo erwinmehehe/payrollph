@@ -66,6 +66,10 @@ jobs:
         run: node scripts/run-sharded-tests.mjs ${{ matrix.shard }} 4
 
   check:
+    # A skipped required check is treated as acceptable by GitHub rulesets.
+    # Always materialize this required job, even when a matrix shard fails,
+    # and make the outcome explicitly red before running any later checks.
+    if: ${{ always() }}
     needs: test-shard
     runs-on: ubuntu-latest
     env:
@@ -86,6 +90,13 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
+      # A dependency failure makes GitHub implicitly add success() to step ifs
+      # unless this guard explicitly includes a status-check function.
+      - name: Required CI cannot pass unless every regression shard succeeded
+        if: ${{ always() && needs.test-shard.result != 'success' }}
+        run: |
+          echo "::error::One or more regression shards failed, were cancelled, or were skipped."
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
