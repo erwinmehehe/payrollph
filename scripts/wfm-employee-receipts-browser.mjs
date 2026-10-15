@@ -11,7 +11,12 @@ await build({
   entryPoints: ["tests/fixtures/wfm-employee-receipts-browser.jsx"],
   bundle: true, platform: "browser", jsx: "automatic",
   outfile: "qa-artifacts/wfm-employee-receipts-browser.js",
-  define: { "process.env.NEXT_PUBLIC_WFM_SCHEDULE_RECEIPTS_ENABLED": '"true"' },
+  // Keep the new unrelated employee preference panel OFF in this receipts-only
+  // browser fixture. Otherwise its unexpanded process.env read crashes Chromium.
+  define: {
+    "process.env.NEXT_PUBLIC_WFM_SCHEDULE_RECEIPTS_ENABLED": '"true"',
+    "process.env.NEXT_PUBLIC_WFM_EMPLOYEE_AVAILABILITY_ENABLED": '"false"',
+  },
 });
 const bundle = await readFile("qa-artifacts/wfm-employee-receipts-browser.js");
 const server = createServer((req, res) => {

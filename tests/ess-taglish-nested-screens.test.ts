@@ -85,7 +85,7 @@ test("profile photo, ID and password labels are localized without altering maske
 test("the existing English-first language choice flows through nested screens; payroll computations and evidence are unchanged", () => {
   const source = read("src/components/self-service-portal.tsx");
   assert.match(source, /useState<EssLanguage>\("en"\)/);
-  assert.match(source, /<EmployeeWorkforcePanel language=\{language\} \/>/);
+  assert.match(source, /<EmployeeWorkforcePanel key=\{[^}]+\} language=\{language\} \/>/);
   assert.match(source, /<EmployeeDocumentsPanel organizationId=\{data\.employer\.id\} language=\{language\} \/>/);
   assert.match(source, /<EmployeeProfileExtras\s+language=\{language\}/);
   assert.match(source, /ESS_LANGUAGE_STORAGE_KEY/);
