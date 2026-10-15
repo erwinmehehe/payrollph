@@ -120,3 +120,39 @@ test('blank v2 leaves deployed safety unverified and cannot pass',()=>{
   assert.equal(l.runtimeVerification.verifiedAtUtc,'');
   assert.equal(evaluate(l).verdict,'NOT_READY');
 });
+
+test('rejects impossible Manila dates and accepts a real leap day',()=>{
+  const ledger=prepareClaimedCompletion();
+  for (const payPeriod of [
+    '2026-02-30/2026-03-02',
+    '2026-04-31/2026-05-01',
+    '2026-10-01/2026-13-01',
+    '2026-10-16/2026-10-15',
+  ]) {
+    ledger.manilaPayPeriod=payPeriod;
+    assert.equal(evaluate(ledger).verdict,'NOT_READY',payPeriod);
+    assert.ok(evaluate(ledger).problems.some(s=>s.includes('Manila pay period')));
+  }
+  ledger.manilaPayPeriod='2028-02-29/2028-02-29';
+  assert.equal(evaluate(ledger).verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
+});
+
+test('runtime verification precedes witnessed rows, and human signoff follows them',()=>{
+  const ledger=prepareClaimedCompletion();
+  assert.equal(evaluate(ledger).verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
+
+  ledger.runtimeVerification.verifiedAtUtc='2026-10-14T11:00:00Z';
+  assert.ok(evaluate(ledger).problems.some(s=>s.includes('PASS precedes runtime verification')));
+  ledger.runtimeVerification.verifiedAtUtc='2026-10-14T09:00:00Z';
+
+  ledger.signoff.signedAtUtc='2026-10-14T09:59:59Z';
+  assert.ok(evaluate(ledger).problems.some(s=>s.includes('signoff precedes PASS')));
+  ledger.signoff.signedAtUtc='2026-10-14T08:59:59Z';
+  assert.ok(evaluate(ledger).problems.some(s=>s.includes('signoff precedes runtime verification')));
+  ledger.signoff.signedAtUtc='2026-10-14T12:00:00Z';
+
+  ledger.tests[0].observedAtUtc=new Date(Date.now()+60_000).toISOString();
+  assert.equal(evaluate(ledger).verdict,'NOT_READY');
+  ledger.tests[0].observedAtUtc='2026-10-14T10:00:00Z';
+  assert.equal(evaluate(ledger).verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
+});
