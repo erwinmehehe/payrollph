@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   buildHcmNavigation, hcmDirectoryHref,
 } from "../src/lib/hcm-context-navigation";
-import { roleHasPeopleWorkspace } from "../src/lib/workspace-role-ui";
+import { roleHasPeopleWorkspace, workspacePagesForRole } from "../src/lib/workspace-role-ui";
 
 const pilotEnv = {
   HCM_PEOPLE_HOME_ENABLED: "true",
@@ -96,6 +96,10 @@ test("Organization Explorer navigation is tenant-allowlisted, role-scoped and de
 });
 
 test("People directory links follow the workspace role page entitlement", () => {
+  assert.equal(workspacePagesForRole("manager")?.includes("People"), true,
+    "Managers retain their unit-scoped People roster.");
+  assert.equal(roleHasPeopleWorkspace("manager"), false,
+    "Unit-scoped People must not grant company-wide directory discovery.");
   for (const role of ["owner", "admin", "hr", "payroll"]) {
     assert.equal(roleHasPeopleWorkspace(role), true, role);
   }

@@ -10,6 +10,9 @@ export const ROLE_PRIMARY_PAGES: Partial<Record<string, readonly string[]>> = {
 };
 
 export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> = {
+  // Managers are unit-scoped. Do not expose payroll, statutory or company-wide
+  // administration workbenches that their API permissions explicitly deny.
+  manager: ["Overview", "People", "Workforce", "Leave", "Approvals", "Performance"],
   group_hr: ["Overview", "People", "Analytics", "Entities"],
   hr: [
     "Overview",
@@ -91,6 +94,9 @@ export function workspacePrimaryPagesForRole(role: string | null | undefined) {
  */
 export function roleHasPeopleWorkspace(role: string | null | undefined): boolean {
   if (!role) return false;
+  // A manager's unit-scoped People roster is not company-wide HCM directory
+  // entitlement; never use menu visibility to broaden HCM discovery.
+  if (role === "manager") return false;
   const pages = workspacePagesForRole(role);
   return pages ? pages.includes("People") : role === "owner" || role === "admin";
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Banknote, CheckCircle2, Plus, ReceiptText, X } from "lucide-react";
+import { visibleScopedEmployeeDirectory, type ScopedEmployeeDirectory } from "@/lib/scoped-employee-directory";
 
 type Employee = { id: number; firstName: string; lastName: string };
 
@@ -10,19 +11,32 @@ const peso = (v: number | string) =>
 
 const CATEGORIES = ["Travel", "Meals", "Equipment", "Internet", "Training", "Other"];
 
-function useEmployees(organizationId: number) {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+function useEmployees(organizationId: number, allowed: boolean) {
+  const [snapshot, setSnapshot] = useState<ScopedEmployeeDirectory<Employee> | null>(null);
   useEffect(() => {
-    fetch(`/api/employees?organizationId=${organizationId}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setEmployees)
-      .catch(() => setEmployees([]));
-  }, [organizationId]);
-  return employees;
+    if (!allowed) return;
+    const controller = new AbortController();
+    void fetch(`/api/employees?organizationId=${organizationId}`, {
+      cache: "no-store", signal: controller.signal,
+    }).then(async (response) => response.ok ? response.json() : [])
+      .then((rows: unknown) => {
+        if (!controller.signal.aborted) {
+          setSnapshot({ organizationId, employees: Array.isArray(rows) ? rows : [] });
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setSnapshot({ organizationId, employees: [] });
+      });
+    // Abort late responses from a former employer or revoked directory role.
+    return () => controller.abort();
+  }, [organizationId, allowed]);
+  // Render-time scope check prevents the former employer roster flashing
+  // before useEffect cleanup/reload runs after the first new-scope paint.
+  return visibleScopedEmployeeDirectory(snapshot, organizationId, allowed);
 }
 
-export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = false }: { organizationId: number; setNotice: (m: string) => void; reviewModeEnabled?: boolean }) {
-  const employees = useEmployees(organizationId);
+export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = false, canLoadEmployeeDirectory = true }: { organizationId: number; setNotice: (m: string) => void; reviewModeEnabled?: boolean; canLoadEmployeeDirectory?: boolean }) {
+  const employees = useEmployees(organizationId, canLoadEmployeeDirectory);
   const [claims, setClaims] = useState<any[]>([]);
   const [reviewMode, setReviewMode] = useState(false);
   const [receiptUploadsEnabled, setReceiptUploadsEnabled] = useState(false);
@@ -246,8 +260,8 @@ export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = f
   );
 }
 
-export function EwaPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (m: string) => void }) {
-  const employees = useEmployees(organizationId);
+export function EwaPanel({ organizationId, setNotice, canLoadEmployeeDirectory = false }: { organizationId: number; setNotice: (m: string) => void; canLoadEmployeeDirectory?: boolean }) {
+  const employees = useEmployees(organizationId, canLoadEmployeeDirectory);
   const [employeeId, setEmployeeId] = useState("");
   const [eligibility, setEligibility] = useState<any>(null);
   const [requests, setRequests] = useState<any[]>([]);

@@ -33,13 +33,29 @@ function prepareClaimedCompletion(){
   const ledger=makeBlankLedger(),sha='a'.repeat(40);
   ledger.sourceSha=sha;ledger.deployedSha=sha;
   ledger.developmentUrl='https://development.example.invalid';
+  ledger.databaseClassification='FICTIONAL_ONLY';
+  ledger.manilaPayPeriod='2026-10-01/2026-10-15';
+  ledger.flags={livePayouts:false,governmentSubmission:false,realEmployeeData:false};
+  ledger.runtimeVerification={verifiedAtUtc:'2026-10-14T09:00:00Z',
+    deployedBuildRef:'private://evidence-853/runtime-build',
+    databaseIsolationRef:'private://evidence-853/runtime-db',
+    payoutAndFilingConfigRef:'private://evidence-853/runtime-flags',
+    fixtureVersionRef:'private://evidence-853/runtime-fixture'};
   ledger.deviceModel='Test Android handset (manual claim)';
   ledger.browserVersion='Mobile Chrome test-version';
   ledger.identities={ownerBothId:'ownerAB',payrollOfficerAId:'payrollA',payrollOfficerBId:'payrollB',checkerBothId:'checkerAB',employeeAId:'empA',employeeBId:'empB'};
   for(const row of ledger.tests){
     row.observedStatus='PASS';
     row.observedAtUtc='2026-10-14T10:00:00Z';
-    row.observedBy='operator-A';
+    row.observedBy=({
+      A_CLOCK_IN:'empA',B_CLOCK_IN:'empB',
+      A_RUN_PAYROLL:'payrollA',B_RUN_PAYROLL:'payrollB',
+      A_REVIEW:'checkerAB',B_REVIEW:'checkerAB',
+      A_RELEASE_RECORDS:'ownerAB',B_RELEASE_RECORDS:'ownerAB',
+      A_FILING_EVIDENCE:'payrollA',B_FILING_EVIDENCE:'payrollB',
+      SWITCH_375:'ownerAB',SWITCH_390:'ownerAB',
+      PAYROLL_A_DENIED_B:'payrollA',EMPLOYEE_A_DENIED_B:'empA'
+    })[row.id] || 'operator-A';
     row.evidenceRef='private://evidence-853/'+row.id;
     row.independentReviewer='reviewer-B';
   }
@@ -74,4 +90,69 @@ test('unknown, duplicated and weakened expected cases cannot pass',()=>{
   l.tests[0].observedStatus='FAIL';
   l.tests[0].defectRef='private-ticket-853-01';
   assert.equal(evaluate(l).verdict,'NOT_READY');
+});
+
+test('v2 refuses future timestamps, reused proof, unverified safety and wrong operator',()=>{
+  const l=prepareClaimedCompletion();
+  assert.equal(evaluate(l).verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
+  l.runtimeVerification.verifiedAtUtc='2099-10-14T09:00:00Z';
+  assert.equal(evaluate(l).verdict,'NOT_READY');
+  l.runtimeVerification.verifiedAtUtc='2026-10-14T09:00:00Z';
+  l.tests[0].evidenceRef=l.tests[1].evidenceRef;
+  assert.equal(evaluate(l).verdict,'NOT_READY');
+  l.tests[0].evidenceRef='private://evidence-853/A_HIRE';
+  l.flags.livePayouts=null;
+  assert.equal(evaluate(l).verdict,'NOT_READY');
+  l.flags.livePayouts=false;
+  const employee=l.tests.find(x=>x.id==='A_CLOCK_IN');
+  employee.observedBy='payrollA';
+  assert.equal(evaluate(l).verdict,'NOT_READY');
+  employee.observedBy='empA';
+  l.signoff.independentReviewerId='ownerAB';
+  assert.equal(evaluate(l).verdict,'NOT_READY');
+});
+test('blank v2 leaves deployed safety unverified and cannot pass',()=>{
+  const l=makeBlankLedger();
+  assert.equal(l.schema,'payrollph-issue853-human-acceptance-v2');
+  assert.equal(l.flags.livePayouts,null);
+  assert.equal(l.flags.governmentSubmission,null);
+  assert.equal(l.flags.realEmployeeData,null);
+  assert.equal(l.runtimeVerification.verifiedAtUtc,'');
+  assert.equal(evaluate(l).verdict,'NOT_READY');
+});
+
+test('rejects impossible Manila dates and accepts a real leap day',()=>{
+  const ledger=prepareClaimedCompletion();
+  for (const payPeriod of [
+    '2026-02-30/2026-03-02',
+    '2026-04-31/2026-05-01',
+    '2026-10-01/2026-13-01',
+    '2026-10-16/2026-10-15',
+  ]) {
+    ledger.manilaPayPeriod=payPeriod;
+    assert.equal(evaluate(ledger).verdict,'NOT_READY',payPeriod);
+    assert.ok(evaluate(ledger).problems.some(s=>s.includes('Manila pay period')));
+  }
+  ledger.manilaPayPeriod='2028-02-29/2028-02-29';
+  assert.equal(evaluate(ledger).verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
+});
+
+test('runtime verification precedes witnessed rows, and human signoff follows them',()=>{
+  const ledger=prepareClaimedCompletion();
+  assert.equal(evaluate(ledger).verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
+
+  ledger.runtimeVerification.verifiedAtUtc='2026-10-14T11:00:00Z';
+  assert.ok(evaluate(ledger).problems.some(s=>s.includes('PASS precedes runtime verification')));
+  ledger.runtimeVerification.verifiedAtUtc='2026-10-14T09:00:00Z';
+
+  ledger.signoff.signedAtUtc='2026-10-14T09:59:59Z';
+  assert.ok(evaluate(ledger).problems.some(s=>s.includes('signoff precedes PASS')));
+  ledger.signoff.signedAtUtc='2026-10-14T08:59:59Z';
+  assert.ok(evaluate(ledger).problems.some(s=>s.includes('signoff precedes runtime verification')));
+  ledger.signoff.signedAtUtc='2026-10-14T12:00:00Z';
+
+  ledger.tests[0].observedAtUtc=new Date(Date.now()+60_000).toISOString();
+  assert.equal(evaluate(ledger).verdict,'NOT_READY');
+  ledger.tests[0].observedAtUtc='2026-10-14T10:00:00Z';
+  assert.equal(evaluate(ledger).verdict,'SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION');
 });

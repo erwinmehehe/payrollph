@@ -42,7 +42,7 @@ type ReportResult = {
   peopleIntelligence?: PeopleIntelligenceSummary;
 };
 
-export function AnalyticsView({ data, notify }: { data: DashboardData; notify: Notify }) {
+export function AnalyticsView({ data, notify, tenantReportBuilderEnabled = false }: { data: DashboardData; notify: Notify; tenantReportBuilderEnabled?: boolean }) {
   // Preserve the established flag-OFF default. For multi-entity sessions,
   // safeActive below selects only a certified employer-scoped report before
   // any API request, CSV export, or visible report selection.
@@ -220,7 +220,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
       {!data.multiEntity?.enabled && (
         <>
           <EnterpriseBiExportPanel organizationId={organizationId} notify={notify} />
-          <HcmReportBuilderPanel key={organizationId} organizationId={organizationId} />
+          {tenantReportBuilderEnabled && data.access?.companyWide === true && ["owner", "admin", "bookkeeper", "hr", "payroll"].includes(data.access?.role ?? "") && <HcmReportBuilderPanel key={organizationId} organizationId={organizationId} />}
         </>
       )}
 

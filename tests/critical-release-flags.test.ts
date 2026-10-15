@@ -30,6 +30,8 @@ test("the critical gate registry contains no duplicate env variable names", () =
   assert.ok(names.includes("PAYMONGO_DISBURSEMENTS_ENABLED"));
   assert.ok(names.includes("OPENAI_AUTOMATION_DRAFT_ENABLED"));
   assert.ok(names.includes("CENTRAL_SCHEDULER_ENABLED"));
+  assert.ok(names.includes("HCM_OVERPAYMENT_PREVIEW_ENABLED"));
+  assert.ok(names.includes("PAYROLL_OVERPAYMENT_REVIEW_ENABLED"));
 });
 
 test("central scheduler activation must consult typed gate even with a worker enabled", () => {

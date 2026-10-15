@@ -1,0 +1,348 @@
+import assert from "node:assert/strict";
+import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { test } from "node:test";
+import { chromium } from "playwright";
+import { generateTotp } from "../../src/lib/totp.ts";
+import { isExpectedDenied } from "./nav-sweep.expected-denied.mjs";
+
+const BASE = "http://127.0.0.1:3000";
+const dir = "qa-artifacts/nav-sweep";
+const manifest = JSON.parse(readFileSync(dir + "/manifest.json", "utf8"));
+const fixture = JSON.parse(readFileSync("/tmp/build-block-fixture.json", "utf8"));
+assert.equal(process.env.CI, "true");
+assert.equal(process.env.BUILD_BLOCK_ACCEPTANCE_MODE, "synthetic-postgres-only");
+assert.equal(process.env.DEMO_MODE, "false");
+assert.equal(process.env.OPENAI_API_KEY ?? "", "");
+assert.equal(new URL(process.env.DATABASE_URL).hostname, "127.0.0.1");
+assert.equal(new URL(process.env.DATABASE_URL).pathname, "/app_db");
+
+mkdirSync(dir, { recursive: true });
+const results = [];
+const broken = process.env.NAV_SWEEP_INJECT_BROKEN === "true";
+const proofOnly = process.env.NAV_SWEEP_ONLY_OWNER === "true";
+const focusRole = process.env.NAV_SWEEP_FOCUS_ROLE || null;
+const focusPage = process.env.NAV_SWEEP_FOCUS_PAGE || null;
+// Read-only navigation + view controls. Mutation methods are intercepted, even
+// if a seemingly harmless button hides a write action.
+const SAFE_CONTROL = /^(?:more|close|dismiss|cancel|back|next|previous|open|view|show|hide|expand|collapse|details|preview|search|filter|clear filter|help|info|overview|summary|refresh view|history|about)/i;
+const DANGEROUS = /\b(?:submit|payroll|process|release|approve|reject|decline|delete|remove|archive|publish|send|file|remit|transfer|withdraw|disburse|payout|payment|save|create|add|edit|update|record|apply|import|upload|download|export|sync|generate|run|calculate|clock|punch|sign out|logout|upgrade|enable|disable|retry|confirm|reconcile|recalculate|execute|start|stop)\b|^open\s+(?:SSS|PhilHealth|Pag-IBIG)\b/i;
+const ERROR_SELECTOR = ".toast.err, .empty-state.error, [role='alert'], .notice-red, .notice-danger, .notice.error, .error-banner, [data-sonner-toast][data-type='error']";
+const safeText = (s) => (s ?? "").replace(/\s+/g, " ").slice(0, 380);
+
+async function login(browser, role) {
+  const context = await browser.newContext();
+  try {
+    let response;
+    for (let i = 0; i < 2; i++) {
+      response = await context.request.post(BASE + "/api/auth/login", {
+        headers: { origin: BASE, "sec-fetch-site": "same-origin" },
+        data: { email: role + "@build-block.example.test",
+          password: "Synthetic-Build-Block-Only-2026!",
+          totpCode: generateTotp("JBSWY3DPEHPK3PXP") },
+      });
+      if (response.status() !== 429 || i) break;
+      const retry = Number((await response.json().catch(() => ({}))).retryAfterMs);
+      if (!Number.isFinite(retry) || retry < 0 || retry > 60000) break;
+      await new Promise(resolve => setTimeout(resolve, retry + 300));
+    }
+    assert.equal(response.status(), 200, "Fictional MFA login: " + role);
+    return context.storageState();
+  } finally { await context.close(); }
+}
+
+async function checkRole(browser, role, width, authState, pages) {
+  const context = await browser.newContext({ viewport: { width, height: 844 }, storageState: authState, acceptDownloads: false });
+  const page = await context.newPage();
+  const errors = [];
+  let current = "initial load";
+  let blocked = 0;
+  // Guard both fetch/XHR and form submissions. Any accidental POST/PATCH/PUT/
+  // DELETE is aborted, not merely ignored after it reaches the server.
+  await context.route("**/*", async route => {
+    const req = route.request();
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method())) {
+      blocked++;
+      await route.abort("blockedbyclient");
+    } else await route.continue();
+  });
+  if (broken && role === "owner" && width === 1280) {
+    await page.route("**/app?organizationId=*", async route => {
+      if (current === "Overview") {
+        await route.fulfill({ status: 500, contentType: "text/html",
+          body: "<h1>Deliberately broken Overview route - synthetic proof</h1>" });
+      } else await route.continue();
+    });
+  }
+  page.on("console", msg => { if (msg.type() === "error" && !msg.text().includes("net::ERR_BLOCKED_BY_CLIENT")) errors.push({ page: current, kind: "console", detail: safeText(msg.text()) }); });
+  page.on("pageerror", err => errors.push({ page: current, kind: "exception", detail: safeText(err.stack ?? err.message) }));
+  page.on("requestfailed", req => {
+    if (req.url().startsWith(BASE + "/api/") && req.failure()?.errorText !== "net::ERR_ABORTED" && !req.failure()?.errorText?.startsWith("net::ERR_BLOCKED_BY_CLIENT"))
+      errors.push({ page: current, kind: "network", detail: req.method() + " " + req.url() + ": " + req.failure()?.errorText });
+  });
+  page.on("response", response => {
+    const url = new URL(response.url());
+    if (url.origin !== BASE || !url.pathname.startsWith("/api/")) return;
+    const status = response.status();
+    if (status < 200 || status >= 300) {
+      if (!isExpectedDenied({ role, page: current, method: response.request().method(), apiPath: url.pathname, status }))
+        errors.push({ page: current, kind: "HTTP " + status, detail: response.request().method() + " " + url.pathname + url.search });
+    }
+  });
+  try {
+    for (const name of pages) {
+      current = name;
+      blocked = 0;
+      const started = Date.now();
+      const before = errors.length;
+      const findings = [];
+      const skipped = [];
+      try {
+        const opened = await page.goto(BASE + "/app" + (role === "employee" ? "" : "?organizationId=" + fixture.organizationId), { waitUntil: "load", timeout: 30000 });
+        if (!opened || opened.status() < 200 || opened.status() >= 300) {
+          throw new Error("HTTP " + (opened?.status() ?? "no response") + " GET /app");
+        }
+        await page.locator("[data-workspace-role='" + role + "']").first().waitFor({ timeout: 30000 });
+        await page.waitForTimeout(700);
+        if (role === "employee") {
+          const tab = name.slice("employee-".length);
+          const nav = page.locator(".employee-side-nav").getByRole("button", { name: new RegExp("^" +
+            ({ home: "Home", pay: "Pay", time: "Time", leave: "Leave", documents: "Documents",
+              performance: "Performance", profile: "Profile", expenses: "Expenses" })[tab] + "$", "i") });
+          // Desktop sidebar exists but is translated off-screen at phone width:
+          // use the actual mobile navigation at 390px.
+          if (width <= 390) {
+            if (["home", "pay", "time", "leave"].includes(tab)) {
+              const mobile = page.locator(".employee-mobile-nav").getByRole("button", { name: new RegExp("^(Home|Pay|Payslips|Time|Attendance|Leave)$", "i") });
+              const index = ["home", "pay", "time", "leave"].indexOf(tab);
+              await mobile.nth(index).click({ timeout: 12000 });
+            } else {
+              await page.getByRole("button", { name: "More employee pages" }).click();
+              await page.locator(".employee-more-links").getByRole("button", {
+                name: new RegExp(tab === "profile" ? "Profile|My info" : tab, "i"),
+              }).click();
+            }
+          } else await nav.click({ timeout: 12000 });
+        } else {
+          if (width <= 390) {
+            await page.getByRole("button", { name: "Open navigation" }).click({ timeout: 12000 });
+            await page.locator(".app-shell.drawer-open").waitFor({ timeout: 12000 });
+          }
+          if (name === "Settings") {
+            const settings = page.locator('.sidebar button[data-nav-name="Settings"]');
+            try {
+              await settings.waitFor({ state: "visible", timeout: 12000 });
+            } catch (cause) {
+              // Keep hidden Settings a failure, with actual element and parent
+              // geometry so this can be triaged without another manual run.
+              const position = await settings.evaluate((element) => {
+                const rect = element.getBoundingClientRect();
+                const sidebar = element.closest(".sidebar");
+                const footer = element.closest(".sidebar-bottom");
+                const menu = sidebar?.querySelector(".side-navigation");
+                function box(node) {
+                  if (!node) return null;
+                  const r = node.getBoundingClientRect(), style = getComputedStyle(node);
+                  return { top: Math.round(r.top), bottom: Math.round(r.bottom),
+                    left: Math.round(r.left), width: Math.round(r.width),
+                    height: Math.round(r.height), display: style.display,
+                    visibility: style.visibility, overflowY: style.overflowY,
+                    position: style.position, contentVisibility: style.contentVisibility,
+                    boxSizing: style.boxSizing, flex: style.flex, minHeight: style.minHeight,
+                    maxHeight: style.maxHeight, gridRow: style.gridRow,
+                    rects: node.getClientRects().length, children: node.children.length,
+                    htmlHidden: node.hidden === true, className: node.className };
+                }
+                return { button: box(element), sidebar: box(sidebar),
+                  menu: box(menu), footer: box(footer),
+                  ancestors: (() => {
+                    let node = element, chain = [];
+                    while (node && chain.length < 7) {
+                      chain.push(box(node));
+                      node = node.parentElement;
+                    }
+                    return chain;
+                  })(), viewportHeight: innerHeight };
+              }).catch(() => null);
+              console.log("NAV_SWEEP_LAYOUT_DIAGNOSTIC " + JSON.stringify(position));
+              throw new Error("Settings nav control hidden: " + JSON.stringify(position) +
+                "; " + String(cause));
+            }
+            await settings.click({ timeout: 12000 });
+          } else {
+            let target = page.locator('.sidebar [data-nav-name="' + name.replaceAll('"', '\\"') + '"]');
+            if (await target.count() === 0) {
+              const more = page.locator(".sidebar .nav-more-toggle");
+              if (await more.count()) await more.click();
+            } else if (!(await target.isVisible()) || !(await target.isEnabled())) {
+              const more = page.locator(".sidebar .nav-more-toggle");
+              if (await more.count()) await more.click();
+            }
+            target = page.locator('.sidebar [data-nav-name="' + name.replaceAll('"', '\\"') + '"]');
+            if (!(await target.count())) { await page.locator(".sidebar .nav-more-toggle").click(); }
+            await target.click({ timeout: 12000 });
+          }
+        }
+        await page.locator("[data-workspace-page='" + name + "']").waitFor({ timeout: 14000 });
+        await page.waitForTimeout(550);
+        // Observe all actual error-toast families rather than keyword-matching
+        // the benign body copy of a payroll screen.
+        const alerts = await page.locator(ERROR_SELECTOR).allTextContents();
+        for (const message of alerts.map(safeText).filter(Boolean)) findings.push({ kind: "visible error", detail: message });
+
+        const loadTimeBlockedWrites = blocked;
+        // Click only unambiguously non-destructive controls. A label not on the
+        // safe vocabulary is explicitly SKIPPED, not silently marked tested.
+        const controls = page.locator(".app-main button:visible, .app-main a:visible, .employee-workspace-body button:visible, .employee-workspace-body a:visible");
+        // Element handles preserve the identity of originally visible controls.
+        // Live nth() locators can point at a different button after React
+        // changes the page or opens a dialog.
+        const elements = (await controls.elementHandles()).slice(0, 220);
+        const count = elements.length;
+        async function closeSafeDialogs() {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const dialog = page.locator('[role="dialog"]:visible').last();
+            if (!(await dialog.count())) return;
+            const closer = dialog.locator('button.modal-close:visible, button[aria-label="Close"]:visible, button[aria-label="Dismiss"]:visible').first();
+            if (await closer.count()) await closer.click({ timeout: 4000 });
+            else await page.keyboard.press("Escape");
+            if (!(await page.locator('[role="dialog"]:visible').count())) return;
+          }
+          throw new Error("An open dialog could not be dismissed using its visible close control.");
+        }
+        for (let index = 0; index < count; index++) {
+          const el = elements[index];
+          if (!(await el.evaluate(node => node.isConnected).catch(() => false))) {
+            skipped.push("Detached control after prior interaction (index " + index + ")");
+            continue;
+          }
+          if (!(await el.isVisible().catch(() => false)) || !(await el.isEnabled().catch(() => false))) {
+            skipped.push("Control no longer visible or enabled (index " + index + ")");
+            continue;
+          }
+          const label = safeText((await el.getAttribute("aria-label")) || (await el.textContent()) || (await el.getAttribute("title")));
+          const href = await el.getAttribute("href");
+          if (!label || DANGEROUS.test(label) || !SAFE_CONTROL.test(label) ||
+              (href && (!href.startsWith("#") && !href.startsWith("/app")))) {
+            skipped.push(label || "(unlabeled)"); continue;
+          }
+          try {
+            await closeSafeDialogs();
+            const beforeClickPage = await page.locator("[data-workspace-page]").first().getAttribute("data-workspace-page").catch(() => name);
+            if (beforeClickPage !== name) {
+              skipped.push((count - index) + " controls remaining after navigation to " + beforeClickPage);
+              break;
+            }
+            if (!(await el.evaluate(node => node.isConnected).catch(() => false))) {
+              skipped.push(label + " (detached during UI rerender)");
+              continue;
+            }
+            await el.click({ timeout: 4000, noWaitAfter: true });
+            await closeSafeDialogs();
+            await page.keyboard.press("Escape").catch(() => {});
+            const destination = await page.locator("[data-workspace-page]").first().getAttribute("data-workspace-page").catch(() => name);
+            if (destination !== name) {
+              skipped.push((count - index - 1) + " controls remaining after navigation to " + destination);
+              break;
+            }
+          } catch (error) {
+            if (!(await el.evaluate(node => node.isConnected).catch(() => false))) {
+              skipped.push(label + " (detached during React update)");
+              continue;
+            }
+            const geometry = await el.evaluate(node => {
+              const rect = node.getBoundingClientRect();
+              const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
+              const top = document.elementFromPoint(x, y);
+              return { x: Math.round(x), y: Math.round(y),
+                width: Math.round(rect.width), height: Math.round(rect.height),
+                elementAtCenter: top?.tagName ?? null,
+                centerWithinControl: top === node || node.contains(top) };
+            }).catch(() => null);
+            findings.push({ kind: "dead control", detail: label + ": " +
+              safeText(error.message) + (geometry ? " / " + JSON.stringify(geometry) : "") });
+          }
+        }
+        if (loadTimeBlockedWrites) findings.push({ kind: "unsafe background write", detail: loadTimeBlockedWrites + " write requests attempted during page loading" });
+        if (blocked > loadTimeBlockedWrites) skipped.push((blocked - loadTimeBlockedWrites) + " unsafe click write request(s) blocked before reaching server");
+      } catch (e) {
+        findings.push({ kind: "navigation", detail: safeText(e.stack ?? e.message ?? String(e)) });
+      }
+      findings.push(...errors.slice(before).map(({ kind, detail }) => ({ kind, detail })));
+      let screenshot = null;
+      if (findings.length) {
+        const screenshots = dir + "/screenshots";
+        mkdirSync(screenshots, { recursive: true });
+        const file = screenshots + "/" + role + "-" + width + "-" +
+          name.replace(/[^a-z0-9-]+/gi, "-") + ".png";
+        try { await page.screenshot({ path: file, animations: "disabled" }); screenshot = file; }
+        catch { /* Keep the log even if the browser cannot capture a screenshot. */ }
+      }
+      const result = { role, page: name, viewport: width, result: findings.length ? "FAIL" : "PASS",
+        elapsedMs: Date.now() - started, findings, screenshot, skippedControls: skipped.length,
+        skippedExamples: [...new Set(skipped)].slice(0, 10) };
+      results.push(result);
+      console.log("NAV_SWEEP " + result.result + " " + role + " " + width + "px " + name +
+        (findings.length ? " :: " + findings.map(f => f.kind + ": " + f.detail).join(" | ") : ""));
+      // The next destination gets a fresh load in its own reporting window.
+    }
+  } finally { await context.close(); }
+}
+
+test("read-only navigation and runtime error sweep (real roles, both viewports)", { timeout: 3600000 }, async () => {
+  let activeRole = "setup";
+  let activeViewport = 0;
+  try {
+    for (const { role, pages: allPages } of manifest.roles) {
+      if (proofOnly && role !== "owner") continue;
+      if (focusRole && role !== focusRole) continue;
+      activeRole = role;
+      const pages = proofOnly ? ["Overview"] : focusPage
+        ? allPages.filter(name => name === focusPage) : allPages;
+      assert.ok(pages.length, "Requested focus page is not in role navigation: " + role + "/" + focusPage);
+      // Bound Chromium's memory lifetime to a single role. A previous complete
+      // CI sweep lost the browser after 238 successful pages, before the remaining
+      // pages had run. Fresh contexts alone did not prevent that process failure.
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const state = await login(browser, role);
+        for (const width of (proofOnly ? [1280] : [1280, 390])) {
+          activeViewport = width;
+          await checkRole(browser, role, width, state, pages);
+        }
+      } finally {
+        await browser.close();
+      }
+    }
+  } catch (error) {
+    // Preserve a FAIL in the artifact even if the browser process dies. Previously
+    // the report could show "238 passed / 0 failed" for an incomplete sweep.
+    const detail = safeText(error?.stack ?? error?.message ?? String(error));
+    results.push({ role: activeRole, page: "SWEEP_INFRASTRUCTURE",
+      viewport: activeViewport, result: "FAIL", elapsedMs: 0,
+      findings: [{ kind: "infrastructure", detail }], screenshot: null,
+      skippedControls: 0, skippedExamples: [] });
+    console.error("NAV_SWEEP_INFRASTRUCTURE_FAIL " + activeRole + " " + activeViewport + "px " + detail);
+  } finally {
+    const failed = results.filter(r => r.result === "FAIL");
+    const report = {
+      generatedAt: new Date().toISOString(), syntheticOnly: true, productionDataUsed: false,
+      injectedFailure: broken, total: results.length, passed: results.length - failed.length,
+      failed: failed.length, results,
+    };
+    writeFileSync(dir + "/report.json", JSON.stringify(report, null, 2));
+    writeFileSync(dir + "/report.md", [
+      "# PayrollPH navigation and runtime sweep", "",
+      "Disposable PostgreSQL and fictional accounts only. No payroll submission or filing.", "",
+      "Total: " + report.total + " | Pass: " + report.passed + " | Fail: " + report.failed, "",
+      "| Role | Viewport | Page | Result | Failure details | Screenshot | Skipped controls |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
+      ...results.map(r => "| " + r.role + " | " + r.viewport + "px | " +
+        r.page.replaceAll("|", "/") + " | " + r.result + " | " +
+        r.findings.map(f => f.kind + ": " + f.detail).join("; ").replaceAll("|", "/").replaceAll("\n", " ").slice(0, 400) +
+        " | " + (r.screenshot ?? "—") + " | " + r.skippedControls + " |"),
+    ].join("\n"));
+    console.log("NAV_SWEEP_REPORT " + dir + "/report.md :: " + report.passed + " passed / " + report.failed + " failed");
+  }
+  assert.ok(results.length > 0, "Empty sweep is never green");
+  assert.equal(results.filter(r => r.result === "FAIL").length, 0, "Runtime failures detected. Read report.md");
+});
