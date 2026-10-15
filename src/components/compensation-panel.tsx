@@ -5,6 +5,7 @@ import { PayrollUnderpaymentPanel } from "@/components/payroll-underpayment-pane
 import { PayrollOverpaymentWorkbench } from "@/components/payroll-overpayment-workbench";
 import { PayrollOverpaymentPreviewPanel } from "@/components/payroll-overpayment-preview-panel";
 import { summarizeCompensationCycleBudget } from "@/lib/hcm-compensation-cycle-budget-preview";
+import { previewCompensationProposal } from "@/lib/hcm-compensation-proposal-whatif";
 import {
   BadgeDollarSign,
   CalendarDays,
@@ -263,6 +264,35 @@ export function CompensationPanel({
     ? budgetPreview.committedAnnual : null;
   const selectedEmployeeId = Number(proposalForm.employeeId);
   const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId) ?? null;
+  const selectedCycle = cycles.find(
+    (cycle) => cycle.id === Number(proposalForm.cycleId) && cycle.status === "active",
+  ) ?? null;
+  const selectedBand = bands.find(
+    (band) => band.id === Number(proposalForm.bandId) && band.active,
+  ) ?? null;
+  const hasExistingWorkerProposal = Boolean(selectedCycle && selectedEmployee && proposals.some(
+    (proposal) => proposal.employeeId === selectedEmployee.id &&
+      proposal.cycleId === selectedCycle.id &&
+      ["proposed", "scheduled", "applied", "failed"].includes(proposal.status),
+  ));
+  // The full cycle pool must never be inferred from a scoped manager response.
+  const authorizedSelectedCycleBudget = useMemo(
+    () => access?.companyWide
+      ? summarizeCompensationCycleBudget(selectedCycle, proposals)
+      : null,
+    [access?.companyWide, selectedCycle, proposals],
+  );
+  // No new fetch or mutation: this uses only values already returned by the
+  // authorized source-owned compensation panel.
+  const proposalImpact = selectedEmployee && selectedCycle && proposalForm.proposedAnnual.trim()
+    ? previewCompensationProposal({
+        currentAnnual: selectedEmployee.annualPay,
+        proposedAnnual: proposalForm.proposedAnnual,
+        selectedBand,
+        authorizedCycleBudget: access?.companyWide ? authorizedSelectedCycleBudget : null,
+        hasExistingProposal: hasExistingWorkerProposal,
+      })
+    : null;
   const selectedPromotionOptions = promotions.filter(
     (promotion) => promotion.employeeId === selectedEmployeeId,
   );
@@ -495,6 +525,58 @@ export function CompensationPanel({
             </select>
             <input type="number" value={proposalForm.proposedAnnual} onChange={(event) => setProposalForm({ ...proposalForm, proposedAnnual: event.target.value })} placeholder="Proposed annual pay" />
             <textarea value={proposalForm.reason} onChange={(event) => setProposalForm({ ...proposalForm, reason: event.target.value })} placeholder="Reason for proposed change" />
+            {proposalImpact && (
+              <div className="notice notice-slate" role="status" aria-live="polite"
+                style={{ margin: 0, display: "grid", gap: 6 }}>
+                <strong>Proposed salary impact · read-only what-if</strong>
+                {proposalImpact.state === "ready" ? (
+                  <>
+                    <span>
+                      Current {budgetPeso(proposalImpact.currentAnnual)} → proposed {budgetPeso(proposalImpact.proposedAnnual)}
+                      {" · "}change {proposalImpact.changeAnnual > 0 ? "+" : ""}
+                      {budgetPeso(proposalImpact.changeAnnual)}
+                      {proposalImpact.changePercent !== null && <> ({pct(proposalImpact.changePercent)})</>}
+                    </span>
+                    <span>
+                      Proposed compa-ratio {pct(proposalImpact.proposedCompaRatioPercent)}
+                      {" · "}salary-band position {pct(proposalImpact.proposedRangePositionPercent)}
+                    </span>
+                    {!proposalImpact.withinSelectedBand && (
+                      <strong>The proposed salary is outside the selected band's recorded range.
+                        The server must independently verify eligibility and applicable band.</strong>
+                    )}
+                    {proposalImpact.hasExistingProposal && (
+                      <strong>This worker already has an in-flight or applied proposal in the selected cycle.
+                        Review the existing source record; no additional budget estimate is shown.</strong>
+                    )}
+                    {access?.companyWide && proposalImpact.remainingIfAllProceedAnnual !== null && (
+                      <span>
+                        Hypothetical pool remaining if existing pending proposals and this new increase all proceed:
+                        {" "}{budgetPeso(proposalImpact.remainingIfAllProceedAnnual)}
+                      </span>
+                    )}
+                    {access?.companyWide && proposalImpact.possibleBudgetOverageAnnual !== null &&
+                        proposalImpact.possibleBudgetOverageAnnual > 0 && (
+                      <strong>
+                        Potential budget excess: {budgetPeso(proposalImpact.possibleBudgetOverageAnnual)}.
+                        Independent HR/Finance and source checks are still required.
+                      </strong>
+                    )}
+                    {access?.companyWide && proposalImpact.remainingIfAllProceedAnnual === null && (
+                      <span>Full budget estimate unavailable or an existing worker proposal needs review.</span>
+                    )}
+                    {!access?.companyWide && (
+                      <span>Company-wide compensation budget totals are not available in your role's view.</span>
+                    )}
+                  </>
+                ) : <span>{proposalImpact.reason}</span>}
+                <small>
+                  This is a provisional comparison of currently loaded records, not a salary change,
+                  band-eligibility decision, budget reservation, HR/Finance approval or payroll instruction.
+                  The governing server checks current evidence again on submission and decision.
+                </small>
+              </div>
+            )}
             <button
               className="secondary-button"
               onClick={async () => {
