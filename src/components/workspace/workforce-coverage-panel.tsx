@@ -259,6 +259,7 @@ type LaborVariance = {
 };
 
 type Payload = {
+  employees: Array<{ id: number; employeeNo: string; name: string; orgUnitId: number | null }>;
   dynamicGroups: Array<{ id: number; code: string; name: string; version: number }>;
   dynamicGroup: { id: number; code: string; name: string; version: number; memberCount: number; visibleMemberCount: number } | null;
   shifts: Shift[];
@@ -344,6 +345,15 @@ export function WorkforceCoveragePanel({
   const [availabilityType, setAvailabilityType] = useState<"unavailable" | "preferred">("unavailable");
   const [availabilityFrom, setAvailabilityFrom] = useState(localToday());
   const [availabilityUntil, setAvailabilityUntil] = useState("");
+  // Use the server-authorized cohort, never a global dashboard selection.
+  const selectedAvailabilityEmployeeId = (payload?.employees ?? []).some(
+    employee => employee.id === availabilityEmployeeId,
+  ) ? availabilityEmployeeId : (payload?.employees[0]?.id ?? 0);
+  const selectedAvailabilityRows = (payload?.availability ?? [])
+    .filter(row => row.employeeId === selectedAvailabilityEmployeeId &&
+      (!row.effectiveUntil || row.effectiveUntil >= startDate))
+    .sort((a, b) => a.weekday - b.weekday ||
+      a.effectiveFrom.localeCompare(b.effectiveFrom) || a.id - b.id);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -433,9 +443,9 @@ export function WorkforceCoveragePanel({
   }
 
   async function saveAvailability() {
-    if (!availabilityEmployeeId) return;
+    if (!selectedAvailabilityEmployeeId) return;
     await mutate("create_availability", {
-      employeeId: availabilityEmployeeId,
+      employeeId: selectedAvailabilityEmployeeId,
       weekday: Number(availabilityWeekday),
       startTime: availabilityStart,
       endTime: availabilityEnd,
@@ -1163,8 +1173,8 @@ export function WorkforceCoveragePanel({
             <div className="setting-form">
               <label>
                 Employee
-                <select value={availabilityEmployeeId || ""} onChange={(event) => setAvailabilityEmployeeId(Number(event.target.value))}>
-                  {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.firstName} {employee.lastName}</option>)}
+                <select value={selectedAvailabilityEmployeeId || ""} onChange={(event) => setAvailabilityEmployeeId(Number(event.target.value))}>
+                  {(payload?.employees ?? []).map((employee) => <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.name}</option>)}
                 </select>
               </label>
               <label>
@@ -1189,6 +1199,27 @@ export function WorkforceCoveragePanel({
               <button className="primary-button brand" onClick={() => void saveAvailability()} disabled={saving !== null}>
                 {saving === "create_availability" ? <Spinner label="Saving" /> : <CalendarClock size={14} />} Save availability
               </button>
+            </div>
+            <div className="notice notice-slate" style={{ margin: "10px 16px 14px" }}>
+              Recorded availability and preferred shifts are scheduling evidence, not leave approval or permission to change a published roster.
+              Showing rules intersecting the selected 14-day planning window.
+            </div>
+            <div style={{ padding: "0 16px 14px", display: "grid", gap: 6 }} data-wfm-employee-availability-evidence>
+              {selectedAvailabilityRows.length === 0 && (
+                <small>No recorded availability rule for this employee in the visible window. This does not prove unrestricted availability.</small>
+              )}
+              {selectedAvailabilityRows.slice(0, 20).map(row => (
+                <div key={row.id} className="policy-line">
+                  <b>{WEEKDAYS[row.weekday] ?? "Unknown day"} · {row.startTime.slice(0, 5)}–{row.endTime.slice(0, 5)}</b>
+                  <small style={{ marginLeft: 8 }}>{row.availabilityType === "preferred" ? "Preferred" :
+                    row.availabilityType === "unavailable" ? "Unavailable" : "Unknown legacy rule"}
+                    {" · "}{row.effectiveFrom} to {row.effectiveUntil ?? "ongoing"}</small>
+                  {row.notes && <small style={{ display: "block" }}>{row.notes}</small>}
+                </div>
+              ))}
+              {selectedAvailabilityRows.length > 20 && (
+                <small>Showing 20 of {selectedAvailabilityRows.length} visible rules. Narrow the planning window to review remaining source records.</small>
+              )}
             </div>
           </article>
         </section>
