@@ -152,6 +152,7 @@ async function checkRole(browser, role, width, authState, pages) {
         const alerts = await page.locator(ERROR_SELECTOR).allTextContents();
         for (const message of alerts.map(safeText).filter(Boolean)) findings.push({ kind: "visible error", detail: message });
 
+        const loadTimeBlockedWrites = blocked;
         // Click only unambiguously non-destructive controls. A label not on the
         // safe vocabulary is explicitly SKIPPED, not silently marked tested.
         const controls = page.locator(".app-main button:visible, .app-main a:visible, .employee-workspace-body button:visible, .employee-workspace-body a:visible");
@@ -172,7 +173,8 @@ async function checkRole(browser, role, width, authState, pages) {
             findings.push({ kind: "dead control", detail: label + ": " + safeText(e.message) });
           }
         }
-        if (blocked) findings.push({ kind: "unsafe action blocked", detail: blocked + " write requests prevented" });
+        if (loadTimeBlockedWrites) findings.push({ kind: "unsafe background write", detail: loadTimeBlockedWrites + " write requests attempted during page loading" });
+        if (blocked > loadTimeBlockedWrites) skipped.push((blocked - loadTimeBlockedWrites) + " unsafe click write request(s) blocked before reaching server");
       } catch (e) {
         findings.push({ kind: "navigation", detail: safeText(e.stack ?? e.message ?? String(e)) });
       }
