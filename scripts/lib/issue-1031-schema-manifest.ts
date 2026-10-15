@@ -31,7 +31,7 @@ function defaultValue(value: unknown): string | null {
 
 function astDeclarations(sourceText: string): Map<string, string> {
   const file = ts.createSourceFile("src/db/schema.ts", sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  if (file.parseDiagnostics.length) throw new Error("Cannot parse Drizzle source with TypeScript AST");
+  if (((file as ts.SourceFile & { parseDiagnostics?: readonly ts.Diagnostic[] }).parseDiagnostics?.length ?? 0) > 0) throw new Error("Cannot parse Drizzle source with TypeScript AST");
   const declarations = new Map<string, string>();
   function visit(node: ts.Node): void {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
@@ -102,9 +102,10 @@ export function generateSchemaManifest(): SchemaManifest {
         method: c.method ?? "btree",
         keys: c.columns.map((col) => {
           if (is(col, SQL)) return sqlText(col);
-          if (!col.name) throw new Error("Unnamed column in index " + c.name);
-          const settings = col.indexConfig;
-          return col.name
+          const indexed = col as { name?: string; indexConfig?: { opClass?: string; order?: string; nulls?: string } };
+          if (!indexed.name) throw new Error("Unnamed column in index " + c.name);
+          const settings = indexed.indexConfig;
+          return indexed.name
             + (settings?.opClass ? " " + settings.opClass : "")
             + (settings?.order === "desc" ? " DESC" : "")
             + (settings?.nulls === "first" ? " NULLS FIRST" : "");
@@ -131,7 +132,7 @@ export function generateSchemaManifest(): SchemaManifest {
         name: c.getName(), columns: c.columns.map((col) => col.name), nullsNotDistinct: c.nullsNotDistinct,
       })),
       ...config.columns.filter((c) => c.isUnique).map((c) => ({
-        name: c.uniqueName, columns: [c.name], nullsNotDistinct: c.uniqueType === "not distinct",
+        name: c.uniqueName ?? name + "_" + c.name + "_unique", columns: [c.name], nullsNotDistinct: c.uniqueType === "not distinct",
       })),
     ]);
     tables.push({ name, columns, foreignKeys, indexes, checks,
