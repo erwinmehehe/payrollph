@@ -81,11 +81,20 @@ test("restore is networkless ephemeral PG18, cipher verified before any decrypti
  assert.doesNotMatch(sh,/set -x/);
 });
 
-test("synthetic PostgreSQL18 rehearsal uses encrypted-stream restore without plaintext archive files",()=>{
- const smoke=readFileSync("scripts/rehearse-encrypted-offsite-backup.sh","utf8");
- assert.match(smoke,/age -d -i "\$work\/age-identity\.txt" "\$work\/encrypted\.pgdump\.age"\s*\|\s*docker exec -i/);
- assert.match(smoke,/--single-transaction --exit-on-error/);
- assert.doesNotMatch(smoke,/decrypted\.dump|wrong-decrypt\.dump/);
+test("synthetic PostgreSQL18 rehearsal restores ONLY copied ciphertext into disconnected PG18",()=>{
+  const smoke=readFileSync("scripts/rehearse-encrypted-offsite-backup.sh","utf8");
+  assert.match(smoke,/cp "\$work\/encrypted\.pgdump\.age" "\$work\/detached-media\/offsite\.pgdump\.age"/);
+  assert.match(smoke,/cmp -s "\$work\/encrypted\.pgdump\.age" "\$work\/detached-media\/offsite\.pgdump\.age"/);
+  assert.match(smoke,/age -d -i "\$work\/age-identity\.txt" "\$work\/detached-media\/offsite\.pgdump\.age"\s*\|\s*docker exec -i/);
+  assert.match(smoke,/docker run -d --rm --network none --security-opt no-new-privileges/);
+  assert.match(smoke,/--single-transaction --exit-on-error/);
+  assert.match(smoke,/restored_amount/);
+  assert.match(smoke,/restored_sequence/);
+  assert.match(smoke,/actualProductionBackup":false/);
+  assert.match(smoke,/independentExternalMedia":false/);
+  assert.match(smoke,/productionCertified":false/);
+  assert.doesNotMatch(smoke,/docker exec "\$container" createdb/);
+  assert.doesNotMatch(smoke,/decrypted\.dump|wrong-decrypt\.dump/);
 });
 
 test("manual private restore workflow never uses production DB or public artifacts",()=>{
