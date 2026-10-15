@@ -35,6 +35,22 @@ the unique key. A successful first push or process exit code 0 does **not**
 prove a safe, idempotent second push. Do not use `--force`, `CASCADE`, or
 weaken the composite tenant/employee FK to make it pass.
 
+**#1019 fail-closed wrapper:** `npm run db:push` now invokes
+`scripts/strict-db-push.mjs`, preserving the existing local/CI-only target
+guard while checking Drizzle's **stdout, stderr, AND exit code**. It rejects
+PostgreSQL `2BP01`, interactive errors, ambiguous output, and a claimed
+`No changes detected` result accompanied by DDL, even when the underlying
+CLI exits zero. A valid result is summarized without printing SQL or credentials.
+The pinned Drizzle 0.31.x **diff bug is not solved by this wrapper**:
+a second push may correctly FAIL instead of silently reporting success.
+
+The PG18 CI workflow separately experiments with the matched Drizzle v1 RC
+in its **disposable worker only**. Its zero-change result and read-only
+catalog fingerprint, plus a fictional same-tenant / cross-tenant COE FK
+acceptance in a transaction that rolls back, are prerequisites for evaluating
+a compatible upstream version. Do not update runtime Drizzle packages or
+close #1019 merely because a strict wrapper or RC-only job passed.
+
 The isolated `pg18-schema-repeat-proof.yml` CI workflow can exercise
 **matched** `drizzle-kit@1.0.0-rc.4` and `drizzle-orm@1.0.0-rc.4` against
 a newly created, disposable PG18 `app_db`, verify the real composite FK,
