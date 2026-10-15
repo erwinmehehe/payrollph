@@ -81,6 +81,7 @@ export function WorkforcePlanAllocationPanel({
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [access, setAccess] = useState<AllocationAccess | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [savingAllocation, setSavingAllocation] = useState(false);
   const [savingSubmission, setSavingSubmission] = useState(false);
   const [actingSubmissionId, setActingSubmissionId] = useState<number | null>(null);
@@ -101,6 +102,7 @@ export function WorkforcePlanAllocationPanel({
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const response = await fetch(
         `/api/workforce-planning/allocations?organizationId=${organizationId}`,
@@ -108,18 +110,24 @@ export function WorkforcePlanAllocationPanel({
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setNotice(payload.error ?? "Could not load workforce plan allocations.");
+        setAccess(null);
+        setAllocations([]);
+        setSubmissions([]);
+        setLoadError(typeof payload.error === "string" ? payload.error : "Could not load workforce plan allocations.");
         return;
       }
       setAllocations(payload.allocations ?? []);
       setSubmissions(payload.submissions ?? []);
       setAccess(payload.access ?? null);
     } catch {
-      setNotice("Could not reach workforce allocation planning.");
+      setAccess(null);
+      setAllocations([]);
+      setSubmissions([]);
+      setLoadError("Could not reach workforce allocation planning.");
     } finally {
       setLoading(false);
     }
-  }, [organizationId, setNotice]);
+  }, [organizationId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -277,6 +285,17 @@ export function WorkforcePlanAllocationPanel({
     } finally {
       setActingSubmissionId(null);
     }
+  }
+
+  if (loadError) {
+    return (
+      <article className="card" style={{ marginBottom: 16 }}>
+        <div className="notice notice-amber" role="alert">
+          <span><strong>Workforce plan allocations are unavailable.</strong> {loadError} No planning allocations are shown until the request succeeds.</span>
+          <button className="secondary-button" type="button" onClick={() => void load()} disabled={loading}>Retry</button>
+        </div>
+      </article>
+    );
   }
 
   if (loading && !access) {
