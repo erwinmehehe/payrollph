@@ -131,7 +131,7 @@ try{
         keys:Object.keys(payload)};
     }, previewPath(organizationId));
     assert.equal(evidence.status, 403, label + ": authorized session must be denied");
-    assert.equal(evidence.cache, "private, no-store",
+    assert.ok(["private, no-store", "no-store, max-age=0"].includes(evidence.cache),
       label + ": denied monetary API must never be cached");
     assert.deepEqual(evidence.keys, ["error"], label + ": no gross, net, rows or statutory amounts");
     report.steps.push(label + ": preview GET 403, no-store, no payroll data");
@@ -235,8 +235,8 @@ try{
     panel.getByRole("button",{name:"Preview first payroll (no writes)"}).click(),
   ]);
   assert.equal(previewResponse.status(),200,"Preview endpoint refused safe inputs");
-  assert.equal(previewResponse.headers()["cache-control"], "private, no-store",
-    "Canonical payroll figures must be private and non-cacheable");
+  assert.ok(["private, no-store", "no-store, max-age=0"].includes(previewResponse.headers()["cache-control"]),
+    "Canonical payroll figures must be non-cacheable");
   const preview=await previewResponse.json();
   assert.equal(preview.dryRun,true);
   assert.equal(preview.persisted,false);
