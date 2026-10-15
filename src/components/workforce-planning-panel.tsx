@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BriefcaseBusiness, Building2, CheckCircle2, CircleDollarSign, Clock3, Plus, RefreshCw, Save, TrendingUp, UserCheck, UserPlus, UsersRound, XCircle } from "lucide-react";
 import { WorkforcePlanAllocationPanel } from "@/components/workforce-plan-allocation-panel";
 
@@ -312,6 +312,9 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [forecastPlanCreating, setForecastPlanCreating] = useState<number | null>(null);
   const [costVisible, setCostVisible] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadedOrganizationId, setLoadedOrganizationId] = useState<number | null>(null);
+  const loadRevisionRef = useRef(0);
   const [showArchitecture, setShowArchitecture] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
@@ -354,11 +357,18 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [assignmentForm, setAssignmentForm] = useState({ positionId: "", employeeId: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
 
   const load = useCallback(async () => {
+    const revision = ++loadRevisionRef.current;
     setLoading(true);
+    setLoadError(null);
     try {
       const response = await fetch(`/api/workforce-planning?organizationId=${organizationId}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) return setNotice(payload.error ?? "Could not load workforce planning.");
+      if (revision !== loadRevisionRef.current) return;
+      if (!response.ok) {
+        setLoadedOrganizationId(null);
+        setLoadError(typeof payload.error === "string" ? payload.error : "Could not load workforce planning.");
+        return;
+      }
       setProfiles(payload.profiles ?? []);
       setJobFamilies(payload.jobFamilies ?? []);
       setJobLevels(payload.jobLevels ?? []);
@@ -374,6 +384,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       setEmployees(payload.employees ?? []);
       const scenarioResponse = await fetch(`/api/workforce-planning/scenarios?organizationId=${organizationId}`, { cache: "no-store" });
       const scenarioPayload = await scenarioResponse.json().catch(() => ({}));
+      if (revision !== loadRevisionRef.current) return;
       if (scenarioResponse.ok) {
         setScenarios(scenarioPayload.scenarios ?? []);
         setApprovalConfiguration(scenarioPayload.approvalConfiguration ?? { configured: false, conflict: false, policy: null });
@@ -381,20 +392,28 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       }
       const baselineResponse = await fetch(`/api/workforce-planning/baselines?organizationId=${organizationId}`, { cache: "no-store" });
       const baselinePayload = await baselineResponse.json().catch(() => ({}));
+      if (revision !== loadRevisionRef.current) return;
       if (baselineResponse.ok) {
         setBaselines(baselinePayload.baselines ?? []);
         setCostVisible(baselinePayload.costVisible !== false);
       }
       const executionResponse = await fetch(`/api/workforce-planning/position-executions?organizationId=${organizationId}`, { cache: "no-store" });
       const executionPayload = await executionResponse.json().catch(() => ({}));
+      if (revision !== loadRevisionRef.current) return;
       if (executionResponse.ok) {
         setPositionExecutions(executionPayload.executions ?? []);
         setPositionExecutionCanApply(Boolean(executionPayload.access?.canApply));
       }
+      setLoadedOrganizationId(organizationId);
+    } catch {
+      if (revision === loadRevisionRef.current) {
+        setLoadedOrganizationId(null);
+        setLoadError("Could not reach workforce planning. The service may be temporarily unavailable.");
+      }
     } finally {
-      setLoading(false);
+      if (revision === loadRevisionRef.current) setLoading(false);
     }
-  }, [organizationId, setNotice]);
+  }, [organizationId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -821,6 +840,39 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     onPage("Recruitment");
   }
 
+  // Prevent previous-organization values from appearing during an in-flight
+  // organization switch or manual Retry. Only successful reads render controls.
+  if (loading || (!loadError && loadedOrganizationId !== organizationId)) {
+    return (
+      <div className="page-heading" role="status" aria-busy="true">
+        <div>
+          <div className="eyebrow">HCM STRUCTURE &amp; WORKFORCE PLANNING</div>
+          <h1>Workforce planning</h1>
+          <p>Loading authorized workforce planning records…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // A failed authoritative read must not render empty counts or allow writes
+  // that could be mistaken for a valid zero-worker workforce plan.
+  if (loadError) {
+    return (
+      <div>
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">HCM STRUCTURE &amp; WORKFORCE PLANNING</div>
+            <h1>Workforce planning</h1>
+          </div>
+        </div>
+        <div className="notice notice-amber" role="alert" style={{ marginBottom: 16 }}>
+          <span><strong>Workforce planning is unavailable.</strong> {loadError} No planning records or totals are displayed until the request succeeds.</span>
+          <button className="secondary-button" type="button" onClick={() => void load()} disabled={loading}>Retry</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="page-heading">
@@ -1112,27 +1164,23 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                           </button>
                         )}
                         {scenario.status === "submitted" && <button className="secondary-button" onClick={() => onPage("Approvals")}><CheckCircle2 size={14} /> Open approvals</button>}
-                        {scenario.status === "approved" && (() => {
-                          const currentBaseline = scenario.planId ? currentBaselineByPlan.get(scenario.planId) : null;
-                          if (currentBaseline?.scenarioId === scenario.id) {
-                            return <span className="status status-verified"><CheckCircle2 size={13} /> Current baseline</span>;
-                          }
-                          if (!scenario.planId) {
-                            return <span className="status">Link plan to publish</span>;
-                          }
-                          if (scenario.scopeOrgUnitId != null || scenario.worksiteId != null) {
-                            return <span className="status">What-if only</span>;
-                          }
-                          return (
+                        {scenario.status === "approved" && (
+                          scenario.planId && currentBaselineByPlan.get(scenario.planId)?.scenarioId === scenario.id ? (
+                            <span className="status status-verified"><CheckCircle2 size={13} /> Current baseline</span>
+                          ) : !scenario.planId ? (
+                            <span className="status">Link plan to publish</span>
+                          ) : scenario.scopeOrgUnitId != null || scenario.worksiteId != null ? (
+                            <span className="status">What-if only</span>
+                          ) : (
                             <button
                               className="primary-button"
                               disabled={baselinePublishing === scenario.id}
                               onClick={() => void publishBaseline(scenario.id)}
                             >
-                              <CheckCircle2 size={14} /> {baselinePublishing === scenario.id ? "Publishing..." : currentBaseline ? "Publish new baseline" : "Publish baseline"}
+                              <CheckCircle2 size={14} /> {baselinePublishing === scenario.id ? "Publishing..." : currentBaselineByPlan.get(scenario.planId)?.id ? "Publish new baseline" : "Publish baseline"}
                             </button>
-                          );
-                        })()}
+                          )
+                        )}
                       </div>
                     </td>
                   </tr>
