@@ -95,6 +95,12 @@ async function checkRole(browser, role, width, authState, pages) {
       const findings = [];
       const skipped = [];
       try {
+        const opened = await page.goto(BASE + "/app" + (role === "employee" ? "" : "?organizationId=" + fixture.organizationId), { waitUntil: "load", timeout: 30000 });
+        if (!opened || opened.status() < 200 || opened.status() >= 300) {
+          throw new Error("HTTP " + (opened?.status() ?? "no response") + " GET /app");
+        }
+        await page.locator("[data-workspace-role='" + role + "']").first().waitFor({ timeout: 30000 });
+        await page.waitForTimeout(700);
         if (role === "employee") {
           const tab = name.slice("employee-".length);
           const nav = page.locator(".employee-side-nav").getByRole("button", { name: new RegExp("^" +
