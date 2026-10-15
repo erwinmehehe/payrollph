@@ -20,6 +20,8 @@ mkdirSync(dir, { recursive: true });
 const results = [];
 const broken = process.env.NAV_SWEEP_INJECT_BROKEN === "true";
 const proofOnly = process.env.NAV_SWEEP_ONLY_OWNER === "true";
+const focusRole = process.env.NAV_SWEEP_FOCUS_ROLE || null;
+const focusPage = process.env.NAV_SWEEP_FOCUS_PAGE || null;
 // Read-only navigation + view controls. Mutation methods are intercepted, even
 // if a seemingly harmless button hides a write action.
 const SAFE_CONTROL = /^(?:more|close|dismiss|cancel|back|next|previous|open|view|show|hide|expand|collapse|details|preview|search|filter|clear filter|help|info|overview|summary|refresh view|history|about)/i;
@@ -141,13 +143,27 @@ async function checkRole(browser, role, width, authState, pages) {
                   if (!node) return null;
                   const r = node.getBoundingClientRect(), style = getComputedStyle(node);
                   return { top: Math.round(r.top), bottom: Math.round(r.bottom),
+                    left: Math.round(r.left), width: Math.round(r.width),
                     height: Math.round(r.height), display: style.display,
-                    visibility: style.visibility, overflowY: style.overflowY };
+                    visibility: style.visibility, overflowY: style.overflowY,
+                    position: style.position, contentVisibility: style.contentVisibility,
+                    boxSizing: style.boxSizing, flex: style.flex, minHeight: style.minHeight,
+                    maxHeight: style.maxHeight, gridRow: style.gridRow,
+                    rects: node.getClientRects().length, children: node.children.length,
+                    htmlHidden: node.hidden === true, className: node.className };
                 }
                 return { button: box(element), sidebar: box(sidebar),
                   menu: box(menu), footer: box(footer),
-                  viewportHeight: innerHeight };
+                  ancestors: (() => {
+                    let node = element, chain = [];
+                    while (node && chain.length < 7) {
+                      chain.push(box(node));
+                      node = node.parentElement;
+                    }
+                    return chain;
+                  })(), viewportHeight: innerHeight };
               }).catch(() => null);
+              console.log("NAV_SWEEP_LAYOUT_DIAGNOSTIC " + JSON.stringify(position));
               throw new Error("Settings nav control hidden: " + JSON.stringify(position) +
                 "; " + String(cause));
             }
@@ -277,7 +293,10 @@ test("read-only navigation and runtime error sweep (real roles, both viewports)"
   try {
     for (const { role, pages: allPages } of manifest.roles) {
       if (proofOnly && role !== "owner") continue;
-      const pages = proofOnly ? ["Overview"] : allPages;
+      if (focusRole && role !== focusRole) continue;
+      const pages = proofOnly ? ["Overview"] : focusPage
+        ? allPages.filter(name => name === focusPage) : allPages;
+      assert.ok(pages.length, "Requested focus page is not in role navigation: " + role + "/" + focusPage);
       const state = await login(browser, role);
       for (const width of (proofOnly ? [1280] : [1280, 390])) await checkRole(browser, role, width, state, pages);
     }

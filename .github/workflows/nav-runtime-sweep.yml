@@ -85,6 +85,8 @@ jobs:
           done
           cat /tmp/payrollph-nav-sweep.log
           exit 1
+      - name: Focused Settings navigation regression at desktop and 390px
+        run: NAV_SWEEP_FOCUS_ROLE=owner NAV_SWEEP_FOCUS_PAGE=Settings node --import tsx --test tests/e2e/nav-sweep.spec.mjs
       - name: Prove deliberately broken Overview route is caught (negative test)
         shell: bash
         run: |
