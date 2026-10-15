@@ -84,10 +84,17 @@ export function makeBlankLedger() {
 function validDate(s) {
   if (typeof s !== 'string' || !UTC.test(s)) return false;
   const timestamp = Date.parse(s);
-  if (!Number.isFinite(timestamp) || timestamp > Date.now() + 5 * 60_000) return false;
+  if (!Number.isFinite(timestamp) || timestamp > Date.now()) return false;
   // Date.parse silently normalizes impossible calendar dates, so demand an exact UTC round-trip.
   const canonical = s.replace(/(?:\.(\d{1,3}))?Z$/, (_match, ms) => '.' + (ms || '').padEnd(3, '0') + 'Z');
   return new Date(timestamp).toISOString() === canonical;
+}
+function validCalendarDate(day) {
+  if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  // Date.parse normalizes impossible dates (e.g. February 30); compare exact UTC day.
+  const timestamp = Date.parse(day + 'T00:00:00.000Z');
+  return Number.isFinite(timestamp) &&
+    new Date(timestamp).toISOString().slice(0, 10) === day;
 }
 function meaningful(s) { return typeof s === 'string' && s.trim().length > 0; }
 
@@ -121,8 +128,7 @@ export function evaluate(ledger) {
     trackProof(runtime?.[key], 'runtime.' + key);
   }
   const period = (ledger.manilaPayPeriod || '').split('/');
-  if (period.length !== 2 || !period.every(d => /^\d{4}-\d{2}-\d{2}$/.test(d)) ||
-      period[0] > period[1]) {
+  if (period.length !== 2 || !period.every(validCalendarDate) || period[0] > period[1]) {
     blockers.push('Record the actual tested Manila pay period');
   }
   if (ledger.databaseClassification!=='FICTIONAL_ONLY') blockers.push('Database must be classified as fictional');
@@ -177,6 +183,10 @@ export function evaluate(ledger) {
         blockers.push(`PASS missing dated observation, private evidence and distinct reviewer: ${scenario.id}`);
       }
       trackProof(scenario.evidenceRef, scenario.id);
+      if (validDate(runtime?.verifiedAtUtc) && validDate(scenario.observedAtUtc) &&
+          Date.parse(scenario.observedAtUtc) < Date.parse(runtime.verifiedAtUtc)) {
+        blockers.push(`PASS precedes runtime verification: ${scenario.id}`);
+      }
       const actorKey = requiredActor[scenario.id];
       if (actorKey && scenario.observedBy !== ledger.identities?.[actorKey]) {
         blockers.push(`PASS operator must match the recorded ${actorKey} persona: ${scenario.id}`);
@@ -199,6 +209,18 @@ export function evaluate(ledger) {
     blockers.push('Independent reviewer human signoff evidence not supplied');
   }
   trackProof(ledger.signoff?.privateEvidenceRef, 'signoff');
+  if (validDate(ledger.signoff?.signedAtUtc)) {
+    const signedAt = Date.parse(ledger.signoff.signedAtUtc);
+    if (validDate(runtime?.verifiedAtUtc) && signedAt < Date.parse(runtime.verifiedAtUtc)) {
+      blockers.push('Independent signoff precedes runtime verification');
+    }
+    for (const row of incoming) {
+      if (row.observedStatus === 'PASS' && validDate(row.observedAtUtc) &&
+          signedAt < Date.parse(row.observedAtUtc)) {
+        blockers.push(`Independent signoff precedes PASS: ${row.id}`);
+      }
+    }
+  }
   if (meaningful(ledger.signoff?.independentReviewerId) &&
       (Object.values(ledger.identities || {}).includes(ledger.signoff.independentReviewerId) ||
        incoming.some(row => row.observedBy === ledger.signoff.independentReviewerId))) {
