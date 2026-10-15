@@ -1200,7 +1200,8 @@ export function WorkforceCoveragePanel({
                 {saving === "create_availability" ? <Spinner label="Saving" /> : <CalendarClock size={14} />} Save availability
               </button>
             </div>
-            <div className="notice notice-slate" style={{ margin: "10px 16px 14px" }}>
+            {process.env.NEXT_PUBLIC_WFM_EMPLOYEE_AVAILABILITY_ENABLED === "true" && (<>
+              <div className="notice notice-slate" style={{ margin: "10px 16px 14px" }}>
               Recorded availability and preferred shifts are scheduling evidence, not leave approval or permission to change a published roster.
               Showing rules intersecting the selected 14-day planning window.
             </div>
@@ -1221,6 +1222,7 @@ export function WorkforceCoveragePanel({
                 <small>Showing 20 of {selectedAvailabilityRows.length} visible rules. Narrow the planning window to review remaining source records.</small>
               )}
             </div>
+            </>)}
           </article>
         </section>
       )}
