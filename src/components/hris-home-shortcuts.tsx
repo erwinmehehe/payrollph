@@ -17,6 +17,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { HrisHomeShortcut } from "@/lib/hris-home-shortcuts";
+import type { Task } from "@/components/workspace/types";
+import type { OnboardingTask } from "@/lib/hris-onboarding-checklist";
+import { summarizeEverydayHrAttention } from "@/lib/hris-home-attention";
 import { findAuthorizedHrisEmployees, type HrisQuickFindEmployee } from "@/lib/hris-quick-find";
 
 const ICONS: Record<HrisHomeShortcut["icon"], LucideIcon> = {
@@ -37,6 +40,8 @@ export function HrisHomeShortcuts({
   reviewTeamHref,
   employees = [],
   onOpenEmployee,
+  provisioning,
+  approvalTasks = [],
 }: {
   actions: readonly HrisHomeShortcut[];
   onPage: (page: string) => void;
@@ -44,6 +49,10 @@ export function HrisHomeShortcuts({
   /** Authorized roster for the currently selected employer; never cross-employer search. */
   employees?: readonly HrisQuickFindEmployee[];
   onOpenEmployee?: (employeeId: number) => void;
+  /** Missing means no reliable onboarding snapshot was loaded. */
+  provisioning?: readonly OnboardingTask[];
+  /** Already role-scoped task records from the selected-employer dashboard. */
+  approvalTasks?: readonly Pick<Task, "status">[];
 }) {
   const [employeeQuery, setEmployeeQuery] = useState("");
   const canQuickFind = actions.some((action) => action.page === "People") && Boolean(onOpenEmployee);
@@ -51,6 +60,12 @@ export function HrisHomeShortcuts({
     () => canQuickFind ? findAuthorizedHrisEmployees(employees, employeeQuery) : [],
     [canQuickFind, employees, employeeQuery],
   );
+  const attention = useMemo(
+    () => summarizeEverydayHrAttention({ employees, provisioning, approvals: approvalTasks }),
+    [employees, provisioning, approvalTasks],
+  );
+  const canOpenOnboarding = actions.some((action) => action.id === "hiring");
+  const canOpenApprovals = actions.some((action) => action.id === "approvals");
   if (actions.length === 0) return null;
   const dailyIds = new Set(["directory", "hiring", "leave", "approvals"]);
   const dailyActions = actions.filter((action) => dailyIds.has(action.id));
@@ -135,6 +150,38 @@ export function HrisHomeShortcuts({
                 </p>
               )}
             </div>
+          )}
+        </div>
+      )}
+      {(canOpenOnboarding || canOpenApprovals) && (
+        <div className="mb-5 grid gap-3 sm:grid-cols-2" role="group" aria-label="Recorded HR follow-ups">
+          {canOpenOnboarding && (
+            <button type="button" onClick={() => onPage("Recruitment")}
+              className="flex min-h-24 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left hover:border-emerald-600 hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+              <span>
+                <strong className="block text-sm text-slate-900">Onboarding follow-ups</strong>
+                <span className="mt-1 block text-xs text-slate-600">
+                  {attention.onboarding === null
+                    ? "Onboarding source unavailable — open the checklist to investigate."
+                    : attention.onboarding.recordedWorkers === 0
+                      ? "No checklists recorded; onboarding is not verified."
+                      : `${attention.onboarding.openTasks} open recorded tasks for ${attention.onboarding.openWorkers} workers`}
+                </span>
+              </span>
+              <ArrowRight size={18} aria-hidden="true" className="shrink-0 text-emerald-800" />
+            </button>
+          )}
+          {canOpenApprovals && (
+            <button type="button" onClick={() => onPage("Approvals")}
+              className="flex min-h-24 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left hover:border-emerald-600 hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+              <span>
+                <strong className="block text-sm text-slate-900">Pending approvals</strong>
+                <span className="mt-1 block text-xs text-slate-600">
+                  {attention.pendingApprovals} pending tasks in your current workspace view
+                </span>
+              </span>
+              <ArrowRight size={18} aria-hidden="true" className="shrink-0 text-emerald-800" />
+            </button>
           )}
         </div>
       )}

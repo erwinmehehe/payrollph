@@ -1,9 +1,11 @@
-import { and, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, positionAssignments, workerEmploymentEvents } from "@/db/schema";
 import {
   projectWorker360Events,
   selectWorker360Assignment,
+  validWorker360EventCursor,
+  type Worker360EventCursor,
 } from "@/lib/hcm-worker-360-projection";
 import type { Worker360Summary } from "@/lib/hcm-worker-360-contract";
 
@@ -21,7 +23,11 @@ export async function loadWorker360Summary(
   organizationId: number,
   employeeId: number,
   asOfDate: string,
+  before?: Worker360EventCursor,
 ): Promise<Worker360Summary | null> {
+  if (before && !validWorker360EventCursor(before, asOfDate)) {
+    throw new Error("Invalid Worker 360 event cursor");
+  }
   const [worker] = await db.select({
     id: employees.id,
     employeeNo: employees.employeeNo,
@@ -65,6 +71,13 @@ export async function loadWorker360Summary(
       eq(workerEmploymentEvents.organizationId, organizationId),
       eq(workerEmploymentEvents.employeeId, employeeId),
       lte(workerEmploymentEvents.effectiveDate, asOfDate),
+      before ? or(
+        lt(workerEmploymentEvents.effectiveDate, before.effectiveDate),
+        and(
+          eq(workerEmploymentEvents.effectiveDate, before.effectiveDate),
+          lt(workerEmploymentEvents.id, before.id),
+        ),
+      ) : undefined,
     )).orderBy(
       desc(workerEmploymentEvents.effectiveDate),
       desc(workerEmploymentEvents.id),
@@ -91,7 +104,7 @@ export async function loadWorker360Summary(
     },
     employmentEvents: {
       source: "worker_employment_events",
-      preview: projectWorker360Events(events, asOfDate, WORKER_360_EVENT_PAGE_SIZE),
+      preview: projectWorker360Events(events, asOfDate, WORKER_360_EVENT_PAGE_SIZE, before),
     },
   };
 }

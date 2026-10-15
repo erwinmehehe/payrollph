@@ -187,3 +187,78 @@ test("first-payroll simple preview scopes punch guard to selected tenant and inc
     }
   }
 });
+
+
+test("future-only optional payroll records cannot block an earlier cutoff, while prior and boundary records remain fail-closed", async () => {
+  process.env.DATABASE_URL ??= "postgresql://local:local@127.0.0.1:1/offline";
+  const { loadReadOnlyFirstPayrollPreview } = await import("../src/lib/first-payroll-preview");
+  const dialect = new PgDialect();
+  const organizationId = 33, periodEnd = "2026-10-15";
+  const base: Record<string, unknown[]> = {
+    organizations: [{ id: organizationId }],
+    legal_entities: [{ id: 101, organizationId, active: true, primaryEntity: true,
+      payrollCalendarMode: "ph_semi_monthly", statutoryDeductionTiming: "split" }],
+    first_payroll_journey_progress: [
+      { step: "company", data: { completedAt: "2026-10-01T10:00:00Z" } },
+      { step: "time", data: { completedAt: "2026-10-01T11:00:00Z",
+        periodStart: "2026-10-01", periodEnd } },
+    ],
+    user_organizations: [{ role: "payroll" }, { role: "checker" }],
+    employees: [{ id: 5, organizationId, legalEntityId: 101, employeeNo: "A-001",
+      firstName: "Fictional", lastName: "Worker", status: "Active", startDate: "2026-01-01",
+      tin: "123456789", bankAccount: "synthetic-only", bankCode: "TEST",
+      basicRate: "30000.00", mwe: false, region: "NCR", restDay: "Sunday",
+      pagIbigVoluntaryMonthly: "0" }],
+    employee_pay_profiles: [{ id: 6, organizationId, employeeId: 5, payBasis: "monthly",
+      rateAmount: "30000.00", standardWorkDaysPerMonth: "22.00",
+      standardHoursPerDay: "8.00" }],
+  };
+  for (const [table, dateColumn, rowDateField] of [
+    ["leave_requests", "start_date", "startDate"],
+    ["supplementary_earnings", "effective_date", "effectiveDate"],
+    ["holidays", "holiday_date", "holidayDate"],
+  ] as const) {
+    for (const date of ["2026-10-16", "2026-10-15", "2026-10-01", "2026-09-30"]) {
+      let checked = false, writes = 0;
+      const reader = new Proxy({ select() {
+        let selected = "", condition: SQL | undefined;
+        const chain: Record<string, unknown> = {};
+        chain.from = (target: Parameters<typeof getTableName>[0]) => {
+          selected = getTableName(target); return chain;
+        };
+        chain.where = (clause: SQL) => { condition = clause; return chain; };
+        chain.limit = () => chain;
+        chain.then = (done: (rows: unknown[]) => unknown) => {
+          if (selected !== table) return Promise.resolve(base[selected] ?? []).then(done);
+          assert.ok(condition, table + " must have an explicit SQL scope");
+          const parsed = dialect.sqlToQuery(condition);
+          assert.match(parsed.sql, /organization_id/);
+          assert.match(parsed.sql, new RegExp(dateColumn));
+          assert.match(parsed.sql, /<=/);
+          assert.deepEqual(parsed.params, [organizationId, periodEnd]);
+          checked = true;
+          const record = { id: 77, organizationId, [rowDateField]: date };
+          return Promise.resolve(date <= periodEnd ? [record] : []).then(done);
+        };
+        return chain;
+      } }, { get(target, field) {
+        if (field === "select") return target.select;
+        writes++; throw Error("Read-only payroll preview attempted a write");
+      } }) as unknown as Pick<typeof db, "select">;
+      const result = await loadReadOnlyFirstPayrollPreview({
+        organizationId, periodStart: "2026-10-01", periodEnd, payDate: periodEnd,
+      }, reader);
+      const shouldBlock = date <= periodEnd;
+      assert.equal(checked, true, table + " on " + date);
+      assert.equal(writes, 0);
+      assert.equal(result.persisted, false);
+      assert.equal(result.previewReady, !shouldBlock, table + " on " + date);
+      assert.equal(result.rows[0].gross === null, shouldBlock, table + " on " + date);
+      assert.equal(result.blockers.some(b => b.includes({
+        leave_requests: "leave requests",
+        supplementary_earnings: "supplementary earnings",
+        holidays: "employer-specific holidays",
+      }[table])), shouldBlock, table + " on " + date);
+    }
+  }
+});
