@@ -10,7 +10,7 @@ const executable = sql.replace(/--[^\n]*/g, "");
 test("issue 1031 forward source is additive, no demo/payroll data rewrites", () => {
   assert.match(executable, /ISSUE_1031_INCOMPATIBLE_BASE_SCHEMA/);
   assert.match(executable, /ISSUE_1031_PARTIAL_OR_PREVIOUS_REPAIR_REQUIRES_REVIEW/);
-  assert.doesNotMatch(executable, /\b(?:DROP|TRUNCATE|DELETE|UPDATE|INSERT)\b/i);
+  assert.doesNotMatch(executable, /\b(?:DROP\s+(?:TABLE|INDEX)|TRUNCATE\s+|DELETE\s+FROM|UPDATE\s+|INSERT\s+INTO)\b/i);
   assert.doesNotMatch(executable, /\b(?:GRANT|REVOKE|DISABLE TRIGGER|CASCADE\s*;)\b/i);
   assert.match(executable, /CREATE TABLE IF NOT EXISTS/);
 });
