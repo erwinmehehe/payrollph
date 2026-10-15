@@ -40,7 +40,10 @@ export async function buildEmployeeTimesheetSnapshot(input: {
   employeeId: number;
   periodStart: string;
   periodEnd: string;
+  /** The preview must use the caller's read-only snapshot, not a separate pool query. */
+  executor?: Pick<typeof db, "select">;
 }) {
+  const reader = input.executor ?? db;
   const dates = datesBetween(input.periodStart, input.periodEnd);
   if (dates.length === 0 || dates.length > 31) {
     throw new Error("Timesheet period must be a valid date range of 31 days or fewer.");
@@ -52,27 +55,28 @@ export async function buildEmployeeTimesheetSnapshot(input: {
       employeeId: input.employeeId,
       startDate: input.periodStart,
       endDate: input.periodEnd,
+      executor: reader,
     }),
-    db.select().from(timePunches).where(and(
+    reader.select().from(timePunches).where(and(
       eq(timePunches.organizationId, input.organizationId),
       eq(timePunches.employeeId, input.employeeId),
       gte(timePunches.workDate, input.periodStart),
       lte(timePunches.workDate, input.periodEnd),
     )).orderBy(asc(timePunches.workDate), asc(timePunches.id)),
-    db.select().from(overtimeRequests).where(and(
+    reader.select().from(overtimeRequests).where(and(
       eq(overtimeRequests.organizationId, input.organizationId),
       eq(overtimeRequests.employeeId, input.employeeId),
       gte(overtimeRequests.workDate, input.periodStart),
       lte(overtimeRequests.workDate, input.periodEnd),
     )).orderBy(asc(overtimeRequests.workDate), asc(overtimeRequests.id)),
-    db.select().from(attendanceCorrectionRequests).where(and(
+    reader.select().from(attendanceCorrectionRequests).where(and(
       eq(attendanceCorrectionRequests.organizationId, input.organizationId),
       eq(attendanceCorrectionRequests.employeeId, input.employeeId),
       gte(attendanceCorrectionRequests.workDate, input.periodStart),
       lte(attendanceCorrectionRequests.workDate, input.periodEnd),
       eq(attendanceCorrectionRequests.status, "pending"),
     )).orderBy(asc(attendanceCorrectionRequests.workDate), asc(attendanceCorrectionRequests.id)),
-    db.select().from(leaveRequests).where(and(
+    reader.select().from(leaveRequests).where(and(
       eq(leaveRequests.organizationId, input.organizationId),
       eq(leaveRequests.employeeId, input.employeeId),
       lte(leaveRequests.startDate, input.periodEnd),
@@ -82,7 +86,7 @@ export async function buildEmployeeTimesheetSnapshot(input: {
 
   const approvedLeaveRows = leaveRows.filter((row) => row.status === "Approved");
   const currentIntervalSets = approvedLeaveRows.length
-    ? await db.select().from(leaveRequestIntervalSets).where(and(
+    ? await reader.select().from(leaveRequestIntervalSets).where(and(
         eq(leaveRequestIntervalSets.organizationId, input.organizationId),
         eq(leaveRequestIntervalSets.status, "current"),
         inArray(leaveRequestIntervalSets.leaveRequestId, approvedLeaveRows.map((row) => row.id)),
@@ -90,7 +94,7 @@ export async function buildEmployeeTimesheetSnapshot(input: {
     : [];
   const currentIntervalSetIds = currentIntervalSets.map((row) => row.id);
   const currentIntervals = currentIntervalSetIds.length
-    ? await db.select().from(leaveRequestIntervals).where(and(
+    ? await reader.select().from(leaveRequestIntervals).where(and(
         eq(leaveRequestIntervals.organizationId, input.organizationId),
         inArray(leaveRequestIntervals.intervalSetId, currentIntervalSetIds),
       ))
