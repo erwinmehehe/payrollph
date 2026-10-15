@@ -12,6 +12,13 @@ import { loadFinalPayRetroSourcePeriods } from "../src/lib/final-pay-retro-sourc
 
 test("M-5 PostgreSQL: only Released same-tenant same-employee source payroll may establish a retro year", async () => {
   // Run ONLY against disposable PostgreSQL in CI; never shared Neon or real payroll.
+  // Never let an operator accidentally run this write-heavy synthetic fixture
+  // against a shared development or employer database.
+  const databaseUrl = process.env.DATABASE_URL;
+  assert.ok(databaseUrl, "The M-5 DB test requires a disposable PostgreSQL connection.");
+  const hostname = new URL(databaseUrl).hostname;
+  assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(hostname),
+    "The M-5 DB test must run against loopback PostgreSQL, never hosted Neon or production.");
   const suffix = randomUUID().slice(0, 9);
   const [employer, otherEmployer] = await db.insert(organizations).values([
     { name: "M5 test employer " + suffix, legalName: "Fictional Employer A", plan: "Core" },
