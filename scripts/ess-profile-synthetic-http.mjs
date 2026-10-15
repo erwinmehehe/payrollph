@@ -87,6 +87,9 @@ async function run() {
     a.post(IDS, { headers: { origin: "https://invalid.invalid", "sec-fetch-site": "cross-site" },
       data: { kind: "tin", value: "123456789" } }), 403);
   await expect("Disallowed government ID kind", post(a, IDS, { kind: "philsysNo", value: "000000000" }), 422);
+  await expect("Malformed TIN input denied", post(a, IDS, { kind: "tin", value: "not-an-identifier" }), 422);
+  await expect("Unlinked HR cannot mutate employee identifiers", post(hrA, IDS,
+    { kind: "tin", value: "123456789" }), 403);
 
   const ownA = await (await expect("A initial identifiers", get(a, IDS), 200)).json();
   const ownB = await (await expect("B initial identifiers", get(b, IDS), 200)).json();
@@ -101,6 +104,20 @@ async function run() {
   assert.notEqual(pendingA.id, pendingB.id);
   await expect("Duplicate pending ID rejected", post(a, IDS,
     { kind: "tin", value: "123456789" }), 409);
+  await expect("Employee cannot approve identifier", post(a, REVIEW,
+    approve(fixture.organizationA, pendingA.id, "123456789")), 403);
+  // Pending ESS proposals must not alter the authoritative statutory employee ID.
+  const source = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await source.connect();
+  try {
+    const before = await source.query(
+      "SELECT tin FROM employees WHERE organization_id=$1 AND employee_no='SYNTHETIC-SELF'",
+      [fixture.organizationA],
+    );
+    assert.equal(before.rows.length, 1);
+    assert.equal(before.rows[0].tin, null);
+    checkpoints.push("Pending proposal leaves statutory source unchanged");
+  } finally { await source.end(); }
 
   const qa = await (await expect("HR-A own queue", get(hrA,
     REVIEW + "?organizationId=" + fixture.organizationA), 200)).json();
@@ -125,6 +142,19 @@ async function run() {
   const afterA = await (await expect("A approved identifier visible", get(a, IDS), 200)).json();
   assert.equal(afterA.current.tin.hasValue, true);
   assert.equal(afterA.requests.find(row => row.id === pendingA.id)?.status, "approved");
+  const verifiedSource = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await verifiedSource.connect();
+  try {
+    const after = await verifiedSource.query(
+      "SELECT tin FROM employees WHERE organization_id=$1 AND employee_no='SYNTHETIC-SELF'",
+      [fixture.organizationA],
+    );
+    assert.equal(after.rows.length, 1);
+    assert.ok(after.rows[0].tin?.startsWith("enc:govid:"),
+      "HR approval must apply an encrypted statutory source value");
+    assert.ok(!after.rows[0].tin.includes("123456789"));
+    checkpoints.push("Only verified HR approval applies encrypted statutory source");
+  } finally { await verifiedSource.end(); }
   assert.equal(afterA.current.tin.masked.includes("123456789"), false);
   const stillPendingB = await (await expect("Tenant B unaffected by A review", get(b, IDS), 200)).json();
   assert.equal(stillPendingB.current.tin.hasValue, false);
@@ -167,9 +197,26 @@ async function run() {
   await expect("B photo HEAD succeeds", b.head(PHOTO), 200);
   const returned = await expect("B retrieves own photo", get(b, PHOTO), 200);
   assert.equal(returned.headers()["content-type"], "image/png");
+  assert.match(returned.headers()["cache-control"] || "", /private.*no-store/);
   assert.equal(createHash("sha256").update(await returned.body()).digest("hex"),
     createHash("sha256").update(png).digest("hex"));
   await expect("A cannot see B photo", get(a, PHOTO), 404);
+
+  // JPEG and deletion are tested with a *second* fictional employee. Deleting
+  // A must not delete B's photo, even when both use the same API route.
+  const jpeg = await sharp(png).jpeg().toBuffer();
+  await expect("A accepts validated JPEG", photoPost(a, "fictional.jpg", jpeg, "image/jpeg"), 200);
+  const aPhoto = await expect("A retrieves own JPEG", get(a, PHOTO), 200);
+  assert.equal(aPhoto.headers()["content-type"], "image/jpeg");
+  assert.equal(createHash("sha256").update(await aPhoto.body()).digest("hex"),
+    createHash("sha256").update(jpeg).digest("hex"));
+  await expect("A deletes own image", a.delete(PHOTO, { headers: ORIGIN }), 200);
+  await expect("A after DELETE returns 204 on HEAD", a.head(PHOTO), 204);
+  await expect("A after DELETE returns 404 on GET", get(a, PHOTO), 404);
+  const bUnchanged = await expect("B photo survives A DELETE", get(b, PHOTO), 200);
+  assert.equal(createHash("sha256").update(await bUnchanged.body()).digest("hex"),
+    createHash("sha256").update(png).digest("hex"));
+  checkpoints.push("Photo JPEG, private no-store response and cross-tenant DELETE isolation");
   const connection = new pg.Client({ connectionString: process.env.DATABASE_URL });
   await connection.connect();
   try {
