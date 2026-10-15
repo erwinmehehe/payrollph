@@ -247,8 +247,8 @@ export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = f
   );
 }
 
-export function EwaPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (m: string) => void }) {
-  const employees = useEmployees(organizationId);
+export function EwaPanel({ organizationId, setNotice, canLoadEmployeeDirectory = false }: { organizationId: number; setNotice: (m: string) => void; canLoadEmployeeDirectory?: boolean }) {
+  const employees = useEmployees(organizationId, canLoadEmployeeDirectory);
   const [employeeId, setEmployeeId] = useState("");
   const [eligibility, setEligibility] = useState<any>(null);
   const [requests, setRequests] = useState<any[]>([]);
