@@ -27,8 +27,8 @@ test("direct new-hire source uses the Philippine default but preserves the edita
 
 test("recruitment candidate-to-hire also defaults to Philippine date for every open/reset", () => {
   const source = readFileSync("src/components/recruitment-panel.tsx", "utf8");
-  assert.equal((source.match(/startDate: philippineCalendarDay\\(new Date\\(\\)\\),/g) ?? []).length, 2);
-  assert.doesNotMatch(source, /startDate: new Date\\(\\)\\.toISOString\\(\\)\\.slice\\(0, 10\\)/);
-  assert.match(source, /type="date" value=\\{hireForm\\.startDate\\}/);
-  assert.match(source, /onChange=\\{\\(event\\) => setHireForm\\(\\{ \\.\\.\\.hireForm, startDate: event\\.target\\.value \\}\\)\\}/);
+  assert.equal((source.match(/startDate: philippineCalendarDay\(new Date\(\)\),/g) ?? []).length, 2);
+  assert.doesNotMatch(source, /startDate: new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/);
+  assert.match(source, /type="date" value=\{hireForm\.startDate\}/);
+  assert.match(source, /onChange=\{\(event\) => setHireForm\(\{ \.\.\.hireForm, startDate: event\.target\.value \}\)\}/);
 });
