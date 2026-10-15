@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Banknote, CheckCircle2, Plus, ReceiptText, X } from "lucide-react";
+import { visibleScopedEmployeeDirectory, type ScopedEmployeeDirectory } from "@/lib/scoped-employee-directory";
 
 type Employee = { id: number; firstName: string; lastName: string };
 
@@ -11,15 +12,27 @@ const peso = (v: number | string) =>
 const CATEGORIES = ["Travel", "Meals", "Equipment", "Internet", "Training", "Other"];
 
 function useEmployees(organizationId: number, allowed: boolean) {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [snapshot, setSnapshot] = useState<ScopedEmployeeDirectory<Employee> | null>(null);
   useEffect(() => {
-    if (!allowed) { setEmployees([]); return; }
-    fetch(`/api/employees?organizationId=${organizationId}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setEmployees)
-      .catch(() => setEmployees([]));
+    if (!allowed) return;
+    const controller = new AbortController();
+    void fetch(`/api/employees?organizationId=${organizationId}`, {
+      cache: "no-store", signal: controller.signal,
+    }).then(async (response) => response.ok ? response.json() : [])
+      .then((rows: unknown) => {
+        if (!controller.signal.aborted) {
+          setSnapshot({ organizationId, employees: Array.isArray(rows) ? rows : [] });
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setSnapshot({ organizationId, employees: [] });
+      });
+    // Abort late responses from a former employer or revoked directory role.
+    return () => controller.abort();
   }, [organizationId, allowed]);
-  return employees;
+  // Render-time scope check prevents the former employer roster flashing
+  // before useEffect cleanup/reload runs after the first new-scope paint.
+  return visibleScopedEmployeeDirectory(snapshot, organizationId, allowed);
 }
 
 export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = false, canLoadEmployeeDirectory = true }: { organizationId: number; setNotice: (m: string) => void; reviewModeEnabled?: boolean; canLoadEmployeeDirectory?: boolean }) {
