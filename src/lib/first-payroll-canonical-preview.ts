@@ -10,6 +10,7 @@ import { projectCanonicalPayrollReadOnly } from "@/lib/payroll-engine";
 import { loadReadOnlyFirstPayrollPreview } from "@/lib/first-payroll-preview";
 import { payrollCutoffLockForPeriod } from "@/lib/workforce-attendance-lock";
 import { evaluateTimesheetPayrollGate } from "@/lib/workforce-timesheet";
+import { buildEmployeeTimesheetSnapshot } from "@/lib/workforce-timesheet-server";
 
 /**
  * The existing preview gate validates organization identity, roles, onboarding
@@ -141,6 +142,31 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
             worker.push("Approved timesheet required for this pay period.");
           }
         }
+      }
+    }
+    // Approval is tied to a historical snapshot. It is not proof that the
+    // live roster, corrections, leave or punches remain unchanged. Rebuild
+    // each approved snapshot using only this REPEATABLE READ, READ ONLY reader.
+    // Never query the global DB pool here: a different snapshot could make
+    // a stale approval look current while the canonical worker reads new data.
+    const approvedRows = [...latest.values()].filter(row => row.status === "approved");
+    const snapshotEvidence = await Promise.all(approvedRows.map(async row => ({
+      employeeId: row.employeeId,
+      previousHash: row.snapshotHash,
+      current: await buildEmployeeTimesheetSnapshot({
+        organizationId: input.organizationId,
+        employeeId: row.employeeId,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+        executor: reader,
+      }),
+    })));
+    for (const evidence of snapshotEvidence) {
+      if (evidence.current.snapshotHash !== evidence.previousHash) {
+        const worker = problems.get(evidence.employeeId);
+        if (worker) worker.push(
+          "Approved timesheet evidence is stale. Rebuild, submit and independently approve this pay period again.",
+        );
       }
     }
     if (lockPolicies[0]?.requirePayrollCutoffLock &&

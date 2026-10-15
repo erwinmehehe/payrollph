@@ -30,3 +30,19 @@ Source tests provide a five-worker fictional, query-only projection harness for 
 4. Independent #852/#853 human UAT, #579 witnessed payroll and production DB/recovery approvals remain separate.
 
 The source PR must pass exact-head CI and security review. Do **not** enable production feature flags, execute migrations or change employer payroll/payment state as part of this change.
+
+## Read-only timesheet evidence revalidation
+
+An `approved` timesheet status is **not** sufficient evidence that its
+pay-period attendance inputs remain unchanged. The preview now calls the
+existing `buildEmployeeTimesheetSnapshot` using the **same read-only,
+repeatable-read database reader** as the canonical payroll projection and
+compares its current SHA-256 snapshot hash with the approved version. This
+includes punches, schedule/roster, OT approvals, corrections and paid leave
+details. If a source has changed, the employee's amount fields remain null
+until a new version is reviewed. The production timesheet submission and
+approval operations still use their original database context and are not
+modified. Disposable Postgres testing mutates a fictional punch after
+approval, verifies fail-closed monetary output, and restores the evidence
+before the no-release canonical-run centavo comparison. This check does
+not authorize real-user payroll or replace independently witnessed UAT.

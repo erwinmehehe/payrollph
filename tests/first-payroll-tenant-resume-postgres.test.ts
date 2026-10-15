@@ -142,7 +142,7 @@ test("disposable PG16: five-worker canonical parity versus a no-release payroll 
   const {saveJourneyProgress} = await import("../src/lib/first-payroll-progress");
   const {encryptBankAccount} = await import("../src/lib/bank-account-crypto");
   const {encryptGovernmentId} = await import("../src/lib/government-id-crypto");
-  const {hashTimesheetSnapshot} = await import("../src/lib/workforce-timesheet");
+  const {buildEmployeeTimesheetSnapshot} = await import("../src/lib/workforce-timesheet-server");
   const {loadCanonicalFirstPayrollPreview} = await import("../src/lib/first-payroll-canonical-preview");
   const {enqueuePayrollRun,drainPayrollQueue,PAYROLL_RULE_VERSION} = await import("../src/lib/payroll-engine");
   const {formatPayrollPeriodLabel} = await import("../src/lib/payroll-period-ui");
@@ -212,10 +212,6 @@ test("disposable PG16: five-worker canonical parity versus a no-release payroll 
       status:"approved",requestedBy:"Fictional HR",requestedByUserId:actors[1].id,
       decidedBy:"Fictional checker",decidedByUserId:actors[3].id,
     });
-    await db.insert(workforceTimesheets).values([workers[1],workers[2]].map(worker=>({
-      organizationId:orgA.id,employeeId:worker.id,periodStart:start,periodEnd:end,
-      status:"approved",version:1,snapshot:{},snapshotHash:hashTimesheetSnapshot({}),
-    })));
     await db.insert(leavePolicies).values({
       organizationId:orgA.id,leaveType:"Vacation",annualDays:"15",
       payTreatment:"paid",paidPercentage:"100",active:true,
@@ -244,6 +240,22 @@ test("disposable PG16: five-worker canonical parity versus a no-release payroll 
       label:"Synthetic allowance",amount:"500",taxable:true,
       includeInSssBase:true,includeInPagIbigBase:true,effectiveDate:end,status:"approved",
     });
+    // The approved evidence must describe the exact current scheduled,
+    // attendance, OT and leave source state. A made-up empty snapshot
+    // would have hidden stale-approval defects in the preview.
+    const approvedEvidence=await Promise.all([workers[1],workers[2]].map(async worker=>{
+      const built=await buildEmployeeTimesheetSnapshot({
+        organizationId:orgA.id,employeeId:worker.id,periodStart:start,periodEnd:end,
+      });
+      return {
+        organizationId:orgA.id,employeeId:worker.id,periodStart:start,periodEnd:end,
+        status:"approved",version:1,snapshot:built.snapshot,snapshotHash:built.snapshotHash,
+        scheduledMinutes:built.scheduledMinutes,workedMinutes:built.workedMinutes,
+        overtimeMinutes:built.overtimeMinutes,exceptionCount:built.exceptionCount,
+        blockerCount:built.blockerCount,
+      };
+    }));
+    await db.insert(workforceTimesheets).values(approvedEvidence);
     const countRuns=async()=> (await db.select({id:payrollRuns.id}).from(payrollRuns)
       .where(eq(payrollRuns.organizationId,orgA.id))).length;
     const countSlips=async()=> (await db.select({id:payslips.id}).from(payslips)
@@ -263,6 +275,34 @@ test("disposable PG16: five-worker canonical parity versus a no-release payroll 
     assert.ok(preview.rows.every(row=>row.gross!==null&&row.net!==null));
     assert.deepEqual([await countRuns(),await countSlips(),await countAudit()],before,
       "read-only preview must not create payroll, payslip or audit records");
+    // Simulate a direct punch mutation after approval (outside normal
+    // invalidation triggers). The preview must detect stale evidence by
+    // re-hashing in the *same* read-only transaction, and withhold money
+    // for the changed worker while preserving the unrelated worker.
+    const punchScope=and(
+      eq(timePunches.organizationId,orgA.id),
+      eq(timePunches.employeeId,workers[1].id),
+      eq(timePunches.workDate,"2026-10-07"),
+    );
+    await db.update(timePunches).set({
+      timeOut:new Date("2026-10-07T18:15:00+08:00"),
+    }).where(punchScope);
+    const stale=await db.transaction(async tx=>{
+      await tx.execute(sql.raw("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"));
+      return loadCanonicalFirstPayrollPreview({organizationId:orgA.id,
+        periodStart:start,periodEnd:end,payDate:end},
+        tx as unknown as Pick<typeof db,"select">);
+    });
+    assert.equal(stale.previewReady,false,"changed punch invalidates approved timesheet");
+    const staleWorker=stale.rows.find(row=>row.employeeId===workers[1].id);
+    assert.equal(staleWorker?.gross,null);
+    assert.equal(staleWorker?.net,null);
+    assert.ok(staleWorker?.blockers.some(reason=>reason.includes("stale")));
+    assert.ok(stale.rows.find(row=>row.employeeId===workers[0].id)?.gross!==null,
+      "unrelated fictional worker remains previewable");
+    await db.update(timePunches).set({
+      timeOut:new Date("2026-10-07T18:00:00+08:00"),
+    }).where(punchScope);
     const [run]=await db.insert(payrollRuns).values({
       organizationId:orgA.id,legalEntityId:legalA!.id,periodLabel:formatPayrollPeriodLabel(start,end),
       periodStart:start,periodEnd:end,payDate:end,status:"Draft",
