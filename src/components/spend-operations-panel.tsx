@@ -15,7 +15,7 @@ type Data = {
   spendPayrollEnabled?: boolean; canReviewCategories?: boolean;
 };
 const currency = (v: string) => "₱" + Number(v).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-export function SpendOperationsPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (text: string) => void }) {
+export function SpendOperationsPanel({ organizationId, setNotice, canLoadEmployeeDirectory = true }: { organizationId: number; setNotice: (text: string) => void; canLoadEmployeeDirectory?: boolean }) {
   const [data, setData] = useState<Data>({ employees: [], cards: [], transactions: [], reports: [], unreportedClaims: [] });
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -97,7 +97,7 @@ export function SpendOperationsPanel({ organizationId, setNotice }: { organizati
         </button>
       </form>}
     </div>}
-    <ExpensesPanel organizationId={organizationId} setNotice={setNotice} reviewModeEnabled={data.spendPayrollEnabled === true} />
+    <ExpensesPanel organizationId={organizationId} setNotice={setNotice} reviewModeEnabled={data.spendPayrollEnabled === true} canLoadEmployeeDirectory={canLoadEmployeeDirectory} />
     <div className="card" style={{ padding: 18 }}>
       <h3>Corporate card register</h3>
       <form onSubmit={async e => { e.preventDefault(); if (await write("POST", { action: "card", issuer, lastFour, employeeId: cardEmployeeId || null })) { setIssuer(""); setLastFour(""); } }} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
