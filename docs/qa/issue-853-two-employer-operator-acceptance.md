@@ -81,14 +81,18 @@ New-Item -ItemType Directory -Force "$HOME\LinawPrivateQA" | Out-Null
 node scripts/qa/issue-853-evidence-ledger.mjs init "$HOME\LinawPrivateQA\issue853.json"
 ```
 
-Open the JSON privately and fill the source/deployed SHA, actual device/browser, six pseudonymous test identities, and observed rows. Each observed `PASS` requires `observedAtUtc` (ISO UTC), an operator pseudonym, `evidenceRef` beginning with `private://`, `vault://` or `local://`, and a **different** human reviewer's pseudonym. Mark failure with a private defect reference. Leave unrun cases at `NOT_RUN`. Do **not** change the expected test description to make it pass.
+The generated **v2** JSON starts with `flags.livePayouts`, `flags.governmentSubmission` and `flags.realEmployeeData` all **`null` (UNVERIFIED)**. Do not change these to `false` until an actual, independent human checks the **running application**; then record `safetyVerification.verifiedAtUtc`, `safetyVerification.verifierRef` and a private `safetyVerification.evidenceRef`. The verifier must not be one of the test operators. Any observation before that safety check is invalid. A previous v1 ledger is deliberately not silently promoted: archive it securely and start a new blank v2 ledger.
+
+Open the JSON privately and record the exact *served* source/deployed SHA, credential-free HTTPS development URL, actual device/browser, six distinct pseudonymous fixture identities, and observed rows. Every `PASS` **or** `NEEDS_FIX` needs a real UTC `observedAtUtc`, a test-operator pseudonym, a **different independent human reviewer's** pseudonym, and a **unique** `private://`, `vault://` or encrypted `local://` evidence reference. A `PASS` must not have an unresolved defect or blocker. `NEEDS_FIX` requires an opaque `BUG-...` defect ID and the same observation evidence as a pass. `BLOCKED` requires `blockerCode` of `DEVICE`, `ENVIRONMENT`, `ROLE`, `DATA`, `REVIEWER` or `OTHER`, without falsely claiming an observation. Keep all observation fields empty for `NOT_RUN`. Do not change any canonical expected outcome to force a pass.
+
+Provide a separate private `signoff` with a real UTC timestamp, independent reviewer alias and unique proof reference **after** the observations. The validator rejects stale/impossible/future observation times, mismatched SHA, duplicate proof references, self-review, premature signoff, and altered cases, but it cannot authenticate evidence or participants. Never use fabricated timestamps, fake witness aliases, salaries, identifying data, or raw employer exports.
 
 ```powershell
 node scripts/qa/issue-853-evidence-ledger.mjs check "$HOME\LinawPrivateQA\issue853.json"
 node --test tests/issue-853-evidence-ledger.test.mjs
 ```
 
-`check` exits nonzero for missing checks, stale SHA, missing/duplicated personas, missing private evidence, money/filing enabled, mismatched reviewer or unrun tests. It does **not** print private evidence contents. Even when all operator claims are filled, its result is `SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION`—not a certification that a human actually witnessed the tests.
+`check` exits nonzero for missing checks, stale SHA, missing/duplicated personas, unverified runtime flags, missing private evidence, money/filing enabled, unapproved blocker reasons, mismatched reviewer or unrun tests. It does **not** print private evidence contents. Even when all operator claims are filled, its result is `SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION`—not a certification that a human actually witnessed the tests.
 
 ## Evidence and dispositions
 
@@ -100,4 +104,4 @@ A useful private evidence index has: reviewed source SHA, exact deployed SHA, UT
 
 ## Status on preparation
 
-This package contains a tested **blank** ledger. No real app/browser tests, independent signoffs or deployments were performed by generating it. The synthetic GitHub payroll journey from earlier PR #1010 is a separate engineering check. At acceptance start, all 27 human-observed rows are `NOT_RUN`. The original milestones #691 (WFM), #579 (real employer reconciliation), #907 (production recovery) and #1019 (pinned Drizzle second push) remain separate gates. Production money movement and official filing remain **NO-GO**.
+This package contains a tested **blank** ledger. No real app/browser tests, independent signoffs or deployments were performed by generating it. The synthetic GitHub payroll journey from earlier PR #1010 is a separate engineering check. At acceptance start, all 27 human-observed rows are `NOT_RUN`. The original milestones #691 (WFM), #579 (real employer reconciliation), #907 (production recovery) and #1019 (pinned Drizzle second push) remain separate gates. This **27-row** two-employer ledger and the **19-row** independent witness manifest in `scripts/qa/independent-journey-853.mjs` are different evidence formats; they cannot be combined or automatically marked complete. Both remain unverified until the applicable human reviewers inspect primary private evidence. Production money movement and official filing remain **NO-GO**.
