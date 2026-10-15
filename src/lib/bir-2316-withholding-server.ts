@@ -4,6 +4,7 @@ import { employees, historicalPayrollEntries, payrollEntries, payrollRuns, separ
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { releasedBir2316Withholding, finalPayBir2316Withholding, unknownBir2316Withholding, type WithholdingScope } from "./bir-2316-withholding";
 import { bir2316Centavos } from "./bir-2316-reconciliation";
+import { sameFinalPaySource } from "./final-pay-source-fingerprint";
 export const bir2316WithholdingEnabled = () => criticalReleaseFlagEnabled("bir2316Reconciliation") && criticalReleaseFlagEnabled("bir2316WithholdingEvidence");
 type Scope = { organizationId: number; employeeId: number; taxYear: number; legalEntityId: number | null; throughDate?: string };
 type Reader = Pick<typeof db, "select">;
@@ -12,7 +13,8 @@ async function ledger(reader: Reader, scope: Scope) {
   const entries = await reader.select({ id: payrollEntries.id, runId: payrollRuns.id,
     organizationId: payrollRuns.organizationId, employeeId: payrollEntries.employeeId,
     legalEntityId: payrollRuns.legalEntityId, payDate: payrollRuns.payDate, status: payrollRuns.status,
-    lineItems: payrollEntries.lineItems,
+    periodStart: payrollRuns.periodStart, periodEnd: payrollRuns.periodEnd,
+    grossPay: payrollEntries.grossPay, lineItems: payrollEntries.lineItems, trace: payrollEntries.trace,
   }).from(payrollEntries).innerJoin(payrollRuns, eq(payrollRuns.id, payrollEntries.payrollRunId))
     .innerJoin(employees, and(eq(employees.id, payrollEntries.employeeId), eq(employees.organizationId, scope.organizationId)))
     .where(and(eq(payrollRuns.organizationId, scope.organizationId), eq(payrollEntries.employeeId, scope.employeeId),
@@ -50,9 +52,23 @@ export async function loadFinalPay2316Withholding(organizationId: number, employ
       legalEntityId: fingerprint.employeeLegalEntityId as number | null, throughDate: source.lastDay,
       before: annual.taxWithheld, expectedAdjustment: "0.00", historicalCount: 0, allowEmptyOpening: true };
     const data = await ledger(tx, scope);
-    if (!Array.isArray(fingerprint.released) || fingerprint.released.length !== data.entries.filter(e => e.status === "Released").length ||
-        data.entries.filter(e => e.status === "Released").some(e => !(fingerprint.released as Array<Record<string, unknown>>).some(frozen =>
-          frozen && typeof frozen === "object" && frozen.entryId === e.id && frozen.runId === e.runId && frozen.payDate === e.payDate && JSON.stringify(frozen.lineItems) === JSON.stringify(e.lineItems))))
+    const releasedEntries = data.entries.filter(entry => entry.status === "Released");
+    // The final-pay approval freezes the full source row, not just withholding codes.
+    // A changed period, gross amount or trace can invalidate its approved calculation
+    // even when the WHT lines and the identifiers remain byte-identical.
+    if (!Array.isArray(fingerprint.released) || fingerprint.released.length !== releasedEntries.length ||
+        releasedEntries.some(entry => !(fingerprint.released as unknown[]).some(raw => {
+          if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+          const frozen = raw as Record<string, unknown>;
+          const frozenGross = bir2316Centavos(frozen.grossPay as string | number);
+          const ledgerGross = bir2316Centavos(entry.grossPay);
+          return frozen.entryId === entry.id && frozen.runId === entry.runId &&
+            frozen.payDate === entry.payDate && frozen.periodStart === entry.periodStart &&
+            frozen.periodEnd === entry.periodEnd && frozenGross !== null &&
+            ledgerGross !== null && frozenGross === ledgerGross &&
+            sameFinalPaySource({ lineItems: frozen.lineItems, trace: frozen.trace },
+              { lineItems: entry.lineItems, trace: entry.trace });
+        })))
       return unknownBir2316Withholding("FINAL_PAY_FROZEN_LEDGER_CHANGED");
     const baseline = releasedBir2316Withholding({ ...scope, historicalCount: data.historicalCount }, data.entries);
     return finalPayBir2316Withholding({ ...source, taxYear: scope.taxYear, baseline, before: annual.taxWithheld,
