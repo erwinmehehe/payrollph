@@ -311,7 +311,7 @@
   },
   "src/components/workspace/workforce-live-floor.tsx": {
     "react-hooks/set-state-in-effect": {
-      "count": 2
+      "count": 1
     }
   },
   "src/components/workspace/workforce-planner.tsx": {
