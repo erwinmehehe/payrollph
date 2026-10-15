@@ -35,6 +35,17 @@ export const CROSS_TENANT = Object.freeze([
 const ALLOWED_STATUS = new Set(['NOT_RUN', 'PASS', 'NEEDS_FIX', 'BLOCKED']);
 const BLOCKER_CODES = new Set(['DEVICE', 'ENVIRONMENT', 'ROLE', 'DATA', 'REVIEWER', 'OTHER']);
 const DEFECT_REF = /^BUG-[A-Z0-9][A-Z0-9-]{2,79}$/;
+// Controls with a single explicit authenticated fixture persona. HR/manager multi-role
+// cases still require an independent human to inspect the actual authorization trace.
+const SCENARIO_ACTORS = Object.freeze({
+  A_CLOCK_IN:'employeeAId', B_CLOCK_IN:'employeeBId',
+  A_RUN_PAYROLL:'payrollOfficerAId', B_RUN_PAYROLL:'payrollOfficerBId',
+  A_REVIEW:'checkerBothId', B_REVIEW:'checkerBothId',
+  A_RELEASE_RECORDS:'ownerBothId', B_RELEASE_RECORDS:'ownerBothId',
+  A_FILING_EVIDENCE:'payrollOfficerAId', B_FILING_EVIDENCE:'payrollOfficerBId',
+  SWITCH_375:'ownerBothId', SWITCH_390:'ownerBothId',
+  PAYROLL_A_DENIED_B:'payrollOfficerAId', EMPLOYEE_A_DENIED_B:'employeeAId',
+});
 const SOURCE_SHA = /^[a-f\d]{40}$/;
 const UTC = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/;
 const EVIDENCE_REF = /^(?:private|vault|local):\/\/[A-Za-z0-9/_:.#-]{4,240}$/;
@@ -73,7 +84,10 @@ export function makeBlankLedger() {
     tenantB: 'Fictional Riverside B Trading',
     identities: { ownerBothId: '', payrollOfficerAId: '', payrollOfficerBId: '', checkerBothId: '', employeeAId: '', employeeBId: '' },
     flags: { livePayouts: null, governmentSubmission: null, realEmployeeData: null },
-    safetyVerification: { verifiedAtUtc: '', verifierRef: '', evidenceRef: '' },
+    safetyVerification: {
+      verifiedAtUtc: '', verifierRef: '', evidenceRef: '',
+      servedBuildEvidenceRef: '', databaseIsolationEvidenceRef: '', fixtureVersionEvidenceRef: '',
+    },
     tests: checks(),
     signoff: { independentReviewerId: '', signedAtUtc: '', privateEvidenceRef: '' },
     IMPORTANT: 'Version 2: all runtime safety flags start UNVERIFIED (null). Only a human who checked the running app may set false and supply safetyVerification. No independent observation is authenticated by this script.',
@@ -91,6 +105,19 @@ function validDate(s) {
   return new Date(timestamp).toISOString() === canonical;
 }
 function meaningful(s) { return typeof s === 'string' && s.trim().length > 0; }
+
+function validManilaPayPeriod(period) {
+  if (typeof period !== 'string') return false;
+  const dates=period.split('/');
+  if (dates.length!==2) return false;
+  const calendarDate=value=>{
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const d=new Date(value+'T00:00:00Z');
+    return Number.isFinite(d.getTime()) && d.toISOString().slice(0,10)===value;
+  };
+  return dates.every(calendarDate) && dates[0]<=dates[1];
+}
+
 
 function validDevelopmentUrl(value) {
   if (typeof value !== 'string' || !value.startsWith('https://')) return false;
@@ -115,6 +142,7 @@ export function evaluate(ledger) {
   }
   if (ledger.scope!=='FICTIONAL_DEVELOPMENT_NO_MONEY') blockers.push('Wrong scope');
   if (ledger.databaseClassification!=='FICTIONAL_ONLY') blockers.push('Database must be classified as fictional');
+  if (!validManilaPayPeriod(ledger.manilaPayPeriod)) blockers.push('Invalid Gregorian Manila pay period or reversed cutoff');
   if (!validDate(ledger.createdUtc) || typeof ledger.recordId!=='string' ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ledger.recordId)) {
     blockers.push('Invalid private ledger session identity or created UTC time');
@@ -133,9 +161,10 @@ export function evaluate(ledger) {
     if (ledger.flags?.[key]!==false) blockers.push(key+' must explicitly be false following runtime verification');
   }
   const safety=ledger.safetyVerification;
-  if (!safety || !validDate(safety.verifiedAtUtc) ||
-      !meaningful(safety.verifierRef) || !EVIDENCE_REF.test(safety.evidenceRef||'')) {
-    blockers.push('Runtime safety flags require a dated human check and private evidence');
+  const requiredRuntimeRefs=['evidenceRef','servedBuildEvidenceRef','databaseIsolationEvidenceRef','fixtureVersionEvidenceRef'];
+  if (!safety || !validDate(safety.verifiedAtUtc) || !meaningful(safety.verifierRef) ||
+      requiredRuntimeRefs.some(key=>!EVIDENCE_REF.test(safety[key]||''))) {
+    blockers.push('Runtime safety flags require a dated human check and separate private evidence for effective flags, served build, database isolation and fixture version');
   }
   if (!meaningful(ledger.deviceModel) || !meaningful(ledger.browserVersion)) {
     blockers.push('Record actual tested device/browser');
@@ -156,7 +185,10 @@ export function evaluate(ledger) {
   }
   let passed=0,needsFix=0,blocked=0,notRun=0;
   const observations=[];
-  const usedEvidence=[safety?.evidenceRef,ledger.signoff?.privateEvidenceRef].filter(Boolean);
+  const usedEvidence=[
+    ...requiredRuntimeRefs.map(key=>safety?.[key]),
+    ledger.signoff?.privateEvidenceRef,
+  ].filter(Boolean);
   for (const scenario of incoming) {
     const canonical=expectedById.get(scenario?.id);
     if (!canonical) {blockers.push('Unrecognized test ID');continue;}
@@ -171,6 +203,11 @@ export function evaluate(ledger) {
     if (observed) {
       observations.push(scenario);
       usedEvidence.push(scenario.evidenceRef);
+      const requiredActorKey=SCENARIO_ACTORS[scenario.id];
+      if (requiredActorKey && meaningful(ledger.identities?.[requiredActorKey]) &&
+          scenario.observedBy!==ledger.identities[requiredActorKey]) {
+        blockers.push('Wrong recorded persona for observed control: '+scenario.id);
+      }
       if (!validDate(scenario.observedAtUtc) || !meaningful(scenario.observedBy) ||
           !EVIDENCE_REF.test(scenario.evidenceRef||'') ||
           !meaningful(scenario.independentReviewer) ||
