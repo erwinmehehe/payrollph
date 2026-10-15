@@ -154,11 +154,6 @@
       "count": 1
     }
   },
-  "src/components/talent-continuity-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/treasury-controls-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -277,11 +272,6 @@
   "src/components/workspace/workforce-coverage-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 2
-    }
-  },
-  "src/components/workspace/workforce-live-floor.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
     }
   },
   "src/components/workspace/workforce-planner.tsx": {
