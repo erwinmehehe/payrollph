@@ -50,7 +50,8 @@ export function retroAgencyReconciliationRows(input: {
       && from <= to && from.slice(0, 7) === to.slice(0, 7);
     const sourceWorkMonth = sourceReliable ? to.slice(0, 7) : null;
     const cents = Number.isFinite(item.amount) ? Math.round(item.amount * 100) : NaN;
-    const amountCentavos = Number.isSafeInteger(cents) ? cents : null;
+    const amountCentavos = Number.isSafeInteger(cents) && Math.abs(item.amount * 100 - cents) < 0.000001
+      ? cents : null;
 
     let status: RetroAgencyReviewRow["status"];
     if (!Number.isSafeInteger(item.id) || item.id <= 0 || !Number.isFinite(item.amount)
