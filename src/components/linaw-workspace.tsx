@@ -653,7 +653,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
         {page === "Compliance" && (
           <CompliancePage data={data} setNotice={noticeAdapter} onOpenGovModal={() => setGovModalOpen(true)} />
         )}
-        {page === "Loans" && <LoansPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Loans" && <LoansPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} canManageGovRemittance={data.access?.companyWide === true && ["owner", "admin", "bookkeeper", "payroll"].includes(effectiveRole ?? "")} />}
         {page === "Benefits" && <BenefitsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Documents" && <HcmDocumentsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
