@@ -543,8 +543,9 @@ export async function projectCanonicalPayrollReadOnly(input: {
     chunkSize: input.employeeCount,
     preview: {reader, run: syntheticRun, employeeIds: input.employeeIds},
   });
-  if (!("previewRows" in result)) throw new Error("Payroll preview did not enter read-only mode.");
-  return result.previewRows;
+  const previewRows = "previewRows" in result ? result.previewRows : undefined;
+  if (!Array.isArray(previewRows)) throw new Error("Payroll preview did not enter read-only mode.");
+  return previewRows;
 }
 
 async function processPayrollChunk(input: PayrollChunkRequest) {
