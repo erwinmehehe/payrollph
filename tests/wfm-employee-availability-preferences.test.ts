@@ -162,7 +162,7 @@ test("the employee and manager workspaces use the same source without cross-empl
   assert.ok(coverage.includes("(payload?.employees ?? []).map("));
   assert.ok(!coverage.includes("data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.firstName} {employee.lastName}</option>)"));
   assert.ok(planner.includes("<WorkforceCoveragePanel key={organizationId}"));
-  assert.ok(portal.includes("<EmployeeWorkforcePanel key={data.employer.id + ':' + data.employee.id}"));
+  assert.ok(portal.includes('key={(data.employer?.id ?? "no-employer") + ":" + data.employee.id}'), "ESS remount must be keyed to employer and employee, including a missing employer");
   const html = renderToStaticMarkup(createElement(EmployeeAvailabilityPreferences, { language: "en" }));
   assert.match(html, /My availability and preferred shifts/);
   assert.match(html, /Save preference/);
