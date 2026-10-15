@@ -351,6 +351,7 @@ export function WorkforceCoveragePanel({
   ) ? availabilityEmployeeId : (payload?.employees[0]?.id ?? 0);
   const selectedAvailabilityRows = (payload?.availability ?? [])
     .filter(row => row.employeeId === selectedAvailabilityEmployeeId &&
+      row.effectiveFrom <= endDate &&
       (!row.effectiveUntil || row.effectiveUntil >= startDate))
     .sort((a, b) => a.weekday - b.weekday ||
       a.effectiveFrom.localeCompare(b.effectiveFrom) || a.id - b.id);
