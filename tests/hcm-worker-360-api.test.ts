@@ -44,7 +44,9 @@ test("every Worker 360 database read is tenant + worker scoped and bounded in SQ
   assert.match(loader, /lte\(workerEmploymentEvents\.effectiveDate, asOfDate\)/);
   assert.match(loader, /orderBy\(desc\(positionAssignments\.effectiveFrom\), desc\(positionAssignments\.id\)\)\.limit\(2\)/);
   assert.match(loader, /WORKER_360_EVENT_PAGE_SIZE \+ 1/);
-  assert.match(loader, /projectWorker360Events\(events, asOfDate, WORKER_360_EVENT_PAGE_SIZE\)/);
+  assert.match(loader, /projectWorker360Events\(events, asOfDate, WORKER_360_EVENT_PAGE_SIZE, before\)/);
+  assert.match(loader, /lt\(workerEmploymentEvents\.effectiveDate, before\.effectiveDate\)/);
+  assert.match(loader, /lt\(workerEmploymentEvents\.id, before\.id\)/);
   assert.ok(!loader.includes("SELECT *"));
   assert.ok(!loader.includes("db.select().from"));
   assert.ok(!loader.includes("basicRate:"));

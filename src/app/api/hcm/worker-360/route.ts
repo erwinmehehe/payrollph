@@ -1,7 +1,10 @@
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
-import { philippineWorker360Date, validWorker360Date } from "@/lib/hcm-worker-360-projection";
+import {
+  philippineWorker360Date, validWorker360Date, validWorker360EventCursor,
+  type Worker360EventCursor,
+} from "@/lib/hcm-worker-360-projection";
 import { loadWorker360Summary } from "@/lib/hcm-worker-360-server";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +36,18 @@ export async function GET(request: Request) {
   const asOfDate = params.get("asOfDate") ?? philippineWorker360Date();
   if (!validWorker360Date(asOfDate)) return json({ error: "Valid asOfDate (YYYY-MM-DD) required." }, 400);
 
+  // A cursor only orders existing authorized source records; it never selects
+  // an employer or worker, and both parts must be supplied together.
+  let before: Worker360EventCursor | undefined;
+  if (params.has("beforeDate") || params.has("beforeId")) {
+    const effectiveDate = params.get("beforeDate") ?? "";
+    const id = positiveId(params.get("beforeId"));
+    if (!id || !validWorker360EventCursor({ effectiveDate, id }, asOfDate)) {
+      return json({ error: "Valid beforeDate and beforeId required for older events." }, 400);
+    }
+    before = { effectiveDate, id };
+  }
+
   const denied = await assertOrganizationRole(
     user.id, organizationId, PEOPLE_ADMIN_ROLES,
     "Company-wide People administration is required.",
@@ -49,7 +64,7 @@ export async function GET(request: Request) {
   if (planDenied) return planDenied;
 
   try {
-    const summary = await loadWorker360Summary(organizationId, employeeId, asOfDate);
+    const summary = await loadWorker360Summary(organizationId, employeeId, asOfDate, before);
     if (!summary) return json({ error: "Worker not found in this employer." }, 404);
     return json(summary);
   } catch {
