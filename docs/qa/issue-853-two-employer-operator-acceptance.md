@@ -81,14 +81,14 @@ New-Item -ItemType Directory -Force "$HOME\LinawPrivateQA" | Out-Null
 node scripts/qa/issue-853-evidence-ledger.mjs init "$HOME\LinawPrivateQA\issue853.json"
 ```
 
-Open the JSON privately and fill the source/deployed SHA, actual device/browser, six pseudonymous test identities, and observed rows. Each observed `PASS` requires `observedAtUtc` (ISO UTC), an operator pseudonym, `evidenceRef` beginning with `private://`, `vault://` or `local://`, and a **different** human reviewer's pseudonym. Mark failure with a private defect reference. Leave unrun cases at `NOT_RUN`. Do **not** change the expected test description to make it pass.
+Open the JSON privately and fill the source/deployed SHA, actual device/browser, six pseudonymous test identities, and observed rows. **Version 2 integrity requirement:** new ledgers start with `flags.livePayouts`, `flags.governmentSubmission`, and `flags.realEmployeeData` set to `null`, not a pre-attested `false`. The facilitator must inspect the **running deployment**, confirm all three are effectively `false`, and record the actual past UTC time in `runtimeVerification.verifiedAtUtc` plus four unique private evidence references: `deployedBuildRef`, `databaseIsolationRef`, `payoutAndFilingConfigRef`, and `fixtureVersionRef`. Also record the tested `manilaPayPeriod`. Older v1 records cannot be silently upgraded; archive them privately and initialize a fresh v2 packet. Each observed `PASS` requires `observedAtUtc` (ISO UTC), an operator pseudonym, `evidenceRef` beginning with `private://`, `vault://` or `local://`, and a **different** human reviewer's pseudonym. Mark failure with a private defect reference. Leave unrun cases at `NOT_RUN`. Do **not** change the expected test description to make it pass.
 
 ```powershell
 node scripts/qa/issue-853-evidence-ledger.mjs check "$HOME\LinawPrivateQA\issue853.json"
 node --test tests/issue-853-evidence-ledger.test.mjs
 ```
 
-`check` exits nonzero for missing checks, stale SHA, missing/duplicated personas, missing private evidence, money/filing enabled, mismatched reviewer or unrun tests. It does **not** print private evidence contents. Even when all operator claims are filled, its result is `SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION`—not a certification that a human actually witnessed the tests.
+`check` exits nonzero for missing checks, stale SHA, missing/duplicated personas, missing private evidence, money/filing enabled, mismatched reviewer or unrun tests. It rejects duplicate private evidence references, future-dated observations, mismatched single-persona actions, and an operator self-signing as independent reviewer. It does **not** print private evidence contents. Even when all operator claims are filled, its result is `SELF_REPORTED_COMPLETE_REQUIRES_EXTERNAL_VERIFICATION`—not a certification that a human actually witnessed the tests.
 
 ## Evidence and dispositions
 
