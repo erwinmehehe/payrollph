@@ -4,7 +4,6 @@
  * Never logs the response, DB role, full URL, session token, or table data.
  * Table presence is NOT permission to execute DDL or certify the privacy probe.
  */
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 function fail(reason) { throw new Error("PRODUCTION_COMPENSATION_PREFLIGHT_" + reason); }
