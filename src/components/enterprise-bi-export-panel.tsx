@@ -33,6 +33,7 @@ export function EnterpriseBiExportPanel({
   }, [today]);
 
   const [definitions, setDefinitions] = useState<Definition[]>([]);
+  const [loadedOrganizationId, setLoadedOrganizationId] = useState<number | null>(null);
   const [dataset, setDataset] = useState("payroll_runs");
   const [legalEntities, setLegalEntities] = useState<ScopeOption[]>([]);
   const [orgUnits, setOrgUnits] = useState<ScopeOption[]>([]);
@@ -52,6 +53,7 @@ export function EnterpriseBiExportPanel({
     let alive = true;
     setLoading(true);
     setLoadError(null);
+    setLoadedOrganizationId(null);
     (async () => {
       try {
         const response = await fetch(`/api/bi-exports?organizationId=${organizationId}`, { cache: "no-store" });
@@ -63,6 +65,7 @@ export function EnterpriseBiExportPanel({
         setLegalEntities(Array.isArray(payload.scopes?.legalEntities) ? payload.scopes.legalEntities : []);
         setOrgUnits(Array.isArray(payload.scopes?.orgUnits) ? payload.scopes.orgUnits : []);
         setDynamicGroups(Array.isArray(payload.scopes?.dynamicGroups) ? payload.scopes.dynamicGroups : []);
+        setLoadedOrganizationId(organizationId);
       } catch (error) {
         if (alive) {
           // An earlier tenant or successful load is not evidence that this
@@ -71,6 +74,7 @@ export function EnterpriseBiExportPanel({
           setLegalEntities([]);
           setOrgUnits([]);
           setDynamicGroups([]);
+          setLoadedOrganizationId(null);
           setLoadError(error instanceof Error ? error.message : "Could not load BI export definitions.");
         }
       } finally {
@@ -80,12 +84,23 @@ export function EnterpriseBiExportPanel({
     return () => { alive = false; };
   }, [organizationId, reloadRevision]);
 
-  const selected = definitions.find((definition) => definition.key === dataset);
-  const visibleOrgUnits = orgUnits.filter((unit) =>
+  // Do not display or export another organization's cached dataset/scopes
+  // between a tenant switch and the completion of a new authenticated read.
+  const definitionsReady = !loading && !loadError && loadedOrganizationId === organizationId;
+  const scopedDefinitions = definitionsReady ? definitions : [];
+  const scopedLegalEntities = definitionsReady ? legalEntities : [];
+  const scopedOrgUnits = definitionsReady ? orgUnits : [];
+  const scopedDynamicGroups = definitionsReady ? dynamicGroups : [];
+  const selected = scopedDefinitions.find((definition) => definition.key === dataset);
+  const visibleOrgUnits = scopedOrgUnits.filter((unit) =>
     !legalEntityId || unit.legalEntityId == null || String(unit.legalEntityId) === legalEntityId
   );
 
   async function requestExport() {
+    if (!definitionsReady) {
+      notify("BI export definitions have not loaded for this organization.", "err");
+      return;
+    }
     if (!startDate || !endDate) {
       notify("Choose a start and end date for the BI export.", "err");
       return;
@@ -151,6 +166,7 @@ export function EnterpriseBiExportPanel({
           </span>
         </div>
 
+        {loading && <div className="empty-state" role="status">Loading BI export definitions…</div>}
         {loadError && (
           <div className="notice notice-amber" role="alert" style={{ marginBottom: 14 }}>
             <span><strong>BI exports are unavailable.</strong> {loadError} Export definitions and access scopes must load successfully before any export is enabled.</span>
@@ -161,12 +177,12 @@ export function EnterpriseBiExportPanel({
         <div className="setting-form" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr" }}>
           <label>
             Dataset
-            <select value={dataset} disabled={loading} onChange={(event) => {
+            <select value={dataset} disabled={!definitionsReady} onChange={(event) => {
               const next = event.target.value;
               setDataset(next);
               if (next === "payroll_runs") setDynamicGroupCode("");
             }}>
-              {definitions.map((definition) => (
+              {scopedDefinitions.map((definition) => (
                 <option key={definition.key} value={definition.key}>{definition.name}</option>
               ))}
             </select>
@@ -198,13 +214,13 @@ export function EnterpriseBiExportPanel({
                 const next = event.target.value;
                 setLegalEntityId(next);
                 if (orgUnitId) {
-                  const unit = orgUnits.find((item) => String(item.id) === orgUnitId);
+                  const unit = scopedOrgUnits.find((item) => String(item.id) === orgUnitId);
                   if (next && unit?.legalEntityId != null && String(unit.legalEntityId) !== next) setOrgUnitId("");
                 }
               }}
             >
               <option value="">All legal entities</option>
-              {legalEntities.map((entity) => (
+              {scopedLegalEntities.map((entity) => (
                 <option key={entity.id} value={entity.id}>{entity.code} · {entity.name}</option>
               ))}
             </select>
@@ -226,7 +242,7 @@ export function EnterpriseBiExportPanel({
               onChange={(event) => setDynamicGroupCode(event.target.value)}
             >
               <option value="">{dataset === "payroll_runs" ? "Employee scope not applicable" : "All employees"}</option>
-              {dynamicGroups.map((group) => (
+              {scopedDynamicGroups.map((group) => (
                 <option key={group.id} value={group.code}>{group.name} · {group.code}</option>
               ))}
             </select>
@@ -249,7 +265,7 @@ export function EnterpriseBiExportPanel({
         )}
 
         <div className="run-actions" style={{ marginTop: 14 }}>
-          <button type="button" className="primary-button brand" disabled={loading || exporting || !definitions.length} onClick={() => void requestExport()}>
+          <button type="button" className="primary-button brand" disabled={!definitionsReady || exporting || !scopedDefinitions.length} onClick={() => void requestExport()}>
             {format === "json" || format === "ndjson" ? <FileJson2 size={14} /> : <Download size={14} />}
             {exporting ? "Generating…" : `Export ${format.toUpperCase()}`}
           </button>
