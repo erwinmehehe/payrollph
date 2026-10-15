@@ -20,6 +20,14 @@ The dev-only additive SQL file `docs/sql/issue-1031-dev-workforce-bi-repair.sql`
 - Before/after aggregate evidence on the cloned dev database: 8 fictional employee rows, 3 fictional payroll runs, 6 organization memberships; permission assignments, sets, positions and profiles were empty after addition.
 - A successful PostgreSQL schema rehearsal is **not** authenticated HTTP acceptance, authorization review, production readiness or backup/restore certification.
 
+## Follow-up dev-only schema repair (approval, staffing, and worker events)
+
+A second route dependency scan found three missing approval-chain tables in the scenario GET, and three absent tables needed by workforce demand handoff and worker-change writes. To avoid a misleading "fixed" planning page with silently broken scenarios, `docs/sql/issue-1031-dev-workforce-followups.sql` reconstructs these six tables from historical 0070/0071, 0050/0052, 0039/0049/0085 and current Drizzle definitions. It adds the FK from `approval_tasks` to the newly installed approval-chain instances table, indexes and CHECK constraints. No business rows, approval policies or staffing requirements are seeded.
+
+**Rehearsed, then applied to the same fictional dev branch on 2026-10-15.** Reviewed follow-up Git blob `944d0aa3968489f79002e7a1de392c9be57636b0`; 26 additive statements ran in one guarded PostgreSQL transaction first on the preserved clone `br-green-hat-b77qj8fs`, then on the connected dev default `br-lucky-sound-b79i56jw`. The 6 related models were compared against the actual columns on both branches: no gaps. Aggregate employee/payroll/membership counts again stayed **8/3/6**; approval-chain instance, staffing requirement and worker-employment-event tables remained empty.
+
+This is **not** independent authenticated HTTP or cross-tenant permission acceptance. Do not infer that all Workforce Management services or real payroll scenarios are certified; the scan scoped to the Workforce Planning and BI routes and found no further direct missing relations in those routes after this follow-up.
+
 ## Dev apply/acceptance
 
 **Schema applied successfully on the connected fictional development default** on 2026-10-15. The operator re-read the exact GitHub source file (original applied Git blob `a940be604e159fb7f18430480515402b83a9c143`, later archived under `docs/sql/` as blob `764b3d569276e388203e5cc524a1eb759e603165`; the only difference is the dev-only comment header, and the executable SQL text was verified identical) and checked the PostgreSQL project ID, branch ID `br-lucky-sound-b79i56jw`, database `neondb`, absent target tables, and unchanged starting aggregate counts (8 employee records, 3 payroll runs, 6 memberships). The 55 additive SQL statements executed in a single PostgreSQL `DO` transaction with an exact target-branch guard; the server returned success.
