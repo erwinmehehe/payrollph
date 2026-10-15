@@ -27,7 +27,18 @@ test("shard selection is stable and invalid arguments fail closed", () => {
 test("CI keeps the required check job conditional on all shard results", () => {
   const source = readFileSync(".github/workflows/ci.yml", "utf8");
   assert.match(source, /test-shard:\s*\n/);
-  assert.match(source, /check:\s*\n\s*needs: test-shard/);
+  // The ruleset treats a skipped required job as acceptable. The aggregator
+  // must execute and fail visibly when any matrix shard is not successful.
+  const checkJob = source.split("\n  check:\n")[1];
+  assert.ok(checkJob, "CI aggregate job must exist");
+  assert.ok(checkJob.includes("if: ${{ always() }}"), "CI aggregate cannot be skipped");
+  assert.ok(checkJob.includes("needs: test-shard"), "CI aggregate must depend on every shard");
+  // Without the explicit status function, failed ancestors can suppress this guard.
+  assert.ok(checkJob.includes("if: ${{ always() && needs.test-shard.result != 'success' }}"),
+    "failed/cancelled/skipped shard must fail the required aggregate job");
+  assert.ok(checkJob.includes("exit 1"), "guard must explicitly fail");
+  assert.ok(checkJob.indexOf("Required CI cannot pass unless every regression shard succeeded") <
+    checkJob.indexOf("actions/checkout@"), "failure gate must be the first step");
   assert.match(source, /run: node scripts\/run-sharded-tests\.mjs/);
   assert.match(source, /postgres:\s*\n\s*image: postgres:16/);
 });
