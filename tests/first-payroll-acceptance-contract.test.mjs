@@ -34,4 +34,13 @@ test("#993 canonical preview uses real signed-in HTTP denial and no-store across
   assert.match(js,/evidence\.cache, "private, no-store"/);
   assert.match(js,/evidence\.keys, \["error"\]/);
   assert.match(js,/previewResponse\.headers\(\)\["cache-control"\]/);
+  const workflow=readFileSync(".github/workflows/hris-journey-browser-qa.yml","utf8");
+  const push=workflow.indexOf("  push:");
+  const pull=workflow.indexOf("  pull_request:");
+  const dispatch=workflow.indexOf("  workflow_dispatch:");
+  assert.ok(push>=0&&pull>push&&dispatch>pull);
+  for(const event of [workflow.slice(push,pull),workflow.slice(pull,dispatch)]){
+    assert.ok(event.includes('- "scripts/first-payroll-zero-tenant-browser.mjs"'),
+      "Changed authenticated API contract must trigger PG16 browser acceptance");
+  }
 });
