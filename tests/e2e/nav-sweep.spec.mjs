@@ -127,7 +127,30 @@ async function checkRole(browser, role, width, authState, pages) {
           }
           if (name === "Settings") {
             const settings = page.locator('.sidebar button[data-nav-name="Settings"]');
-            await settings.waitFor({ state: "visible", timeout: 12000 });
+            try {
+              await settings.waitFor({ state: "visible", timeout: 12000 });
+            } catch (cause) {
+              // Keep hidden Settings a failure, with actual element and parent
+              // geometry so this can be triaged without another manual run.
+              const position = await settings.evaluate((element) => {
+                const rect = element.getBoundingClientRect();
+                const sidebar = element.closest(".sidebar");
+                const footer = element.closest(".sidebar-bottom");
+                const menu = sidebar?.querySelector(".side-navigation");
+                function box(node) {
+                  if (!node) return null;
+                  const r = node.getBoundingClientRect(), style = getComputedStyle(node);
+                  return { top: Math.round(r.top), bottom: Math.round(r.bottom),
+                    height: Math.round(r.height), display: style.display,
+                    visibility: style.visibility, overflowY: style.overflowY };
+                }
+                return { button: box(element), sidebar: box(sidebar),
+                  menu: box(menu), footer: box(footer),
+                  viewportHeight: innerHeight };
+              }).catch(() => null);
+              throw new Error("Settings nav control hidden: " + JSON.stringify(position) +
+                "; " + String(cause));
+            }
             await settings.click({ timeout: 12000 });
           } else {
             let target = page.locator('.sidebar [data-nav-name="' + name.replaceAll('"', '\\"') + '"]');
