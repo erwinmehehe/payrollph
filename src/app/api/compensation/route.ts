@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   compensationBands,
@@ -14,6 +14,7 @@ import {
   jobGrades,
   jobProfiles,
   legalEntities,
+  orgUnits,
   positionAssignments,
   positions,
   workerEffectiveChanges,
@@ -252,6 +253,19 @@ export async function GET(request: Request) {
   // getAccess() may return an unresolved orgUnitName for non-manager roles.
   if (!access.companyWide && (!access.orgUnitId || !access.orgUnitName)) {
     return Response.json({ error: "An active unit in the selected employer is required for compensation." }, { status: 403 });
+  }
+  if (!access.companyWide) {
+    const today = philippineBusinessDate();
+    const [activeUnit] = await db.select({ id: orgUnits.id }).from(orgUnits).where(and(
+      eq(orgUnits.id, access.orgUnitId!),
+      eq(orgUnits.organizationId, organizationId),
+      eq(orgUnits.active, true),
+      or(isNull(orgUnits.effectiveFrom), lte(orgUnits.effectiveFrom, today)),
+      or(isNull(orgUnits.effectiveUntil), gte(orgUnits.effectiveUntil, today)),
+    )).limit(1);
+    if (!activeUnit) {
+      return Response.json({ error: "The selected employer unit is inactive or out of scope." }, { status: 403 });
+    }
   }
 
   const [
