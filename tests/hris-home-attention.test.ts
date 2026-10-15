@@ -7,8 +7,8 @@ import { HRIS_HOME_SHORTCUTS } from "../src/lib/hris-home-shortcuts";
 import { summarizeEverydayHrAttention } from "../src/lib/hris-home-attention";
 
 const employees = [
-  { id: 1, employeeNo: "A-01", firstName: "Ana", lastName: "Cruz", status: "Active" },
-  { id: 2, employeeNo: "A-02", firstName: "Ben", lastName: "Reyes", status: "Active" },
+  { id: 1, employeeNo: "A-01", firstName: "Ana", lastName: "Cruz", title: "HR Associate", status: "Active" },
+  { id: 2, employeeNo: "A-02", firstName: "Ben", lastName: "Reyes", title: "HR Associate", status: "Active" },
 ];
 const task = (id: number, employeeId: number, done = false, kind = "onboarding") =>
   ({ id, employeeId, done, kind, title: "Source task " + id, owner: "HR" });
