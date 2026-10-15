@@ -58,6 +58,16 @@ function assertPriorUnchanged(before: { id: number; adjustment: string; status: 
   assert.equal(after[0].status, before.status);
 }
 
+function isPgError(error: unknown, code: string) {
+  let current: unknown = error;
+  for (let depth = 0; depth < 8; depth++) {
+    if (current == null || typeof current !== "object") return false;
+    if ("code" in current && current.code === code) return true;
+    current = "cause" in current ? current.cause : null;
+  }
+  return false;
+}
+
 async function countAudit(organizationId: number) {
   return db.select({ id: auditEvents.id }).from(auditEvents).where(and(
     eq(auditEvents.organizationId, organizationId),
@@ -97,7 +107,7 @@ test("failing audit insert rolls back deletion and replacement of year-end finan
   try {
     await assert.rejects(
       runYearEndAnnualization(org.id, YEAR, "X".repeat(121)),
-      /value too long|character varying|varchar/i,
+      (error: unknown) => isPgError(error, "22001"),
     );
     assertPriorUnchanged(prior, await adjustmentRows(org.id));
     assert.equal((await countAudit(org.id)).length, 0,
@@ -112,7 +122,7 @@ test("failed adjustment FK insert rolls back deletion and leaves the old calcula
   try {
     await assert.rejects(runYearEndAnnualization(
       org.id, YEAR, "Fictional finance", { bindToPayrollRunId: -1 },
-    ));
+    ), (error: unknown) => isPgError(error, "23503"));
     assertPriorUnchanged(prior, await adjustmentRows(org.id));
     assert.equal((await countAudit(org.id)).length, 0);
   } finally {
@@ -164,6 +174,10 @@ test("concurrent annualizations cannot interleave deletions or leave duplicate f
     ]);
     const succeeded = outcomes.filter(row => row.status === "fulfilled").length;
     assert.ok(succeeded >= 1, "At least one isolated annualization must complete");
+    for (const row of outcomes) if (row.status === "rejected") {
+      assert.ok(isPgError(row.reason, "40001") || isPgError(row.reason, "40P01"),
+        "Concurrent annualization must fail only on database serialization/deadlock");
+    }
     assert.equal((await adjustmentRows(org.id)).length, 1,
       "Concurrent requests must leave exactly one committed year-end snapshot");
     assert.equal((await countAudit(org.id)).length, succeeded,
