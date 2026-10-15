@@ -203,6 +203,32 @@ export function CompensationPanel({
     reason: "",
   });
 
+  // The workspace retains this component across employer switching. A salary
+  // proposal or its free-text reason drafted for one employer must never carry
+  // into another employer's compensation form after its data loads.
+  useEffect(() => {
+    setBandForm({
+      gradeId: "", jobProfileId: "", legalEntityId: "", locationCode: "PH",
+      minimumAnnual: "", midpointAnnual: "", maximumAnnual: "",
+      effectiveFrom: "", effectiveUntil: "",
+    });
+    setCycleForm({
+      name: "", startDate: "", endDate: "", effectiveDate: "", budgetPool: "",
+    });
+    setProposalForm({
+      employeeId: "", cycleId: "", bandId: "", workerEffectiveChangeId: "",
+      proposedAnnual: "", reason: "",
+    });
+    setComponentForm({
+      code: "", name: "", kind: "allowance", amountFrequency: "monthly",
+      taxable: true, includeInSssBase: true, includeInPagIbigBase: true,
+    });
+    setAssignmentForm({
+      employeeId: "", componentId: "", amount: "", effectiveFrom: "",
+      effectiveUntil: "", reason: "",
+    });
+  }, [organizationId]);
+
   // An old-employer salary snapshot must never be rendered during a switch.
   // Late responses cannot replace a newer authorized employer response.
   const load = useCallback(async () => {
