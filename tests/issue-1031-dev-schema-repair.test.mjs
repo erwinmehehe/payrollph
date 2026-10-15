@@ -38,3 +38,22 @@ test("HCM, recruitment and timesheet schema dependencies are represented", () =>
     "plan_handoff_evidence", "role_skill_snapshot", "assignment_type",
   ]) assert.ok(executable.includes(name), name);
 });
+
+
+test("secondary planning dependencies use guarded additive DDL only", () => {
+  const followup = readFileSync("docs/sql/issue-1031-dev-workforce-followups.sql", "utf8");
+  const statements = followup.replace(/--[^\n]*/g, "");
+  assert.match(statements, /ISSUE_1031_FOLLOWUP_ALREADY_OR_PARTIALLY_REPAIRED/);
+  assert.match(statements, /ISSUE_1031_FOLLOWUP_BASE_DEPENDENCY_MISSING/);
+  assert.doesNotMatch(statements, /\b(?:DROP\s+(?:TABLE|INDEX)|TRUNCATE\s+|DELETE\s+FROM|UPDATE\s+|INSERT\s+INTO)\b/i);
+  for (const name of [
+    "approval_chain_policies", "approval_chain_instances", "approval_chain_instance_steps",
+    "staffing_requirements", "worker_employment_events", "worker_effective_changes",
+  ]) assert.ok(statements.includes(`CREATE TABLE IF NOT EXISTS "${name}"`), name);
+  for (const invariant of [
+    "approval_chain_instances_amount_nonnegative_check",
+    "approval_tasks_chain_instance_fk",
+    "staffing_requirement_handoff_key_unique",
+    "worker_effective_changes_active_employee_unique",
+  ]) assert.ok(statements.includes(invariant), invariant);
+});
