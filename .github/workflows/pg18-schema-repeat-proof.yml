@@ -6,6 +6,11 @@ on:
       - 'src/db/schema.ts'
       - 'scripts/qa/fresh-pg18-development-schema.mjs'
       - 'scripts/qa/verified-pg18-repeat-push.mjs'
+      - 'scripts/strict-db-push.mjs'
+      - 'scripts/qa/coe-document-tenant-negative-proof.mjs'
+      - 'tests/strict-db-push.test.mjs'
+      - 'tests/coe-document-tenant-negative-proof.test.mjs'
+      - 'package.json'
       - 'tests/fresh-pg18-development-schema.test.mjs'
       - 'tests/verified-pg18-repeat-push.test.mjs'
       - '.github/workflows/pg18-schema-repeat-proof.yml'
@@ -63,13 +68,15 @@ jobs:
         run: |
           node -e 'const {readFileSync}=require("node:fs"); for(const name of ["drizzle-kit","drizzle-orm"]) { const actual=JSON.parse(readFileSync("node_modules/"+name+"/package.json","utf8")).version; if(actual!=="1.0.0-rc.4"){ console.error(name+" version mismatch");process.exit(1); } console.log(name+" evaluated version "+actual) }'
       - name: Verify fail-closed safety and exact tenancy constraints
-        run: node --test tests/fresh-pg18-development-schema.test.mjs tests/verified-pg18-repeat-push.test.mjs
+        run: node --test tests/fresh-pg18-development-schema.test.mjs tests/verified-pg18-repeat-push.test.mjs tests/strict-db-push.test.mjs tests/coe-document-tenant-negative-proof.test.mjs
       - name: Confirm entirely empty PostgreSQL 18 disposable CI target
         run: node scripts/qa/fresh-pg18-development-schema.mjs preflight
       - name: Create current source schema once
         run: npm run db:push
       - name: Verify original composite UNIQUE and tenant FK, capture catalog
         run: node scripts/qa/fresh-pg18-development-schema.mjs capture
+      - name: Fictional tenant denial and within-tenant positive proof (ROLLBACK; no business rows kept)
+        run: node scripts/qa/coe-document-tenant-negative-proof.mjs
       - name: Refuse non-noop second schema push and silent SQL errors
         run: node scripts/qa/verified-pg18-repeat-push.mjs
       - name: Verify no PostgreSQL schema drift after repeat push
