@@ -44,28 +44,41 @@ export function EnterpriseBiExportPanel({
   const [startDate, setStartDate] = useState(isoDate(ninetyDaysAgo));
   const [endDate, setEndDate] = useState(isoDate(today));
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadRevision, setReloadRevision] = useState(0);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let alive = true;
+    setLoading(true);
+    setLoadError(null);
     (async () => {
       try {
         const response = await fetch(`/api/bi-exports?organizationId=${organizationId}`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!alive) return;
         if (!response.ok) throw new Error(payload.error ?? "Could not load BI export definitions.");
+        setLoadError(null);
         setDefinitions(Array.isArray(payload.datasets) ? payload.datasets : []);
         setLegalEntities(Array.isArray(payload.scopes?.legalEntities) ? payload.scopes.legalEntities : []);
         setOrgUnits(Array.isArray(payload.scopes?.orgUnits) ? payload.scopes.orgUnits : []);
         setDynamicGroups(Array.isArray(payload.scopes?.dynamicGroups) ? payload.scopes.dynamicGroups : []);
       } catch (error) {
-        if (alive) notify(error instanceof Error ? error.message : "Could not load BI export definitions.", "err");
+        if (alive) {
+          // An earlier tenant or successful load is not evidence that this
+          // organization can export. Clear all scopes on a failed read.
+          setDefinitions([]);
+          setLegalEntities([]);
+          setOrgUnits([]);
+          setDynamicGroups([]);
+          setLoadError(error instanceof Error ? error.message : "Could not load BI export definitions.");
+        }
       } finally {
         if (alive) setLoading(false);
       }
     })();
     return () => { alive = false; };
-  }, [organizationId, notify]);
+  }, [organizationId, reloadRevision]);
 
   const selected = definitions.find((definition) => definition.key === dataset);
   const visibleOrgUnits = orgUnits.filter((unit) =>
@@ -137,6 +150,13 @@ export function EnterpriseBiExportPanel({
             Company-wide access and recent MFA are required. Bank accounts and government-member identifiers are excluded. Each export records row count, filters, schema version and SHA-256 evidence.
           </span>
         </div>
+
+        {loadError && (
+          <div className="notice notice-amber" role="alert" style={{ marginBottom: 14 }}>
+            <span><strong>BI exports are unavailable.</strong> {loadError} Export definitions and access scopes must load successfully before any export is enabled.</span>
+            <button className="secondary-button" type="button" disabled={loading} onClick={() => setReloadRevision((value) => value + 1)}>Retry</button>
+          </div>
+        )}
 
         <div className="setting-form" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr" }}>
           <label>
