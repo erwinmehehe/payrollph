@@ -30,7 +30,15 @@ function phTime(value: string) {
   }).format(new Date(value));
 }
 
-export function WorkforceLiveFloor({ organizationId, onOpenAttendance }: { organizationId: number; onOpenAttendance?: () => void }) {
+type WorkforceLiveFloorProps = { organizationId: number; onOpenAttendance?: () => void };
+
+export function WorkforceLiveFloor(props: WorkforceLiveFloorProps) {
+  // A company change must synchronously discard roster, filter, paging, and
+  // request-owner state from the previous tenant before the next paint.
+  return <WorkforceLiveFloorContent key={props.organizationId} {...props} />;
+}
+
+function WorkforceLiveFloorContent({ organizationId, onOpenAttendance }: WorkforceLiveFloorProps) {
   const [page, setPage] = useState(1);
   const [snapshot, setSnapshot] = useState<ScopedLiveFloorSnapshot<FloorSnapshot> | null>(null);
   const [error, setError] = useState<{ scopeKey: string; message: string } | null>(null);
@@ -78,8 +86,6 @@ export function WorkforceLiveFloor({ organizationId, onOpenAttendance }: { organ
     }, 60_000);
     return () => { pendingRequest.current?.abort(); clearInterval(interval); };
   }, [load]);
-
-  useEffect(() => { setPage(1); setSearch(""); setView("all"); }, [organizationId]);
 
   const visibleRows = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase("en-PH");

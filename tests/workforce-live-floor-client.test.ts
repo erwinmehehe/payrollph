@@ -45,3 +45,16 @@ test("live-floor manual refresh and polling use one abortable request owner", ()
   assert.ok(!code.includes("void load(controller.signal)"));
   assert.ok(code.includes("Not proof of onsite presence or an absence finding."));
 });
+
+test("changing employers remounts live-floor filters, paging and request owner before paint", () => {
+  const code = readFileSync("src/components/workspace/workforce-live-floor.tsx", "utf8");
+  // A keyed child fully resets local state on employer change. Do not rely on
+  // a post-paint effect to briefly retain the previous employer's filters.
+  assert.match(code, /return <WorkforceLiveFloorContent key=\{props\.organizationId\} \{\.\.\.props\} \/>/);
+  assert.match(code, /function WorkforceLiveFloorContent\(\{ organizationId, onOpenAttendance \}/);
+  assert.match(code, /const \[page, setPage\] = useState\(1\)/);
+  assert.match(code, /const \[view, setView\] = useState/);
+  assert.match(code, /const \[search, setSearch\] = useState\(""/);
+  assert.match(code, /return \(\) => \{ pendingRequest\.current\?\.abort\(\); clearInterval\(interval\); \}/);
+  assert.doesNotMatch(code, /useEffect\(\(\) => \{ setPage\(1\); setSearch\(""\); setView\("all"\)/);
+});
