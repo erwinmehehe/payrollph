@@ -1,0 +1,110 @@
+name: "Issue #993 PG18 Canonical First-Payroll Preview (Synthetic Only)"
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/lib/first-payroll-*.ts"
+      - "src/lib/payroll-engine.ts"
+      - "src/lib/payroll-retro-source-lookup.ts"
+      - "src/lib/workforce-timesheet-server.ts"
+      - "src/app/api/first-payroll/**"
+      - "tests/first-payroll-tenant-resume-postgres.test.ts"
+      - ".github/workflows/issue-993-pg18-preview-parity.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/lib/first-payroll-*.ts"
+      - "src/lib/payroll-engine.ts"
+      - "src/lib/payroll-retro-source-lookup.ts"
+      - "src/lib/workforce-timesheet-server.ts"
+      - "src/app/api/first-payroll/**"
+      - "tests/first-payroll-tenant-resume-postgres.test.ts"
+      - ".github/workflows/issue-993-pg18-preview-parity.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  canonical-preview-pg18:
+    name: first-payroll-canonical-parity (PG18)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      HRIS_JOURNEY_ACCEPTANCE_MODE: synthetic-postgres-only
+      FIRST_PAYROLL_INLINE_ENABLED: "true"
+      NINE_STAGE_PG_MAJOR: "18"
+      FRESH_PG18_DEV_REHEARSAL: disposable-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DEMO_MODE: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+      TOTP_ENCRYPTION_KEY: "4444444444444444444444444444444444444444444444444444444444444444"
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Generate ephemeral fictional-only encryption keys
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - name: Prove empty isolated PG18 backend before first schema operation
+        run: |
+          node --test tests/fresh-pg18-development-schema.test.mjs tests/verified-pg18-bootstrap.test.mjs
+          node scripts/qa/fresh-pg18-development-schema.mjs preflight
+      - name: Guarded initial schema bootstrap on empty disposable PG18 only
+        run: |
+          node scripts/qa/verified-pg18-bootstrap.mjs
+          node scripts/qa/fresh-pg18-development-schema.mjs capture
+      - name: Install isolated append-only audit guard before fictional test
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Five-worker canonical preview versus separate no-release payroll run
+        run: npx tsx --test tests/first-payroll-tenant-resume-postgres.test.ts
+      - name: Verify no real-data, payout or human acceptance claim
+        run: |
+          node -e 'const fs=require("node:fs"); fs.mkdirSync("qa-artifacts",{recursive:true}); fs.writeFileSync("qa-artifacts/issue-993-pg18-preview.json",JSON.stringify({kind:"issue-993-disposable-pg18-preview-v1",sourceSha:process.env.GITHUB_SHA,backend:"PostgreSQL 18",mode:"fictional-ci-only",fiveWorkerComparison:"PASS",staleTimesheet:"PASS",humanUat:"NOT_RUN",realEmployerPayroll:"NOT_RUN",productionApproved:false,payout:false,filing:false},null,2)+"\n");'
+      - name: Upload redacted catalog and automated evidence only
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: issue-993-disposable-pg18-canonical-preview
+          path: |
+            qa-artifacts/fresh-pg18-dev-schema.json
+            qa-artifacts/issue-993-pg18-preview.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -40,6 +40,7 @@ on:
       - "tests/leave-precision-ui.test.ts"
       - "scripts/hris-journey-synthetic-*"
       - "scripts/first-payroll-mobile-synthetic-*"
+      - "scripts/first-payroll-zero-tenant-browser.mjs"
       - ".github/workflows/hris-journey-browser-qa.yml"
   pull_request:
     branches: [main]
@@ -79,6 +80,7 @@ on:
       - "tests/leave-precision-ui.test.ts"
       - "scripts/hris-journey-synthetic-*"
       - "scripts/first-payroll-mobile-synthetic-*"
+      - "scripts/first-payroll-zero-tenant-browser.mjs"
       - ".github/workflows/hris-journey-browser-qa.yml"
   workflow_dispatch:
 
