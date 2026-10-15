@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -111,6 +111,18 @@ function run(t, role, overrides = {}) {
   assert.equal(result.signal, null, "no timeout/signal");
   return result;
 }
+
+test("live GitHub job checks out the exact commit before running the repo script", () => {
+  const workflow = readFileSync(resolve(".github/workflows/live-rbac-sandbox-smoke.yml"), "utf8");
+  const checkout = workflow.indexOf("uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1");
+  const scriptProbe = workflow.indexOf("bash scripts/live-workforce-bi-rbac-smoke.sh --anonymous");
+  const readiness = workflow.indexOf("name: Wait for exact production deployment");
+  assert.ok(checkout >= 0, "the workflow must checkout source before invoking the test script");
+  assert.ok(scriptProbe > checkout, "the test script must only run after checkout");
+  assert.ok(readiness > checkout, "the checkout must occur before exact-deployment verification");
+  assert.match(workflow, /persist-credentials: false/, "checkout must not persist GitHub credentials");
+  assert.match(workflow, /EXPECTED_COMMIT_SHA: \$\{\{ github\.sha \}\}/, "the exact deployment SHA must remain pinned to the workflow event");
+});
 
 test("shell source is syntactically valid", () => {
   const result = spawnSync("bash", ["-n", script], { encoding: "utf8" });
