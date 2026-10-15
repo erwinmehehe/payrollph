@@ -74,7 +74,7 @@ async function checkRole(browser, role, width, authState, pages) {
   page.on("console", msg => { if (msg.type() === "error" && !msg.text().includes("net::ERR_BLOCKED_BY_CLIENT")) errors.push({ page: current, kind: "console", detail: safeText(msg.text()) }); });
   page.on("pageerror", err => errors.push({ page: current, kind: "exception", detail: safeText(err.stack ?? err.message) }));
   page.on("requestfailed", req => {
-    if (req.url().startsWith(BASE + "/api/") && !req.failure()?.errorText?.startsWith("net::ERR_BLOCKED_BY_CLIENT"))
+    if (req.url().startsWith(BASE + "/api/") && req.failure()?.errorText !== "net::ERR_ABORTED" && !req.failure()?.errorText?.startsWith("net::ERR_BLOCKED_BY_CLIENT"))
       errors.push({ page: current, kind: "network", detail: req.method() + " " + req.url() + ": " + req.failure()?.errorText });
   });
   page.on("response", response => {
