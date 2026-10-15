@@ -1,0 +1,88 @@
+#!/usr/bin/env node
+/**
+ * #1019 — fail-closed local-only Drizzle push.
+ *
+ * drizzle-kit@0.31.11 can print PostgreSQL error 2BP01 yet exit with 0.
+ * Always check both channels and require an affirmative, unambiguous result.
+ * The existing isolated-target guard is retained; never use this for Neon,
+ * production, historical migration adoption, bank data, or actual payroll.
+ */
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { assertIsolatedDbPushTarget } from "./lib/isolated-db-push-target.mjs";
+import "dotenv/config";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const BIN = join(ROOT, "node_modules", "drizzle-kit", "bin.cjs");
+const MAX_OUTPUT_BYTES = 1024 * 1024;
+const MAX_DURATION_MS = 10 * 60 * 1000;
+const ANSI = /\u001b\[[0-9;]*m/g;
+
+export function classifyStrictDbPush(exitCode, stdout, stderr) {
+  const output = (String(stdout ?? "") + "\n" + String(stderr ?? "")).replace(ANSI, "");
+  if (exitCode !== 0) throw new Error("STRICT_DB_PUSH_NONZERO_EXIT");
+  // Drizzle may exit zero after a database error (including SQLSTATE 2BP01).
+  if (/(?:^|\n)\s*(?:error|fatal|exception)\s*[:[(]|\bSQLSTATE\b|\b2BP01\b|\bfailed to execute\b|\bfailed to apply\b|\binteractive prompts require a TTY\b/i.test(output)) {
+    throw new Error("STRICT_DB_PUSH_REPORTED_ERROR");
+  }
+  const applied = /\bchanges applied\b/i.test(output);
+  const unchanged = /\bno changes detected\b/i.test(output);
+  // An alleged no-op with DDL in the output is NOT proof of idempotency.
+  if (applied === unchanged ||
+      (unchanged && /\b(?:ALTER\s+TABLE|DROP\s+CONSTRAINT|DROP\s+INDEX|CREATE\s+TABLE|CREATE\s+INDEX|TRUNCATE)\b/i.test(output))) {
+    throw new Error("STRICT_DB_PUSH_UNPROVEN_RESULT");
+  }
+  return unchanged ? "no-op" : "applied";
+}
+
+export async function runStrictDbPush(env = process.env) {
+  // The guard throws before checking the binary or opening any DB connection.
+  assertIsolatedDbPushTarget(env.DATABASE_URL, env);
+  if (!existsSync(BIN)) throw new Error("STRICT_DB_PUSH_PINNED_KIT_MISSING");
+  const child = spawn(process.execPath, [BIN, "push"], {
+    cwd: ROOT,
+    env,
+    shell: false,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "", stderr = "", oversized = false, launchError = false;
+  child.on("error", () => { launchError = true; });
+  for (const [stream, label] of [[child.stdout, "stdout"], [child.stderr, "stderr"]]) {
+    stream.on("data", data => {
+      const value = data.toString("utf8");
+      if (label === "stdout") stdout += value;
+      else stderr += value;
+      if (Buffer.byteLength(stdout) + Buffer.byteLength(stderr) > MAX_OUTPUT_BYTES) {
+        oversized = true;
+        child.kill();
+      }
+    });
+  }
+  let timedOut = false;
+  const deadline = setTimeout(() => { timedOut = true; child.kill(); }, MAX_DURATION_MS);
+  let code;
+  try {
+    code = await new Promise(resolveClose => child.once("close", resolveClose));
+  } finally {
+    clearTimeout(deadline);
+  }
+  if (launchError || oversized || timedOut) throw new Error("STRICT_DB_PUSH_RUNNER_FAILED");
+  const status = classifyStrictDbPush(code, stdout, stderr);
+  // Never echo stdout/stderr: PostgreSQL errors sometimes contain SQL text.
+  process.stdout.write(status === "no-op"
+    ? "[✓] No changes detected\n"
+    : "[✓] Changes applied\n");
+  return status;
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  runStrictDbPush().catch(error => {
+    const code = error instanceof Error &&
+      /^(?:STRICT_DB_PUSH_[A-Z_]+|DB_PUSH_[A-Z_]+)$/.test(error.message)
+      ? error.message : "STRICT_DB_PUSH_EXECUTION_FAILED";
+    process.stderr.write(code + "\n");
+    process.exitCode = 1;
+  });
+}
