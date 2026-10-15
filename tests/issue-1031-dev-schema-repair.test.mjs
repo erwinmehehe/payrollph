@@ -4,7 +4,7 @@ import test from "node:test";
 
 // This is a source check. Real PostgreSQL 18 rehearsal was performed on a
 // named isolated Neon branch and is separately documented in issue #1031.
-const sql = readFileSync("drizzle/0124_issue1031_dev_workforce_bi_repair.sql", "utf8");
+const sql = readFileSync("docs/sql/issue-1031-dev-workforce-bi-repair.sql", "utf8");
 const executable = sql.replace(/--[^\n]*/g, "");
 
 test("issue 1031 forward source is additive, no demo/payroll data rewrites", () => {
