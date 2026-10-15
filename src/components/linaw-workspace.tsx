@@ -658,7 +658,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
         {page === "Documents" && <HcmDocumentsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
         {page === "Expenses" && <SpendOperationsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
-        {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} canLoadEmployeeDirectory={roleCanManagePeople(effectiveRole)} />}
         {page === "Recruitment" && (
           <>
             {availablePages.includes("Recruitment") &&
