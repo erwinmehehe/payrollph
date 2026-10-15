@@ -1,4 +1,4 @@
-name: P0-4 Proposed 0115-0121 Dependency Train (Disposable PostgreSQL)
+name: P0-4 Proposed 0115-0123 Integrated Dependency Train (Disposable PostgreSQL)
 
 on:
   pull_request:
@@ -10,6 +10,8 @@ on:
       - "drizzle/0119_*.sql"
       - "drizzle/0120_*.sql"
       - "drizzle/0121_*.sql"
+      - "drizzle/0122_*.sql"
+      - "drizzle/0123_*.sql"
       - "docs/engineering/migration-proposals/employee-entity-interval-guard.sql"
       - "tests/pending-migration-release-train.test.mjs"
       - "tests/pending-train-preflight.test.mjs"
@@ -17,6 +19,8 @@ on:
       - "docs/engineering/0115-0121-neon-preflight.md"
       - "tests/consolidated-migration-dependency-postgres.test.mjs"
       - "tests/complete-pending-train-postgres.test.mjs"
+      - "tests/issue-1061-integrated-forward-train-postgres.test.mjs"
+      - "docs/engineering/issue-1061-integrated-forward-train-qa.md"
       - "docs/engineering/pending-migration-release-train.md"
       - ".github/workflows/consolidated-migration-train-ci.yml"
   push:
@@ -29,12 +33,16 @@ on:
       - "drizzle/0119_*.sql"
       - "drizzle/0120_*.sql"
       - "drizzle/0121_*.sql"
+      - "drizzle/0122_*.sql"
+      - "drizzle/0123_*.sql"
       - "tests/pending-migration-release-train.test.mjs"
       - "tests/pending-train-preflight.test.mjs"
       - "scripts/lib/pending-train-preflight.mjs"
       - "docs/engineering/0115-0121-neon-preflight.md"
       - "tests/consolidated-migration-dependency-postgres.test.mjs"
       - "tests/complete-pending-train-postgres.test.mjs"
+      - "tests/issue-1061-integrated-forward-train-postgres.test.mjs"
+      - "docs/engineering/issue-1061-integrated-forward-train-qa.md"
       - ".github/workflows/consolidated-migration-train-ci.yml"
 
 permissions:
@@ -92,7 +100,7 @@ jobs:
         run: node --test tests/consolidated-migration-dependency-postgres.test.mjs
 
   full-train-rollback:
-    name: Entire proposed 0115-0121 source train (disposable PG${{ matrix.postgres }} rollback)
+    name: Entire proposed 0115-0123 source train (disposable PG${{ matrix.postgres }} rollback)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -103,6 +111,11 @@ jobs:
       CI: "true"
       GITHUB_ACTIONS: "true"
       PENDING_TRAIN_REHEARSAL_MODE: isolated-ci-only
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      MULTI_ENTITY_ENABLED: "false"
+      MULTI_ENTITY_TRANSFERS_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
@@ -130,9 +143,11 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Initialize ONLY the disposable Postgres 16 fixture from Drizzle
+      - name: Initialize ONLY disposable Postgres 16/18 fixture from Drizzle
         run: npm run db:push
       - name: Source syntax and full migration train rollback, no external DB
         run: |
           node --check tests/complete-pending-train-postgres.test.mjs
           node --test tests/complete-pending-train-postgres.test.mjs
+          node --check tests/issue-1061-integrated-forward-train-postgres.test.mjs
+          node --test tests/issue-1061-integrated-forward-train-postgres.test.mjs
