@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BriefcaseBusiness, Building2, CheckCircle2, CircleDollarSign, Clock3, Plus, RefreshCw, Save, TrendingUp, UserCheck, UserPlus, UsersRound, XCircle } from "lucide-react";
 import { WorkforcePlanAllocationPanel } from "@/components/workforce-plan-allocation-panel";
 
@@ -313,6 +313,8 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [costVisible, setCostVisible] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadedOrganizationId, setLoadedOrganizationId] = useState<number | null>(null);
+  const loadRevisionRef = useRef(0);
   const [showArchitecture, setShowArchitecture] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
@@ -355,12 +357,15 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [assignmentForm, setAssignmentForm] = useState({ positionId: "", employeeId: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
 
   const load = useCallback(async () => {
+    const revision = ++loadRevisionRef.current;
     setLoading(true);
     setLoadError(null);
     try {
       const response = await fetch(`/api/workforce-planning?organizationId=${organizationId}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
+      if (revision !== loadRevisionRef.current) return;
       if (!response.ok) {
+        setLoadedOrganizationId(null);
         setLoadError(typeof payload.error === "string" ? payload.error : "Could not load workforce planning.");
         return;
       }
@@ -379,6 +384,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       setEmployees(payload.employees ?? []);
       const scenarioResponse = await fetch(`/api/workforce-planning/scenarios?organizationId=${organizationId}`, { cache: "no-store" });
       const scenarioPayload = await scenarioResponse.json().catch(() => ({}));
+      if (revision !== loadRevisionRef.current) return;
       if (scenarioResponse.ok) {
         setScenarios(scenarioPayload.scenarios ?? []);
         setApprovalConfiguration(scenarioPayload.approvalConfiguration ?? { configured: false, conflict: false, policy: null });
@@ -386,20 +392,26 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       }
       const baselineResponse = await fetch(`/api/workforce-planning/baselines?organizationId=${organizationId}`, { cache: "no-store" });
       const baselinePayload = await baselineResponse.json().catch(() => ({}));
+      if (revision !== loadRevisionRef.current) return;
       if (baselineResponse.ok) {
         setBaselines(baselinePayload.baselines ?? []);
         setCostVisible(baselinePayload.costVisible !== false);
       }
       const executionResponse = await fetch(`/api/workforce-planning/position-executions?organizationId=${organizationId}`, { cache: "no-store" });
       const executionPayload = await executionResponse.json().catch(() => ({}));
+      if (revision !== loadRevisionRef.current) return;
       if (executionResponse.ok) {
         setPositionExecutions(executionPayload.executions ?? []);
         setPositionExecutionCanApply(Boolean(executionPayload.access?.canApply));
       }
+      setLoadedOrganizationId(organizationId);
     } catch {
-      setLoadError("Could not reach workforce planning. The service may be temporarily unavailable.");
+      if (revision === loadRevisionRef.current) {
+        setLoadedOrganizationId(null);
+        setLoadError("Could not reach workforce planning. The service may be temporarily unavailable.");
+      }
     } finally {
-      setLoading(false);
+      if (revision === loadRevisionRef.current) setLoading(false);
     }
   }, [organizationId]);
 
@@ -830,7 +842,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
 
   // Prevent previous-organization values from appearing during an in-flight
   // organization switch or manual Retry. Only successful reads render controls.
-  if (loading) {
+  if (loading || (!loadError && loadedOrganizationId !== organizationId)) {
     return (
       <div className="page-heading" role="status" aria-busy="true">
         <div>
