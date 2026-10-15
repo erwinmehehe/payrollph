@@ -11,7 +11,8 @@ test("#737 required check materializes and fails when matrix shard fails", () =>
   assert.ok(check);
   assert.ok(check.includes("if: ${{ always() }}"));
   assert.ok(check.includes("needs: test-shard"));
-  assert.ok(check.includes("if: ${{ needs.test-shard.result != 'success' }}"));
+  // always() defeats GitHub's implicit success() after an upstream shard failure.
+  assert.ok(check.includes("if: ${{ always() && needs.test-shard.result != 'success' }}"));
   assert.ok(check.includes("exit 1"));
   const guard = check.indexOf("Required CI cannot pass unless every regression shard succeeded");
   const normalWork = check.indexOf("- uses: actions/checkout@");

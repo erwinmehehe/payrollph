@@ -90,8 +90,10 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
+      # A dependency failure makes GitHub implicitly add success() to step ifs
+      # unless this guard explicitly includes a status-check function.
       - name: Required CI cannot pass unless every regression shard succeeded
-        if: ${{ needs.test-shard.result != 'success' }}
+        if: ${{ always() && needs.test-shard.result != 'success' }}
         run: |
           echo "::error::One or more regression shards failed, were cancelled, or were skipped."
           exit 1

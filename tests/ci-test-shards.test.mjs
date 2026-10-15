@@ -33,7 +33,8 @@ test("CI keeps the required check job conditional on all shard results", () => {
   assert.ok(checkJob, "CI aggregate job must exist");
   assert.ok(checkJob.includes("if: ${{ always() }}"), "CI aggregate cannot be skipped");
   assert.ok(checkJob.includes("needs: test-shard"), "CI aggregate must depend on every shard");
-  assert.ok(checkJob.includes("if: ${{ needs.test-shard.result != 'success' }}"),
+  // Without the explicit status function, failed ancestors can suppress this guard.
+  assert.ok(checkJob.includes("if: ${{ always() && needs.test-shard.result != 'success' }}"),
     "failed/cancelled/skipped shard must fail the required aggregate job");
   assert.ok(checkJob.includes("exit 1"), "guard must explicitly fail");
   assert.ok(checkJob.indexOf("Required CI cannot pass unless every regression shard succeeded") <
