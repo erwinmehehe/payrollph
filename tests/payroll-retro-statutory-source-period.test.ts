@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { reviewRetroStatutorySourcePeriods } from "../src/lib/payroll-retro-statutory-source-period";
+import { retroAgencyReconciliationRows, reviewRetroStatutorySourcePeriods } from "../src/lib/payroll-retro-statutory-source-period";
 
 const period = { currentPeriodStart: "2026-10-16", currentPeriodEnd: "2026-10-31" };
 const retro = { id: 42, amount: 750.25, sourcePeriodStart: "2026-10-01", sourcePeriodEnd: "2026-10-15" };
@@ -37,4 +37,41 @@ test("M-10: zero retro is ignored, nonfinite amount and bad cutoff are blocked",
   assert.match(reviewRetroStatutorySourcePeriods({
     currentPeriodStart: "2026-09-25", currentPeriodEnd: "2026-10-10", adjustments: [retro],
   })[0], /STATUTORY_RETRO_SOURCE_UNVERIFIED/);
+});
+
+test("M-10: reconciliation rows retain source month and signed centavos but never certify agency posting", () => {
+  const rows = retroAgencyReconciliationRows({
+    ...period,
+    adjustments: [
+      retro,
+      { ...retro, id: 43, amount: -1234.56, sourcePeriodStart: "2025-12-16", sourcePeriodEnd: "2025-12-31" },
+      { ...retro, id: 44, amount: 0, sourcePeriodStart: null, sourcePeriodEnd: null },
+      { ...retro, id: 45, amount: 100, sourcePeriodStart: "2026-09-30", sourcePeriodEnd: "2026-10-15" },
+      { ...retro, id: 46, amount: Number.POSITIVE_INFINITY },
+    ],
+  });
+  assert.deepEqual(rows.map(row => row.status), [
+    "same_cutoff_month", "different_source_month", "zero_adjustment", "source_unverified", "invalid_adjustment",
+  ]);
+  assert.deepEqual(rows.map(row => row.requiresAgencyReview), [false, true, false, true, true]);
+  assert.equal(rows[0].amountCentavos, 75025);
+  assert.equal(rows[1].amountCentavos, -123456);
+  assert.equal(rows[1].sourceWorkMonth, "2025-12");
+  assert.equal(rows[1].currentCutoffMonth, "2026-10");
+  assert.equal(rows[2].sourceWorkMonth, null);
+  assert.equal(rows[3].sourceWorkMonth, null);
+  assert.equal(rows[4].amountCentavos, null);
+  assert.deepEqual(
+    reviewRetroStatutorySourcePeriods({
+      ...period,
+      adjustments: [
+        retro,
+        { ...retro, id: 43, amount: -1234.56, sourcePeriodStart: "2025-12-16", sourcePeriodEnd: "2025-12-31" },
+        { ...retro, id: 44, amount: 0, sourcePeriodStart: null, sourcePeriodEnd: null },
+        { ...retro, id: 45, amount: 100, sourcePeriodStart: "2026-09-30", sourcePeriodEnd: "2026-10-15" },
+        { ...retro, id: 46, amount: Number.POSITIVE_INFINITY },
+      ],
+    }).map(flag => flag.split(":")[0]),
+    ["STATUTORY_RETRO_PRIOR_MONTH_REVIEW", "STATUTORY_RETRO_SOURCE_UNVERIFIED", "STATUTORY_RETRO_INVALID_SOURCE"],
+  );
 });
