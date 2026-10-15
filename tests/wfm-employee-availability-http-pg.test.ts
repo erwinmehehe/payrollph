@@ -107,14 +107,22 @@ test("ESS availability GET/create/withdraw stay employee- and tenant-bound in ac
     view = await (await GET(read())).json();
     assert.equal(view.rules.length, 0, "B must not read A source records");
     assert.equal((await POST(send({ action: "remove", ruleId: firstId }))).status, 409);
-    assert.equal((await POST(send({ ...candidate, weekday: 2, availabilityType: "unavailable" }))).status, 201);
+    assert.equal((await POST(send({ ...candidate, weekday: 2, availabilityType: "unavailable",
+      notes: "B-only private preference" }))).status, 201);
     view = await (await GET(read())).json();
     assert.equal(view.rules.length, 1);
     assert.equal(view.rules[0].weekday, 2);
-    assert.ok(!JSON.stringify(view).includes("Fictional availability only" + " from A"));
+    assert.equal(view.rules[0].notes, "B-only private preference");
+    assert.ok(!JSON.stringify(view).includes("Fictional availability only"),
+      "B response must never include A's scheduling note");
 
     session = { id: userA.id, employeeId: personA.id, name: userA.name,
       email: userA.email, role: "employee" };
+    view = await (await GET(read())).json();
+    assert.equal(view.rules.length, 1);
+    assert.equal(view.rules[0].notes, "Fictional availability only");
+    assert.ok(!JSON.stringify(view).includes("B-only private preference"),
+      "A response must never include B's scheduling note");
     const removal = await POST(send({ action: "remove", ruleId: firstId }));
     assert.equal(removal.status, 200);
     assert.equal((await (await GET(read())).json()).rules.length, 0);
