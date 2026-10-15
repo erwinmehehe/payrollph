@@ -112,7 +112,18 @@ class Client {
 async function login(email: string) {
   assert.equal(email, email.toLowerCase(), "Synthetic account email must match login normalization");
   const c = new Client();
-  await c.ok("/api/auth/login", "POST", { email, password });
+  const loginBody = { email, password };
+  let response = await c.json("/api/auth/login", "POST", loginBody);
+  if (response.status === 429) {
+    // The two employers have separate actor logins but share a localhost IP.
+    // Honor the real limiter's bounded retry window; never disable rate limits.
+    const ms = Number(response.body?.retryAfterMs);
+    assert.ok(Number.isSafeInteger(ms) && ms >= 0 && ms <= 60000,
+      "Unbounded login retry period; abort rather than bypass the limiter");
+    await new Promise<void>(resolve => setTimeout(resolve, ms + 250));
+    response = await c.json("/api/auth/login", "POST", loginBody);
+  }
+  assert.equal(response.status, 200, "Fictional login must be authorized: " + email);
   assert.ok(c.cookie, "Missing synthetic login session");
   return c;
 }
