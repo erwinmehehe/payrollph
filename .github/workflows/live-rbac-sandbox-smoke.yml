@@ -176,3 +176,8 @@ jobs:
             bash scripts/live-workforce-bi-rbac-smoke.sh \
               "$role" "$organization_id" "$work_dir/demo-cookies.txt" "$work_dir"
           done
+
+      - name: Verify deployed fictional HR compensation privacy (#1046)
+        env:
+          PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
+        run: bash scripts/live-compensation-scope-smoke.sh
