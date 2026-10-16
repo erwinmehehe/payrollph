@@ -11,11 +11,13 @@ const read = file => readFileSync(resolve(root, file), "utf8");
 
 test("source-only worksheet covers every drizzle file with current byte SHA and no populated receipts", () => {
   const result = generateSourceWorksheet();
-  assert.equal(result.summary.totalDrizzleFiles, 142);
-  assert.equal(result.summary.numberedSqlFiles, 140);
-  assert.equal(result.summary.sqlFiles, 141);
-  assert.equal(result.summary.sourceSchemaTables, 270);
+  assert.equal(result.summary.totalDrizzleFiles, 143);
+  assert.equal(result.summary.numberedSqlFiles, 141);
+  assert.equal(result.summary.sqlFiles, 142);
+  assert.equal(result.summary.sourceSchemaTables, 271);
   assert.equal(result.summary.duplicatePrefixGroups, 13);
+  assert.ok(result.migrationRows.some(row => row.file_path === "drizzle/0127_year_end_prior_evidence.sql" && row.creates_objects.includes("year_end_prior_evidence")));
+  assert.ok(result.tableRows.some(row => row.schema_table === "year_end_prior_evidence"));
   const paths = readdirSync(resolve(root, "drizzle")).map(name => "drizzle/" + name).sort();
   assert.deepEqual(result.migrationRows.map(row => row.file_path).sort(), paths);
   assert.equal(new Set(result.migrationRows.map(row => row.file_path)).size, paths.length);

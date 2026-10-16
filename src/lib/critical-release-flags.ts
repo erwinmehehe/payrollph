@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  yearEndPriorEvidence: {
+    env: "YEAR_END_PRIOR_EVIDENCE_ENABLED",
+    owner: "Philippine Payroll / Tax",
+    risk: "Reviewed prior-employer and PERA evidence changes year-end collection/refund",
+    approval: "Dedicated encryption key, reviewed schema, maker/checker, tenant and exact-source acceptance; no production activation or filing authority",
+  },
   applicantPrivacy: {
     env: "APPLICANT_PRIVACY_CONTROLS_ENABLED",
     owner: "HR Operations / Data Protection Officer",

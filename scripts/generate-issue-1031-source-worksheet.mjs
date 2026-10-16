@@ -55,7 +55,7 @@ function schemaTables() {
     ts.forEachChild(node, visit);
   }
   visit(sf);
-  if (names.size !== 270) throw Error("EXPECTED_270_SOURCE_TABLES_FOUND_" + names.size);
+  if (names.size !== 271) throw Error("EXPECTED_271_SOURCE_TABLES_FOUND_" + names.size);
   return sort(names);
 }
 
@@ -92,7 +92,7 @@ function fileSources() {
     return { path: name, prefix, sha256: sourceHash(bytes), sql: filename.endsWith(".sql"),
       parsed: filename.endsWith(".sql") ? parseMigrationSql(bytes.toString("utf8")) : null };
   });
-  if (files.length !== 142) throw Error("EXPECTED_142_DRIZZLE_FILES_FOUND_" + files.length);
+  if (files.length !== 143) throw Error("EXPECTED_143_DRIZZLE_FILES_FOUND_" + files.length);
   return files;
 }
 

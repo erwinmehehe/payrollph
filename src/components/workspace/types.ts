@@ -351,6 +351,7 @@ export type DashboardData = {
   xenditPayoutsEnabled?: boolean;
   bir1604cCandidateEnabled?: boolean;
   bir2316CertificateEnabled?: boolean;
+  yearEndPriorEvidenceEnabled?: boolean;
   compactMobileHeaderEnabled?: boolean;
   firstPayrollReadiness?: FirstPayrollReadiness | null;
   user: SessionUser | null;
