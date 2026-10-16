@@ -109,23 +109,35 @@ function normType(v:string){let s=v.toLowerCase().trim();s=s.replace(/\bvarchar\
  * literal values/order, column identity and constraint validation status.
  * Never normalize unknown predicates, operators, casts, or malformed lists.
  */
-function normCheckExpression(input: string): string {
+function normCheckExpression(input: string, columnTypes: ReadonlyMap<string, string>, table: string): string {
   const value = normSql(input) ?? "";
-  const source = /^(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*) in \(([^()]*)\)$/.exec(value);
+  const source = /^(?:([a-z_][a-z0-9_]*)\.)?([a-z_][a-z0-9_]*) in \(([^()]*)\)$/.exec(value);
   const catalog = /^\(\(([a-z_][a-z0-9_]*)\)::text = any \(\(array\[([^\]]*)\]\)::text\[\]\)\)$/.exec(value);
-  const match = source ?? catalog;
-  if (!match) return value;
-  const values = match[2]!.split(",").map(s => s.trim());
+  if (!source && !catalog) return value;
+  if (source?.[1] && source[1] !== table) return value;
+  const column = source ? source[2]! : catalog![1]!;
+  // Each side must independently prove the column is VARCHAR. Integer and
+  // fixed-width character IN comparisons can differ from text-cast ANY.
+  if (!/^character varying(?:\(\d+\))?$/.test(normType(columnTypes.get(column) ?? ""))) return value;
+  const values = (source ? source[3]! : catalog![2]!).split(",").map(s => s.trim());
   if (values.length < 2) return value;
   const quotedLiteral = /^'(?:[^']|'')*'$/;
   const checked = values.map(v => catalog && v.endsWith("::character varying")
     ? v.slice(0, -"::character varying".length) : v);
   if (checked.some((v,i) => !quotedLiteral.test(v) ||
       (catalog && !values[i]!.endsWith("::character varying")))) return value;
-  return "varchar-in:" + match[1] + ":" + JSON.stringify(checked);
+  return "varchar-in:" + column + ":" + JSON.stringify(checked);
 }
 function normIndexKey(s: string) { return normSql(s) ?? ""; }
 function normAction(s:string){return s.toLowerCase().replace(/_/g," ").trim();}
-function signature(kind:string,x:any){if(kind==="table")return {name:x.name??x.object_name};if(kind==="column")return {type:normType(x.type),nullable:!!x.nullable,default:normColumnDefault(x),identity:normIdentity(x.identity)};if(kind==="foreign_key")return {columns:x.columns??[],refTable:x.refTable??x.ref_table,refColumns:x.refColumns??x.ref_columns??[],onDelete:normAction(x.onDelete??x.on_delete??"no action"),onUpdate:normAction(x.onUpdate??x.on_update??"no action"),validated:x.validated===undefined?true:!!x.validated};if(kind==="index")return {unique:!!x.unique,method:(x.method??"btree").toLowerCase(),keys:(x.keys??[]).map(normIndexKey),predicate:normSql(x.predicate),valid:x.valid===undefined?true:!!x.valid,ready:x.ready===undefined?true:!!x.ready};if(kind==="check")return {expression:normCheckExpression(x.expression),validated:x.validated===undefined?true:!!x.validated};if(kind==="primary_key")return {columns:x.columns??[],validated:x.validated===undefined?true:!!x.validated};if(kind==="unique_constraint")return {columns:x.columns??[],nullsNotDistinct:!!(x.nullsNotDistinct??x.nulls_not_distinct),validated:x.validated===undefined?true:!!x.validated};return x;}
+function signature(kind:string,x:any,columnTypes:ReadonlyMap<string,string>,table:string){if(kind==="table")return {name:x.name??x.object_name};if(kind==="column")return {type:normType(x.type),nullable:!!x.nullable,default:normColumnDefault(x),identity:normIdentity(x.identity)};if(kind==="foreign_key")return {columns:x.columns??[],refTable:x.refTable??x.ref_table,refColumns:x.refColumns??x.ref_columns??[],onDelete:normAction(x.onDelete??x.on_delete??"no action"),onUpdate:normAction(x.onUpdate??x.on_update??"no action"),validated:x.validated===undefined?true:!!x.validated};if(kind==="index")return {unique:!!x.unique,method:(x.method??"btree").toLowerCase(),keys:(x.keys??[]).map(normIndexKey),predicate:normSql(x.predicate),valid:x.valid===undefined?true:!!x.valid,ready:x.ready===undefined?true:!!x.ready};if(kind==="check")return {expression:normCheckExpression(x.expression,columnTypes,table),validated:x.validated===undefined?true:!!x.validated};if(kind==="primary_key")return {columns:x.columns??[],validated:x.validated===undefined?true:!!x.validated};if(kind==="unique_constraint")return {columns:x.columns??[],nullsNotDistinct:!!(x.nullsNotDistinct??x.nulls_not_distinct),validated:x.validated===undefined?true:!!x.validated};return x;}
 function expectedObjects(manifest:SchemaManifest){const map=new Map<string,{table:string;kind:string;object:string;expected:unknown}>();const put=(table:string,kind:string,object:string,expected:unknown)=>{const key=[table,kind,object].join("\0");if(map.has(key))throw new Error("duplicate expected object "+key);map.set(key,{table,kind,object,expected})};for(const t of manifest.tables){put(t.name,"table",t.name,{name:t.name});for(const c of t.columns)put(t.name,"column",c.name,{...c,table_name:t.name});for(const x of t.foreignKeys)put(t.name,"foreign_key",x.name,x);for(const x of t.indexes)put(t.name,"index",x.name,x);for(const x of t.checks)put(t.name,"check",x.name,x);for(const x of t.primaryKeys)put(t.name,"primary_key",x.name,x);for(const x of t.uniqueConstraints)put(t.name,"unique_constraint",x.name,x)}return map;}
-export function diffSchema(manifest:SchemaManifest,catalog:CatalogRow[]):DiffRow[]{const exp=expectedObjects(manifest);const obs=new Map<string,CatalogRow>();for(const r of catalog){if(!["table","column","foreign_key","index","check","primary_key","unique_constraint"].includes(r.kind))throw new Error("unsupported catalog kind");const key=[r.table_name,r.kind,r.object_name].join("\0");if(obs.has(key))throw new Error("duplicate observed catalog object: "+key);obs.set(key,r)}const result:DiffRow[]=[];for(const [key,e] of exp){const a=obs.get(key);const expected=signature(e.kind,e.expected);const actual=a?signature(e.kind,a):null;const status=!a?"MISSING":JSON.stringify(expected)===JSON.stringify(actual)?"PASS":"DRIFT";result.push({table:e.table,object:e.object,kind:e.kind,status,expected,actual,evidenceScope:EVIDENCE});obs.delete(key)}for(const r of obs.values()){result.push({table:r.table_name,object:r.object_name,kind:r.kind,status:"EXTRA",expected:null,actual:signature(r.kind,r),evidenceScope:EVIDENCE})}return result.sort((a,b)=>a.table.localeCompare(b.table)||a.kind.localeCompare(b.kind)||a.object.localeCompare(b.object));}
+export function diffSchema(manifest:SchemaManifest,catalog:CatalogRow[]):DiffRow[]{const expectedTypes = new Map(manifest.tables.map(t => [t.name, new Map(t.columns.map(c => [c.name, c.type]))]));
+const observedTypes = new Map<string, Map<string, string>>();
+for (const r of catalog) {
+  if (r.kind !== "column") continue;
+  const types = observedTypes.get(r.table_name) ?? new Map<string, string>();
+  types.set(r.object_name, r.type ?? "");
+  observedTypes.set(r.table_name, types);
+}
+const exp=expectedObjects(manifest);const obs=new Map<string,CatalogRow>();for(const r of catalog){if(!["table","column","foreign_key","index","check","primary_key","unique_constraint"].includes(r.kind))throw new Error("unsupported catalog kind");const key=[r.table_name,r.kind,r.object_name].join("\0");if(obs.has(key))throw new Error("duplicate observed catalog object: "+key);obs.set(key,r)}const result:DiffRow[]=[];for(const [key,e] of exp){const a=obs.get(key);const expected=signature(e.kind,e.expected,expectedTypes.get(e.table) ?? new Map(),e.table);const actual=a?signature(e.kind,a,observedTypes.get(e.table) ?? new Map(),e.table):null;const status=!a?"MISSING":JSON.stringify(expected)===JSON.stringify(actual)?"PASS":"DRIFT";result.push({table:e.table,object:e.object,kind:e.kind,status,expected,actual,evidenceScope:EVIDENCE});obs.delete(key)}for(const r of obs.values()){result.push({table:r.table_name,object:r.object_name,kind:r.kind,status:"EXTRA",expected:null,actual:signature(r.kind,r,observedTypes.get(r.table_name) ?? new Map(),r.table_name),evidenceScope:EVIDENCE})}return result.sort((a,b)=>a.table.localeCompare(b.table)||a.kind.localeCompare(b.kind)||a.object.localeCompare(b.object));}
