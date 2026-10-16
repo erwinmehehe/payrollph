@@ -61,6 +61,18 @@ container with fictional/empty app data:
    and that **every other original full-catalog non-PASS row** remains
    byte-for-byte visible.
 
+**Additional PG16/PG18 integrated rollback test:** the existing #1121
+`tests/issue-1061-integrated-forward-train-postgres.test.mjs` now runs
+the unchanged 0115–0126 sources, proposed 0128, then exact source 0129
+*in the same fictional-money transaction* on both PostgreSQL majors.
+It requires 54 structurally identical MISSING/EXTRA FK pairs to become
+PASS, preserves *every* other #1031 non-PASS row, runs a positive rollback
+and a negative reapply, asserts zero payroll-centavo changes, and finally
+rolls back the entire test. The existing consolidated PG16/18 workflow
+is triggered when 0129 changes. Evidence is **NOT_RUN / PENDING** until
+the exact commit's workflow succeeds; no simulated PG16 success proves
+PG18 safety.
+
 **Expected, not yet an accepted test result at creation:** post-0129
 #1031 aggregate changes only by 54 PASS, 54 fewer MISSING and 54 fewer
 EXTRA relative to post-0128. The 54 pairs cover 108 catalog non-PASS
@@ -104,5 +116,6 @@ independent qualified DBA/security approval, run protected PLAN then APPLY,
 record authentic cutover receipts, rerun complete live #1031 and authenticated
 RBAC/tenant-denial smoke, and verify payroll-centavo and provider-disabled
 invariants. Never interpret PG16 synthetic success or lint warning tally
-as any of those human approvals. PostgreSQL 18 for *this* 0129-specific
-test remains **NOT_RUN** until separately evidenced.
+as any of those human approvals. PostgreSQL 18 is covered by the added full-train regression, but
+**must still be marked NOT_RUN until exact-head PG18 CI completes successfully**.
+The standalone fourth-database Atlas-style rehearsal remains PG16-only.
