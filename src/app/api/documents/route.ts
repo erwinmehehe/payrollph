@@ -13,10 +13,10 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { documentObjectKey, putDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
-import { canStaffOpenEmployeeVault, validExpiryCalendarDate } from "@/lib/employee-document-vault";
+import { canAccessEmployeeProfileVault, canStaffOpenEmployeeVault, vaultDocumentIsArchived, validExpiryCalendarDate } from "@/lib/employee-document-vault";
 import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
 import {
-  canMutateLegacyHcmDocument, legacyDocumentInsertTable, legacyVisibleDocumentWhere,
+  canMutateLegacyHcmDocument, compatibleDocumentColumns, legacyDocumentInsertTable, legacyVisibleDocumentWhere,
 } from "@/lib/document-schema-compat";
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
@@ -27,54 +27,24 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
-  const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
-  if (!Number.isInteger(organizationId)) {
-    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  const params = new URL(request.url).searchParams;
+  const organizationId = Number(params.get("organizationId"));
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) {
+    return Response.json({ error: "A valid organizationId is required." }, { status: 400 });
+  }
+  const employeeParam = params.get("employeeId");
+  const requestedEmployeeId = employeeParam === null ? null : Number(employeeParam);
+  if (employeeParam !== null && (!/^[1-9]\\d*$/.test(employeeParam) ||
+    !Number.isSafeInteger(requestedEmployeeId))) {
+    return Response.json({ error: "A valid employeeId is required." }, { status: 400 });
   }
 
-  if (user.role === "employee") {
-    if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
-    const denied = await assertMembership(user.id, organizationId);
-    if (denied) return denied;
-
-    const rows = await db.select({
-      id: documents.id,
-      employeeId: documents.employeeId,
-      kind: documents.kind,
-      fileName: documents.fileName,
-      mimeType: documents.mimeType,
-      byteSize: documents.byteSize,
-      scannedClean: documents.scannedClean,
-      scanNote: documents.scanNote,
-      sourceType: documents.sourceType,
-      generationMetadata: documents.generationMetadata,
-      uploadedBy: documents.uploadedBy,
-      createdAt: documents.createdAt,
-    }).from(documents)
-      .where(and(eq(documents.organizationId, organizationId), eq(documents.employeeId, user.employeeId),
-        or(isNull(documents.sourceKey), notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"))))
-      .orderBy(desc(documents.id));
-
-    return Response.json({
-      documents: rows,
-      limits: { maxBytes: MAX_UPLOAD_BYTES, accepted: ["application/pdf", "image/png", "image/jpeg"] },
-    });
-  }
-
-  const denied = await assertOrganizationRole(
-    user.id,
-    organizationId,
-    PEOPLE_ADMIN_ROLES,
-    "Only People administrators can view company documents.",
-  );
-  if (denied) return denied;
-  const access = await getAccess(user.id, organizationId);
-  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
-  if (criticalReleaseFlagEnabled("employeeDocumentVault") && !canStaffOpenEmployeeVault(access.role)) {
-    return Response.json({ error: "Private HR documents are outside your role." }, { status: 403 });
-  }
-
-  const rows = await db.select({
+  const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
+  const limits = { maxBytes: MAX_UPLOAD_BYTES,
+    accepted: ["application/pdf", "image/png", "image/jpeg"] };
+  // Pre-A5 columns remain readable while the private rollout is OFF; these
+  // optional fields must not hard-fail unmigrated legacy databases.
+  const columns = {
     id: documents.id,
     employeeId: documents.employeeId,
     kind: documents.kind,
@@ -83,32 +53,107 @@ export async function GET(request: Request) {
     byteSize: documents.byteSize,
     scannedClean: documents.scannedClean,
     scanNote: documents.scanNote,
+    sourceType: documents.sourceType,
+    generationMetadata: documents.generationMetadata,
     uploadedBy: documents.uploadedBy,
+    uploadedByUserId: compatibleDocumentColumns.uploadedByUserId,
+    objectStorageKey: compatibleDocumentColumns.objectStorageKey,
     createdAt: documents.createdAt,
-  }).from(documents)
+  };
+
+  if (user.role === "employee") {
+    if (!user.employeeId || (requestedEmployeeId !== null &&
+      requestedEmployeeId !== user.employeeId)) {
+      return Response.json({ error: "You can view only your own documents." }, { status: 403 });
+    }
+    const denied = await assertMembership(user.id, organizationId);
+    if (denied) return denied;
+    const rows = await db.select(columns).from(documents)
+      .where(and(eq(documents.organizationId, organizationId),
+        eq(documents.employeeId, user.employeeId),
+        or(isNull(documents.sourceKey),
+          notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"))))
+      .orderBy(desc(documents.id));
+    return Response.json({
+      documents: rows.filter(row => !vaultDocumentIsArchived(row.generationMetadata))
+        .map(row => ({
+          id: row.id, employeeId: row.employeeId, kind: row.kind,
+          fileName: row.fileName, mimeType: row.mimeType, byteSize: row.byteSize,
+          scannedClean: row.scannedClean, scanNote: row.scanNote,
+          sourceType: row.sourceType, uploadedBy: row.uploadedBy,
+          createdAt: row.createdAt,
+          canRemove: vaultEnabled && Boolean(row.objectStorageKey) &&
+            row.sourceType === "upload" && row.uploadedByUserId === user.id,
+        })),
+      limits, vaultEnabled, uploadEnabled: documentUploadsEnabled(),
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  }
+
+  const denied = await assertOrganizationRole(
+    user.id, organizationId, PEOPLE_ADMIN_ROLES,
+    "Only People administrators can view company documents.",
+  );
+  if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  if (vaultEnabled && !canStaffOpenEmployeeVault(access.role)) {
+    return Response.json({ error: "Private HR documents are outside your role." }, { status: 403 });
+  }
+
+  // A profile filter is not an authorization grant: first resolve the worker
+  // inside the selected tenant, then apply the existing organizational scope.
+  if (requestedEmployeeId !== null) {
+    const [employee] = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId })
+      .from(employees).where(and(eq(employees.id, requestedEmployeeId),
+        eq(employees.organizationId, organizationId))).limit(1);
+    if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
+    const scope = assertScope(access, employee.orgUnitId);
+    if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+  }
+
+  const rows = await db.select(columns).from(documents)
     .where(and(
       eq(documents.organizationId, organizationId),
-      or(isNull(documents.sourceKey), notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%")),
-      // Turning the A-5 flag back off must NOT reveal confidential 201-file
-      // metadata to bookkeeper/legacy People roles. The object-backed row
-      // remains private even during feature rollback.
+      requestedEmployeeId === null ? undefined :
+        eq(documents.employeeId, requestedEmployeeId),
+      or(isNull(documents.sourceKey),
+        notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%")),
       canStaffOpenEmployeeVault(access.role) ? undefined : legacyVisibleDocumentWhere,
-    ))
-    .orderBy(desc(documents.id));
+    )).orderBy(desc(documents.id));
 
-  const staff = await db.select({ id: employees.id, first: employees.firstName, last: employees.lastName, orgUnitId: employees.orgUnitId })
-    .from(employees).where(eq(employees.organizationId, organizationId));
-  const visibleStaff = access.companyWide ? staff : staff.filter((row) => row.orgUnitId === access.orgUnitId);
-  const names = new Map(visibleStaff.map((row) => [row.id, `${row.first} ${row.last}`]));
-  const visibleEmployeeIds = new Set(visibleStaff.map((row) => row.id));
-  const visibleDocuments = access.companyWide
-    ? rows
-    : rows.filter((row) => row.employeeId != null && visibleEmployeeIds.has(row.employeeId));
+  const staff = await db.select({
+    id: employees.id, first: employees.firstName, last: employees.lastName,
+    orgUnitId: employees.orgUnitId,
+  }).from(employees).where(and(
+    eq(employees.organizationId, organizationId),
+    requestedEmployeeId === null ? undefined : eq(employees.id, requestedEmployeeId),
+  ));
+  const visibleStaff = access.companyWide ? staff :
+    staff.filter(row => row.orgUnitId === access.orgUnitId);
+  const names = new Map(visibleStaff.map(row => [row.id, `${row.first} ${row.last}`]));
+  const visibleEmployeeIds = new Set(visibleStaff.map(row => row.id));
+  const visibleDocuments = rows.filter(row =>
+    !vaultDocumentIsArchived(row.generationMetadata) &&
+    (access.companyWide || (row.employeeId !== null &&
+      visibleEmployeeIds.has(row.employeeId))));
 
   return Response.json({
-    documents: visibleDocuments.map((row) => ({ ...row, employeeName: row.employeeId ? names.get(row.employeeId) ?? null : null })),
-    limits: { maxBytes: MAX_UPLOAD_BYTES, accepted: ["application/pdf", "image/png", "image/jpeg"] },
-  });
+    documents: visibleDocuments.map(row => ({
+      id: row.id, employeeId: row.employeeId,
+      employeeName: row.employeeId ? names.get(row.employeeId) ?? null : null,
+      kind: row.kind, fileName: row.fileName, mimeType: row.mimeType,
+      byteSize: row.byteSize, scannedClean: row.scannedClean,
+      scanNote: row.scanNote, sourceType: row.sourceType,
+      uploadedBy: row.uploadedBy, createdAt: row.createdAt,
+      canRemove: vaultEnabled && Boolean(row.objectStorageKey) &&
+        row.sourceType === "upload" && row.employeeId !== null &&
+        canAccessEmployeeProfileVault({
+          userId: user.id, role: access.role, employeeId: null,
+          companyWide: access.companyWide,
+        }, row.employeeId),
+    })),
+    limits, vaultEnabled, uploadEnabled: documentUploadsEnabled(),
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
