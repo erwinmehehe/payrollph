@@ -8,7 +8,7 @@ import { auditEvents, documents, employees, hcmDocumentRequirements,
 import { documentObjectKey, documentStorageConfig, signedDocumentObjectUrl } from "../src/lib/document-object-storage";
 import {
   canAccessEmployeeProfileVault, canArchiveEmployeeVaultUpload,
-  vaultDocumentIsArchived, type EmployeeVaultActor,
+  vaultDocumentIsArchived, validEmployeeVaultCategory, type EmployeeVaultActor,
 } from "../src/lib/employee-document-vault";
 import { archiveEmployeeVaultUpload } from "../src/lib/employee-vault-profile-server";
 import { MAX_UPLOAD_BYTES, validateUpload } from "../src/lib/storage";
@@ -48,6 +48,17 @@ test("retention-safe delete requires verified employee-owned object upload and i
   assert.equal(canArchiveEmployeeVaultUpload(actor("owner"), {
     ...row, generationMetadata: { vaultRemovedAt: "2026-10-16T00:00:00.000Z" },
   }), false);
+});
+
+test("free-form employee documents accept only the defined categories", () => {
+  for (const category of ["government_id", "contract", "certificate", "other"]) {
+    assert.equal(validEmployeeVaultCategory(category), true);
+  }
+  for (const category of ["salary", "payroll", "company_id", "other;delete", ""]) {
+    assert.equal(validEmployeeVaultCategory(category), false);
+  }
+  const api = readFileSync("src/app/api/documents/route.ts", "utf8");
+  assert.match(api, /validEmployeeVaultCategory\(kind\)/);
 });
 
 test("vault upload rejects wrong MIME, extension, empty and oversized files", () => {
