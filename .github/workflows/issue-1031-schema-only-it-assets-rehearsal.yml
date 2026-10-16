@@ -78,6 +78,85 @@ jobs:
             exit 1
           fi
           echo "POST_REPAIR_FULL_SCHEMA_PUSH_NO_OP=PASS"
-      - name: Run requested full npm test on disposable PostgreSQL 16 only
-        if: matrix.postgres == '16'
+
+  baseline-noop-diagnostic:
+    name: Independent full-schema second-push baseline (disposable PG16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: First full-schema push before ANY candidate SQL
+        run: npm run db:push
+      - name: Second full-schema push must be a real no-op even without candidate
+        run: npm run db:push
+
+  complete-npm-test:
+    name: Full npm test on disposable PG16 (source-only IT test path)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      SCHEDULER_REHEARSAL_MODE: "isolated-ci-only"
+      OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Provision ephemeral fictitious test keys
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Run actual complete npm test (no Neon/production access)
         run: npm test
