@@ -1,0 +1,27 @@
+# #1019 — pinned stable Drizzle 0.31.11 composite-key introspection candidate
+
+**DRAFT / NO-GO / not a production migration.** This PR attempts to make the **real, current pinned** development toolchain run a first full-schema push and then a genuine DDL-free second push on **two independently empty, disposable** GitHub Actions PostgreSQL 16 and 18 services. It makes **no** changes to package manifests, dependency lockfiles, ORM runtime, source schema, existing numbered migrations, historical receipts, release workflows, flags, employer data, or Neon resources.
+
+## Root cause and constrained candidate
+
+- The upstream 0.31.x PostgreSQL introspection query for composite UNIQUE / PRIMARY KEY uses constraint_column_usage joined through columns, which enumerates physical table columns rather than ordering by the constraint key. This can make a declared UNIQUE(organization_id, employee_id, id) look like UNIQUE(id, organization_id, employee_id), resulting in a destructive phantom DROP CONSTRAINT proposal on an unchanged schema.
+- The separate FK query joins child pg_attribute on ANY(conkey) and parent pg_attribute on ANY(confkey) independently, losing positional pairing and producing Cartesian/misordered composite-FK data. See upstream drizzle-team/drizzle-orm issues #4789 and #6256.
+- The candidate deliberately **does not reorder or weaken** documents_org_employee_id_hr_cases_unique, employee_hr_cases_coe_document_tenant_fk, employee_hr_case_messages_case_tenant_fk or any other tenant check.
+- Before running the **real** pinned drizzle-kit binary, the existing isolated-only strict-db-push wrapper verifies the installed version is **exactly 0.31.11**, and patches exactly one **known-query copy each** inside the local installed node_modules Drizzle Kit bin.cjs file. It substitutes information_schema.key_column_usage with ordered ordinal_position for UNIQUE/PK and WITH ORDINALITY paired conkey/confkey for FKs.
+- Mismatched upstream query layout, partial patch, unknown version or failed write aborts **before** any CLI invocation. An existing separate matched 1.0.0-rc.4 **CI-only** overlay is explicitly exempted so previously merged #1031 RC test workflows remain separate; that release candidate is not adopted into package.json or lockfile.
+- The original npm run db:push command and strict CLI classification remain intact. No special-case success, allowlist of DDL, drop/recreate workaround or alternate schema snapshot can be used to fake a true no-op. A stable Kit second push must literally print the strict output **[✓] No changes detected** with zero error signals.
+
+## Exact-head acceptance (pending GitHub CI)
+
+1. Independently bootstrap each PostgreSQL major in a **new empty localhost** app_db, with only committed stable drizzle-kit 0.31.11 / drizzle-orm 0.45.4 installed.
+2. First npm run db:push creates the **entire source schema**. Capture a metadata-only fingerprint of all public relation names, columns, defaults, constraints (including validated flag), indexes and their definitions. Assert at least 270 tables and the exact original documents composite UNIQUE plus confidential HR case and message tenant FKs.
+3. Run second npm run db:push through the same patched pinned stable Kit. It must be a **genuine no-op**, not an RC result, catalog-only match after a rejected DDL, suppressed error or a skipped Kit invocation. A false-green 2BP01 still fails.
+4. Compare every catalog entry and fingerprint after the second push. Run rolled-back fictional same-tenant positive and cross-tenant document/case-message negative inserts; require SQLSTATE 23503 from the **exact named composite FKs**.
+5. Run a deliberate extra-index negative **within a rollback transaction**, assert fingerprint divergence and restore; compare against the first fingerprint again. Preserve the source test that rejects remote database URLs and ambiguous CLI output.
+6. Existing full npm tests, security and migration-history checks must remain green. Do not merge a candidate whose pinned stable Kit two-push proof fails on either PostgreSQL major.
+
+## Release limitations
+
+This targets *development-only disposable schema push introspection*. It does not change a real database, modify historical migrations or authorize applying any SQL from #1031 to Neon. A passing first/second push **does not** establish that the schema of any existing/live database matches migration receipts. Full #1031 DBA/security decisions, witnessed sanitized backup/restore, isolated authorized clone test, source/history reconciliation, role/tenant tests and protected forward-only migration process remain independent and **NO-GO** until explicitly approved.
+
+Note: GitHub issue #1019 was administratively closed after #1077 guarded false-green output; its **stable introspection defect** was not thereby proven fixed. This PR is the missing pinned-stable behavior proof, not a production change.
