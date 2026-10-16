@@ -38,6 +38,8 @@ export function prepare2316Certificate(source: CertificateSource, input: unknown
   for (const key of Object.keys(CERTIFICATE_TEXT_FIELDS)) field(key, text[key] ?? "", !["foreignAddress", "44A", "44B", "51A", "51B"].includes(key));
   if (!/^\d{3}$/.test(fields.rdo ?? "") || !/^\d{4}$/.test(fields.zip ?? "") || !/^\d{4}$/.test(fields.homeZip ?? "") || !/^\d{4}$/.test(fields.employerZip ?? "")) issues.push("INVALID_RDO_OR_ZIP");
   if (!/^[0-9+() -]{7,24}$/.test(fields.contact ?? "")) issues.push("INVALID_CONTACT");
+  const contactDigits = (fields.contact ?? "").replace(/\D/g, "");
+  if (contactDigits.length < 7 || contactDigits.length > 12) issues.push("CONTACT_EXCEEDS_TEMPLATE_CELLS");
   for (const key of ["minimumDaily", "minimumMonthly"]) {
     const amount = bir2316Centavos(fields[key]);
     if (amount === null || (source.mwe && amount === 0) || (!source.mwe && amount !== 0)) issues.push("INVALID_" + key);

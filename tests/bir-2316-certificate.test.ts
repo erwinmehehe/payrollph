@@ -60,6 +60,15 @@ test("actual prescribed template output has all mapped values and leaves signatu
   for (let i = 0; i < contents.size(); i++) { const stream = pdf.context.lookup(contents.get(i)); if (stream instanceof PDFRawStream) operations += Buffer.from(decodePDFRawStream(stream).decode()).toString("latin1"); }
   for (const value of ["Santos, Maria", "Synthetic Employer Co.", "500,000.00", "100,000.00", "42,500.00", "DRAFT - UNSIGNED"]) assert.ok(operations.toUpperCase().includes(Buffer.from(value, "latin1").toString("hex").toUpperCase()), value + " must be painted in PDF content");
   assert.match(pdf.getTitle()!, /Unsigned/);
+  const digits = [...operations.matchAll(/1 0 0 1 ([\d.]+) ([\d.]+) Tm\s*<([0-9A-F]{2})> Tj/gi)]
+    .map(m => ({ x: Number(m[1]), y: Number(m[2]), text: Buffer.from(m[3],"hex").toString("latin1") }));
+  // Original year and DOB cell regions, independently measured on the template.
+  const yearDigits = digits.filter(p => p.x > 124 && p.x < 196 && p.y > 828 && p.y < 842).sort((a,b) => a.x-b.x);
+  assert.equal(yearDigits.map(p => p.text).join(""), "2025");
+  assert.ok(yearDigits.every((p,i) => i === 0 || p.x - yearDigits[i-1].x > 15), "one year digit per box");
+  const birthDigits = digits.filter(p => p.x > 46 && p.x < 148 && p.y > 666 && p.y < 683).sort((a,b) => a.x-b.x);
+  assert.equal(birthDigits.map(p => p.text).join(""), "02031990");
+  assert.ok(birthDigits.every((p,i) => i === 0 || p.x - birthDigits[i-1].x > 10), "one birth-date digit per box");
   if (process.env.BIR_2316_PDF_QA === "true") { await mkdir("qa-artifacts/bir-1604c", { recursive: true }); await writeFile("qa-artifacts/bir-1604c/2316-unsigned-synthetic.pdf", bytes); }
   await assert.rejects(render2316CertificatePdf(certificateSource, {}), /REVIEW_INCOMPLETE/);
 });

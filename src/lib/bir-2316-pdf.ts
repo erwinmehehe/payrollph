@@ -22,28 +22,32 @@ export async function render2316CertificatePdf(source: CertificateSource, input:
       y: 936 - baseline * scale, size, font, color: rgb(0, 0, 0) });
   };
   const f = prepared.fields;
+  const cells = (value: string, left: number, right: number, baseline: number, count = value.length) => {
+    const width = (right - left) / count;
+    for (let i = 0; i < value.length; i++) draw(value[i], left + (i + .5) * width - font.widthOfTextAtSize(value[i], 9) / scale / 2, baseline, width - 2);
+  };
   const tin = (value: string, baseline: number) => {
     const digits = value.replace(/-/g, "");
     // Template has groups 3 / 3 / 3 / 4 separated by printed hyphens.
     const xs = [176,200,224,273,297,321,369,393,417,463,497,531,565];
     for (let i = 0; i < digits.length; i++) draw(digits[i], xs[i], baseline, 16, false, 9);
   };
-  draw(String(source.scope.taxYear), 251, 204, 115);
-  const mmdd = (date: string) => date.slice(5,7) + "/" + date.slice(8,10);
-  draw(mmdd(source.periodFrom), 752, 204, 115); draw(mmdd(source.periodTo), 995, 204, 115);
+  cells(String(source.scope.taxYear), 241, 376, 204);
+  const mmdd = (date: string) => date.slice(5,7) + date.slice(8,10);
+  cells(mmdd(source.periodFrom), 743, 878, 204); cells(mmdd(source.periodTo), 985, 1120, 204);
   tin(source.employeeTin, 259); tin(source.employerTin, 667);
-  draw(source.employeeName, 88, 306, 393); draw(f.rdo, 516, 307, 60);
-  draw(f.address, 88, 359, 393); draw(f.zip, 512, 360, 74);
-  draw(f.homeAddress, 88, 410, 393); draw(f.homeZip, 512, 410, 74);
+  draw(source.employeeName, 88, 306, 393); cells(f.rdo, 509, 582, 307);
+  draw(f.address, 88, 359, 393); cells(f.zip, 503, 594, 360);
+  draw(f.homeAddress, 88, 410, 393); cells(f.homeZip, 503, 594, 410);
   draw(f.foreignAddress, 88, 459, 500);
-  draw(source.birthDate!.slice(5,7) + "/" + source.birthDate!.slice(8,10) + "/" + source.birthDate!.slice(0,4), 100, 511, 175);
-  draw(f.contact, 335, 511, 252);
+  cells(mmdd(source.birthDate!) + source.birthDate!.slice(0,4), 90, 283, 511);
+  cells(f.contact.replace(/\D/g, ""), 319, 594, 511, 12);
   draw(f.minimumDaily, 410, 545, 177, true); draw(f.minimumMonthly, 410, 579, 177, true);
   if (source.mwe) draw("X", 96, 614, 20);
-  draw(source.employerName, 83, 713, 502); draw(f.employerAddress, 87, 765, 395); draw(f.employerZip, 511, 766, 75);
+  draw(source.employerName, 83, 713, 502); draw(f.employerAddress, 87, 765, 395); cells(f.employerZip, 500, 594, 766);
   draw("X", prepared.employerType === "main" ? 227 : 388, 800, 20);
   if (prepared.previousStatus === "verified") {
-    tin(f.previoustin, 852); draw(f.previousname, 85, 901, 503); draw(f.previousaddress, 85, 950, 397); draw(f.previouszip, 510, 950, 70);
+    tin(f.previoustin, 852); draw(f.previousname, 85, 901, 503); draw(f.previousaddress, 85, 950, 397); cells(f.previouszip, 499, 590, 950);
   }
   for (const [key, y] of Object.entries({"44A":903,"44B":939,"51A":1233,"51B":1269})) draw(f[key], 665, y, 240);
   const money = (value: number) => (value / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
