@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import pg from "pg";
+import { DISPOSABLE_MISSING_TABLES } from "./lib/independent-reconciliation-evidence.mjs";
 import {
   ISSUE1054_PREFLIGHT_SQL,
   ISSUE1054_POSTFLIGHT_SQL,
@@ -34,19 +35,7 @@ const FILES = Object.freeze([
   "0125_wfm_availability_open_shifts_forward_repair.sql",
   "0126_compensation_governance_forward_repair.sql",
 ]);
-const ABSENT_TARGETS = Object.freeze([
-  "payout_batch_transfers", "payout_transfers", "payout_batches", "payout_profiles",
-  "provider_events", "workforce_demand_import_batches",
-  "workforce_demand_observation_revisions", "workforce_demand_forecast_issues",
-  "workforce_demand_forecast_scores", "workforce_demand_staffing_policies",
-  "workforce_demand_staffing_policy_events",
-  "entity_transfer_requests", "employee_entity_assignments",
-  "user_entity_preferences", "user_legal_entity_grants",
-  "attendance_exception_events", "employee_availability_rules", "open_shifts",
-  "open_shift_claims", "compensation_bands", "compensation_cycles",
-  "compensation_proposals", "compensation_components",
-  "employee_compensation_components", "compensation_events",
-]);
+const ABSENT_TARGETS = DISPOSABLE_MISSING_TABLES;
 
 function failClosedEnvironment() {
   assert.equal(process.env.CI, "true", "CI only");
