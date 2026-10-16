@@ -51,7 +51,7 @@ export function readSignedCompensationRecoveryApprovalFile(path: string): unknow
     if (original && opened) {
       const after = lstatSync(path, { bigint: true });
       if (!after.isFile() || after.isSymbolicLink() ||
-          original.ino === 0n || opened.ino === 0n || after.ino === 0n ||
+          !original.ino || !opened.ino || !after.ino ||
           original.ino !== opened.ino || after.ino !== opened.ino ||
           original.dev !== opened.dev || after.dev !== opened.dev) {
         throw new Error("Recovery approval file changed or has an unsafe Windows file identity.");
