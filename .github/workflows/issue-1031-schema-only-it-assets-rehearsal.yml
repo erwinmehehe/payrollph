@@ -13,7 +13,7 @@ jobs:
   disposable-postgres:
     name: Compare source/final shape on disposable PostgreSQL ${{ matrix.postgres }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -22,6 +22,8 @@ jobs:
       CI: "true"
       GITHUB_ACTIONS: "true"
       ISSUE_1031_IT_REHEARSAL: "isolated-ci-only"
+      SCHEDULER_REHEARSAL_MODE: "isolated-ci-only"
+      OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: "true"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       PAYMONGO_DISBURSEMENTS_ENABLED: "false"
       XENDIT_PAYOUTS_ENABLED: "false"
@@ -50,6 +52,15 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Provision disposable test-only encryption keys
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Validate source-only candidate and guard
         run: node --test tests/issue-1031-schema-only-it-assets.test.mjs
       - name: Build FULL current Drizzle schema into disposable localhost PG
@@ -67,3 +78,6 @@ jobs:
             exit 1
           fi
           echo "POST_REPAIR_FULL_SCHEMA_PUSH_NO_OP=PASS"
+      - name: Run requested full npm test on disposable PostgreSQL 16 only
+        if: matrix.postgres == '16'
+        run: npm test
