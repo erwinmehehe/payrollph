@@ -61,14 +61,18 @@ function assertTenantKeys(constraints) {
   for (const c of [unique,fk,caseFk]) assert.equal(c.validated,true, "no NOT VALID security constraints");
 }
 
+async function readCatalogObjects(client) {
+  const tables = {};
+  for (const [key,sql] of Object.entries(catalogSql))
+    tables[key] = (await client.query(sql)).rows;
+  return tables;
+}
 async function catalog(client) {
   await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
   try {
-    const tables = {};
-    for (const [key,sql] of Object.entries(catalogSql))
-      tables[key] = (await client.query(sql)).rows;
+    const rows = await readCatalogObjects(client);
     await client.query("COMMIT");
-    return tables;
+    return rows;
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
     throw e;
@@ -168,7 +172,7 @@ async function main() {
       await client.query("BEGIN");
       try {
         await client.query("CREATE INDEX issue1019_negative_catalog_probe ON documents(organization_id)");
-        const mutated=await catalog(client).catch(e=>{throw e});
+        const mutated=await readCatalogObjects(client);
         if(summarize(mutated).sha256===current.sha256)fail("NEGATIVE_DRIFT_UNDETECTED");
       } finally {await client.query("ROLLBACK").catch(()=>{});}
       process.stdout.write("ISSUE_1019_CATALOG_DRIFT_NEGATIVE=PASS\n");
