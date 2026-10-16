@@ -73,7 +73,7 @@ jobs:
       BIR_2316_POSTGRES_QA: 'true'
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       APP_BASE_URL: https://127.0.0.1:3443
-      TRUSTED_APP_ORIGINS: https://127.0.0.1:3443,https://127.0.0.1:3444
+      TRUSTED_APP_ORIGINS: https://127.0.0.1:3443,https://127.0.0.1:3444,https://127.0.0.1:3445
       DEMO_MODE: 'false'
       REQUIRE_PRIVILEGED_MFA: 'true'
       NEXT_TELEMETRY_DISABLED: '1'
@@ -138,7 +138,8 @@ jobs:
         run: |
           BIR_2316_CERTIFICATE_DRAFT_ENABLED=true BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=true BIR_2316_RECONCILIATION_ENABLED=true BIR_1604C_DAT_CANDIDATE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/bir-1604c-on.log 2>&1 &
           BIR_2316_CERTIFICATE_DRAFT_ENABLED=false BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=false BIR_2316_RECONCILIATION_ENABLED=false BIR_1604C_DAT_CANDIDATE_ENABLED=false npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/bir-1604c-off.log 2>&1 &
-          for port in 3000 3001; do
+          YEAR_END_PRIOR_EVIDENCE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3002 > /tmp/prior-on.log 2>&1 &
+          for port in 3000 3001 3002; do
             ready=false
             for attempt in $(seq 1 60); do
               if curl --silent --fail "http://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi
@@ -149,7 +150,7 @@ jobs:
       - name: Start ephemeral HTTPS reverse proxies for Secure MFA session cookies
         run: |
           node scripts/bir-1604c-synthetic-https-proxy.mjs > /tmp/bir-1604c-tls.log 2>&1 &
-          for port in 3443 3444; do
+          for port in 3443 3444 3445; do
             ready=false
             for attempt in $(seq 1 30); do
               if curl --cacert /tmp/bir-synthetic-https.crt --silent --fail "https://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi
