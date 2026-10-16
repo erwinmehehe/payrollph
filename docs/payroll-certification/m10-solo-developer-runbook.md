@@ -1,7 +1,7 @@
 # M-10 solo developer runbook — engineering evidence vs agency acceptance
 
 **Status: engineering-review candidate only; M-10 historical agency corrections remain policy-blocked and release NO-GO.**  
-Primary issue: [#1044](https://github.com/erwinmehehe/payrollph/issues/1044). Detailed statutory-source research: [M-10 decision register](../payroll-m10-sss-hdmf-statutory-decision-register.md) (in draft PR #1117 pending integration). No payroll accountant, QA team, or second developer is presumed.
+Primary issue: [#1044](https://github.com/erwinmehehe/payrollph/issues/1044). Detailed statutory-source research: [M-10 decision register](../payroll-m10-sss-hdmf-statutory-decision-register.md) (merged in PR #1117). No payroll accountant, QA team, or second developer is presumed.
 
 ## What this code actually does
 
@@ -53,3 +53,49 @@ Suggested HDMF request:
 | Operational launch | exact source SHA, CI evidence, disabled correction path | Controlled authorized employer pilot, receipts, human final approval |
 
 When written agency determinations become available, implement SSS and Pag-IBIG remedies separately in **a new scoped PR** with effective-dated, credential/evidence-bound logic and no double posting. Retain the non-waivable release blocker until lawful scenario-specific evidence has been established. **Do not mark #1044 closed now.**
+
+## Next M-10 engineering increment: independent fictional centavo comparison
+
+The earlier 48-case M-10 preview compares two supplied worksheets, but did
+not cross-check that arithmetic against an independently authored golden.
+The new [M-10 centavo evidence module](../../src/lib/payroll-m10-centavo-evidence.ts)
+now produces a **per-case, per-employee, per-agency** inspection ledger,
+comparing each hypothetical difference against a separate expected fixture.
+
+Do not sum alternative scenarios as if they are concurrent liabilities: each
+fictional scenario describes a distinct possible history, not another
+transaction to post. The module refuses incomplete source proof, duplicate case
+identities, duplicate/missing/unscoped expectations, invalid/overflow cents and
+mismatched SSS/HDMF fields. Distinct employer and employee identities are not
+interchangeable. Exact matches are labeled `MATH_MATCH_ONLY`, never agency
+accepted or legally payable.
+
+### Optional one-command checks (fictional data only)
+
+~~~sh
+npx tsx --test tests/payroll-m10-centavo-evidence.test.ts tests/payroll-m10-readonly-review.test.ts
+npx tsx scripts/m10-synthetic-review.ts --independent-summary
+npx tsx scripts/m10-synthetic-review.ts --independent-ledger > /tmp/m10-independent-fictional-ledger.json
+~~~
+
+The source fixtures contain 12 alternatives × 2 employers × 2 agencies = 48
+individual scenario rows, including 44 independently checked hypothetical
+component deltas and 4 intentionally unverified source cases. The JSON
+includes per-case original and revised **hypothetical** SSS regular/MPF/EC or
+Pag-IBIG member/employer cents, candidate versus source/correction months, and
+any one-centavo mismatch. An SHA-256 review fingerprint detects changed
+synthetic report content; it is NOT an authentic agency receipt or signature.
+No real employee identity, actual government filing or original-acceptance
+evidence is included.
+
+**No remittance-write API, DB migration, agency file generator, payroll
+release path, exception acknowledgement or production feature flag changes.**
+`STATUTORY_RETRO_ATTRIBUTION_UNVERIFIED` must remain a non-waivable release
+blocker. Neither green CI nor a mathematical match allows clearing #1044.
+
+The next *external* gate remains two agency-specific written determinations
+for SSS and HDMF, including historical contribution/month selection, prior
+accepted-payment handling, original remittance adjustment workflow and
+approved employee/employer recovery/refund treatment. This repo has no authority
+to invent those procedures. Use the official-source decision register and
+fictional packet; do not transmit real worker information in public GitHub.
