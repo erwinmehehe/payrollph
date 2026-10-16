@@ -127,6 +127,8 @@ console.log(JSON.stringify({
   beforeRecoveryNonPassing: results.reconciliation.beforeRecoveryNonPassing,
   afterRecoveryNonPassing: results.reconciliation.afterRecoveryNonPassing,
   postCandidateOnly: results.reconciliation.postCandidateOnly,
+  post0128NameOnlyFkPairs: results.reconciliation.nameOnlyFkPairCountOutside0128,
+  post0128ResidualByCategory: results.reconciliation.postCandidateOnlyByCategory,
   reconciliationGate: results.reconciliation.catalogReconciliationGate,
   commonNonPassing: results.baselineComparison.commonNonPassing,
   candidateOnly: results.baselineComparison.candidateOnly.length,
