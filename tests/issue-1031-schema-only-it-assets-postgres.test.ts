@@ -15,6 +15,56 @@ const reverse = ["it_device_events", "it_access_grants", "it_managed_devices", "
 const targetSet = new Set(names);
 const sql = readFileSync("docs/sql/issue-1031-schema-only-it-assets-review.sql", "utf8");
 
+// The complete 24-table dependency classification comes from the existing
+// AST/Drizzle manifest; it is not inferred from current production presence.
+test("#1031 source-only: classify every FK for all 24 schema-only gaps", () => {
+  const all24 = new Set([
+    "applicant_privacy_evidence", "email_change_tokens", "employee_entity_bank_accounts",
+    "employee_hr_case_messages", "employee_hr_cases", "engagement_survey_participants",
+    "engagement_surveys", "expense_category_policies", "expense_claim_evidence",
+    "expense_report_items", "expense_reports", "hcm_document_expiry_notices",
+    "it_access_grants", "it_applications", "it_device_events", "it_managed_devices",
+    "legal_entity_profile_change_requests", "legal_entity_statutory_registrations",
+    "legal_entity_transfer_liability_evidence", "offline_punch_claims",
+    "saved_report_definitions", "separation_clearance_waivers",
+    "spend_card_transactions", "spend_cards",
+  ]);
+  const previouslyObservedPresent = new Set([
+    "organizations", "users", "employees", "job_applicants", "documents",
+    "expense_claims", "assets", "legal_entities", "separation_records",
+  ]);
+  const otherNumberedMissing = new Set([
+    "hcm_employee_document_compliance", "entity_transfer_requests",
+  ]);
+  const subset = generateSchemaManifest().tables.filter(t => all24.has(t.name));
+  assert.equal(subset.length, 24);
+  const prereqs = new Map(subset.map(t => [t.name,
+    [...new Set(t.foreignKeys.map(fk => fk.refTable))]]));
+  const blocked = [];
+  for (const [name, targets] of prereqs) {
+    for (const target of targets) {
+      const category = all24.has(target) ? "S" :
+        previouslyObservedPresent.has(target) ? "P" :
+        otherNumberedMissing.has(target) ? "M" : null;
+      assert.ok(category, "unclassified FK prerequisite " + name + " -> " + target);
+      if (category === "M") blocked.push(name + " -> " + target);
+    }
+  }
+  assert.deepEqual(blocked.sort(), [
+    "hcm_document_expiry_notices -> hcm_employee_document_compliance",
+    "legal_entity_transfer_liability_evidence -> entity_transfer_requests",
+  ]);
+  const created = new Set<string>();
+  const unblocked = new Set([...all24].filter(name => !blocked.some(b => b.startsWith(name + " -> "))));
+  while (true) {
+    const ready = [...unblocked].filter(name => !created.has(name) &&
+      prereqs.get(name)!.filter(dep => unblocked.has(dep)).every(dep => created.has(dep)));
+    if (!ready.length) break;
+    for (const name of ready) created.add(name);
+  }
+  assert.equal(created.size, 22, "a cycle or unexpected missing target blocks a source group");
+});
+
 test("#1031 IT group: exact Drizzle source, catalog restoration, negative type/retry in disposable PG", {
   skip: !mode, timeout: 180000,
 }, async () => {
