@@ -350,6 +350,7 @@ export type DashboardData = {
   employeeImportPreviewEnabled?: boolean;
   xenditPayoutsEnabled?: boolean;
   bir1604cCandidateEnabled?: boolean;
+  bir2316CertificateEnabled?: boolean;
   compactMobileHeaderEnabled?: boolean;
   firstPayrollReadiness?: FirstPayrollReadiness | null;
   user: SessionUser | null;

@@ -32,6 +32,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  outputFileTracingIncludes: { "/api/year-end/2316-certificate": ["./assets/bir/2316-september-2021-encs.pdf"] },
   async headers() {
     return [
       {

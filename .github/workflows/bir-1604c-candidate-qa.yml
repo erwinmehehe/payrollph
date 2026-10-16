@@ -5,6 +5,10 @@ on:
     paths:
       - 'src/lib/bir-1604c-*.ts'
       - 'src/lib/bir-2316-*.ts'
+      - 'assets/bir/**'
+      - 'src/app/api/year-end/2316-certificate/**'
+      - 'src/app/workspace/2316/**'
+      - 'src/components/workspace/certificate-2316-review.tsx'
       - 'src/lib/annualization.ts'
       - 'tests/bir-2316*'
       - 'src/lib/bir-annual-employer-source.ts'
@@ -12,6 +16,9 @@ on:
       - 'src/components/workspace/bir-1604c-candidate-panel.tsx'
       - 'src/components/workspace/panels.tsx'
       - 'scripts/bir-1604c-synthetic-browser*'
+      - 'scripts/bir-2316-certificate-browser.mjs'
+      - 'scripts/qa/bir-2316-component-browser.mjs'
+      - 'tests/fixtures/bir-2316-certificate.ts'
       - 'tests/bir-1604c*'
       - '.github/workflows/bir-1604c-candidate-qa.yml'
 
@@ -23,6 +30,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  certificate-component:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TZ: Asia/Manila
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --package-lock=false playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - name: Execute real component loading/error/focus/download and desktop/390px layout
+        run: node --import tsx scripts/qa/bir-2316-component-browser.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: bir-2316-component-browser
+          path: qa-artifacts/bir-2316-component
+          retention-days: 14
   synthetic:
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -71,12 +101,18 @@ jobs:
       - run: npm run db:push
       - name: Execute read-only 2316 ledger isolation and final-pay PostgreSQL acceptance
         run: npx tsx --test tests/bir-2316-withholding-postgres.test.ts
+      - name: Generate and behavior-test the unsigned prescribed-template PDF
+        env:
+          BIR_2316_PDF_QA: 'true'
+        run: npx tsx --test tests/bir-2316-certificate.test.ts
       - name: Seed synthetic employer, employee, MFA and annual BIR records
         run: npx tsx scripts/bir-1604c-synthetic-browser-fixture.ts
       - name: Typecheck the filing implementation
         run: npm run typecheck
       - name: Build scoped candidate and UI
         run: npm run build
+      - name: Verify the prescribed template is traced into the deployable route
+        run: node -e 'const t = require("./.next/server/app/api/year-end/2316-certificate/route.js.nft.json"); if (!t.files.some(f => f.endsWith("assets/bir/2316-september-2021-encs.pdf"))) throw new Error("2316 template missing from route deployment trace");'
       - name: Install synthetic-only Chromium
         run: |
           npm install --no-save --package-lock=false playwright@1.55.0
@@ -90,8 +126,8 @@ jobs:
             -addext "subjectAltName=IP:127.0.0.1,DNS:localhost" >/dev/null 2>&1
       - name: Start flag-on and flag-off servers
         run: |
-          BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=true BIR_2316_RECONCILIATION_ENABLED=true BIR_1604C_DAT_CANDIDATE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/bir-1604c-on.log 2>&1 &
-          BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=false BIR_2316_RECONCILIATION_ENABLED=false BIR_1604C_DAT_CANDIDATE_ENABLED=false npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/bir-1604c-off.log 2>&1 &
+          BIR_2316_CERTIFICATE_DRAFT_ENABLED=true BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=true BIR_2316_RECONCILIATION_ENABLED=true BIR_1604C_DAT_CANDIDATE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/bir-1604c-on.log 2>&1 &
+          BIR_2316_CERTIFICATE_DRAFT_ENABLED=false BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=false BIR_2316_RECONCILIATION_ENABLED=false BIR_1604C_DAT_CANDIDATE_ENABLED=false npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/bir-1604c-off.log 2>&1 &
           for port in 3000 3001; do
             ready=false
             for attempt in $(seq 1 60); do

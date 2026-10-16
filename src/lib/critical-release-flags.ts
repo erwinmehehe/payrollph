@@ -30,6 +30,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Read-only released-ledger 2316 withholding and final-pay shortfall attribution",
     approval: "Tenant/employer scope, immutable source, signed refund/collection, two-flag-off and synthetic PostgreSQL/browser evidence; no bank or filing authority",
   },
+  bir2316Certificate: {
+    env: "BIR_2316_CERTIFICATE_DRAFT_ENABLED",
+    owner: "Philippine Payroll / Tax",
+    risk: "Sensitive unsigned 2316 PDF previews and historical-employer identity",
+    approval: "Exact-centavo complete mapping, historical tenant isolation, PDF field/layout and role/MFA acceptance; no signatures or filing authority",
+  },
   bir2316Reconciliation: {
     env: "BIR_2316_RECONCILIATION_ENABLED",
     owner: "Philippine Payroll / Tax",
