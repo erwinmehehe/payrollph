@@ -39,6 +39,8 @@ export async function archiveEmployeeVaultUpload(input: {
       organizationId: documents.organizationId,
       employeeId: documents.employeeId,
       sourceType: documents.sourceType,
+      sourceKey: documents.sourceKey,
+      scannedClean: documents.scannedClean,
       objectStorageKey: documents.objectStorageKey,
       uploadedByUserId: documents.uploadedByUserId,
       generationMetadata: documents.generationMetadata,
