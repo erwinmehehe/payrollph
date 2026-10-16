@@ -108,6 +108,16 @@ BEGIN
         AND child.relname = item.child_table
         AND parent.relname = item.parent_table
         AND fk.conname = old_name AND fk.contype = 'f'
+        AND pg_catalog.format_type(src.atttypid, src.atttypmod) = 'integer'
+        AND pg_catalog.format_type(dst.atttypid, dst.atttypmod) = 'integer'
+        -- A matching FK to some arbitrary id-like UNIQUE key is insufficient:
+        -- insist on the approved single integer(id) parent primary key.
+        AND EXISTS (
+          SELECT 1 FROM pg_catalog.pg_constraint pk
+          WHERE pk.conrelid = parent.oid AND pk.contype = 'p'
+            AND pg_catalog.array_length(pk.conkey, 1) = 1
+            AND pk.conkey[1] = dst.attnum AND pk.convalidated
+        )
         AND fk.conkey = ARRAY[src.attnum]::smallint[]
         AND fk.confkey = ARRAY[dst.attnum]::smallint[]
         AND fk.confdeltype = item.delete_code::"char"
