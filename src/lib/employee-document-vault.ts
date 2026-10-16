@@ -118,12 +118,15 @@ export function canArchiveEmployeeVaultUpload(
   document: {
     employeeId: number | null; sourceType: string;
     objectStorageKey: string | null; uploadedByUserId: number | null;
+    scannedClean: boolean; sourceKey: string | null;
     generationMetadata: unknown;
   },
 ): boolean {
   return document.employeeId !== null &&
     canAccessEmployeeProfileVault(actor, document.employeeId) &&
     document.sourceType === "upload" &&
+    document.scannedClean &&
+    document.sourceKey === null &&
     Boolean(document.objectStorageKey) &&
     !vaultDocumentIsArchived(document.generationMetadata) &&
     (actor.role !== "employee" || document.uploadedByUserId === actor.userId);
