@@ -7,8 +7,8 @@
 DO $pre$
 BEGIN
   IF pg_catalog.current_database() <> 'neondb'
-  OR pg_catalog.current_setting('neon.project_id',true) <> 'calm-wave-70219564'
-  OR pg_catalog.current_setting('neon.branch_id',true) <> '__NEW_ISOLATED_NEON_BRANCH_ID__'
+  OR pg_catalog.current_setting('neon.project_id',true) IS DISTINCT FROM 'calm-wave-70219564'
+  OR pg_catalog.current_setting('neon.branch_id',true) IS DISTINCT FROM '__NEW_ISOLATED_NEON_BRANCH_ID__'
   OR pg_catalog.current_setting('neon.branch_id',true) IN ('br-lucky-sound-b79i56jw','br-green-hat-b77qj8fs')
   THEN RAISE EXCEPTION 'NOT_AUTHORIZED_ISOLATED_REHEARSAL_BRANCH'; END IF;
   IF to_regclass('public.expense_claims') IS NULL
