@@ -348,7 +348,10 @@ export async function runReviewedMigrationOnClient({
     }
     let sqlApplied = false;
     if (mode === "apply" && decision.status === "ready") {
-      await client.query("SET LOCAL search_path = public, pg_catalog");
+      // Leave pg_catalog implicit so built-ins resolve before public functions.
+      // Put pg_temp last so temporary relations cannot shadow public FKs;
+      // public remains the target for unqualified CREATE TABLE statements.
+      await client.query("SET LOCAL search_path = public, pg_temp");
       await client.query(sql);
       // Catalog validation must precede the immutable apply receipt.
       if (decision.path === ISSUE1054_MIGRATION_PATH) {
