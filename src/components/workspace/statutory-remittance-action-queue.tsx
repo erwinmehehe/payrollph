@@ -43,7 +43,16 @@ function severityLabel(value: ActionTask["severity"]) {
   return "Watch";
 }
 
-export function StatutoryRemittanceActionQueue({
+export function StatutoryRemittanceActionQueue(props: {
+  organizationId: number;
+  notify: Notify;
+}) {
+  // Employer scope is tenant-private. Remount on a new organizationId so no
+  // task or assignee state from the previous employer can render.
+  return <StatutoryRemittanceActionQueueContent key={props.organizationId} {...props} />;
+}
+
+function StatutoryRemittanceActionQueueContent({
   organizationId,
   notify,
 }: {
@@ -86,10 +95,18 @@ export function StatutoryRemittanceActionQueue({
   }, [notify, organizationId]);
 
   useEffect(() => {
-    void sync(true);
+    let active = true;
+    // The initial sync runs after effect setup, never in its synchronous phase.
+    // Strict Mode cleanup can cancel this scheduled sync before it starts.
+    queueMicrotask(() => {
+      if (active) void sync(true);
+    });
     const onChanged = () => void sync(true);
     window.addEventListener("statutory-remittance-changed", onChanged);
-    return () => window.removeEventListener("statutory-remittance-changed", onChanged);
+    return () => {
+      active = false;
+      window.removeEventListener("statutory-remittance-changed", onChanged);
+    };
   }, [sync]);
 
   async function mutate(
