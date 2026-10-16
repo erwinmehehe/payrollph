@@ -193,13 +193,21 @@ async function main() {
     const current=summarize(before);
     if(mode==="capture") {
       mkdirSync(resolve("qa-artifacts"),{recursive:true});
-      writeFileSync(artifact,JSON.stringify({kind:"issue-1019-stable-push-v1",major, ...current,\n        objectDigests:objectDigests(before),
+      writeFileSync(artifact,JSON.stringify({kind:"issue-1019-stable-push-v1",major, ...current,
+        objectDigests:objectDigests(before),
         productionApproved:false,db:"app_db",sourceOnly:true})+"\n",{flag:"wx",mode:0o600});
       process.stdout.write("ISSUE_1019_PINNED_STABLE_FIRST_PUSH_PG"+major+"="+current.tables+" tables\n");
       return;
     }
     const previous=JSON.parse(readFileSync(artifact,"utf8"));
-    if(mode==="diagnose") {\n      if(previous.kind!=="issue-1019-stable-push-v1"||previous.major!==major || !previous.objectDigests)\n        fail("DIAGNOSIS_BASELINE_MISSING");\n      reportCatalogDelta(previous,before);\n      process.stdout.write("ISSUE_1019_SECOND_PUSH_CATALOG_EQUAL="+String(previous.sha256===current.sha256)+"\\n");\n      return;\n    }\n    if(previous.kind!=="issue-1019-stable-push-v1"||previous.major!==major||
+    if(mode==="diagnose") {
+      if(previous.kind!=="issue-1019-stable-push-v1"||previous.major!==major || !previous.objectDigests)
+        fail("DIAGNOSIS_BASELINE_MISSING");
+      reportCatalogDelta(previous,before);
+      process.stdout.write("ISSUE_1019_SECOND_PUSH_CATALOG_EQUAL="+String(previous.sha256===current.sha256)+"\n");
+      return;
+    }
+    if(previous.kind!=="issue-1019-stable-push-v1"||previous.major!==major||
        previous.sha256!==current.sha256||previous.tables!==current.tables||
        previous.columns!==current.columns||previous.constraints!==current.constraints||
        previous.indexes!==current.indexes||previous.productionApproved!==false) {
