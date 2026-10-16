@@ -65,6 +65,18 @@ test("#1031 IT group: exact Drizzle source, catalog restoration, negative type/r
     assert.ok(before.length > 35, "the four tables must already have full source objects");
     await dropTargets();
 
+    // A controlled text-only negative substitutes a deliberately nonexistent
+    // base in the preflight. Never DROP or modify the actual base tables.
+    const missingDependencySql = sql.replace("to_regclass('public.assets') IS NULL",
+      "to_regclass('public.issue1031_absent_base') IS NULL");
+    assert.notEqual(missingDependencySql, sql);
+    await assert.rejects(() => client.query(missingDependencySql), (error:unknown) =>
+      (error as {code?:string;message?:string}).code==="P0001" &&
+      (error as {message?:string}).message?.includes("ISSUE1031_IT_BASE_DEPENDENCY_MISSING")===true);
+    await client.query("ROLLBACK");
+    assert.deepEqual(await snapshot(), [], "missing-base guard may not create any target");
+    console.log("MISSING_BASE_GUARD=PASS");
+
     // Intentionally corrupt ONE source column type, and prove exact real
     // pg_attribute/catalog evidence detects it, not just source assertions.
     const wrong = sql.replace('"mdm_provider" varchar(100)', '"mdm_provider" varchar(101)');
