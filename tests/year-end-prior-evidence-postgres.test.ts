@@ -45,6 +45,9 @@ test("disposable PostgreSQL: encrypted revision/checker/tenant/transfer/bound-st
     assert.equal(Number(adjustment.taxDue), 82500); // present taxable 600k + prior 100k
     assert.equal(Number(adjustment.adjustment), 32400);
     assert.ok((adjustment.breakdown as { priorEvidence?: unknown }).priorEvidence);
+    const [secondEntity] = await db.insert(legalEntities).values({ organizationId: ids[0], code: "SECOND", legalName: "Fictional second employer", displayName: "Fictional second" }).returning();
+    await assert.rejects(runYearEndAnnualization(ids[0], 2025, maker.name), /PRIOR_MULTI_ENTITY_DEFERRED/);
+    await db.delete(legalEntities).where(eq(legalEntities.id, secondEntity.id));
     delete process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED;
     await assert.rejects(runYearEndAnnualization(ids[0], 2025, maker.name), /PRIOR_EVIDENCE_DISABLED_RECOMPUTE_BLOCKED/);
     assert.equal((await db.select().from(yearEndAdjustments).where(eq(yearEndAdjustments.id, adjustment.id)))[0].adjustment, adjustment.adjustment);

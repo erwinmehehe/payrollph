@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employees, historicalPayrollEntries, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
+import { auditEvents, employees, historicalPayrollEntries, legalEntities, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { annualize, ANNUALIZATION_RULE_VERSION, isSharedBenefitPoolEarningType, type AnnualizationResult } from "@/lib/annualization";
 import { readBasicAndThirteenth, retroSourceTaxYear } from "@/lib/final-pay";
@@ -168,6 +168,15 @@ export async function runYearEndAnnualization(
     : releasedRuns;
   const runIds = runs.map((run) => run.id);
   const staff = await tx.select().from(employees).where(eq(employees.organizationId, organizationId));
+  if (usePriorEvidence) {
+    const entities = await tx.select().from(legalEntities).where(eq(legalEntities.organizationId, organizationId));
+    const entityId = entities[0]?.id ?? null;
+    if (entities.length > 1 || (entities.length === 1 && !entities[0].active) ||
+      runs.some(run => run.legalEntityId !== null && run.legalEntityId !== entityId) ||
+      staff.some(worker => worker.legalEntityId !== null && worker.legalEntityId !== entityId)) {
+      throw new Error("PRIOR_MULTI_ENTITY_DEFERRED");
+    }
+  }
 
   const entries = runIds.length
     ? await tx.select().from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds))
