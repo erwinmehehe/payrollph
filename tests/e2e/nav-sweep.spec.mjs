@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { chromium } from "playwright";
 import { generateTotp } from "../../src/lib/totp.ts";
 import { isExpectedDenied } from "./nav-sweep.expected-denied.mjs";
-import { mobileNavVisualFindings } from "./nav-sweep-visual-contract.mjs";
+import { mobileNavOpenerSelector, mobileNavVisualFindings } from "./nav-sweep-visual-contract.mjs";
 import { compareNavSweepCaseCoverage, startNavSweepRoleBrowser, startNavSweepViewportBrowser } from "./nav-sweep-startup.mjs";
 
 const BASE = "http://127.0.0.1:3000";
@@ -209,9 +209,9 @@ async function checkRole(browser, role, width, authState, pages) {
               document.body.appendChild(overflow);
             });
           }
-          const geometry = await page.evaluate(() => {
+          const geometry = await page.evaluate((openerSelector) => {
             const main = document.querySelector(".app-main");
-            const nav = document.querySelector('button[aria-label="Open navigation"]');
+            const nav = document.querySelector(openerSelector);
             const mainBox = main?.getBoundingClientRect();
             const navBox = nav?.getBoundingClientRect();
             return {
@@ -227,7 +227,7 @@ async function checkRole(browser, role, width, authState, pages) {
                 getComputedStyle(nav).visibility !== "hidden"),
               navExpanded: nav?.getAttribute("aria-expanded") ?? null,
             };
-          });
+          }, mobileNavOpenerSelector(role));
           for (const detail of mobileNavVisualFindings(geometry)) {
             findings.push({ kind: "mobile visual contract", detail });
           }

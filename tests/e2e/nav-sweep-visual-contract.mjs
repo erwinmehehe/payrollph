@@ -3,6 +3,15 @@
  * No baseline screenshots with ephemeral timestamps or private records:
  * capture synthetic screenshots as artifacts and fail for measurable UI drift.
  */
+/** Staff workspace and employee ESS render different mobile navigation.
+ * Resolve the actual native opener for each layout; never fake its geometry.
+ */
+export function mobileNavOpenerSelector(role) {
+  return role === "employee"
+    ? '.employee-mobile-nav button[aria-label="More employee pages"]'
+    : '.app-main button[aria-label="Open navigation"]';
+}
+
 export function mobileNavVisualFindings(metrics, expectedWidth = 375) {
   const issues = [];
   if (!metrics || metrics.viewportWidth !== expectedWidth) {
