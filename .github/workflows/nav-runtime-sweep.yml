@@ -98,7 +98,9 @@ jobs:
           cp qa-artifacts/nav-sweep/report.md qa-artifacts/nav-sweep/negative-proof.md
           cp qa-artifacts/nav-sweep/report.json qa-artifacts/nav-sweep/negative-proof.json
       - name: Run navigation and runtime error sweep
-        run: node --import tsx --test tests/e2e/nav-sweep.spec.mjs
+        run: |
+          node --test tests/nav-sweep-role-coverage.test.mjs
+          node scripts/nav-sweep-run-all-roles.mjs
       - name: Upload route-role reports
         if: always()
         uses: actions/upload-artifact@v4

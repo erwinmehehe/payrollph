@@ -679,11 +679,13 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
                   provisioning={data.provisioning}
                   onRefresh={async () => { await refresh(data.selectedOrganization.id); }}
                   onOpenEmployee={openHrEmployee}
+                  onAddEmployee={data.everydayHrHireEnabled === true && canUsePeopleOps && !demoRole ? () => setNewHireOpen(true) : undefined}
                   allowHirePayrollReview={allowHirePayrollReview && !demoRole}
                   onOpenDocuments={availablePages.includes("Documents") ? () => setPage("Documents") : undefined}
                 />
               )}
             <RecruitmentPanel
+              everydayHrHireEnabled={data.everydayHrHireEnabled}
               key={data.selectedOrganization.id}
               organizationId={data.selectedOrganization.id}
               setNotice={noticeAdapter}
@@ -766,6 +768,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
       )}
       {newHireOpen && (
         <NewHireModal
+          everydayHrHireEnabled={data.everydayHrHireEnabled}
           organizationId={data.selectedOrganization.id}
           multiEntity={data.multiEntity}
           onClose={() => setNewHireOpen(false)}
