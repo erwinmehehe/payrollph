@@ -63,9 +63,9 @@ test("#1031 owner-approved catalog-first acceptance does not require a second pu
   assert.equal(pkg.dependencies["drizzle-orm"], "0.45.4");
   assert.match(wf, /postgres: \["16", "18"\]/);
   assert.match(wf, /npm run db:push/);
-  assert.match(wf, /schema-only-it-assets-postgres\\.test\\.ts/);
+  assert.match(wf, /schema-only-it-assets-postgres\.test\.ts/);
   assert.match(wf, /npm test/);
-  assert.doesNotMatch(wf, /isolated-rc-repeat-proof:|drizzle-kit@1\\.0\\.0-rc\\.4|SEPARATE_RC_TRUE_NO_OP=PASS/);
+  assert.doesNotMatch(wf, /isolated-rc-repeat-proof:|drizzle-kit@1\.0\.0-rc\.4|SEPARATE_RC_TRUE_NO_OP=PASS/);
   assert.match(policy, /Second drizzle-kit push: not used as a gate, see #1019/);
   assert.match(policy, /Deliberately change one candidate column type/);
   assert.match(policy, /Reject full repeat application and partial-target application/);
