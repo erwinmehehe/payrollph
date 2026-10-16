@@ -7,6 +7,41 @@
  */
 import { buildM10ReadOnlyReview } from "../src/lib/payroll-m10-readonly-review";
 import { createM10FictionalCases } from "../tests/fixtures/m10-retro-agency-cases";
+import { reconcileM10IndependentCentavos } from "../src/lib/payroll-m10-centavo-evidence";
+import { createIndependentM10FictionalExpected } from "../tests/fixtures/m10-independent-centavo-golden";
+
+
+if (process.argv.includes("--independent-ledger") || process.argv.includes("--independent-summary")) {
+  const evidence = reconcileM10IndependentCentavos(
+    createM10FictionalCases(),
+    createIndependentM10FictionalExpected(),
+  );
+  if (evidence.cases.length !== 48
+    || evidence.counts.MATH_MATCH_ONLY !== 44
+    || evidence.counts.SOURCE_EVIDENCE_INVALID !== 4
+    || evidence.cases.some(caseRow => caseRow.agencyCorrectionAuthorized || caseRow.agencyAccepted || caseRow.payrollReleaseAuthorized)
+    || evidence.unexpectedExpectationIds.length !== 0) {
+    throw new Error("M10_INDEPENDENT_SYNTHETIC_LEDGER_DID_NOT_RECONCILE");
+  }
+  const overview = {
+    purpose: "FICTIONAL MATH CHECK ONLY - NOT STATUTORY OR AGENCY APPROVAL",
+    hashNotAgencyReceipt: evidence.reviewFingerprintSha256,
+    cases: evidence.cases.length,
+    matchedHypotheticalMathCases: evidence.counts.MATH_MATCH_ONLY,
+    invalidSourceCases: evidence.counts.SOURCE_EVIDENCE_INVALID,
+    caseReviewCounts: evidence.counts,
+    authorizedCorrections: 0,
+    agencyAccepted: false,
+    realGovernmentTransactions: 0,
+  };
+  console.log(JSON.stringify(
+    process.argv.includes("--independent-ledger")
+      ? { overview, cases: evidence.cases } : overview,
+    null,
+    2,
+  ));
+  process.exit(0);
+}
 
 const rows = buildM10ReadOnlyReview(createM10FictionalCases());
 if (rows.length !== 48 || rows.some(row =>
