@@ -36,8 +36,8 @@ export async function test2316Certificate({ browser, owner, fixture, outDir, res
     await page.locator('[name="item39"]').fill("500000.01");
     await page.getByRole("button", { name: "Check totals and generate unsigned PDF" }).click();
     await page.getByRole("alert").filter({ hasText: "DETAIL_TOTAL_MISMATCH" }).waitFor();
-    await page.waitForFunction(() => document.querySelector('[role="alert"]') === document.activeElement);
-    assert.equal(await page.getByRole("alert").evaluate(el => el === document.activeElement), true);
+    await page.waitForFunction(() => document.querySelector('.certificate-error') === document.activeElement);
+    assert.equal(await page.locator(".certificate-error").evaluate(el => el === document.activeElement), true);
     await page.screenshot({ path: `${outDir}/2316-certificate-error-${width}.png`, fullPage: false });
     await page.locator('[name="item39"]').fill("500000.00");
     await page.getByRole("button", { name: "Check totals and generate unsigned PDF" }).click();
