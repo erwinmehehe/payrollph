@@ -6,6 +6,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { classifyAtlasDiff, classifySquawkReport } from "./lib/independent-schema-evidence.mjs";
+import { summarizeAtlasPlan } from "./lib/independent-reconciliation-evidence.mjs";
 
 const path = resolve("qa-artifacts/independent-pg16");
 const tool = process.argv[2];
@@ -19,7 +20,18 @@ if (tool === "squawk") {
     readFileSync(resolve(path, "squawk.json"), "utf8"), Number(exitText)
   );
 } else {
-  result = classifyAtlasDiff(readFileSync(resolve(path, "atlas-source-vs-train.diff.sql"), "utf8"));
+  const beforeSql = readFileSync(resolve(path, "atlas-source-vs-train.diff.sql"), "utf8");
+  const afterSql = readFileSync(resolve(path, "atlas-post-0128-vs-source.diff.sql"), "utf8");
+  const before = classifyAtlasDiff(beforeSql);
+  const after = classifyAtlasDiff(afterSql);
+  result = {
+    status: after.status,
+    reason: after.status === "PASS" ? "ATLAS_POST_0128_NO_DIFFERENCES" :
+      "ATLAS_POST_0128_REMAINS_DIFFERENT_REQUIRES_REVIEW",
+    before0128: { ...before, ...summarizeAtlasPlan(beforeSql) },
+    after0128: { ...after, ...summarizeAtlasPlan(afterSql) },
+    paired0128WasExecutedByAtlas: false,
+  };
 }
 const summary = {
   tool, ...result,
