@@ -11,6 +11,7 @@ export type PriorEvidence = {
   periodTo: string;
   taxableIncome: string;
   taxWithheld: string;
+  exemptBenefits: string;
   sourceReference: string;
   sourceSha256: string;
   peraCredit: string;
@@ -45,15 +46,16 @@ export function parsePriorEvidence(raw: unknown, scope: PriorScope): PriorEviden
   const evidence: PriorEvidence = {
     status, employerName: text("employerName"), employerTin: text("employerTin", 16),
     periodFrom: text("periodFrom", 10), periodTo: text("periodTo", 10),
-    taxableIncome: money("taxableIncome"), taxWithheld: money("taxWithheld"),
+    taxableIncome: money("taxableIncome"), taxWithheld: money("taxWithheld"), exemptBenefits: money("exemptBenefits"),
     sourceReference: text("sourceReference"), sourceSha256: text("sourceSha256", 64),
     peraCredit: money("peraCredit"), peraReference: text("peraReference"), peraSha256: text("peraSha256", 64),
   };
   const hash = (value: string) => /^[a-f0-9]{64}$/.test(value);
   const date = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
   if (!evidence.sourceReference || !hash(evidence.sourceSha256)) throw new Error("PRIOR_SOURCE_EVIDENCE_REQUIRED");
+  if (Number(evidence.exemptBenefits) > 90000) throw new Error("PRIOR_EXEMPT_BENEFIT_CAP_INVALID");
   if (status === "none-confirmed") {
-    if (evidence.taxableIncome !== "0.00" || evidence.taxWithheld !== "0.00" || evidence.employerName || evidence.employerTin || evidence.periodFrom || evidence.periodTo) throw new Error("PRIOR_NONE_MUST_BE_ZERO");
+    if (evidence.taxableIncome !== "0.00" || evidence.taxWithheld !== "0.00" || evidence.exemptBenefits !== "0.00" || evidence.employerName || evidence.employerTin || evidence.periodFrom || evidence.periodTo) throw new Error("PRIOR_NONE_MUST_BE_ZERO");
   } else {
     if (!evidence.employerName || !/^\d{9}-\d{4}$/.test(evidence.employerTin) || !date(evidence.periodFrom) || !date(evidence.periodTo) ||
       !evidence.periodFrom.startsWith(`${scope.taxYear}-`) || !evidence.periodTo.startsWith(`${scope.taxYear}-`) || evidence.periodTo < evidence.periodFrom || evidence.periodTo >= scope.startDate) throw new Error("PRIOR_SEQUENTIAL_EMPLOYMENT_REQUIRED");
@@ -71,12 +73,21 @@ export function assertPriorApproval(input: { digest: string; expectedDigest: str
 export function annualizeWithPrior(present: AnnualizationResult, evidence: PriorEvidence, taxYear: number): AnnualizationResult {
   if (present.mwe) throw new Error("PRIOR_MWE_REVIEW_DEFERRED");
   const cents = (value: string | number) => { const result = bir2316Centavos(value); if (result === null) throw new Error("PRIOR_EVIDENCE_AMOUNT_INVALID"); return result; };
-  const combined = cents(present.taxableIncome) + cents(evidence.taxableIncome);
+  // One annual PHP90k exemption, including the amount already used at the
+  // prior employer. Reclassify only the present pool; never rewrite prior WHT.
+  const overflow = Math.max(0, cents(present.exemptBenefitPool) + cents(evidence.exemptBenefits) - 9000000);
+  const taxableIncome = (cents(present.taxableIncome) + overflow) / 100;
+  const exemptBenefitPool = (cents(present.exemptBenefitPool) - overflow) / 100;
+  const exemptThirteenthMonth = Math.min(present.thirteenthMonth, exemptBenefitPool);
+  const combined = cents(taxableIncome) + cents(evidence.taxableIncome);
   const due = cents(computeAnnualWithholdingTax(combined / 100, false, `${taxYear}-12-31`));
   const credits = cents(evidence.taxWithheld) + cents(evidence.peraCredit);
   if (cents(evidence.peraCredit) > due) throw new Error("PERA_EXCEEDS_TAX_DUE");
   if (credits > due) throw new Error("PRIOR_CREDITS_EXCEED_TAX_DUE_REVIEW_REQUIRED");
   const adjustment = (due - credits - cents(present.taxWithheld)) / 100;
-  return { ...present, taxDue: due / 100, adjustment,
+  return { ...present, taxableIncome, nonTaxable: (cents(present.nonTaxable) - overflow) / 100,
+    exemptBenefitPool, taxableBenefitPool: (cents(present.benefitPool) - cents(exemptBenefitPool)) / 100,
+    exemptThirteenthMonth, taxableThirteenthMonth: (cents(present.thirteenthMonth) - cents(exemptThirteenthMonth)) / 100,
+    taxDue: due / 100, adjustment,
     outcome: adjustment < 0 ? "refund" : adjustment > 0 ? "collect" : "balanced" };
 }

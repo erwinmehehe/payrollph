@@ -22,7 +22,10 @@ upload, fetch, certify or retain source files. Keep those in the approved privat
 evidence repository, subject to its access and retention policy.
 
 Taxable income is prior certificate item 21; tax withheld is prior employer's
-item 25A. Do not substitute prior combined item 28 or a PERA contribution.
+item 25A. Prior exempt benefits (item 34) are also explicit: the current employer
+can only use the remainder of the shared annual PHP90,000 benefit exemption.
+Any current excess is reclassified as present taxable compensation, exactly once.
+Do not substitute prior combined item 28 or a PERA contribution.
 Sources: [BIR September 2021 ENCS Form 2316](https://bir-cdn.bir.gov.ph/local/pdf/2316%20Sep%202021%20ENCS_Final_corrected.pdf)
 and [RMC 34-2022](https://bir-cdn.bir.gov.ph/local/pdf/RMC%20No.%2034-2022.pdf).
 

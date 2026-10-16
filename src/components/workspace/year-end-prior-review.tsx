@@ -1,11 +1,12 @@
 "use client";
 import { useRef, useState } from "react";
 import type { PriorEvidence } from "@/lib/year-end-prior-evidence";
-export const blankPriorEvidence: PriorEvidence = { status: "none-confirmed", employerName: "", employerTin: "", periodFrom: "", periodTo: "", taxableIncome: "0.00", taxWithheld: "0.00", sourceReference: "", sourceSha256: "", peraCredit: "0.00", peraReference: "", peraSha256: "" };
+export const blankPriorEvidence: PriorEvidence = { status: "none-confirmed", employerName: "", employerTin: "", periodFrom: "", periodTo: "", taxableIncome: "0.00", taxWithheld: "0.00", exemptBenefits: "0.00", sourceReference: "", sourceSha256: "", peraCredit: "0.00", peraReference: "", peraSha256: "" };
 const fields: [keyof PriorEvidence, string][] = [
   ["employerName", "Previous employer registered name"], ["employerTin", "Previous employer TIN (9 digits-4 digits)"],
   ["periodFrom", "Previous employment start (YYYY-MM-DD)"], ["periodTo", "Previous employment end (YYYY-MM-DD)"],
   ["taxableIncome", "Previous employer taxable income (2316 item 21)"], ["taxWithheld", "Previous employer tax withheld (2316 item 25A)"],
+  ["exemptBenefits", "Previous employer exempt 13th month / benefits (2316 item 34)"],
   ["sourceReference", "Private 2316 or no-prior-employer declaration reference"], ["sourceSha256", "SHA-256 of the reviewed source document"],
   ["peraCredit", "Verified PERA tax credit amount (not contribution)"], ["peraReference", "Private PERA tax credit evidence reference (if nonzero)"], ["peraSha256", "SHA-256 of PERA evidence (if nonzero)"],
 ];

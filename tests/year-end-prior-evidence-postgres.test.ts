@@ -15,7 +15,7 @@ test("disposable PostgreSQL: encrypted revision/checker/tenant/transfer/bound-st
     for (let i = 0; i < 2; i++) { const [u] = await db.insert(users).values({ name: "Fictional checker", email: randomUUID() + "@example.test", passwordHash: "not-login" }).returning(); actors.push(u.id); }
     const [employee] = await db.insert(employees).values({ organizationId: ids[0], employeeNo: "FICT", firstName: "Fictional", lastName: "Worker", title: "QA", avatarInitials: "FW", basicRate: "50000", startDate: "2025-07-01" }).returning();
     const scope = { organizationId: ids[0], employeeId: employee.id, taxYear: 2025 }, maker = { id: actors[0], name: "Fictional maker" }, checker = { id: actors[1], name: "Fictional checker" };
-    const evidence = { status: "verified", employerName: "Fictional Previous", employerTin: "123456789-0000", periodFrom: "2025-01-01", periodTo: "2025-06-30", taxableIncome: "100000.00", taxWithheld: "10000.00", sourceReference: "private:source", sourceSha256: "a".repeat(64), peraCredit: "100.00", peraReference: "private:pera", peraSha256: "b".repeat(64) };
+    const evidence = { status: "verified", employerName: "Fictional Previous", employerTin: "123456789-0000", periodFrom: "2025-01-01", periodTo: "2025-06-30", taxableIncome: "100000.00", taxWithheld: "10000.00", exemptBenefits: "0.00", sourceReference: "private:source", sourceSha256: "a".repeat(64), peraCredit: "100.00", peraReference: "private:pera", peraSha256: "b".repeat(64) };
     delete process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED;
     await assert.rejects(priorIntake(scope, maker), /PRIOR_DISABLED/);
     process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED = "true";

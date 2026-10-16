@@ -7,7 +7,7 @@ import { decryptGovernmentId, encryptGovernmentId } from "../src/lib/government-
 import { prepare2316Certificate } from "../src/lib/bir-2316-certificate";
 import { certificateReview, certificateSource } from "./fixtures/bir-2316-certificate";
 const scope: PriorScope = { organizationId: 1, employeeId: 2, taxYear: 2025, legalEntityId: null, startDate: "2025-07-01", employeeTin: "fictional" };
-const evidence: PriorEvidence = { status: "verified", employerName: "Fictional prior employer", employerTin: "123456789-0000", periodFrom: "2025-01-01", periodTo: "2025-06-30", taxableIncome: "100000.00", taxWithheld: "10000.00", sourceReference: "private:fixture-2316", sourceSha256: "a".repeat(64), peraCredit: "100.00", peraReference: "private:fixture-pera-credit", peraSha256: "b".repeat(64) };
+const evidence: PriorEvidence = { status: "verified", employerName: "Fictional prior employer", employerTin: "123456789-0000", periodFrom: "2025-01-01", periodTo: "2025-06-30", taxableIncome: "100000.00", taxWithheld: "10000.00", exemptBenefits: "0.00", sourceReference: "private:fixture-2316", sourceSha256: "a".repeat(64), peraCredit: "100.00", peraReference: "private:fixture-pera-credit", peraSha256: "b".repeat(64) };
 const present = annualize({ grossCompensation: 600000, thirteenthMonth: 0, statutoryContributions: 100000, taxWithheld: 40000, mwe: false });
 test("midyear prior income and PERA produce exact collection without reclassifying present WHT", () => {
   const reviewed = parsePriorEvidence(evidence, scope);
@@ -24,6 +24,18 @@ test("refund and balanced outcomes preserve actual present withholding", () => {
   assert.throws(() => annualizeWithPrior(present, { ...evidence, taxWithheld: "70000.00" }, 2025), /PRIOR_CREDITS_EXCEED/);
   assert.throws(() => annualizeWithPrior(present, { ...evidence, peraCredit: "70000.00" }, 2025), /PERA_EXCEEDS/);
   assert.throws(() => annualizeWithPrior({ ...present, mwe: true }, evidence, 2025), /MWE/);
+});
+test("prior and present benefits share one 90k exemption; a one-cent excess is taxable exactly once", () => {
+  const current = annualize({ grossCompensation: 600000, thirteenthMonth: 50000, statutoryContributions: 0, taxWithheld: 40000, mwe: false });
+  const result = annualizeWithPrior(current, { ...evidence, exemptBenefits: "50000.01" }, 2025);
+  assert.equal(result.exemptBenefitPool, 39999.99);
+  assert.equal(result.taxableIncome, 560000.01);
+  assert.equal(result.nonTaxable, 39999.99);
+  assert.equal(result.taxableThirteenthMonth, 10000.01);
+  assert.equal(result.taxDue, 74500);
+  assert.equal(result.adjustment, 24400);
+  assert.equal(current.taxableIncome, 550000);
+  assert.throws(() => parsePriorEvidence({ ...evidence, exemptBenefits: "90000.01" }, scope), /BENEFIT_CAP/);
 });
 test("unknown, contradictory zero, same-time employment, invalid dates and amounts reject", () => {
   for (const change of [{ status: "unknown" }, { status: "none-confirmed" }, { sourceSha256: "" }, { peraSha256: "" }, { taxableIncome: "1.001" }, { periodTo: "2025-07-01" }, { periodFrom: "2025-02-30" }, { employerTin: "" }]) assert.throws(() => parsePriorEvidence({ ...evidence, ...change }, scope));

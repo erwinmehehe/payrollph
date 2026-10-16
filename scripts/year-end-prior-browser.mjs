@@ -14,7 +14,7 @@ export async function testPriorEvidence({browser,owner,checker,employee,fixture,
  assert.equal((await owner.request.get(off+'/api/year-end/prior-evidence?'+query)).status(),404);
  assert.equal((await owner.request.get(off+'/workspace/prior-employer?'+query)).status(),404);
  // Existing 2025 adjustment is settled: even a valid source cannot change it.
- const none={status:'none-confirmed',employerName:'',employerTin:'',periodFrom:'',periodTo:'',taxableIncome:'0.00',taxWithheld:'0.00',sourceReference:'private:fictional-declaration',sourceSha256:'a'.repeat(64),peraCredit:'0.00',peraReference:'',peraSha256:''};
+ const none={status:'none-confirmed',employerName:'',employerTin:'',periodFrom:'',periodTo:'',taxableIncome:'0.00',taxWithheld:'0.00',exemptBenefits:'0.00',sourceReference:'private:fictional-declaration',sourceSha256:'a'.repeat(64),peraCredit:'0.00',peraReference:'',peraSha256:''};
  const blocked=await owner.request.post(api.replace('2026','2025'),{headers,data:{action:'save',evidence:none,expectedDigest:''}});
  assert.equal(blocked.status(),409);assert.equal((await blocked.json()).code,'PRIOR_SETTLED_OR_BOUND');
  assert.equal((await owner.request.post(api,{headers,data:{action:'save',evidence:none,expectedDigest:''}})).status(),200);
