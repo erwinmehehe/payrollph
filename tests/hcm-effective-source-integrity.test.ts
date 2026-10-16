@@ -7,6 +7,10 @@ import {
   type HcmEffectiveSourceState,
 } from "../src/lib/hcm-effective-source-integrity";
 
+function normalizeSourceLineEndings(source: string): string {
+  return source.replace(/\r\n?/g, "\n");
+}
+
 const baseline: HcmEffectiveSourceState = {
   employee: {
     orgUnitId: 5,
@@ -107,8 +111,22 @@ test("missing or malformed legacy approval source fails closed before any HCM mu
   assert.equal(effectiveHcmSourceDrift(missingField, baseline)?.field, "employee.status");
 });
 
+test("HCM multiline audit guards match LF and CRLF source text", () => {
+  const lf = normalizeSourceLineEndings(readFileSync("src/lib/hcm-effective-changes.ts", "utf8"));
+  const crlf = lf.replace(/\n/g, "\r\n");
+  assert.ok(crlf.includes("\r\n"));
+  for (const candidate of [lf, crlf]) {
+    const source = normalizeSourceLineEndings(candidate);
+    const start = source.indexOf("result = await db.transaction(async (tx) => {");
+    const end = source.indexOf("\n  } catch (error) {\n    const message =", start);
+    assert.ok(start >= 0 && end > start);
+    assert.ok(source.slice(start, end).includes("tx.insert(auditEvents)"));
+    assert.ok(source.includes("return {\n    ...result,\n    hcmObligations"));
+  }
+});
+
 test("apply commits worker, position, event, decision and audit together or none", () => {
-  const source = readFileSync("src/lib/hcm-effective-changes.ts", "utf8");
+  const source = normalizeSourceLineEndings(readFileSync("src/lib/hcm-effective-changes.ts", "utf8"));
   const transactionStart = source.indexOf("result = await db.transaction(async (tx) => {");
   const transactionEnd = source.indexOf("\n  } catch (error) {\n    const message =", transactionStart);
   assert.ok(transactionStart > -1 && transactionEnd > transactionStart);
@@ -131,7 +149,7 @@ test("apply commits worker, position, event, decision and audit together or none
 });
 
 test("a failure delivering field-change automation is a post-commit warning, never a failed movement", () => {
-  const source = readFileSync("src/lib/hcm-effective-changes.ts", "utf8");
+  const source = normalizeSourceLineEndings(readFileSync("src/lib/hcm-effective-changes.ts", "utf8"));
   const appliedIndex = source.indexOf('status: "applied"');
   const postCommit = source.indexOf("const postApplyWarnings: string[]");
   const fieldTry = source.indexOf("fieldChangeAutomation = await runEmployeeFieldChangeAutomations");
