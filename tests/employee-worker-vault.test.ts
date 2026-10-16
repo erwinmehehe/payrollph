@@ -87,10 +87,14 @@ test("private attachment downloads remain signed and fail on malformed dispositi
 test("Worker 360 uses existing routes and enforces tenant filtering before rendering bytes", () => {
   const ui = readFileSync("src/components/hcm-worker-document-vault.tsx", "utf8");
   const worker = readFileSync("src/components/hcm-worker-360.tsx", "utf8");
+  const ess = readFileSync("src/components/employee-documents-panel.tsx", "utf8");
   const collection = readFileSync("src/app/api/documents/route.ts", "utf8");
   const fileRoute = readFileSync("src/app/api/documents/[id]/route.ts", "utf8");
   const storage = readFileSync("src/lib/document-object-storage.ts", "utf8");
   assert.match(worker, /<WorkerDocumentVault/);
+  assert.match(ess, /<WorkerDocumentVault/);
+  assert.match(ess, /data\.vaultEnabled/);
+  assert.match(ess, /employeeId=\{data\.employee\.id\}/);
   assert.match(ui, /\/api\/documents\?/);
   assert.match(ui, /method: "POST"/);
   assert.match(ui, /method: "DELETE"/);
