@@ -59,3 +59,24 @@ test("strict failures reject false proof, rollback query errors and redact pg er
     assert.equal(calls.includes("COMMIT"), false);
   }
 });
+
+test("strict bounds reject before a connection and malformed counts roll back", async () => {
+  for (const count of [0, -1, 1.5, 10001, NaN, Infinity]) {
+    await assert.rejects(() => dispatchAuditSealing(async () => 0, () => { throw Error("must not connect"); }, count, env),
+      /AUDIT_SEALER_BOUNDARY_NOT_READY/);
+  }
+  for (const count of [null, undefined, "0", false, -1, 11, 1.5]) {
+    const calls: string[] = [];
+    await assert.rejects(() => dispatchAuditSealing(async () => 0, () => ({
+      async connect() {}, async end() { calls.push("end"); },
+      async query(text) {
+        calls.push(text);
+        return { rows: text.startsWith("SELECT current_user") ? [{ ready: true }]
+          : text.startsWith("SELECT public.seal") ? [{ sealed: count }] : [] };
+      },
+    }), 10, env), /AUDIT_SEALER_BOUNDARY_NOT_READY/);
+    assert.equal(calls.includes("ROLLBACK"), true);
+    assert.equal(calls.includes("COMMIT"), false);
+    assert.equal(calls.at(-1), "end");
+  }
+});

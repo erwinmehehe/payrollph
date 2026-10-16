@@ -52,8 +52,14 @@ const SEALER_LOGIN_PROOF = `SELECT current_user=session_user
  AND NOT pg_catalog.has_any_column_privilege(session_user,'public.audit_chain_heads','INSERT,UPDATE,REFERENCES')
  AND NOT pg_catalog.has_database_privilege(session_user,current_database(),'CREATE')
  AND NOT pg_catalog.has_parameter_privilege(session_user,'session_replication_role','SET')
+ AND CASE WHEN current_setting('server_version_num')::int>=170000 THEN
+   NOT pg_catalog.has_table_privilege(session_user,'public.audit_events','MAINTAIN')
+   AND NOT pg_catalog.has_table_privilege(session_user,'public.audit_chain_heads','MAINTAIN') ELSE true END
  AND NOT EXISTS(SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname NOT IN ('pg_catalog','information_schema')
    AND nspname !~ '^pg_(toast|temp)' AND pg_catalog.has_schema_privilege(session_user,oid,'CREATE'))
+ AND NOT EXISTS(SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+   WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_(toast|temp)'
+     AND pg_catalog.has_function_privilege(session_user,p.oid,'EXECUTE'))
  AS ready`;
 
 const SEALER_GROUP_PROOF = `SELECT current_user='payrollph_audit_sealing'

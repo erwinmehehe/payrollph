@@ -179,6 +179,7 @@ test("actual restricted logins: audit grants, GUC spoofing and forward guards",{
    ["sealer group with business field mutation","GRANT UPDATE(actor) ON public.audit_events TO payrollph_audit_sealing","REVOKE UPDATE(actor) ON public.audit_events FROM payrollph_audit_sealing"],
    ["sealer login with maintenance membership","GRANT payrollph_audit_maintenance TO qa908_sealer","REVOKE payrollph_audit_maintenance FROM qa908_sealer"],
    ["sealer group with schema CREATE","GRANT CREATE ON SCHEMA public TO payrollph_audit_sealing","REVOKE CREATE ON SCHEMA public FROM payrollph_audit_sealing"],
+   ["sealer login with SECURITY DEFINER access","CREATE FUNCTION public.qa908_sealer_definer() RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1'; REVOKE ALL ON FUNCTION public.qa908_sealer_definer() FROM PUBLIC; GRANT EXECUTE ON FUNCTION public.qa908_sealer_definer() TO qa908_sealer","DROP FUNCTION public.qa908_sealer_definer()"],
   ])await t.test("dedicated connection refuses "+name,async()=>{
    await admin.query(apply);try{await assert.rejects(seal,e=>e.message==="AUDIT_SEALER_BOUNDARY_NOT_READY");}
    finally{await admin.query(reset);}
