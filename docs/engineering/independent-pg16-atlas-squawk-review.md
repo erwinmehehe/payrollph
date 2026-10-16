@@ -131,6 +131,36 @@ with no data-row SELECT or DML; new exact-head Atlas inspect/diff CI is still
 required to establish structural parity. Never use production data or
 grant wider privileges on Neon to work around this synthetic issue.
 
+## #1031 companion report — observed intermediate exact-head run
+
+[Run 38879180388](https://github.com/erwinmehehe/payrollph/actions/runs/38879180388)
+on PR head `fb093c8fda0d9b2ddfbd1603225cf1a7e83fc704` successfully
+reconstructed the fictional 0115–0126 candidate and generated two genuine
+read-only #1031 reports for the same 271 modeled tables. The retained JSON
+contains the following **object-level** results:
+
+| #1031 classification | Fresh Drizzle source | Replayed candidate |
+| --- | ---: | ---: |
+| PASS | 5,564 | 5,455 |
+| MISSING | 0 | 109 |
+| DRIFT | 155 | 155 |
+| EXTRA | 127 | 273 |
+| **Total non-PASS** | **282** | **537** |
+
+These differences are not all proven real semantic defects: the fresh Drizzle
+database itself has 155 textual/deparser DRIFT and 127 EXTRA under #1031.
+The replay candidate also includes PostgreSQL-created FK names and possible
+synthetic DROP CASCADE side effects. Do **not** mark 537 entries fixed,
+waived or false-positive; compare row-by-row, distinguish baseline-common
+from candidate-only before proposing changes, and preserve all statuses.
+The PR's companion report now exports those exact subsets without weakening
+any structural comparison.
+
+Atlas failed **before producing an independent diff** at this old head due
+to insufficient `information_schema.columns` visibility for its auditor
+role. The separate, no-data-SELECT `atlas_inspector` role was added afterward
+and needs its own exact-head CI proof.
+
 ## Remaining synthetic parity limitations
 
 Atlas Community deliberately does not compare stored functions, triggers,
