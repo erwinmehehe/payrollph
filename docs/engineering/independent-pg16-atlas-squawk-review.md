@@ -161,6 +161,69 @@ to insufficient `information_schema.columns` visibility for its auditor
 role. The separate, no-data-SELECT `atlas_inspector` role was added afterward
 and needs its own exact-head CI proof.
 
+## Verified third-party Atlas structural cross-check (2026-10-16)
+
+[GitHub Actions run 38880741093](https://github.com/erwinmehehe/payrollph/actions/runs/38880741093)
+at exact functional PR head
+`1b8d34b25c8cf54248573db2cdc284ccab041daa` completed the following
+steps using **disposable localhost PostgreSQL 16 only**:
+
+1. Fresh guarded Drizzle schema push and clone; synthetic source 0115–0126
+   replayed successfully in the throwaway candidate DB.
+2. Read-only #1031 catalog comparison reported, exactly:
+   - Fresh Drizzle: **5,564 PASS / 0 MISSING / 155 DRIFT / 127 EXTRA**
+   - Replayed candidate: **5,455 PASS / 109 MISSING / 155 DRIFT / 273 EXTRA**
+   - Baseline-common non-PASS: **280**; candidate-only non-PASS: **257**;
+     source-only non-PASS: **2** (full object-level evidence retained).
+3. Atlas `schema inspect` through REFERENCES-only, no-row-SELECT
+   `atlas_inspector` succeeded on **279 public tables in each database**,
+   including all **271 generated Drizzle models**; the inspector's
+   privileges and connection identity gate passed.
+4. Atlas v1.3.0 `schema diff` produced a **30,716-byte, nonempty SQL
+   plan** (43 proposed statements) and the independent classifier correctly
+   returned **DRIFT**, leaving the Atlas job **red**. **Atlas did not
+   execute its proposed DDL.**
+
+The direction of the plan is *replayed candidate → fresh Drizzle schema*.
+Its 43 suggested SQL statements comprise **29 ALTER TABLE statements with
+constraint operations** (some also include DROP COLUMN),
+**9 ALTER TABLE statements for only column drops**, and **5 DROP INDEX
+statements**. Notable examples:
+
+- Replay-created `legal_entity_id` fields on `bank_file_validations`,
+  `historical_payroll_entries`, `payroll_jobs`, `payslips`,
+  `separation_records`, `year_end_adjustments`, `payroll_entries`,
+  `payout_batches`, `payout_transfers`, and associated scope/index
+  structures do not match the freshly pushed Drizzle baseline.
+- `organizations.module_navigation_mode` and `enabled_modules`,
+  and `legal_entities.registered_address` also appear as candidate-only
+  columns in the proposed reverse diff.
+- Many forward SQL foreign keys get PostgreSQL-generated `_fkey` names
+  rather than Drizzle source names, including the #1015 / #1054 / #1061
+  repair tables. The dependent draft #1121 proposes independent `0128`
+  renaming; **0128 was not run by this 0115–0126 audit**, and cannot be
+  assumed to resolve non-FK differences.
+- Several extra candidate indexes are reported, including
+  `wfm_schedule_assignment_effective_window_idx`,
+  `wfm_worksite_assignment_effective_window_idx`,
+  `employee_org_id_for_entity_scope`,
+  `user_org_id_for_entity_scope`, and
+  `payroll_run_employer_identity_unique`.
+
+The SQL plan is an **independent inspection artifact, not an approved
+migration plan**. No statement from that plan may be applied or treated as
+a fix without separate engineering/DBA review. The existing #1031
+deparser differences already observed against the fresh source schema
+remain recorded, not waived. Reconcile the source/forward-model conflicts
+on disposable fixtures; never hide differences to make CI green.
+
+Squawk separately still reports **115 warnings** for original numbered
+0124–0126, with no linter exclusions or changes to their bytes. Therefore
+the overall #1127 independent validation is **RED/BLOCKED as designed**.
+This is useful engineering evidence, **not** a deployment release or DBA
+approval. Any later code/doc-only SHA must be recorded separately from this
+exact tested head.
+
 ## Remaining synthetic parity limitations
 
 Atlas Community deliberately does not compare stored functions, triggers,
