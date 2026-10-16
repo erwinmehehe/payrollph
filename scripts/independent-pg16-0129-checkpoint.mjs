@@ -137,9 +137,16 @@ try {
   // Close the catalog-check / rename TOCTOU window. A second session must
   // be unable to alter even the first FK while the preflight has finished
   // but the protected outer transaction still holds all 15 child locks.
-  const reviewedPreflight = sql.match(
-    /DO \\$issue_0129_preflight\\$[\\s\\S]*?END \\$issue_0129_preflight\\$;/m
-  )?.[0];
+  // The two literal PL/pgSQL dollar tags are source-owned delimiters.
+  // A plain-string match avoids regex escape ambiguities for '$' in CI.
+  const preflightOpening="DO $issue_0129_preflight$";
+  const preflightClosing="END $issue_0129_preflight$;";
+  assert.equal(sql.split(preflightOpening).length,2,
+    "0129 must contain exactly one reviewed DO preflight opening");
+  assert.equal(sql.split(preflightClosing).length,2,
+    "0129 must contain exactly one reviewed DO preflight closing");
+  const reviewedPreflight=sql.slice(sql.indexOf(preflightOpening),
+    sql.indexOf(preflightClosing)+preflightClosing.length);
   assert.ok(reviewedPreflight, "0129 catalog preflight SQL absent");
   const lockedTables=[...new Set(changes.map(item=>item.table))].sort();
   await db.query("SAVEPOINT preflight_concurrent_ddl");
