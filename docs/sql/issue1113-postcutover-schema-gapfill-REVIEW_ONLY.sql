@@ -20,6 +20,9 @@
 DO $issue1113_preflight$
 DECLARE absent text;
 BEGIN
+  IF '__NEW_ISOLATED_NEON_BRANCH_ID__' = ('__NEW_ISOLATED_' || 'NEON_BRANCH_ID__') THEN
+    RAISE EXCEPTION 'ISSUE1113_UNREVIEWED_BRANCH_PLACEHOLDER';
+  END IF;
   IF current_database() <> 'neondb'
     OR current_setting('neon.project_id', true) IS DISTINCT FROM 'calm-wave-70219564'
     OR current_setting('neon.branch_id', true) IS DISTINCT FROM '__NEW_ISOLATED_NEON_BRANCH_ID__'
@@ -74,56 +77,44 @@ ALTER TABLE public.separation_records
   ADD COLUMN IF NOT EXISTS released_at timestamptz,
   ADD COLUMN IF NOT EXISTS release_reference varchar(160);
 
--- Strict structural postflight (do not treat IF NOT EXISTS as shape proof).
+-- Exact catalog postflight: IF NOT EXISTS never proves an existing column's shape.
 DO $issue1113_postflight$
-DECLARE
-  absent text;
-  bad text;
+DECLARE bad text;
 BEGIN
-  SELECT string_agg(e.table_name || '.' || e.column_name, ', ' ORDER BY e.table_name, e.column_name)
-  INTO absent
-  FROM (VALUES
-    ('employee_worksite_assignments','decision'),
-    ('separation_records','thirteenth_entitlement'),
-    ('separation_records','thirteenth_paid_ytd'),
-    ('separation_records','basic_salary_earned_ytd'),
-    ('separation_records','historical_basic_salary_earned'),
-    ('separation_records','unpaid_basic_salary'),
-    ('separation_records','separation_pay'),
-    ('separation_records','retirement_pay'),
-    ('separation_records','other_benefits'),
-    ('separation_records','final_statutory_deductions'),
-    ('separation_records','gross_final_pay'),
-    ('separation_records','final_pay_due_date'),
-    ('separation_records','computation_snapshot'),
-    ('separation_records','approved_at'),
-    ('separation_records','released_at'),
-    ('separation_records','release_reference'),
-    ('separation_records','prepared_by_user_id'),
-    ('separation_records','approved_by_user_id'),
-    ('separation_records','released_by_user_id')
-  ) e(table_name,column_name)
-  LEFT JOIN information_schema.columns c
-    ON c.table_schema='public' AND c.table_name=e.table_name AND c.column_name=e.column_name
-  WHERE c.column_name IS NULL;
-  IF absent IS NOT NULL THEN RAISE EXCEPTION 'ISSUE1113_POSTFLIGHT_MISSING_COLUMNS: %', absent; END IF;
-
-  SELECT string_agg(c.table_name || '.' || c.column_name, ', ' ORDER BY c.table_name,c.column_name)
-  INTO bad
-  FROM information_schema.columns c
-  WHERE c.table_schema='public' AND (
-    (c.table_name='employee_worksite_assignments' AND c.column_name='decision'
-      AND (c.data_type<>'character varying' OR c.character_maximum_length<>8
-           OR c.is_nullable<>'NO' OR COALESCE(c.column_default, '') NOT LIKE '%allow%'))
-    OR (c.table_name='separation_records' AND c.column_name IN (
-         'thirteenth_entitlement','thirteenth_paid_ytd','unpaid_basic_salary',
-         'separation_pay','retirement_pay','other_benefits','final_statutory_deductions','gross_final_pay'
-       ) AND (c.data_type<>'numeric' OR c.numeric_precision<>12 OR c.numeric_scale<>2 OR c.is_nullable<>'NO'))
-    OR (c.table_name='separation_records' AND c.column_name IN (
-         'basic_salary_earned_ytd','historical_basic_salary_earned'
-       ) AND (c.data_type<>'numeric' OR c.numeric_precision<>14 OR c.numeric_scale<>2 OR c.is_nullable<>'NO'))
-  );
-  IF bad IS NOT NULL THEN RAISE EXCEPTION 'ISSUE1113_POSTFLIGHT_TYPE_OR_DEFAULT_DRIFT: %', bad; END IF;
+  WITH expected(table_name,column_name,sql_type,not_null,default_sql) AS (VALUES
+    ('employee_worksite_assignments', 'decision', 'character varying(8)', true, '''allow''::character varying'),
+    ('separation_records', 'thirteenth_entitlement', 'numeric(12,2)', true, '0'),
+    ('separation_records', 'thirteenth_paid_ytd', 'numeric(12,2)', true, '0'),
+    ('separation_records', 'unpaid_basic_salary', 'numeric(12,2)', true, '0'),
+    ('separation_records', 'separation_pay', 'numeric(12,2)', true, '0'),
+    ('separation_records', 'retirement_pay', 'numeric(12,2)', true, '0'),
+    ('separation_records', 'other_benefits', 'numeric(12,2)', true, '0'),
+    ('separation_records', 'final_statutory_deductions', 'numeric(12,2)', true, '0'),
+    ('separation_records', 'gross_final_pay', 'numeric(12,2)', true, '0'),
+    ('separation_records', 'basic_salary_earned_ytd', 'numeric(14,2)', true, '0'),
+    ('separation_records', 'historical_basic_salary_earned', 'numeric(14,2)', true, '0'),
+    ('separation_records', 'final_pay_due_date', 'date', false, NULL),
+    ('separation_records', 'computation_snapshot', 'jsonb', true, '''{}''::jsonb'),
+    ('separation_records', 'approved_at', 'timestamp with time zone', false, NULL),
+    ('separation_records', 'released_at', 'timestamp with time zone', false, NULL),
+    ('separation_records', 'release_reference', 'character varying(160)', false, NULL),
+    ('separation_records', 'prepared_by_user_id', 'integer', false, NULL),
+    ('separation_records', 'approved_by_user_id', 'integer', false, NULL),
+    ('separation_records', 'released_by_user_id', 'integer', false, NULL)
+  )
+  SELECT string_agg(e.table_name || '.' || e.column_name, ', ' ORDER BY e.table_name,e.column_name)
+  INTO bad FROM expected e
+  LEFT JOIN pg_catalog.pg_namespace n ON n.nspname='public'
+  LEFT JOIN pg_catalog.pg_class c ON c.relnamespace=n.oid AND c.relname=e.table_name AND c.relkind='r'
+  LEFT JOIN pg_catalog.pg_attribute a ON a.attrelid=c.oid AND a.attname=e.column_name
+    AND a.attnum>0 AND NOT a.attisdropped
+  LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid=c.oid AND d.adnum=a.attnum
+  WHERE a.attname IS NULL
+    OR pg_catalog.format_type(a.atttypid,a.atttypmod) IS DISTINCT FROM e.sql_type
+    OR a.attnotnull IS DISTINCT FROM e.not_null
+    OR NOT (pg_catalog.pg_get_expr(d.adbin,d.adrelid) IS NOT DISTINCT FROM e.default_sql
+      OR COALESCE((e.default_sql='0' AND pg_catalog.pg_get_expr(d.adbin,d.adrelid) IN ('0::numeric', '''0''::numeric')), false));
+  IF bad IS NOT NULL THEN RAISE EXCEPTION 'ISSUE1113_POSTFLIGHT_COLUMN_SHAPE_DRIFT: %', bad; END IF;
   IF (SELECT count(*) FROM public.separation_records) <> 0 THEN
     RAISE EXCEPTION 'ISSUE1113_POSTFLIGHT_UNEXPECTED_SEPARATION_MUTATION';
   END IF;

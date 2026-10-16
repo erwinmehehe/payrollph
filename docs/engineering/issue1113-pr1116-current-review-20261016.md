@@ -1,5 +1,30 @@
 # PR #1116 — Current schema-recovery review and release decision (2026-10-16)
 
+## Source correction checkpoint — after #1121/#1139/#1140
+
+This review branch includes main `feeba250058795443d97f55b32e4e3e6874bddbd`.
+The observations below remain dated snapshots; no live Neon/Vercel inspection or
+configuration change was performed for this source correction.
+
+- Both candidates explicitly reject an unreplaced branch marker, even when a
+  caller supplies that marker as a synthetic identity setting.
+- Gapfill postflight compares exact catalog type, nullability and default for
+  all 19 affected/prerequisite columns. A default containing `allow` is no
+  longer sufficient; missing/incorrect numeric defaults, nullable-column defaults,
+  JSON defaults, dates, timestamps, reference lengths and actor types fail closed.
+- Expense postflight compares actual single-column FK parent/column identity,
+  delete/update actions, validation and deferrability rather than SQL text.
+- Dedicated empty PG16/18 CI services execute positive paths, malformed prior
+  shapes, missing identity, excluded branches, unreplaced markers, existing-row
+  refusal, maker-checker preservation, FK mutations and whole-fixture rollback.
+  Synthetic Neon GUCs are inputs, not live branch attestation. Consult current-head
+  CI for results; no prior snapshot is substituted for current acceptance.
+
+These are review artifacts and source tests, with no numbered migration, runtime
+behavior, feature flag or production activation. Source merge eligibility is
+separate from the production/Preview gates recorded below. Those operational
+items remain unresolved and are not certified by synthetic CI.
+
 ## Follow-up checkpoint — 2026-10-16 (after original review snapshot)
 
 - Independently fetched current GitHub `main` at `6f3b7b985a3fb16712aedad68fdde052a357e78a`; PR was **one commit behind** before the review-only guard update. That main commit changes HRIS synthetic browser QA/fixture files and its workflow, **not** the numbered `drizzle/` migrations. Do not treat this checkpoint as a source merge or updated application acceptance.

@@ -6,6 +6,9 @@
 -- Main source snapshot: a8b01b510ae6a742de01def64244b7615cb12fd1.
 DO $pre$
 BEGIN
+  IF '__NEW_ISOLATED_NEON_BRANCH_ID__' = ('__NEW_ISOLATED_' || 'NEON_BRANCH_ID__') THEN
+    RAISE EXCEPTION 'ISSUE1113_UNREVIEWED_BRANCH_PLACEHOLDER';
+  END IF;
   IF pg_catalog.current_database() <> 'neondb'
   OR pg_catalog.current_setting('neon.project_id',true) IS DISTINCT FROM 'calm-wave-70219564'
   OR pg_catalog.current_setting('neon.branch_id',true) IS DISTINCT FROM '__NEW_ISOLATED_NEON_BRANCH_ID__'
@@ -31,14 +34,19 @@ BEGIN
    SELECT 1 FROM information_schema.columns c
    WHERE c.table_schema='public' AND c.table_name='expense_claims'
      AND c.column_name='submitted_by_user_id' AND c.data_type='integer'
-     AND c.is_nullable='YES'
+     AND c.is_nullable='YES' AND c.column_default IS NULL
  ) THEN RAISE EXCEPTION 'EXPENSE_ACTOR_COLUMN_DRIFT_POSTFLIGHT'; END IF;
  IF NOT EXISTS (
-   SELECT 1 FROM pg_catalog.pg_constraint x JOIN pg_catalog.pg_class t
-     ON t.oid=x.conrelid
-   WHERE t.oid='public.expense_claims'::regclass AND x.contype='f'
-     AND pg_catalog.pg_get_constraintdef(x.oid) LIKE '%submitted_by_user_id%'
-     AND pg_catalog.pg_get_constraintdef(x.oid) LIKE '%users%'
+   SELECT 1 FROM pg_catalog.pg_constraint x
+   JOIN pg_catalog.pg_attribute local_col ON local_col.attrelid=x.conrelid
+     AND x.conkey=ARRAY[local_col.attnum]::smallint[]
+   JOIN pg_catalog.pg_attribute parent_col ON parent_col.attrelid=x.confrelid
+     AND x.confkey=ARRAY[parent_col.attnum]::smallint[]
+   WHERE x.conrelid='public.expense_claims'::regclass AND x.contype='f'
+     AND x.confrelid='public.users'::regclass
+     AND local_col.attname='submitted_by_user_id' AND parent_col.attname='id'
+     AND x.confdeltype='n' AND x.confupdtype='a' AND x.confmatchtype='s'
+     AND x.convalidated AND NOT x.condeferrable AND NOT x.condeferred
  ) THEN RAISE EXCEPTION 'EXPENSE_ACTOR_FOREIGN_KEY_DRIFT_POSTFLIGHT'; END IF;
  IF (SELECT count(*) FROM public.expense_claims)<>0
  THEN RAISE EXCEPTION 'EXPENSE_ROWS_MODIFIED_UNEXPECTEDLY'; END IF;
