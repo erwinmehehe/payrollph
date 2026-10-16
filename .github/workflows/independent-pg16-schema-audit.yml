@@ -7,6 +7,7 @@ on:
       - "scripts/independent-pg16-schema-audit.mjs"
       - "scripts/independent-pg16-catalog-report.mjs"
       - "scripts/check-independent-schema-evidence.mjs"
+      - "scripts/check-independent-atlas-inspection.mjs"
       - "scripts/lib/independent-schema-evidence.mjs"
       - "tests/independent-schema-evidence.test.mjs"
       - "drizzle/0115_*.sql"
@@ -160,6 +161,19 @@ jobs:
         run: |
           set -euo pipefail
           node --import tsx scripts/independent-pg16-catalog-report.mjs
+      - name: Verify Atlas can inspect every Drizzle table under catalog-only role
+        shell: bash
+        run: |
+          set -euo pipefail
+          atlas schema inspect \
+            --url 'postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/app_db?search_path=public&sslmode=disable' \
+            --format '{{ json . }}' \
+            > qa-artifacts/independent-pg16/atlas-source-inspect.json
+          atlas schema inspect \
+            --url 'postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/atlas_candidate_db?search_path=public&sslmode=disable' \
+            --format '{{ json . }}' \
+            > qa-artifacts/independent-pg16/atlas-candidate-inspect.json
+          node --import tsx scripts/check-independent-atlas-inspection.mjs
       - name: Read-only independent Atlas schema comparison
         shell: bash
         run: |
