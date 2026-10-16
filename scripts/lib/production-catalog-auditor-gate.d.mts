@@ -1,6 +1,6 @@
 import type { ClientConfig } from "pg";
 
-export const CATALOG_AUDITOR_GUARD_SQL: string;
+export declare const CATALOG_AUDITOR_GUARD_SQL: string;
 export type CatalogAuditorProof = Readonly<{
   catalogOnly: true;
   payrollRowsQueried: false;
