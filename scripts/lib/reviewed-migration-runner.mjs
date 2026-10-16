@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { reconcileMigrationReceipts } from "./migration-receipt-audit.mjs";
 import { assertModernSchemaLineage } from "./schema-lineage-preflight.mjs";
 import { assertHistoricalCatalog } from "./historical-catalog-gate.mjs";
+import { ISSUE1054_MIGRATION_PATH, ISSUE1054_PREFLIGHT_SQL, ISSUE1054_POSTFLIGHT_SQL } from "./issue-1054-protected-preflight.mjs";
 
 const MIGRATION_PATH = /^drizzle\/([0-9]{4})_[a-z0-9][a-z0-9_-]*\.sql$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -339,10 +340,23 @@ export async function runReviewedMigrationOnClient({
     });
     // Plan validates the exact file and SQL transaction boundary too; no DB writes.
     const sql = loadReviewedSql(sourceDirectory, decision);
+    // Preserve immutable 0125. Fail-closed preflight is mandatory and runs
+    // in the same protected transaction before any 0125 DDL or ledger write.
+    if (decision.status === "ready" &&
+        decision.path === ISSUE1054_MIGRATION_PATH) {
+      await client.query(ISSUE1054_PREFLIGHT_SQL);
+    }
     let sqlApplied = false;
     if (mode === "apply" && decision.status === "ready") {
-      await client.query("SET LOCAL search_path = public, pg_catalog");
+      // Leave pg_catalog implicit so built-ins resolve before public functions.
+      // Put pg_temp last so temporary relations cannot shadow public FKs;
+      // public remains the target for unqualified CREATE TABLE statements.
+      await client.query("SET LOCAL search_path = public, pg_temp");
       await client.query(sql);
+      // Catalog validation must precede the immutable apply receipt.
+      if (decision.path === ISSUE1054_MIGRATION_PATH) {
+        await client.query(ISSUE1054_POSTFLIGHT_SQL);
+      }
       await client.query(
         "INSERT INTO public.payrollph_schema_migrations " +
         "(migration_path, migration_number, source_sha256, applied_by, change_ref) " +

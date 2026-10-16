@@ -62,13 +62,20 @@ type Investigation = {
   immutableWarning: string;
 };
 
-export function PayrollOverpaymentWorkbench({
-  organizationId,
-  setNotice,
-}: {
+type OverpaymentWorkbenchProps = {
   organizationId: number;
   setNotice: (notice: string) => void;
-}) {
+};
+
+export function PayrollOverpaymentWorkbench(props: OverpaymentWorkbenchProps) {
+  // A payroll investigation and its unsaved worker/form state are employer-private.
+  return <PayrollOverpaymentWorkbenchContent key={props.organizationId} {...props} />;
+}
+
+function PayrollOverpaymentWorkbenchContent({
+  organizationId,
+  setNotice,
+}: OverpaymentWorkbenchProps) {
   const [choices, setChoices] = useState<Choices | null>(null);
   const [form, setForm] = useState({
     employeeId: "",
@@ -80,28 +87,31 @@ export function PayrollOverpaymentWorkbench({
   const [investigation, setInvestigation] = useState<Investigation | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch(
       `/api/payroll/overpayment-preflight?organizationId=${organizationId}`,
-      { cache: "no-store" },
+      { cache: "no-store", signal },
     );
     // Default-off feature or a person without privileged payroll permission.
     // Do not show the form without a successful permission-gated roster.
     if (!response.ok) return null;
     const data = await response.json() as Choices;
+    if (signal?.aborted) return null;
     return data.readOnly === true ? data : null;
   }, [organizationId]);
 
   useEffect(() => {
-    let active = true;
-    setChoices(null);
-    setInvestigation(null);
-    void load().then(data => {
-      if (active) setChoices(data);
-    }).catch(() => {
-      if (active) setChoices(null);
+    const controller = new AbortController();
+    // The keyed child starts empty; defer the permission-gated read.
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+      void load(controller.signal).then((data) => {
+        if (!controller.signal.aborted) setChoices(data);
+      }).catch(() => {
+        if (!controller.signal.aborted) setChoices(null);
+      });
     });
-    return () => { active = false; };
+    return () => controller.abort();
   }, [load]);
 
   async function inspect(event: FormEvent<HTMLFormElement>) {

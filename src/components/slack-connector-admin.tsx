@@ -16,15 +16,22 @@ type SlackConnector = {
   };
 };
 
-export function SlackConnectorAdmin({
-  organizationId,
-  setNotice,
-  onChanged,
-}: {
+type SlackConnectorAdminProps = {
   organizationId: number;
   setNotice: (message: string) => void;
   onChanged?: () => void | Promise<void>;
-}) {
+};
+
+export function SlackConnectorAdmin(props: SlackConnectorAdminProps) {
+  // Keep connector configuration, credentials and drafts in one employer scope.
+  return <SlackConnectorAdminContent key={props.organizationId} {...props} />;
+}
+
+function SlackConnectorAdminContent({
+  organizationId,
+  setNotice,
+  onChanged,
+}: SlackConnectorAdminProps) {
   const [connectors, setConnectors] = useState<SlackConnector[]>([]);
   const [credentialConfigured, setCredentialConfigured] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -35,23 +42,33 @@ export function SlackConnectorAdmin({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/integration-connectors?organizationId=${organizationId}`, { cache: "no-store" });
+      const response = await fetch(`/api/integration-connectors?organizationId=${organizationId}`, { cache: "no-store", signal });
       const payload = await response.json().catch(() => ({}));
+      if (signal?.aborted) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not load integration connectors.");
       setConnectors(Array.isArray(payload.connectors) ? payload.connectors.filter((row: SlackConnector) => row.provider === "slack") : []);
       const slack = Array.isArray(payload.providers) ? payload.providers.find((row: { id?: string }) => row.id === "slack") : null;
       setCredentialConfigured(Boolean(slack?.credentialConfigured));
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not load integration connectors.");
+      if (!signal?.aborted) {
+        setNotice(error instanceof Error ? error.message : "Could not load integration connectors.");
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [organizationId, setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    // Abort the scheduled GET if Strict Mode cleans up this effect.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
+    return () => controller.abort();
+  }, [load]);
 
   function reset() {
     setEditingId(null);

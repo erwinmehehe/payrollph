@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { generateTotp } from "../src/lib/totp.ts";
+import { testPriorEvidence } from "./year-end-prior-browser.mjs";
 import { test2316Certificate } from "./bir-2316-certificate-browser.mjs";
 
 assert.equal(process.env.CI, "true");
@@ -298,6 +299,10 @@ try {
   const certificateEmployee = await login("employee");
   assert.equal((await certificateEmployee.request.get("https://127.0.0.1:3443/api/year-end/2316-certificate?organizationId=" + fixture.organizationId + "&employeeId=" + fixture.employeeId + "&taxYear=2025")).status(), 403);
   await certificateEmployee.close();
+  const priorChecker = await login("payroll");
+  const priorEmployee = await login("employee");
+  await testPriorEvidence({ browser, owner, checker: priorChecker, employee: priorEmployee, fixture, outDir, results });
+  await priorChecker.close(); await priorEmployee.close();
   await owner.close();
   await writeFile(outDir + "/results.json", JSON.stringify({
     status: "PASS", syntheticOnly: true, validatedByBir: false,

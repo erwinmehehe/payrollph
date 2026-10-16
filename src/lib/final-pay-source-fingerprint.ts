@@ -1,5 +1,6 @@
 import type { SeparationLeaveSources } from "@/lib/separation-leave";
 import { reviewFinalPayLoans } from "@/lib/final-pay-loan-authority";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 /**
  * Frozen, deterministic final-pay source evidence. Includes every source
  * field used for 13th month, annualized tax/statutory contributions, loan
@@ -45,6 +46,7 @@ export type FinalPayFingerprintInputs = {
 
 export function finalPaySourceFingerprint(sources: FinalPayFingerprintInputs) {
   return {
+    ...(criticalReleaseFlagEnabled("exactThirteenthCentavos") ? { thirteenthRoundingPolicy: "centavo-half-up-v1" } : {}),
     leave: sources.leave ? {
       balances: [...sources.leave.balances].sort((a, b) => a.id - b.id),
       policies: [...sources.leave.policies].sort((a, b) => a.id - b.id),
