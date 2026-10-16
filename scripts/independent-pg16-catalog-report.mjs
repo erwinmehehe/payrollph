@@ -7,12 +7,15 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import pg from "pg";
 
-const SOURCE_URL = "postgresql://postgres:postgres@127.0.0.1:5432/app_db";
-const CANDIDATE_URL = "postgresql://postgres:postgres@127.0.0.1:5432/atlas_candidate_db";
+// Same restricted, catalog-only login used by Atlas. No app-row SELECT,
+// CREATE, DML or elevated privilege; cannot connect to external databases.
+const SOURCE_URL = "postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/app_db";
+const CANDIDATE_URL = "postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/atlas_candidate_db";
+const FIXTURE_WRITER_URL = "postgresql://postgres:postgres@127.0.0.1:5432/app_db";
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.GITHUB_ACTIONS, "true");
 assert.equal(process.env.INDEPENDENT_SCHEMA_AUDIT_MODE, "isolated-local-pg16");
-assert.equal(process.env.DATABASE_URL, SOURCE_URL);
+assert.equal(process.env.DATABASE_URL, FIXTURE_WRITER_URL);
 assert.equal(process.env.PRODUCTION_DATABASE_URL, undefined);
 assert.equal(process.env.DATABASE_URL_UNPOOLED, undefined);
 
@@ -29,13 +32,33 @@ async function inspect(url, expectedName) {
     await db.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY");
     started = true;
     await db.query("SET LOCAL search_path=pg_catalog");
-    await db.query("SET LOCAL statement_timeout='10s'");
+    await db.query("SET LOCAL statement_timeout='30s'");
     const identity = (await db.query(
-      "SELECT current_database() AS name, inet_server_addr()::text AS host, " +
-      "current_setting('server_version_num')::integer AS version"
+      "SELECT current_database() AS name, current_user AS role, " +
+      "current_setting('server_version_num')::integer AS version, " +
+      "current_setting('transaction_read_only') AS readonly, " +
+      "(SELECT r.rolsuper OR r.rolcreatedb OR r.rolcreaterole " +
+      "OR r.rolreplication OR r.rolbypassrls FROM pg_catalog.pg_roles r " +
+      "WHERE r.rolname=current_user) AS elevated, " +
+      "EXISTS(SELECT 1 FROM pg_catalog.pg_class c " +
+      "JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace " +
+      "WHERE n.nspname='public' AND c.relkind IN ('r','p') " +
+      "AND pg_catalog.has_table_privilege(current_user,c.oid, " +
+      "'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')) AS can_write, " +
+      "EXISTS(SELECT 1 FROM pg_catalog.pg_class c " +
+      "WHERE c.oid=ANY(ARRAY[to_regclass('public.employees')," +
+      "to_regclass('public.payroll_entries'),to_regclass('public.payroll_runs')]) " +
+      "AND pg_catalog.has_any_column_privilege(current_user,c.oid,'SELECT')) AS can_read_money"
     )).rows[0];
     assert.equal(identity.name, expectedName);
-    assert.equal(identity.host, "127.0.0.1");
+    // Docker service may use a bridge IP on the PostgreSQL server side.
+    // Both literal connection URLs are forced to loopback on the CI host.
+    assert.equal(new URL(url).hostname, "127.0.0.1");
+    assert.equal(identity.role, "atlas_auditor");
+    assert.equal(identity.readonly, "on");
+    assert.equal(identity.elevated, false);
+    assert.equal(identity.can_write, false);
+    assert.equal(identity.can_read_money, false);
     assert.ok(identity.version >= 160000 && identity.version < 170000);
     const observed = (await db.query(fullSchemaCatalogSql)).rows.map(
       ({ table_name, kind, object_name, details }) => ({
@@ -57,6 +80,9 @@ async function inspect(url, expectedName) {
 
 const results = {
   evidenceScope: EVIDENCE,
+  prHeadSha: process.env.PR_HEAD_SHA || null,
+  githubWorkflowCommit: process.env.GITHUB_SHA || null,
+  auditRole: "atlas_auditor",
   assertion: "SYNTHETIC_ONLY_NOT_PRODUCTION_PARITY",
   source: await inspect(SOURCE_URL, "app_db"),
   candidate: await inspect(CANDIDATE_URL, "atlas_candidate_db"),
