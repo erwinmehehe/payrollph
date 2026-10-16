@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PDFDocument, PDFRawStream, decodePDFRawStream } from "pdf-lib";
 import { mkdir, writeFile } from "node:fs/promises";
-import { prepare2316Certificate } from "../src/lib/bir-2316-certificate";
+import { CERTIFICATE_ITEMS, prepare2316Certificate } from "../src/lib/bir-2316-certificate";
 import { historical2316Employer } from "../src/lib/bir-2316-employer";
 import { render2316CertificatePdf } from "../src/lib/bir-2316-pdf";
 import { certificateReview, certificateSource } from "./fixtures/bir-2316-certificate";
@@ -54,4 +54,26 @@ test("actual prescribed template output has all mapped values and leaves signatu
   assert.match(pdf.getTitle()!, /Unsigned/);
   if (process.env.BIR_2316_PDF_QA === "true") { await mkdir("qa-artifacts/bir-1604c", { recursive: true }); await writeFile("qa-artifacts/bir-1604c/2316-unsigned-synthetic.pdf", bytes); }
   await assert.rejects(render2316CertificatePdf(certificateSource, {}), /REVIEW_INCOMPLETE/);
+});
+test("every detail amount is painted inside its corresponding original government-template box", async () => {
+  // Box bounds independently extracted from the blank BIR PDF's rectangle
+  // operators, in official item order. These are not renderer coordinates.
+  const boxes = [[779.38,15.181],[760.44,15.093],[740.68,14.91],[720.61,14.756],[700.39,14.994],[681.05,14.899],[662.17,14.822],[642.92,14.629],[623.51,14.788],
+    [566.47,14.994],[547.13,14.899],[527.84,15.229],[508.41,15.215],[489.19,15.374],[461.8,15.374],[443.83,15.374],[418.11,14.801],[398.67,15.401],[379.23,15.401],[359.79,15.401],[340.35,15.401],[320.91,15.401],[291.75,15.401],[272.31,15.401]];
+  const detailItems = Object.fromEntries(CERTIFICATE_ITEMS.map((key,i) => [key, ((i + 1) * 10 + i / 100).toFixed(2)]));
+  const sum = (keys: readonly string[]) => keys.reduce((total,key) => total + Math.round(Number(detailItems[key]) * 100),0) / 100;
+  const exempt = sum(CERTIFICATE_ITEMS.slice(0,9)), taxable = sum(CERTIFICATE_ITEMS.slice(9));
+  const source = { ...certificateSource, mwe: true, summary: { grossCompensation: (exempt + taxable).toFixed(2), nonTaxable: exempt.toFixed(2), taxableIncome: taxable.toFixed(2), taxDue: "0.00", withheldBeforeYearEnd: "0.00", yearEndAdjustment: "0.00" }, withholding: { actualPresentWithheld: "0.00", appliedAdjustment: "0.00", issues: [], entryIds: [1] } };
+  const review = certificateReview();
+  const bytes = await render2316CertificatePdf(source, { ...review, detailItems, text: { ...review.text, minimumDaily: "700.00", minimumMonthly: "18200.00", "44A": "Fictional A", "44B": "Fictional B", "51A": "Fictional C", "51B": "Fictional D" } });
+  const pdf = await PDFDocument.load(bytes), contents = pdf.getPage(0).node.Contents();
+  assert.ok(contents && "size" in contents);
+  let operations = "";
+  for (let i = 0; i < contents.size(); i++) { const stream = pdf.context.lookup(contents.get(i)); if (stream instanceof PDFRawStream) operations += Buffer.from(decodePDFRawStream(stream).decode()).toString("latin1"); }
+  const painted = [...operations.matchAll(/1 0 0 1 ([\d.]+) ([\d.]+) Tm\s*<([0-9A-F]+)> Tj/gi)].map(m => ({ x: Number(m[1]), y: Number(m[2]), text: Buffer.from(m[3],"hex").toString("latin1") }));
+  CERTIFICATE_ITEMS.forEach((key,i) => {
+    const value = painted.find(p => p.text === detailItems[key]);
+    assert.ok(value, "Item " + key + " text exists");
+    assert.ok(value.x > 484 && value.x < 585 && value.y > boxes[i][0] && value.y + 8 <= boxes[i][0] + boxes[i][1], "Item " + key + " fits its original box");
+  });
 });
