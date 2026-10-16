@@ -148,13 +148,42 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           CREATE ROLE atlas_auditor LOGIN PASSWORD 'synthetic_audit_only'
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+          CREATE ROLE atlas_inspector LOGIN PASSWORD 'synthetic_audit_only'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
           ALTER ROLE atlas_auditor SET default_transaction_read_only = on;
-          GRANT CONNECT ON DATABASE app_db TO atlas_auditor;
-          GRANT CONNECT ON DATABASE atlas_candidate_db TO atlas_auditor;
+          ALTER ROLE atlas_inspector SET default_transaction_read_only = on;
+          GRANT CONNECT ON DATABASE app_db, atlas_candidate_db TO atlas_auditor, atlas_inspector;
           SQL
           for db in app_db atlas_candidate_db; do
-            psql -h 127.0.0.1 -U postgres -d "$db" -v ON_ERROR_STOP=1 \
-              -c 'GRANT USAGE ON SCHEMA public TO atlas_auditor'
+            psql -h 127.0.0.1 -U postgres -d "$db" -v ON_ERROR_STOP=1 <<'SQL'
+          GRANT USAGE ON SCHEMA public TO atlas_auditor, atlas_inspector;
+          -- Atlas 1.3 PostgreSQL inspector queries information_schema.columns,
+          -- which hides columns without any column privilege. REFERENCES
+          -- exposes metadata but grants NO application-row SELECT or DML.
+          -- This permission exists ONLY on fictional throwaway databases.
+          GRANT REFERENCES ON ALL TABLES IN SCHEMA public TO atlas_inspector;
+          SQL
+          done
+      - name: Fail closed if Atlas inspector can read rows or see too few columns
+        shell: bash
+        env:
+          PGPASSWORD: synthetic_audit_only
+        run: |
+          set -euo pipefail
+          for db in app_db atlas_candidate_db; do
+            state=$(psql -h 127.0.0.1 -U atlas_inspector -d "$db" -v ON_ERROR_STOP=1 -Atc "
+              SELECT CASE WHEN current_user='atlas_inspector'
+                AND current_setting('transaction_read_only')='on'
+                AND NOT pg_catalog.has_table_privilege(current_user,'public.employees',
+                  'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER')
+                AND NOT pg_catalog.has_schema_privilege(current_user,'public','CREATE')
+                AND (SELECT count(*) FROM information_schema.columns
+                     WHERE table_schema='public') >= 270
+                THEN 'ok' ELSE 'blocked' END")
+            if [ "$state" != 'ok' ]; then
+              echo "Atlas metadata-only inspector role or visibility guard failed."
+              exit 1
+            fi
           done
       - name: Re-run #1031 source/catalog comparison on BOTH identical PG16 fixtures (read only)
         shell: bash
@@ -166,11 +195,11 @@ jobs:
         run: |
           set -euo pipefail
           atlas schema inspect \
-            --url 'postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/app_db?search_path=public&sslmode=disable' \
+            --url 'postgresql://atlas_inspector:synthetic_audit_only@127.0.0.1:5432/app_db?search_path=public&sslmode=disable' \
             --format '{{ json . }}' \
             > qa-artifacts/independent-pg16/atlas-source-inspect.json
           atlas schema inspect \
-            --url 'postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/atlas_candidate_db?search_path=public&sslmode=disable' \
+            --url 'postgresql://atlas_inspector:synthetic_audit_only@127.0.0.1:5432/atlas_candidate_db?search_path=public&sslmode=disable' \
             --format '{{ json . }}' \
             > qa-artifacts/independent-pg16/atlas-candidate-inspect.json
           node --import tsx scripts/check-independent-atlas-inspection.mjs
@@ -180,8 +209,8 @@ jobs:
           set -euo pipefail
           atlas version > qa-artifacts/independent-pg16/atlas-version.txt
           atlas schema diff \
-            --from 'postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/atlas_candidate_db?search_path=public&sslmode=disable' \
-            --to 'postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/app_db?search_path=public&sslmode=disable' \
+            --from 'postgresql://atlas_inspector:synthetic_audit_only@127.0.0.1:5432/atlas_candidate_db?search_path=public&sslmode=disable' \
+            --to 'postgresql://atlas_inspector:synthetic_audit_only@127.0.0.1:5432/app_db?search_path=public&sslmode=disable' \
             --schema public --format '{{ sql . "" }}' \
             > qa-artifacts/independent-pg16/atlas-source-vs-train.diff.sql
       - name: Fail closed on Atlas schema differences or unknown output
