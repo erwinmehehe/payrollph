@@ -401,11 +401,11 @@ test("PG16/18: 0115-0123 exact source, denied writes, money invariants and total
     const nonRecoveryRenamePath = "0129_non_recovery_fk_names_forward.sql";
     const sql0129 = source(nonRecoveryRenamePath);
     const fkRenameMap = [...sql0129.matchAll(
-      /ALTER TABLE public\\."([a-z_]+)" RENAME CONSTRAINT "([a-z0-9_]+)" TO "([a-z0-9_]+)";/g
+      /ALTER TABLE public\."([a-z_]+)" RENAME CONSTRAINT "([a-z0-9_]+)" TO "([a-z0-9_]+)";/g
     )].map(([,table,oldName,newName]) => ({table,oldName,newName}));
     assert.equal(fkRenameMap.length, 54, "exact 54 proposed 0129 FK renames");
-    assert.doesNotMatch(sql0129.replace(/--[^\\r\\n]*/g,""),
-      /^\\s*(?:BEGIN|COMMIT|ROLLBACK)\\s*;/im,
+    assert.doesNotMatch(sql0129.replace(/--[^\r\n]*/g,""),
+      /^\s*(?:BEGIN|COMMIT|ROLLBACK)\s*;/im,
       "the synthetic runner owns the entire transaction");
     const read1031 = async () => {
       const physical=(await db.query(fullSchemaCatalogSql)).rows.map(
