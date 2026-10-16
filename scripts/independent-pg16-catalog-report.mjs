@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { parse0128Renames, compare1031Stages, RECOVERY_TABLES } from "./lib/independent-reconciliation-evidence.mjs";
+import { corroborateCascadeResiduals } from "./lib/independent-cascade-provenance.mjs";
 import pg from "pg";
 
 // Dedicated #1031 catalog-only login; Atlas uses a separate REFERENCES-only
@@ -117,6 +118,18 @@ results.reconciliation = compare1031Stages({
   post0128: results.reconciled,
   mappings: parse0128Renames(sql0128),
 });
+// This proves whether a candidate-only missing FK was removed in the local
+// DROP CASCADE fixture; it does NOT resolve or exclude the discrepancy.
+const cascadeTrace = JSON.parse(readFileSync(
+  "qa-artifacts/independent-pg16/synthetic-cascade-provenance.json", "utf8"));
+assert.equal(cascadeTrace.prHeadSha, process.env.PR_HEAD_SHA || null,
+  "Cannot combine provenance from a different PR source head");
+results.reconciliation.syntheticCascadeProvenance = corroborateCascadeResiduals(
+  results.reconciliation.postCandidateOnlyObjects, cascadeTrace);
+if (results.reconciliation.syntheticCascadeProvenance.unsupported.length > 0) {
+  console.error("Unproven synthetic CASCADE cause; inspect original FK evidence");
+  process.exitCode = 1;
+}
 writeFileSync("qa-artifacts/independent-pg16/issue-1031-side-by-side.json",
   JSON.stringify(results, null, 2) + "\n");
 console.log(JSON.stringify({
@@ -129,6 +142,7 @@ console.log(JSON.stringify({
   postCandidateOnly: results.reconciliation.postCandidateOnly,
   post0128NameOnlyFkPairs: results.reconciliation.nameOnlyFkPairCountOutside0128,
   post0128ResidualByCategory: results.reconciliation.postCandidateOnlyByCategory,
+  syntheticCascadeProvenance: results.reconciliation.syntheticCascadeProvenance,
   reconciliationGate: results.reconciliation.catalogReconciliationGate,
   commonNonPassing: results.baselineComparison.commonNonPassing,
   candidateOnly: results.baselineComparison.candidateOnly.length,

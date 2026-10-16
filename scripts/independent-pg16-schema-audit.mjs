@@ -11,9 +11,10 @@
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import pg from "pg";
 import { DISPOSABLE_MISSING_TABLES } from "./lib/independent-reconciliation-evidence.mjs";
+import { classifySyntheticCascade } from "./lib/independent-cascade-provenance.mjs";
 import {
   ISSUE1054_PREFLIGHT_SQL,
   ISSUE1054_POSTFLIGHT_SQL,
@@ -36,6 +37,25 @@ const FILES = Object.freeze([
   "0126_compensation_governance_forward_repair.sql",
 ]);
 const ABSENT_TARGETS = DISPOSABLE_MISSING_TABLES;
+
+// Witness only FKs on surviving tables pointing INTO synthetically dropped
+// tables. Capturing the exact before/drop/replay transition prevents a
+// DROP CASCADE side effect being mistaken for proven production drift.
+const COLLATERAL_FKS_SQL = String.raw`
+SELECT child.relname AS "childTable",
+  parent.relname AS "referencedTable",
+  fk.conname AS "constraintName",
+  pg_catalog.pg_get_constraintdef(fk.oid) AS "definition"
+FROM pg_catalog.pg_constraint fk
+JOIN pg_catalog.pg_class child ON child.oid=fk.conrelid
+JOIN pg_catalog.pg_class parent ON parent.oid=fk.confrelid
+WHERE fk.contype='f'
+  AND child.relnamespace='public'::regnamespace
+  AND parent.relnamespace='public'::regnamespace
+  AND parent.relname=ANY($1::text[])
+  AND child.relname<>ALL($1::text[])
+ORDER BY child.relname, fk.conname
+`;
 
 function failClosedEnvironment() {
   assert.equal(process.env.CI, "true", "CI only");
@@ -79,12 +99,18 @@ async function main() {
     await client.query("SET LOCAL statement_timeout = '120s'");
     await client.query("SET LOCAL search_path = public");
 
+    const originalCollateralFks = (await client.query(COLLATERAL_FKS_SQL,
+      [ABSENT_TARGETS])).rows;
+
     // Simulates the known *absences* in a synthetic production-shaped baseline.
     // Does not pretend to recreate a production DB or historical receipts.
     // CASCADE can remove other synthetic foreign keys; Atlas should surface
     // them as differences, not auto-normalize them away.
     await client.query("DROP TABLE IF EXISTS " +
       ABSENT_TARGETS.map(name => 'public."' + name + '"').join(", ") + " CASCADE");
+
+    const afterSyntheticDropFks = (await client.query(COLLATERAL_FKS_SQL,
+      [ABSENT_TARGETS])).rows;
 
     for (const name of ABSENT_TARGETS) {
       const row = (await client.query("SELECT to_regclass($1) AS target", ["public." + name])).rows[0];
@@ -103,10 +129,24 @@ async function main() {
       const row = (await client.query("SELECT to_regclass($1) IS NOT NULL AS target", ["public." + name])).rows[0];
       assert.equal(row.target, true, "post-train object absent: " + name);
     }
+    const postReplayCollateralFks = (await client.query(COLLATERAL_FKS_SQL,
+      [ABSENT_TARGETS])).rows;
+    const cascadeTrace = classifySyntheticCascade(
+      originalCollateralFks, afterSyntheticDropFks, postReplayCollateralFks);
+
     // The third-party CLI needs committed visibility. COMMIT is allowed ONLY
     // on atlas_candidate_db inside the throwaway GitHub Actions PG16 service.
     await client.query("COMMIT");
     transaction = false;
+
+    // Record schema-only witness; neither migration text nor database is fixed
+    // up after the fact, and no collateral difference is excluded from Atlas.
+    const cascadeEvidence = {
+      ...cascadeTrace, prHeadSha: process.env.PR_HEAD_SHA || null,
+      githubWorkflowCommit: process.env.GITHUB_SHA || null,
+    };
+    writeFileSync("qa-artifacts/independent-pg16/synthetic-cascade-provenance.json",
+      JSON.stringify(cascadeEvidence, null, 2) + "\n");
 
     console.log(JSON.stringify({
       evidence: "SYNTHETIC_LOCAL_PG16_ONLY_NOT_PRODUCTION_PARITY",
@@ -120,6 +160,8 @@ async function main() {
       pgMajor: 16,
       githubPrHead: process.env.PR_HEAD_SHA || null,
       githubWorkflowCommit: process.env.GITHUB_SHA || null,
+      syntheticCascadeForeignKeys: cascadeTrace.originalCollateralForeignKeys,
+      syntheticCascadeNamesStillAbsent: cascadeTrace.stillAbsentByNameAfterReplay,
       migrationReceiptCreated: false,
       productionDatabaseAccessed: false,
       releaseApproved: false,

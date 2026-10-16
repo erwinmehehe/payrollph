@@ -11,6 +11,8 @@ on:
       - "scripts/independent-pg16-0128-checkpoint.mjs"
       - "scripts/independent-squawk-review.mjs"
       - "scripts/lib/independent-reconciliation-evidence.mjs"
+      - "scripts/lib/independent-cascade-provenance.mjs"
+      - "tests/independent-cascade-provenance.test.mjs"
       - "tests/independent-reconciliation-evidence.test.mjs"
       - "scripts/lib/independent-schema-evidence.mjs"
       - "tests/independent-schema-evidence.test.mjs"
@@ -48,7 +50,7 @@ jobs:
         with:
           node-version: "22"
       - name: Test fail-closed independent evidence classification
-        run: node --test tests/independent-schema-evidence.test.mjs tests/independent-reconciliation-evidence.test.mjs
+        run: node --test tests/independent-schema-evidence.test.mjs tests/independent-reconciliation-evidence.test.mjs tests/independent-cascade-provenance.test.mjs
       - name: Squawk 2.65.0, PG16, reviewed-runner transaction semantics
         shell: bash
         run: |
@@ -124,7 +126,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Test independent evidence and recovery classifiers (no database)
-        run: node --test tests/independent-schema-evidence.test.mjs tests/independent-reconciliation-evidence.test.mjs
+        run: node --test tests/independent-schema-evidence.test.mjs tests/independent-reconciliation-evidence.test.mjs tests/independent-cascade-provenance.test.mjs
       - name: Guarded first and ONLY source Drizzle push to local app_db
         run: npm run db:push
       - name: Clone only the disposable source schema to a second local DB

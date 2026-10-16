@@ -401,3 +401,24 @@ bypassed because a synthetic test or third-party linter is green.
 
 **DO NOT MERGE into a production migration workflow or dispatch against Neon.**
 The workflow has only a PR trigger and `contents: read` permission.
+
+## 2026-10-16 follow-up — provable synthetic CASCADE provenance (still NO-GO)
+
+The three post-0128 missing foreign keys on surviving tables reference
+`compensation_events` or `entity_transfer_requests`, both in the 25-table
+synthetic omission list. Previously they were classified as **possible**
+`DROP TABLE ... CASCADE` fallout. The isolated fixture now snapshots the
+surviving-table foreign-key catalog **before DROP, immediately after DROP,
+and after unmodified 0115–0126 replay**. A separate pure-data validator
+rejects duplicate or impossible witnesses and emits
+`synthetic-cascade-provenance.json` under the same 14-day CI artifact.
+The independent #1031 report cross-checks every *potential* synthetic-loss
+row against its exact original constraint name and owning table.
+
+A proven local CASCADE removal is **not** proof that an authentic historical
+production database lacked or restored that FK. Nothing is automatically
+recreated, renamed, approved, or excluded from Atlas/#1031 results. Atlas's
+33 post-0128 proposed DDL statements, the 159 post-stage candidate-only
+catalog differences, and all 115 Squawk warnings remain fully blocking until
+independent engineering/DBA decisions and real historical evidence. The new
+witness is additional data quality evidence; **PR remains DRAFT / NO-GO**.
