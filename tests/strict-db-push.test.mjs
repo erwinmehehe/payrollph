@@ -51,6 +51,8 @@ test("#1019 normal npm db:push cannot invoke unguarded drizzle-kit", () => {
   const code = readFileSync("scripts/strict-db-push.mjs", "utf8");
   assert.match(code, /assertIsolatedDbPushTarget\(env\.DATABASE_URL, env\)/);
   assert.match(code, /classifyStrictDbPush\(code, stdout, stderr\)/);
-  assert.match(code, /\[BIN, "push"\]/);
+  assert.match(code, /\[BIN, "push", \.\.\.\(verbose/);
+  assert.match(code, /env\.ISSUE_1019_VERBOSE === "true"/);
+  assert.match(code, /env\.GITHUB_ACTIONS === "true"/);
   assert.doesNotMatch(code, /shell:\s*true|--force|--accept-data-loss|DROP\s+SCHEMA/);
 });
