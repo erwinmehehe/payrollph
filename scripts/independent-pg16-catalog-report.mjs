@@ -87,11 +87,28 @@ const results = {
   source: await inspect(SOURCE_URL, "app_db"),
   candidate: await inspect(CANDIDATE_URL, "atlas_candidate_db"),
 };
+// Do not convert universal source comparator disagreements into PASS.
+ // Preserve exact catalog rows AND separate common baseline disagreement from
+ // synthetic candidate-only disagreement (which can include DROP CASCADE fallout).
+const signature = row => JSON.stringify([
+  row.table, row.object, row.kind, row.status, row.expected, row.actual,
+]);
+const original = new Set(results.source.nonPassing.map(signature));
+const candidate = new Set(results.candidate.nonPassing.map(signature));
+results.baselineComparison = {
+  commonNonPassing: results.source.nonPassing.filter(x => candidate.has(signature(x))).length,
+  sourceOnly: results.source.nonPassing.filter(x => !candidate.has(signature(x))),
+  candidateOnly: results.candidate.nonPassing.filter(x => !original.has(signature(x))),
+  explanation: "SYNTHETIC_DIFFERENCES_REQUIRE_REVIEW_NOT_APPROVAL",
+};
 writeFileSync("qa-artifacts/independent-pg16/issue-1031-side-by-side.json",
   JSON.stringify(results, null, 2) + "\n");
 console.log(JSON.stringify({
   sourceCounts: results.source.counts,
   candidateCounts: results.candidate.counts,
+  commonNonPassing: results.baselineComparison.commonNonPassing,
+  candidateOnly: results.baselineComparison.candidateOnly.length,
+  sourceOnly: results.baselineComparison.sourceOnly.length,
   bothReadOnly: true,
   notReleaseApproval: true,
 }));
