@@ -16,15 +16,35 @@ export function cookieOriginFindings(path: string, source: string): CookieOrigin
   const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const findings: CookieOriginFinding[] = [];
   const bodyContains = (node: ts.Node, name: string) => node.getText(file).includes(name);
+  const handlers: Array<{ name: string; body: ts.Node; declaration: ts.Node }> = [];
+
   for (const statement of file.statements) {
-    if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue;
-    const exported = statement.modifiers?.some((mod) => mod.kind === ts.SyntaxKind.ExportKeyword);
-    const method = statement.name.text;
-    if (!exported || !MUTATIONS.has(method)) continue;
-    const handler = statement.body.getText(file);
+    const exported = ts.canHaveModifiers(statement) &&
+      ts.getModifiers(statement)?.some((mod) => mod.kind === ts.SyntaxKind.ExportKeyword);
+    if (!exported) continue;
+
+    if (ts.isFunctionDeclaration(statement) && statement.name && statement.body &&
+      MUTATIONS.has(statement.name.text)) {
+      handlers.push({ name: statement.name.text, body: statement.body, declaration: statement });
+    } else if (ts.isVariableStatement(statement)) {
+      // Next.js accepts both named functions and exported arrow-function
+      // route handlers. Previously the latter were invisible to this AST audit.
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name) || !MUTATIONS.has(declaration.name.text)) continue;
+        let initializer = declaration.initializer;
+        while (initializer && ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
+        if (initializer && (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer))) {
+          handlers.push({ name: declaration.name.text, body: initializer.body, declaration });
+        }
+      }
+    }
+  }
+
+  for (const { name: method, body, declaration } of handlers) {
+    const handler = body.getText(file);
     const origin = handler.indexOf("enforceSameOriginMutation(");
     const session = handler.indexOf("getSessionUser(");
-    const line = file.getLineAndCharacterOfPosition(statement.getStart(file)).line + 1;
+    const line = file.getLineAndCharacterOfPosition(declaration.getStart(file)).line + 1;
 
     // Non-cookie webhook, bearer and token exchanges are separate review lanes.
     if (session < 0) continue;
@@ -32,7 +52,7 @@ export function cookieOriginFindings(path: string, source: string): CookieOrigin
       findings.push({ path, handler: method, line, problem: "Session mutation has no same-origin guard" });
     } else if (origin > session) {
       findings.push({ path, handler: method, line, problem: "Session may be read before same-origin guard" });
-    } else if (!bodyContains(statement.body, "if (originDenied)") && !bodyContains(statement.body, "if (originCheck)")) {
+    } else if (!bodyContains(body, "if (originDenied)") && !bodyContains(body, "if (originCheck)")) {
       // Avoid claiming guard completeness for a call whose denial is discarded.
       // Different route variable names are supported below.
       const tail = handler.slice(origin);

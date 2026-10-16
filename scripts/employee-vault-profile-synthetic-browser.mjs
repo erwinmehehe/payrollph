@@ -63,6 +63,16 @@ async function exercise(width) {
   // presigned URLs or browser context/session state to artifacts.
   await view.focus();
   await panel.screenshot({ path: out + "/" + width + "-view.png" });
+  // 390px must remain scroll-free with the document row and all action controls
+  // present. A check only after Delete missed a real earlier regression.
+  const visibleFileLayout = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+  }));
+  assert.equal(visibleFileLayout.viewport, width);
+  assert.ok(visibleFileLayout.documentWidth <= width + 1,
+    "Document row overflow while visible at " + width + "px: " + JSON.stringify(visibleFileLayout));
+
 
   const downloaded = await context.request.get(BASE + href + "?download=1", { maxRedirects: 5 });
   assert.equal(downloaded.status(), 200, "Authenticated private download");
@@ -88,7 +98,7 @@ async function exercise(width) {
   assert.ok(dimensions.scrollWidth <= dimensions.width + 1,
     "Horizontal overflow at " + width + "px: " + JSON.stringify(dimensions));
   checks.push({ width, upload: true, view: true, download: true, removal: true,
-    noOverflow: true, viewAfterRemovalDenied: true });
+    noOverflow: true, noOverflowWithDocument: true, viewAfterRemovalDenied: true });
   await context.close();
 }
 

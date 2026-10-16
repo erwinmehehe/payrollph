@@ -87,6 +87,26 @@ jobs:
           exit 1
       - name: Focused Settings navigation regression at desktop and 390px
         run: NAV_SWEEP_FOCUS_ROLE=owner NAV_SWEEP_FOCUS_PAGE=Settings node --import tsx --test tests/e2e/nav-sweep.spec.mjs
+      - name: Focused 375px role-scoped visual and mobile navigation acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAV_SWEEP_MOBILE_EDGE=true NAV_SWEEP_FOCUS_ROLE=hr NAV_SWEEP_FOCUS_PAGE=People node --import tsx --test tests/e2e/nav-sweep.spec.mjs
+          cp qa-artifacts/nav-sweep/report.json qa-artifacts/nav-sweep/mobile-edge-hr-people.json
+          NAV_SWEEP_MOBILE_EDGE=true NAV_SWEEP_FOCUS_ROLE=manager NAV_SWEEP_FOCUS_PAGE=Approvals node --import tsx --test tests/e2e/nav-sweep.spec.mjs
+          cp qa-artifacts/nav-sweep/report.json qa-artifacts/nav-sweep/mobile-edge-manager-approvals.json
+          NAV_SWEEP_MOBILE_EDGE=true NAV_SWEEP_FOCUS_ROLE=employee NAV_SWEEP_FOCUS_PAGE=employee-profile node --import tsx --test tests/e2e/nav-sweep.spec.mjs
+          cp qa-artifacts/nav-sweep/report.json qa-artifacts/nav-sweep/mobile-edge-employee-profile.json
+      - name: Prove deliberately overflowing 375px mobile layout is caught
+        shell: bash
+        run: |
+          set -euo pipefail
+          if NAV_SWEEP_MOBILE_EDGE=true NAV_SWEEP_INJECT_VISUAL_OVERFLOW=true NAV_SWEEP_FOCUS_ROLE=hr NAV_SWEEP_FOCUS_PAGE=People node --import tsx --test tests/e2e/nav-sweep.spec.mjs; then
+            echo "ERROR: deliberately overflowing mobile layout escaped detection"
+            exit 1
+          fi
+          node -e 'const r=require("./qa-artifacts/nav-sweep/report.json"); if (!r.failed || !r.results.some(x=>x.findings.some(f=>f.kind==="mobile visual contract" && f.detail.includes("horizontal overflow")))) process.exit(1)'
+          cp qa-artifacts/nav-sweep/report.json qa-artifacts/nav-sweep/mobile-edge-negative-proof.json
       - name: Prove deliberately broken Overview route is caught (negative test)
         shell: bash
         run: |
@@ -99,7 +119,7 @@ jobs:
           cp qa-artifacts/nav-sweep/report.json qa-artifacts/nav-sweep/negative-proof.json
       - name: Run navigation and runtime error sweep
         run: |
-          node --test tests/nav-sweep-role-coverage.test.mjs
+          node --test tests/nav-sweep-role-coverage.test.mjs tests/nav-sweep-visual-contract.test.mjs
           node scripts/nav-sweep-run-all-roles.mjs
       - name: Upload route-role reports
         if: always()
