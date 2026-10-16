@@ -4,12 +4,20 @@ on:
   pull_request:
     paths:
       - "drizzle/0125_wfm_availability_open_shifts_forward_repair.sql"
+      - "scripts/lib/issue-1054-protected-preflight.mjs"
+      - "scripts/lib/reviewed-migration-runner.mjs"
+      - "docs/engineering/issue-1031-migration-source-worksheet.csv"
+      - "tests/issue-1054-forward-preflight-regression.test.mjs"
       - "tests/wfm-1054-forward-migration-postgres.test.mjs"
       - ".github/workflows/issue-1054-forward-schema-rehearsal.yml"
   push:
     branches: [main]
     paths:
       - "drizzle/0125_wfm_availability_open_shifts_forward_repair.sql"
+      - "scripts/lib/issue-1054-protected-preflight.mjs"
+      - "scripts/lib/reviewed-migration-runner.mjs"
+      - "docs/engineering/issue-1031-migration-source-worksheet.csv"
+      - "tests/issue-1054-forward-preflight-regression.test.mjs"
       - "tests/wfm-1054-forward-migration-postgres.test.mjs"
       - ".github/workflows/issue-1054-forward-schema-rehearsal.yml"
 
@@ -65,9 +73,13 @@ jobs:
         run: npm run db:push
       - name: Compare exact candidate against Drizzle catalog and prove rollback
         run: |
+          set -euo pipefail
           mkdir -p qa-artifacts/issue-1054
           node --check tests/wfm-1054-forward-migration-postgres.test.mjs
+          node --check scripts/lib/issue-1054-protected-preflight.mjs
+          node --check tests/issue-1054-forward-preflight-regression.test.mjs
           node --test tests/wfm-1054-forward-migration-postgres.test.mjs | tee qa-artifacts/issue-1054/pg-${{ matrix.postgres }}.log
+          node --test tests/issue-1054-forward-preflight-regression.test.mjs | tee -a qa-artifacts/issue-1054/pg-${{ matrix.postgres }}.log
           sha256sum drizzle/0125_wfm_availability_open_shifts_forward_repair.sql > qa-artifacts/issue-1054/pg-${{ matrix.postgres }}.sha256
           printf 'isolated-ci-rollback-only\nnot-applied-to-neon\nnot-production-approval\n' > qa-artifacts/issue-1054/deployment-state.txt
       - name: Retain isolated synthetic evidence (never production receipts)

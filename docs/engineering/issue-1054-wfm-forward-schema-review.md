@@ -54,3 +54,11 @@ Passing these checks does **not** demonstrate that the current Neon branch meets
 6. **Enable last:** Keep `WFM_EMPLOYEE_AVAILABILITY_ENABLED` and `NEXT_PUBLIC_WFM_EMPLOYEE_AVAILABILITY_ENABLED` OFF until the independent operator grants an explicit GO at the deployed SHA. Otherwise show unavailable state truthfully.
 
 **Do not close issue #1054** until authentic schema release receipts, independent acceptance and post-change no-500 evidence are attached.
+
+## 2026-10-16 immutable-history compliant correction (engineering draft)
+
+**Numbered SQL `drizzle/0125_wfm_availability_open_shifts_forward_repair.sql` remains exactly as already merged:** SHA-256 `3f51ca8ed1ea2cb8a04e071f567be1b5281425ab26677af4d5a539bdaeeee20b`. The repository SQL-history policy forbids in-place edits; the historic file's unsafe preflight is NOT represented as fixed.
+
+Instead `scripts/lib/issue-1054-protected-preflight.mjs` contains strict catalog-only SQL. The protected reviewed migration runner executes it in the same identity-checked, bounded PLAN/APPLY transaction **before** authorized 0125 DDL; failure aborts before any DDL or immutable release-ledger receipt. It validates seven single integer parent PKs; an exact full, valid/ready, nonpartial five-key staffing role unique index; absence of legacy staffing index; no orphan/reserved sequence or index; absent target relations; and no reserved FK-constraint-name collision. Explicit `P0001` prefixes identify denial cases. No DML, grant or replay of 0039.
+
+The original 0125 **remains unsafe if applied outside this reviewed runner**. An independently approved DBA-only procedure must execute the exact preflight and 0125 in the same transaction; ad-hoc SQL apply is prohibited. Isolated PG16/18 tests intentionally reproduce original orphan acceptance under a rollback SAVEPOINT, then prove the companion rejects it and performs a clean synthetic create/replay/rollback. Production identity, receipts, #899, #907/#908, independent DBA, protected PLAN/APPLY and post-apply smoke gates remain unsatisfied. **Production NO-GO**.
