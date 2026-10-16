@@ -2,6 +2,41 @@
 
 **Decision: NO-GO. SOURCE INVENTORY ONLY. No production or Neon SQL was executed. No receipt was collected or inferred.** This does not authorize schema repair, payroll processing, deployment, migration replay or release.
 
+## Proposed 0128/0129 forward-source addendum — #1136 (2026-10-16)
+
+This paragraph updates the **current branch's source-only inventory**, not the
+historical `main` snapshot described below. The complete `drizzle/` inventory
+at PR #1136 now contains **145 files**: **143 numbered SQL files**, one
+unnumbered `baseline.sql`, and one `README.md`; there are **144 SQL files**
+in total. The Drizzle model contains **271 table declarations**. The 13 older
+duplicate-prefix groups remain intact.
+
+Two additional proposed files are included in the regenerated source worksheet
+with full file paths and exact SHA-256 of their committed bytes:
+
+- `drizzle/0128_recovery_foreign_key_names_forward.sql` — 49 proposed
+  constraint-only renames, source-only; no production receipt claimed.
+- `drizzle/0129_non_recovery_fk_names_forward.sql` — 54 proposed
+  constraint-only renames, source-only; no production receipt claimed.
+
+Both entries retain **all six receipt/disposition fields blank**, include the
+original candidate prerequisite sources, and conservatively flag procedural
+preflight SQL for review. These filenames are **not** evidence that any
+migration has run. No current production schema, Neon endpoint, historical
+journal or approval has been checked here. The existing 271-table source
+crosswalk is unchanged by name-only FK renames.
+
+To verify this addendum against committed source files:
+`node scripts/generate-issue-1031-source-worksheet.mjs --check` and
+`node --test tests/issue-1031-migration-source-worksheet.test.mjs`.
+The complete #1136 dedicated synthetic PG16 workflow enforces both checks
+before cloning or changing any disposable database.
+
+**Historical provenance note:** The original 142-file/270-table figures in
+the next section describe a *separate earlier main commit*. They must not be
+relabelled as this PR's counts, and neither historical snapshot provides a
+real production database receipt.
+
 ## Scope and source provenance
 
 Created from `main` commit `7467a8cc0e68318cdf15e55e174dd66f1ca21fea` on 16 October 2026. Extend, do not replace:
