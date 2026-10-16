@@ -179,13 +179,38 @@ async function main() {
       fail("CATALOG_DRIFT");
     }
     if(mode==="negative-drift") {
-      await client.query("BEGIN");
-      try {
-        await client.query("CREATE INDEX issue1019_negative_catalog_probe ON documents(organization_id)");
-        const mutated=await readCatalogObjects(client);
-        if(summarize(mutated).sha256===current.sha256)fail("NEGATIVE_DRIFT_UNDETECTED");
-      } finally {await client.query("ROLLBACK").catch(()=>{});}
-      process.stdout.write("ISSUE_1019_CATALOG_DRIFT_NEGATIVE=PASS\n");
+      // Both probes run only against an empty disposable CI database and must
+      // revert their entire DDL transaction. Check each drift independently.
+      const probes=[
+        {
+          name:"index",
+          ddl:"CREATE INDEX issue1019_negative_catalog_probe ON documents(organization_id)",
+          expected:c=>c.indexes.some(x=>x.name==="issue1019_negative_catalog_probe"),
+        },
+        {
+          name:"column-type",
+          // The pinned source schema declares documents.file_name VARCHAR(200).
+          ddl:"ALTER TABLE documents ALTER COLUMN file_name TYPE varchar(201)",
+          expected:c=>c.columns.some(x=>x.relation==="documents" &&
+            x.name==="file_name" && x.data_type==="character varying(201)"),
+        },
+      ];
+      if(!before.columns.some(x=>x.relation==="documents" && x.name==="file_name" &&
+        x.data_type==="character varying(200)"))fail("UNEXPECTED_DRIFT_BASELINE");
+      for(const probe of probes) {
+        await client.query("BEGIN");
+        try {
+          await client.query(probe.ddl);
+          const mutated=await readCatalogObjects(client);
+          if(!probe.expected(mutated) || summarize(mutated).sha256===current.sha256)
+            fail("NEGATIVE_DRIFT_UNDETECTED");
+        } finally {
+          await client.query("ROLLBACK").catch(()=>{});
+        }
+        const restored=await catalog(client);
+        if(summarize(restored).sha256!==current.sha256)fail("NEGATIVE_DRIFT_NOT_ROLLED_BACK");
+      }
+      process.stdout.write("ISSUE_1019_CATALOG_INDEX_AND_COLUMN_TYPE_DRIFT_NEGATIVE=PASS\n");
       return;
     }
     process.stdout.write("ISSUE_1019_PINNED_STABLE_TRUE_NO_OP_PG"+major+"=PASS; catalog unchanged\n");
