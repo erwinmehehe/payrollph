@@ -39,7 +39,7 @@ const privateTailnetDevHost = (() => {
     const parsed = new URL(raw);
     if (parsed.origin === raw && parsed.protocol === "https:" &&
       parsed.port === "" &&
-      /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.){2,}ts\\.net$/.test(parsed.hostname)) {
+      /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.){2,}ts\.net$/.test(parsed.hostname)) {
       return parsed.hostname;
     }
   } catch { /* no private QA origin configured */ }

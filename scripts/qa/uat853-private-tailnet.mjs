@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 
 const LOOPBACK_PROXY = 'http://127.0.0.1:3000';
-const TAILNET_HOST = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.){2,}ts\\.net$/;
+const TAILNET_HOST = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.){2,}ts\.net$/;
 
 export function assertPrivateTailnetOrigin(candidate) {
   assert.equal(typeof candidate, 'string', 'UAT853_PRIVATE_ORIGIN_MISSING');
