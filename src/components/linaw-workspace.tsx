@@ -72,6 +72,7 @@ import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll,
 import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
+import { useDashboardReadRecovery } from "@/lib/use-dashboard-read-recovery";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null, optionalUiCapabilities = { overpaymentPreview: false, overpaymentInvestigation: false, tenantReportBuilder: false } }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null; optionalUiCapabilities?: { overpaymentPreview: boolean; overpaymentInvestigation: boolean; tenantReportBuilder: boolean } }) {
   const searchParams = useSearchParams();
@@ -114,6 +115,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
+  const { refresh, refreshIssue, refreshLoading } = useDashboardReadRecovery(
+    data.selectedOrganization.id, setData,
+  );
   useMultiEntityRequestHeaders(data.multiEntity);
   const [page, setPage] = useState(initialPage);
   const [busy, setBusy] = useState(false);
@@ -205,19 +209,6 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   }, [page]);
 
   /* ------------------------------------------------------------- data ops */
-
-  const refresh = useCallback(
-    async (organizationId = data.selectedOrganization.id) => {
-      const response = await fetch(`/api/dashboard?organizationId=${organizationId}`, { cache: "no-store" });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error ?? `The workspace could not be reloaded (${response.status}).`);
-      }
-      setData((await response.json()) as DashboardData);
-    },
-    [data.selectedOrganization.id, setData],
-  );
-
 
   function changeOrganization(id: number) {
     if (!Number.isSafeInteger(id) || id <= 0 || id === data.selectedOrganization.id) return;
@@ -426,6 +417,20 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
 
   /* --------------------------------------------------------------- render */
 
+  // Do not keep showing previously authorized employee/payroll panels after a
+  // session, employer-scope, or permissions read failure. Full reload rechecks RBAC.
+  if (refreshIssue && (refreshIssue.kind === "session" ||
+      refreshIssue.kind === "forbidden" || refreshIssue.kind === "scope")) {
+    return (
+      <main role="alert" className="mx-auto mt-16 max-w-xl rounded-2xl border border-amber-300 bg-amber-50 p-6 text-slate-900">
+        <h1 className="text-xl font-semibold">Workspace access needs to be checked</h1>
+        <p className="mt-2 text-sm leading-6">{refreshIssue.message}</p>
+        <a className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-emerald-900 px-4 py-2 font-semibold text-white"
+          href={"/app?organizationId=" + data.selectedOrganization.id}>Reload the secure workspace</a>
+      </main>
+    );
+  }
+
   return (
     <>
       <WorkspaceShell
@@ -469,6 +474,21 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           </>
         }
       >
+        {refreshLoading && (
+          <p role="status" aria-live="polite" className="mb-3 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
+            Refreshing this employer&apos;s workspace. The previous snapshot may still be visible.
+          </p>
+        )}
+        {refreshIssue && (
+          <div role="alert" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+            <p>{refreshIssue.message} This is not an empty employee or payroll result.</p>
+            <button type="button" disabled={refreshLoading}
+              onClick={() => { void refresh().catch(() => undefined); }}
+              className="mt-2 inline-flex min-h-11 items-center rounded-lg border border-amber-800 px-3 py-2 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+              Retry read-only workspace refresh
+            </button>
+          </div>
+        )}
         {demoRole && demoInfo && page !== "Overview" && (
           <DemoSandboxBar
             role={demoRole}
@@ -679,11 +699,13 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
                   provisioning={data.provisioning}
                   onRefresh={async () => { await refresh(data.selectedOrganization.id); }}
                   onOpenEmployee={openHrEmployee}
+                  onAddEmployee={data.everydayHrHireEnabled === true && canUsePeopleOps && !demoRole ? () => setNewHireOpen(true) : undefined}
                   allowHirePayrollReview={allowHirePayrollReview && !demoRole}
                   onOpenDocuments={availablePages.includes("Documents") ? () => setPage("Documents") : undefined}
                 />
               )}
             <RecruitmentPanel
+              everydayHrHireEnabled={data.everydayHrHireEnabled}
               key={data.selectedOrganization.id}
               organizationId={data.selectedOrganization.id}
               setNotice={noticeAdapter}
@@ -766,6 +788,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
       )}
       {newHireOpen && (
         <NewHireModal
+          everydayHrHireEnabled={data.everydayHrHireEnabled}
           organizationId={data.selectedOrganization.id}
           multiEntity={data.multiEntity}
           onClose={() => setNewHireOpen(false)}

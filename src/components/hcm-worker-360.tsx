@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, RefreshCw, ShieldCheck } from "lucide-react";
 import { Worker360History } from "@/components/hcm-worker-360-history";
-import { WorkerDocumentVault } from "@/components/hcm-worker-document-vault";
+import { EmployeeVaultProfilePanel } from "@/components/employee-vault-profile-panel";
 import type { Worker360Summary } from "@/lib/hcm-worker-360-contract";
 import { validWorker360Date } from "@/lib/hcm-worker-360-projection";
 
@@ -25,17 +25,22 @@ function dateText(value: string | null) {
 }
 
 export function Worker360Client({
-  organizationId, employeeId, initialAsOfDate,
+  organizationId, employeeId, initialAsOfDate, vaultEnabled = false, vaultUploadsEnabled = false,
 }: {
   organizationId: number;
   employeeId: number;
   initialAsOfDate: string;
+  vaultEnabled?: boolean;
+  vaultUploadsEnabled?: boolean;
 }) {
-  return <ScopedWorker360 key={`${organizationId}:${employeeId}`} organizationId={organizationId} employeeId={employeeId} initialAsOfDate={initialAsOfDate}/>;
+  return <ScopedWorker360 key={`${organizationId}:${employeeId}`} organizationId={organizationId}
+    employeeId={employeeId} initialAsOfDate={initialAsOfDate}
+    vaultEnabled={vaultEnabled} vaultUploadsEnabled={vaultUploadsEnabled} />;
 }
 
-function ScopedWorker360({ organizationId, employeeId, initialAsOfDate }: {
+function ScopedWorker360({ organizationId, employeeId, initialAsOfDate, vaultEnabled, vaultUploadsEnabled }: {
   organizationId: number; employeeId: number; initialAsOfDate: string;
+  vaultEnabled: boolean; vaultUploadsEnabled: boolean;
 }) {
   const [asOfDate, setAsOfDate] = useState(initialAsOfDate);
   const [revision, setRevision] = useState(0);
@@ -95,7 +100,7 @@ function ScopedWorker360({ organizationId, employeeId, initialAsOfDate }: {
             <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">Linaw HCM · Read-only</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight">Worker 360</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Employee context and effective-dated history are read-only. Private document actions use a separate, access-controlled vault and never change payroll.
+              Employment history remains read-only. Separately authorized HR document actions never modify payroll records.
             </p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
@@ -192,7 +197,8 @@ function ScopedWorker360({ organizationId, employeeId, initialAsOfDate }: {
               {history && <Worker360History key={scope} organizationId={organizationId}
                 employeeId={employeeId} asOfDate={asOfDate} preview={history} />}
             </div>
-            <WorkerDocumentVault key={`${organizationId}:${employeeId}`} organizationId={organizationId} employeeId={employeeId} />
+            {vaultEnabled && <EmployeeVaultProfilePanel key={organizationId + ":" + employeeId}
+              organizationId={organizationId} employeeId={employeeId} uploadsEnabled={vaultUploadsEnabled} />}
             <p className="mt-6 max-w-4xl text-xs text-slate-500">
               Worker 360 provides a bounded, source-linked view. It is not proof of complete employment history, verified statutory compliance, payroll settlement or independently approved HR decisions. All changes must occur in their owning workflows.
             </p>

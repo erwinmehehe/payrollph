@@ -76,12 +76,10 @@ export function signedDocumentObjectUrl(
     "X-Amz-Expires": String(expires),
     "X-Amz-SignedHeaders": "host",
   });
-  // SigV4 signs S3's response header override so a private download is
-  // actually saved instead of opening an external provider-hosted inline tab.
   if (options.responseContentDisposition !== undefined) {
     if (method !== "GET" ||
-      !/^attachment; filename="[A-Za-z0-9._ ()-]{1,180}"$/.test(options.responseContentDisposition)) {
-      throw new Error("Invalid private document download disposition.");
+        !/^(?:inline|attachment); filename="[A-Za-z0-9._() -]{1,180}"$/.test(options.responseContentDisposition)) {
+      throw new Error("Invalid private document download filename.");
     }
     query.set("response-content-disposition", options.responseContentDisposition);
   }

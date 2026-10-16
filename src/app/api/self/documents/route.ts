@@ -15,6 +15,7 @@ import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { documentUploadsEnabled } from "@/lib/storage";
 import { isMandatoryDocumentMissing } from "@/lib/employee-document-vault";
 import {
   employeeDocumentMetadataJoin, employeeDocumentRequirementJoin, employeePolicyVersionJoin,
@@ -124,6 +125,7 @@ export async function GET() {
     })),
     documentRequirements: compliance,
     vaultEnabled: criticalReleaseFlagEnabled("employeeDocumentVault"),
+    vaultUploadsEnabled: documentUploadsEnabled(),
     summary: {
       acknowledgementRequired: assignments.filter((row) => row.status === "assigned").length,
       overdueAcknowledgements: assignments.filter(

@@ -48,3 +48,28 @@ test("#1031 HR cases preserves composite tenant security and all dependent keys"
   const crosswalk = readFileSync("docs/engineering/issue-1031-source-table-crosswalk.csv", "utf8");
   for (const name of targets) assert.ok(crosswalk.includes('"' + name + '","","'), name);
 });
+
+test("#1019 HR owner-approved PG16/18 catalog-first CI keeps strict stable bootstrap and complete tests", () => {
+  const wf = readFileSync(".github/workflows/issue-1031-schema-only-hr-cases-rehearsal.yml", "utf8");
+  const policy = readFileSync("docs/engineering/issue-1019-schema-repair-acceptance-policy.md", "utf8");
+  const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.equal(pkg.devDependencies["drizzle-kit"], "0.31.11");
+  assert.equal(pkg.dependencies["drizzle-orm"], "0.45.4");
+  assert.equal(pkg.scripts["db:push"], "node scripts/strict-db-push.mjs");
+
+  const catalogJob = wf.split("  disposable-postgres:\n")[1]?.split("  complete-npm-test:\n")[0];
+  const fullTestJob = wf.split("  complete-npm-test:\n")[1];
+  assert.ok(catalogJob && fullTestJob, "independent catalog and full-suite jobs must remain");
+  assert.match(catalogJob, /postgres: \["16", "18"\]/);
+  assert.match(catalogJob, /run: npm run db:push/);
+  assert.match(catalogJob, /issue-1031-schema-only-hr-cases-postgres\.test\.ts/);
+  assert.match(fullTestJob, /image: postgres:16/);
+  assert.match(fullTestJob, /run: npm test/);
+  assert.equal((wf.match(/run: npm run db:push/g) ?? []).length, 2,
+    "one guarded first bootstrap per job; no additional repeat-push gate");
+  assert.doesNotMatch(wf, /isolated-rc-repeat-proof:|drizzle-kit@1\.0\.0-rc\.\d+|SEPARATE_RC_TRUE_NO_OP=PASS/);
+  assert.match(policy, /Second drizzle-kit push: not used as a gate, see #1019/);
+  assert.match(policy, /Deliberately change one candidate column type/);
+  assert.match(policy, /Reject full repeat application and partial-target application/);
+  assert.match(policy, /23503/);
+});

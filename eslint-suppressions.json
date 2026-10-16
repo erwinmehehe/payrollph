@@ -74,11 +74,6 @@
       "count": 1
     }
   },
-  "src/components/payroll-overpayment-preview-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/performance-calibration-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -134,11 +129,6 @@
       "count": 1
     }
   },
-  "src/components/workspace/bir-1601c-remittance-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/workspace/bookkeeper-payroll-close.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -152,11 +142,6 @@
   "src/components/workspace/exports.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
-    }
-  },
-  "src/components/workspace/labor-costing-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 3
     }
   },
   "src/components/workspace/labor-inspection-readiness-panel.tsx": {
@@ -194,11 +179,6 @@
       "count": 1
     }
   },
-  "src/components/workspace/statutory-remittance-action-queue.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/workspace/statutory-remittance-corrections-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 3
@@ -212,11 +192,6 @@
   "src/components/workspace/workforce-coverage-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 2
-    }
-  },
-  "src/components/workspace/workforce-planner.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 4
     }
   }
 }

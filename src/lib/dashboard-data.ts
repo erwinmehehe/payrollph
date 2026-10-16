@@ -430,6 +430,7 @@ export async function getDashboardData(organizationId?: number, request?: Reques
     yearEndPriorEvidenceEnabled: criticalReleaseFlagEnabled("yearEndPriorEvidence"),
     bir2316CertificateEnabled: criticalReleaseFlagEnabled("bir2316Certificate") && criticalReleaseFlagEnabled("bir2316Reconciliation") && criticalReleaseFlagEnabled("bir2316WithholdingEvidence"),
     compactMobileHeaderEnabled: criticalReleaseFlagEnabled("compactMobileHeader"),
+    everydayHrHireEnabled: criticalReleaseFlagEnabled("everydayHrHire"),
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     ...(entityContext.enabled ? { multiEntity: {

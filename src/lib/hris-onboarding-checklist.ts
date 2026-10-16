@@ -69,3 +69,19 @@ export function buildOnboardingChecklistGroups(
     a.employee.id - b.employee.id,
   );
 }
+
+/** Read-only filtering of already authorized, recorded checklists. Missing tasks are never inferred complete. */
+export function filterOnboardingChecklistGroups(
+  groups: readonly OnboardingChecklistGroup[],
+  query: string,
+  show: "open" | "all",
+): OnboardingChecklistGroup[] {
+  const needle = query.trim().toLocaleLowerCase("en");
+  return groups.filter((group) => {
+    if (show === "open" && group.remaining === 0) return false;
+    if (!needle) return true;
+    const employee = group.employee;
+    return (employee.firstName + " " + employee.lastName + " " + employee.employeeNo)
+      .toLocaleLowerCase("en").includes(needle);
+  });
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { buildOnboardingChecklistGroups } from "../src/lib/hris-onboarding-checklist";
+import { buildOnboardingChecklistGroups, filterOnboardingChecklistGroups } from "../src/lib/hris-onboarding-checklist";
 
 const staff = [
   { id: 17, employeeNo: "EMP-017", firstName: "Alex", lastName: "Rivera", status: "Active" },
@@ -102,4 +102,36 @@ test("hire remains maker-checker-governed and refreshes onboarding after creatio
   assert.ok(route.includes("db.transaction"));
   assert.ok(route.includes("tx.insert(provisioningTasks)"));
   assert.ok(route.includes('processType: "hire"'));
+});
+
+test("read-only onboarding search respects recorded open/all states and authorized roster", () => {
+  const groups = buildOnboardingChecklistGroups(staff, [
+    task(101, 17, false),
+    task(102, 18, true),
+    task(103, 77, false), // foreign worker is excluded before filtering
+  ]);
+  assert.deepEqual(filterOnboardingChecklistGroups(groups, "", "open").map(g => g.employee.id), [17]);
+  assert.deepEqual(filterOnboardingChecklistGroups(groups, "", "all").map(g => g.employee.id), [17, 18]);
+  assert.deepEqual(filterOnboardingChecklistGroups(groups, " rivera ", "all").map(g => g.employee.id), [17]);
+  assert.deepEqual(filterOnboardingChecklistGroups(groups, "EMP-018", "open"), []);
+  assert.deepEqual(filterOnboardingChecklistGroups(groups, "EMP-018", "all").map(g => g.employee.id), [18]);
+  assert.deepEqual(filterOnboardingChecklistGroups(groups, "foreign", "all"), []);
+});
+
+test("onboarding filters have accessible counts, 44px targets and an honest empty-state action", () => {
+  const board = readFileSync("src/components/hris-onboarding-checklist.tsx", "utf8");
+  assert.ok(board.includes('aria-label="Clear onboarding employee search"'));
+  assert.ok(board.includes('onClick={() => setQuery("")}'));
+  assert.ok(board.includes('aria-controls="hris-onboarding-results"'));
+  assert.ok(board.includes('id={groups.length > 0 ? "hris-onboarding-results" : undefined}'));
+  assert.ok(board.includes('id="hris-onboarding-search-hint"'));
+  assert.ok(board.includes('id="hris-onboarding-filter-count" role="status" aria-live="polite"'));
+  assert.ok(board.includes('min-h-11'));
+  assert.ok(board.includes('onClick={() => { setShow("all"); setQuery(""); }}'));
+  assert.ok(board.includes("This does not verify onboarding completion"));
+  assert.ok(board.includes("onOpenEmployee(group.employee.id)"));
+  assert.ok(board.includes('aria-label={"Open employee record for "'));
+  assert.ok(board.includes('method: "PATCH"'));
+  assert.ok(!board.includes('method: "POST"'));
+  assert.ok(!board.includes('method: "DELETE"'));
 });

@@ -5,6 +5,7 @@ import {
   hcmPolicyAssignments, hcmPolicyVersions,
 } from "@/db/schema";
 import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
+import { VAULT_REMOVED_SOURCE_PREFIX } from "@/lib/employee-vault-profile";
 import {
   boolean, integer, jsonb, pgTable, serial, text, timestamp, varchar,
 } from "drizzle-orm/pg-core";
@@ -108,7 +109,8 @@ export const employeeDocumentMetadataJoin = and(
   eq(documents.employeeId, hcmEmployeeDocumentCompliance.employeeId),
   or(
     isNull(documents.sourceKey),
-    notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"),
+    and(notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"),
+      notLike(documents.sourceKey, VAULT_REMOVED_SOURCE_PREFIX + "%")),
   ),
 );
 

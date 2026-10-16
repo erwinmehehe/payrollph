@@ -57,7 +57,7 @@ test("bookkeeper, manager, payroll checker and unknown staff cannot access HR va
   for (const role of ["owner", "hr"]) {
     assert.equal(canStaffOpenEmployeeVault(role), true);
   }
-  for (const role of ["bookkeeper", "admin", "manager", "payroll", "checker", "employee", "", "superadmin"]) {
+  for (const role of ["admin", "bookkeeper", "manager", "payroll", "checker", "employee", "", "superadmin"]) {
     assert.equal(canStaffOpenEmployeeVault(role), false);
   }
 });
