@@ -54,3 +54,13 @@ test("#1031 IT-only source groups contain no historical migration or application
   assert.match(executable, /CHECK \("state" in \('available','assigned','return_requested','returned','lost','retired'\)\)/);
   assert.match(executable, /CHECK \("state" in \('grant_requested','active','revoke_requested','revoked'\)\)/);
 });
+
+test("#1031 disposable RC schema proof cannot change normal stable app dependencies", () => {
+  const workflow = readFileSync(".github/workflows/issue-1031-schema-only-it-assets-rehearsal.yml", "utf8");
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.equal(packageJson.devDependencies["drizzle-kit"], "0.31.11");
+  assert.equal(packageJson.dependencies["drizzle-orm"], "0.45.4");
+  assert.match(workflow, /npm install --no-save --package-lock=false drizzle-kit@1\.0\.0-rc\.4 drizzle-orm@1\.0\.0-rc\.4/);
+  assert.match(workflow, /PINNED_STABLE_SECOND_PUSH_KNOWN_2BP01=REPRODUCED_NOT_APPROVED/);
+  assert.match(workflow, /POST_REPAIR_FULL_SCHEMA_PUSH_NO_OP=PASS/);
+});
