@@ -12,7 +12,10 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { canStaffOpenEmployeeVault, documentObjectIdentityMatches, documentBytesMayBeReleased } from "@/lib/employee-document-vault";
+import { canAccessEmployeeProfileVault, documentObjectIdentityMatches, documentBytesMayBeReleased, vaultDocumentIsArchived } from "@/lib/employee-document-vault";
+import { archiveEmployeeVaultUpload } from "@/lib/employee-vault-profile-server";
+import { documentUploadsEnabled } from "@/lib/storage";
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { documentStorageConfig, signedDocumentObjectUrl } from "@/lib/document-object-storage";
 import { compatibleDocumentColumns } from "@/lib/document-schema-compat";
 
@@ -24,7 +27,7 @@ function contentDisposition(fileName: string) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const user = await getSessionUser();
@@ -37,7 +40,7 @@ export async function GET(
   }
 
   const [document] = await db.select(compatibleDocumentColumns).from(documents).where(eq(documents.id, documentId)).limit(1);
-  if (!document) return Response.json({ error: "Document not found." }, { status: 404 });
+  if (!document || vaultDocumentIsArchived(document.generationMetadata)) return Response.json({ error: "Document not found." }, { status: 404 });
 
   if (user.role === "employee") {
     if (!user.employeeId || document.employeeId !== user.employeeId) {
@@ -57,7 +60,8 @@ export async function GET(
     const access = await getAccess(user.id, document.organizationId);
     if (!access) return Response.json({ error: "Workspace access required." }, { status: 403 });
     if ((criticalReleaseFlagEnabled("employeeDocumentVault") || document.objectStorageKey) &&
-      !canStaffOpenEmployeeVault(access.role)) {
+      !canAccessEmployeeProfileVault({ userId: user.id, role: access.role,
+        employeeId: null, companyWide: access.companyWide }, document.employeeId ?? -1)) {
       return Response.json({ error: "Private HR document not found." }, { status: 404 });
     }
 
@@ -98,8 +102,10 @@ export async function GET(
     }
     let signed: URL;
     try {
+      const download = new URL(request.url).searchParams.get("download") === "1";
       signed = signedDocumentObjectUrl(document.objectStorageKey,
-        "GET", documentStorageConfig(), { expirySeconds: 60 });
+        "GET", documentStorageConfig(), { expirySeconds: 60,
+          responseContentDisposition: download ? contentDisposition(document.fileName).replace(/^inline;/, "attachment;") : undefined });
     } catch {
       return Response.json({ error: "Private document storage is unavailable." }, { status: 503 });
     }
@@ -151,10 +157,85 @@ export async function GET(
     headers: {
       "Content-Type": document.mimeType,
       "Content-Length": String(body.byteLength),
-      "Content-Disposition": contentDisposition(document.fileName),
+      "Content-Disposition": contentDisposition(document.fileName).replace(/^inline;/,
+        new URL(request.url).searchParams.get("download") === "1" ? "attachment;" : "inline;"),
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; sandbox",
     },
   });
+}
+
+/**
+ * UI "Delete" is an audited soft removal, not an irreversible erasure.
+ * A-5 retention, legal holds and objects stay intact until separate approval.
+ */
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+  if (!criticalReleaseFlagEnabled("employeeDocumentVault") || !documentUploadsEnabled()) {
+    return Response.json({ error: "Private document management is not enabled." }, { status: 503 });
+  }
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const { id } = await context.params;
+  if (!/^[1-9]\\d*$/.test(id) || !Number.isSafeInteger(Number(id))) {
+    return Response.json({ error: "A valid document id is required." }, { status: 400 });
+  }
+  const [row] = await db.select({
+    id: documents.id, organizationId: documents.organizationId,
+    employeeId: documents.employeeId,
+  }).from(documents).where(eq(documents.id, Number(id))).limit(1);
+  if (!row || row.employeeId === null) {
+    return Response.json({ error: "Document not found." }, { status: 404 });
+  }
+
+  let role = "employee";
+  let companyWide = false;
+  if (user.role === "employee") {
+    if (!user.employeeId || user.employeeId !== row.employeeId) {
+      return Response.json({ error: "Document not found." }, { status: 404 });
+    }
+    const denied = await assertMembership(user.id, row.organizationId);
+    if (denied) return denied;
+  } else {
+    const denied = await assertOrganizationRole(user.id, row.organizationId,
+      PEOPLE_ADMIN_ROLES, "Only HR and the organization owner can manage private employee documents.");
+    if (denied) return denied;
+    const access = await getAccess(user.id, row.organizationId);
+    if (!access) return Response.json({ error: "Workspace access required." }, { status: 403 });
+    role = access.role;
+    companyWide = access.companyWide;
+    if (!canAccessEmployeeProfileVault({
+      userId: user.id, role, employeeId: null, companyWide,
+    }, row.employeeId)) {
+      return Response.json({ error: "Private document management is not permitted." }, { status: 403 });
+    }
+  }
+
+  try {
+    const result = await archiveEmployeeVaultUpload({
+      organizationId: row.organizationId, documentId: row.id,
+      actor: { userId: user.id, role, employeeId: user.role === "employee" ? user.employeeId : null,
+        companyWide, name: user.name },
+    });
+    if (!result.ok) {
+      const status = result.code === "NOT_FOUND" ? 404 :
+        result.code === "FORBIDDEN" ? 403 : 409;
+      const message = result.code === "LINKED"
+        ? "This file is linked to an HR, compliance or legal record and cannot be removed here."
+        : result.code === "NOT_REMOVABLE"
+          ? "Only independent, verified vault uploads can be removed."
+          : "Document not found or access denied.";
+      return Response.json({ error: message }, { status });
+    }
+    return Response.json({ removed: true, id: result.id,
+      retention: "File preserved under the existing A-5 retention and legal-hold policy." },
+    { headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    return Response.json({ error: "Document could not be removed securely." }, { status: 503 });
+  }
 }
