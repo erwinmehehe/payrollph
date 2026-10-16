@@ -6,7 +6,7 @@
  * The real drizzle-kit push still runs through strict-db-push.mjs and MUST
  * report an unambiguous DDL-free second push. Refuse unknown layouts.
  */
-import { readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const VERSION = "0.31.11";
@@ -33,7 +33,8 @@ export function patchPinnedIntrospectionBinary(binary) {
     // retain this join shape. Validate only the FK query we actually rewrote.
     if (occurrences(binary, KEY_MARKER) !== 1 || occurrences(binary, FK_MARKER) !== 1 ||
         keyQuery.test(binary) || selectedFkQueries.length !== 1 ||
-        fkJoin.test(selectedFkQueries[0][0])) fail("PARTIAL_OR_UNKNOWN_PATCH");
+        !selectedFkQueries[0][0].includes("JOIN LATERAL pg_catalog.unnest(con.conkey, con.confkey) WITH ORDINALITY") ||
+        !selectedFkQueries[0][0].includes("ORDER BY con.conname, fkcols.ord;")) fail("PARTIAL_OR_UNKNOWN_PATCH");
     return { content: binary, applied: false };
   }
   const keys = [...binary.matchAll(keyQuery)];
@@ -94,11 +95,13 @@ export function ensurePinnedKitOrdinalityPatch(binaryPath, env = process.env) {
   if (!applied) return "previously-patched";
   const tmp = binaryPath + ".1019." + process.pid + ".tmp";
   try {
-    writeFileSync(tmp, content, { mode: statSync(binaryPath).mode });
+    // Atomically replace only the local npm-installed binary. Verify the staged
+    // bytes before rename; never re-open a path after the rename (TOCTOU).
+    writeFileSync(tmp, content, { flag: "wx", mode: 0o600 });
+    if (readFileSync(tmp, "utf8") !== content) fail("STAGED_WRITE_VERIFY_FAILED");
     renameSync(tmp, binaryPath);
   } finally {
     try { unlinkSync(tmp); } catch { /* successful rename or missing temp */ }
   }
-  if (readFileSync(binaryPath, "utf8") !== content) fail("WRITE_VERIFY_FAILED");
   return "patched-pinned-kit";
 }
