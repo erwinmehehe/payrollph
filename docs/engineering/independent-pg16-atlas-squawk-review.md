@@ -87,6 +87,39 @@ report. Where Atlas and #1031 disagree, record both reports with exact SHAs,
 inspect false-positive deparsing/name differences, and resolve the physical
 catalog discrepancy without lowering the checks.
 
+## Observed initial Squawk results — 2026-10-16 (synthetic CI only)
+
+[First exact-head check](https://github.com/erwinmehehe/payrollph/actions/runs/38876347019)
+at PR head `93b7e81c261a7edf369c7e4d72bc388337cbc93b`
+finished **red**, with an independently recovered GitHub Actions
+`squawk.json` artifact. Squawk v2.65.0 produced **115 Warning** results
+(0 Error results), as follows:
+
+| Raw SQL file | Lock timeout | Statement timeout | bigint-over-int | identity-over-serial | text-over-varchar | Total |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0124 | 1 | 1 | 7 | 1 | 6 | **16** |
+| 0125 | 1 | 1 | 19 | 3 | 13 | **37** |
+| 0126 | 1 | 1 | 36 | 6 | 18 | **62** |
+| **Total** | **3** | **3** | **62** | **10** | **37** | **115** |
+
+This report is historical evidence from the specified head, **not** a PASS
+for the current PR head. It is intentionally retained without any exclusions.
+
+The protected reviewed-migration runner source at #1120 sets
+`lock_timeout=5000ms` and `statement_timeout=90000ms` transaction-locally;
+Squawk lints the raw files, so the six timeout warnings require an explicit
+review of the effective runner execution path, not an automatic suppression.
+The numeric/serial/varchar warnings must be judged against the existing
+Drizzle schema, application/foreign-key contracts, and historical numbered
+source immutability. An AI reviewer cannot approve changing foundational
+integer IDs or rewrite previously merged migration SQL to appease a linter.
+
+The initial Atlas job also stopped before a comparison on a
+`inet_server_addr() = 127.0.0.1` assertion (Docker bridge-interface
+mismatch). The present source fixes this erroneous assertion and adds
+restricted-role table inventory checks, but a new exact-head CI result is
+required to claim any structural parity.
+
 ## Remaining synthetic parity limitations
 
 Atlas Community deliberately does not compare stored functions, triggers,
