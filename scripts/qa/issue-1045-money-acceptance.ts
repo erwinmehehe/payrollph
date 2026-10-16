@@ -254,7 +254,8 @@ for(const entry of cases) {
     const flag=expected==="true"||expected==="false";
     if(flag!==(typeof value==="boolean"))throw Error(entry.id+" expected/observed unit mismatch: "+metric);
     if(!flag&&!/^-?(?:0|[1-9]\d*)\.\d{2}$/.test(expected))throw Error(entry.id+" invalid literal centavos "+metric);
-    const variance=flag?"":String(cents(value as number)-Number(expected)*100);
+    const parsedCents=flag?0:((expected.startsWith("-")?-1:1)*(() => { const [whole,fraction]=expected.replace("-","").split("."); return Number(whole)*100+Number(fraction); })());
+    const variance=flag?"":String(cents(value as number)-parsedCents);
     const status=actual===expected?"ENGINEERING_MATCH":"ENGINEERING_DIFF";
     results.push({id:entry.id,ticket:entry.ticket,metric,unit:flag?"BOOLEAN":"PHP",
       expected,observed:actual,varianceCentavos:variance,engineeringStatus:status,
