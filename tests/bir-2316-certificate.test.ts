@@ -6,6 +6,14 @@ import { CERTIFICATE_ITEMS, prepare2316Certificate } from "../src/lib/bir-2316-c
 import { historical2316Employer } from "../src/lib/bir-2316-employer";
 import { render2316CertificatePdf } from "../src/lib/bir-2316-pdf";
 import { certificateReview, certificateSource } from "./fixtures/bir-2316-certificate";
+import { certificateSourceDigest } from "../src/lib/bir-2316-source-digest";
+test("review token is stable across SQL ordering and changes with source identity, scope, totals or withholding", () => {
+  const source = { ...certificateSource, withholding: { ...certificateSource.withholding!, entryIds: [2,1] } };
+  const digest = certificateSourceDigest(source);
+  assert.equal(certificateSourceDigest({ ...source, withholding: { ...source.withholding, entryIds: [1,2] } }), digest);
+  for (const change of [{ employerName: "Changed registry identity" }, { legalEntityId: 2 }, { scope: { ...source.scope, organizationId: 2 } },
+    { summary: { ...source.summary, grossCompensation: "600000.01" } }, { withholding: { ...source.withholding, actualPresentWithheld: "42500.01" } }]) assert.notEqual(certificateSourceDigest({ ...source, ...change }), digest);
+});
 test("complete explicit mapping reconciles all numbered amounts; browser withholding cannot override ledger", () => {
   const input = { ...certificateReview(), actualPresentWithheld: "99999999.00" };
   const result = prepare2316Certificate(certificateSource, input);

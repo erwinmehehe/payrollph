@@ -6,6 +6,7 @@ import { certificateDraftEnabled, CertificateSourceError, load2316CertificateSou
 import { object, prepare2316Certificate, type CertificateScope } from "@/lib/bir-2316-certificate";
 import { render2316CertificatePdf } from "@/lib/bir-2316-pdf";
 import { createHash } from "node:crypto";
+import { certificateSourceDigest } from "@/lib/bir-2316-source-digest";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
@@ -24,21 +25,26 @@ async function respond(request: Request, mode: "source" | "pdf") {
   const mfa = requireSensitiveActionMfa(user); if (mfa) return mfa;
   try {
     const source = await load2316CertificateSource(scope);
+    const sourceDigest = certificateSourceDigest(source);
     if (mode === "source") {
       await recordAuditEvent({ organizationId: scope.organizationId, actor: user.name, action: "BIR 2316 preparer source viewed", resource: `Employee #${scope.employeeId} / ${scope.taxYear}`, metadata: { ...scope, plaintextPersisted: false } });
-      return Response.json({ source, notice: "Preparer preview only. Nothing is saved, approved, signed or filed." }, { headers });
+      return Response.json({ source, sourceDigest, notice: "Preparer preview only. Nothing is saved, approved, signed or filed." }, { headers });
     }
     if (Number(request.headers.get("content-length") ?? 0) > 32768) return Response.json({ error: "Review is too large." }, { status: 413, headers });
     const text = await request.text();
     if (text.length > 32768) return Response.json({ error: "Review is too large." }, { status: 413, headers });
     let review: unknown;
-    try { review = object(JSON.parse(text)).review; } catch { return Response.json({ error: "Invalid review JSON." }, { status: 400, headers }); }
+    try {
+      const input = object(JSON.parse(text));
+      if (input.sourceDigest !== sourceDigest) return Response.json({ error: "Source records changed or the review is unbound. Load source records again and review the current figures.", code: "CERTIFICATE_SOURCE_CHANGED" }, { status: 409, headers });
+      review = input.review;
+    } catch { return Response.json({ error: "Invalid review JSON." }, { status: 400, headers }); }
     const prepared = prepare2316Certificate(source, review);
     if (!prepared.ok) return Response.json({ error: "Complete the review and resolve all source discrepancies before generating the unsigned PDF.", issues: prepared.issues }, { status: 422, headers });
     const pdf = await render2316CertificatePdf(source, review);
     await recordAuditEvent({ organizationId: scope.organizationId, actor: user.name,
       action: "Unsigned BIR 2316 preparer preview generated", resource: `Employee #${scope.employeeId} / ${scope.taxYear}`,
-      metadata: { ...scope, unsigned: true, plaintextPersisted: false, sha256: createHash("sha256").update(pdf).digest("hex") } });
+      metadata: { ...scope, sourceDigest, unsigned: true, plaintextPersisted: false, sha256: createHash("sha256").update(pdf).digest("hex") } });
     return new Response(Buffer.from(pdf), { headers: { ...headers, "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="bir-2316-unsigned-${scope.taxYear}.pdf"` } });
   } catch (error) {
     const code = error instanceof CertificateSourceError ? error.message : "CERTIFICATE_PREVIEW_UNAVAILABLE";

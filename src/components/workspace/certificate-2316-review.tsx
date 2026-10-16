@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CERTIFICATE_ITEMS, CERTIFICATE_LABELS, CERTIFICATE_TEXT_FIELDS, type CertificateSource } from "@/lib/bir-2316-certificate";
 export function Certificate2316Review({ organizationId, initialEmployeeId, initialTaxYear, separationId }: { organizationId: number; initialEmployeeId: string; initialTaxYear: string; separationId?: string }) {
+  const [sourceDigest, setSourceDigest] = useState("");
   const [employeeId, setEmployeeId] = useState(initialEmployeeId), [year, setYear] = useState(initialTaxYear);
   const [source, setSource] = useState<CertificateSource | null>(null), [text, setText] = useState<Record<string, string>>({});
   const [details, setDetails] = useState<Record<string, string>>({}), [previous, setPrevious] = useState<Record<string, string>>({ status: "" });
@@ -11,16 +12,16 @@ export function Certificate2316Review({ organizationId, initialEmployeeId, initi
   useEffect(() => { if (error) alert.current?.focus(); }, [error]);
   useEffect(() => () => { if (download) URL.revokeObjectURL(download); }, [download]);
   const url = () => "/api/year-end/2316-certificate?" + new URLSearchParams({ organizationId: String(organizationId), employeeId, taxYear: year, ...(separationId ? { separationId } : {}) });
-  const reset = () => { setSource(null); setDownload(""); setText({}); setDetails({}); setPrevious({ status: "" }); setPera(""); setType(""); setAck(false); setError(""); };
+  const reset = () => { setSource(null); setSourceDigest(""); setDownload(""); setText({}); setDetails({}); setPrevious({ status: "" }); setPera(""); setType(""); setAck(false); setError(""); };
   async function load() {
     reset(); setBusy(true);
-    try { const response = await fetch(url(), { cache: "no-store" }); const data = await response.json(); if (!response.ok) throw Error(data.error + (data.code ? " (" + data.code + ")" : "")); setSource(data.source); }
+    try { const response = await fetch(url(), { cache: "no-store" }); const data = await response.json(); if (!response.ok) throw Error(data.error + (data.code ? " (" + data.code + ")" : "")); setSource(data.source); setSourceDigest(data.sourceDigest); }
     catch (e) { setError(e instanceof Error ? e.message : "Unable to load source. Retry."); } finally { setBusy(false); }
   }
   async function generate(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError(""); setDownload("");
     try {
-      const response = await fetch(url(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ review: { text, detailItems: details, previousEmployer: previous, peraCredit: pera, employerType: type, acknowledged: ack } }) });
+      const response = await fetch(url(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceDigest, review: { text, detailItems: details, previousEmployer: previous, peraCredit: pera, employerType: type, acknowledged: ack } }) });
       if (!response.ok) { const data = await response.json(); throw Error([data.error, ...(data.issues ?? []), data.code].filter(Boolean).join(" · ")); }
       setDownload(URL.createObjectURL(await response.blob()));
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to generate preview. Retry."); } finally { setBusy(false); }

@@ -4,6 +4,7 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { certificateSource, certificateReview } from '../../tests/fixtures/bir-2316-certificate.ts';
+import { certificateSourceDigest } from '../../src/lib/bir-2316-source-digest.ts';
 import { prepare2316Certificate } from '../../src/lib/bir-2316-certificate.ts';
 import { render2316CertificatePdf } from '../../src/lib/bir-2316-pdf.ts';
 const {chromium}=createRequire(import.meta.url)(process.env.QA_PLAYWRIGHT_MODULE ?? 'playwright');
@@ -13,8 +14,8 @@ const bundle=await readFile('qa-artifacts/2316-harness.js');
 const server=createServer(async(req,res)=>{
  if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');res.end(bundle);return;}
  if(req.url.startsWith('/api/')){
-  if(req.method==='GET'){await new Promise(r=>setTimeout(r,500));res.setHeader('Content-Type','application/json');res.end(JSON.stringify({source:certificateSource}));return;}
-  const chunks=[];for await(const chunk of req)chunks.push(chunk);const {review}=JSON.parse(Buffer.concat(chunks).toString());
+  if(req.method==='GET'){await new Promise(r=>setTimeout(r,500));res.setHeader('Content-Type','application/json');res.end(JSON.stringify({source:certificateSource,sourceDigest:certificateSourceDigest(certificateSource)}));return;}
+  const chunks=[];for await(const chunk of req)chunks.push(chunk);const {review,sourceDigest}=JSON.parse(Buffer.concat(chunks).toString());assert.equal(sourceDigest,certificateSourceDigest(certificateSource));
   const result=prepare2316Certificate(certificateSource,review);
   if(!result.ok){res.statusCode=422;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({error:'Complete the review.',issues:result.issues}));return;}
   res.setHeader('Content-Type','application/pdf');res.end(Buffer.from(await render2316CertificatePdf(certificateSource,review)));return;

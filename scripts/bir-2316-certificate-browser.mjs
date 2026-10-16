@@ -9,18 +9,22 @@ export async function test2316Certificate({ browser, owner, fixture, outDir, res
   assert.equal((await anonymous.request.get(api)).status(), 401); await anonymous.close();
   const source = await owner.request.get(api);
   assert.equal(source.status(), 200); assert.match(source.headers()["cache-control"], /no-store/);
-  assert.equal((await source.json()).source.withholding.actualPresentWithheld, "42500.00");
-  const missing = await owner.request.post(api, { headers, data: { review: {} } });
+  const sourceBody = await source.json(), sourceDigest = sourceBody.sourceDigest;
+  assert.equal(sourceBody.source.withholding.actualPresentWithheld, "42500.00");
+  const missing = await owner.request.post(api, { headers, data: { sourceDigest, review: {} } });
   assert.equal(missing.status(), 422);
   const review = certificateReview();
-  const response = await owner.request.post(api, { headers, data: { review: { ...review, actualPresentWithheld: "99999999.00" } } });
+  const response = await owner.request.post(api, { headers, data: { sourceDigest, review: { ...review, actualPresentWithheld: "99999999.00" } } });
   assert.equal(response.status(), 200, "Unsigned PDF preview must succeed"); assert.match(response.headers()["content-type"], /application\/pdf/); assert.match(response.headers()["cache-control"], /no-store/);
   const pdf = await response.body(); assert.equal(pdf.subarray(0,5).toString(), "%PDF-");
   await writeFile(outDir + "/2316-api-unsigned-synthetic.pdf", pdf);
-  assert.equal((await owner.request.post(api, { headers: { origin: "https://attacker.example", "sec-fetch-site": "cross-site" }, data: { review } })).status(), 403);
+  assert.equal((await owner.request.post(api, { headers: { origin: "https://attacker.example", "sec-fetch-site": "cross-site" }, data: { sourceDigest, review } })).status(), 403);
   assert.equal((await owner.request.get(api.replace(":3443", ":3444"))).status(), 404);
-  assert.equal((await owner.request.get(base + "/api/year-end/2316-certificate?" + query + "&separationId=" + fixture.separationId)).status(), 200);
-  assert.equal((await owner.request.post(api + "&separationId=" + fixture.separationId, { headers, data: { review } })).status(), 422, "shortfall cannot become certified withholding");
+  const finalSource = await owner.request.get(base + "/api/year-end/2316-certificate?" + query + "&separationId=" + fixture.separationId);
+  assert.equal(finalSource.status(), 200);
+  const finalDigest = (await finalSource.json()).sourceDigest;
+  assert.equal((await owner.request.post(api, { headers, data: { sourceDigest: "stale", review } })).status(), 409);
+  assert.equal((await owner.request.post(api + "&separationId=" + fixture.separationId, { headers, data: { sourceDigest: finalDigest, review } })).status(), 422, "shortfall cannot become certified withholding");
   for (const width of [1280, 390]) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, ignoreHTTPSErrors: true, storageState: await owner.storageState() });
     const page = await context.newPage();

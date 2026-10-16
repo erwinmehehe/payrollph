@@ -40,7 +40,7 @@ export async function load2316CertificateSource(scope: CertificateScope): Promis
     }
     if (!employer.ok) throw new CertificateSourceError(employer.code);
     const digits = (value: string | null) => (decryptGovernmentId(value) ?? "").replace(/\D/g, "");
-    return { scope, employerName: employer.name, employerTin: employer.tin,
+    return { scope, legalEntityId: employer.legalEntityId, employerName: employer.name, employerTin: employer.tin,
       employeeName: [employee.lastName, employee.firstName, employee.middleName].filter(Boolean).join(", "),
       employeeTin: `${digits(employee.tin)}-${digits(employee.tinBranchCode)}`, birthDate: employee.birthDate,
       periodFrom: employee.startDate > `${scope.taxYear}-01-01` ? employee.startDate : `${scope.taxYear}-01-01`, periodTo, mwe, summary, withholding };

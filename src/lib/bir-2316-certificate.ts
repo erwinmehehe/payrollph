@@ -20,7 +20,7 @@ export const CERTIFICATE_TEXT_FIELDS = {
 };
 export type CertificateScope = { organizationId: number; employeeId: number; taxYear: number; separationId?: number };
 export type CertificateSource = {
-  scope: CertificateScope; employerName: string; employerTin: string; employeeName: string; employeeTin: string;
+  scope: CertificateScope; legalEntityId: number | null; employerName: string; employerTin: string; employeeName: string; employeeTin: string;
   birthDate: string | null; periodFrom: string; periodTo: string; mwe: boolean;
   summary: Bir2316ReviewSource; withholding: Bir2316Withholding | undefined;
 };
