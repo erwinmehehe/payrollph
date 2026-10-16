@@ -1,3 +1,4 @@
+import { assertCatalogAuditorPrivilegeBoundary, catalogAuditorConnectionOptions } from "./lib/production-catalog-auditor-gate.mjs";
 import { Client } from "pg";
 import { generateSchemaManifest } from "./lib/issue-1031-schema-manifest";
 import { diffSchema, EVIDENCE, type CatalogRow } from "../src/lib/issue-1031-full-schema-diff";
@@ -62,7 +63,10 @@ async function main(){
   console.error("Missing protected target or exact reviewed main SHA; no database queried.");process.exitCode=2;return;
  }
  const manifest=generateSchemaManifest();
- const client=new Client({connectionString:url,connectionTimeoutMillis:8000});
+ let options;
+ try { options=catalogAuditorConnectionOptions(url,db); }
+ catch { console.error("Catalog connection must use the pinned protected TLS endpoint; no database queried.");process.exitCode=2;return; }
+ const client=new Client(options);
  let connected=false,tx=false;
  try{
   await client.connect();connected=true;
@@ -70,6 +74,7 @@ async function main(){
   await client.query("SET LOCAL statement_timeout='7000ms'");
   await client.query("SET LOCAL lock_timeout='2000ms'");
   await client.query("SET LOCAL search_path=pg_catalog");
+  await assertCatalogAuditorPrivilegeBoundary(client,{expectedDatabase:db});
   // Exact same role/identity guard predicates as check-production-schema-preflight.ts,
   // with the complete manifest's table names instead of its 13 canaries.
   const identity=await client.query<{databaseMatches:boolean;readOnly:boolean;elevated:boolean;canWrite:boolean;canReadPayrollRows:boolean}>(`

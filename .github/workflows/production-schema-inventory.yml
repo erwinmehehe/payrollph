@@ -61,6 +61,7 @@ jobs:
             echo "Missing protected production database credential. Nothing was queried."
             exit 1
           fi
+          node scripts/verify-production-catalog-auditor.mjs --verify
           ./node_modules/.bin/tsx scripts/check-production-schema-preflight.ts
 
       - name: Clarify evidence boundary

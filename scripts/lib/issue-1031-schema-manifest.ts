@@ -50,6 +50,22 @@ function astDeclarations(sourceText: string): Map<string, string> {
   return declarations;
 }
 
+/**
+ * PostgreSQL stores identifier names in NAMEDATALEN=64, at most 63 UTF-8
+ * bytes. Preserve code point boundaries; collision detection is performed
+ * after truncation by named(). Never silently equate differently named FKs.
+ */
+export function postgresIdentifier(name: string): string {
+  let result = "", bytes = 0;
+  for (const char of name) {
+    const width = Buffer.byteLength(char, "utf8");
+    if (bytes + width > 63) break;
+    result += char;
+    bytes += width;
+  }
+  return result;
+}
+
 function named<T extends { name: string }>(items: T[]): T[] {
   items.sort((a, b) => a.name.localeCompare(b.name));
   for (let i = 1; i < items.length; i++) {
@@ -84,7 +100,7 @@ export function generateSchemaManifest(): SchemaManifest {
     const foreignKeys = named(config.foreignKeys.map((fk) => {
       const reference = fk.reference();
       return {
-        name: fk.getName(),
+        name: postgresIdentifier(fk.getName()),
         columns: reference.columns.map((c) => c.name),
         refTable: getTableName(reference.foreignTable),
         refColumns: reference.foreignColumns.map((c) => c.name),

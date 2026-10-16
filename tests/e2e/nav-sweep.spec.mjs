@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { chromium } from "playwright";
 import { generateTotp } from "../../src/lib/totp.ts";
 import { isExpectedDenied } from "./nav-sweep.expected-denied.mjs";
-import { compareNavSweepCaseCoverage, startNavSweepRoleBrowser } from "./nav-sweep-startup.mjs";
+import { compareNavSweepCaseCoverage, startNavSweepRoleBrowser, startNavSweepViewportBrowser } from "./nav-sweep-startup.mjs";
 
 const BASE = "http://127.0.0.1:3000";
 const dir = "qa-artifacts/nav-sweep";
@@ -303,12 +303,11 @@ test("read-only navigation and runtime error sweep (real roles, both viewports)"
       const pages = proofOnly ? ["Overview"] : focusPage
         ? allPages.filter(name => name === focusPage) : allPages;
       assert.ok(pages.length, "Requested focus page is not in role navigation: " + role + "/" + focusPage);
-      // Bound Chromium's memory lifetime to a single role. A previous complete
-      // CI sweep lost the browser after 238 successful pages, before the remaining
-      // pages had run. Fresh contexts alone did not prevent that process failure.
-      // Retry only a disconnected browser while obtaining this role's session.
-      // Once route scans begin, failures are never retried or omitted.
-      const { browser, state } = await startNavSweepRoleBrowser({
+      // Start with a fresh Chromium session for this synthetic role, then
+      // rotate the process between desktop and phone scans. Only storageState
+      // survives the rotation; browser memory and pages do not.
+      // Retry only pre-scan infrastructure shutdown, never an app failure.
+      const started = await startNavSweepRoleBrowser({
         role,
         launch: () => chromium.launch({ headless: true }),
         authenticate: login,
@@ -318,13 +317,26 @@ test("read-only navigation and runtime error sweep (real roles, both viewports)"
             " one clean retry after browser closure: " + event.reason);
         },
       });
+      let browser = started.browser;
       try {
-        for (const width of (proofOnly ? [1280] : [1280, 390])) {
+        for (const [index, width] of (proofOnly ? [1280] : [1280, 390]).entries()) {
           activeViewport = width;
-          await checkRole(browser, role, width, state, pages);
+          if (index > 0) {
+            await browser.close();
+            browser = await startNavSweepViewportBrowser({
+              role, viewport: width, storageState: started.state,
+              launch: () => chromium.launch({ headless: true }),
+              onRetry: (event) => {
+                startupRetries.push(event);
+                console.warn("NAV_SWEEP_STARTUP_RETRY " + event.role + " " + event.viewport +
+                  "px one clean retry before scanning: " + event.reason);
+              },
+            });
+          }
+          await checkRole(browser, role, width, started.state, pages);
         }
       } finally {
-        await browser.close();
+        try { await browser.close(); } catch { /* Browser already exited; sweep remains a failure. */ }
       }
     }
   } catch (error) {

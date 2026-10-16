@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {spawnSync} from "node:child_process";
 import {readFileSync} from "node:fs";
 import {regressionFiles} from "../scripts/run-sharded-tests.mjs";
 import {proveCoverage} from "../scripts/qa/verify-audit-0109-shard-plan.mjs";
@@ -38,4 +39,20 @@ test("reporter keeps TAP logs private and aborts on failures",()=>{
   assert.ok(src.includes(term),term);
  }
  assert.doesNotMatch(src,/console\.log\(log\)|writeFileSync\([^,]+,\s*log\s*\)/);
+});
+test("required-shard audit installer refuses non-CI, external and payout-enabled contexts before connecting",()=>{
+ const base={PATH:process.env.PATH,SystemRoot:process.env.SystemRoot,
+  GITHUB_ACTIONS:"true",CI:"true",
+  DATABASE_URL:"postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+  PAYMONGO_DISBURSEMENTS_ENABLED:"false",XENDIT_PAYOUTS_ENABLED:"false"};
+ for(const change of [{GITHUB_ACTIONS:"false"},{CI:"false"},
+  {DATABASE_URL:"postgresql://fictional:unused@example.invalid/unapproved"},
+  {PAYMONGO_DISBURSEMENTS_ENABLED:"true"},{XENDIT_PAYOUTS_ENABLED:"true"}]){
+  const child=spawnSync(process.execPath,["scripts/qa/apply-audit-0109-isolated.mjs"],{
+   env:{...base,...change},encoding:"utf8",timeout:5000,windowsHide:true});
+  assert.equal(child.error,undefined);
+  assert.equal(child.status,1);
+  assert.match(child.stderr,/AssertionError/);
+  assert.equal(child.stdout,"");
+ }
 });

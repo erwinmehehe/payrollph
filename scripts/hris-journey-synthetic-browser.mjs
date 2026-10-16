@@ -13,6 +13,7 @@ assert.equal(process.env.CI, "true");
 assert.equal(process.env.HRIS_JOURNEY_ACCEPTANCE_MODE, "synthetic-postgres-only");
 assert.equal(base, "http://127.0.0.1:3000");
 assert.equal(process.env.HCM_MY_TEAM_ENABLED, "true");
+assert.equal(process.env.EVERYDAY_HR_HIRE_ENABLED, "true");
 assert.equal(process.env.OPENAI_API_KEY ?? "", "");
 const database = new URL(process.env.DATABASE_URL ?? "");
 assert.ok(["127.0.0.1", "localhost"].includes(database.hostname));
@@ -175,6 +176,74 @@ try {
     const latest = after.body;
     assert.equal(latest.employees.find(row => row.employeeId === owner.employeeId)
       .onboarding.find(task => task.id === item.id).done, true);
+  });
+
+  await checkpoint(page, "Everyday HR direct hire creates one real onboarding source", async () => {
+    await workspace(page, 1);
+    await page.getByRole("button", { name: "Open Hire & onboard" }).click();
+    await page.getByRole("heading", { name: "Onboarding checklist" }).waitFor();
+    await page.getByRole("button", { name: "Add employee & start onboarding" }).click();
+    const hire = page.getByRole("dialog", { name: "Add employee" });
+    await hire.waitFor();
+    // The server-exposed flag is explicitly enabled only in this disposable lab.
+    const before = await browserRequest(page, "/api/dashboard?organizationId=1");
+    assert.equal(before.body.everydayHrHireEnabled, true);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      const bounds = await hire.boundingBox();
+      assert.ok(bounds && bounds.x >= -1 && bounds.x + bounds.width <= width + 1,
+        "Hire dialog must fit desktop and 390px");
+      await page.screenshot({ path: `qa-artifacts/hris-hire-${width}px.png`, fullPage: true });
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await hire.getByLabel("First name").fill("Journey");
+    await hire.getByLabel("Last name").fill("Newhire");
+    await hire.getByLabel("Job title").fill("Synthetic HR");
+    await hire.getByLabel("Monthly rate").fill("24000");
+    await hire.getByLabel("Start date").fill("2026-10-15");
+
+    // A transient error must preserve editable input and not claim success.
+    await page.route("**/api/employees", route => route.fulfill({
+      status: 503, contentType: "application/json",
+      body: JSON.stringify({ error: "Synthetic retryable hire failure" }),
+    }), { times: 1 });
+    await hire.getByRole("button", { name: "Create & onboard" }).click();
+    await hire.getByText("Synthetic retryable hire failure", { exact: true }).waitFor();
+    assert.equal(await hire.getByLabel("Start date").inputValue(), "2026-10-15");
+    assert.equal(await hire.getByLabel("First name").inputValue(), "Journey");
+
+    // This is the real protected UI/API, not a seeded fake completed hire.
+    const [create] = await Promise.all([
+      page.waitForResponse(response =>
+        response.url().endsWith("/api/employees") && response.request().method() === "POST"),
+      hire.getByRole("button", { name: "Create & onboard" }).click(),
+    ]);
+    assert.equal(create.status(), 201, "Source employee creation must succeed from Everyday HR");
+    const created = await create.json();
+    const id = created?.employee?.id;
+    assert.ok(Number.isSafeInteger(id) && id > 0);
+    assert.equal(created.employee.organizationId, 1);
+    assert.equal(created.employee.firstName, "Journey");
+    assert.equal(created.employee.lastName, "Newhire");
+    assert.ok(Array.isArray(created.onboarding) && created.onboarding.length > 0,
+      "The owning employee-create API must persist real provisioning tasks");
+
+    await hire.waitFor({ state: "hidden" });
+    const search = page.getByRole("searchbox", { name: "Search onboarding checklists" });
+    await search.fill("Journey Newhire");
+    await page.getByRole("heading", { name: "Journey Newhire" }).waitFor({ timeout: 60000 });
+    const source = await browserRequest(page, "/api/provisioning?organizationId=1");
+    assert.equal(source.status, 200);
+    const actual = source.body?.employees?.find(worker => worker.employeeId === id);
+    assert.ok(actual && actual.onboarding.length > 0, "Checklist must be linked to exactly the new source employee");
+    assert.ok(actual.onboarding.every(task => task.employeeId === id && !task.done));
+    assert.ok(!JSON.stringify(source.body).includes("BetaPrivate"),
+      "A's checklist must never include the other fictional employer's records");
+
+    const other = await browserRequest(page, "/api/provisioning?organizationId=2");
+    assert.equal(other.status, 200);
+    assert.ok(!other.body?.employees?.some(worker => worker.employeeId === id),
+      "B must not expose newly hired A worker by overlapping identifiers");
   });
 
   // P0: use the actual HR Leave form and independent manager approval.
@@ -411,6 +480,10 @@ try {
       "/hcm/my-team?organizationId=2",
       "Review team must not retain the previous employer ID");
     const betaFind = await hydratedEmployeeSearch(mobilePage);
+    assert.equal(await betaFind.inputValue(), "",
+      "Employer switching must discard a prior tenant's employee search");
+    await betaFind.fill("Journey Newhire");
+    await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
     await betaFind.fill("AlphaPrivate");
     await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
     await betaFind.fill("BetaPrivate");

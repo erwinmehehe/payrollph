@@ -55,6 +55,21 @@ test("quick find limits response to six and gives exact number matches priority"
   assert.deepEqual(picked.map(row => row.id), [11, 10]);
 });
 
+test("HR quick find explains keyboard controls and bounded results on mobile", () => {
+  const home = readFileSync("src/components/hris-home-shortcuts.tsx", "utf8");
+  assert.ok(home.includes('aria-describedby="hris-employee-quick-help"'));
+  assert.ok(home.includes('aria-controls={searchExpanded ? "hris-employee-quick-results" : undefined}'));
+  assert.ok(home.includes('id="hris-employee-quick-results"'));
+  assert.ok(home.includes('aria-live="polite"'));
+  assert.ok(home.includes('aria-label="Clear employee search"'));
+  assert.ok(home.includes('onClick={() => setEmployeeQuery("")}'));
+  assert.ok(home.includes("Showing up to six matches."));
+  assert.ok(home.includes('matches.length === 6'));
+  assert.ok(home.includes("key={employee.id}"));
+  assert.ok(home.includes("onOpenEmployee?.(employee.id)"));
+  assert.ok(!home.includes("fetch("), "search may not introduce a new employee-data API");
+});
+
 test("HR Home quick find uses the selected employer key and existing employee drawer, no new API", () => {
   const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
   const home = readFileSync("src/components/hris-home-shortcuts.tsx", "utf8");

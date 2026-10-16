@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { focusEmployee360Section } from "../src/lib/employee-360-focus";
 import {
   buildEmployee360Overview, type Employee360ConnectedSnapshot,
 } from "../src/lib/employee-360-overview";
@@ -142,6 +143,51 @@ test("financial stages are evidence rather than salary authorization or bank set
   assert.ok(result.every((item) => !/bank settled|funds disbursed|payroll approved/i.test(item.detail)));
 });
 
+test("Employee 360 section navigation focuses non-focusable targets without trapping Tab", () => {
+  const events: string[] = [];
+  const blurHandlers: Array<() => void> = [];
+  let tabIndex: string | null = null;
+  const target = {
+    hasAttribute: (name: string) => name === "tabindex" && tabIndex !== null,
+    setAttribute: (name: string, value: string) => {
+      assert.equal(name, "tabindex");
+      tabIndex = value;
+      events.push("set:" + value);
+    },
+    removeAttribute: (name: string) => {
+      assert.equal(name, "tabindex");
+      tabIndex = null;
+      events.push("restore");
+    },
+    addEventListener: (name: string, callback: () => void, options: { once: boolean }) => {
+      assert.equal(name, "blur");
+      assert.equal(options.once, true);
+      blurHandlers.push(callback);
+    },
+    focus: (options: { preventScroll: boolean }) => {
+      assert.deepEqual(options, { preventScroll: true });
+      events.push("focus");
+    },
+    scrollIntoView: (options: { behavior: string; block: string }) => {
+      events.push("scroll:" + options.behavior + ":" + options.block);
+    },
+  } as unknown as HTMLElement;
+
+  focusEmployee360Section(target, true);
+  assert.equal(tabIndex, "-1");
+  assert.deepEqual(events, ["set:-1", "focus", "scroll:auto:start"]);
+  assert.equal(blurHandlers.length, 1);
+  blurHandlers[0]();
+  assert.equal(tabIndex, null, "temporary tabIndex must be removed on blur");
+
+  tabIndex = "0";
+  events.length = 0;
+  focusEmployee360Section(target, false);
+  assert.equal(tabIndex, "0", "an existing focus policy must not be overwritten");
+  assert.deepEqual(events, ["focus", "scroll:smooth:start"]);
+  assert.equal(blurHandlers.length, 1, "pre-existing tabIndex needs no cleanup listener");
+});
+
 test("Employee 360 is mounted only for authorized People administration and resets per worker", () => {
   const people = readFileSync("src/components/workspace/people.tsx", "utf8");
   const overview = readFileSync("src/components/employee-360-overview.tsx", "utf8");
@@ -159,7 +205,8 @@ test("Employee 360 is mounted only for authorized People administration and rese
   assert.ok(journeyPanel.includes('tabIndex={item.id === "compensation" || item.id === "payroll" ? -1 : undefined}'));
   assert.ok(overview.includes("disabled={isUnavailable}"));
   assert.ok(overview.includes("document.getElementById(card.targetId)"));
-  assert.ok(overview.includes("target.focus({ preventScroll: true })"));
+  assert.ok(overview.includes("focusEmployee360Section("));
+  assert.ok(overview.includes("aria-controls={card.available ? card.targetId : undefined}"));
   for (const unsafe of ["fetch(", "api/", "onPage(", "db.update(", "db.insert(", "payrollRuns"]) {
     assert.ok(!overview.includes(unsafe), unsafe);
   }
