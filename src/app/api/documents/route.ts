@@ -13,7 +13,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { documentObjectKey, documentStorageConfig, putDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
-import { canAccessEmployeeProfileVault, canStaffOpenEmployeeVault, vaultDocumentIsArchived, validExpiryCalendarDate } from "@/lib/employee-document-vault";
+import { canAccessEmployeeProfileVault, canStaffOpenEmployeeVault, vaultDocumentIsArchived, validEmployeeVaultCategory, validExpiryCalendarDate } from "@/lib/employee-document-vault";
 import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
 import {
   canMutateLegacyHcmDocument, compatibleDocumentColumns, legacyDocumentInsertTable, legacyVisibleDocumentWhere,
@@ -299,6 +299,13 @@ export async function POST(request: Request) {
       return Response.json({ error: "This required document needs an expiry date." }, { status: 400 });
     }
     kind = requirement.kind;
+  }
+
+  // Free-form profile vault uses four named categories. Existing HCM
+  // requirement uploads keep their explicitly configured requirement kind.
+  if (vaultEnabled && requirementId === null && employeeId !== null &&
+      !validEmployeeVaultCategory(kind)) {
+    return Response.json({ error: "Unknown employee document category." }, { status: 422 });
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
