@@ -55,12 +55,19 @@ test("#1031 IT-only source groups contain no historical migration or application
   assert.match(executable, /CHECK \("state" in \('grant_requested','active','revoke_requested','revoked'\)\)/);
 });
 
-test("#1031 disposable RC schema proof cannot change normal stable app dependencies", () => {
-  const workflow = readFileSync(".github/workflows/issue-1031-schema-only-it-assets-rehearsal.yml", "utf8");
-  const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
-  assert.equal(packageJson.devDependencies["drizzle-kit"], "0.31.11");
-  assert.equal(packageJson.dependencies["drizzle-orm"], "0.45.4");
-  assert.match(workflow, /npm install --no-save --package-lock=false drizzle-kit@1\.0\.0-rc\.4 drizzle-orm@1\.0\.0-rc\.4/);
-  assert.match(workflow, /PINNED_STABLE_SECOND_PUSH_KNOWN_2BP01=REPRODUCED_NOT_APPROVED/);
-  assert.match(workflow, /POST_REPAIR_FULL_SCHEMA_PUSH_NO_OP=PASS/);
+test("#1031 stable catalog candidate and separate RC true-no-op cannot be conflated", () => {
+  const wf = readFileSync(".github/workflows/issue-1031-schema-only-it-assets-rehearsal.yml", "utf8");
+  const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.equal(pkg.devDependencies["drizzle-kit"], "0.31.11");
+  assert.equal(pkg.dependencies["drizzle-orm"], "0.45.4");
+  const stable = wf.split("  disposable-postgres:\n")[1]?.split("  isolated-rc-repeat-proof:\n")[0];
+  const rc = wf.split("  isolated-rc-repeat-proof:\n")[1]?.split("  complete-npm-test:\n")[0];
+  assert.ok(stable && rc, "must use separate disposable PG jobs");
+  assert.doesNotMatch(stable, /drizzle-kit@1\.0\.0-rc\.4|Prove the second full-schema drizzle-kit push/);
+  assert.match(stable, /schema-only-it-assets-postgres\.test\.ts/);
+  assert.match(rc, /drizzle-kit@1\.0\.0-rc\.4 drizzle-orm@1\.0\.0-rc\.4/);
+  assert.equal((rc.match(/npm run db:push/g) ?? []).length, 2,
+    "both RC pushes must be in one independent freshly bootstrapped database");
+  assert.match(rc, /SEPARATE_RC_TRUE_NO_OP=PASS/);
+  assert.match(rc, /set -euo pipefail/);
 });
