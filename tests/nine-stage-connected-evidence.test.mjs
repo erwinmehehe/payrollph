@@ -9,6 +9,14 @@ const stages = ["Hire","Onboard","Schedule","Clock In","Approve Time","Run Payro
 
 function isAccepted(r) {
   return Boolean(r && r.result === "PASS" && Array.isArray(r.stages)
+    && (!r.annualJourneyRequired || (r.annualJourney?.result === "PASS"
+      && r.annualJourney.employeeId === r.lineage?.employeeId
+      && r.annualJourney.payrollRunId === r.lineage?.payrollRunId
+      && r.annualJourney.organizationId === r.lineage?.organizationId
+      && /^[a-f0-9]{64}$/.test(r.annualJourney.pdfSha256 ?? "")
+      && r.annualJourney.paidThirteenthCentavos > 0
+      && r.annualJourney.refundedTaxCentavos > 0
+      && r.annualJourney.unsigned === true && r.annualJourney.submitted === false))
     && r.stages.length === stages.length
     && r.stages.every((s, index) => s?.name === stages[index] && s.status === "PASS")
     && Array.isArray(r.employerBStages)
@@ -44,6 +52,14 @@ test("governed journey receipt rejects sidecar worker substitution and incomplet
       },
       governedHire: { employeeId: 10, applicantId: 1, businessProcessId: 2, positionId: 3, requisitionId: 4 } } };
   assert.equal(isAccepted(r), true);
+  const annual = { ...structuredClone(r), annualJourneyRequired: true };
+  assert.equal(isAccepted(annual), false, "Nine stages alone cannot prove annual certificate completion");
+  annual.lineage.organizationId = 30;
+  annual.annualJourney = { result: "PASS", organizationId: 30, employeeId: 10, payrollRunId: 11,
+    pdfSha256: "a".repeat(64), paidThirteenthCentavos: 100, refundedTaxCentavos: 1, unsigned: true, submitted: false };
+  assert.equal(isAccepted(annual), true);
+  annual.annualJourney.employeeId = 20;
+  assert.equal(isAccepted(annual), false, "A seeded or different worker's certificate is not connected evidence");
   const wrong = structuredClone(r); wrong.lineage.governedHire.employeeId = 11;
   assert.equal(isAccepted(wrong), false);
   const missing = structuredClone(r); delete missing.lineage.governedHire.applicantId;

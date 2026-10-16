@@ -1,6 +1,6 @@
 "use strict";
 const assert = require("node:assert/strict");
-const { manilaMonthEnd, syntheticEpoch } = require("./synthetic-month-end.cjs");
+const { qaCutoff, syntheticEpoch } = require("./synthetic-month-end.cjs");
 
 // Disposable fixture only: PostgreSQL defaults must share Node's fictional
 // timeline before actual login creates any session. Never rewrite a session.
@@ -25,12 +25,13 @@ function fixtureClockOffset(env, realNow = Date.now()) {
   }
   for (const key of ["OPENAI_API_KEY", "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY"])
     if (env[key]) throw new Error("Provider credentials are forbidden in the disposable fixture");
-  assert.equal(env.NINE_STAGE_SYNTHETIC_CLOCK, manilaMonthEnd(realNow));
+  assert.equal(env.NINE_STAGE_SYNTHETIC_CLOCK, qaCutoff(env.NINE_STAGE_CUTOFF_MODE, realNow));
   const anchor = Number(env.NINE_STAGE_SYNTHETIC_REAL_ANCHOR);
   assert.ok(Number.isSafeInteger(anchor) && realNow >= anchor && realNow - anchor < 30 * 60_000,
     "A fresh shared clock anchor is required");
   const offset = syntheticEpoch(env.NINE_STAGE_SYNTHETIC_CLOCK) - anchor;
-  assert.ok(Number.isSafeInteger(offset) && Math.abs(offset) < 32 * 86400000);
+  assert.ok(Number.isSafeInteger(offset) && Math.abs(offset) <
+    (env.NINE_STAGE_CUTOFF_MODE === "year-end" ? 367 : 32) * 86400000);
   return offset;
 }
 
