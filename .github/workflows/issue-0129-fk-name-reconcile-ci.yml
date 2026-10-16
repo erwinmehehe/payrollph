@@ -7,6 +7,10 @@ on:
       - "scripts/independent-pg16-0129-checkpoint.mjs"
       - "scripts/independent-pg16-0129-catalog-parity.mjs"
       - "tests/independent-0129-fk-source.test.mjs"
+      - "scripts/generate-issue-1031-source-worksheet.mjs"
+      - "tests/issue-1031-migration-source-worksheet.test.mjs"
+      - "docs/engineering/issue-1031-migration-source-worksheet.csv"
+      - "docs/engineering/issue-1031-source-table-crosswalk.csv"
       - ".github/workflows/issue-0129-fk-name-reconcile-ci.yml"
       - "docs/engineering/issue-0129-fk-name-only-qa.md"
       - "drizzle/0115_*.sql"
@@ -66,6 +70,8 @@ jobs:
           node --check scripts/independent-pg16-0129-checkpoint.mjs
           node --check scripts/independent-pg16-0129-catalog-parity.mjs
           node --test tests/independent-0129-fk-source.test.mjs
+          node scripts/generate-issue-1031-source-worksheet.mjs --check
+          node --test tests/issue-1031-migration-source-worksheet.test.mjs
       - name: Initialize guarded local Drizzle source only
         run: npm run db:push
       - name: Create throwaway candidate by copying local source
