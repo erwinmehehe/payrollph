@@ -100,9 +100,8 @@ export async function generateConnected2316(input: Scope & { runId: number; owne
   const review = { text: { rdo: "039", address: "123 Fictional Street", zip: "1100", homeAddress: "123 Fictional Street", homeZip: "1100", foreignAddress: "", contact: "09171234567", minimumDaily: "0.00", minimumMonthly: "0.00", employerAddress: "456 Fictional Avenue", employerZip: "1200", categoryReference: "Fictional single-run BASIC, commission and premium mapping", peraReference: "Fictional zero PERA declaration", "44A": "", "44B": "", "51A": "", "51B": "Fictional holiday and schedule premiums" }, detailItems, previousEmployer: { status: "none-confirmed" }, peraCredit: "0.00", employerType: "main", acknowledged: true };
   assert.equal((await owner.json(api, "POST", { sourceDigest: "stale", review })).status, 409);
   const pdf = await owner.request(api, "POST", { sourceDigest: loaded.sourceDigest, review });
-  // This entire fixture is fictional and guarded by the parent empty-local-CI
-  // preflight. Persist numerical diagnostics before assertion so failed source
-  // mapping is reviewable without response bodies or credentials in logs.
+  // This CI-only fixture does not save failed HTTP response data to disk.
+  // Its error summary is restricted to allowlisted codes for the assertion.
   let failureCodes: string[] = [];
   if (pdf.status !== 200) {
     const failure = await pdf.clone().json().catch(() => ({}));
