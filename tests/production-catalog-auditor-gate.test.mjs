@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import {
   CATALOG_AUDITOR_GUARD_SQL, verifyCatalogAuditorFlags,
-  assertCatalogAuditorPrivilegeBoundary,
+  assertCatalogAuditorPrivilegeBoundary, catalogAuditorConnectionOptions,
 } from "../scripts/lib/production-catalog-auditor-gate.mjs";
 
 const healthy = Object.freeze({
-  databaseMatches: true, readOnly: true, targetMatches: true,
+  databaseMatches: true, sessionMatches: true, withoutObjectOwnership: true, readOnly: true, targetMatches: true,
   restrictedAttributes: true, withoutMembership: true,
   withoutDatabaseCreate: true, withoutSchemaCreate: true,
   withoutUnexpectedRelationAccess: true,
@@ -20,7 +20,7 @@ test("catalog auditor cannot accept Neon owner, neon_superuser member, or writab
     "restrictedAttributes", "withoutMembership", "withoutDatabaseCreate",
     "withoutSchemaCreate", "withoutUnexpectedRelationAccess",
     "withoutSecurityDefinerExecution", "targetMatches", "readOnly",
-    "databaseMatches",
+    "databaseMatches", "sessionMatches", "withoutObjectOwnership",
   ]) {
     assert.throws(() => verifyCatalogAuditorFlags({ ...healthy, [key]: false }),
       /P0_4_CATALOG_AUDITOR_NOT_LEAST_PRIVILEGED/, key);
@@ -35,23 +35,6 @@ test("catalog auditor cannot accept Neon owner, neon_superuser member, or writab
   assert.throws(() => verifyCatalogAuditorFlags({
     ...healthy, journalsReadable: false,
   }, { requireJournals: true }), /P0_4_CATALOG_AUDITOR_NOT_LEAST_PRIVILEGED/);
-});
-
-test("catalog-only SQL tests effective privileges in EVERY user schema", () => {
-  assert.match(CATALOG_AUDITOR_GUARD_SQL, /pg_catalog\.pg_auth_members/);
-  assert.match(CATALOG_AUDITOR_GUARD_SQL, /rolbypassrls/);
-  assert.match(CATALOG_AUDITOR_GUARD_SQL, /rolinherit/);
-  assert.match(CATALOG_AUDITOR_GUARD_SQL, /has_any_column_privilege/);
-  assert.match(CATALOG_AUDITOR_GUARD_SQL, /has_sequence_privilege/);
-  assert.match(CATALOG_AUDITOR_GUARD_SQL, /has_schema_privilege/);
-  assert.match(CATALOG_AUDITOR_GUARD_SQL, /pg_catalog\.pg_proc/);
-  assert.match(CATALOG_AUDITOR_GUARD_SQL, /prosecdef/);
-  assert.match(CATALOG_AUDITOR_GUARD_SQL, /neon\.project_id/);
-  assert.match(CATALOG_AUDITOR_GUARD_SQL, /neon\.endpoint_id/);
-  assert.match(CATALOG_AUDITOR_GUARD_SQL, /payrollph_schema_migrations/);
-  assert.doesNotMatch(CATALOG_AUDITOR_GUARD_SQL, /^\s*(?:CREATE|ALTER|DROP|GRANT|REVOKE|INSERT|UPDATE|DELETE|TRUNCATE)\b/im);
-  assert.doesNotMatch(CATALOG_AUDITOR_GUARD_SQL,
-    /\bFROM\s+(?:public|neon_auth)\.(?:employees|payroll_entries|user)\b/i);
 });
 
 test("privilege boundary fails closed on ambiguous, missing, or duplicate catalog rows", async () => {
@@ -80,27 +63,45 @@ test("privilege boundary fails closed on ambiguous, missing, or duplicate catalo
   }
 });
 
-test("manual production paths gate the actual role before schema or receipt reads", () => {
-  const verify = readFileSync("scripts/verify-production-catalog-auditor.mjs", "utf8");
-  assert.match(verify, /workflow_dispatch/);
-  assert.match(verify, /refs\/heads\/main/);
-  assert.match(verify, /verify-full/);
-  assert.match(verify, /REPEATABLE READ, READ ONLY/);
-  assert.match(verify, /assertCatalogAuditorPrivilegeBoundary/);
-  assert.doesNotMatch(verify, /^\s*(?:CREATE|ALTER|DROP|GRANT|REVOKE|INSERT|UPDATE|DELETE)\b/im);
-  for (const path of [
-    ".github/workflows/issue-1031-full-schema-diff.yml",
-    ".github/workflows/production-schema-inventory.yml",
+test("manual CLI rejects unreviewed source and transport overrides before connecting", () => {
+  const sha = "a".repeat(40);
+  const base = {
+    PATH: process.env.PATH, SystemRoot: process.env.SystemRoot,
+    GITHUB_ACTIONS: "true", GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_REPOSITORY: "erwinmehehe/payrollph", GITHUB_REF: "refs/heads/main",
+    REVIEWED_SHA: sha, GITHUB_SHA: sha,
+    EXPECTED_PRODUCTION_DATABASE_NAME: "neondb",
+    PRODUCTION_DATABASE_URL: "postgresql://fixture:DO_NOT_PRINT@127.0.0.1/neondb?sslmode=verify-full",
+  };
+  for (const change of [
+    {}, { GITHUB_EVENT_NAME: "pull_request" }, { GITHUB_REF: "refs/heads/topic" },
+    { REVIEWED_SHA: "b".repeat(40) }, { EXPECTED_PRODUCTION_DATABASE_NAME: "other" },
+    { PRODUCTION_DATABASE_URL: "postgresql://fixture:DO_NOT_PRINT@ep-cool-hat-b7e7gpoo.ap-southeast-1.aws.neon.tech/neondb?sslmode=disable" },
+    { PRODUCTION_DATABASE_URL: "postgresql://fixture:DO_NOT_PRINT@localhost/neondb?sslmode=verify-full&options=-c%20role%3Dother" },
   ]) {
-    const workflow = readFileSync(path, "utf8");
-    const guard = workflow.indexOf("node scripts/verify-production-catalog-auditor.mjs --verify");
-    const check = workflow.indexOf(path.includes("full-schema")
-      ? "tsx scripts/check-issue-1031-full-schema-diff.ts"
-      : "tsx scripts/check-production-schema-preflight.ts");
-    assert.ok(guard >= 0 && guard < check, path + " must fail before schema catalog scan");
+    const child = spawnSync(process.execPath, ["scripts/verify-production-catalog-auditor.mjs", "--verify"], {
+      env: { ...base, ...change }, encoding: "utf8", timeout: 5000, windowsHide: true,
+    });
+    assert.equal(child.error, undefined);
+    assert.equal(child.status, 1);
+    assert.equal(child.stdout, "");
+    assert.match(child.stderr, /P0_4_CATALOG_AUDITOR_NOT_LEAST_PRIVILEGED_OR_TARGET_UNVERIFIED/);
+    assert.ok(!child.stderr.includes("DO_NOT_PRINT"));
+    assert.ok(!child.stderr.includes("postgresql://"));
   }
-  const receipts = readFileSync("scripts/audit-production-migration-receipts.mjs", "utf8");
-  assert.match(receipts, /assertCatalogAuditorPrivilegeBoundary/);
-  assert.ok(receipts.indexOf("assertCatalogAuditorPrivilegeBoundary") <
-    receipts.indexOf("const receipts = await client.query("));
+});
+
+test("every caller's connection options require exact pinned verified TLS without overrides", () => {
+  const host = "ep-cool-hat-b7e7gpoo.c-13.us-east-1.aws.neon.tech";
+  const valid = `postgresql://fixture:FICTIONAL@${host}/neondb?sslmode=verify-full`;
+  const options = catalogAuditorConnectionOptions(valid, "neondb");
+  assert.equal(options.connectionString, valid);
+  assert.equal(options.ssl.rejectUnauthorized, true);
+  for (const url of [valid + "&options=-c%20role%3Dother", valid + "&host=localhost",
+    valid.replace(host, "127.0.0.1"), valid.replace(host, host.replace(".c-13", "-pooler.c-13")),
+    valid.replace("verify-full", "require"), valid.replace("/neondb", "/other"), valid + "#fragment"]) {
+    assert.throws(() => catalogAuditorConnectionOptions(url, "neondb"));
+  }
+  assert.throws(() => catalogAuditorConnectionOptions(valid, "other"));
+  assert.throws(() => verifyCatalogAuditorFlags(healthy, { requireJournals: "" }));
 });

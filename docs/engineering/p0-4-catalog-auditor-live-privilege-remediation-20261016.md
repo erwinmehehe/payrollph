@@ -124,3 +124,13 @@ automatic history rewrites, no fake baseline receipts, no ad hoc SQL.
 - #899, #907, #908, #1015, #1054 and #1061 remain independent production
   authorization and recovery gates. Do not convert a green CI test into
   a production approval.
+
+## Source guard hardening and synthetic acceptance
+
+The shared gate now runs inside the same READ ONLY connection/transaction used by both catalog readers and the receipt reader. The standalone workflow preflight is supplemental. All three readers reject an unpinned database/host, pooled endpoint, startup options or unverified TLS before connecting.
+
+The login must also equal the session identity and own no objects. Ownership can restore privileges even after ordinary grants are revoked. Column-level INSERT/UPDATE/REFERENCES and PostgreSQL 17+ MAINTAIN are rejected alongside table ACLs, sequence access, memberships and SECURITY DEFINER execution. PostgreSQL explains these distinctions in [privilege inquiry functions](https://www.postgresql.org/docs/current/functions-info.html) and [object ownership](https://www.postgresql.org/docs/current/ddl-priv.html).
+
+`node --test scripts/qa/catalog-auditor-postgres.test.mjs` executes the actual guard SQL with a fresh restricted LOGIN on disposable PG16 and PG18. It exercises individual column/table grants, PUBLIC access, alternate auth-shaped schemas, ownership after ordinary privilege revocation, role elevation, SET ROLE disguise, wrong identity, journal permissions and transaction mode. Fixture Neon settings are synthetic inputs on vanilla PostgreSQL; they do not attest the real endpoint or its actual roles. This acceptance workflow has no production secrets or dispatch path and refuses a database with preexisting application objects or fixture roles.
+
+No application runtime/UI or release-flag default changes. Protected production inspections remain manual-only. No role remediation, live audit dispatch or production migration is authorized by this source change.

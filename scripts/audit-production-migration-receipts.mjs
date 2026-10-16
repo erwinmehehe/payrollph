@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { inventoryMigrationSources, reconcileMigrationReceipts } from './lib/migration-receipt-audit.mjs';
-import { assertCatalogAuditorPrivilegeBoundary } from './lib/production-catalog-auditor-gate.mjs';
+import { assertCatalogAuditorPrivilegeBoundary, catalogAuditorConnectionOptions } from './lib/production-catalog-auditor-gate.mjs';
 
 const inventory = inventoryMigrationSources();
 const mode = process.argv[2];
@@ -38,8 +38,9 @@ async function verify() {
     throw new Error('Missing reviewed target and protected read-only database authorization.');
   }
 
+  const options = catalogAuditorConnectionOptions(dbUrl, dbName);
   const { Client } = await import('pg');
-  const client = new Client({ connectionString: dbUrl, connectionTimeoutMillis: 8000, query_timeout: 8000 });
+  const client = new Client(options);
   let connected = false;
   let inTransaction = false;
   try {

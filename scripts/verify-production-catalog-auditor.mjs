@@ -6,9 +6,9 @@
  * personal records, SQL values, or role-grant inventories.
  */
 import {
-  PINNED_NEON, requireCatalogAuditTransport,
+  PINNED_NEON,
 } from "./lib/historical-dba-evidence.mjs";
-import { assertCatalogAuditorPrivilegeBoundary } from "./lib/production-catalog-auditor-gate.mjs";
+import { assertCatalogAuditorPrivilegeBoundary, catalogAuditorConnectionOptions } from "./lib/production-catalog-auditor-gate.mjs";
 
 if (process.argv.length !== 3 || process.argv[2] !== "--verify") {
   console.error("Use --verify only from the reviewed, manual production workflow.");
@@ -31,25 +31,9 @@ async function verify() {
       e.EXPECTED_PRODUCTION_DATABASE_NAME !== PINNED_NEON.database) {
     throw new Error("P0_4_CATALOG_AUDITOR_SOURCE_UNREVIEWED");
   }
-  const value = e.PRODUCTION_DATABASE_URL;
-  let target;
-  try { target = new URL(value); }
-  catch { throw new Error("P0_4_CATALOG_AUDITOR_URL_MISSING"); }
-  requireCatalogAuditTransport(target);
-  if (!["postgres:","postgresql:"].includes(target.protocol) ||
-      target.hostname !== PINNED_NEON.host ||
-      !["", "5432"].includes(target.port) ||
-      target.pathname !== "/" + PINNED_NEON.database ||
-      target.searchParams.get("sslmode") !== "verify-full" ||
-      !target.username || !target.password || target.hash) {
-    throw new Error("P0_4_CATALOG_AUDITOR_CONNECTION_NOT_PINNED");
-  }
-
+  const options = catalogAuditorConnectionOptions(e.PRODUCTION_DATABASE_URL, e.EXPECTED_PRODUCTION_DATABASE_NAME);
   const { default: pg } = await import("pg");
-  const client = new pg.Client({
-    connectionString: value, connectionTimeoutMillis: 6000,
-    query_timeout: 8000, ssl: { rejectUnauthorized: true },
-  });
+  const client = new pg.Client(options);
   let connected = false, inTransaction = false;
   try {
     await client.connect();

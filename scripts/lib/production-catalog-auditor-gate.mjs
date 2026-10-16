@@ -6,7 +6,24 @@
  * relations, sequences, and reachable SECURITY DEFINER routines.
  * Any unknown/missing boolean is a hard failure. Never log raw DB errors.
  */
-import { PINNED_NEON } from "./historical-dba-evidence.mjs";
+import { PINNED_NEON, requireCatalogAuditTransport } from "./historical-dba-evidence.mjs";
+
+/** Validate every audit connection before opening a socket. Never accept startup overrides. */
+export function catalogAuditorConnectionOptions(value, expectedDatabase) {
+  let target;
+  try { target = new URL(value); }
+  catch { throw new Error("P0_4_CATALOG_AUDITOR_CONNECTION_NOT_PINNED"); }
+  requireCatalogAuditTransport(target);
+  if (expectedDatabase !== PINNED_NEON.database ||
+      !["postgres:", "postgresql:"].includes(target.protocol) ||
+      target.hostname !== PINNED_NEON.host || !["", "5432"].includes(target.port) ||
+      target.pathname !== "/" + PINNED_NEON.database ||
+      !target.username || !target.password || target.hash) {
+    throw new Error("P0_4_CATALOG_AUDITOR_CONNECTION_NOT_PINNED");
+  }
+  return { connectionString: value, connectionTimeoutMillis: 6000,
+    query_timeout: 8000, ssl: { rejectUnauthorized: true } };
+}
 
 export const CATALOG_AUDITOR_GUARD_SQL = [
   "WITH self AS (",
@@ -25,6 +42,7 @@ export const CATALOG_AUDITOR_GUARD_SQL = [
   "    AND n.nspname !~ '^pg_(toast|temp)'",
   ")",
   "SELECT current_database() = $1::text AS \"databaseMatches\",",
+  "  current_user = session_user AS \"sessionMatches\",",
   "  current_setting('transaction_read_only') = 'on' AS \"readOnly\",",
   "  (current_setting('neon.project_id',true) = $2::text",
   "    AND current_setting('neon.branch_id',true) = $3::text",
@@ -34,6 +52,11 @@ export const CATALOG_AUDITOR_GUARD_SQL = [
   "    SELECT 1 FROM pg_catalog.pg_auth_members m",
   "    WHERE m.member = (SELECT oid FROM self)",
   "  ) AS \"withoutMembership\",",
+  "  NOT EXISTS (",
+  "    SELECT 1 FROM pg_catalog.pg_shdepend d",
+  "    WHERE d.refclassid = 'pg_catalog.pg_authid'::pg_catalog.regclass",
+  "      AND d.refobjid = (SELECT oid FROM self) AND d.deptype = 'o'",
+  "  ) AS \"withoutObjectOwnership\",",
   "  NOT pg_catalog.has_database_privilege(",
   "    current_user,current_database(),'CREATE'",
   "  ) AS \"withoutDatabaseCreate\",",
@@ -50,6 +73,9 @@ export const CATALOG_AUDITOR_GUARD_SQL = [
   "    ELSE",
   "      pg_catalog.has_table_privilege(current_user,c.oid,",
   "        'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')",
+  "      OR pg_catalog.has_any_column_privilege(current_user,c.oid,'INSERT,UPDATE,REFERENCES')",
+  "      OR CASE WHEN current_setting('server_version_num')::integer >= 170000 THEN",
+  "        pg_catalog.has_table_privilege(current_user,c.oid,'MAINTAIN') ELSE false END",
   "      OR (",
   "        pg_catalog.has_any_column_privilege(current_user,c.oid,'SELECT')",
   "        AND NOT (",
@@ -84,13 +110,14 @@ export const CATALOG_AUDITOR_GUARD_SQL = [
 ].join("\n");
 
 const BASE_REQUIREMENTS = Object.freeze([
-  "databaseMatches", "readOnly", "targetMatches", "restrictedAttributes",
+  "databaseMatches", "sessionMatches", "readOnly", "targetMatches", "restrictedAttributes",
   "withoutMembership", "withoutDatabaseCreate", "withoutSchemaCreate",
+  "withoutObjectOwnership",
   "withoutUnexpectedRelationAccess", "withoutSecurityDefinerExecution",
 ]);
 
 export function verifyCatalogAuditorFlags(row, { requireJournals = false } = {}) {
-  if (!row || typeof row !== "object" ||
+  if (typeof requireJournals !== "boolean" || !row || typeof row !== "object" ||
       BASE_REQUIREMENTS.some(key => row[key] !== true) ||
       (requireJournals && row.journalsReadable !== true)) {
     throw new Error("P0_4_CATALOG_AUDITOR_NOT_LEAST_PRIVILEGED");
