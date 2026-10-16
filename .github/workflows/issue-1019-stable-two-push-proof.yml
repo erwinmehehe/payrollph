@@ -1,0 +1,104 @@
+name: Issue 1019 - Pinned stable Drizzle true two-push proof (disposable PG)
+on:
+  pull_request:
+    paths:
+      - "scripts/lib/drizzle-kit-03111-ordinality-hotfix.mjs"
+      - "scripts/strict-db-push.mjs"
+      - "scripts/qa/issue-1019-stable-two-push-proof.mjs"
+      - "tests/drizzle-kit-03111-ordinality-hotfix.test.mjs"
+      - "docs/engineering/issue-1019-stable-ordinality-review.md"
+      - ".github/workflows/issue-1019-stable-two-push-proof.yml"
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  stable-pinned-two-push:
+    name: REAL pinned Kit 0.31.11 first+second strict push on PG ${{ matrix.postgres }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      ISSUE_1019_REHEARSAL: "disposable-ci-only"
+      PG_MAJOR: ${{ matrix.postgres }}
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+    steps:
+      - name: Checkout PR without stored credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Test pinned Kit package-introspection patch and remote URL refusal
+        run: node --test tests/drizzle-kit-03111-ordinality-hotfix.test.mjs tests/strict-db-push.test.mjs
+      - name: Confirm empty disposable PostgreSQL target
+        run: node scripts/qa/issue-1019-stable-two-push-proof.mjs preflight
+      - name: First FULL source schema push with real pinned stable Kit 0.31.11
+        run: npm run db:push
+      - name: Re-run patch behavior tests against the already-patched installed Kit
+        run: node --test tests/drizzle-kit-03111-ordinality-hotfix.test.mjs tests/strict-db-push.test.mjs
+      - name: Capture complete catalog and all tenant security keys BEFORE second push
+        id: captured_catalog
+        run: node scripts/qa/issue-1019-stable-two-push-proof.mjs capture
+      - name: Require unambiguous DDL-free real second stable push, NEVER RC overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(npm run db:push)"
+          printf '%s\n' "$output"
+          grep -Fxq '[✓] No changes detected' <<< "$output"
+          test "$(grep -Fc '[✓] No changes detected' <<< "$output")" -eq 1
+          echo "ISSUE_1019_PINNED_STABLE_SECOND_PUSH_TRUE_NO_OP=PASS"
+      - name: Diagnose schema delta when a previous step failed (disposable CI only)
+        if: ${{ failure() && steps.captured_catalog.outcome == 'success' }}
+        run: node scripts/qa/issue-1019-stable-two-push-proof.mjs diagnose
+      - name: Redacted vendor verbose plan on failure (third push, diagnostic ONLY)
+        if: ${{ failure() && steps.captured_catalog.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          ISSUE_1019_VERBOSE: "true"
+        run: npm run db:push
+      - name: Compare full PG catalog after second push, no schema changes
+        run: node scripts/qa/issue-1019-stable-two-push-proof.mjs compare
+      - name: Verify same-tenant allowed and cross-tenant HR COE + message denied
+        run: node scripts/qa/issue-1019-stable-two-push-proof.mjs negative
+      - name: Prove the fingerprint checker detects a deliberately modified index and rolls back
+        run: node scripts/qa/issue-1019-stable-two-push-proof.mjs negative-drift
+      - name: Reconfirm original catalog after negative tests
+        run: node scripts/qa/issue-1019-stable-two-push-proof.mjs compare
+      - name: Save metadata-only baseline for review with this run's CLI results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: issue-1019-stable-catalog-pg${{ matrix.postgres }}
+          path: qa-artifacts/issue-1019-stable-repeat-proof.json
+          if-no-files-found: warn
+          retention-days: 14

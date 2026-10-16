@@ -173,6 +173,11 @@ test("PG16/18: 0115-0123 exact source, denied writes, money invariants and total
     const catalogBefore = await fingerprint(db);
     const moneyBefore = await money(db);
     await db.query("BEGIN");
+    const { rows: [comparison] } = await db.query(`SELECT
+      1 IN ('01','02') AS numeric_in,
+      1::text = ANY(ARRAY['01'::varchar,'02'::varchar]::text[]) AS text_any`);
+    assert.deepEqual(comparison, { numeric_in: true, text_any: false },
+      "numeric IN and text-cast ANY must not be normalized as equivalent");
     inTransaction = true;
     await db.query("SET LOCAL statement_timeout = '120s'");
     // Synthetic db:push has current schema. Remove ONLY these disposable

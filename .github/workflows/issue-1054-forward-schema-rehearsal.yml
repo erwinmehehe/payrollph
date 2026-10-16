@@ -8,6 +8,7 @@ on:
       - "scripts/lib/reviewed-migration-runner.mjs"
       - "docs/engineering/issue-1031-migration-source-worksheet.csv"
       - "tests/issue-1054-forward-preflight-regression.test.mjs"
+      - "tests/issue-1054-protected-runner-integration.test.mjs"
       - "tests/wfm-1054-forward-migration-postgres.test.mjs"
       - ".github/workflows/issue-1054-forward-schema-rehearsal.yml"
   push:
@@ -18,6 +19,7 @@ on:
       - "scripts/lib/reviewed-migration-runner.mjs"
       - "docs/engineering/issue-1031-migration-source-worksheet.csv"
       - "tests/issue-1054-forward-preflight-regression.test.mjs"
+      - "tests/issue-1054-protected-runner-integration.test.mjs"
       - "tests/wfm-1054-forward-migration-postgres.test.mjs"
       - ".github/workflows/issue-1054-forward-schema-rehearsal.yml"
 
@@ -78,6 +80,8 @@ jobs:
           node --check tests/wfm-1054-forward-migration-postgres.test.mjs
           node --check scripts/lib/issue-1054-protected-preflight.mjs
           node --check tests/issue-1054-forward-preflight-regression.test.mjs
+          node --check tests/issue-1054-protected-runner-integration.test.mjs
+          node --test tests/issue-1054-protected-runner-integration.test.mjs | tee qa-artifacts/issue-1054/runner-pg-${{ matrix.postgres }}.log
           node --test tests/wfm-1054-forward-migration-postgres.test.mjs | tee qa-artifacts/issue-1054/pg-${{ matrix.postgres }}.log
           node --test tests/issue-1054-forward-preflight-regression.test.mjs | tee -a qa-artifacts/issue-1054/pg-${{ matrix.postgres }}.log
           sha256sum drizzle/0125_wfm_availability_open_shifts_forward_repair.sql > qa-artifacts/issue-1054/pg-${{ matrix.postgres }}.sha256

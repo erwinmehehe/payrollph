@@ -2,13 +2,13 @@
 
 **Disposition: ENGINEERING REVIEW PACKET; NO-GO FOR PRODUCTION APPLY.** Prepared against `erwinmehehe/payrollph` source `main` commit `bb722cdc4914a4546a7f7699ceaa62cdfaa1904d` on 2026-10-16. This is neither a DBA approval, production inventory, migration receipt, restore witness, protected pipeline run, HR privacy acceptance, nor authority to enable features or move money. Do not treat a merged PR or green CI job as one of those records.
 
-The attached proposed guard patch changes `0125`; therefore its **original** source SHA-256 is invalid for an apply of the **proposed** content. All sources, checksums and the exact reviewed `main` commit must be re-pinned after an authorized source PR is merged. No SQL here has been applied to the real database.
+The earlier handoff described an **unmerged candidate rewrite** of `0125`, but the stacked #1120/#1121 implementation instead puts the strengthened companion checks in the protected runner while leaving the numbered `0125` SQL unchanged at SHA-256 `3f51ca8ed1ea2cb8a04e071f567be1b5281425ab26677af4d5a539bdaeeee20b`. Forward-only `0128` has its own unapproved source checksum and must be reviewed separately after authentic `0127` history. All eventual release commits, source hashes and receipts require independent operator reconciliation. No real database SQL has been applied through this PR.
 
 ## PR #1121 synthetic catalog evidence update (2026-10-16; engineering only)
 
 [Stacked PG16/PG18 workflow](https://github.com/erwinmehehe/payrollph/actions/runs/38868214207) at earlier PR head `d5b93ea3565487cc78f667e11785c32ae3d33952` ran actual source 0115–0126 on disposable rollback-only databases. The ten-table #1031 comparison immediately after 0126 recorded **214 PASS / 49 MISSING / 0 DRIFT / 49 EXTRA**: all 98 non-PASS rows were exact FK-name differences, not permission to ignore schema drift. The initial 0128 candidate reconciled 35 constraints and still left **14 MISSING and 14 EXTRA** across `employee_availability_rules`, `open_shifts`, and `open_shift_claims`. Exact comparison still correctly failed on both PG16 and PG18. Separately, TypeScript failed with TS2339 because `normColumnDefault` did not declare the `type` property that it reads.
 
-This PR revision adds the missing **14** strict, catalog-verified 0128 renames (49 total) and fixes that TypeScript type declaration. **The revised patch has no passing PG16/PG18 or TypeScript result yet; inspect new CI for actual evidence.** Source migration `0125` is not changed by this PR revision; the stacked #1120 history-guard problem remains a human migration-policy stop. Even green isolated CI cannot authorize a real 0128 apply, migration ledger adoption, payout, feature activation, or production acceptance. Authentic 0127 provenance/receipts and protected source checksums remain independent prerequisites.
+This PR revision adds the missing **14** strict, catalog-verified 0128 renames (49 total) and fixes that TypeScript type declaration. **The revised patch has no passing PG16/PG18 or TypeScript result yet; inspect new CI for actual evidence.** Source migration `0125` is not changed by this PR revision; the stacked #1120 SQL Migration History Guard **passed its advisory CI check** at `78c6026`. This is not a receipt, independently approved 0127 history, or a human migration-policy release decision. Even green isolated CI cannot authorize a real 0128 apply, migration ledger adoption, payout, feature activation, or production acceptance. Authentic 0127 provenance/receipts and protected source checksums remain independent prerequisites.
 
 ## 2026-10-16 engineering evidence boundary
 
@@ -195,9 +195,10 @@ Only independent named human DBA/security/payroll/privacy/release owners may est
 
 The original `0125` main-source SHA-256 is
 `3f51ca8ed1ea2cb8a04e071f567be1b5281425ab26677af4d5a539bdaeeee20b`.
-The proposed revised source SHA-256 is
-`ccb8b0332c9ecd7b301aa85e5962c7ce22f210b56ae6cedb092043d4b0007d87`.
-The hash changed because the reviewed SQL changed; do **not** amend or infer
-an applied migration receipt. Recompute the checksum from the exact merged,
+The earlier **unmerged candidate rewrite** SHA-256 was
+`ccb8b0332c9ecd7b301aa85e5962c7ce22f210b56ae6cedb092043d4b0007d87`;
+**those candidate bytes are not the numbered `0125` in this stacked PR**.
+The reviewed unchanged `0125` retains original SHA-256 `3f51ca8ed1ea2cb8a04e071f567be1b5281425ab26677af4d5a539bdaeeee20b`.
+Do **not** amend or infer an applied migration receipt from either source. Recompute the checksum from the exact merged,
 reviewed release commit and update all pinned plans/artifacts after independent
 human approval. The change also adds an explicit #1054 runbook supplement.

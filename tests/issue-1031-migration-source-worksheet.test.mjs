@@ -18,6 +18,14 @@ test("source-only worksheet covers every drizzle file with current byte SHA and 
   assert.equal(result.summary.duplicatePrefixGroups, 13);
   assert.ok(result.migrationRows.some(row => row.file_path === "drizzle/0127_year_end_prior_evidence.sql" && row.creates_objects.includes("year_end_prior_evidence")));
   assert.ok(result.tableRows.some(row => row.schema_table === "year_end_prior_evidence"));
+  // A new numbered source must be included without assigning an apply receipt.
+  const rename = result.migrationRows.find(row =>
+    row.file_path === "drizzle/0128_recovery_foreign_key_names_forward.sql");
+  assert.ok(rename, "0128 must be recorded in the source inventory");
+  assert.equal(rename.statement_count, 50, "one preflight DO and 49 FK renames");
+  assert.ok(rename.requires_tables.includes("employee_availability_rules"));
+  assert.equal(rename.receipt_found, "");
+  assert.equal(rename.disposition, "");
   // Both proposed 0128 and 0129 are source paths only. Their checksums
   // exist for comparison, not as invented live migration journal entries.
   for (const path of [

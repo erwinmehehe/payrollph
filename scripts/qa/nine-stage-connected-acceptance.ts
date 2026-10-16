@@ -9,6 +9,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
 import { createConnectedGovernedWorker } from "./connected-governed-hire";
+import { completeYearEndIdentity, bindConnectedYearEnd, generateConnected2316 } from "./connected-year-end-journey";
 import { hashPassword } from "../../src/lib/crypto";
 import {
   auditEvents, employees, governmentFilingValidations, orgUnits, organizations, payrollEntries,
@@ -36,6 +37,8 @@ const report = {
   physicalDeviceUat: "NOT_RUN", realEmployerReconciliation: "NOT_RUN",
   stages, employerBStages, negativeControls: [] as string[],
   lineage: {} as Record<string, unknown>,
+  annualJourney: { result: "NOT_RUN" } as Record<string, unknown>,
+  annualJourneyRequired: process.env.NINE_STAGE_CUTOFF_MODE === "year-end",
 };
 const password = "FictionalOnly!" + randomUUID().replaceAll("-", "").slice(0, 20);
 const dateInManila = (now: Date) => new Intl.DateTimeFormat("en-CA", {
@@ -188,7 +191,9 @@ async function main() {
   assert.equal(dateInManila(shiftStart), workDate);
   const periodStart = workDate;
   const periodEnd = workDate;
-  const payDate = dateInManila(new Date(now.getTime() + 86400000));
+  const annualJourney = process.env.NINE_STAGE_CUTOFF_MODE === "year-end";
+  const payDate = annualJourney ? workDate : dateInManila(new Date(now.getTime() + 86400000));
+  let annualAmounts: Awaited<ReturnType<typeof bindConnectedYearEnd>> | undefined;
   let orgA = 0, orgB = 0, worker = 0, bWorker = 0, runId = 0, punchId = 0;
   let owner!: Client, hr!: Client, manager!: Client, employee!: Client;
   let payroll!: Client, checker!: Client, tenantB!: Client;
@@ -226,6 +231,7 @@ async function main() {
       worker = Number(created.employee?.id);
     }
     assert.ok(worker > 0);
+    if (annualJourney) await completeYearEndIdentity(owner, orgA, worker);
     const [hiredWorker] = await db.select({ startDate: employees.startDate })
       .from(employees).where(eq(employees.id, worker));
     assert.equal(String(hiredWorker.startDate), workDate,
@@ -523,6 +529,11 @@ async function main() {
     evidence.push("calculated payroll entry and timecard share actual Web Bundy worker and period");
   });
   await stage(6, async evidence => {
+    if (annualJourney) {
+      annualAmounts = await bindConnectedYearEnd({ organizationId: orgA, employeeId: worker,
+        taxYear: Number(workDate.slice(0,4)), runId, workDate, payroll, owner, employee });
+      evidence.push("Paid 13th-month earning and commission; independent prior-evidence approval; HTTP annualization binding and real queue consumer posted refund BEFORE payroll review");
+    }
     const deniedReview = await employee.json("/api/payroll-runs?runId=" + runId + "&include=entries");
     denied(403, deniedReview.status, "employee cannot review employer payroll register");
     const review = await payroll.ok("/api/payroll-runs/" + runId + "/submit-review", "POST", {
@@ -567,6 +578,12 @@ async function main() {
     evidence.push("owner released records once; payment export remains waiting, with tenant denial and audit event");
   });
   await stage(8, async evidence => {
+    if (annualJourney) {
+      assert.ok(annualAmounts);
+      report.annualJourney = await generateConnected2316({ organizationId: orgA, employeeId: worker,
+        taxYear: Number(workDate.slice(0,4)), runId, owner, employee, tenantB, amounts: annualAmounts });
+      evidence.push("SAME hired employee and released payroll generate byte-hashed unsigned 2316 with paid benefits, posted refund, approved prior declaration and cross-role/tenant denials");
+    }
     const forms = [
       { agency: "BIR", form: "1601-C" }, { agency: "SSS", form: "R-3" },
       { agency: "PhilHealth", form: "RF-1" }, { agency: "Pag-IBIG", form: "MCRF" },

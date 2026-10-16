@@ -353,6 +353,7 @@ export type DashboardData = {
   bir2316CertificateEnabled?: boolean;
   yearEndPriorEvidenceEnabled?: boolean;
   compactMobileHeaderEnabled?: boolean;
+  everydayHrHireEnabled?: boolean;
   firstPayrollReadiness?: FirstPayrollReadiness | null;
   user: SessionUser | null;
   organizations: Organization[];
