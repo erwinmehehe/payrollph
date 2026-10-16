@@ -4,7 +4,7 @@ import { MAX_CONNECTED_2316_BYTES, readValidatedUnsignedCertificatePdf } from ".
 
 const pdf = Buffer.from("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n", "latin1");
 function response(bytes: Uint8Array, extra: Record<string, string> = {}) {
-  return new Response(bytes, { status: 200, headers: {
+  return new Response(Uint8Array.from(bytes).buffer as ArrayBuffer, { status: 200, headers: {
     "content-type": "application/pdf", "cache-control": "private, no-store",
     ...extra,
   } });
@@ -21,7 +21,7 @@ test("fictional unsigned PDF artifact requires valid bounded PDF bytes", async (
 });
 
 test("an HTTP error, wrong MIME, malformed or active PDF is never saved as evidence", async () => {
-  const rejected = new Response(new Uint8Array(pdf), { status: 403, headers: {
+  const rejected = new Response(Uint8Array.from(pdf).buffer as ArrayBuffer, { status: 403, headers: {
     "content-type": "application/pdf", "cache-control": "no-store",
   } });
   await assert.rejects(readValidatedUnsignedCertificatePdf(rejected), /successful response/);
