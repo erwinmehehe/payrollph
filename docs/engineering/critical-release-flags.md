@@ -19,3 +19,17 @@ This is an initial **high-risk registry**, not a claim that all environment vari
 ## Newly introduced direct-flag usage check (A-7 follow-up)
 
 `A-7 New Release-Flag Registration Guard` checks PR and main commit source diffs for **new** direct `process.env.*_ENABLED` (also literal bracket and destructured) reads. A newly referenced flag must appear in `src/lib/critical-release-flags.ts` with its owner, risk and approval. The check is source-only and runs without production secrets, providers or databases; unknown flags fail the build. Existing legacy reads are not retroactively certified, and dynamic/computed environment names, flag retirement schedules, full module conversion and runtime human approval still require separate inventory and review. This guard never changes any flag value or permission.
+
+## October 16, 2026 — A-7 literal-diff guard hardening (source only)
+
+The release-flag guard now parses only actual top-level typed registry entries and refuses missing or empty owner, risk, approval or environment metadata, duplicate environment names, and stray unparsed environment fields. A comment containing a flag name cannot silently register it.
+
+For newly added contiguous source-diff lines, it also detects line-split process.env property reads, optional chaining, quoted or static template-literal bracket keys, and multiline environment destructuring. Dedicated offline tests cover each case, scope isolation, malformed entries and duplicate flag names.
+
+**Limits:** This is still a source-diff check for direct literal flag references. It cannot certify pre-existing direct reads, aliased/computed environment access, dynamic flag names, runtime activation authority, complete module-by-module registry conversion or temporary-flag expiry schedules. Those parts of A-7 remain open. No feature switches, production configuration, payroll behavior, database schema or payout settings are modified.
+
+### Context-aware diff and metadata hardening (follow-up)
+
+The static PR check now uses a bounded eight-line Git diff context and compares literal release-toggle reads **before and after each hunk**. This rejects new unregistered flags when the unchanged portion of a multiline \`process.env\` or destructuring expression already existed, while avoiding false alarms for unaffected legacy reads in surrounding context. It also ignores actual JavaScript comments when validating registry owner/risk/approval metadata: commented-out fields cannot make a registration count as reviewed.
+
+New regression tests include the previous seven cases plus six context, change/replacement, spoofed-comment, and hunk-boundary scenarios. A local Git fixture verified fail-closed execution for an unregistered new flag and exit-zero for a registered replacement. **This is source-only engineering proof**; computed/aliased env access, unlimited multiline distance, legacy conversion, feature retirement and independent launch authorization remain open.
