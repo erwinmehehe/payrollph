@@ -28,8 +28,12 @@ function occurrences(s, marker) { return s.split(marker).length - 1; }
 export function patchPinnedIntrospectionBinary(binary) {
   if (typeof binary !== "string") fail("BAD_BINARY");
   if (binary.includes(KEY_MARKER) || binary.includes(FK_MARKER)) {
+    const selectedFkQueries = [...binary.matchAll(fkQuery)];
+    // Other independent introspection queries in the installed Kit bundle can
+    // retain this join shape. Validate only the FK query we actually rewrote.
     if (occurrences(binary, KEY_MARKER) !== 1 || occurrences(binary, FK_MARKER) !== 1 ||
-        keyQuery.test(binary) || fkJoin.test(binary)) fail("PARTIAL_OR_UNKNOWN_PATCH");
+        keyQuery.test(binary) || selectedFkQueries.length !== 1 ||
+        fkJoin.test(selectedFkQueries[0][0])) fail("PARTIAL_OR_UNKNOWN_PATCH");
     return { content: binary, applied: false };
   }
   const keys = [...binary.matchAll(keyQuery)];
