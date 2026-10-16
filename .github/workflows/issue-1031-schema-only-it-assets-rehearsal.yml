@@ -9,6 +9,9 @@ on:
       - ".github/workflows/issue-1031-schema-only-it-assets-rehearsal.yml"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   disposable-postgres:
     name: Compare source/final shape on disposable PostgreSQL ${{ matrix.postgres }}
