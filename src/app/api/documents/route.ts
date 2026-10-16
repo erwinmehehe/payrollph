@@ -12,16 +12,21 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { documentObjectKey, putDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
+import { documentObjectKey, documentStorageConfig, putDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
 import { canAccessEmployeeProfileVault, canStaffOpenEmployeeVault, vaultDocumentIsArchived, validExpiryCalendarDate } from "@/lib/employee-document-vault";
 import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
 import {
   canMutateLegacyHcmDocument, compatibleDocumentColumns, legacyDocumentInsertTable, legacyVisibleDocumentWhere,
 } from "@/lib/document-schema-compat";
-import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
+import { documentUploadsEnabled, malwareScannerConfigured, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
+
+function privateVaultStorageReady(): boolean {
+  try { documentStorageConfig(); return malwareScannerConfigured(); }
+  catch { return false; }
+}
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
@@ -86,6 +91,8 @@ export async function GET(request: Request) {
             row.sourceType === "upload" && row.uploadedByUserId === user.id,
         })),
       limits, vaultEnabled, uploadEnabled: documentUploadsEnabled(),
+    storageReady: vaultEnabled && privateVaultStorageReady(),
+      storageReady: vaultEnabled && privateVaultStorageReady(),
     }, { headers: { "Cache-Control": "private, no-store" } });
   }
 
@@ -329,6 +336,9 @@ export async function POST(request: Request) {
   }
 
   if (vaultEnabled) {
+    if (!privateVaultStorageReady()) {
+      return Response.json({ error: "Private vault object storage and a malware scanner must be configured." }, { status: 503 });
+    }
     if (!scan.scannedClean) {
       return Response.json({ error: "A completed clean malware scan is required for private vault storage." }, { status: 503 });
     }
