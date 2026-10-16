@@ -74,6 +74,24 @@ export async function runStrictDbPush(env = process.env) {
     clearTimeout(deadline);
   }
   if (launchError || oversized || timedOut) throw new Error("STRICT_DB_PUSH_RUNNER_FAILED");
+  // Diagnostic classification for *disposable* issue-1019 CI only. Never emit
+  // vendor output: SQL statements and connection details may contain secrets.
+  if (code !== 0 && env.CI === "true" && env.GITHUB_ACTIONS === "true" &&
+      env.ISSUE_1019_REHEARSAL === "disposable-ci-only") {
+    const output = (stdout + "\n" + stderr).replace(ANSI, "");
+    const signals = [
+      ["dependency-constraint", /\\b2BP01\\b|dependent objects still exist/i],
+      ["duplicate-object", /\\b42P07\\b|already exists/i],
+      ["undefined-object", /\\b42P01\\b|does not exist/i],
+      ["syntax", /\\b42601\\b|syntax error/i],
+      ["permission", /\\b42501\\b|permission denied/i],
+      ["interactive", /interactive|prompt|TTY/i],
+    ].filter(([, pattern]) => pattern.test(output)).map(([name]) => name);
+    process.stderr.write("ISSUE_1019_VENDOR_EXIT=" + String(code) +
+      "; categories=" + (signals.join(",") || "unclassified") +
+      "; stdout_bytes=" + Buffer.byteLength(stdout) +
+      "; stderr_bytes=" + Buffer.byteLength(stderr) + "\n");
+  }
   const status = classifyStrictDbPush(code, stdout, stderr);
   // Never echo stdout/stderr: PostgreSQL errors sometimes contain SQL text.
   process.stdout.write(status === "no-op"
