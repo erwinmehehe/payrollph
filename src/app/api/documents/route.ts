@@ -39,7 +39,7 @@ export async function GET(request: Request) {
   }
   const employeeParam = params.get("employeeId");
   const requestedEmployeeId = employeeParam === null ? null : Number(employeeParam);
-  if (employeeParam !== null && (!/^[1-9]\\d*$/.test(employeeParam) ||
+  if (employeeParam !== null && (!/^[1-9]\d*$/.test(employeeParam) ||
     !Number.isSafeInteger(requestedEmployeeId))) {
     return Response.json({ error: "A valid employeeId is required." }, { status: 400 });
   }
