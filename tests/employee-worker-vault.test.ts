@@ -34,6 +34,7 @@ test("Worker 360 vault denies wrong role, other worker and manager without expli
 test("retention-safe delete requires verified employee-owned object upload and immutable uploader", () => {
   const row = {
     employeeId: 71, sourceType: "upload",
+    scannedClean: true, sourceKey: null,
     objectStorageKey: "private-documents/4/71/00000000-0000-4000-8000-000000000001",
     uploadedByUserId: 51, generationMetadata: {},
   };
@@ -44,6 +45,8 @@ test("retention-safe delete requires verified employee-owned object upload and i
   assert.equal(canArchiveEmployeeVaultUpload(actor("hr"), row), true);
   assert.equal(canArchiveEmployeeVaultUpload(actor("owner"), { ...row, sourceType: "generated" }), false);
   assert.equal(canArchiveEmployeeVaultUpload(actor("owner"), { ...row, objectStorageKey: null }), false);
+  assert.equal(canArchiveEmployeeVaultUpload(actor("owner"), { ...row, scannedClean: false }), false);
+  assert.equal(canArchiveEmployeeVaultUpload(actor("owner"), { ...row, sourceKey: "vault-upload-pending:synthetic" }), false);
   assert.equal(vaultDocumentIsArchived({ vaultRemovedAt: "2026-10-16T00:00:00.000Z" }), true);
   assert.equal(canArchiveEmployeeVaultUpload(actor("owner"), {
     ...row, generationMetadata: { vaultRemovedAt: "2026-10-16T00:00:00.000Z" },
@@ -117,6 +120,10 @@ test("Worker 360 uses existing routes and enforces tenant filtering before rende
   assert.match(fileRoute, /vaultDocumentIsArchived\(document\.generationMetadata\)/);
   assert.match(fileRoute, /enforceSameOriginMutation\(request\)/);
   assert.match(fileRoute, /assertMembership\(user\.id, row\.organizationId\)/);
+  // Employee-to-employer validation must exist in every self read/write path.
+  assert.match(collection, /eq\(employees\.organizationId, organizationId\)/);
+  assert.match(fileRoute, /eq\(employees\.organizationId, document\.organizationId\)/);
+  assert.match(fileRoute, /eq\(employees\.organizationId, row\.organizationId\)/);
   assert.match(fileRoute, /assertOrganizationRole\(user\.id, row\.organizationId/);
   assert.match(storage, /response-content-disposition/);
   assert.doesNotMatch(ui, /file_data_base64|PII_ENCRYPTION_KEY|localStorage|\bpayroll\s*:\s*calculate/);
