@@ -58,3 +58,45 @@ test("serial primary key cannot accept an arbitrary nextval sequence", () => {
  const result=diffSchema(manifest,wrong);
  assert.equal(result.find(x=>x.kind==="column"&&x.object==="id")?.status,"DRIFT");
 });
+
+test("PostgreSQL proven varchar/numeric default deparser casts compare only when types and literals match",()=>{
+ const meta: SchemaManifest = {...manifest,tables:[{...manifest.tables[0]!,
+   columns:[...manifest.tables[0]!.columns,
+     {name:"status",type:"varchar(16)",nullable:false,default:"'Open'",identity:null},
+     {name:"budget",type:"numeric(14,2)",nullable:false,default:"'0'",identity:null}]}]};
+ const actual: CatalogRow[]=[...observed,
+   {table_name:"synthetic_payroll",kind:"column",object_name:"status",type:"character varying(16)",
+     nullable:false,default:"'Open'::character varying",identity:null},
+   {table_name:"synthetic_payroll",kind:"column",object_name:"budget",type:"numeric(14,2)",
+     nullable:false,default:"'0'::numeric",identity:null}];
+ assert.ok(diffSchema(meta,actual).every(x=>x.status==="PASS"));
+ for(const [object,alteration] of [
+   ["status","'open'::character varying"],["status","'Open'::text"],
+   ["budget","'1'::numeric"],["budget","'0'::text"]
+ ]) {
+   const mutated=actual.map(x=>x.object_name===object?{...x,default:alteration}:x);
+   assert.equal(diffSchema(meta,mutated).find(x=>x.kind==="column"&&x.object===object)?.status,"DRIFT");
+ }
+});
+
+test("PostgreSQL deparsed varchar IN list compares only identical columns and case-sensitive literals",()=>{
+ const model: SchemaManifest={...manifest,tables:[{...manifest.tables[0]!,
+   checks:[{name:"synthetic_payroll_status_check",
+     expression:"synthetic_payroll.status in ('info','warning','blocker')"}]}]};
+ const expr="((status)::text = ANY ((ARRAY['info'::character varying, 'warning'::character varying, 'blocker'::character varying])::text[]))";
+ const row: CatalogRow={table_name:"synthetic_payroll",kind:"check",
+   object_name:"synthetic_payroll_status_check",expression:expr,validated:true};
+ assert.ok(diffSchema(model,[...observed,row]).every(x=>x.status==="PASS"));
+ const changed=[
+   expr.replace("'blocker'","'critical'"),
+   expr.replace("(status)","(other)"),
+   expr.replace("'warning'::character varying","'warning'::text"),
+   "((status)::text = ANY ((ARRAY['info'::character varying, 'warning'::character varying])::text[]))",
+ ];
+ for(const expression of changed) {
+   assert.equal(diffSchema(model,[...observed,{...row,expression}])
+     .find(x=>x.kind==="check"&&x.object===row.object_name)?.status,"DRIFT");
+ }
+ assert.equal(diffSchema(model,[...observed,{...row,validated:false}])
+   .find(x=>x.kind==="check"&&x.object===row.object_name)?.status,"DRIFT");
+});
