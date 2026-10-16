@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import pg from "pg";
 import { assertIsolatedMigrationTarget } from "../scripts/lib/isolated-migration-target.mjs";
+import { ISSUE1054_PREFLIGHT_SQL, ISSUE1054_POSTFLIGHT_SQL } from "../scripts/lib/issue-1054-protected-preflight.mjs";
 
 /**
  * P0-4 / #1061: one exact-source 0115 -> 0123 integration rehearsal.
@@ -44,6 +45,20 @@ const ENTITY_TABLES = Object.freeze([
   "entity_transfer_requests", "employee_entity_assignments",
   "user_entity_preferences", "user_legal_entity_grants",
 ]);
+// Production evidence reports ALL six compensation targets absent, including
+// compensation_events. Do not let db:push's dev-only table mask this difference.
+const MISSING_RECOVERY = Object.freeze([
+  "attendance_exception_events", "employee_availability_rules", "open_shifts",
+  "open_shift_claims", "compensation_bands", "compensation_cycles",
+  "compensation_proposals", "compensation_components",
+  "employee_compensation_components", "compensation_events",
+]);
+const FORWARD_RECOVERY = Object.freeze([
+  "0124_attendance_exception_forward_repair.sql",
+  "0125_wfm_availability_open_shifts_forward_repair.sql",
+  "0126_compensation_governance_forward_repair.sql",
+]);
+const RECONCILIATION = "0128_recovery_foreign_key_names_forward.sql";
 const READY = process.env.CI === "true"
   && process.env.GITHUB_ACTIONS === "true"
   && process.env.PENDING_TRAIN_REHEARSAL_MODE === "isolated-ci-only";
@@ -158,11 +173,16 @@ test("PG16/18: 0115-0123 exact source, denied writes, money invariants and total
     const catalogBefore = await fingerprint(db);
     const moneyBefore = await money(db);
     await db.query("BEGIN");
+    const { rows: [comparison] } = await db.query(`SELECT
+      1 IN ('01','02') AS numeric_in,
+      1::text = ANY(ARRAY['01'::varchar,'02'::varchar]::text[]) AS text_any`);
+    assert.deepEqual(comparison, { numeric_in: true, text_any: false },
+      "numeric IN and text-cast ANY must not be normalized as equivalent");
     inTransaction = true;
     await db.query("SET LOCAL statement_timeout = '120s'");
     // Synthetic db:push has current schema. Remove ONLY these disposable
     // objects within this transaction so exact source files must rebuild them.
-    const toRemove = [...MISSING_FOUNDATION, ...MISSING_0123, ...ENTITY_TABLES];
+    const toRemove = [...MISSING_FOUNDATION, ...MISSING_0123, ...ENTITY_TABLES, ...MISSING_RECOVERY];
     await db.query("DROP TABLE IF EXISTS " +
       toRemove.map(name => 'public."' + name + '"').join(", ") + " CASCADE");
     for (const table of toRemove) assert.equal(await exists(db, table), false, table);
@@ -307,6 +327,106 @@ test("PG16/18: 0115-0123 exact source, denied writes, money invariants and total
     await db.query(source(TRAIN[8]));
     assert.deepEqual(await money(db), seededMoney,
       "idempotent 0123 must never alter fictional payroll values");
+
+    // Same transaction, actual sources: 0115-0123 -> 0124 -> 0125 -> 0126.
+    // The ten targets must be wholly absent *before* the forward-only repairs.
+    const { generateSchemaManifest } = await import("../scripts/lib/issue-1031-schema-manifest.ts");
+    const manifest = generateSchemaManifest();
+    const targetNames = new Set(MISSING_RECOVERY);
+    const targetModels = manifest.tables.filter(t => targetNames.has(t.name));
+    assert.equal(targetModels.length, 10, "production-shaped model missing recovery targets");
+    for (const table of targetModels) {
+      assert.equal(await exists(db, table.name), false, "dev-only target leaked " + table.name);
+      assert.equal((await db.query("SELECT to_regclass($1) AS object", [
+        "public." + table.name + "_id_seq"])).rows[0].object, null,
+      "orphan sequence leaked from Drizzle fixture " + table.name);
+      for (const idx of table.indexes) {
+        assert.equal((await db.query("SELECT to_regclass($1) AS object", [
+          "public." + idx.name])).rows[0].object, null,
+        "orphan recovery index leaked " + idx.name);
+      }
+    }
+    for (const name of FORWARD_RECOVERY) {
+      const sql = source(name);
+      assert.doesNotMatch(sql.replace(/--[^\r\n]*/g, ""),
+        /^\s*(?:BEGIN|COMMIT|ROLLBACK)\s*;/im,
+        "release runner must own the one transaction");
+      if (name === FORWARD_RECOVERY[1]) await db.query(ISSUE1054_PREFLIGHT_SQL);
+      await db.query(sql);
+      if (name === FORWARD_RECOVERY[1]) await db.query(ISSUE1054_POSTFLIGHT_SQL);
+    }
+    for (const name of MISSING_RECOVERY)
+      assert.equal(await exists(db, name), true, "forward repair missing " + name);
+    assert.deepEqual(await money(db), seededMoney,
+      "0124-0126 must not change worker or historical payroll centavos");
+
+    // Preserve the exact #1031 raw intermediate report: historical 0124/0125/
+    // 0126 use PG-generated FK names. Do not conceal their legitimate name drift.
+    const { fullSchemaCatalogSql } = await import("../scripts/check-issue-1031-full-schema-diff.ts");
+    const { diffSchema } = await import("../src/lib/issue-1031-full-schema-diff.ts");
+    const names = targetNames;
+    const tables = targetModels;
+    const compareRecovery = async (stage) => {
+      const rows = (await db.query(fullSchemaCatalogSql)).rows
+        .filter(r => names.has(r.table_name))
+        .map(({ table_name, kind, object_name, details }) =>
+          ({ table_name, kind, object_name, ...details }));
+      const compared = diffSchema({ ...manifest, tables }, rows);
+      const statusByTable = Object.fromEntries(MISSING_RECOVERY.map(table => [table,
+        Object.fromEntries(["PASS","MISSING","DRIFT","EXTRA"].map(status =>
+          [status,compared.filter(r => r.table===table && r.status===status).length]))
+      ]));
+      console.log(JSON.stringify({ stage, evidence: "SYNTHETIC_ROLLBACK_ONLY",
+        orderedFiles: [...TRAIN,...FORWARD_RECOVERY,...(stage==="POST_0128" ? [RECONCILIATION] : [])],
+        statusByTable, productionReceipt:false,
+        results: compared.map(({ table,kind,object,status }) =>
+          ({table,kind,object,status})) }));
+      return compared;
+    };
+    const beforeRename = await compareRecovery("POST_0126_PRE_0128");
+    const oldNames = beforeRename.filter(x => x.kind==="foreign_key" &&
+      (x.status==="MISSING" || x.status==="EXTRA"));
+    assert.equal(oldNames.length, 98, "expected full historical FK-name drift before 0128");
+    assert.ok(beforeRename.some(x => x.status !== "PASS"), "cannot mask historical FK naming drift");
+
+    // 0127 already exists in the Drizzle bootstrap and is outside the ten
+    // recovery targets. Its genuine release receipt must be independently
+    // reviewed before anyone plans this new sequential 0128 migration.
+    await db.query(source(RECONCILIATION));
+    const compared = await compareRecovery("POST_0128");
+    const failures = compared.filter(r => r.status !== "PASS");
+    assert.equal(failures.length, 0,
+      "#1031 post-reconciliation MISSING/DRIFT/EXTRA: " + JSON.stringify(failures));
+    assert.ok(compared.length > 160, "target manifest unexpectedly empty or truncated");
+
+    // Replayed forward migrations must refuse the existing target, leaving
+    // the same catalog (SAVEPOINT ROLLBACK) and unchanged payroll cents.
+    for (const [name, code] of [
+      [FORWARD_RECOVERY[0], "ISSUE1015_EXISTING_ATTENDANCE_RELATION_REQUIRES_MANUAL_REVIEW"],
+      [FORWARD_RECOVERY[1], "ISSUE1054_PARTIAL_OR_EXISTING_SCHEMA_REQUIRES_RECONCILIATION"],
+      [FORWARD_RECOVERY[2], "COMP1061_PARTIAL_OR_EXISTING_COMPENSATION_SCHEMA"],
+    ]) {
+      await db.query("SAVEPOINT forward_replay");
+      try {
+        await assert.rejects(
+          () => db.query(name === FORWARD_RECOVERY[1] ? ISSUE1054_PREFLIGHT_SQL : source(name)), err =>
+          err.code === "P0001" && err.message.includes(code), name + " must fail closed");
+      } finally {
+        await db.query("ROLLBACK TO SAVEPOINT forward_replay");
+        await db.query("RELEASE SAVEPOINT forward_replay");
+      }
+    }
+    await db.query("SAVEPOINT issue1121_0128_replay");
+    try {
+      await assert.rejects(() => db.query(source(RECONCILIATION)),
+        err => err.code === "P0001" &&
+          err.message.includes("ISSUE1121_TARGET_FK_NAME_ALREADY_PRESENT"));
+    } finally {
+      await db.query("ROLLBACK TO SAVEPOINT issue1121_0128_replay");
+      await db.query("RELEASE SAVEPOINT issue1121_0128_replay");
+    }
+    assert.deepEqual(await money(db), seededMoney,
+      "negative replay tests must not change fictional payroll cents");
 
     await db.query("ROLLBACK");
     inTransaction = false;

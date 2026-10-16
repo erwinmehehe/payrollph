@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { inventoryMigrationSources, reconcileMigrationReceipts } from './lib/migration-receipt-audit.mjs';
+import { assertCatalogAuditorPrivilegeBoundary, catalogAuditorConnectionOptions } from './lib/production-catalog-auditor-gate.mjs';
 
 const inventory = inventoryMigrationSources();
 const mode = process.argv[2];
@@ -37,8 +38,9 @@ async function verify() {
     throw new Error('Missing reviewed target and protected read-only database authorization.');
   }
 
+  const options = catalogAuditorConnectionOptions(dbUrl, dbName);
   const { Client } = await import('pg');
-  const client = new Client({ connectionString: dbUrl, connectionTimeoutMillis: 8000, query_timeout: 8000 });
+  const client = new Client(options);
   let connected = false;
   let inTransaction = false;
   try {
@@ -49,6 +51,11 @@ async function verify() {
     await client.query("SET LOCAL statement_timeout = '7000ms'");
     await client.query("SET LOCAL lock_timeout = '2000ms'");
     await client.query('SET LOCAL search_path = pg_catalog');
+    // The observed production auditor had neon_superuser membership, BYPASSRLS
+    // and payroll-row/write grants. Reject ALL such roles before journal reads.
+    await assertCatalogAuditorPrivilegeBoundary(client, {
+      expectedDatabase: dbName, requireJournals: true,
+    });
 
     const identity = await client.query(`
       SELECT current_database() = $1::text AS "databaseMatches",

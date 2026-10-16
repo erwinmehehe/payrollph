@@ -12,6 +12,9 @@ on:
       - "drizzle/0121_*.sql"
       - "drizzle/0122_*.sql"
       - "drizzle/0123_*.sql"
+      - "drizzle/0124_*.sql"
+      - "drizzle/0125_*.sql"
+      - "drizzle/0126_*.sql"
       - "docs/engineering/migration-proposals/employee-entity-interval-guard.sql"
       - "tests/pending-migration-release-train.test.mjs"
       - "tests/pending-train-preflight.test.mjs"
@@ -20,6 +23,11 @@ on:
       - "tests/consolidated-migration-dependency-postgres.test.mjs"
       - "tests/complete-pending-train-postgres.test.mjs"
       - "tests/issue-1061-integrated-forward-train-postgres.test.mjs"
+      - "drizzle/0128_recovery_foreign_key_names_forward.sql"
+      - "scripts/lib/issue-1031-schema-manifest.ts"
+      - "src/lib/issue-1031-full-schema-diff.ts"
+      - "tests/issue-1031-full-schema-diff.test.ts"
+      - "tests/issue-1031-manifest-identifiers.test.ts"
       - "docs/engineering/issue-1061-integrated-forward-train-qa.md"
       - "docs/engineering/pending-migration-release-train.md"
       - ".github/workflows/consolidated-migration-train-ci.yml"
@@ -35,6 +43,9 @@ on:
       - "drizzle/0121_*.sql"
       - "drizzle/0122_*.sql"
       - "drizzle/0123_*.sql"
+      - "drizzle/0124_*.sql"
+      - "drizzle/0125_*.sql"
+      - "drizzle/0126_*.sql"
       - "tests/pending-migration-release-train.test.mjs"
       - "tests/pending-train-preflight.test.mjs"
       - "scripts/lib/pending-train-preflight.mjs"
@@ -42,6 +53,11 @@ on:
       - "tests/consolidated-migration-dependency-postgres.test.mjs"
       - "tests/complete-pending-train-postgres.test.mjs"
       - "tests/issue-1061-integrated-forward-train-postgres.test.mjs"
+      - "drizzle/0128_recovery_foreign_key_names_forward.sql"
+      - "scripts/lib/issue-1031-schema-manifest.ts"
+      - "src/lib/issue-1031-full-schema-diff.ts"
+      - "tests/issue-1031-full-schema-diff.test.ts"
+      - "tests/issue-1031-manifest-identifiers.test.ts"
       - "docs/engineering/issue-1061-integrated-forward-train-qa.md"
       - ".github/workflows/consolidated-migration-train-ci.yml"
 
@@ -147,7 +163,9 @@ jobs:
         run: npm run db:push
       - name: Source syntax and full migration train rollback, no external DB
         run: |
+          set -euo pipefail
           node --check tests/complete-pending-train-postgres.test.mjs
           node --test tests/complete-pending-train-postgres.test.mjs
+          node --import tsx --test tests/issue-1031-full-schema-diff.test.ts tests/issue-1031-manifest-identifiers.test.ts
           node --check tests/issue-1061-integrated-forward-train-postgres.test.mjs
-          node --test tests/issue-1061-integrated-forward-train-postgres.test.mjs
+          node --import tsx --test tests/issue-1061-integrated-forward-train-postgres.test.mjs

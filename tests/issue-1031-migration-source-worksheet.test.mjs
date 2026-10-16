@@ -11,13 +11,21 @@ const read = file => readFileSync(resolve(root, file), "utf8");
 
 test("source-only worksheet covers every drizzle file with current byte SHA and no populated receipts", () => {
   const result = generateSourceWorksheet();
-  assert.equal(result.summary.totalDrizzleFiles, 143);
-  assert.equal(result.summary.numberedSqlFiles, 141);
-  assert.equal(result.summary.sqlFiles, 142);
+  assert.equal(result.summary.totalDrizzleFiles, 144);
+  assert.equal(result.summary.numberedSqlFiles, 142);
+  assert.equal(result.summary.sqlFiles, 143);
   assert.equal(result.summary.sourceSchemaTables, 271);
   assert.equal(result.summary.duplicatePrefixGroups, 13);
   assert.ok(result.migrationRows.some(row => row.file_path === "drizzle/0127_year_end_prior_evidence.sql" && row.creates_objects.includes("year_end_prior_evidence")));
   assert.ok(result.tableRows.some(row => row.schema_table === "year_end_prior_evidence"));
+  // A new numbered source must be included without assigning an apply receipt.
+  const rename = result.migrationRows.find(row =>
+    row.file_path === "drizzle/0128_recovery_foreign_key_names_forward.sql");
+  assert.ok(rename, "0128 must be recorded in the source inventory");
+  assert.equal(rename.statement_count, 50, "one preflight DO and 49 FK renames");
+  assert.ok(rename.requires_tables.includes("employee_availability_rules"));
+  assert.equal(rename.receipt_found, "");
+  assert.equal(rename.disposition, "");
   const paths = readdirSync(resolve(root, "drizzle")).map(name => "drizzle/" + name).sort();
   assert.deepEqual(result.migrationRows.map(row => row.file_path).sort(), paths);
   assert.equal(new Set(result.migrationRows.map(row => row.file_path)).size, paths.length);
