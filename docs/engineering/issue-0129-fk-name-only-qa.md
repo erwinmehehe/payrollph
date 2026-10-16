@@ -21,9 +21,10 @@ Proposed `drizzle/0129_non_recovery_fk_names_forward.sql` contains **54
 static `ALTER TABLE ... RENAME CONSTRAINT` statements and one catalog-only
 preflight**. Each old name must be present on the exact public child table;
 the target name must not already exist; the FK must be validated,
-nondeferrable, single-column, reference `public.<expected-parent>(id)`,
-use the exact expected ON DELETE action and NO ACTION ON UPDATE, and use
-SIMPLE match semantics. Otherwise `P0001` with explicit
+nondeferrable, single-column, have **integer child/parent FK
+columns**, reference a **validated, single-column integer(id) PRIMARY KEY**
+on `public.<expected-parent>`, use the exact expected ON DELETE action,
+NO ACTION ON UPDATE and SIMPLE match semantics. Otherwise `P0001` with explicit
 `ISSUE0129_...` code blocks the *entire* protected transaction.
 
 It performs no row reads, DML, BACKFILL, GRANT, REVOKE, constraint recreation,
