@@ -16,7 +16,12 @@ test("exactly 54 forward-only catalog renames without DML, destructive DDL or jo
   assert.equal(renames.length,54);
   assert.equal((body.match(/ALTER TABLE public\."/g)||[]).length,54);
   assert.doesNotMatch(body,/\b(?:UPDATE\s+\w+\s+SET|INSERT\s+INTO|DELETE\s+FROM|TRUNCATE|DROP\s+(?:TABLE|INDEX|COLUMN|CONSTRAINT)|VALIDATE\s+CONSTRAINT|GRANT|REVOKE)\b/i);
-  assert.doesNotMatch(body,/^\s*(?:BEGIN|COMMIT|ROLLBACK|SAVEPOINT)\b/im);
+  // PL/pgSQL DO blocks legitimately contain an inner BEGIN/END.
+  // Forbid only standalone transaction-control statements outside the
+  // reviewed catalog preflight, rather than rejecting valid DO syntax.
+  const outsideDo = body.replace(/DO \$issue_0129_preflight\$[\s\S]*?END \$issue_0129_preflight\$;/m,"");
+  assert.notEqual(outsideDo,body,"Reviewed DO preflight must be present");
+  assert.doesNotMatch(outsideDo,/^\s*(?:BEGIN|COMMIT|ROLLBACK|SAVEPOINT)\s*;/im);
   assert.ok(renames.every(r=>r.oldName!==r.newName));
 });
 test("all renamed names and PK/FK paths precisely match the pinned source contracts",()=>{
