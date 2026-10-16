@@ -31,38 +31,55 @@ type CloseState = {
   certificationRole?: "independent-reviewer";
 };
 
-export function StatutoryRemittanceMonthClose({
-  organizationId,
-  legalEntityId,
-  applicableMonth,
-  notify,
-}: {
+type MonthCloseProps = {
   organizationId: number;
   legalEntityId?: number | null;
   applicableMonth: string;
   notify: Notify;
-}) {
+};
+
+export function StatutoryRemittanceMonthClose(props: MonthCloseProps) {
+  // A certification snapshot must never carry across employer/entity/month scopes.
+  return <StatutoryRemittanceMonthCloseContent key={`${props.organizationId}:${props.legalEntityId ?? "all"}:${props.applicableMonth}`} {...props} />;
+}
+
+function StatutoryRemittanceMonthCloseContent({
+  organizationId,
+  legalEntityId,
+  applicableMonth,
+  notify,
+}: MonthCloseProps) {
   const [state, setState] = useState<CloseState | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch(
       `/api/compliance/remittance-month-close?organizationId=${organizationId}${legalEntityId ? `&legalEntityId=${legalEntityId}` : ""}&applicableMonth=${applicableMonth}`,
-      { cache: "no-store" },
+      { cache: "no-store", signal },
     );
     const body = await response.json().catch(() => ({}));
+    if (signal?.aborted) return;
     if (!response.ok) throw new Error(body.error ?? "Could not load remittance month close.");
     setState(body as CloseState);
   }, [applicableMonth, legalEntityId, organizationId]);
 
   useEffect(() => {
-    void load().catch((error) => notify(
-      error instanceof Error ? error.message : "Could not load remittance month close.",
-      "err",
-    ));
-    const onChanged = () => void load();
+    const controller = new AbortController();
+    const onChanged = () => {
+      if (controller.signal.aborted) return;
+      void load(controller.signal).catch((error) => {
+        if (!controller.signal.aborted) {
+          notify(error instanceof Error ? error.message : "Could not load remittance month close.", "err");
+        }
+      });
+    };
+    // Strict Mode cleanup can cancel the first read before it starts.
+    queueMicrotask(onChanged);
     window.addEventListener("statutory-remittance-changed", onChanged);
-    return () => window.removeEventListener("statutory-remittance-changed", onChanged);
+    return () => {
+      controller.abort();
+      window.removeEventListener("statutory-remittance-changed", onChanged);
+    };
   }, [load, notify]);
 
   async function certify() {

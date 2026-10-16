@@ -55,19 +55,22 @@ test("#1031 IT-only source groups contain no historical migration or application
   assert.match(executable, /CHECK \("state" in \('grant_requested','active','revoke_requested','revoked'\)\)/);
 });
 
-test("#1031 stable catalog candidate and separate RC true-no-op cannot be conflated", () => {
+test("#1031 owner-approved catalog-first acceptance does not require a second push", () => {
   const wf = readFileSync(".github/workflows/issue-1031-schema-only-it-assets-rehearsal.yml", "utf8");
+  const policy = readFileSync("docs/engineering/issue-1019-schema-repair-acceptance-policy.md", "utf8");
   const pkg = JSON.parse(readFileSync("package.json", "utf8"));
   assert.equal(pkg.devDependencies["drizzle-kit"], "0.31.11");
   assert.equal(pkg.dependencies["drizzle-orm"], "0.45.4");
-  const stable = wf.split("  disposable-postgres:\n")[1]?.split("  isolated-rc-repeat-proof:\n")[0];
-  const rc = wf.split("  isolated-rc-repeat-proof:\n")[1]?.split("  complete-npm-test:\n")[0];
-  assert.ok(stable && rc, "must use separate disposable PG jobs");
-  assert.doesNotMatch(stable, /drizzle-kit@1\.0\.0-rc\.4|Prove the second full-schema drizzle-kit push/);
-  assert.match(stable, /schema-only-it-assets-postgres\.test\.ts/);
-  assert.match(rc, /drizzle-kit@1\.0\.0-rc\.4 drizzle-orm@1\.0\.0-rc\.4/);
-  assert.equal((rc.match(/npm run db:push/g) ?? []).length, 2,
-    "both RC pushes must be in one independent freshly bootstrapped database");
-  assert.match(rc, /SEPARATE_RC_TRUE_NO_OP=PASS/);
-  assert.match(rc, /set -euo pipefail/);
+  assert.match(wf, /postgres: \["16", "18"\]/);
+  assert.match(wf, /npm run db:push/);
+  assert.match(wf, /schema-only-it-assets-postgres\.test\.ts/);
+  assert.match(wf, /npm test/);
+  assert.match(wf, /if: matrix\.postgres == '18'/);
+  assert.match(wf, /FRESH_PG18_DEV_REHEARSAL: "disposable-ci-only"/);
+  assert.match(wf, /run: node scripts\/qa\/coe-document-tenant-negative-proof\.mjs/);
+  assert.doesNotMatch(wf, /isolated-rc-repeat-proof:|drizzle-kit@1\.0\.0-rc\.4|SEPARATE_RC_TRUE_NO_OP=PASS/);
+  assert.match(policy, /Second drizzle-kit push: not used as a gate, see #1019/);
+  assert.match(policy, /Deliberately change one candidate column type/);
+  assert.match(policy, /Reject full repeat application and partial-target application/);
+  assert.match(policy, /23503/);
 });

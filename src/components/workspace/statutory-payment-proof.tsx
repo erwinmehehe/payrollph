@@ -18,32 +18,40 @@ type EvidenceRow = {
   supersededAt: string | null;
 };
 
-export function StatutoryPaymentProof({
-  organizationId,
-  batchId,
-  batchStatus,
-  notify,
-}: {
+type PaymentProofProps = {
   organizationId: number;
   batchId: number;
   batchStatus: string;
   notify: Notify;
-}) {
+};
+
+export function StatutoryPaymentProof(props: PaymentProofProps) {
+  // File and replacement drafts belong to one employer's remittance batch.
+  return <StatutoryPaymentProofContent key={`${props.organizationId}:${props.batchId}`} {...props} />;
+}
+
+function StatutoryPaymentProofContent({
+  organizationId,
+  batchId,
+  batchStatus,
+  notify,
+}: PaymentProofProps) {
   const [rows, setRows] = useState<EvidenceRow[]>([]);
   const [active, setActive] = useState<EvidenceRow | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [replacementReason, setReplacementReason] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch(
       "/api/compliance/statutory-remittances/payment-evidence?organizationId="
       + organizationId
       + "&batchId="
       + batchId,
-      { cache: "no-store" },
+      { cache: "no-store", signal },
     );
     const body = await response.json().catch(() => ({}));
+    if (signal?.aborted) return;
     if (!response.ok) throw new Error(body.error ?? "Could not load payment proof.");
     const nextRows = Array.isArray(body.evidence) ? body.evidence : [];
     const nextActive = body.active ?? null;
@@ -52,10 +60,17 @@ export function StatutoryPaymentProof({
   }, [batchId, organizationId]);
 
   useEffect(() => {
-    void load().catch((error) => notify(
-      error instanceof Error ? error.message : "Could not load payment proof.",
-      "err",
-    ));
+    const controller = new AbortController();
+    // Schedule the initial read outside synchronous effect setup.
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+      void load(controller.signal).catch((error) => {
+        if (!controller.signal.aborted) {
+          notify(error instanceof Error ? error.message : "Could not load payment proof.", "err");
+        }
+      });
+    });
+    return () => controller.abort();
   }, [load, notify]);
 
   async function upload() {
