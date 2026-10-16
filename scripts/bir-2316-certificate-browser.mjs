@@ -1,0 +1,50 @@
+import assert from "node:assert/strict";
+import { writeFile } from "node:fs/promises";
+import { certificateReview } from "../tests/fixtures/bir-2316-certificate.ts";
+export async function test2316Certificate({ browser, owner, fixture, outDir, results }) {
+  const base = "https://127.0.0.1:3443", query = new URLSearchParams({ organizationId: String(fixture.organizationId), employeeId: String(fixture.employeeId), taxYear: "2025" });
+  const api = base + "/api/year-end/2316-certificate?" + query;
+  const headers = { origin: base, "sec-fetch-site": "same-origin" };
+  const anonymous = await browser.newContext({ ignoreHTTPSErrors: true });
+  assert.equal((await anonymous.request.get(api)).status(), 401); await anonymous.close();
+  const source = await owner.request.get(api);
+  assert.equal(source.status(), 200); assert.match(source.headers()["cache-control"], /no-store/);
+  assert.equal((await source.json()).source.withholding.actualPresentWithheld, "5000.00");
+  const missing = await owner.request.post(api, { headers, data: { review: {} } });
+  assert.equal(missing.status(), 422);
+  const review = certificateReview();
+  const response = await owner.request.post(api, { headers, data: { review: { ...review, actualPresentWithheld: "99999999.00" } } });
+  assert.equal(response.status(), 200, await response.text()); assert.match(response.headers()["content-type"], /application\/pdf/); assert.match(response.headers()["cache-control"], /no-store/);
+  const pdf = await response.body(); assert.equal(pdf.subarray(0,5).toString(), "%PDF-");
+  await writeFile(outDir + "/2316-api-unsigned-synthetic.pdf", pdf);
+  assert.equal((await owner.request.post(api, { headers: { origin: "https://attacker.example", "sec-fetch-site": "cross-site" }, data: { review } })).status(), 403);
+  assert.equal((await owner.request.get(api.replace(":3443", ":3444"))).status(), 404);
+  assert.equal((await owner.request.get(base + "/api/year-end/2316-certificate?" + query + "&separationId=" + fixture.separationId)).status(), 200);
+  assert.equal((await owner.request.post(api + "&separationId=" + fixture.separationId, { headers, data: { review } })).status(), 422, "shortfall cannot become certified withholding");
+  for (const width of [1280, 390]) {
+    const context = await browser.newContext({ viewport: { width, height: 900 }, ignoreHTTPSErrors: true, storageState: await owner.storageState() });
+    const page = await context.newPage();
+    await page.goto(base + "/workspace/2316?" + query); await page.getByRole("heading", { name: "Prepare an unsigned Form 2316" }).waitFor();
+    await page.screenshot({ path: `${outDir}/2316-certificate-empty-${width}.png`, fullPage: true });
+    await page.getByRole("button", { name: "Load source records" }).click();
+    await page.getByRole("heading", { name: "Santos, Maria" }).waitFor();
+    for (const [key, value] of Object.entries(review.text)) await page.locator(`[name="${key}"]`).fill(value);
+    for (const [key, value] of Object.entries(review.detailItems)) await page.locator(`[name="item${key}"]`).fill(value);
+    await page.getByLabel("Employer type", { exact: true }).selectOption("main");
+    await page.getByLabel("Previous employer review", { exact: true }).selectOption("none-confirmed");
+    await page.locator('[name="pera"]').fill("0.00"); await page.getByRole("checkbox").check();
+    await page.locator('[name="item39"]').fill("500000.01");
+    await page.getByRole("button", { name: "Check totals and generate unsigned PDF" }).click();
+    await page.getByRole("alert").filter({ hasText: "DETAIL_TOTAL_MISMATCH" }).waitFor();
+    assert.equal(await page.getByRole("alert").evaluate(el => el === document.activeElement), true);
+    await page.screenshot({ path: `${outDir}/2316-certificate-error-${width}.png`, fullPage: false });
+    await page.locator('[name="item39"]').fill("500000.00");
+    await page.getByRole("button", { name: "Check totals and generate unsigned PDF" }).click();
+    await page.getByRole("link", { name: "Download unsigned PDF" }).waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    await page.screenshot({ path: `${outDir}/2316-certificate-complete-${width}.png`, fullPage: true });
+    const off = await page.goto(base.replace(":3443", ":3444") + "/workspace/2316?" + query); assert.equal(off.status(), 404);
+    await context.close();
+  }
+  results.push({ checkpoint: "2316-prescribed-unsigned-pdf", result: "pass", widths: [1280,390], malformedBlocked: true, shortfallBlocked: true, crossSiteBlocked: true, flagOff404: true });
+}

@@ -5,6 +5,10 @@ on:
     paths:
       - 'src/lib/bir-1604c-*.ts'
       - 'src/lib/bir-2316-*.ts'
+      - 'assets/bir/**'
+      - 'src/app/api/year-end/2316-certificate/**'
+      - 'src/app/workspace/2316/**'
+      - 'src/components/workspace/certificate-2316-review.tsx'
       - 'src/lib/annualization.ts'
       - 'tests/bir-2316*'
       - 'src/lib/bir-annual-employer-source.ts'
@@ -12,6 +16,7 @@ on:
       - 'src/components/workspace/bir-1604c-candidate-panel.tsx'
       - 'src/components/workspace/panels.tsx'
       - 'scripts/bir-1604c-synthetic-browser*'
+      - 'scripts/bir-2316-certificate-browser.mjs'
       - 'tests/bir-1604c*'
       - '.github/workflows/bir-1604c-candidate-qa.yml'
 
@@ -71,6 +76,10 @@ jobs:
       - run: npm run db:push
       - name: Execute read-only 2316 ledger isolation and final-pay PostgreSQL acceptance
         run: npx tsx --test tests/bir-2316-withholding-postgres.test.ts
+      - name: Generate and behavior-test the unsigned prescribed-template PDF
+        env:
+          BIR_2316_PDF_QA: 'true'
+        run: npx tsx --test tests/bir-2316-certificate.test.ts
       - name: Seed synthetic employer, employee, MFA and annual BIR records
         run: npx tsx scripts/bir-1604c-synthetic-browser-fixture.ts
       - name: Typecheck the filing implementation
@@ -90,8 +99,8 @@ jobs:
             -addext "subjectAltName=IP:127.0.0.1,DNS:localhost" >/dev/null 2>&1
       - name: Start flag-on and flag-off servers
         run: |
-          BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=true BIR_2316_RECONCILIATION_ENABLED=true BIR_1604C_DAT_CANDIDATE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/bir-1604c-on.log 2>&1 &
-          BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=false BIR_2316_RECONCILIATION_ENABLED=false BIR_1604C_DAT_CANDIDATE_ENABLED=false npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/bir-1604c-off.log 2>&1 &
+          BIR_2316_CERTIFICATE_DRAFT_ENABLED=true BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=true BIR_2316_RECONCILIATION_ENABLED=true BIR_1604C_DAT_CANDIDATE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/bir-1604c-on.log 2>&1 &
+          BIR_2316_CERTIFICATE_DRAFT_ENABLED=false BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=false BIR_2316_RECONCILIATION_ENABLED=false BIR_1604C_DAT_CANDIDATE_ENABLED=false npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/bir-1604c-off.log 2>&1 &
           for port in 3000 3001; do
             ready=false
             for attempt in $(seq 1 60); do

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { generateTotp } from "../src/lib/totp.ts";
+import { test2316Certificate } from "./bir-2316-certificate-browser.mjs";
 
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.BIR_SYNTHETIC_BROWSER_QA, "true");
@@ -292,6 +293,10 @@ try {
     await reviewEmployee.close();
     results.push({ checkpoint: "2316-review-" + (enabled ? "on" : "off"), result: "pass", widths: [1280, 390], sourceStatusDoesNotProveSettlement: true });
   }
+  await test2316Certificate({ browser, owner, fixture, outDir, results });
+  const certificateEmployee = await login("employee");
+  assert.equal((await certificateEmployee.request.get("https://127.0.0.1:3443/api/year-end/2316-certificate?organizationId=" + fixture.organizationId + "&employeeId=" + fixture.employeeId + "&taxYear=2025")).status(), 403);
+  await certificateEmployee.close();
   await owner.close();
   await writeFile(outDir + "/results.json", JSON.stringify({
     status: "PASS", syntheticOnly: true, validatedByBir: false,

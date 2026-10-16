@@ -29,7 +29,7 @@ async function main() {
     organizationId: org.id, legalEntityId: entity.id, employeeNo: "SYN-BIR-001",
     firstName: "Maria", middleName: "", lastName: "Santos",
     title: "Synthetic QA", avatarInitials: "MS", basicRate: "50000.00",
-    nationality: "Filipino", startDate: "2025-01-01",
+    nationality: "Filipino", startDate: "2025-01-01", birthDate: "1990-02-03",
     tin: encryptGovernmentId("333222111", { required: true }),
     tinBranchCode: encryptGovernmentId("0000", { required: true }),
   }).returning();

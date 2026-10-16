@@ -593,7 +593,7 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
       )}
 
       {mayOperateStatutoryEvidence && <>
-        <YearEndPanel key={[data.user?.id, data.selectedOrganization.id, data.multiEntity?.enabled ? data.multiEntity.legalEntityId ?? "all" : "legacy", data.access?.role].join(":")} organizationId={data.selectedOrganization.id} setNotice={setNotice} birCandidateEnabled={data.bir1604cCandidateEnabled === true} />
+        <YearEndPanel key={[data.user?.id, data.selectedOrganization.id, data.multiEntity?.enabled ? data.multiEntity.legalEntityId ?? "all" : "legacy", data.access?.role].join(":")} organizationId={data.selectedOrganization.id} setNotice={setNotice} birCandidateEnabled={data.bir1604cCandidateEnabled === true} certificateEnabled={data.bir2316CertificateEnabled === true} />
         <DoleThirteenthMonthReportPanel
           organizationId={data.selectedOrganization.id}
           notify={(message) => setNotice(message)}
@@ -621,7 +621,7 @@ type BirAnnualPreflight = {
   warnings: Array<{ code: string; message: string; employeeNo?: string }>;
 };
 
-function YearEndPanel({ organizationId, setNotice, birCandidateEnabled }: { organizationId: number; setNotice: (message: string) => void; birCandidateEnabled?: boolean }) {
+function YearEndPanel({ organizationId, setNotice, birCandidateEnabled, certificateEnabled }: { organizationId: number; setNotice: (message: string) => void; birCandidateEnabled?: boolean; certificateEnabled?: boolean }) {
   const [taxYear, setTaxYear] = useState(2026);
   const [summary, setSummary] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -862,6 +862,7 @@ function YearEndPanel({ organizationId, setNotice, birCandidateEnabled }: { orga
                       <a className="link-button" href={`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&employeeId=${row.employeeId}&format=2316`}><Download size={13} style={{ display: "inline" }} /> Text</a>
                       {" · "}
                       <a className="link-button" target="_blank" rel="noopener noreferrer" href={`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&employeeId=${row.employeeId}&format=2316-print`}>Print review</a>
+                      {certificateEnabled && <> · <a className="link-button" href={`/workspace/2316?organizationId=${organizationId}&employeeId=${row.employeeId}&taxYear=${taxYear}`}>Prepare unsigned PDF</a></>}
                     </td>
                   </tr>
                 ))}
