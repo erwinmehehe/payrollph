@@ -9,6 +9,7 @@ on:
       - "scripts/check-independent-schema-evidence.mjs"
       - "scripts/check-independent-atlas-inspection.mjs"
       - "scripts/independent-pg16-0128-checkpoint.mjs"
+      - "scripts/independent-squawk-review.mjs"
       - "scripts/lib/independent-reconciliation-evidence.mjs"
       - "tests/independent-reconciliation-evidence.test.mjs"
       - "scripts/lib/independent-schema-evidence.mjs"
@@ -71,6 +72,8 @@ jobs:
           set -e
           printf '%s\n' "$squawk_status" \
             > qa-artifacts/independent-pg16/squawk-exit.txt
+      - name: Classify every unsuppressed Squawk finding for independent review
+        run: node scripts/independent-squawk-review.mjs
       - name: Fail closed on every Squawk finding and CLI error
         run: node scripts/check-independent-schema-evidence.mjs squawk
       - name: Preserve syntax/locking warnings (not deployment approval)
