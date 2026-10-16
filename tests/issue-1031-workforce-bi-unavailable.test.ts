@@ -21,16 +21,39 @@ test("workforce planning preserves an honest unavailable state when its authorit
 });
 
 test("allocation fetch failures revoke old access and never present empty planning evidence as success", () => {
-  const firstRead = allocations.slice(allocations.indexOf("  const load = useCallback("), allocations.indexOf("  useEffect(() => { void load(); }, [load]);"));
-  const deniedRead = firstRead.slice(firstRead.indexOf("if (!response.ok) {"), firstRead.indexOf("setAllocations(payload.allocations"));
+  const start = allocations.indexOf("  const load = useCallback(");
+  const end = allocations.indexOf("  useEffect(() => {", start);
+  assert.ok(start >= 0 && end > start, "allocation loader must precede its mount effect");
+  const firstRead = allocations.slice(start, end);
+
+  const deniedStart = firstRead.indexOf("if (!response.ok) {");
+  const successfulStart = firstRead.indexOf("const nextAllocations: Allocation[]", deniedStart);
+  assert.ok(deniedStart >= 0 && successfulStart > deniedStart, "failure must revoke access before publishing valid allocations");
+  const deniedRead = firstRead.slice(deniedStart, successfulStart);
   for (const revocation of ["setLoadedOrganizationId(null);", "setAccess(null);", "setAllocations([]);", "setSubmissions([]);", "setLoadError("]) {
-    assert.ok(deniedRead.includes(revocation), revocation);
+    assert.ok(deniedRead.includes(revocation), "missing failure revocation: " + revocation);
   }
+
   assert.match(allocations, /if \(loadError\) \{[\s\S]*?role="alert"[\s\S]*?Retry/);
   assert.match(allocations, /if \(loading \|\| \(!loadError && loadedOrganizationId !== organizationId\)\) \{[\s\S]*?Loading workforce allocations/, "withhold previous allocation evidence during load or tenant switch");
-  assert.match(allocations, /revision !== loadRevisionRef\.current/);
-  const initialRead = allocations.slice(allocations.indexOf("  const load = useCallback("), allocations.indexOf("  useEffect(() => { void load(); }, [load]);"));
-  assert.doesNotMatch(initialRead, /setNotice\(/, "initial allocation load must not emit a success-style toast");
+
+  // The new callback uses both request revision ownership AND AbortSignal
+  // cancellation, replacing the old bare revision inequality. Neither a
+  // superseded request nor an unmounted child may republish tenant evidence.
+  assert.match(firstRead, /const revision = \+\+loadRevisionRef\.current/);
+  assert.match(firstRead, /const isCurrent = \(\) => !signal\?\.aborted && revision === loadRevisionRef\.current/);
+  assert.match(firstRead, /if \(!isCurrent\(\)\) return;/);
+  assert.match(firstRead, /\{ cache: "no-store", signal \}/);
+
+  const mountEffect = allocations.slice(end, allocations.indexOf("  const selectedPlan =", end));
+  assert.match(mountEffect, /const controller = new AbortController\(\)/);
+  assert.match(mountEffect, /queueMicrotask\(\(\) => \{/);
+  assert.match(mountEffect, /if \(!controller\.signal\.aborted\) void load\(controller\.signal\)/);
+  assert.match(mountEffect, /controller\.abort\(\)/);
+  assert.match(mountEffect, /loadRevisionRef\.current \+= 1/);
+  assert.doesNotMatch(mountEffect, /set(?:Loading|LoadError|LoadedOrganizationId|Access|Allocations|Submissions)\(/, "mount effect cannot publish or reset tenant evidence synchronously");
+
+  assert.doesNotMatch(firstRead, /setNotice\(/, "initial allocation load must not emit a success-style toast");
 });
 
 test("BI errors revoke stale datasets and scopes, disable export, and provide manual retry", () => {
