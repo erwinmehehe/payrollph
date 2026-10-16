@@ -41,7 +41,16 @@ function syntheticEpoch(clockDate) {
   return ms;
 }
 
-if (require.main === module) {
-  process.stdout.write(manilaMonthEnd() + "\n");
+// An explicitly selected, disposable annual journey uses this year's final
+// cutoff. It is never a historical clock or an application/runtime setting.
+function qaCutoff(mode, nowEpochMs = RealDate.now()) {
+  const current = manilaMonthEnd(nowEpochMs);
+  if (!mode || mode === "month") return current;
+  if (mode !== "year-end") throw new Error("Unsupported disposable cutoff mode");
+  return current.slice(0, 4) + "-12-31";
 }
-module.exports = { manilaMonthEnd, syntheticEpoch };
+
+if (require.main === module) {
+  process.stdout.write(qaCutoff(process.env.NINE_STAGE_CUTOFF_MODE) + "\n");
+}
+module.exports = { manilaMonthEnd, syntheticEpoch, qaCutoff };

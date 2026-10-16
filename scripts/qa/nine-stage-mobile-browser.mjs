@@ -163,6 +163,23 @@ try {
     assert.equal(await page.locator('.app-shell').getAttribute('data-compact-mobile-header'), 'true');
     await page.screenshot({path:'qa-artifacts/nine-stage-layout-on-' + width + '.png',fullPage:false});
     report.checks.push(width + "px failure/retry and owner switch A -> B -> A; disjoint tenant employee records");
+    if (process.env.NINE_STAGE_CUTOFF_MODE === 'year-end' && width !== 375) {
+      const annual = JSON.parse(readFileSync('qa-artifacts/connected-year-end-review.json','utf8'));
+      await page.goto(base + '/workspace/2316?' + annual.query);
+      await page.getByRole('button',{name:'Load source records'}).click();
+      await page.getByRole('heading',{name:annual.employeeName,exact:true}).waitFor();
+      for (const [key,value] of Object.entries(annual.review.text)) await page.locator(`[name="${key}"]`).fill(value);
+      for (const [key,value] of Object.entries(annual.review.detailItems)) await page.locator(`[name="item${key}"]`).fill(value);
+      await page.getByLabel('Employer type',{exact:true}).selectOption('main');
+      await page.getByLabel('Previous employer review',{exact:true}).selectOption('none-confirmed');
+      await page.locator('[name="pera"]').fill('0.00'); await page.getByRole('checkbox').check();
+      await page.getByRole('button',{name:'Check totals and generate unsigned PDF'}).click();
+      await page.getByRole('link',{name:'Download unsigned PDF'}).waitFor();
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+      assert.deepEqual(errors,[]);
+      await page.screenshot({path:'qa-artifacts/nine-stage-layout-annual-2316-'+width+'.png',fullPage:true});
+      report.checks.push(width + 'px SAME governed worker, released year-end refund and paid benefit -> unsigned 2316 UI');
+    }
     await page.goto('http://127.0.0.1:3001/app?organizationId=' + auth.organizationId,
       {waitUntil:'domcontentloaded'});
     const offShell = page.locator('.app-shell');
