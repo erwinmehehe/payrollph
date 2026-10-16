@@ -22,6 +22,13 @@ test("exactly 54 forward-only catalog renames without DML, destructive DDL or jo
   const outsideDo = body.replace(/DO \$issue_0129_preflight\$[\s\S]*?END \$issue_0129_preflight\$;/m,"");
   assert.notEqual(outsideDo,body,"Reviewed DO preflight must be present");
   assert.doesNotMatch(outsideDo,/^\s*(?:BEGIN|COMMIT|ROLLBACK|SAVEPOINT)\s*;/im);
+  const statements = outsideDo.split(";").map(x=>x.trim()).filter(Boolean);
+  assert.equal(statements.length,54,"No hidden DDL outside the catalog preflight and 54 renames");
+  for(const statement of statements){
+    assert.match(statement,
+      /^ALTER TABLE public\."[a-z_]+"\s+RENAME CONSTRAINT "[a-z0-9_]+"\s+TO "[a-z0-9_]+"$/,
+      "Only literal ALTER TABLE RENAME CONSTRAINT is allowed after the DO guard");
+  }
   assert.ok(renames.every(r=>r.oldName!==r.newName));
 });
 test("all renamed names and PK/FK paths precisely match the pinned source contracts",()=>{
