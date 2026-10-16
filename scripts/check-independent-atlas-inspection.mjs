@@ -43,8 +43,11 @@ const results = {
   workflowCommitSha: process.env.GITHUB_SHA || null,
   source: readInspectedSchema("atlas-source-inspect.json", "app_db"),
   candidate: readInspectedSchema("atlas-candidate-inspect.json", "atlas_candidate_db"),
+  reconciled: readInspectedSchema("atlas-reconciled-inspect.json", "atlas_reconciled_db"),
   migrationReceiptCreated: false,
   approvedForDeployment: false,
 };
 writeFileSync(directory + "atlas-inspection-coverage.json", JSON.stringify(results, null, 2) + "\n");
-console.log(JSON.stringify({ source: results.source, candidate: results.candidate }));
+console.log(JSON.stringify({
+  source: results.source, candidate: results.candidate, reconciled: results.reconciled,
+}));
