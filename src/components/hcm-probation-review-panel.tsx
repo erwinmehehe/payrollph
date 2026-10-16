@@ -58,7 +58,7 @@ export function HcmProbationReviewPanel(props: {
 }) {
   // One specific employment term's review. Remount on a new term so no prior
   // worker's draft rating or recommendation can render while the next loads.
-  return <HcmProbationReviewPanelContent key={props.employmentTermId} {...props} />;
+  return <HcmProbationReviewPanelContent key={`${props.organizationId}:${props.employeeId}:${props.employmentTermId}`} {...props} />;
 }
 
 function HcmProbationReviewPanelContent({
