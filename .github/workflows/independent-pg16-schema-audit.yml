@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/independent-pg16-schema-audit.yml"
       - "scripts/independent-pg16-schema-audit.mjs"
+      - "scripts/independent-pg16-catalog-report.mjs"
       - "drizzle/0115_*.sql"
       - "drizzle/0116_*.sql"
       - "drizzle/0117_*.sql"
@@ -125,6 +126,11 @@ jobs:
           mkdir -p qa-artifacts/independent-pg16
           node scripts/independent-pg16-schema-audit.mjs \
             > qa-artifacts/independent-pg16/synthetic-source-shas.json
+      - name: Re-run #1031 source/catalog comparison on BOTH identical PG16 fixtures (read only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/independent-pg16-catalog-report.mjs
       - name: Read-only independent Atlas schema comparison
         shell: bash
         run: |
