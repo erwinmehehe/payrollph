@@ -45,6 +45,20 @@ claim of tax-practitioner approval for a customer's compensation categories.
 
 The receipt marks annual completion separately from the original nine stages;
 wrong-worker PDFs and missing annual receipts cannot pass the evidence test.
+The acceptance test independently SHA-256 hashes the **saved PDF bytes** and
+checks the year-end UI review scope against the SAME employer/worker/tax year:
+a receipt containing only a plausible digest is insufficient. Before saving,
+the locally generated PDF must pass HTTP success, PDF MIME, no-store, bounded
+8 MiB stream/Content-Length, PDF header/trailer and recognizable active-content
+checks. These checks are not a comprehensive PDF malware/security audit; the
+unsigned evidence is still handled as untrusted, local QA output.
+
+The optional failure diagnostic now writes only numeric, centavo-normalized
+fictional amounts and a bounded error-code count. Raw API response objects,
+identities and unvalidated network strings are not written into that diagnostic
+or uploaded to the workflow artifact. The fictional PDF itself must be retained
+to verify the real HTTP-generated document, so the QA-only network-to-file
+CodeQL pattern remains intentional and subject to security review.
 The PDF has no signatures and is never submitted. All payment providers remain
 disabled, all credentials are fictional, and all data lives in disposable CI.
 
