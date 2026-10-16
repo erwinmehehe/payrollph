@@ -139,7 +139,7 @@ test("premium, late/undertime and repeat-input cases keep exact pay-line totals"
     withholding: 1_235.10, // 937.50 + (18,155 - 16,667) * 20%
     deductions: 2_800.10, // 875 + 440 + 100 + 50 + 100 + 1,235.10
     net: 16_919.90, // 19,720 - 2,800.10
-    uncollected: 0, // 19,720 covers 2,725.70 in deductions
+    uncollected: 0, // 19,720 covers 2,800.10 in deductions
   });
   const hourly = fictionalCutoff({ basis: "hourly", rate: 125, regularMinutes: 4_800,
     overtimeHours: 2, nightHours: 1, holidayHours: 8, holiday: "special" });

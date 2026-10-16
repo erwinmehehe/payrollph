@@ -104,11 +104,6 @@
       "count": 1
     }
   },
-  "src/components/payroll-underpayment-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/performance-calibration-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -130,11 +125,6 @@
     }
   },
   "src/components/performance-governance-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/performance-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }

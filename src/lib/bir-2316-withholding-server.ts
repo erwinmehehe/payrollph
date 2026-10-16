@@ -8,6 +8,7 @@ import { sameFinalPaySource } from "./final-pay-source-fingerprint";
 export const bir2316WithholdingEnabled = () => criticalReleaseFlagEnabled("bir2316Reconciliation") && criticalReleaseFlagEnabled("bir2316WithholdingEvidence");
 type Scope = { organizationId: number; employeeId: number; taxYear: number; legalEntityId: number | null; throughDate?: string };
 type Reader = Pick<typeof db, "select">;
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 async function ledger(reader: Reader, scope: Scope) {
   const through = scope.throughDate ?? `${scope.taxYear}-12-31`;
   const entries = await reader.select({ id: payrollEntries.id, runId: payrollRuns.id,
@@ -24,9 +25,9 @@ async function ledger(reader: Reader, scope: Scope) {
     gte(historicalPayrollEntries.payDate, `${scope.taxYear}-01-01`), lte(historicalPayrollEntries.payDate, through)));
   return { entries, historicalCount: historical.length };
 }
-export async function loadYearEnd2316Withholding(scope: Scope & { adjustmentId: number; before: string; expectedAdjustment: string }) {
+export async function loadYearEnd2316Withholding(scope: Scope & { adjustmentId: number; before: string; expectedAdjustment: string }, transaction?: Transaction) {
   if (!bir2316WithholdingEnabled()) return undefined;
-  return db.transaction(async tx => {
+  const read = async (tx: Transaction) => {
     const [source] = await tx.select().from(yearEndAdjustments).where(and(eq(yearEndAdjustments.id, scope.adjustmentId),
       eq(yearEndAdjustments.organizationId, scope.organizationId), eq(yearEndAdjustments.employeeId, scope.employeeId), eq(yearEndAdjustments.taxYear, scope.taxYear))).limit(1);
     if (!source || bir2316Centavos(source.taxWithheld) !== bir2316Centavos(scope.before) ||
@@ -34,11 +35,12 @@ export async function loadYearEnd2316Withholding(scope: Scope & { adjustmentId: 
     const data = await ledger(tx, scope);
     return releasedBir2316Withholding({ ...scope, historicalCount: data.historicalCount,
       boundRunId: source.payrollRunId }, data.entries);
-  }, { isolationLevel: "repeatable read", accessMode: "read only" }).catch(() => unknownBir2316Withholding("WITHHOLDING_LOOKUP_UNAVAILABLE"));
+  };
+  return transaction ? read(transaction) : db.transaction(read, { isolationLevel: "repeatable read", accessMode: "read only" }).catch(() => unknownBir2316Withholding("WITHHOLDING_LOOKUP_UNAVAILABLE"));
 }
-export async function loadFinalPay2316Withholding(organizationId: number, employeeId: number, separationId: number) {
+export async function loadFinalPay2316Withholding(organizationId: number, employeeId: number, separationId: number, transaction?: Transaction) {
   if (!bir2316WithholdingEnabled()) return undefined;
-  return db.transaction(async tx => {
+  const read = async (tx: Transaction) => {
     const [source] = await tx.select().from(separationRecords).where(and(eq(separationRecords.id, separationId),
       eq(separationRecords.organizationId, organizationId), eq(separationRecords.employeeId, employeeId))).limit(1);
     if (!source) return unknownBir2316Withholding("FINAL_PAY_SOURCE_MISSING");
@@ -74,5 +76,6 @@ export async function loadFinalPay2316Withholding(organizationId: number, employ
     return finalPayBir2316Withholding({ ...source, taxYear: scope.taxYear, baseline, before: annual.taxWithheld,
       expectedAdjustment: annual.adjustment, appliedTaxCollection: snapshot.appliedTaxCollection,
       unpaidTaxWithholding: snapshot.unpaidTaxWithholding });
-  }, { isolationLevel: "repeatable read", accessMode: "read only" }).catch(() => unknownBir2316Withholding("WITHHOLDING_LOOKUP_UNAVAILABLE"));
+  };
+  return transaction ? read(transaction) : db.transaction(read, { isolationLevel: "repeatable read", accessMode: "read only" }).catch(() => unknownBir2316Withholding("WITHHOLDING_LOOKUP_UNAVAILABLE"));
 }
