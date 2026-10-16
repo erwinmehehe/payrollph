@@ -39,6 +39,7 @@ test('Tailscale must be running with a real enrolled device DNS name', () => {
 test('HTTPS 443 must be a tailnet-only reverse proxy to exact localhost app', () => {
   assert.equal(assertPrivateServeOnly(serve, origin), origin);
   assert.equal(assertPrivateServeOnly({Foreground:{session:serve}}, origin), origin);
+  assert.equal(assertPrivateServeOnly({...serve, Foreground:{session:serve}}, origin), origin);
   for (const bad of [
     {},
     {...serve, AllowFunnel:{'payrollph-qa.example-tailnet.ts.net:443': true}},
@@ -47,12 +48,19 @@ test('HTTPS 443 must be a tailnet-only reverse proxy to exact localhost app', ()
     {...serve, Web:{}},
     {...serve, Web:{'payrollph-qa.example-tailnet.ts.net:443': {Handlers:{'/':{Proxy:'http://0.0.0.0:3000'}}}}},
     {...serve, Web:{'payrollph-qa.example-tailnet.ts.net:443': {Handlers:{'/':{Proxy:'http://127.0.0.1:3000'}, '/other':{Proxy:'http://127.0.0.1:9000'}}}}},
+    // Reject extra listeners even if the intended HTTPS app route is valid.
+    {...serve, TCP:{...serve.TCP, '5432':{TCPForward:'127.0.0.1:5432'}}},
+    {...serve, TCP:{...serve.TCP, '8080':{HTTP:true}}},
+    {...serve, TCP:{'443':{HTTPS:true,TCPForward:'127.0.0.1:5432'}}},
+    {...serve, Web:{...serve.Web,'other.example-tailnet.ts.net:443':{Handlers:{'/':{Proxy:'http://127.0.0.1:3001'}}}}},
+    {...serve, Foreground:{bad:{TCP:{'5432':{TCPForward:'127.0.0.1:5432'}}}}},
+    {...serve, Foreground:{bad:{Web:{'other.example-tailnet.ts.net:443':{Handlers:{'/':{Proxy:'http://127.0.0.1:3001'}}}}}}},
   ]) assert.throws(() => assertPrivateServeOnly(bad, origin), /UAT853_/);
 });
 
 test('tailnet origin overrides only URL keys; preserves isolated fictional DB', () => {
   const app = {
-    DATABASE_URL: 'postgresql://uat853_owner:some-password@127.0.0.1:5432/uat853',
+    DATABASE_URL: 'postgresql://uat853_owner:' + 'a'.repeat(48) + '@127.0.0.1:5432/uat853',
     APP_BASE_URL:'http://127.0.0.1:3000',
     TRUSTED_APP_ORIGINS:'http://127.0.0.1:3000',
     QA_URL:'http://127.0.0.1:3000',
@@ -66,5 +74,7 @@ test('tailnet origin overrides only URL keys; preserves isolated fictional DB', 
   for(const k of ['APP_BASE_URL','TRUSTED_APP_ORIGINS','QA_URL']) assert.equal(result[k],origin);
   assert.equal(app.APP_BASE_URL, 'http://127.0.0.1:3000');
   assert.throws(() => privateUatRuntime({...app,DATABASE_URL:'postgresql://prod@neon.tech/prod'},origin), /UAT853_/);
+  assert.throws(() => privateUatRuntime({...app,DATABASE_URL:'postgresql://uat853_owner:'+'a'.repeat(48)+'@127.0.0.1:5432/neondb'},origin), /UAT853_/);
+  assert.throws(() => privateUatRuntime({...app,DATABASE_URL:'postgresql://uat853_owner:'+'a'.repeat(48)+'@127.0.0.1:6543/uat853'},origin), /UAT853_/);
   assert.throws(() => privateUatRuntime({...app,APP_BASE_URL:'https://prod.example'},origin), /UAT853_/);
 });

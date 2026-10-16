@@ -45,6 +45,20 @@ export function assertPrivateServeOnly(serveStatus, origin) {
     // a different mount is private. Do not reset another service to fix this.
     assert.ok(!Object.values(config.AllowFunnel || {}).some(Boolean),
       'UAT853_PUBLIC_FUNNEL_REFUSED');
+    // A valid HTTPS app route must not excuse another listener exposing
+    // localhost PostgreSQL or a different service on this dedicated QA host.
+    for (const [port, listener] of Object.entries(config.TCP || {})) {
+      assert.ok(port === '443' && listener?.HTTPS === true &&
+        Object.keys(listener).length === 1,
+        'UAT853_EXTRA_TCP_LISTENER_REFUSED');
+    }
+    for (const [host, web] of Object.entries(config.Web || {})) {
+      const handlers = web?.Handlers;
+      assert.ok(host === hostPort && handlers &&
+        Object.keys(handlers).length === 1 &&
+        handlers['/']?.Proxy === LOOPBACK_PROXY,
+        'UAT853_EXTRA_WEB_ROUTE_REFUSED');
+    }
   }
   const valid = configs.some(config => {
     const web = config.Web?.[hostPort];
@@ -61,8 +75,14 @@ export function privateUatRuntime(app, origin) {
   const safeOrigin = assertPrivateTailnetOrigin(origin);
   assert.equal(app?.APP_BASE_URL, LOOPBACK_PROXY,
     'UAT853_PRIVATE_RUNTIME_MUST_START_LOCAL');
-  assert.equal(app?.DATABASE_URL && new URL(app.DATABASE_URL).hostname,
-    '127.0.0.1', 'UAT853_PRIVATE_RUNTIME_MUST_USE_LOCAL_DB');
+  let db;
+  try { db = new URL(app?.DATABASE_URL || ''); }
+  catch { throw new Error('UAT853_PRIVATE_RUNTIME_MUST_USE_LOCAL_DB'); }
+  assert.ok(['postgres:', 'postgresql:'].includes(db.protocol) &&
+    db.hostname === '127.0.0.1' && db.port === '5432' &&
+    db.pathname === '/uat853' && db.username === 'uat853_owner' &&
+    db.password.length >= 32 && !db.search && !db.hash,
+    'UAT853_PRIVATE_RUNTIME_MUST_USE_LOCAL_DB');
   return { ...app,
     APP_BASE_URL: safeOrigin,
     TRUSTED_APP_ORIGINS: safeOrigin,
