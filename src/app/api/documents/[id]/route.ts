@@ -193,7 +193,7 @@ export async function DELETE(
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const { id } = await context.params;
-  if (!/^[1-9]\\d*$/.test(id) || !Number.isSafeInteger(Number(id))) {
+  if (!/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(Number(id))) {
     return Response.json({ error: "A valid document id is required." }, { status: 400 });
   }
   const [row] = await db.select({
