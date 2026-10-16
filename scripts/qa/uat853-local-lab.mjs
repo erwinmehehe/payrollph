@@ -9,6 +9,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { originFromTailscaleStatus, assertPrivateServeOnly, privateUatRuntime } from './uat853-private-tailnet.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const PRIVATE = resolve(ROOT, 'qa-artifacts/uat853-local-lab');
@@ -271,6 +272,30 @@ function serve() {
     { cwd: ROOT, env, stdio: 'inherit', windowsHide: true });
   process.exitCode = child.status ?? 1;
 }
+function servePrivate() {
+  assertSafeHostEnvironment(process.env);
+  assertNoDotenv();
+  assertCleanCheckout();
+  const { state, app } = readSession();
+  assertOwnContainer(state);
+  assert.equal(state.schemaReady, true, 'UAT853_SCHEMA_NOT_PROVISIONED');
+  // Only a separately-authorized foreground Tailscale Serve endpoint is
+  // accepted. This command never configures Funnel, public ports, DNS, or VPN.
+  const origin = originFromTailscaleStatus(JSON.parse(
+    run('tailscale', ['status', '--json'])));
+  assertPrivateServeOnly(JSON.parse(
+    run('tailscale', ['serve', 'status', '--json'])), origin);
+  const env = onlySafeProcessEnvironment(process.env, privateUatRuntime(app, origin));
+  console.log('PASS: preconfigured tailnet-only HTTPS reverse proxy verified.');
+  console.log('App on 127.0.0.1:3000; PostgreSQL on 127.0.0.1:5432.');
+  console.log('Operator must independently verify tailnet ACL, testers and real phone access.');
+  console.log('This does NOT mark any #852/#853 human acceptance as PASS.');
+  const [npm, npmArgs] = npmProcess(['run', 'dev', '--', '--hostname', '127.0.0.1', '--port', '3000']);
+  const child = spawnSync(npm, npmArgs, {
+    cwd: ROOT, env, stdio: 'inherit', windowsHide: true,
+  });
+  process.exitCode = child.status ?? 1;
+}
 function stop(args) {
   assert.deepEqual(args, ['--discard-fictional-session'],
     'UAT853_STOP_REQUIRES_EXPLICIT_DISCARD_CONFIRMATION');
@@ -286,8 +311,9 @@ function main() {
   if (cmd === 'migrate' && args.length === 0) return migrate();
   if (cmd === 'status' && args.length === 0) return status();
   if (cmd === 'serve' && args.length === 0) return serve();
+  if (cmd === 'serve-private' && args.length === 0) return servePrivate();
   if (cmd === 'stop') return stop(args);
-  throw new Error('Usage: node scripts/qa/uat853-local-lab.mjs start|migrate|status|serve|stop --discard-fictional-session');
+  throw new Error('Usage: node scripts/qa/uat853-local-lab.mjs start|migrate|status|serve|serve-private|stop --discard-fictional-session');
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try { main(); }

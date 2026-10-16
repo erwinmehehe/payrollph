@@ -30,7 +30,24 @@ const securityHeaders = [
     : []),
 ];
 
+// Allow only the exact approved private QA hostname to reach the
+// development server, without modifying any production Next.js behavior.
+const privateTailnetDevHost = (() => {
+  const raw = process.env.APP_BASE_URL;
+  if (!raw || process.env.NODE_ENV === "production") return undefined;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.origin === raw && parsed.protocol === "https:" &&
+      parsed.port === "" &&
+      /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.){2,}ts\\.net$/.test(parsed.hostname)) {
+      return parsed.hostname;
+    }
+  } catch { /* no private QA origin configured */ }
+  return undefined;
+})();
+
 const nextConfig: NextConfig = {
+  allowedDevOrigins: privateTailnetDevHost ? [privateTailnetDevHost] : undefined,
   poweredByHeader: false,
   async headers() {
     return [
