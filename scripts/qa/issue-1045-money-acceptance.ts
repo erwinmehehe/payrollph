@@ -275,7 +275,7 @@ const payload={
   engineeringDifferences:mismatch.length,results,
 };
 writeFileSync(output+"/observations.json",JSON.stringify(payload,null,2)+"\n");
-const headers=["case_id","ticket","metric","unit","expected","observed","variance_centavos",
+const headers=["source_sha","case_id","ticket","metric","unit","expected","observed","variance_centavos",
   "engineering_status","independent_review_status","source"];
 const csvCell=(value:string)=>{
   const safe=/^[=+@]/.test(value)?"'"+value:value;
@@ -283,7 +283,7 @@ const csvCell=(value:string)=>{
 };
 writeFileSync(output+"/observations.csv",[headers.join(","),
   ...results.map(row=>[
-    row.id,row.ticket,row.metric,row.unit,row.expected,row.observed,row.varianceCentavos,
+    sha,row.id,row.ticket,row.metric,row.unit,row.expected,row.observed,row.varianceCentavos,
     row.engineeringStatus,row.humanReviewStatus,row.source,
   ].map(csvCell).join(","))].join("\n")+"\n");
 console.log(JSON.stringify({sourceSha:sha,scriptSha256:scriptHash,cases:cases.length,metrics:results.length,
