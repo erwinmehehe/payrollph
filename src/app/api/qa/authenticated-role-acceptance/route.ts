@@ -96,7 +96,7 @@ async function scenario(persona: string): Promise<{
           } else if (responseKind === "floor") {
             pass = Number(payload.totalEmployees) === visibleEmployeeIds.length
               && Array.isArray(payload.rows)
-              && payload.rows.length === visibleEmployeeIds.length;
+              && payload.rows.every((row: any) => visibleEmployeeIds.includes(Number(row.employeeId)));
           } else if (responseKind === "attendance") {
             pass = Array.isArray(payload.exceptions)
               && payload.exceptions.every((x: any) => x.employeeId == null || visibleEmployeeIds.includes(Number(x.employeeId)));
