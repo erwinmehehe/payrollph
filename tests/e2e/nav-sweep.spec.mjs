@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { chromium } from "playwright";
 import { generateTotp } from "../../src/lib/totp.ts";
 import { isExpectedDenied } from "./nav-sweep.expected-denied.mjs";
+import { compareNavSweepCaseCoverage, startNavSweepRoleBrowser } from "./nav-sweep-startup.mjs";
 
 const BASE = "http://127.0.0.1:3000";
 const dir = "qa-artifacts/nav-sweep";
@@ -18,6 +19,7 @@ assert.equal(new URL(process.env.DATABASE_URL).pathname, "/app_db");
 
 mkdirSync(dir, { recursive: true });
 const results = [];
+const startupRetries = [];
 const broken = process.env.NAV_SWEEP_INJECT_BROKEN === "true";
 const proofOnly = process.env.NAV_SWEEP_ONLY_OWNER === "true";
 const focusRole = process.env.NAV_SWEEP_FOCUS_ROLE || null;
@@ -296,15 +298,27 @@ test("read-only navigation and runtime error sweep (real roles, both viewports)"
       if (proofOnly && role !== "owner") continue;
       if (focusRole && role !== focusRole) continue;
       activeRole = role;
+      // A role-login failure is not the previous role's last 390px viewport.
+      activeViewport = 0;
       const pages = proofOnly ? ["Overview"] : focusPage
         ? allPages.filter(name => name === focusPage) : allPages;
       assert.ok(pages.length, "Requested focus page is not in role navigation: " + role + "/" + focusPage);
       // Bound Chromium's memory lifetime to a single role. A previous complete
       // CI sweep lost the browser after 238 successful pages, before the remaining
       // pages had run. Fresh contexts alone did not prevent that process failure.
-      const browser = await chromium.launch({ headless: true });
+      // Retry only a disconnected browser while obtaining this role's session.
+      // Once route scans begin, failures are never retried or omitted.
+      const { browser, state } = await startNavSweepRoleBrowser({
+        role,
+        launch: () => chromium.launch({ headless: true }),
+        authenticate: login,
+        onRetry: (event) => {
+          startupRetries.push(event);
+          console.warn("NAV_SWEEP_STARTUP_RETRY " + event.role +
+            " one clean retry after browser closure: " + event.reason);
+        },
+      });
       try {
-        const state = await login(browser, role);
         for (const width of (proofOnly ? [1280] : [1280, 390])) {
           activeViewport = width;
           await checkRole(browser, role, width, state, pages);
@@ -323,10 +337,39 @@ test("read-only navigation and runtime error sweep (real roles, both viewports)"
       skippedControls: 0, skippedExamples: [] });
     console.error("NAV_SWEEP_INFRASTRUCTURE_FAIL " + activeRole + " " + activeViewport + "px " + detail);
   } finally {
+    // Even 230 individually passing checks are a failure if the complete role,
+    // viewport and page manifest did not run. Reject omissions and duplicates.
+    const expectedCases = manifest.roles
+      .filter(({ role }) => (!proofOnly || role === "owner") && (!focusRole || role === focusRole))
+      .flatMap(({ role, pages: allPages }) => {
+        const pages = proofOnly ? ["Overview"] : focusPage
+          ? allPages.filter(name => name === focusPage) : allPages;
+        return (proofOnly ? [1280] : [1280, 390])
+          .flatMap(width => pages.map(page => JSON.stringify([role, width, page])));
+      });
+    const observedCases = results
+      .filter(row => row.page !== "SWEEP_INFRASTRUCTURE")
+      .map(row => JSON.stringify([row.role, row.viewport, row.page]));
+    const coverage = compareNavSweepCaseCoverage(expectedCases, observedCases);
+    if (!expectedCases.length || coverage.missing.length || coverage.unexpected.length || coverage.duplicates.length) {
+      const detail = JSON.stringify({
+        expected: expectedCases.length,
+        observed: observedCases.length,
+        missing: coverage.missing.slice(0, 8),
+        unexpected: coverage.unexpected.slice(0, 8),
+        duplicates: coverage.duplicates.slice(0, 8),
+      });
+      results.push({ role: "SWEEP", page: "SWEEP_COVERAGE",
+        viewport: 0, result: "FAIL", elapsedMs: 0,
+        findings: [{ kind: "incomplete matrix", detail }], screenshot: null,
+        skippedControls: 0, skippedExamples: [] });
+      console.error("NAV_SWEEP_COVERAGE_FAIL " + detail);
+    }
     const failed = results.filter(r => r.result === "FAIL");
     const report = {
       generatedAt: new Date().toISOString(), syntheticOnly: true, productionDataUsed: false,
-      injectedFailure: broken, total: results.length, passed: results.length - failed.length,
+      injectedFailure: broken, startupRetries,
+      total: results.length, passed: results.length - failed.length,
       failed: failed.length, results,
     };
     writeFileSync(dir + "/report.json", JSON.stringify(report, null, 2));
