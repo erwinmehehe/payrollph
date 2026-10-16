@@ -12,6 +12,7 @@ const manifest = JSON.parse(readFileSync(join(kit, "package.json"), "utf8"));
 const actual = readFileSync(join(kit, "bin.cjs"), "utf8");
 const markerKey = "PAYROLLPH_1019_ORDERED_KEY_COLUMNS_V1";
 const markerFk = "PAYROLLPH_1019_PAIRED_FOREIGN_COLUMNS_V1";
+const markerIndex = "PAYROLLPH_1019_INDEX_COLUMN_EXPRESSION_V1";
 
 test("#1019 local Drizzle Kit remains version pinned; no RC dependency promotion", () => {
   const pkg = JSON.parse(readFileSync("package.json", "utf8"));
@@ -34,6 +35,9 @@ test("#1019 patched introspection keeps real CLI and preserves ordered composite
   const result = patchPinnedIntrospectionBinary(actual);
   assert.ok(result.content.includes(markerKey));
   assert.ok(result.content.includes(markerFk));
+  assert.equal(result.content.split(markerIndex).length - 1, 2);
+  assert.match(result.content, /CASE WHEN k.attnum = 0 THEN 1 ELSE 0 END AS is_expression/);
+  assert.doesNotMatch(result.content, /pg_get_expr(i.indexprs,s*i.indrelid)s+ISs+NOTs+NULL/);
   assert.match(result.content, /information_schema\.key_column_usage/);
   assert.match(result.content, /kcu\.ordinal_position/);
   assert.match(result.content, /ROWS FROM \(pg_catalog\.unnest\(con\.conkey\), pg_catalog\.unnest\(con\.confkey\)\) WITH ORDINALITY/);
@@ -44,6 +48,10 @@ test("#1019 patched introspection keeps real CLI and preserves ordered composite
   assert.equal(patchPinnedIntrospectionBinary(result.content).content, result.content);
   assert.throws(
     () => patchPinnedIntrospectionBinary(result.content.replace(markerFk, "partial-hotfix")),
+    /DRIZZLE_1019_PARTIAL_OR_UNKNOWN_PATCH/
+  );
+  assert.throws(
+    () => patchPinnedIntrospectionBinary(result.content.replace(markerIndex, "partial-index-hotfix")),
     /DRIZZLE_1019_PARTIAL_OR_UNKNOWN_PATCH/
   );
   const wrapper = readFileSync("scripts/strict-db-push.mjs", "utf8");

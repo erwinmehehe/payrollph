@@ -13,6 +13,7 @@ const VERSION = "0.31.11";
 const RC = "1.0.0-rc.4";
 const KEY_MARKER = "PAYROLLPH_1019_ORDERED_KEY_COLUMNS_V1";
 const FK_MARKER = "PAYROLLPH_1019_PAIRED_FOREIGN_COLUMNS_V1";
+const INDEX_MARKER = "PAYROLLPH_1019_INDEX_COLUMN_EXPRESSION_V1";
 
 const keyQuery = /SELECT\s+c\.column_name,\s+c\.data_type,\s+constraint_type,\s+constraint_name,\s+constraint_schema\s+FROM\s+information_schema\.table_constraints\s+tc\s+JOIN\s+information_schema\.constraint_column_usage\s+AS\s+ccu\s+USING\s*\(constraint_schema,\s*constraint_name\)\s+JOIN\s+information_schema\.columns\s+AS\s+c\s+ON\s+c\.table_schema\s*=\s*tc\.constraint_schema\s+AND\s+tc\.table_name\s*=\s*c\.table_name\s+AND\s+ccu\.column_name\s*=\s*c\.column_name\s+WHERE\s+tc\.table_name\s*=\s*'\$\{[^}]+\}'\s+and\s+constraint_schema\s*=\s*'\$\{[^}]+\}'\s*;/g;
 
@@ -22,16 +23,23 @@ const fkQuery = /SELECT\s+con\.contype\s+AS\s+constraint_type,[\s\S]*?FROM\s+pg_
 
 const fkJoin = /LEFT\s+JOIN\s+pg_catalog\.pg_attribute\s+att\s+ON\s+att\.attnum\s*=\s*ANY\s*\(con\.conkey\)\s+AND\s+att\.attrelid\s*=\s*con\.conrelid\s+LEFT\s+JOIN\s+pg_catalog\.pg_class\s+frel\s+ON\s+frel\.oid\s*=\s*con\.confrelid\s+LEFT\s+JOIN\s+pg_catalog\.pg_namespace\s+fnsp\s+ON\s+fnsp\.oid\s*=\s*frel\.relnamespace\s+LEFT\s+JOIN\s+pg_catalog\.pg_attribute\s+fatt\s+ON\s+fatt\.attnum\s*=\s*ANY\s*\(con\.confkey\)\s+AND\s+fatt\.attrelid\s*=\s*con\.confrelid/;
 
+// Pin to the known 0.31.11 index query only: checking i.indexprs marks
+// every column of a mixed-expression index as an expression. k.attnum=0
+// identifies the individual expression key without changing any index DDL.
+const indexExpression = /CASE\s+WHEN\s+(?:pg_catalog\.)?pg_get_expr\(i\.indexprs,\s*i\.indrelid\)\s+IS\s+NOT\s+NULL\s+THEN\s+1\s+ELSE\s+0\s+END\s+AS\s+is_expression/gi;
+
 function fail(code) { throw new Error("DRIZZLE_1019_" + code); }
 function occurrences(s, marker) { return s.split(marker).length - 1; }
 
 export function patchPinnedIntrospectionBinary(binary) {
   if (typeof binary !== "string") fail("BAD_BINARY");
-  if (binary.includes(KEY_MARKER) || binary.includes(FK_MARKER)) {
+  if (binary.includes(KEY_MARKER) || binary.includes(FK_MARKER) || binary.includes(INDEX_MARKER)) {
     const selectedFkQueries = [...binary.matchAll(fkQuery)];
     // Other independent introspection queries in the installed Kit bundle can
     // retain this join shape. Validate only the FK query we actually rewrote.
     if (occurrences(binary, KEY_MARKER) !== 1 || occurrences(binary, FK_MARKER) !== 1 ||
+        occurrences(binary, INDEX_MARKER) !== 2 ||
+        [...binary.matchAll(indexExpression)].length !== 0 ||
         keyQuery.test(binary) || selectedFkQueries.length !== 1 ||
         !selectedFkQueries[0][0].includes("JOIN LATERAL ROWS FROM (pg_catalog.unnest(con.conkey), pg_catalog.unnest(con.confkey)) WITH ORDINALITY") ||
         !selectedFkQueries[0][0].includes("ORDER BY con.conname, fkcols.ord;")) fail("PARTIAL_OR_UNKNOWN_PATCH");
@@ -39,9 +47,11 @@ export function patchPinnedIntrospectionBinary(binary) {
   }
   const keys = [...binary.matchAll(keyQuery)];
   const fks = [...binary.matchAll(fkQuery)];
+  const indexPredicates = [...binary.matchAll(indexExpression)];
   // The exact release source has one copy of each query. A new upstream
   // package layout must not silently be treated as a supported hotfix.
-  if (keys.length !== 1 || fks.length !== 1 || !fkJoin.test(fks[0][0])) {
+  if (keys.length !== 1 || fks.length !== 1 || indexPredicates.length !== 2 ||
+      !fkJoin.test(fks[0][0])) {
     fail("UNRECOGNIZED_UPSTREAM_QUERY");
   }
   const patchedKeys = keys[0][0]
@@ -76,9 +86,13 @@ export function patchPinnedIntrospectionBinary(binary) {
   if (!patchedFks.includes(FK_MARKER) || fkJoin.test(patchedFks)) {
     fail("FK_QUERY_REWRITE_INCOMPLETE");
   }
-  const rewritten = binary.replace(keys[0][0], patchedKeys).replace(fks[0][0], patchedFks);
+  const rewritten = binary.replace(keys[0][0], patchedKeys).replace(fks[0][0], patchedFks)
+    .replace(indexExpression,
+      "CASE WHEN k.attnum = 0 THEN 1 ELSE 0 END AS is_expression /* " + INDEX_MARKER + " */");
   if (rewritten === binary || occurrences(rewritten, KEY_MARKER) !== 1 ||
-      occurrences(rewritten, FK_MARKER) !== 1 || keyQuery.test(rewritten)) {
+      occurrences(rewritten, FK_MARKER) !== 1 ||
+      occurrences(rewritten, INDEX_MARKER) !== 2 ||
+      [...rewritten.matchAll(indexExpression)].length !== 0 || keyQuery.test(rewritten)) {
     fail("PATCH_VERIFICATION_FAILED");
   }
   return { content: rewritten, applied: true };
