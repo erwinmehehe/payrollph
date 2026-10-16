@@ -186,7 +186,7 @@ test("#1054 PG16/18: strict P0001 guards, clean create/replay and rollback", {
     await db.query("SAVEPOINT issue1054_search_path_safety");
     try {
       await db.query("CREATE FUNCTION public.now() RETURNS timestamptz LANGUAGE sql STABLE AS " +
-        "$ SELECT '2001-01-01 00:00:00+00'::timestamptz $");
+        "$issue1054_shadow$ SELECT '2001-01-01 00:00:00+00'::timestamptz $issue1054_shadow$");
       await db.query("CREATE TEMP TABLE employees (id integer PRIMARY KEY)");
       await db.query("SET LOCAL search_path = public, pg_temp");
       const { rows: [resolved] } = await db.query(
