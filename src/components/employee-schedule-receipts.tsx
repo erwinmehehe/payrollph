@@ -45,8 +45,18 @@ export function EmployeeScheduleReceipts({ compact = false }: { compact?: boolea
     }
   }, []);
   useEffect(() => {
-    void load();
-    return () => { generation.current++; read.current?.abort(); write.current?.abort(); };
+    // Defer the initial read until after effect setup. A Strict Mode teardown
+    // must not launch a read, and existing request ownership still handles refresh.
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void load();
+    });
+    return () => {
+      cancelled = true;
+      generation.current++;
+      read.current?.abort();
+      write.current?.abort();
+    };
   }, [load]);
 
   async function acknowledge() {
