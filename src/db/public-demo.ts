@@ -18,6 +18,7 @@ import {
 import { ensureSubscription } from "@/lib/billing";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
+import { fictionalPublicDemoPayroll, PUBLIC_DEMO_PAYROLL_WORKERS } from "@/lib/public-demo-payroll-fixture";
 
 const PUBLIC_DEMO_ORG = "Loom & Local";
 
@@ -32,6 +33,10 @@ const people = [
   { firstName: "Eli", lastName: "Tan", title: "Implementation Analyst", initials: "ET", status: "Active", basicRate: "34800.00", mobile: "09171230008" },
 ] as const;
 
+// One fictional source of truth for both future run headers and six detail rows.
+// Historical demo payroll headers remain untouched until separately authorized.
+const demoPayroll = [fictionalPublicDemoPayroll(0), fictionalPublicDemoPayroll(1), fictionalPublicDemoPayroll(2)] as const;
+
 const periods = {
   released: {
     periodLabel: "Aug 16–31, 2026",
@@ -39,8 +44,8 @@ const periods = {
     periodEnd: "2026-08-31",
     status: "Released",
     payDate: "2026-09-05",
-    grossPay: "181300.00",
-    netPay: "147400.00",
+    grossPay: demoPayroll[0].grossPay,
+    netPay: demoPayroll[0].netPay,
     exceptions: 0,
   },
   checker: {
@@ -49,8 +54,8 @@ const periods = {
     periodEnd: "2026-09-15",
     status: "Pending approval",
     payDate: "2026-09-18",
-    grossPay: "182800.00",
-    netPay: "148600.00",
+    grossPay: demoPayroll[1].grossPay,
+    netPay: demoPayroll[1].netPay,
     exceptions: 0,
   },
   work: {
@@ -59,8 +64,8 @@ const periods = {
     periodEnd: "2026-09-30",
     status: "Needs review",
     payDate: "2026-10-05",
-    grossPay: "184300.00",
-    netPay: "149800.00",
+    grossPay: demoPayroll[2].grossPay,
+    netPay: demoPayroll[2].netPay,
     exceptions: 2,
   },
 } as const;
@@ -420,6 +425,10 @@ export async function ensurePublicDemoTenant() {
       const definition = periods[key];
       const existing = existingRuns.find((run) => run.periodLabel === definition.periodLabel);
       if (existing) return existing;
+      // Never invent a six-worker header against an incomplete demo fixture.
+      if (activeStaff.length !== PUBLIC_DEMO_PAYROLL_WORKERS) {
+        throw new Error("New fictional public-demo payroll requires six active workers.");
+      }
 
       const [created] = await tx
         .insert(payrollRuns)
@@ -448,10 +457,13 @@ export async function ensurePublicDemoTenant() {
     const checkerRun = await ensureRun("checker");
     const workRun = await ensureRun("work");
 
-    const grossValues = [38500, 29200, 32500, 24500, 21800, 34800];
-    const deductionValues = [7200, 5400, 6100, 4600, 4100, 6500];
-
     for (const [runIndex, run] of [releasedRun, checkerRun, workRun].entries()) {
+      const fixture = demoPayroll[runIndex];
+      // An incomplete or expanded roster must never produce mismatched totals.
+      // This check does not mutate previously stored run headers or entries.
+      if (activeStaff.length !== fixture.entries.length) {
+        throw new Error("Fictional public-demo detail count differs from payroll header.");
+      }
       const [{ value: entryCount }] = await tx
         .select({ value: count() })
         .from(payrollEntries)
@@ -460,14 +472,13 @@ export async function ensurePublicDemoTenant() {
 
       await tx.insert(payrollEntries).values(
         activeStaff.map((employee, index) => {
-          const gross = grossValues[index] + runIndex * 250;
-          const deductions = deductionValues[index] + runIndex * 50;
+          const { gross, deductions, net } = fixture.entries[index];
           return {
             payrollRunId: run.id,
             employeeId: employee.id,
             grossPay: gross.toFixed(2),
             deductions: deductions.toFixed(2),
-            netPay: (gross - deductions).toFixed(2),
+            netPay: net.toFixed(2),
             status: run.id === workRun.id && (index === 1 || index === 4) ? "Exception" : "Ready",
             lineItems: lineItems(gross, deductions),
             trace: {

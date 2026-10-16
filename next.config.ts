@@ -49,6 +49,7 @@ const privateTailnetDevHost = (() => {
 const nextConfig: NextConfig = {
   allowedDevOrigins: privateTailnetDevHost ? [privateTailnetDevHost] : undefined,
   poweredByHeader: false,
+  outputFileTracingIncludes: { "/api/year-end/2316-certificate": ["./assets/bir/2316-september-2021-encs.pdf"] },
   async headers() {
     return [
       {

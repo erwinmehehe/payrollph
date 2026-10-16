@@ -42,7 +42,16 @@ function previousMonth() {
   return month.toISOString().slice(0, 7);
 }
 
-export function GovernmentLoanRemittancePanel({
+export function GovernmentLoanRemittancePanel(props: {
+  organizationId: number;
+  setNotice: (message: string) => void;
+}) {
+  // Employer scope is tenant-private. Remount on a new organizationId so no
+  // batch, member or posting state from the previous employer can render.
+  return <GovernmentLoanRemittancePanelContent key={props.organizationId} {...props} />;
+}
+
+function GovernmentLoanRemittancePanelContent({
   organizationId,
   setNotice,
 }: {
@@ -64,12 +73,13 @@ export function GovernmentLoanRemittancePanel({
   const [postingReference, setPostingReference] = useState("");
   const [exceptionNote, setExceptionNote] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch(
       `/api/compliance/government-loan-remittances?organizationId=${organizationId}`,
-      { cache: "no-store" },
+      { cache: "no-store", signal },
     );
     const body = await response.json().catch(() => ({}));
+    if (signal?.aborted) return;
     if (response.status === 403) {
       setForbidden(true);
       return;
@@ -81,9 +91,17 @@ export function GovernmentLoanRemittancePanel({
   }, [organizationId]);
 
   useEffect(() => {
-    void load().catch((error) => setNotice(
-      error instanceof Error ? error.message : "Could not load government loan remittances.",
-    ));
+    const controller = new AbortController();
+    // The request runs after effect setup, never in its synchronous phase.
+    // Strict Mode cleanup can cancel this scheduled read before it starts.
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+      void load(controller.signal).catch((error) => {
+        if (controller.signal.aborted) return;
+        setNotice(error instanceof Error ? error.message : "Could not load government loan remittances.");
+      });
+    });
+    return () => controller.abort();
   }, [load, setNotice]);
 
   const monthBatches = useMemo(

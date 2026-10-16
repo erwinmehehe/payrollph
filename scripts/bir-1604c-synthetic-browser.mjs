@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { generateTotp } from "../src/lib/totp.ts";
+import { test2316Certificate } from "./bir-2316-certificate-browser.mjs";
 
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.BIR_SYNTHETIC_BROWSER_QA, "true");
@@ -81,7 +82,7 @@ try {
   const report = (await get.json()).reconciliation;
   assert.equal(report.totals.blockers, 0);
   assert.equal(report.totals.employees, 1);
-  assert.equal(report.totals.payrollActualWithheld, "5000.00");
+  assert.equal(report.totals.payrollActualWithheld, "42500.00");
   const sourceDigest = report.sourceDigest;
 
   const headersOn = { origin: "https://127.0.0.1:3443", "sec-fetch-site": "same-origin" };
@@ -99,7 +100,7 @@ try {
   assert.equal(row.fields.TIN, "333222111");
   assert.equal(row.fields.REGION_NUM, null);
   assert.equal(row.fields.PRES_NONTAX_13TH_MONTH, null);
-  assert.equal(row.fields.ACTUAL_AMT_WTHLD, "5000.00");
+  assert.equal(row.fields.ACTUAL_AMT_WTHLD, "42500.00");
 
   // Explicit fictional amounts for a synthetic browser test. Do NOT reuse
   // these defaults in production; live values must come from verified 2316.
@@ -114,7 +115,7 @@ try {
       PRES_TOTAL_NONTAX_COMP_INCOME: "100000.00",
       TAX_BASIC_SAL: "500000.00",
       PRES_TOTAL_COMP: "600000.00", GROSS_COMP_INCOME: "600000.00",
-      PRES_TAX_WTHLD: "5000.00",
+      PRES_TAX_WTHLD: "42500.00",
     };
     row.fields[field] = overrides[field] ?? "0.00";
   }
@@ -146,7 +147,7 @@ try {
   assert.equal(createHash("sha256").update(savedBytes).digest("hex"), sha,
     "Exact browser DAT output must match the persisted test input");
   await writeFile(outDir + "/VALIDATION-MANIFEST.json", JSON.stringify({
-    status: "SYNTHETIC ONLY — NEVER SUBMIT", sampleYear: 2025,
+    status: "SYNTHETIC ONLY â€” NEVER SUBMIT", sampleYear: 2025,
     primaryFile: "official-module-test-input/" + preview.fileName,
     sha256: sha, byteCount: body.length, sourceDigest,
     source: "PR 959 isolated browser acceptance",
@@ -245,10 +246,58 @@ try {
     assert.equal((await legacyLoaded).status(), 200, "Disabled candidate preserves authorized legacy year-end reads");
     assert.equal(await page.locator('[data-bir-1604c-candidate]').count(), 0);
     assert.equal(evidenceRequests.length, 0, "Disabled panel must not read new evidence endpoints");
+    assert.equal(await page.getByRole("link", { name: "Prepare unsigned PDF" }).count(), 0, "Default-off preserves existing navigation");
     await page.screenshot({ path: outDir + "/year-end-flag-off-" + width + ".png", fullPage: false });
     results.push({ checkpoint: "flag-off-legacy-year-end-" + width + "px", result: "pass", evidenceRequests: 0 });
     await context.close();
   }
+  // Execute the actual authenticated printable 2316 route in both flag modes.
+  for (const enabled of [true, false]) {
+    const base = enabled ? "https://127.0.0.1:3443" : "https://127.0.0.1:3444";
+    const url = base + "/api/year-end?format=2316-print&organizationId=" + fixture.organizationId + "&taxYear=2025&employeeId=" + fixture.employeeId;
+    const response = await owner.request.get(url);
+    assert.equal(response.status(), 200, "2316 review uses authorized exact employee source");
+    assert.match(response.headers()["cache-control"], /no-store/, "framework response must prevent browser and shared-cache storage");
+    const html = await response.text();
+    assert.equal(html.includes("data-bir-2316-reconciliation"), enabled);
+    if (enabled) {
+      assert.doesNotMatch(html, /SETTLEMENT_UNVERIFIED/);
+      assert.match(html, /Item 25A[^<]*<\/dt><dd>42,500\.00/);
+      assert.match(html, /PREVIOUS_EMPLOYER_UNVERIFIED/);
+      assert.match(html, /REQUIRES VERIFIED SOURCE/);
+    }
+    for (const width of [1280, 390]) {
+      const context = await browser.newContext({ viewport: { width, height: 900 }, ignoreHTTPSErrors: true, storageState: await owner.storageState() });
+      const reviewPage = await context.newPage();
+      await reviewPage.goto(url);
+      assert.equal(await reviewPage.locator("[data-bir-2316-reconciliation]").count(), enabled ? 1 : 0);
+      if (enabled) await reviewPage.locator("[data-bir-2316-reconciliation]").scrollIntoViewIfNeeded();
+      await reviewPage.screenshot({ path: outDir + "/2316-review-" + (enabled ? "on-" : "off-") + width + ".png", fullPage: true });
+      await context.close();
+    }
+    const reviewEmployee = await login("employee");
+    const denied = await reviewEmployee.request.get(url);
+    assert.equal(denied.status(), 403, "non-payroll employee cannot access 2316 review");
+    const finalUrl = base + "/api/separation/" + fixture.separationId + "/2316";
+    const finalResponse = await owner.request.get(finalUrl);
+    assert.equal(finalResponse.status(), 200);
+    const finalText = await finalResponse.text();
+    assert.match(finalResponse.headers()["cache-control"], /no-store/);
+    if (enabled) {
+      assert.match(finalText, /UNSETTLED_ADJUSTMENT/);
+      const actualLine = finalText.split("\n").find(line => line.includes("Item 25A"));
+      assert.ok(actualLine.includes(Number(fixture.actualFinalWithheld).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })));
+      const unpaidLine = finalText.split("\n").find(line => line.includes("Uncollected tax adjustment"));
+      assert.ok(unpaidLine.includes(Number(fixture.uncollectedTax).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })));
+    } else assert.ok(!finalText.includes("Uncollected tax adjustment"));
+    assert.equal((await reviewEmployee.request.get(finalUrl)).status(), 403);
+    await reviewEmployee.close();
+    results.push({ checkpoint: "2316-review-" + (enabled ? "on" : "off"), result: "pass", widths: [1280, 390], sourceStatusDoesNotProveSettlement: true });
+  }
+  await test2316Certificate({ browser, owner, fixture, outDir, results });
+  const certificateEmployee = await login("employee");
+  assert.equal((await certificateEmployee.request.get("https://127.0.0.1:3443/api/year-end/2316-certificate?organizationId=" + fixture.organizationId + "&employeeId=" + fixture.employeeId + "&taxYear=2025")).status(), 403);
+  await certificateEmployee.close();
   await owner.close();
   await writeFile(outDir + "/results.json", JSON.stringify({
     status: "PASS", syntheticOnly: true, validatedByBir: false,

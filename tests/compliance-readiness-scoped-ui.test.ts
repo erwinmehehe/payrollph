@@ -15,6 +15,11 @@ const panels = [
     scope: '"launch-readiness:" + organizationId',
     route: "/api/readiness/workspace?organizationId=",
   },
+  {
+    path: "src/components/workspace/compliance-calendar-panel.tsx",
+    scope: '"compliance-calendar:" + organizationId',
+    route: "/api/compliance/calendar?organizationId=",
+  },
 ] as const;
 
 test("read-only compliance and launch status panels use cancellable tenant-bound reads", () => {

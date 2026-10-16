@@ -24,6 +24,24 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Scheduler refuses work without a fresh dedicated-worker heartbeat",
     approval: "Synthetic liveness and independently approved worker hosting; no payout authority",
   },
+  bir2316WithholdingEvidence: {
+    env: "BIR_2316_WITHHOLDING_EVIDENCE_ENABLED",
+    owner: "Philippine Payroll / Finance",
+    risk: "Read-only released-ledger 2316 withholding and final-pay shortfall attribution",
+    approval: "Tenant/employer scope, immutable source, signed refund/collection, two-flag-off and synthetic PostgreSQL/browser evidence; no bank or filing authority",
+  },
+  bir2316Certificate: {
+    env: "BIR_2316_CERTIFICATE_DRAFT_ENABLED",
+    owner: "Philippine Payroll / Tax",
+    risk: "Sensitive unsigned 2316 PDF previews and historical-employer identity",
+    approval: "Exact-centavo complete mapping, historical tenant isolation, PDF field/layout and role/MFA acceptance; no signatures or filing authority",
+  },
+  bir2316Reconciliation: {
+    env: "BIR_2316_RECONCILIATION_ENABLED",
+    owner: "Philippine Payroll / Tax",
+    risk: "Read-only 2316 numbered-item reconciliation and unverified settlement warnings",
+    approval: "Centavo mapping tests, prior-employer and final-pay review, desktop/390px and unchanged flag-off output; no certificate issuance",
+  },
   bir1604cReviewedCandidate: {
     env: "BIR_1604C_DAT_CANDIDATE_ENABLED",
     owner: "Philippine Payroll / Tax",

@@ -1,3 +1,4 @@
+import { loadYearEnd2316Withholding } from "@/lib/bir-2316-withholding-server";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
@@ -184,9 +185,13 @@ export async function GET(request: Request) {
       return Response.json({ error: "Employee BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
     }
 
+    const withholdingEvidence = await loadYearEnd2316Withholding({ organizationId, employeeId, taxYear,
+      legalEntityId: legalEmployer?.id ?? null, adjustmentId: match.adjustment.id,
+      before: match.adjustment.taxWithheld, expectedAdjustment: match.adjustment.adjustment });
     if (format === "2316-print") {
       const breakdown = (match.adjustment.breakdown ?? {}) as Record<string, unknown>;
       const html = renderBir2316ReviewHtml({
+        withholdingEvidence,
         taxYear,
         employerName: legalEmployer?.legalName ?? organization?.legalName ?? organization?.name ?? "Employer",
         employerTin: `${employerTin}-${employerBranch}`,
@@ -227,6 +232,7 @@ export async function GET(request: Request) {
     }
 
     const body = renderForm2316({
+      withholdingEvidence,
       taxYear,
       employerName: legalEmployer?.legalName ?? organization?.legalName ?? organization?.name ?? "Employer",
       employerTin: `${employerTin}-${employerBranch}`,

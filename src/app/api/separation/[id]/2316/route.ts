@@ -1,6 +1,9 @@
+import { loadFinalPay2316Withholding } from "@/lib/bir-2316-withholding-server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, organizations, separationRecords } from "@/db/schema";
+import { employees, legalEntities, organizations, separationRecords } from "@/db/schema";
+import { historical2316Employer } from "@/lib/bir-2316-employer";
+import { certificateDraftEnabled } from "@/lib/bir-2316-certificate-server";
 import { getSessionUser } from "@/lib/auth";
 import {
   assertOrganizationRole,
@@ -92,10 +95,18 @@ export async function GET(
   const digits = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
   const employerTin = digits(organization.birTin);
   const employerBranch = digits(organization.birBranchCode).padStart(4, "0").slice(-4);
+  const historical = certificateDraftEnabled()
+    ? historical2316Employer({ organizationId: separation.organizationId, snapshot,
+        entities: await db.select().from(legalEntities).where(eq(legalEntities.organizationId, separation.organizationId)),
+        legacy: organization }) : null;
+  if (historical && !historical.ok) return Response.json({
+    error: "The frozen final-pay employer cannot be verified. Review the historical employer record before generating 2316.",
+    code: historical.code,
+  }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
   const employeeTin = digits(decryptGovernmentId(employee.tin));
   const employeeBranch = digits(decryptGovernmentId(employee.tinBranchCode)).padStart(4, "0").slice(-4);
 
-  if (employerTin.length !== 9 || employerBranch.length !== 4) {
+  if (!historical && (employerTin.length !== 9 || employerBranch.length !== 4)) {
     return Response.json({
       error: "Employer BIR TIN and 4-digit branch code are required before generating BIR 2316.",
     }, { status: 422 });
@@ -107,10 +118,12 @@ export async function GET(
   }
 
   const taxYear = Number(String(separation.lastDay).slice(0, 4));
+  const withholdingEvidence = await loadFinalPay2316Withholding(separation.organizationId, employee.id, separation.id);
   const body = renderForm2316({
+    withholdingEvidence,
     taxYear,
-    employerName: organization.legalName ?? organization.name,
-    employerTin: `${employerTin}-${employerBranch}`,
+    employerName: historical?.ok ? historical.name : organization.legalName ?? organization.name,
+    employerTin: historical?.ok ? historical.tin : `${employerTin}-${employerBranch}`,
     employeeName: [employee.firstName, employee.middleName, employee.lastName]
       .filter(Boolean)
       .join(" "),

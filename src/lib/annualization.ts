@@ -1,3 +1,6 @@
+import type { Bir2316Withholding } from "./bir-2316-withholding";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+import { reviewBir2316Summary, bir2316ReviewLines, type Bir2316MappingEvidence } from "./bir-2316-reconciliation";
 import { computeAnnualWithholdingTax } from "@/lib/payroll-rules";
 import { round2 } from "@/lib/round";
 
@@ -170,6 +173,8 @@ export function annualize(input: AnnualizationInput): AnnualizationResult {
 
 /** Renders a BIR 2316 style certificate as a labelled text document (draft). */
 export function renderForm2316(input: {
+  reviewEvidence?: Bir2316MappingEvidence;
+  withholdingEvidence?: Bir2316Withholding;
   taxYear: number;
   employerName: string;
   employerTin?: string;
@@ -213,7 +218,15 @@ export function renderForm2316(input: {
     ),
     "",
     `Rule version: ${r.ruleVersion}`,
-    "Draft only. Validate through the BIR Alphalist Data Entry and Validation Module",
-    "before treating this as a submission-ready certificate.",
+    ...(criticalReleaseFlagEnabled("bir2316Reconciliation") ? [
+      "NUMBERED 2316 RECONCILIATION — INTERNAL REVIEW ONLY",
+      ...bir2316ReviewLines(reviewBir2316Summary({
+        grossCompensation: r.grossCompensation, nonTaxable: r.nonTaxable, taxableIncome: r.taxableIncome,
+        taxDue: r.taxDue, withheldBeforeYearEnd: r.taxWithheld, yearEndAdjustment: r.adjustment,
+      }, input.reviewEvidence, criticalReleaseFlagEnabled("bir2316WithholdingEvidence") ? input.withholdingEvidence : undefined)).map(([label, value]) => line(label, value)),
+    ] : [
+      "Draft only. Validate through the BIR Alphalist Data Entry and Validation Module",
+      "before treating this as a submission-ready certificate.",
+    ]),
   ].join("\n");
 }

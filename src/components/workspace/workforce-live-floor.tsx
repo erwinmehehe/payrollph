@@ -42,7 +42,7 @@ function WorkforceLiveFloorContent({ organizationId, onOpenAttendance }: Workfor
   const [page, setPage] = useState(1);
   const [snapshot, setSnapshot] = useState<ScopedLiveFloorSnapshot<FloorSnapshot> | null>(null);
   const [error, setError] = useState<{ scopeKey: string; message: string } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"all" | "review" | "on_shift" | "upcoming" | "leave">("all");
   const [search, setSearch] = useState("");
   const pendingRequest = useRef<AbortController | null>(null);
@@ -55,8 +55,8 @@ function WorkforceLiveFloorContent({ organizationId, onOpenAttendance }: Workfor
     const controller = new AbortController();
     pendingRequest.current = controller;
     const requestedScope = liveFloorScopeKey(organizationId, page);
-    setLoading(true);
-    setError(null);
+    // Mount, manual refresh and paging events own loading state. Timer polling
+    // preserves the timestamped previous snapshot until its fetch completes.
     try {
       const params = new URLSearchParams({ organizationId: String(organizationId), page: String(page) });
       const response = await fetch("/api/workforce/live-floor?" + params, {
@@ -66,6 +66,7 @@ function WorkforceLiveFloorContent({ organizationId, onOpenAttendance }: Workfor
       if (!isCurrentLiveFloorRequest(controller, pendingRequest.current)) return;
       if (!response.ok) throw new Error(value?.error ?? "Live floor could not be loaded.");
       if (value?.page !== page) throw new Error("Live floor returned an unexpected worker page.");
+      setError(null);
       setSnapshot({ scopeKey: requestedScope, data: value as FloorSnapshot });
     } catch (err) {
       if (!isCurrentLiveFloorRequest(controller, pendingRequest.current)) return;
@@ -80,11 +81,16 @@ function WorkforceLiveFloorContent({ organizationId, onOpenAttendance }: Workfor
   }, [organizationId, page]);
 
   useEffect(() => {
-    void load();
+    let active = true;
+    // Mount starts loading by default. Defer fetch initiation until after
+    // effect setup and prevent a retired page/tenant from starting a read.
+    queueMicrotask(() => {
+      if (active) void load();
+    });
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") void load();
     }, 60_000);
-    return () => { pendingRequest.current?.abort(); clearInterval(interval); };
+    return () => { active = false; pendingRequest.current?.abort(); clearInterval(interval); };
   }, [load]);
 
   const visibleRows = useMemo(() => {
@@ -111,7 +117,7 @@ function WorkforceLiveFloorContent({ organizationId, onOpenAttendance }: Workfor
           <h3>Who is scheduled? Which clock-ins need review?</h3>
           <p>Philippine time · recorded punches only · refreshes every minute while visible. Not proof of onsite presence or an absence finding.</p>
         </div>
-        <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>
+        <button type="button" className="secondary-button" onClick={() => { setLoading(true); setError(null); void load(); }} disabled={loading}>
           <RefreshCcw size={15} aria-hidden="true" /> {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
@@ -160,9 +166,9 @@ function WorkforceLiveFloorContent({ organizationId, onOpenAttendance }: Workfor
             "No shift segments in this employee page and live window. This does not mean the whole company has no active shifts."}
         </div>}
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", paddingTop: 12 }}>
-          <button className="secondary-button" type="button" disabled={page <= 1 || loading} onClick={() => setPage(p => Math.max(1, p - 1))}>Previous workers</button>
+          <button className="secondary-button" type="button" disabled={page <= 1 || loading} onClick={() => { setLoading(true); setPage(p => Math.max(1, p - 1)); }}>Previous workers</button>
           <span className="id">Page {page}</span>
-          <button className="secondary-button" type="button" disabled={!activeSnapshot.hasMore || loading} onClick={() => setPage(p => p + 1)}>Next workers</button>
+          <button className="secondary-button" type="button" disabled={!activeSnapshot.hasMore || loading} onClick={() => { setLoading(true); setPage(p => p + 1); }}>Next workers</button>
           <span className="id">Counts and filters apply to this page only, independent of the Coverage Dynamic Group filter.</span>
         </div>
       </>}

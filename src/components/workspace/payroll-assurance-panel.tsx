@@ -42,15 +42,22 @@ type AssurancePayload = {
   };
 };
 
-export function PayrollAssurancePanel({
-  runId,
-  employees,
-  onExplainEmployee,
-}: {
+type PayrollAssurancePanelProps = {
   runId: number;
   employees: Employee[];
   onExplainEmployee?: (employeeId: number) => void;
-}) {
+};
+
+export function PayrollAssurancePanel(props: PayrollAssurancePanelProps) {
+  // Payroll run changes must remount every local CSV/expanded-row state.
+  return <PayrollAssurancePanelContent key={props.runId} {...props} />;
+}
+
+function PayrollAssurancePanelContent({
+  runId,
+  employees,
+  onExplainEmployee,
+}: PayrollAssurancePanelProps) {
   const [payload, setPayload] = useState<AssurancePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -65,17 +72,8 @@ export function PayrollAssurancePanel({
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setFailed(false);
-    setPayload(null);
-    setExpandedEmployee(null);
-    setParallelRows([]);
-    setParallelDetected([]);
-    setParallelUnmatched([]);
-    setParallelSkipped(0);
-    setParallelExpandedEmployee(null);
-    setParallelError("");
-
+    // The keyed child starts with the empty/loading defaults and remounts on
+    // runId changes. No post-paint reset or prior-run comparison can persist.
     void fetch(`/api/payroll-runs/${runId}/assurance`, { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("assurance failed");
