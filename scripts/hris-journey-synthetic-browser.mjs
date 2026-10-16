@@ -517,13 +517,18 @@ try {
     task.title === "BetaPrivate approval");
   assert.equal(unassignedA?.status, "Pending");
   assert.equal(foreignB?.status, "Pending");
-  const managerSession = await manager.storageState();
+  // Reuse the existing A-only Checker from the protected, disposable
+  // baseline. Never give this reviewer a B membership just for test setup.
+  const checkerIdentity = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  await signIn(checkerIdentity, "hcm-checker@example.test");
+  const checkerSession = await checkerIdentity.storageState();
+  await checkerIdentity.close();
   const hrSession = await hr.storageState();
 
   for (const width of [375, 390]) {
     const reviewer = await browser.newContext({
       viewport: { width, height: 844 }, isMobile: true, hasTouch: true,
-      storageState: managerSession,
+      storageState: checkerSession,
     });
     const reviewerPage = await reviewer.newPage();
     const localErrors = [];
@@ -532,7 +537,7 @@ try {
       await checkpoint(reviewerPage, width + "px assigned mobile reviewer / unassigned denials", async () => {
         await workspace(reviewerPage, 1);
         await openMobileApprovals(reviewerPage);
-        const title = "Synthetic phone manager approval " + width;
+        const title = "Synthetic phone checker approval " + width;
         const row = reviewerPage.locator(".approval-content").filter({ hasText: title });
         await row.waitFor({ timeout: 60000 });
         const before = await browserRequest(reviewerPage, "/api/dashboard?organizationId=1");
@@ -548,7 +553,7 @@ try {
         const deniedUnassigned = await browserRequest(reviewerPage,
           "/api/approvals/" + unassignedA.id, "PATCH", { status: "Approved" });
         assert.equal(deniedUnassigned.status, 403,
-          "An A manager must not approve an A HR-only unassigned task");
+          "An A Checker must not approve an A HR-only unassigned task");
         const concealedForeign = await browserRequest(reviewerPage,
           "/api/approvals/" + foreignB.id, "PATCH", { status: "Approved" });
         assert.equal(concealedForeign.status, 404,
@@ -556,7 +561,7 @@ try {
         const wrongDashboard = await browserRequest(reviewerPage,
           "/api/dashboard?organizationId=2");
         assert.equal(wrongDashboard.status, 403,
-          "An A-only manager cannot read B dashboard approval records");
+          "An A-only Checker cannot read B dashboard approval records");
 
         const layout = await reviewerPage.evaluate(() => {
           const card = document.querySelector(".p2-approval-queue");
@@ -598,8 +603,8 @@ try {
     }
   }
 
-  // The manager legitimately belongs only to A. Instead of inventing a B
-  // manager membership, use the existing dual-member HR session for A->B->A
+  // The Checker legitimately belongs only to A. Instead of inventing a B
+  // reviewer membership, use the existing dual-member HR session for A->B->A
   // UI scope changes. These full navigations cancel the retired page; they do
   // NOT assert that a synthetic fixture proved within-document React races.
   for (const width of [375, 390]) {
