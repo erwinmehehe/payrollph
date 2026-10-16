@@ -293,7 +293,7 @@ test("UNVERIFIED RATE - needs independent check: BIR semi-monthly bracket centav
   }
 });
 
-test("UNVERIFIED RATE - needs independent check: BIR annual thresholds and 15%/20% spans", () => {
+test("UNVERIFIED RATE - needs independent check: BIR annual thresholds and all marginal bands", () => {
   // src/lib/ph-statutory-rule-packs.ts:88-95; annual TRAIN brackets, 2023 onward.
   const cases: Array<[number, number]> = [
     [249_999.99, 0], // under 250,000 floor: 0
@@ -307,6 +307,15 @@ test("UNVERIFIED RATE - needs independent check: BIR annual thresholds and 15%/2
     [799_999.99, 102_500], // 22,500 + 399,999.99 * 20% ->102,500.00
     [800_000, 102_500], // 22,500 + 400,000 * 20%
     [800_000.01, 102_500], // 102,500 + 0.01 * 25% unchanged
+    [1_000_000, 152_500], // 102,500 + (1,000,000 - 800,000) * 25%
+    [1_999_999.99, 402_500], // 102,500 + 1,199,999.99 * 25% -> 402,500.00
+    [2_000_000, 402_500], // 102,500 + 1,200,000 * 25%
+    [2_000_000.01, 402_500], // 402,500 + 0.01 * 30% -> 402,500.00
+    [3_000_000, 702_500], // 402,500 + 1,000,000 * 30%
+    [7_999_999.99, 2_202_500], // 402,500 + 5,999,999.99 * 30% -> 2,202,500.00
+    [8_000_000, 2_202_500], // 402,500 + 6,000,000 * 30%
+    [8_000_000.01, 2_202_500], // 2,202,500 + 0.01 * 35% -> 2,202,500.00
+    [9_000_000, 2_552_500], // 2,202,500 + 1,000,000 * 35%
   ];
   for (const [salary, expected] of cases) {
     assert.equal(computeAnnualWithholdingTax(salary, false, "2026-10-15"), expected, `annual WHT at ${salary}`);
