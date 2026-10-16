@@ -346,7 +346,7 @@ test("final-pay tax debt retains the signed -7,500.00 shortfall and exact unpaid
 
 // Possible defect / contract gap: computeFinalPay preserves the liability, but
 // netFinalPay itself is clamped to zero and no signedNetFinalPay is returned.
-test.todo("A-3/M-10: return or expose signed final-pay net -7500.00 (currently netFinalPay=0.00)");
+test.todo("A-3/M-3: return or expose signed final-pay net -7500.00 (currently netFinalPay=0.00)");
 // Possible half-cent rounding defect: src/lib/round.ts:3 uses a fixed Number.EPSILON.
 // For basic YTD 120000.06 the exact division is 10000.005, while current result is 10000.00.
 test.todo("A-3: review 13th-month 120000.06 / 12 expected 10000.01, observed 10000.00");
