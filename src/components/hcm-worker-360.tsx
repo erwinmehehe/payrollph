@@ -95,7 +95,7 @@ function ScopedWorker360({ organizationId, employeeId, initialAsOfDate }: {
             <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">Linaw HCM · Read-only</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight">Worker 360</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Employee context and effective-dated history from existing HR records. No employee or payroll data can be changed here.
+              Employee context and effective-dated history are read-only. Private document actions use a separate, access-controlled vault and never change payroll.
             </p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
