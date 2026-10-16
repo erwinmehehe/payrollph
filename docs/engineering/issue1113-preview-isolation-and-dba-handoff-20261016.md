@@ -1,6 +1,25 @@
 # PR #1116 — Preview isolation and DBA handoff (2026-10-16)
 
-> **DRAFT / NO-GO. Evidence and inert Preview configuration only.** No production or active QA database changes, releases, payroll payments or statutory filings are authorized.
+> **DRAFT / NO-GO. Inert Preview database/auth endpoints plus separate branch-only encryption keys.** No production or active QA database changes, releases, payroll payments or statutory filings are authorized.
+
+## New checkpoint — PR branch sync and Preview-only crypto (2026-10-16)
+
+**Step 1 — merged `main` into the DRAFT PR review branch only.** An explicit two-parent merge commit `b3b4fb0a8ae3dd1ca8641a6a3b83d7b2563bce7d` combines prior PR review head `f7bea597a54cea68314090e42ee6107c06c1c8c7` with then-current main `6a2c31fc08601f7f48b4ecda795bbdc3e5c64dc2`. Its tree retains the exact eight `docs/`-only review files on main's source tree. This **did not merge PR #1116 into `main`**. Main advances independently; compare PR ancestry again before any next release decision. CI results must be checked against the *final* head, never prior heads.
+
+**Step 2 — added four independently generated, branch-scoped sensitive crypto/auth keys.** Following read-only identity attestation on the existing isolated rehearsal Neon branch `br-mute-mode-b740q5zx`, generated independent 32-byte hex-formatted keys using SHA-256 over multiple PostgreSQL cryptographic UUID sources, then sent them directly to Vercel through the connected secret-management action. No key material was printed in this report or returned in chat. Vercel confirmed four **`sensitive` Preview-only** records scoped exclusively to `qa/issue1113-schema-recovery-review-20261016`:
+
+- `TOTP_ENCRYPTION_KEY` — preview-local authentication encryption source.
+- `PII_ENCRYPTION_KEY` — separately generated sensitive-identifier encryption key.
+- `BANK_DATA_ENCRYPTION_KEY` — separately generated bank-field encryption key.
+- `ENTERPRISE_IDENTITY_ENCRYPTION_KEY` — separately generated enterprise identity-secret key.
+
+Read-only branch-scoped Vercel metadata then returned **26/26** assignments, all with `target: [preview]` and the exact PR Git branch: **18 database/authentication aliases deliberately inert** (including both `DATABASE_URL` values), **4 workload/payment/demo switches set to `false`**, and **4 dedicated `sensitive` crypto/auth keys**. This confirms their *assignment scopes* only, not live secret validity, ciphertext migration compatibility or effective production isolation. Fresh keys cannot be assumed to decrypt inherited legacy ciphertext; any such records require separately approved provenance and key-custody validation. No real Neon credentials were provisioned.
+
+**Vercel access gate:** The checked-in `vercel.json` continues to block automatic non-main Git deployments (`preview: false`, `staging: false`, `**: false`); the Vercel project currently reports SSO protection enabled for non-custom deployments. There were zero PR-branch deployments and zero project connector connections at inspection. No signed-in application or database Preview test has been performed.
+
+**Outstanding project-wide blocker:** The unfiltered Vercel environment inventory contains trailing truncated records, so **global assignment completeness and freedom from Production-shared variables are NOT certified**. The existing project-wide dual-target assignments must be independently audited/removed from Preview by an authorized Vercel administrator without disturbing Production, and an approved, branch-bound Neon/auth integration must replace inert URLs. The [Preview target isolation guard](../../scripts/verify-preview-isolation.mjs) is stricter than branch-only overrides: it fails if *any* variable targets both Preview and Production. Do not claim its success without an untruncated full inventory and a credential-protected manual `workflow_dispatch` run.
+
+**Gate:** source review and Preview-only secret scoping progressed; actual Preview connectivity, broad global isolation, DB/DBA acceptance, historical receipts, payroll release and PR merge remain **NO-GO**. No existing Neon branch was migrated or modified by these configuration steps.
 
 ## Actions performed
 
