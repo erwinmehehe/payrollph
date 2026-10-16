@@ -36,9 +36,6 @@ const rowKey = row => JSON.stringify([
   row.table, row.kind, row.object, row.status, row.expected, row.actual,
 ]);
 const sortRows = rows => rows.slice().sort((a,b) => rowKey(a).localeCompare(rowKey(b)));
-const countStatus = rows => Object.fromEntries(statuses.map(
-  status => [status, rows.filter(r => r.status === status).length]
-));
 
 export function compare1031Stages({ source, pre0128, post0128, mappings }) {
   for (const [name, stage] of Object.entries({ source, pre0128, post0128 })) {
@@ -99,9 +96,9 @@ export function compare1031Stages({ source, pre0128, post0128, mappings }) {
 
   return {
     evidence: "SYNTHETIC_CATALOG_DIFF_PROVENANCE_NOT_APPROVAL",
-    source: countStatus(source.nonPassing),
-    pre0128: countStatus(pre0128.nonPassing),
-    post0128: countStatus(post0128.nonPassing),
+    source: { ...source.counts },
+    pre0128: { ...pre0128.counts },
+    post0128: { ...post0128.counts },
     sourceBaselineNonPassing: source.nonPassing.length,
     sourceOnly: source.nonPassing.filter(r => !before.has(rowKey(r))).length,
     preCandidateOnly: preNew.length,
