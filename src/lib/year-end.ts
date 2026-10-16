@@ -9,6 +9,7 @@ import { loadFinalPayRetroSourcePeriods } from "@/lib/final-pay-retro-source-loo
 import { priorEvidenceEnabled, priorEmployeeScope, readPriorEvidence } from "./year-end-prior-evidence-server";
 import { annualizeWithPrior } from "./year-end-prior-evidence";
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+import { thirteenthMonthFromCentavos } from "./thirteenth-month-centavos";
 
 type LineItem = {
   code?: string;
@@ -288,7 +289,7 @@ export async function runYearEndAnnualization(
   }
   // Keep approved/bound adjustments immutable even when they are not settled.
   if (existingAdjustments.some(row => (row.status !== "computed" || row.payrollRunId !== null) &&
-    (usePriorEvidence || (row.breakdown !== null && typeof row.breakdown === "object" && "priorEvidence" in row.breakdown)))) {
+    (usePriorEvidence || (row.breakdown !== null && typeof row.breakdown === "object" && ("priorEvidence" in row.breakdown || "thirteenthRoundingPolicy" in row.breakdown))))) {
     throw new Error("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED");
   }
   // A rollback of the intake feature must never erase previously approved prior credits.
@@ -322,7 +323,8 @@ export async function runYearEndAnnualization(
     // calendar year divided by 12. Do not infer from the employee's current
     // salary or payroll-period count because rate changes and unpaid time make
     // that inaccurate.
-    const thirteenthEntitlement = Math.round(((bucket.basic / 12) + Number.EPSILON) * 100) / 100;
+    const thirteenthEntitlement = criticalReleaseFlagEnabled("exactThirteenthCentavos")
+      ? thirteenthMonthFromCentavos(round2(bucket.basic)) : Math.round(((bucket.basic / 12) + Number.EPSILON) * 100) / 100;
     const annualThirteenth = Math.max(thirteenthEntitlement, bucket.thirteenthPaid);
 
     if (employee.mwe && bucket.importedPeriods > 0) {
@@ -409,6 +411,7 @@ export async function runYearEndAnnualization(
       mwe: result.mwe,
       breakdown: {
         ...result,
+        ...(criticalReleaseFlagEnabled("exactThirteenthCentavos") ? { thirteenthRoundingPolicy: "centavo-half-up-v1" } : {}),
         ...(priorEvidence ? { priorEvidence } : {}),
         periodsIncluded: periods,
         runsIncluded: runIds.length,

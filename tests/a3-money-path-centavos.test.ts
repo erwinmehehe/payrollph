@@ -353,9 +353,36 @@ test("final-pay tax debt retains the signed -7,500.00 shortfall and exact unpaid
   assert.deepEqual(computeFinalPay(input), result, "final-pay rerun is idempotent");
 });
 
-// Possible defect / contract gap: computeFinalPay preserves the liability, but
-// netFinalPay itself is clamped to zero and no signedNetFinalPay is returned.
-test.todo("A-3/M-3: return or expose signed final-pay net -7500.00 (currently netFinalPay=0.00)");
-// Possible half-cent rounding defect: src/lib/round.ts:3 uses a fixed Number.EPSILON.
-// For basic YTD 120000.06 the exact division is 10000.005, while current result is 10000.00.
-test.todo("A-3: review 13th-month 120000.06 / 12 expected 10000.01, observed 10000.00");
+// These were TODO-only observations. Execute both the default-off contract and fixes.
+test("A-3/M-3: signed final-pay deficit is exposed without creating a negative payout", () => {
+  const before = process.env.FINAL_PAY_SIGNED_REVIEW_ENABLED;
+  const input = { releasedBasicYtd: 300000, historicalBasicYtd: 0, unpaidBasicSalary: 0,
+    thirteenthPaidYtd: 25000, grossCompensationYtd: 300000, statutoryContributionsYtd: 0,
+    taxWithheldYtd: 0, mwe: false, leaveMonetizationPay: 0, separationPay: 0,
+    retirementPay: 0, otherBenefits: 0, loanDeductions: 0 };
+  try {
+    delete process.env.FINAL_PAY_SIGNED_REVIEW_ENABLED;
+    const legacy = computeFinalPay(input);
+    assert.equal("signedNetFinalPay" in legacy, false);
+    process.env.FINAL_PAY_SIGNED_REVIEW_ENABLED = "true";
+    const result = computeFinalPay(input);
+    assert.equal(result.signedNetFinalPay, -7500);
+    assert.equal(result.netFinalPay, 0);
+    assert.equal(result.unpaidTaxWithholding, 7500);
+    const { signedNetFinalPay: _signed, ...unchanged } = result;
+    assert.deepEqual(unchanged, legacy);
+  } finally { if (before === undefined) delete process.env.FINAL_PAY_SIGNED_REVIEW_ENABLED; else process.env.FINAL_PAY_SIGNED_REVIEW_ENABLED = before; }
+});
+test("A-3: 120000.06 / 12 uses exact-centavo half-up only with the release flag", () => {
+  const before = process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED;
+  try {
+    delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED;
+    assert.equal(computeThirteenthMonthPay(120000.06), 10000);
+    process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED = "true";
+    assert.equal(computeThirteenthMonthPay(120000.06), 10000.01);
+    assert.equal(computeThirteenthMonthPay(120000.18), 10000.02);
+    assert.equal(computeThirteenthMonthPay(0.05), 0);
+    assert.equal(computeThirteenthMonthPay(0.06), 0.01);
+    assert.throws(() => computeThirteenthMonthPay(Infinity));
+  } finally { if (before === undefined) delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED; else process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED = before; }
+});

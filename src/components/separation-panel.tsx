@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, CheckCircle2, Download, FileCheck, FileText, HelpCircle, Plus, Shield, UserX, X } from "lucide-react";
 import { finalPayReviewCsv, finalPayReviewShortfall, finalPayLoanReviewSummary } from "@/lib/final-pay-review-evidence";
 import { manilaCalendarDate } from "@/lib/payroll-period-ui";
+import { FinalPaySignedReview } from "./final-pay-signed-review";
 
 type ReadyTermHandoff = {
   employeeId: number;
@@ -85,6 +86,7 @@ const peso = (value: string | number) =>
   `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export function SeparationPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (m: string) => void }) {
+  const [signedReviewEnabled, setSignedReviewEnabled] = useState(false);
   const [separations, setSeparations] = useState<SeparationRecord[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [handoffs, setHandoffs] = useState<ReadyTermHandoff[]>([]);
@@ -96,7 +98,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   const [showModal, setShowModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<SeparationRecord | null>(null);
   function downloadFinalPayReview(record: SeparationRecord) {
-    const blob = new Blob(["\uFEFF", finalPayReviewCsv(record)], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob(["\uFEFF", finalPayReviewCsv(record, signedReviewEnabled)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     try {
       const download = document.createElement("a");
@@ -167,6 +169,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         setSeparations(records);
         setCurrentUserId(Number.isInteger(data.currentUserId) ? data.currentUserId : null);
         setManualReleaseEnabled(data.manualReleaseEnabled === true);
+        setSignedReviewEnabled(data.signedReviewEnabled === true);
         setOffboardingClearanceEnabled(data.offboardingClearanceEnabled === true);
         setCanRevokeLocalAccess(data.canRevokeLocalAccess === true);
         setCanAuthorizeClearanceWaivers(data.canAuthorizeClearanceWaivers === true);
@@ -704,6 +707,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             </div>
           </div>
 
+          {signedReviewEnabled && <FinalPaySignedReview record={selectedRecord} />}
           {finalPayReviewShortfall(selectedRecord).reconciliationRequired && (
             <div className="notice notice-amber" role="alert" style={{ marginTop: 14, display: "grid", gap: 6 }}>
               <strong>Mandatory final-pay deductions are not fully collectible.</strong>

@@ -1,4 +1,5 @@
 import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
+import { finalPaySignedBalance } from "./final-pay-signed-balance";
 
 /** Reconciliation-only display/export of immutable separation financial evidence. */
 export type FinalPayReviewRecord = {
@@ -84,7 +85,7 @@ function csvValue(value: string) {
   return '"' + safe.replaceAll('"', '""') + '"';
 }
 
-export function finalPayReviewCsv(record: FinalPayReviewRecord) {
+export function finalPayReviewCsv(record: FinalPayReviewRecord, signedReviewEnabled = false) {
   const shortfall = finalPayReviewShortfall(record);
   const snapshot = record.computationSnapshot ?? {};
   const loanReview = finalPayLoanReviewSummary(record);
@@ -107,6 +108,11 @@ export function finalPayReviewCsv(record: FinalPayReviewRecord) {
     ["Approval/release status", shortfall.reconciliationRequired ? "BLOCKED - FINANCE/PAYROLL RECONCILIATION REQUIRED" : "NO MANDATORY SHORTFALL; OTHER RELEASE GATES STILL APPLY"],
     ["Statement", "Review worksheet only. Not evidence of statutory remittance, tax payment, or bank settlement."],
   ];
+  if (signedReviewEnabled) {
+    const signed = finalPaySignedBalance(record);
+    rows.push(["Signed reconciliation balance (PHP; NOT a payout instruction)", signed === null ? "UNVERIFIABLE" : signed.toFixed(2)]);
+    rows.push(["Deficit interpretation", "A negative balance does not establish employee debt or authorize recovery. Reconcile tax/statutory liabilities separately; payable cash remains nonnegative."]);
+  }
   for (const loan of loanReview.unrecovered) {
     rows.push([
       "Unrecovered loan #" + loan.id + " (" + loan.loanType + ")",
