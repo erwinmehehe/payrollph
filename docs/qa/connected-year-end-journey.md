@@ -36,6 +36,13 @@ payroll run continue through these actual application boundaries:
    other-tenant and stale-digest requests are rejected. The real preparer UI
    is exercised and captured at desktop and 390px.
 
+The fictional review mapping puts employee contributions in exempt item 36
+and removes them once from taxable BASIC, then commission if BASIC is smaller.
+Premiums remain separately mapped. An executed preparer test rejects the
+original double count and checks the small-BASIC allocation. This is explicit
+fictional reviewer evidence, not an automatic production classification or a
+claim of tax-practitioner approval for a customer's compensation categories.
+
 The receipt marks annual completion separately from the original nine stages;
 wrong-worker PDFs and missing annual receipts cannot pass the evidence test.
 The PDF has no signatures and is never submitted. All payment providers remain

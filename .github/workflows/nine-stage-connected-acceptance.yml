@@ -45,6 +45,8 @@ on:
       - "scripts/qa/governed-hire-853-bridge.ts"
       - "scripts/qa/connected-governed-hire.ts"
       - "scripts/qa/connected-year-end-journey.ts"
+      - "scripts/qa/connected-year-end-mapping.ts"
+      - "tests/connected-year-end-mapping.test.ts"
       - "scripts/qa/bir-1604c-validation-corpus.ts"
       - "scripts/build-bir-validation-corpus.ts"
       - "tests/bir-validation-corpus.test.ts"
@@ -116,6 +118,8 @@ on:
       - "scripts/qa/governed-hire-853-bridge.ts"
       - "scripts/qa/connected-governed-hire.ts"
       - "scripts/qa/connected-year-end-journey.ts"
+      - "scripts/qa/connected-year-end-mapping.ts"
+      - "tests/connected-year-end-mapping.test.ts"
       - "scripts/qa/bir-1604c-validation-corpus.ts"
       - "scripts/build-bir-validation-corpus.ts"
       - "tests/bir-validation-corpus.test.ts"
@@ -267,6 +271,7 @@ jobs:
       - name: Run focused payroll/WFM safety regressions (separate from connected evidence)
         run: |
           npx tsx --test \
+            tests/connected-year-end-mapping.test.ts \
             tests/qa-synthetic-session-clock.test.ts \
             tests/web-bundy-overnight-anchor.test.ts \
             tests/payroll-night-differential.test.ts \

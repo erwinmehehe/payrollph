@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { readBasicAndThirteenth } from "../../src/lib/final-pay";
 import { drainPayrollQueue } from "../../src/lib/payroll-engine";
-import { CERTIFICATE_ITEMS } from "../../src/lib/bir-2316-certificate";
+import { mapConnectedCompensation } from "./connected-year-end-mapping";
 type Client = {
   ok(path: string, method?: string, data?: unknown): Promise<Record<string, any>>;
   json(path: string, method?: string, data?: unknown): Promise<{ status: number; body: Record<string, any> }>;
@@ -94,9 +94,8 @@ export async function generateConnected2316(input: Scope & { runId: number; owne
   const contributions = cents(readBasicAndThirteenth(entry.lineItems).contributions);
   const remainder = cents(entry.grossPay) - amounts.basic - amounts.benefit - amounts.commission;
   assert.ok(remainder >= 0);
-  const detailItems = { ...Object.fromEntries(CERTIFICATE_ITEMS.map(k => [k, "0.00"])),
-    "34": money(amounts.benefit), "36": money(contributions), "39": money(amounts.basic),
-    "45": money(amounts.commission), "51B": money(remainder) };
+  const detailItems = mapConnectedCompensation({ gross: cents(entry.grossPay), basic: amounts.basic,
+    benefit: amounts.benefit, commission: amounts.commission, contributions });
   const review = { text: { rdo: "039", address: "123 Fictional Street", zip: "1100", homeAddress: "123 Fictional Street", homeZip: "1100", foreignAddress: "", contact: "09171234567", minimumDaily: "0.00", minimumMonthly: "0.00", employerAddress: "456 Fictional Avenue", employerZip: "1200", categoryReference: "Fictional single-run BASIC, commission and premium mapping", peraReference: "Fictional zero PERA declaration", "44A": "", "44B": "", "51A": "", "51B": "Fictional holiday and schedule premiums" }, detailItems, previousEmployer: { status: "none-confirmed" }, peraCredit: "0.00", employerType: "main", acknowledged: true };
   assert.equal((await owner.json(api, "POST", { sourceDigest: "stale", review })).status, 409);
   const pdf = await owner.request(api, "POST", { sourceDigest: loaded.sourceDigest, review });
