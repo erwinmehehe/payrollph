@@ -269,3 +269,4 @@
 "worksite_punch_policies","drizzle/0120_wfm_punch_evidence.sql","no","","","numbered source definition(s) only - application unproven",""
 "worksites","drizzle/0023_workforce_worksites.sql","no","src/lib/core-schema-compat.ts","","numbered source definition(s) only - application unproven",""
 "year_end_adjustments","","yes - source snapshot only","","","defined only in schema.ts / no migration creates it",""
+"year_end_prior_evidence","drizzle/0127_year_end_prior_evidence.sql","no","","","numbered source definition(s) only - application unproven",""

@@ -45,6 +45,14 @@ test("disposable PostgreSQL: encrypted revision/checker/tenant/transfer/bound-st
     assert.equal(Number(adjustment.taxDue), 82500); // present taxable 600k + prior 100k
     assert.equal(Number(adjustment.adjustment), 32400);
     assert.ok((adjustment.breakdown as { priorEvidence?: unknown }).priorEvidence);
+    delete process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED;
+    await assert.rejects(runYearEndAnnualization(ids[0], 2025, maker.name), /PRIOR_EVIDENCE_DISABLED_RECOMPUTE_BLOCKED/);
+    assert.equal((await db.select().from(yearEndAdjustments).where(eq(yearEndAdjustments.id, adjustment.id)))[0].adjustment, adjustment.adjustment);
+    process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED = "true";
+    await db.update(yearEndAdjustments).set({ status: "approved", payrollRunId: run.id }).where(eq(yearEndAdjustments.id, adjustment.id));
+    await assert.rejects(runYearEndAnnualization(ids[0], 2025, maker.name), /YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED/);
+    await assert.rejects(priorIntake(scope, maker, { action: "save", evidence, expectedDigest: record.digest }), /SETTLED_OR_BOUND/);
+    await db.update(yearEndAdjustments).set({ status: "computed", payrollRunId: null }).where(eq(yearEndAdjustments.id, adjustment.id));
     await db.update(yearEndAdjustments).set({ status: "settled" }).where(eq(yearEndAdjustments.id, adjustment.id));
     await assert.rejects(priorIntake(scope, maker, { action: "save", evidence, expectedDigest: record.digest }), /SETTLED_OR_BOUND/);
     await assert.rejects(runYearEndAnnualization(ids[0], 2025, maker.name), /already been settled/);
