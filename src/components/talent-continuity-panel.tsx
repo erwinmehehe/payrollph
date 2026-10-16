@@ -33,19 +33,24 @@ type EvidenceResponse = {
  * Deliberately mounted only in the manager's Performance workspace.
  * Recruitment receives role criteria but never private employee comparisons.
  */
-export function TalentContinuityPanel({ organizationId }: { organizationId: number }) {
+export function TalentContinuityPanel(props: { organizationId: number }) {
+  // Employment scope is private. Clear comparison and selected worker before
+  // a newly selected employer can render.
+  return <TalentContinuityContent key={props.organizationId} {...props} />;
+}
+
+function TalentContinuityContent({ organizationId }: { organizationId: number }) {
   const [employees, setEmployees] = useState<Option[]>([]);
   const [requisitions, setRequisitions] = useState<Option[]>([]);
   const [employeeId, setEmployeeId] = useState("");
   const [requisitionId, setRequisitionId] = useState("");
   const [result, setResult] = useState<EvidenceResponse | null>(null);
   const [hidden, setHidden] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
     try {
       const response = await fetch(`/api/performance/talent-continuity?organizationId=${organizationId}`, {
         cache: "no-store", signal,
@@ -72,7 +77,11 @@ export function TalentContinuityPanel({ organizationId }: { organizationId: numb
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal);
+    // The request runs after effect setup, never in its synchronous phase.
+    // Strict Mode cleanup can cancel this scheduled read before it starts.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
     return () => controller.abort();
   }, [load]);
 
@@ -108,7 +117,7 @@ export function TalentContinuityPanel({ organizationId }: { organizationId: numb
           <p>Compare verified employee skill records and completed review evidence with the role criteria frozen when an approved position opened for recruitment. This does not rank people or initiate a hire.</p>
         </div>
         <button type="button" className="secondary-button" disabled={loading || reviewing}
-          onClick={() => void load()}><RefreshCw size={14} /> Refresh roles</button>
+          onClick={() => { setLoading(true); setError(""); setResult(null); void load(); }}><RefreshCw size={14} /> Refresh roles</button>
       </div>
       <div className="setting-form">
         <label>Employee

@@ -1,3 +1,4 @@
+import type { Bir2316Withholding } from "./bir-2316-withholding";
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { reviewBir2316Summary, bir2316ReviewLines, type Bir2316MappingEvidence } from "./bir-2316-reconciliation";
 /**
@@ -7,6 +8,7 @@ import { reviewBir2316Summary, bir2316ReviewLines, type Bir2316MappingEvidence }
  */
 export type Bir2316ReviewInput = {
   reviewEvidence?: Bir2316MappingEvidence;
+  withholdingEvidence?: Bir2316Withholding;
   taxYear: number;
   employerName: string;
   employerTin: string;
@@ -66,7 +68,7 @@ export function renderBir2316ReviewHtml(input: Bir2316ReviewInput) {
     ["Employee statutory contributions", money(input.statutoryContributions)],
   ];
   const reconciliation = criticalReleaseFlagEnabled("bir2316Reconciliation")
-    ? `<div data-bir-2316-reconciliation style="overflow-wrap:anywhere">${section("Numbered 2316 reconciliation — reviewed evidence required", bir2316ReviewLines(reviewBir2316Summary(input, input.reviewEvidence)))}</div>` : "";
+    ? `<div data-bir-2316-reconciliation style="overflow-wrap:anywhere">${section("Numbered 2316 reconciliation — reviewed evidence required", bir2316ReviewLines(reviewBir2316Summary(input, input.reviewEvidence, criticalReleaseFlagEnabled("bir2316WithholdingEvidence") ? input.withholdingEvidence : undefined)))}</div>` : "";
   const body = [
     section("Part I - Employee information", [
       ["Tax year", String(input.taxYear)],
