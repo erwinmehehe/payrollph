@@ -1,11 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 
 const path = "qa-artifacts/nine-stage-connected-report.json";
 const required = process.env.NINE_STAGE_EVIDENCE_REQUIRED === "true";
 const stages = ["Hire","Onboard","Schedule","Clock In","Approve Time","Run Payroll",
   "Review","Release Payroll Records","Prepare Filing Evidence"];
+
+function assertUnsignedCertificateHash(bytes, claimedSha) {
+  assert.ok(bytes.length >= 50 && bytes.length <= 8 * 1024 * 1024,
+    "Unsigned certificate PDF evidence must be bounded and nonempty");
+  assert.equal(bytes.subarray(0, 5).toString("latin1"), "%PDF-");
+  assert.match(bytes.subarray(-1024).toString("latin1"), /%%EOF\\s*$/);
+  assert.equal(createHash("sha256").update(bytes).digest("hex"), claimedSha,
+    "Annual receipt hash must match the actual saved source PDF bytes");
+}
 
 function isAccepted(r) {
   return Boolean(r && r.result === "PASS" && Array.isArray(r.stages)
@@ -69,6 +79,14 @@ test("governed journey receipt rejects sidecar worker substitution and incomplet
   const samePayroll = structuredClone(r);
   samePayroll.lineage.employerB.payrollRunId = r.lineage.payrollRunId;
   assert.equal(isAccepted(samePayroll), false);
+});
+
+test("a claimed PDF hash alone cannot establish connected evidence", () => {
+  const pdf = Buffer.from("%PDF-1.7\\n1 0 obj\\n<< /Type /Catalog >>\\nendobj\\ntrailer\\n<< /Root 1 0 R >>\\n%%EOF\\n");
+  const correct = createHash("sha256").update(pdf).digest("hex");
+  assert.doesNotThrow(() => assertUnsignedCertificateHash(pdf, correct));
+  assert.throws(() => assertUnsignedCertificateHash(pdf, "a".repeat(64)),
+    /must match the actual saved source PDF/);
 });
 
 test("stage identities and no-money status are explicit and consistent",
@@ -135,6 +153,20 @@ test("stage identities and no-money status are explicit and consistent",
     assert.equal(r.lineage.hireMode, process.env.NINE_STAGE_HIRE_MODE ?? "direct");
     assert.equal(r.result, "PASS", "The dedicated connected workflow must pass both sets of nine stages");
     assert.ok(isAccepted(r), "A failing or incomplete stage cannot be accepted");
+    if (r.annualJourneyRequired) {
+      // Verify the real output file, not just a hash string copied into the
+      // receipt. The browser must also open the SAME tenant/worker/year.
+      const pdfPath = "qa-artifacts/connected-year-end-unsigned.pdf";
+      const reviewPath = "qa-artifacts/connected-year-end-review.json";
+      assert.ok(existsSync(pdfPath), "No unsigned certificate bytes were preserved");
+      assert.ok(existsSync(reviewPath), "No browser review binding was preserved");
+      assertUnsignedCertificateHash(readFileSync(pdfPath), r.annualJourney.pdfSha256);
+      const review = JSON.parse(readFileSync(reviewPath, "utf8"));
+      const scope = new URLSearchParams(review.query);
+      assert.equal(Number(scope.get("organizationId")), r.annualJourney.organizationId);
+      assert.equal(Number(scope.get("employeeId")), r.annualJourney.employeeId);
+      assert.equal(Number(scope.get("taxYear")), Number(r.clock.manilaWorkDate.slice(0, 4)));
+    }
   }
 });
 
