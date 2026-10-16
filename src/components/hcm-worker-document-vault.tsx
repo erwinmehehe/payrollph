@@ -175,7 +175,7 @@ export function WorkerDocumentVault({ organizationId, employeeId }: {
               : active.data.documents.map(item => (
                 <article key={item.id} className="min-w-0 rounded-xl border border-slate-200 p-4">
                   <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <div className="flex w-full min-w-0 flex-none items-start gap-3 sm:w-auto sm:flex-1">
                       <FileText className="mt-1 shrink-0 text-emerald-800" size={18} aria-hidden="true" />
                       <div className="min-w-0">
                         <h3 className="break-all text-sm font-bold text-slate-900">{item.fileName}</h3>
@@ -188,7 +188,7 @@ export function WorkerDocumentVault({ organizationId, employeeId }: {
                         </p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                       {item.scannedClean && <>
                         <a className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-slate-300 px-3 text-xs font-semibold hover:bg-slate-50"
                           href={"/api/documents/" + item.id} target="_blank" rel="noopener noreferrer">
