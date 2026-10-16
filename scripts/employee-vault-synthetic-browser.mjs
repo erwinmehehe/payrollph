@@ -216,6 +216,14 @@ try {
         path: ARTIFACT_DIR + "/" + label + "-" + width + "-view.png", fullPage: true,
         animations: "disabled",
       });
+      // Check overflow WHILE the document metadata and all three actions exist:
+      // checking only after deletion can miss a broken 390px document row.
+      const viewLayout = await page.evaluate(() => ({
+        viewport: window.innerWidth, scroll: document.documentElement.scrollWidth,
+      }));
+      assert.equal(viewLayout.viewport, width);
+      assert.ok(viewLayout.scroll <= width + 1,
+        label + " document view overflows horizontally: " + JSON.stringify(viewLayout));
 
       assertDenied(await getAs(manager, "/api/documents/" + record.id),
         "manager direct document view");
