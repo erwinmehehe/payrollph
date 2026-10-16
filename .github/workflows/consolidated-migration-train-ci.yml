@@ -23,6 +23,11 @@ on:
       - "tests/consolidated-migration-dependency-postgres.test.mjs"
       - "tests/complete-pending-train-postgres.test.mjs"
       - "tests/issue-1061-integrated-forward-train-postgres.test.mjs"
+      - "drizzle/0128_recovery_foreign_key_names_forward.sql"
+      - "scripts/lib/issue-1031-schema-manifest.ts"
+      - "src/lib/issue-1031-full-schema-diff.ts"
+      - "tests/issue-1031-full-schema-diff.test.ts"
+      - "tests/issue-1031-manifest-identifiers.test.ts"
       - "docs/engineering/issue-1061-integrated-forward-train-qa.md"
       - "docs/engineering/pending-migration-release-train.md"
       - ".github/workflows/consolidated-migration-train-ci.yml"
@@ -48,6 +53,11 @@ on:
       - "tests/consolidated-migration-dependency-postgres.test.mjs"
       - "tests/complete-pending-train-postgres.test.mjs"
       - "tests/issue-1061-integrated-forward-train-postgres.test.mjs"
+      - "drizzle/0128_recovery_foreign_key_names_forward.sql"
+      - "scripts/lib/issue-1031-schema-manifest.ts"
+      - "src/lib/issue-1031-full-schema-diff.ts"
+      - "tests/issue-1031-full-schema-diff.test.ts"
+      - "tests/issue-1031-manifest-identifiers.test.ts"
       - "docs/engineering/issue-1061-integrated-forward-train-qa.md"
       - ".github/workflows/consolidated-migration-train-ci.yml"
 
@@ -156,5 +166,6 @@ jobs:
           set -euo pipefail
           node --check tests/complete-pending-train-postgres.test.mjs
           node --test tests/complete-pending-train-postgres.test.mjs
+          node --import tsx --test tests/issue-1031-full-schema-diff.test.ts tests/issue-1031-manifest-identifiers.test.ts
           node --check tests/issue-1061-integrated-forward-train-postgres.test.mjs
           node --import tsx --test tests/issue-1061-integrated-forward-train-postgres.test.mjs

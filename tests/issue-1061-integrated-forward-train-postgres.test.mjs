@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import pg from "pg";
 import { assertIsolatedMigrationTarget } from "../scripts/lib/isolated-migration-target.mjs";
+import { ISSUE1054_PREFLIGHT_SQL, ISSUE1054_POSTFLIGHT_SQL } from "../scripts/lib/issue-1054-protected-preflight.mjs";
 
 /**
  * P0-4 / #1061: one exact-source 0115 -> 0123 integration rehearsal.
@@ -57,6 +58,7 @@ const FORWARD_RECOVERY = Object.freeze([
   "0125_wfm_availability_open_shifts_forward_repair.sql",
   "0126_compensation_governance_forward_repair.sql",
 ]);
+const RECONCILIATION = "0128_recovery_foreign_key_names_forward.sql";
 const READY = process.env.CI === "true"
   && process.env.GITHUB_ACTIONS === "true"
   && process.env.PENDING_TRAIN_REHEARSAL_MODE === "isolated-ci-only";
@@ -344,38 +346,52 @@ test("PG16/18: 0115-0123 exact source, denied writes, money invariants and total
       assert.doesNotMatch(sql.replace(/--[^\r\n]*/g, ""),
         /^\s*(?:BEGIN|COMMIT|ROLLBACK)\s*;/im,
         "release runner must own the one transaction");
+      if (name === FORWARD_RECOVERY[1]) await db.query(ISSUE1054_PREFLIGHT_SQL);
       await db.query(sql);
+      if (name === FORWARD_RECOVERY[1]) await db.query(ISSUE1054_POSTFLIGHT_SQL);
     }
     for (const name of MISSING_RECOVERY)
       assert.equal(await exists(db, name), true, "forward repair missing " + name);
     assert.deepEqual(await money(db), seededMoney,
       "0124-0126 must not change worker or historical payroll centavos");
 
-    // Use EXACT #1031 manifest/catalog/diff logic, not a hand-built table list
-    // of expected columns or silently ignored FK/index drift.
+    // Preserve the exact #1031 raw intermediate report: historical 0124/0125/
+    // 0126 use PG-generated FK names. Do not conceal their legitimate name drift.
     const { fullSchemaCatalogSql } = await import("../scripts/check-issue-1031-full-schema-diff.ts");
     const { diffSchema } = await import("../src/lib/issue-1031-full-schema-diff.ts");
     const names = targetNames;
     const tables = targetModels;
-    const catalogRows = (await db.query(fullSchemaCatalogSql)).rows
-      .filter(r => names.has(r.table_name))
-      .map(({ table_name, kind, object_name, details }) =>
-        ({ table_name, kind, object_name, ...details }));
-    const compared = diffSchema({ ...manifest, tables }, catalogRows);
-    // Report every touched object classification even when the test fails:
-    // do NOT turn DRIFT into PASS by relaxing source-manifest semantics.
-    const summaries = Object.fromEntries(MISSING_RECOVERY.map(name => [name,
-      Object.fromEntries(["PASS", "MISSING", "DRIFT", "EXTRA"].map(status =>
-        [status, compared.filter(row => row.table === name && row.status === status).length]))
-    ]));
-    console.log(JSON.stringify({ evidence: "SYNTHETIC_ROLLBACK_ONLY",
-      orderedFiles: [...TRAIN, ...FORWARD_RECOVERY],
-      statusByTable: summaries, productionReceipt: false,
-      results: compared.map(({table, kind, object, status}) =>
-        ({table, kind, object, status})) }));
+    const compareRecovery = async (stage) => {
+      const rows = (await db.query(fullSchemaCatalogSql)).rows
+        .filter(r => names.has(r.table_name))
+        .map(({ table_name, kind, object_name, details }) =>
+          ({ table_name, kind, object_name, ...details }));
+      const compared = diffSchema({ ...manifest, tables }, rows);
+      const statusByTable = Object.fromEntries(MISSING_RECOVERY.map(table => [table,
+        Object.fromEntries(["PASS","MISSING","DRIFT","EXTRA"].map(status =>
+          [status,compared.filter(r => r.table===table && r.status===status).length]))
+      ]));
+      console.log(JSON.stringify({ stage, evidence: "SYNTHETIC_ROLLBACK_ONLY",
+        orderedFiles: [...TRAIN,...FORWARD_RECOVERY,...(stage==="POST_0128" ? [RECONCILIATION] : [])],
+        statusByTable, productionReceipt:false,
+        results: compared.map(({ table,kind,object,status }) =>
+          ({table,kind,object,status})) }));
+      return compared;
+    };
+    const beforeRename = await compareRecovery("POST_0126_PRE_0128");
+    const oldNames = beforeRename.filter(x => x.kind==="foreign_key" &&
+      (x.status==="MISSING" || x.status==="EXTRA"));
+    assert.equal(oldNames.length, 98, "expected full historical FK-name drift before 0128");
+    assert.ok(beforeRename.some(x => x.status !== "PASS"), "cannot mask historical FK naming drift");
+
+    // 0127 already exists in the Drizzle bootstrap and is outside the ten
+    // recovery targets. Its genuine release receipt must be independently
+    // reviewed before anyone plans this new sequential 0128 migration.
+    await db.query(source(RECONCILIATION));
+    const compared = await compareRecovery("POST_0128");
     const failures = compared.filter(r => r.status !== "PASS");
     assert.equal(failures.length, 0,
-      "#1031 recovered-table MISSING/DRIFT/EXTRA: " + JSON.stringify(failures));
+      "#1031 post-reconciliation MISSING/DRIFT/EXTRA: " + JSON.stringify(failures));
     assert.ok(compared.length > 160, "target manifest unexpectedly empty or truncated");
 
     // Replayed forward migrations must refuse the existing target, leaving
@@ -387,12 +403,22 @@ test("PG16/18: 0115-0123 exact source, denied writes, money invariants and total
     ]) {
       await db.query("SAVEPOINT forward_replay");
       try {
-        await assert.rejects(() => db.query(source(name)), err =>
+        await assert.rejects(
+          () => db.query(name === FORWARD_RECOVERY[1] ? ISSUE1054_PREFLIGHT_SQL : source(name)), err =>
           err.code === "P0001" && err.message.includes(code), name + " must fail closed");
       } finally {
         await db.query("ROLLBACK TO SAVEPOINT forward_replay");
         await db.query("RELEASE SAVEPOINT forward_replay");
       }
+    }
+    await db.query("SAVEPOINT issue1121_0128_replay");
+    try {
+      await assert.rejects(() => db.query(source(RECONCILIATION)),
+        err => err.code === "P0001" &&
+          err.message.includes("ISSUE1121_TARGET_FK_NAME_ALREADY_PRESENT"));
+    } finally {
+      await db.query("ROLLBACK TO SAVEPOINT issue1121_0128_replay");
+      await db.query("RELEASE SAVEPOINT issue1121_0128_replay");
     }
     assert.deepEqual(await money(db), seededMoney,
       "negative replay tests must not change fictional payroll cents");
