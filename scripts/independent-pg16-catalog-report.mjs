@@ -4,13 +4,15 @@
  * databases independently compared by Atlas. Structural-only; never a receipt.
  */
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { parse0128Renames, compare1031Stages, RECOVERY_TABLES } from "./lib/independent-reconciliation-evidence.mjs";
 import pg from "pg";
 
-// Same restricted, catalog-only login used by Atlas. No app-row SELECT,
-// CREATE, DML or elevated privilege; cannot connect to external databases.
+// Dedicated #1031 catalog-only login; Atlas uses a separate REFERENCES-only
+// inspector. No application-row SELECT, CREATE, DML or elevated privileges.
 const SOURCE_URL = "postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/app_db";
 const CANDIDATE_URL = "postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/atlas_candidate_db";
+const RECONCILED_URL = "postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/atlas_reconciled_db";
 const FIXTURE_WRITER_URL = "postgresql://postgres:postgres@127.0.0.1:5432/app_db";
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.GITHUB_ACTIONS, "true");
@@ -23,6 +25,8 @@ const { generateSchemaManifest } = await import("./lib/issue-1031-schema-manifes
 const { fullSchemaCatalogSql } = await import("./check-issue-1031-full-schema-diff.ts");
 const { diffSchema, EVIDENCE } = await import("../src/lib/issue-1031-full-schema-diff.ts");
 const manifest = generateSchemaManifest();
+assert.equal(RECOVERY_TABLES.filter(name => manifest.tables.some(t => t.name===name)).length,
+  10, "Ten recovery models must be in the #1031 source manifest");
 
 async function inspect(url, expectedName) {
   const db = new pg.Client({ connectionString: url, connectionTimeoutMillis: 5000 });
@@ -69,8 +73,12 @@ async function inspect(url, expectedName) {
     const counts = Object.fromEntries(["PASS", "MISSING", "DRIFT", "EXTRA"].map(
       status => [status, diff.filter(row => row.status === status).length]
     ));
+    const recoveryCounts = Object.fromEntries(RECOVERY_TABLES.map(name => [
+      name, Object.fromEntries(["PASS","MISSING","DRIFT","EXTRA"].map(status =>
+        [status, diff.filter(row => row.table===name && row.status===status).length])),
+    ]));
     return { database: expectedName, counts, checkedModels: manifest.tables.length,
-      nonPassing: diff.filter(row => row.status !== "PASS"), readOnly: true,
+      recoveryCounts, nonPassing: diff.filter(row => row.status !== "PASS"), readOnly: true,
       receiptsVerified: false, realProductionBaseline: false };
   } finally {
     if (started) await db.query("ROLLBACK").catch(() => {});
@@ -86,6 +94,7 @@ const results = {
   assertion: "SYNTHETIC_ONLY_NOT_PRODUCTION_PARITY",
   source: await inspect(SOURCE_URL, "app_db"),
   candidate: await inspect(CANDIDATE_URL, "atlas_candidate_db"),
+  reconciled: await inspect(RECONCILED_URL, "atlas_reconciled_db"),
 };
 // Do not convert universal source comparator disagreements into PASS.
  // Preserve exact catalog rows AND separate common baseline disagreement from
@@ -101,14 +110,32 @@ results.baselineComparison = {
   candidateOnly: results.candidate.nonPassing.filter(x => !original.has(signature(x))),
   explanation: "SYNTHETIC_DIFFERENCES_REQUIRE_REVIEW_NOT_APPROVAL",
 };
+const sql0128 = readFileSync(new URL("../drizzle/0128_recovery_foreign_key_names_forward.sql", import.meta.url), "utf8");
+results.reconciliation = compare1031Stages({
+  source: results.source,
+  pre0128: results.candidate,
+  post0128: results.reconciled,
+  mappings: parse0128Renames(sql0128),
+});
 writeFileSync("qa-artifacts/independent-pg16/issue-1031-side-by-side.json",
   JSON.stringify(results, null, 2) + "\n");
 console.log(JSON.stringify({
   sourceCounts: results.source.counts,
   candidateCounts: results.candidate.counts,
+  reconciledCounts: results.reconciled.counts,
+  mappedFkPairs: results.reconciliation.verifiedSemanticFkRenames,
+  beforeRecoveryNonPassing: results.reconciliation.beforeRecoveryNonPassing,
+  afterRecoveryNonPassing: results.reconciliation.afterRecoveryNonPassing,
+  postCandidateOnly: results.reconciliation.postCandidateOnly,
+  reconciliationGate: results.reconciliation.catalogReconciliationGate,
   commonNonPassing: results.baselineComparison.commonNonPassing,
   candidateOnly: results.baselineComparison.candidateOnly.length,
   sourceOnly: results.baselineComparison.sourceOnly.length,
   bothReadOnly: true,
   notReleaseApproval: true,
 }));
+
+if (results.reconciliation.catalogReconciliationGate !== "RECOVERY_0128_NAMES_PAIRED_ONLY") {
+  console.error("0128 catalog-only pairing BLOCKED; inspect complete raw #1031 evidence");
+  process.exitCode = 1;
+}
