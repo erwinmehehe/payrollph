@@ -12,6 +12,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertIsolatedDbPushTarget } from "./lib/isolated-db-push-target.mjs";
+import { ensurePinnedKitOrdinalityPatch } from "./lib/drizzle-kit-03111-ordinality-hotfix.mjs";
 import "dotenv/config";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -41,6 +42,10 @@ export async function runStrictDbPush(env = process.env) {
   // The guard throws before checking the binary or opening any DB connection.
   assertIsolatedDbPushTarget(env.DATABASE_URL, env);
   if (!existsSync(BIN)) throw new Error("STRICT_DB_PUSH_PINNED_KIT_MISSING");
+  // Do not bypass the vendor CLI. Correct the two known 0.31.11 introspection
+  // queries in the local installed copy, then run the original strict push.
+  // The pinned version/layout check fails closed; RC-only CI remains separate.
+  ensurePinnedKitOrdinalityPatch(BIN, env);
   const child = spawn(process.execPath, [BIN, "push"], {
     cwd: ROOT,
     env,
