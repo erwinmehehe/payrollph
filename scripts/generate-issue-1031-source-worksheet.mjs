@@ -92,7 +92,14 @@ function fileSources() {
     return { path: name, prefix, sha256: sourceHash(bytes), sql: filename.endsWith(".sql"),
       parsed: filename.endsWith(".sql") ? parseMigrationSql(bytes.toString("utf8")) : null };
   });
-  if (files.length !== 143) throw Error("EXPECTED_143_DRIZZLE_FILES_FOUND_" + files.length);
+  // Two newer, separately proposed forward-only files (0128 and 0129)
+  // extend the pinned SOURCE inventory; never use this count as a receipt.
+  if (files.length !== 145) throw Error("EXPECTED_145_DRIZZLE_FILES_FOUND_" + files.length);
+  for (const pathSuffix of [
+    "drizzle/0128_recovery_foreign_key_names_forward.sql",
+    "drizzle/0129_non_recovery_fk_names_forward.sql",
+  ]) if (files.filter(row => row.path === pathSuffix && row.sql).length !== 1)
+    throw Error("FORWARD_SOURCE_MISSING_FROM_PINNED_INVENTORY_" + pathSuffix);
   return files;
 }
 
