@@ -40,7 +40,7 @@ test("#1031 source-only: classify every FK for all 24 schema-only gaps", () => {
   assert.equal(subset.length, 24);
   const prereqs = new Map(subset.map(t => [t.name,
     [...new Set(t.foreignKeys.map(fk => fk.refTable))]]));
-  const blocked = [];
+  const blocked: string[] = [];
   for (const [name, targets] of prereqs) {
     for (const target of targets) {
       const category = all24.has(target) ? "S" :
