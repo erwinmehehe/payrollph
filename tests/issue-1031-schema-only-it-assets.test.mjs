@@ -37,6 +37,15 @@ test("#1031 IT-only preflight checks every exact prerequisite and refuses any pr
     (executable.match(new RegExp('CREATE TABLE "' + name + '"', "g")) ?? []).length, 1, name);
 });
 
+test("#1019 stable composite-unique drift is outside this SQL candidate", () => {
+  const parsed = parseMigrationSql(executable);
+  assert.deepEqual(parsed.objects, [...target].sort());
+  for (const unrelated of ["documents", "employee_hr_cases"]) {
+    assert.ok(!parsed.objects.includes(unrelated), "unrelated HR FK not in this proposal");
+    assert.ok(!executable.includes('"' + unrelated + '"'), "must not repair upstream Drizzle bug via IT SQL");
+  }
+});
+
 test("#1031 IT-only source groups contain no historical migration or application edits", () => {
   const crosswalk = readFileSync("docs/engineering/issue-1031-source-table-crosswalk.csv", "utf8");
   for (const name of target) {
