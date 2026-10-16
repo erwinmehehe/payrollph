@@ -9,12 +9,12 @@ export async function test2316Certificate({ browser, owner, fixture, outDir, res
   assert.equal((await anonymous.request.get(api)).status(), 401); await anonymous.close();
   const source = await owner.request.get(api);
   assert.equal(source.status(), 200); assert.match(source.headers()["cache-control"], /no-store/);
-  assert.equal((await source.json()).source.withholding.actualPresentWithheld, "5000.00");
+  assert.equal((await source.json()).source.withholding.actualPresentWithheld, "42500.00");
   const missing = await owner.request.post(api, { headers, data: { review: {} } });
   assert.equal(missing.status(), 422);
   const review = certificateReview();
   const response = await owner.request.post(api, { headers, data: { review: { ...review, actualPresentWithheld: "99999999.00" } } });
-  assert.equal(response.status(), 200, await response.text()); assert.match(response.headers()["content-type"], /application\/pdf/); assert.match(response.headers()["cache-control"], /no-store/);
+  assert.equal(response.status(), 200, "Unsigned PDF preview must succeed"); assert.match(response.headers()["content-type"], /application\/pdf/); assert.match(response.headers()["cache-control"], /no-store/);
   const pdf = await response.body(); assert.equal(pdf.subarray(0,5).toString(), "%PDF-");
   await writeFile(outDir + "/2316-api-unsigned-synthetic.pdf", pdf);
   assert.equal((await owner.request.post(api, { headers: { origin: "https://attacker.example", "sec-fetch-site": "cross-site" }, data: { review } })).status(), 403);

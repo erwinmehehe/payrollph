@@ -9,9 +9,9 @@ import { certificateReview, certificateSource } from "./fixtures/bir-2316-certif
 test("complete explicit mapping reconciles all numbered amounts; browser withholding cannot override ledger", () => {
   const input = { ...certificateReview(), actualPresentWithheld: "99999999.00" };
   const result = prepare2316Certificate(certificateSource, input);
-  assert.equal(result.ok, true); assert.equal(result.amounts["25A"], 500000);
+  assert.equal(result.ok, true); assert.equal(result.amounts["25A"], 4250000);
   assert.equal(result.amounts["38"], 10000000); assert.equal(result.amounts["52"], 50000000);
-  assert.equal(result.amounts["28"], 500000); assert.deepEqual(result.issues, []);
+  assert.equal(result.amounts["28"], 4250000); assert.deepEqual(result.issues, []);
 });
 test("missing mapping, false zero evidence, one cent variance, malformed dates and unsigned acknowledgement block", () => {
   for (const change of [
@@ -26,11 +26,12 @@ test("missing mapping, false zero evidence, one cent variance, malformed dates a
   assert.equal(prepare2316Certificate({ ...certificateSource, withholding: { ...certificateSource.withholding!, issues: ["UNSETTLED_ADJUSTMENT"] } }, certificateReview()).ok, false);
 });
 test("previous employer and PERA need references and reconcile against approved combined source", () => {
-  const review = { ...certificateReview(), previousEmployer: { status: "verified", name: "Prior Fictional Co.", tin: "987654321-0001", address: "Prior Street", zip: "1000", reference: "Fictional prior 2316", taxableCompensation: "100000.00", taxWithheld: "900.00" }, peraCredit: "100.00" };
+  const review = { ...certificateReview(), previousEmployer: { status: "verified", name: "Prior Fictional Co.", tin: "987654321-0001", address: "Prior Street", zip: "1000", reference: "Fictional prior 2316", taxableCompensation: "100000.00", taxWithheld: "19900.00" }, peraCredit: "100.00" };
   assert.equal(prepare2316Certificate(certificateSource, review).ok, false, "current present-only annualization must not accept extra credit");
-  const source = { ...certificateSource, summary: { ...certificateSource.summary, taxDue: "6000.00" } };
+  assert.ok(prepare2316Certificate(certificateSource, { ...review, previousEmployer: { ...review.previousEmployer, taxWithheld: "0.00" }, peraCredit: "0.00" }).issues.includes("APPROVED_COMBINED_TAX_DUE_MISMATCH"));
+  const source = { ...certificateSource, summary: { ...certificateSource.summary, taxDue: "62500.00" } };
   const prepared = prepare2316Certificate(source, review);
-  assert.equal(prepared.ok, true); assert.equal(prepared.amounts["23"], 60000000); assert.equal(prepared.amounts["25B"], 90000); assert.equal(prepared.amounts["27"], 10000);
+  assert.equal(prepared.ok, true); assert.equal(prepared.amounts["23"], 60000000); assert.equal(prepared.amounts["25B"], 1990000); assert.equal(prepared.amounts["27"], 10000);
 });
 test("historical employer resolves frozen inactive entity after employee transfer; no tenant or org fallback", () => {
   const legacy = { name: "Workspace", legalName: null, birTin: "999999999", birBranchCode: "0000" };
@@ -49,7 +50,7 @@ test("actual prescribed template output has all mapped values and leaves signatu
   assert.ok(contents && "size" in contents);
   let operations = "";
   for (let i = 0; i < contents.size(); i++) { const stream = pdf.context.lookup(contents.get(i)); if (stream instanceof PDFRawStream) operations += Buffer.from(decodePDFRawStream(stream).decode()).toString("latin1"); }
-  for (const value of ["Santos, Maria", "Synthetic Employer Co.", "500,000.00", "100,000.00", "5,000.00", "DRAFT - UNSIGNED"]) assert.ok(operations.toUpperCase().includes(Buffer.from(value, "latin1").toString("hex").toUpperCase()), value + " must be painted in PDF content");
+  for (const value of ["Santos, Maria", "Synthetic Employer Co.", "500,000.00", "100,000.00", "42,500.00", "DRAFT - UNSIGNED"]) assert.ok(operations.toUpperCase().includes(Buffer.from(value, "latin1").toString("hex").toUpperCase()), value + " must be painted in PDF content");
   assert.match(pdf.getTitle()!, /Unsigned/);
   if (process.env.BIR_2316_PDF_QA === "true") { await mkdir("qa-artifacts/bir-1604c", { recursive: true }); await writeFile("qa-artifacts/bir-1604c/2316-unsigned-synthetic.pdf", bytes); }
   await assert.rejects(render2316CertificatePdf(certificateSource, {}), /REVIEW_INCOMPLETE/);

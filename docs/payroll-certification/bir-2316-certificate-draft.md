@@ -18,6 +18,8 @@ Enter all 24 compensation item amounts, including explicit zeros, category and P
 
 Previous-employer compensation and PERA do not recalculate or overwrite approved annualization. If the approved source does not include their effect, generation blocks. A complete multi-employer annualization intake/calculation workflow is still required separately; do not “fix” the source by editing a reviewed snapshot or substituting client amounts. Unsettled final-pay shortfalls and uncertain imported withholding also block PDF generation.
 
+The existing canonical annual tax function independently checks the source tax due against combined taxable compensation for supported tax years 2023 onward. This is validation only: it never saves a recomputation or calls the payroll engine. This also rejects a nonzero previous taxable amount paired with zero previous withholding/PERA when it would change the approved tax due.
+
 This is a **preparer preview**, not a maker/checker approval or certificate issuance action. Manual references are not independently verified just because they were entered. No review data is stored in localStorage, Documents or payroll tables. Inputs stay in browser memory. The source and output requests are audited by IDs; no TIN or filled PDF content is written to the audit event. Output/source responses prohibit caching.
 
 ## PDF and acceptance

@@ -82,7 +82,7 @@ try {
   const report = (await get.json()).reconciliation;
   assert.equal(report.totals.blockers, 0);
   assert.equal(report.totals.employees, 1);
-  assert.equal(report.totals.payrollActualWithheld, "5000.00");
+  assert.equal(report.totals.payrollActualWithheld, "42500.00");
   const sourceDigest = report.sourceDigest;
 
   const headersOn = { origin: "https://127.0.0.1:3443", "sec-fetch-site": "same-origin" };
@@ -100,7 +100,7 @@ try {
   assert.equal(row.fields.TIN, "333222111");
   assert.equal(row.fields.REGION_NUM, null);
   assert.equal(row.fields.PRES_NONTAX_13TH_MONTH, null);
-  assert.equal(row.fields.ACTUAL_AMT_WTHLD, "5000.00");
+  assert.equal(row.fields.ACTUAL_AMT_WTHLD, "42500.00");
 
   // Explicit fictional amounts for a synthetic browser test. Do NOT reuse
   // these defaults in production; live values must come from verified 2316.
@@ -115,7 +115,7 @@ try {
       PRES_TOTAL_NONTAX_COMP_INCOME: "100000.00",
       TAX_BASIC_SAL: "500000.00",
       PRES_TOTAL_COMP: "600000.00", GROSS_COMP_INCOME: "600000.00",
-      PRES_TAX_WTHLD: "5000.00",
+      PRES_TAX_WTHLD: "42500.00",
     };
     row.fields[field] = overrides[field] ?? "0.00";
   }
@@ -147,7 +147,7 @@ try {
   assert.equal(createHash("sha256").update(savedBytes).digest("hex"), sha,
     "Exact browser DAT output must match the persisted test input");
   await writeFile(outDir + "/VALIDATION-MANIFEST.json", JSON.stringify({
-    status: "SYNTHETIC ONLY — NEVER SUBMIT", sampleYear: 2025,
+    status: "SYNTHETIC ONLY â€” NEVER SUBMIT", sampleYear: 2025,
     primaryFile: "official-module-test-input/" + preview.fileName,
     sha256: sha, byteCount: body.length, sourceDigest,
     source: "PR 959 isolated browser acceptance",
@@ -246,6 +246,7 @@ try {
     assert.equal((await legacyLoaded).status(), 200, "Disabled candidate preserves authorized legacy year-end reads");
     assert.equal(await page.locator('[data-bir-1604c-candidate]').count(), 0);
     assert.equal(evidenceRequests.length, 0, "Disabled panel must not read new evidence endpoints");
+    assert.equal(await page.getByRole("link", { name: "Prepare unsigned PDF" }).count(), 0, "Default-off preserves existing navigation");
     await page.screenshot({ path: outDir + "/year-end-flag-off-" + width + ".png", fullPage: false });
     results.push({ checkpoint: "flag-off-legacy-year-end-" + width + "px", result: "pass", evidenceRequests: 0 });
     await context.close();
@@ -261,7 +262,7 @@ try {
     assert.equal(html.includes("data-bir-2316-reconciliation"), enabled);
     if (enabled) {
       assert.doesNotMatch(html, /SETTLEMENT_UNVERIFIED/);
-      assert.match(html, /Item 25A[^<]*<\/dt><dd>5,000\.00/);
+      assert.match(html, /Item 25A[^<]*<\/dt><dd>42,500\.00/);
       assert.match(html, /PREVIOUS_EMPLOYER_UNVERIFIED/);
       assert.match(html, /REQUIRES VERIFIED SOURCE/);
     }

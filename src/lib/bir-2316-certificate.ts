@@ -1,5 +1,6 @@
 import { BIR_2316_NON_TAX_ITEMS, BIR_2316_TAX_ITEMS, bir2316Centavos, reviewBir2316Summary, type Bir2316ReviewSource } from "./bir-2316-reconciliation";
 import type { Bir2316Withholding } from "./bir-2316-withholding";
+import { computeAnnualWithholdingTax } from "./payroll-rules";
 export const CERTIFICATE_ITEMS = [...BIR_2316_NON_TAX_ITEMS, ...BIR_2316_TAX_ITEMS];
 export const CERTIFICATE_LABELS: Record<string, string> = {
   "29": "Exempt basic salary / statutory minimum wage", "30": "Holiday pay (MWE)", "31": "Overtime pay (MWE)",
@@ -67,6 +68,16 @@ export function prepare2316Certificate(source: CertificateSource, input: unknown
     appliedAdjustment: source.withholding?.appliedAdjustment, peraCredit: data.peraCredit as string,
   });
   issues.push(...reconciliation.issues.map(i => i.code));
+  // A present-only annualization must not accept arbitrary previous taxable
+  // compensation just because previous withholding/PERA were entered as zero.
+  // Verify the approved tax-due output; never recompute or save payroll here.
+  const combinedTaxable = reconciliation.rows.find(r => r.item === "23")?.centavos;
+  const taxDue = bir2316Centavos(source.summary.taxDue);
+  if (source.scope.taxYear < 2023) issues.push("TAX_YEAR_NOT_SUPPORTED");
+  else if (combinedTaxable !== null && combinedTaxable !== undefined && Number.isSafeInteger(combinedTaxable)) {
+    const expectedDue = bir2316Centavos(computeAnnualWithholdingTax(combinedTaxable / 100, false, `${source.scope.taxYear}-12-31`).toFixed(2));
+    if (expectedDue !== taxDue) issues.push("APPROVED_COMBINED_TAX_DUE_MISMATCH");
+  }
   const amounts = Object.fromEntries(reconciliation.rows.filter(r => r.item !== "internal").map(r => [r.item, r.centavos]));
   for (const key of CERTIFICATE_ITEMS) amounts[key] = bir2316Centavos(detail[key] as string);
   amounts["38"] = amounts["20 / 38"]; amounts["52"] = amounts["21 / 52"];

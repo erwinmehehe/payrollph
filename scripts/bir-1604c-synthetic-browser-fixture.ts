@@ -38,19 +38,19 @@ async function main() {
     periodLabel: "Synthetic December 2025",
     periodStart: "2025-12-01", periodEnd: "2025-12-31",
     payDate: "2025-12-31", status: "Released", employeeCount: 1,
-    grossPay: "600000.00", netPay: "595000.00",
+    grossPay: "600000.00", netPay: "557500.00",
   }).returning();
   const [entry] = await db.insert(payrollEntries).values({
     payrollRunId: run.id, employeeId: employee.id,
-    grossPay: "600000.00", deductions: "5000.00", netPay: "595000.00",
-    lineItems: [{ code: "WHT", amount: "-5000.00" }],
+    grossPay: "600000.00", deductions: "42500.00", netPay: "557500.00",
+    lineItems: [{ code: "WHT", amount: "-42500.00" }],
     status: "Ready",
   }).returning();
   await db.insert(yearEndAdjustments).values({
     organizationId: org.id, employeeId: employee.id, taxYear: 2025,
     grossCompensation: "600000.00", thirteenthMonth: "50000.00",
     nonTaxable: "100000.00", taxableIncome: "500000.00",
-    taxDue: "5000.00", taxWithheld: "5000.00", adjustment: "0.00",
+    taxDue: "42500.00", taxWithheld: "42500.00", adjustment: "0.00",
     mwe: false, status: "settled",
   });
   await db.insert(birWithholdingRemittanceBatches).values({
@@ -58,7 +58,7 @@ async function main() {
     applicableMonth: "2025-12", filingChannel: "ebirforms",
     filingDueDate: "2026-01-10", paymentDueDate: "2026-01-10",
     status: "reconciled", employeeCount: 1, payrollRunCount: 1,
-    expectedTaxWithheld: "5000.00", amountPaid: "5000.00",
+    expectedTaxWithheld: "42500.00", amountPaid: "42500.00",
     snapshotHash: "a".repeat(64), createdBy: "Synthetic only",
   });
   const totpSecret = encryptTotpSecret("JBSWY3DPEHPK3PXP");
@@ -79,7 +79,7 @@ async function main() {
   // Fictional historical shortfall record: no release action or money movement.
   const final = computeFinalPay({ releasedBasicYtd: 600000, historicalBasicYtd: 0, unpaidBasicSalary: 1000,
     thirteenthPaidYtd: 50000, grossCompensationYtd: 600000, statutoryContributionsYtd: 0,
-    taxWithheldYtd: 5000, mwe: false, leaveMonetizationPay: 0, separationPay: 0,
+    taxWithheldYtd: 42500, mwe: false, leaveMonetizationPay: 0, separationPay: 0,
     retirementPay: 0, otherBenefits: 0, loanDeductions: 0 });
   const [separation] = await db.insert(separationRecords).values({ organizationId: org.id, employeeId: employee.id,
     separationType: "resignation", noticeDate: "2025-12-01", lastDay: "2025-12-31", status: "released",
@@ -95,7 +95,7 @@ async function main() {
   writeFileSync("/tmp/bir-1604c-qa-fixture.json", JSON.stringify({
     organizationId: org.id, legalEntityId: entity.id,
     employeeNo: employee.employeeNo, employeeId: employee.id, year: 2025, separationId: separation.id,
-    actualFinalWithheld: 5000 + final.appliedTaxCollection, uncollectedTax: final.unpaidTaxWithholding,
+    actualFinalWithheld: 42500 + final.appliedTaxCollection, uncollectedTax: final.unpaidTaxWithholding,
   }), { mode: 0o600 });
   console.log("Synthetic 1604-C employer/year/identity and MFA personas seeded; no live accounts or actual BIR evidence.");
   await pool.end();
