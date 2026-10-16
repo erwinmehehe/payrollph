@@ -1,0 +1,11 @@
+{
+  "source": "1d114efcd2ed73e1e8613cebf6b165c3131f9f49",
+  "scenarios": [
+    "loading",
+    "empty"
+  ],
+  "hashes": [
+    "0fc5c45716fd3cd0d8cab62e6f4a5dd69b36e6856cd85e4b3a7d89b97147d377",
+    "f8842cacf0ea2fce237c00fd5b107c15fc969e07561fe5fb3c98835013215b6b"
+  ]
+}
