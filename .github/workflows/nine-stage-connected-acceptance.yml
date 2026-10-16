@@ -374,7 +374,6 @@ jobs:
             qa-artifacts/bir-validation-corpus/**
             qa-artifacts/connected-year-end-unsigned.pdf
             qa-artifacts/connected-year-end-review.json
-            qa-artifacts/connected-year-end-diagnostic.json
           if-no-files-found: warn
           retention-days: 14
       - name: Upload fictional desktop and phone layout screenshots
