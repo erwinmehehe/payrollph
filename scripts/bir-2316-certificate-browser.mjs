@@ -36,11 +36,17 @@ export async function test2316Certificate({ browser, owner, fixture, outDir, res
     await page.locator('[name="item39"]').fill("500000.01");
     await page.getByRole("button", { name: "Check totals and generate unsigned PDF" }).click();
     await page.getByRole("alert").filter({ hasText: "DETAIL_TOTAL_MISMATCH" }).waitFor();
+    await page.waitForFunction(() => document.querySelector('[role="alert"]') === document.activeElement);
     assert.equal(await page.getByRole("alert").evaluate(el => el === document.activeElement), true);
     await page.screenshot({ path: `${outDir}/2316-certificate-error-${width}.png`, fullPage: false });
     await page.locator('[name="item39"]').fill("500000.00");
     await page.getByRole("button", { name: "Check totals and generate unsigned PDF" }).click();
     await page.getByRole("link", { name: "Download unsigned PDF" }).waitFor();
+    const downloadEvent = page.waitForEvent("download");
+    await page.getByRole("link", { name: "Download unsigned PDF" }).click();
+    const download = await downloadEvent;
+    assert.equal(await download.failure(), null);
+    await download.saveAs(`${outDir}/2316-ui-unsigned-${width}.pdf`);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await page.screenshot({ path: `${outDir}/2316-certificate-complete-${width}.png`, fullPage: true });
     const off = await page.goto(base.replace(":3443", ":3444") + "/workspace/2316?" + query); assert.equal(off.status(), 404);
