@@ -4,9 +4,12 @@ on:
     paths:
       - "docs/sql/issue908-audit-trigger-boundary-REVIEW_ONLY.sql"
       - "src/lib/audit-role-proof.ts"
+      - "src/lib/audit-chain.ts"
+      - "src/lib/audit-sealer-connection.ts"
       - "src/lib/audit-chain-protection-readiness.ts"
       - "src/lib/critical-release-flags.ts"
       - "tests/audit-role-proof.test.ts"
+      - "tests/audit-sealer-connection.test.ts"
       - "tests/audit-role-isolation-postgres.test.mjs"
       - ".github/workflows/audit-role-isolation-acceptance.yml"
 permissions:
@@ -53,5 +56,5 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - run: npx tsx --test tests/audit-role-proof.test.ts
+      - run: npx tsx --test tests/audit-role-proof.test.ts tests/audit-sealer-connection.test.ts
       - run: node --import tsx --test tests/audit-role-isolation-postgres.test.mjs

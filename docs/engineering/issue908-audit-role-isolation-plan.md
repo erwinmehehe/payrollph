@@ -42,9 +42,17 @@ TRUNCATE is refused. No production SQL is executed by the source tests.
 
 Grant lists must preserve application-specific data access and tenant controls;
 never issue blanket REVOKE across production application tables. The current
-sealer is invoker-rights: moving app/worker credentials to restricted roles also
-requires routing sealing to its dedicated job/connection before activation.
-Do not flip credentials while that integration is unverified. New credentials
+sealer remains invoker-rights. With the new flag ON, the shared scheduler/verifier
+sealing function uses only `AUDIT_SEALER_DATABASE_URL`, never the app credential
+as a fallback. The dedicated URL must target the same hostname, port and database
+as `DATABASE_URL`, with a different login and verified production TLS. Pooled/direct
+aliases must be aligned explicitly before activation. Startup-option overrides
+are rejected. The dispatcher proves the real login and restricted sealing group,
+uses `SET LOCAL ROLE` inside a transaction, rolls back failures, closes the connection
+and emits a sanitized error. Flag OFF keeps the original Drizzle query and does not
+require or open a dedicated connection. Tests execute this dispatcher with actual
+restricted logins; synthetic success still does not map real deployment credentials.
+Do not flip credentials while deployed integration is unverified. New credentials
 must be independently generated and provisioned through protected secret tools.
 
 ## Execution order and rollback

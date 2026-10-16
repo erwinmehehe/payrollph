@@ -24,6 +24,7 @@ test("actual restricted logins: audit grants, GUC spoofing and forward guards",{
  for(const key of ["PAYMONGO_DISBURSEMENTS_ENABLED","XENDIT_PAYOUTS_ENABLED"])assert.equal(process.env[key],"false");
  const {LEGACY_AUDIT_ROLE_PROOF_SQL,STRICT_AUDIT_ROLE_PROOF_SQL,auditChainProtectionProven}=await import("../src/lib/audit-role-proof.ts");
  const {auditEvents}=await import("../src/db/schema.ts");
+  const {dispatchAuditSealing}=await import("../src/lib/audit-sealer-connection.ts");
  const admin=new pg.Client({connectionString:url});await admin.connect();
  const clients=[];
  try{
@@ -169,12 +170,30 @@ test("actual restricted logins: audit grants, GUC spoofing and forward guards",{
     CREATE TRIGGER audit_events_protect_mutation BEFORE UPDATE OR DELETE ON public.audit_events FOR EACH ROW EXECUTE FUNCTION public.audit_events_protect_v2();
     DROP FUNCTION public.qa908_noop()`);}
   });
-  await t.test("trusted sealer fills chain using the unchanged real 0109 function",async()=>{
-   await sealer.query("BEGIN");try{
-    await sealer.query("SET LOCAL ROLE payrollph_audit_sealing");
-    assert.equal((await sealer.query("SELECT public.seal_audit_events(10) AS n")).rows[0].n,1);
-    await sealer.query("COMMIT");
-   }catch(e){await sealer.query("ROLLBACK");throw e;}
+  const appUrl=new URL(url);appUrl.username="qa908_app";appUrl.password=credentials.get("qa908_app");
+  const sealerUrl=new URL(url);sealerUrl.username="qa908_sealer";sealerUrl.password=credentials.get("qa908_sealer");
+  const sealerEnv={NODE_ENV:"production",DATABASE_URL:appUrl.href,AUDIT_SEALER_DATABASE_URL:sealerUrl.href,AUDIT_ROLE_ISOLATION_PROOF_ENABLED:"true"};
+  const seal=()=>dispatchAuditSealing(async()=>{throw Error("unexpected legacy route");},config=>new pg.Client(config),10,sealerEnv);
+  for(const[name,apply,reset]of [
+   ["sealer login with direct audit mutation","GRANT UPDATE(actor) ON public.audit_events TO qa908_sealer","REVOKE UPDATE(actor) ON public.audit_events FROM qa908_sealer"],
+   ["sealer group with business field mutation","GRANT UPDATE(actor) ON public.audit_events TO payrollph_audit_sealing","REVOKE UPDATE(actor) ON public.audit_events FROM payrollph_audit_sealing"],
+   ["sealer login with maintenance membership","GRANT payrollph_audit_maintenance TO qa908_sealer","REVOKE payrollph_audit_maintenance FROM qa908_sealer"],
+   ["sealer group with schema CREATE","GRANT CREATE ON SCHEMA public TO payrollph_audit_sealing","REVOKE CREATE ON SCHEMA public FROM payrollph_audit_sealing"],
+  ])await t.test("dedicated connection refuses "+name,async()=>{
+   await admin.query(apply);try{await assert.rejects(seal,e=>e.message==="AUDIT_SEALER_BOUNDARY_NOT_READY");}
+   finally{await admin.query(reset);}
+   assert.equal((await admin.query("SELECT count(*)::int AS n FROM public.audit_events WHERE chain_seq IS NOT NULL")).rows[0].n,0);
+  });
+  await t.test("actual dispatcher rolls back a failed sealing transaction",async()=>{
+   await admin.query("REVOKE UPDATE(chain_seq) ON public.audit_events FROM payrollph_audit_sealing");
+   try{await assert.rejects(seal,e=>e.message==="AUDIT_SEALER_BOUNDARY_NOT_READY");}
+   finally{await admin.query("GRANT UPDATE(chain_seq) ON public.audit_events TO payrollph_audit_sealing");}
+   assert.equal((await admin.query("SELECT count(*)::int AS n FROM public.audit_events WHERE chain_seq IS NOT NULL")).rows[0].n,0);
+   assert.equal((await admin.query("SELECT count(*)::int AS n FROM public.audit_chain_heads")).rows[0].n,0);
+  });
+  await t.test("actual production dispatcher uses a dedicated login and unchanged 0109 sealer",async()=>{
+   assert.equal(await seal(),1);
+   assert.equal(await seal(),0);
   });
   await t.test("sealer cannot use maintenance hint to rewrite sealed evidence",()=>transaction(sealer,async()=>{
    await sealer.query("SET LOCAL ROLE payrollph_audit_sealing; SET LOCAL linaw.audit_maintenance='on'");
