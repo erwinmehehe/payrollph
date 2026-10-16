@@ -22,6 +22,7 @@ import { canStaffOpenEmployeeVault, isMandatoryDocumentMissing } from "@/lib/emp
 import { verifyEmployeeVaultDocument } from "@/lib/employee-document-vault-verification";
 import { canMutateLegacyHcmDocument, legacyVisibleDocumentWhere } from "@/lib/document-schema-compat";
 import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
+import { VAULT_REMOVED_SOURCE_PREFIX } from "@/lib/employee-vault-profile";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   documentComplianceStatus,
@@ -124,7 +125,7 @@ export async function GET(request: Request) {
     }).from(documents).where(and(
       eq(documents.organizationId, organizationId),
       // A provisional object intent is never a readable HR file.
-      or(isNull(documents.sourceKey), notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%")),
+      or(isNull(documents.sourceKey), and(notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"), notLike(documents.sourceKey, VAULT_REMOVED_SOURCE_PREFIX + "%"))),
       // After flag rollback, legacy People roles (including bookkeeper) must
       // not enumerate private 201-file names, kinds, hashes or timestamps.
       canStaffOpenEmployeeVault(access.role) ? undefined : legacyVisibleDocumentWhere,
