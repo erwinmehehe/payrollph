@@ -1,0 +1,6 @@
+# Force LF in every working tree. Several tests read source, SQL and workflow
+# files as text and search for "\n" (for example
+# tests/hcm-compensation-architecture.test.ts), and migration checksums are
+# computed over exact file bytes. Git for Windows' default core.autocrlf=true
+# would otherwise rewrite these files to CRLF on checkout and break both.
+* text=auto eol=lf
