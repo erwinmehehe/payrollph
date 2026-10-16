@@ -323,6 +323,72 @@ Use only exact-head CI artifacts to report PG16 post-0128 and independent
 Atlas outcomes. Any unexecuted check remains **NOT_RUN**; on any CI
 failure, production remains **NO-GO**.
 
+## Concrete three-state CI results: narrow 0128 PASS, full-schema BLOCKED
+
+The first complete three-state run is
+[38883880039](https://github.com/erwinmehehe/payrollph/actions/runs/38883880039)
+at code head `dbbdb34bce2278df97c76d8b566aeaedcaa47d52`.
+That run passed 11 Node evidence-classifier tests, created a separate
+third disposable PG16 database, rehearsed a SAVEPOINT rollback for exactly
+49 constraint renames, verified all constraint OIDs, definitions,
+validated flags, indexes, columns, functions and relation names remained
+unchanged, and committed **only that throwaway fixture** for inspection.
+The source-only SHA-256 computed for proposed `0128` was
+`93e335e0296030aa815a12b69d1ff149edade268fe036db2b06dbcfc1c11c7c8`
+(NOT a migration receipt or approved release hash).
+
+| #1031 class | Fresh Drizzle | Before 0128 | After 0128 |
+| --- | ---: | ---: | ---: |
+| PASS | 5,564 | 5,455 | **5,504** |
+| MISSING | 0 | 109 | **60** |
+| DRIFT | 155 | 155 | **155** |
+| EXTRA | 127 | 273 | **224** |
+
+The ten #1015/#1054/#1061 recovery targets moved from
+**98 name-only FK rows to zero non-PASS rows**, with **49/49 exact
+structural FK pairs validated** by #1031 and by PostgreSQL catalog
+OIDs after the 0128 dry-run/rollback. **The remaining full-schema
+source-specific difference count is 159**; no issue is closed and no
+operator gate is bypassed.
+
+Atlas independently inspected 279 tables (all 271 source models) in
+all three local DBs. Its destructive *suggestions* dropped from **43
+proposed statements before 0128 to 33 after** (41→31 statements with
+DROP syntax); its post-0128 result was **DRIFT / job FAIL**, as
+intended. Neither generated plan was applied.
+
+### Further post-0128 forensic breakdown (159 unresolved rows)
+
+An independent reclassification of the retained raw #1031 JSON from
+that exact test found:
+
+| Residual class | Object-level rows | Status |
+| --- | ---: | --- |
+| 54 additional foreign-key **name pairs** with exact same parent/child columns, ON DELETE/UPDATE and validated bit (outside 0128) | **108** | Naming discrepancy proven; still needs source/journal policy decision, not automatically reconciled |
+| Missing FKs referencing synthetically dropped tables (including a compensation event and entity-transfer evidence references) | **3** | Possible `DROP ... CASCADE` side-effect; live starting shape unverified |
+| Additional forward-SQL FKs absent from Drizzle model (some historical `NOT VALID`) | **22** | Contract and release history review; do not validate on assumption |
+| Existing named FKs whose `convalidated=false` differs from source expectation | **2** | Material validation-status drift; human DBA data-proof required |
+| Extra fields (12) and indexes (6) added by forward train | **18** | Source schema/runtime contract reconciliation |
+| Check/unique constraint names or definitions (payout, transfer scope) | **6** | Independent semantic and operator review |
+| **Total** | **159** | **OPEN / no waiver** |
+
+The 108 FK rows are **not** silently discarded: each pair is matched
+by a full structure comparison (not by suffix text alone) and remains
+part of the unresolved difference count. The other 51 rows cannot be
+treated as harmless name formatting. The new machine-readable
+`independent-reconciliation-evidence.mjs` categorization is being
+re-run at its later exact source SHA; do not substitute this older
+artifact for current-head testing.
+
+In the separately verified
+[Squawk CI run 38884053323](https://github.com/erwinmehehe/payrollph/actions/runs/38884053323),
+the triage script retained **all 115 original warning rows**, with
+**0 exclusions, 0 waivers, 0 historic SQL rewrites**, source SHA per
+warning, and an OPEN engineering/DBA review question for each.
+Both independently fail-closed jobs remain red because the warnings
+and post-0128 schema differences still exist. A red result here
+demonstrates safety gates operating, **not readiness to merge**.
+
 ## Release gates not covered here
 
 Historical path+SHA receipts and DBA baseline (#744/#910); full live catalog
