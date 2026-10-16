@@ -8,6 +8,7 @@ import { employees, organizations } from "../src/db/schema";
 import {
   expectedFinalPaySourceAfterInitiation,
   finalPaySourceFingerprint,
+  sameFinalPaySource,
   type FinalPayFingerprintInputs,
 } from "../src/lib/final-pay-source-fingerprint";
 import {
@@ -63,6 +64,23 @@ function fixture(): FinalPayFingerprintInputs {
 function snapshot(f: FinalPayFingerprintInputs) {
   return JSON.stringify(finalPaySourceFingerprint(f));
 }
+test("switching exact 13th-month rounding invalidates the frozen approval source in either direction", () => {
+  const before = process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED;
+  try {
+    delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED;
+    const old = finalPaySourceFingerprint(fixture());
+    assert.equal("thirteenthRoundingPolicy" in old, false);
+    process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED = "true";
+    const current = finalPaySourceFingerprint(fixture());
+    assert.equal(current.thirteenthRoundingPolicy, "centavo-half-up-v1");
+    assert.notDeepEqual(old, current);
+    assert.equal(sameFinalPaySource(old, current), false);
+    assert.equal(sameFinalPaySource(current, old), false);
+    delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED;
+    assert.deepEqual(finalPaySourceFingerprint(fixture()), old);
+    assert.equal(sameFinalPaySource(finalPaySourceFingerprint(fixture()), old), true);
+  } finally { if (before === undefined) delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED; else process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED = before; }
+});
 
 test("final-pay fingerprint is deterministically sorted without modifying source ordering", () => {
   const source = fixture();

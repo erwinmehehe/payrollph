@@ -1,6 +1,7 @@
 import { BIR_2316_NON_TAX_ITEMS, BIR_2316_TAX_ITEMS, bir2316Centavos, reviewBir2316Summary, type Bir2316ReviewSource } from "./bir-2316-reconciliation";
 import type { Bir2316Withholding } from "./bir-2316-withholding";
 import { computeAnnualWithholdingTax } from "./payroll-rules";
+import type { PriorEvidence } from "./year-end-prior-evidence";
 export const CERTIFICATE_ITEMS = [...BIR_2316_NON_TAX_ITEMS, ...BIR_2316_TAX_ITEMS];
 export const CERTIFICATE_LABELS: Record<string, string> = {
   "29": "Exempt basic salary / statutory minimum wage", "30": "Holiday pay (MWE)", "31": "Overtime pay (MWE)",
@@ -23,11 +24,18 @@ export type CertificateSource = {
   scope: CertificateScope; legalEntityId: number | null; employerName: string; employerTin: string; employeeName: string; employeeTin: string;
   birthDate: string | null; periodFrom: string; periodTo: string; mwe: boolean;
   summary: Bir2316ReviewSource; withholding: Bir2316Withholding | undefined;
+  approvedPriorEvidence?: { digest: string; revision: number; evidence: PriorEvidence };
 };
 export const object = (v: unknown): Record<string, unknown> => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
 export function prepare2316Certificate(source: CertificateSource, input: unknown) {
   const data = object(input), text = object(data.text), previous = object(data.previousEmployer);
   const detail = object(data.detailItems), issues: string[] = [];
+  if (source.approvedPriorEvidence) {
+    const expected = source.approvedPriorEvidence.evidence;
+    if (previous.status !== expected.status || bir2316Centavos(data.peraCredit as string) !== bir2316Centavos(expected.peraCredit) ||
+      (expected.status === "verified" && (previous.name !== expected.employerName || previous.tin !== expected.employerTin || previous.reference !== expected.sourceReference ||
+        bir2316Centavos(previous.taxableCompensation as string) !== bir2316Centavos(expected.taxableIncome) || bir2316Centavos(previous.taxWithheld as string) !== bir2316Centavos(expected.taxWithheld)))) issues.push("APPROVED_PRIOR_EVIDENCE_MISMATCH");
+  }
   const fields: Record<string, string> = {};
   const field = (key: string, value: unknown, required = true, max = 120) => {
     if (typeof value !== "string" || (required && !value.trim()) || value.length > max || /[^\x20-\x7e\xa0-\xff]/.test(value)) {

@@ -1610,6 +1610,28 @@ export const webhookDeliveries = pgTable("webhook_deliveries", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const yearEndPriorEvidence = pgTable("year_end_prior_evidence", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  taxYear: integer("tax_year").notNull(),
+  revision: integer("revision").notNull().default(1),
+  encryptedEvidence: text("encrypted_evidence").notNull(),
+  sourceDigest: varchar("source_digest", { length: 64 }).notNull(),
+  makerUserId: integer("maker_user_id").notNull().references(() => users.id),
+  checkerUserId: integer("checker_user_id").references(() => users.id),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("year_end_prior_evidence_scope_uq").on(t.organizationId, t.employeeId, t.taxYear),
+  foreignKey({ name: "year_end_prior_evidence_employee_scope_fk", columns: [t.organizationId, t.employeeId], foreignColumns: [employees.organizationId, employees.id] }),
+  check("year_end_prior_evidence_year_ck", sql`${t.taxYear} between 2023 and 2100`),
+  check("year_end_prior_evidence_revision_ck", sql`${t.revision} > 0`),
+  check("year_end_prior_evidence_encrypted_ck", sql`${t.encryptedEvidence} like 'enc:govid:v1:%'`),
+  check("year_end_prior_evidence_digest_ck", sql`${t.sourceDigest} ~ '^[a-f0-9]{64}$'`),
+  check("year_end_prior_evidence_checker_ck", sql`(${t.checkerUserId} is null and ${t.approvedAt} is null) or (${t.checkerUserId} is not null and ${t.approvedAt} is not null and ${t.checkerUserId} <> ${t.makerUserId})`),
+]);
+
 export const yearEndAdjustments = pgTable("year_end_adjustments", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),

@@ -20,7 +20,7 @@ const creds = {
   cert: readFileSync("/tmp/bir-synthetic-https.crt"),
 };
 
-for (const [securePort, backendPort] of [[3443, 3000], [3444, 3001]]) {
+for (const [securePort, backendPort] of [[3443, 3000], [3444, 3001], [3445, 3002]]) {
   const server = createTlsServer(creds, (incoming, outgoing) => {
     const forward = httpRequest({
       hostname: "127.0.0.1",

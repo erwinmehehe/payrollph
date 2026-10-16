@@ -593,7 +593,7 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
       )}
 
       {mayOperateStatutoryEvidence && <>
-        <YearEndPanel key={[data.user?.id, data.selectedOrganization.id, data.multiEntity?.enabled ? data.multiEntity.legalEntityId ?? "all" : "legacy", data.access?.role].join(":")} organizationId={data.selectedOrganization.id} setNotice={setNotice} birCandidateEnabled={data.bir1604cCandidateEnabled === true} certificateEnabled={data.bir2316CertificateEnabled === true} />
+        <YearEndPanel key={[data.user?.id, data.selectedOrganization.id, data.multiEntity?.enabled ? data.multiEntity.legalEntityId ?? "all" : "legacy", data.access?.role].join(":")} organizationId={data.selectedOrganization.id} setNotice={setNotice} birCandidateEnabled={data.bir1604cCandidateEnabled === true} certificateEnabled={data.bir2316CertificateEnabled === true} priorEvidenceEnabled={data.yearEndPriorEvidenceEnabled === true} />
         <DoleThirteenthMonthReportPanel
           organizationId={data.selectedOrganization.id}
           notify={(message) => setNotice(message)}
@@ -621,7 +621,7 @@ type BirAnnualPreflight = {
   warnings: Array<{ code: string; message: string; employeeNo?: string }>;
 };
 
-function YearEndPanel({ organizationId, setNotice, birCandidateEnabled, certificateEnabled }: { organizationId: number; setNotice: (message: string) => void; birCandidateEnabled?: boolean; certificateEnabled?: boolean }) {
+function YearEndPanel({ organizationId, setNotice, birCandidateEnabled, certificateEnabled, priorEvidenceEnabled }: { organizationId: number; setNotice: (message: string) => void; birCandidateEnabled?: boolean; certificateEnabled?: boolean; priorEvidenceEnabled?: boolean }) {
   const [taxYear, setTaxYear] = useState(2026);
   const [summary, setSummary] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -740,6 +740,7 @@ function YearEndPanel({ organizationId, setNotice, birCandidateEnabled, certific
             <option value={2025}>Tax year 2025</option>
           </select>
           <button className="primary-button" onClick={runAnnualization} disabled={busy || checkingBIR}>{busy ? "Computing…" : "Run annualization"}</button>
+          {priorEvidenceEnabled && <a className="secondary-button" href={`/workspace/prior-employer?organizationId=${organizationId}&taxYear=${taxYear}`}>Review prior employer / PERA</a>}
           <button type="button" className="secondary-button" onClick={() => void checkBirPreflight()} disabled={busy || checkingBIR}>{checkingBIR ? "Checking…" : "Check BIR source"}</button>
         </div>
       </div>
@@ -862,6 +863,7 @@ function YearEndPanel({ organizationId, setNotice, birCandidateEnabled, certific
                       <a className="link-button" href={`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&employeeId=${row.employeeId}&format=2316`}><Download size={13} style={{ display: "inline" }} /> Text</a>
                       {" · "}
                       <a className="link-button" target="_blank" rel="noopener noreferrer" href={`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&employeeId=${row.employeeId}&format=2316-print`}>Print review</a>
+                      {priorEvidenceEnabled && <><a className="link-button" href={`/workspace/prior-employer?organizationId=${organizationId}&employeeId=${row.employeeId}&taxYear=${taxYear}`}>Review prior employer / PERA</a> · </>}
                       {certificateEnabled && <> · <a className="link-button" href={`/workspace/2316?organizationId=${organizationId}&employeeId=${row.employeeId}&taxYear=${taxYear}`}>Prepare unsigned PDF</a></>}
                     </td>
                   </tr>
