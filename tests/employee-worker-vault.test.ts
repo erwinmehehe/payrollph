@@ -64,6 +64,22 @@ test("free-form employee documents accept only the defined categories", () => {
   assert.match(api, /validEmployeeVaultCategory\(kind\)/);
 });
 
+test("numeric employee and document URL identifiers use real digit validation", () => {
+  const collection = readFileSync("src/app/api/documents/route.ts", "utf8");
+  const itemRoute = readFileSync("src/app/api/documents/[id]/route.ts", "utf8");
+  // Guard against accidentally double-escaping \\d in a JS regex literal.
+  // The previous typo rejected every valid employeeId and DELETE id as HTTP 400.
+  const correct = String.raw`/^[1-9]\\d*$/`;
+  const broken = String.raw`/^[1-9]\\\\d*$/`;
+  assert.ok(collection.includes(correct), "GET employeeId should accept positive digits");
+  assert.ok(itemRoute.includes(correct), "DELETE item id should accept positive digits");
+  assert.ok(!collection.includes(broken), "GET should not match a literal backslash");
+  assert.ok(!itemRoute.includes(broken), "DELETE should not match a literal backslash");
+  const parse = (id: string) => new RegExp("^[1-9]\\\\d*$").test(id) && Number.isSafeInteger(Number(id));
+  for (const id of ["1", "42", "90012"]) assert.equal(parse(id), true);
+  for (const id of ["0", "-1", "1x", "01", "1.0", "1e3", ""]) assert.equal(parse(id), false);
+});
+
 test("vault upload rejects wrong MIME, extension, empty and oversized files", () => {
   const sample = Buffer.from("%PDF-1.7\nSynthetic PDF test only");
   assert.equal(validateUpload(sample, "application/pdf", "contract.pdf").ok, true);
