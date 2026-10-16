@@ -1,0 +1,75 @@
+name: Native Windows test portability (symlink and jq)
+
+on:
+  pull_request:
+    paths:
+      - "tests/compensation-recovery-file.test.ts"
+      - "tests/external-certification-evidence.test.ts"
+      - "tests/helpers/posix-shell-prerequisites.mjs"
+      - "tests/issue-853-evidence-ledger.test.mjs"
+      - "tests/live-compensation-scope-validator.test.mjs"
+      - "tests/live-rbac-ci-log-privacy.test.mjs"
+      - "tests/live-workforce-bi-rbac-smoke.test.mjs"
+      - "tests/posix-shell-prerequisites.test.mjs"
+      - ".github/workflows/native-windows-test-portability.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tests/compensation-recovery-file.test.ts"
+      - "tests/external-certification-evidence.test.ts"
+      - "tests/helpers/posix-shell-prerequisites.mjs"
+      - "tests/issue-853-evidence-ledger.test.mjs"
+      - "tests/live-compensation-scope-validator.test.mjs"
+      - "tests/live-rbac-ci-log-privacy.test.mjs"
+      - "tests/live-workforce-bi-rbac-smoke.test.mjs"
+      - "tests/posix-shell-prerequisites.test.mjs"
+      - ".github/workflows/native-windows-test-portability.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  native-windows:
+    name: Windows 2022 security-fixture skip contracts
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - name: Check out reviewed commit without saved credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Use pinned Node.js major
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install test dependencies
+        run: npm ci
+      - name: Confirm actual native Windows runner
+        shell: pwsh
+        run: |
+          node -e 'if (process.platform !== "win32") process.exit(1); console.log("NATIVE_WINDOWS_CONFIRMED")'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run portable source contracts and verify POSIX-only skips
+        shell: pwsh
+        run: |
+          $output = & node --test --test-reporter=tap tests/posix-shell-prerequisites.test.mjs tests/live-workforce-bi-rbac-smoke.test.mjs tests/live-rbac-ci-log-privacy.test.mjs tests/live-compensation-scope-validator.test.mjs 2>&1
+          $resultCode = $LASTEXITCODE
+          $output | ForEach-Object { Write-Output $_ }
+          if ($resultCode -ne 0) { exit $resultCode }
+          $tap = $output -join "`n"
+          if ($tap -notmatch "# SKIP POSIX Bash/jq shell fixtures are not supported on native Windows") {
+            throw "Bash/jq-only tests must show explicit skip status on native Windows"
+          }
+          if ($tap -notmatch "# pass [1-9]") { throw "Source/policy assertions must still execute and pass" }
+      - name: Verify #853 private evidence controls and symlink handling
+        shell: pwsh
+        run: |
+          node --test --test-reporter=tap tests/issue-853-evidence-ledger.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify external evidence and recovery approval path protections
+        shell: pwsh
+        run: |
+          npx --no-install tsx --test tests/external-certification-evidence.test.ts tests/compensation-recovery-file.test.ts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
