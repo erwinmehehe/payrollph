@@ -123,7 +123,7 @@ test("onboarding filters have accessible counts, 44px targets and an honest empt
   assert.ok(board.includes('aria-label="Clear onboarding employee search"'));
   assert.ok(board.includes('onClick={() => setQuery("")}'));
   assert.ok(board.includes('aria-controls="hris-onboarding-results"'));
-  assert.ok(board.includes('id="hris-onboarding-results"'));
+  assert.ok(board.includes('id={groups.length > 0 ? "hris-onboarding-results" : undefined}'));
   assert.ok(board.includes('id="hris-onboarding-search-hint"'));
   assert.ok(board.includes('id="hris-onboarding-filter-count" role="status" aria-live="polite"'));
   assert.ok(board.includes('min-h-11'));

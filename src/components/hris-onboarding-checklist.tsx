@@ -188,6 +188,28 @@ export function HrisOnboardingChecklist({
             </div>
           </div>
 
+          {groups.length === 0 ? (
+          <div className="mt-5 flex flex-wrap items-end gap-3">
+            <label className="flex min-w-56 flex-1 flex-col gap-1 text-xs font-semibold text-slate-700">
+              Find employee
+              <span className="relative">
+                <Search size={15} aria-hidden="true" className="absolute left-3 top-3 text-slate-500"/>
+                <input type="search" value={query} onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Name or employee number" aria-label="Search onboarding checklists"
+                  className="min-h-10 w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900"/>
+              </span>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+              Show
+              <select value={show} onChange={(event) => setShow(event.target.value === "all" ? "all" : "open")}
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900">
+                <option value="open">Open checklists</option>
+                <option value="all">All recorded checklists</option>
+              </select>
+            </label>
+          </div>
+          ) : (
+            <>
           <div className="mt-5 flex flex-wrap items-end gap-3">
             <label className="flex min-w-56 flex-1 flex-col gap-1 text-xs font-semibold text-slate-700">
               Find employee
@@ -224,6 +246,8 @@ export function HrisOnboardingChecklist({
               {filtered.length > visible.length ? " Refine your search to see additional matches." : ""}
             </p>
           )}
+            </>
+          )}
           {error && <p role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}
           {snapshotStale && <p role="status" className="mt-3 text-xs font-semibold text-amber-900">
             Checklist edits are paused until a fresh employer snapshot is loaded. Use Refresh above.
@@ -248,7 +272,7 @@ export function HrisOnboardingChecklist({
             </div>
           )}
 
-          <div id="hris-onboarding-results" className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div id={groups.length > 0 ? "hris-onboarding-results" : undefined} className="mt-4 grid gap-4 lg:grid-cols-2">
             {visible.map((group) => (
               <article key={group.employee.id} className="min-w-0 rounded-xl border border-slate-200 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
