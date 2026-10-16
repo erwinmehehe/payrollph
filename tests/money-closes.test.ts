@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { finalPaySignedBalance } from "../src/lib/final-pay-signed-balance";
 import { finalPayReviewCsv, finalPayReviewShortfall } from "../src/lib/final-pay-review-evidence";
@@ -12,6 +13,8 @@ test("signed review preserves deficit, separates unknown evidence and never chan
   for (const bad of [null, undefined, "", "0.001", NaN, Infinity, "bad"]) assert.equal(finalPaySignedBalance({ ...record, grossFinalPay: bad }), null);
   assert.equal(finalPaySignedBalance({ ...record, loanDeductions: "-1.00" }), null);
   const legacy = finalPayReviewCsv(record);
+  // Captured by executing the pre-change helper at a8b01b510 on this record.
+  assert.equal(createHash("sha256").update(legacy).digest("hex"), "7678a66c8d27f822ae69444a31e180008f23aa26eeaca2c318a06a09267337cd");
   assert.equal(legacy.includes("Signed reconciliation"), false);
   assert.equal(finalPayReviewCsv(record, false), legacy);
   assert.match(finalPayReviewCsv(record, true), /Signed reconciliation balance/);

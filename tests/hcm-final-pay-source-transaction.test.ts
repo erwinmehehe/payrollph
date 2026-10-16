@@ -8,6 +8,7 @@ import { employees, organizations } from "../src/db/schema";
 import {
   expectedFinalPaySourceAfterInitiation,
   finalPaySourceFingerprint,
+  sameFinalPaySource,
   type FinalPayFingerprintInputs,
 } from "../src/lib/final-pay-source-fingerprint";
 import {
@@ -73,8 +74,11 @@ test("switching exact 13th-month rounding invalidates the frozen approval source
     const current = finalPaySourceFingerprint(fixture());
     assert.equal(current.thirteenthRoundingPolicy, "centavo-half-up-v1");
     assert.notDeepEqual(old, current);
+    assert.equal(sameFinalPaySource(old, current), false);
+    assert.equal(sameFinalPaySource(current, old), false);
     delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED;
     assert.deepEqual(finalPaySourceFingerprint(fixture()), old);
+    assert.equal(sameFinalPaySource(finalPaySourceFingerprint(fixture()), old), true);
   } finally { if (before === undefined) delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED; else process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED = before; }
 });
 
