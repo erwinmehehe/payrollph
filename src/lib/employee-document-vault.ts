@@ -80,6 +80,14 @@ export function documentBytesMayBeReleased(input: {
  * from active views. It must NEVER delete legal-hold or retained object bytes
  * or rewrite the immutable uploader or verification receipts.
  */
+export const EMPLOYEE_VAULT_CATEGORIES = [
+  "government_id", "contract", "certificate", "other",
+] as const;
+
+export function validEmployeeVaultCategory(value: string): boolean {
+  return EMPLOYEE_VAULT_CATEGORIES.some(kind => kind === value);
+}
+
 export function vaultDocumentIsArchived(metadata: unknown): boolean {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
   const removed = (metadata as Record<string, unknown>).vaultRemovedAt;
