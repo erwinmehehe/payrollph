@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
-import { philippineCalendarDay } from "@/lib/philippine-calendar-day";
+import { newHireCalendarDay } from "@/lib/philippine-calendar-day";
 import {
   CheckCircle2,
   ChevronRight,
@@ -97,10 +97,12 @@ export function RecruitmentPanel({
   organizationId,
   setNotice,
   onHired,
+  everydayHrHireEnabled = false,
 }: {
   organizationId: number;
   setNotice: (message: string) => void;
   onHired?: () => Promise<void>;
+  everydayHrHireEnabled?: boolean;
 }) {
   const careersEnabled = useWorkflowUi().recruitmentJourney;
   const [publishing, setPublishing] = useState(false);
@@ -130,7 +132,7 @@ export function RecruitmentPanel({
     firstName: "",
     middleName: "",
     lastName: "",
-    startDate: philippineCalendarDay(new Date()),
+    startDate: newHireCalendarDay(new Date(), everydayHrHireEnabled),
     payBasis: "monthly",
     rateAmount: "",
     standardWorkDaysPerMonth: "22",
@@ -240,7 +242,7 @@ export function RecruitmentPanel({
       firstName: names.firstName,
       middleName: names.middleName,
       lastName: names.lastName,
-      startDate: philippineCalendarDay(new Date()),
+      startDate: newHireCalendarDay(new Date(), everydayHrHireEnabled),
       payBasis: "monthly",
       rateAmount: String(applicant.offeredSalary ?? requisition?.salaryMax ?? requisition?.salaryMin ?? ""),
       standardWorkDaysPerMonth: "22",

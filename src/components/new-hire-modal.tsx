@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ArrowRight, Layers, X } from "lucide-react";
 import { WAGE_ORDERS } from "@/lib/wage-orders";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
-import { philippineCalendarDay } from "@/lib/philippine-calendar-day";
+import { newHireCalendarDay } from "@/lib/philippine-calendar-day";
 import type { DashboardData } from "@/components/workspace/types";
 
 /**
@@ -18,12 +18,14 @@ export function NewHireModal({
   onCreated,
   multiEntity,
   inline = false,
+  everydayHrHireEnabled = false,
 }: {
   organizationId: number;
   onClose: () => void;
   onCreated: () => void;
   multiEntity?: DashboardData["multiEntity"];
   inline?: boolean;
+  everydayHrHireEnabled?: boolean;
 }) {
   const [form, setForm] = useState({
     firstName: "",
@@ -41,7 +43,7 @@ export function NewHireModal({
     rateAmount: "",
     standardWorkDaysPerMonth: "22",
     standardHoursPerDay: "8",
-    startDate: philippineCalendarDay(new Date()),
+    startDate: newHireCalendarDay(new Date(), everydayHrHireEnabled),
     region: "NCR",
     restDay: "",
     mwe: false,

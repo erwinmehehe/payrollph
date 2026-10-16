@@ -179,7 +179,7 @@ export function FirstPayrollInlinePanel({
      {peopleMode==="add"&&<div className="mt-3">
        <p>Create the employee and their pay profile using the same governed hire endpoint as People.</p>
        <button type="button" className="primary-button" disabled={!canAddPeople} onClick={()=>setShowHire(v=>!v)}>{showHire?"Close employee form":"Add employee inline"}</button>
-       {showHire&&canAddPeople&&<NewHireModal inline organizationId={organizationId} onClose={()=>setShowHire(false)}
+       {showHire&&canAddPeople&&<NewHireModal inline everydayHrHireEnabled={data.everydayHrHireEnabled} organizationId={organizationId} onClose={()=>setShowHire(false)}
          onCreated={()=>{setShowHire(false);void onRefresh();}}/>}
      </div>}
      {peopleMode==="import"&&!canAddPeople&&<p role="status">Ask an authorized People administrator to import employees.</p>}

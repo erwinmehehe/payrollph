@@ -13,6 +13,7 @@ assert.equal(process.env.CI, "true");
 assert.equal(process.env.HRIS_JOURNEY_ACCEPTANCE_MODE, "synthetic-postgres-only");
 assert.equal(base, "http://127.0.0.1:3000");
 assert.equal(process.env.HCM_MY_TEAM_ENABLED, "true");
+assert.equal(process.env.EVERYDAY_HR_HIRE_ENABLED, "true");
 assert.equal(process.env.OPENAI_API_KEY ?? "", "");
 const database = new URL(process.env.DATABASE_URL ?? "");
 assert.ok(["127.0.0.1", "localhost"].includes(database.hostname));
@@ -184,11 +185,32 @@ try {
     await page.getByRole("button", { name: "Add employee & start onboarding" }).click();
     const hire = page.getByRole("dialog", { name: "Add employee" });
     await hire.waitFor();
+    // The server-exposed flag is explicitly enabled only in this disposable lab.
+    const before = await browserRequest(page, "/api/dashboard?organizationId=1");
+    assert.equal(before.body.everydayHrHireEnabled, true);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      const bounds = await hire.boundingBox();
+      assert.ok(bounds && bounds.x >= -1 && bounds.x + bounds.width <= width + 1,
+        "Hire dialog must fit desktop and 390px");
+      await page.screenshot({ path: `qa-artifacts/hris-hire-${width}px.png`, fullPage: true });
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
     await hire.getByLabel("First name").fill("Journey");
     await hire.getByLabel("Last name").fill("Newhire");
     await hire.getByLabel("Job title").fill("Synthetic HR");
     await hire.getByLabel("Monthly rate").fill("24000");
     await hire.getByLabel("Start date").fill("2026-10-15");
+
+    // A transient error must preserve editable input and not claim success.
+    await page.route("**/api/employees", route => route.fulfill({
+      status: 503, contentType: "application/json",
+      body: JSON.stringify({ error: "Synthetic retryable hire failure" }),
+    }), { times: 1 });
+    await hire.getByRole("button", { name: "Create & onboard" }).click();
+    await hire.getByText("Synthetic retryable hire failure", { exact: true }).waitFor();
+    assert.equal(await hire.getByLabel("Start date").inputValue(), "2026-10-15");
+    assert.equal(await hire.getByLabel("First name").inputValue(), "Journey");
 
     // This is the real protected UI/API, not a seeded fake completed hire.
     const [create] = await Promise.all([

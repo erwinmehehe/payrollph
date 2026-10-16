@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
-import { philippineCalendarDay } from "../src/lib/philippine-calendar-day";
+import { philippineCalendarDay, newHireCalendarDay } from "../src/lib/philippine-calendar-day";
 
 test("new-hire date follows Asia/Manila, not UTC midnight or client timezone", () => {
   assert.equal(philippineCalendarDay(new Date("2026-10-14T15:59:59.999Z")), "2026-10-14");
@@ -17,18 +16,17 @@ test("year rollover and leap day use the actual Philippine civil date", () => {
   assert.equal(philippineCalendarDay(new Date("2024-02-28T16:00:00.000Z")), "2024-02-29");
 });
 
-test("direct new-hire source uses the Philippine default but preserves the editable field", () => {
-  const source = readFileSync("src/components/new-hire-modal.tsx", "utf8");
-  assert.match(source, /startDate: philippineCalendarDay\(new Date\(\)\)/);
-  assert.doesNotMatch(source, /startDate: new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/);
-  assert.match(source, /type="date" required value=\{form\.startDate\}/);
-  assert.match(source, /onChange=\{\(e\) => setForm\(\{ \.\.\.form, startDate: e\.target\.value \}\)\}/);
+test("flag-off preserves every original UTC default while enabled uses Manila", () => {
+  for (const iso of ["2026-10-14T15:59:59.999Z", "2026-10-14T16:00:00Z", "2026-12-31T16:00:00Z", "2024-02-28T16:00:00Z"]) {
+    const date = new Date(iso);
+    assert.equal(newHireCalendarDay(date), date.toISOString().slice(0, 10));
+    assert.equal(newHireCalendarDay(date, false), date.toISOString().slice(0, 10));
+    assert.equal(newHireCalendarDay(date, true), philippineCalendarDay(date));
+  }
 });
 
-test("recruitment candidate-to-hire also defaults to Philippine date for every open/reset", () => {
-  const source = readFileSync("src/components/recruitment-panel.tsx", "utf8");
-  assert.equal((source.match(/startDate: philippineCalendarDay\(new Date\(\)\),/g) ?? []).length, 2);
-  assert.doesNotMatch(source, /startDate: new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/);
-  assert.match(source, /type="date" value=\{hireForm\.startDate\}/);
-  assert.match(source, /onChange=\{\(event\) => setHireForm\(\{ \.\.\.hireForm, startDate: event\.target\.value \}\)\}/);
+test("invalid instants fail rather than silently inventing employment dates", () => {
+  for (const enabled of [false, true]) {
+    assert.throws(() => newHireCalendarDay(new Date(NaN), enabled), RangeError);
+  }
 });

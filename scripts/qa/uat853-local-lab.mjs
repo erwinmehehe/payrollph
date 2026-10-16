@@ -56,6 +56,7 @@ export function buildLocalRuntime(password, keys) {
     QA_URL: 'http://127.0.0.1:3000',
     DEMO_MODE: 'false', REQUIRE_PRIVILEGED_MFA: 'false',
     NEXT_TELEMETRY_DISABLED: '1',
+    EVERYDAY_HR_HIRE_ENABLED: 'true', // fictional opt-in lab only
     ...Object.fromEntries(unsafeFlags.map(x => [x, 'false'])),
     ...keys,
     OPENAI_API_KEY: '', PAYMONGO_SECRET_KEY: '', XENDIT_SECRET_KEY: '',

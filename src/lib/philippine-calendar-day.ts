@@ -26,3 +26,8 @@ export function philippineCalendarDay(instant: Date): string {
   }
   return `${year}-${month}-${day}`;
 }
+
+/** Flag OFF preserves the original UTC form default byte for byte. */
+export function newHireCalendarDay(instant: Date, enabled = false): string {
+  return enabled ? philippineCalendarDay(instant) : instant.toISOString().slice(0, 10);
+}
