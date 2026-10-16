@@ -17,6 +17,8 @@ on:
       - 'src/components/workspace/panels.tsx'
       - 'scripts/bir-1604c-synthetic-browser*'
       - 'scripts/bir-2316-certificate-browser.mjs'
+      - 'scripts/qa/bir-2316-component-browser.mjs'
+      - 'tests/fixtures/bir-2316-certificate.ts'
       - 'tests/bir-1604c*'
       - '.github/workflows/bir-1604c-candidate-qa.yml'
 
@@ -28,6 +30,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  certificate-component:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TZ: Asia/Manila
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --package-lock=false playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - name: Execute real component loading/error/focus/download and desktop/390px layout
+        run: node --import tsx scripts/qa/bir-2316-component-browser.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: bir-2316-component-browser
+          path: qa-artifacts/bir-2316-component
+          retention-days: 14
   synthetic:
     runs-on: ubuntu-latest
     timeout-minutes: 35
