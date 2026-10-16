@@ -1,7 +1,7 @@
--- #1015 / #1061: post-0126 FK naming reconciliation (source-only).
+-- #1015 / #1054 / #1061: post-0126 FK naming reconciliation (source-only).
 -- Forward-only ADDITIVE catalog change. This file is NOT a production approval.
 -- The historical 0124/0125/0126 sources are immutable and must not be edited.
--- Requires independently approved 0127 history and all 35 FKs to exist, valid,
+-- Requires independently approved 0127 history and all 49 FKs to exist, valid,
 -- with the expected single-column reference and ON DELETE/UPDATE contract.
 -- PostgreSQL identifiers longer than 63 bytes use PG's exact 63-byte truncation.
 -- No DML, grant, historical replay or mutation of FK semantics is permitted.
@@ -44,7 +44,21 @@ BEGIN
     ('employee_compensation_components', 'employee_compensation_components_component_id_fkey', 'employee_compensation_components_component_id_compensation_comp', 'component_id', 'compensation_components', 'id', 'r', 'a'),
     ('employee_compensation_components', 'employee_compensation_components_employee_id_fkey', 'employee_compensation_components_employee_id_employees_id_fk', 'employee_id', 'employees', 'id', 'c', 'a'),
     ('employee_compensation_components', 'employee_compensation_components_organization_id_fkey', 'employee_compensation_components_organization_id_organizations_', 'organization_id', 'organizations', 'id', 'c', 'a'),
-    ('employee_compensation_components', 'employee_compensation_components_requested_by_user_id_fkey', 'employee_compensation_components_requested_by_user_id_users_id_', 'requested_by_user_id', 'users', 'id', 'n', 'a')
+    ('employee_compensation_components', 'employee_compensation_components_requested_by_user_id_fkey', 'employee_compensation_components_requested_by_user_id_users_id_', 'requested_by_user_id', 'users', 'id', 'n', 'a'),
+    ('employee_availability_rules', 'employee_availability_rules_created_by_user_id_fkey', 'employee_availability_rules_created_by_user_id_users_id_fk', 'created_by_user_id', 'users', 'id', 'n', 'a'),
+    ('employee_availability_rules', 'employee_availability_rules_employee_id_fkey', 'employee_availability_rules_employee_id_employees_id_fk', 'employee_id', 'employees', 'id', 'c', 'a'),
+    ('employee_availability_rules', 'employee_availability_rules_organization_id_fkey', 'employee_availability_rules_organization_id_organizations_id_fk', 'organization_id', 'organizations', 'id', 'c', 'a'),
+    ('open_shift_claims', 'open_shift_claims_decided_by_user_id_fkey', 'open_shift_claims_decided_by_user_id_users_id_fk', 'decided_by_user_id', 'users', 'id', 'n', 'a'),
+    ('open_shift_claims', 'open_shift_claims_employee_id_fkey', 'open_shift_claims_employee_id_employees_id_fk', 'employee_id', 'employees', 'id', 'c', 'a'),
+    ('open_shift_claims', 'open_shift_claims_open_shift_id_fkey', 'open_shift_claims_open_shift_id_open_shifts_id_fk', 'open_shift_id', 'open_shifts', 'id', 'c', 'a'),
+    ('open_shift_claims', 'open_shift_claims_organization_id_fkey', 'open_shift_claims_organization_id_organizations_id_fk', 'organization_id', 'organizations', 'id', 'c', 'a'),
+    ('open_shift_claims', 'open_shift_claims_requested_by_user_id_fkey', 'open_shift_claims_requested_by_user_id_users_id_fk', 'requested_by_user_id', 'users', 'id', 'n', 'a'),
+    ('open_shifts', 'open_shifts_created_by_user_id_fkey', 'open_shifts_created_by_user_id_users_id_fk', 'created_by_user_id', 'users', 'id', 'n', 'a'),
+    ('open_shifts', 'open_shifts_job_profile_id_fkey', 'open_shifts_job_profile_id_job_profiles_id_fk', 'job_profile_id', 'job_profiles', 'id', 'r', 'a'),
+    ('open_shifts', 'open_shifts_organization_id_fkey', 'open_shifts_organization_id_organizations_id_fk', 'organization_id', 'organizations', 'id', 'c', 'a'),
+    ('open_shifts', 'open_shifts_shift_definition_id_fkey', 'open_shifts_shift_definition_id_shift_definitions_id_fk', 'shift_definition_id', 'shift_definitions', 'id', 'r', 'a'),
+    ('open_shifts', 'open_shifts_source_requirement_id_fkey', 'open_shifts_source_requirement_id_staffing_requirements_id_fk', 'source_requirement_id', 'staffing_requirements', 'id', 'n', 'a'),
+    ('open_shifts', 'open_shifts_worksite_id_fkey', 'open_shifts_worksite_id_worksites_id_fk', 'worksite_id', 'worksites', 'id', 'c', 'a')
     ) AS expected(table_name, old_name, new_name, column_name, ref_table, ref_column, delete_code, update_code)
   LOOP
     IF EXISTS (
@@ -122,3 +136,19 @@ ALTER TABLE public."employee_compensation_components" RENAME CONSTRAINT "employe
 ALTER TABLE public."employee_compensation_components" RENAME CONSTRAINT "employee_compensation_components_employee_id_fkey" TO "employee_compensation_components_employee_id_employees_id_fk";
 ALTER TABLE public."employee_compensation_components" RENAME CONSTRAINT "employee_compensation_components_organization_id_fkey" TO "employee_compensation_components_organization_id_organizations_";
 ALTER TABLE public."employee_compensation_components" RENAME CONSTRAINT "employee_compensation_components_requested_by_user_id_fkey" TO "employee_compensation_components_requested_by_user_id_users_id_";
+
+-- #1054 WFM counterparts: rename only after the same strict catalog guard.
+ALTER TABLE public."employee_availability_rules" RENAME CONSTRAINT "employee_availability_rules_created_by_user_id_fkey" TO "employee_availability_rules_created_by_user_id_users_id_fk";
+ALTER TABLE public."employee_availability_rules" RENAME CONSTRAINT "employee_availability_rules_employee_id_fkey" TO "employee_availability_rules_employee_id_employees_id_fk";
+ALTER TABLE public."employee_availability_rules" RENAME CONSTRAINT "employee_availability_rules_organization_id_fkey" TO "employee_availability_rules_organization_id_organizations_id_fk";
+ALTER TABLE public."open_shift_claims" RENAME CONSTRAINT "open_shift_claims_decided_by_user_id_fkey" TO "open_shift_claims_decided_by_user_id_users_id_fk";
+ALTER TABLE public."open_shift_claims" RENAME CONSTRAINT "open_shift_claims_employee_id_fkey" TO "open_shift_claims_employee_id_employees_id_fk";
+ALTER TABLE public."open_shift_claims" RENAME CONSTRAINT "open_shift_claims_open_shift_id_fkey" TO "open_shift_claims_open_shift_id_open_shifts_id_fk";
+ALTER TABLE public."open_shift_claims" RENAME CONSTRAINT "open_shift_claims_organization_id_fkey" TO "open_shift_claims_organization_id_organizations_id_fk";
+ALTER TABLE public."open_shift_claims" RENAME CONSTRAINT "open_shift_claims_requested_by_user_id_fkey" TO "open_shift_claims_requested_by_user_id_users_id_fk";
+ALTER TABLE public."open_shifts" RENAME CONSTRAINT "open_shifts_created_by_user_id_fkey" TO "open_shifts_created_by_user_id_users_id_fk";
+ALTER TABLE public."open_shifts" RENAME CONSTRAINT "open_shifts_job_profile_id_fkey" TO "open_shifts_job_profile_id_job_profiles_id_fk";
+ALTER TABLE public."open_shifts" RENAME CONSTRAINT "open_shifts_organization_id_fkey" TO "open_shifts_organization_id_organizations_id_fk";
+ALTER TABLE public."open_shifts" RENAME CONSTRAINT "open_shifts_shift_definition_id_fkey" TO "open_shifts_shift_definition_id_shift_definitions_id_fk";
+ALTER TABLE public."open_shifts" RENAME CONSTRAINT "open_shifts_source_requirement_id_fkey" TO "open_shifts_source_requirement_id_staffing_requirements_id_fk";
+ALTER TABLE public."open_shifts" RENAME CONSTRAINT "open_shifts_worksite_id_fkey" TO "open_shifts_worksite_id_worksites_id_fk";

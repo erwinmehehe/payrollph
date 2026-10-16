@@ -64,7 +64,7 @@ function normSql(v: string | null | undefined): string | null {
   }
   return out.trim();
 }
-function normColumnDefault(x: { default?: string | null; table_name?: string; name?: string; object_name?: string }): string | null {
+function normColumnDefault(x: { default?: string | null; type?: string | null; table_name?: string; name?: string; object_name?: string }): string | null {
   const table = x.table_name;
   const column = x.name ?? x.object_name;
   if (x.default === "__serial__") {
