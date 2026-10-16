@@ -1,0 +1,156 @@
+name: Independent PG16 Atlas Parity and Squawk SQL Lint (Synthetic Only)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/independent-pg16-schema-audit.yml"
+      - "scripts/independent-pg16-schema-audit.mjs"
+      - "drizzle/0115_*.sql"
+      - "drizzle/0116_*.sql"
+      - "drizzle/0117_*.sql"
+      - "drizzle/0118_*.sql"
+      - "drizzle/0119_*.sql"
+      - "drizzle/0120_*.sql"
+      - "drizzle/0121_*.sql"
+      - "drizzle/0122_*.sql"
+      - "drizzle/0123_*.sql"
+      - "drizzle/0124_*.sql"
+      - "drizzle/0125_*.sql"
+      - "drizzle/0126_*.sql"
+      - "src/db/schema.ts"
+  # Intentionally no production workflow_dispatch, environment or credentials.
+
+permissions:
+  contents: read
+
+jobs:
+  squawk:
+    name: Squawk 0124-0126 (pinned, SQL only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Squawk 2.65.0, PG16, reviewed-runner transaction semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p qa-artifacts/independent-pg16
+          npm exec --yes --package=squawk-cli@2.65.0 -- squawk \
+            --pg-version=16.0 --assume-in-transaction --reporter=json \
+            drizzle/0124_attendance_exception_forward_repair.sql \
+            drizzle/0125_wfm_availability_open_shifts_forward_repair.sql \
+            drizzle/0126_compensation_governance_forward_repair.sql \
+            > qa-artifacts/independent-pg16/squawk.json
+      - name: Fail closed on every lint finding, missing or unknown JSON
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("node:fs");
+            const body = fs.readFileSync("qa-artifacts/independent-pg16/squawk.json","utf8");
+            const findings = JSON.parse(body);
+            if (!Array.isArray(findings)) throw new Error("Unknown Squawk reporter shape");
+            process.stdout.write("Squawk finding count: " + findings.length + "\n");
+            if (findings.length) process.exitCode = 1;
+          '
+      - name: Preserve syntax/locking warnings (not deployment approval)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: independent-pg16-squawk
+          path: qa-artifacts/independent-pg16/squawk.json
+          retention-days: 14
+          if-no-files-found: warn
+
+  atlas:
+    name: Atlas source-vs-0115-0126 local PG16 diff (read-only CLI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      INDEPENDENT_SCHEMA_AUDIT_MODE: isolated-local-pg16
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      MULTI_ENTITY_ENABLED: "false"
+      MULTI_ENTITY_TRANSFERS_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Guarded first and ONLY source Drizzle push to local app_db
+        run: npm run db:push
+      - name: Clone only the disposable source schema to a second local DB
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE atlas_candidate_db TEMPLATE app_db'
+      - name: Install pinned Atlas 1.3.0 for inspection/diff only
+        uses: ariga/setup-atlas@2f3c785c89a15e1c0d07bcae3900fb5feb969eea # v0.3
+        with:
+          version: v1.3.0
+      - name: Apply exact source train only to throwaway candidate_db
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p qa-artifacts/independent-pg16
+          node scripts/independent-pg16-schema-audit.mjs \
+            > qa-artifacts/independent-pg16/synthetic-source-shas.json
+      - name: Read-only independent Atlas schema comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          atlas version > qa-artifacts/independent-pg16/atlas-version.txt
+          atlas schema diff \
+            --from 'postgresql://postgres:postgres@127.0.0.1:5432/atlas_candidate_db?search_path=public&sslmode=disable' \
+            --to 'postgresql://postgres:postgres@127.0.0.1:5432/app_db?search_path=public&sslmode=disable' \
+            --schema public \
+            > qa-artifacts/independent-pg16/atlas-source-vs-train.diff.sql
+          if [ -s qa-artifacts/independent-pg16/atlas-source-vs-train.diff.sql ]; then
+            echo "Independent Atlas detects schema differences; fail closed and inspect artifact."
+            exit 1
+          fi
+          echo "No differences in Atlas-supported schema resources. NOT production parity."
+      - name: Retain independent structural-only evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: independent-pg16-atlas-schema-diff
+          path: qa-artifacts/independent-pg16/
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Release boundary
+        if: always()
+        run: |
+          echo "SYNTHETIC_ONLY_NOT_MIGRATION_RECEIPT_OR_RELEASE_APPROVAL"
+          echo "No Neon, Vercel, production, payroll, bank or employer credentials."
+          echo "Atlas never applies SQL; db:push and source replay used throwaway PG16 only."
