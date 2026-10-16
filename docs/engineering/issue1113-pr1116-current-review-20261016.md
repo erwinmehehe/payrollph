@@ -1,5 +1,14 @@
 # PR #1116 — Current schema-recovery review and release decision (2026-10-16)
 
+## Follow-up checkpoint — 2026-10-16 (after original review snapshot)
+
+- Independently fetched current GitHub `main` at `6f3b7b985a3fb16712aedad68fdde052a357e78a`; PR was **one commit behind** before the review-only guard update. That main commit changes HRIS synthetic browser QA/fixture files and its workflow, **not** the numbered `drizzle/` migrations. Do not treat this checkpoint as a source merge or updated application acceptance.
+- Live read-only Neon identity/catalog confirmation on project `calm-wave-70219564`, rehearsal `br-mute-mode-b740q5zx`, database `neondb`: branch identity matched and **148 public tables** were observed. This is a catalog-only observation, not a new comprehensive column, permission or application acceptance run.
+- Corrected a **NULL-sensitive preflight bypass** in the review-only expense-claim actor candidate: project and branch equality checks now use PostgreSQL `IS DISTINCT FROM` rather than `<>`. The original expression could evaluate to NULL when an identity setting was missing, and PL/pgSQL `IF` would not raise. The literal `__NEW_ISOLATED_NEON_BRANCH_ID__` marker and explicit exclusions for default and active QA remain intact. **No SQL was executed against any database to test this correction.**
+- After this source-only change, recheck CI on the **new PR head** before citing successful checks. Existing green checks on earlier heads are historical only.
+- **Decision remains DRAFT / NO-GO.** No release migration promotion, production/QA database writes, payroll disbursement, filing or permission changes are authorized.
+
+
 > **STATUS: DOCUMENTATION / SQL CANDIDATES ONLY — DRAFT, NO PRODUCTION MERGE OR MIGRATION.**
 >
 > This is the *latest* evidence checkpoint for this PR. Earlier dated audit files are preserved as historical snapshots; do not use their old branch-capacity or "migration not rehearsed" statements as current facts.
