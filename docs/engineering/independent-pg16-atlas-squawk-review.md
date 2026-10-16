@@ -40,7 +40,11 @@ disappears with the CI job.
 
 Artifacts (14-day retention): `independent-pg16-squawk` and
 `independent-pg16-atlas-schema-diff`, including exact migration source
-SHA-256s and the version of Atlas. The jobs fail closed on tool/runtime errors
+SHA-256s and the version of Atlas. A companion **read-only** #1031 report
+runs against BOTH `app_db` (fresh source push) and `atlas_candidate_db`
+(exact source replay), recording every MISSING/DRIFT/EXTRA. The latter is
+the same database Atlas reads, so both comparisons can be triaged at the
+same commit instead of inferring agreement between unrelated CI runs. The jobs fail closed on tool/runtime errors
 and on structural/lint findings; a red CI result requires reviewer triage.
 A green result would mean only that the inspected **synthetic** resources
 match under these specific tools and PG16 setup.
