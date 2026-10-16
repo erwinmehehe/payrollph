@@ -64,7 +64,16 @@ function statusTone(status: string) {
   return "status-pending";
 }
 
-export function HcmBusinessProcessInbox({
+export function HcmBusinessProcessInbox(props: {
+  organizationId: number;
+  onChanged?: () => Promise<unknown> | unknown;
+}) {
+  // The inbox contains tenant-private approval tasks and draft decisions.
+  // Remount before the first frame of the next employer can reuse old state.
+  return <HcmBusinessProcessInboxContent key={props.organizationId} {...props} />;
+}
+
+function HcmBusinessProcessInboxContent({
   organizationId,
   onChanged,
 }: {
@@ -103,8 +112,16 @@ export function HcmBusinessProcessInbox({
   }, [organizationId]);
 
   useEffect(() => {
-    void load();
-    return () => { requestSequence.current += 1; };
+    // React effect setup itself does not synchronously start state updates.
+    // Request generations also invalidate late responses after teardown.
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void load();
+    });
+    return () => {
+      cancelled = true;
+      requestSequence.current += 1;
+    };
   }, [load]);
 
   const counts = {

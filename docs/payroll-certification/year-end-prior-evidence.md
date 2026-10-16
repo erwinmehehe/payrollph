@@ -70,9 +70,9 @@ Apply first with flag OFF; validate constraints and isolated tenant behavior,
 then obtain explicit activation approval. No production migration was run here.
 
 Rollback: turn flag OFF to hide the screen/link and disable intake. Preserve the
-table, keys and approved records; do not DROP or delete evidence. **Do not
-recompute a computed combined adjustment with the flag OFF**: the legacy path
-does not consume prior evidence. Keep prior-bound years on hold until a reviewed
+table, keys and approved records; do not DROP or delete evidence. Recomputation of a prior-bound adjustment while the flag is OFF is blocked
+(`PRIOR_EVIDENCE_DISABLED_RECOMPUTE_BLOCKED`) so a rollback cannot erase prior
+credits. Approved or payroll-bound adjustments cannot be replaced in place. Keep prior-bound years on hold until a reviewed
 correction/recompute can retain the approved credits. Bound and settled records
 remain immutable. The certificate loader refuses a bound prior-evidence source
 while its flag is OFF; existing legacy source behavior remains unchanged.

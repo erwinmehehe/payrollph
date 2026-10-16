@@ -49,7 +49,15 @@ function statusLabel(status: Drill["status"]) {
   return "Evidence ready";
 }
 
-export function LaborInspectionDrillPanel({
+export function LaborInspectionDrillPanel(props: {
+  organizationId: number;
+  notify: Notify;
+}) {
+  // Drill history and in-progress state must not paint across employers.
+  return <LaborInspectionDrillPanelContent key={props.organizationId} {...props} />;
+}
+
+function LaborInspectionDrillPanelContent({
   organizationId,
   notify,
 }: {
@@ -61,25 +69,34 @@ export function LaborInspectionDrillPanel({
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError("");
     try {
       const response = await fetch(
         `/api/compliance/labor-inspection/drills?organizationId=${organizationId}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal },
       );
       const body = await response.json().catch(() => ({}));
+      if (signal?.aborted) return;
       if (!response.ok) throw new Error(body.error ?? "Inspection drill history could not be loaded.");
       setDrills(body.drills ?? []);
     } catch (caught) {
+      if (signal?.aborted) return;
       setError(caught instanceof Error ? caught.message : "Inspection drill history could not be loaded.");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [organizationId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    // Skip a torn-down Strict Mode effect and prevent stale tenant responses.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
+    return () => controller.abort();
+  }, [load]);
 
   async function runDrill() {
     setRunning(true);
