@@ -186,6 +186,22 @@ try {
   assert.deepEqual(await snapshot(db),before,
     "concurrency probe must leave every catalog object unchanged");
 
+  // Negative regression: an already claimed target constraint name must
+  // abort in the preflight, even when its owner is not a foreign key.
+  // Keep the injected CHECK entirely within the disposable-DB savepoint.
+  const collision=changes[0];
+  await db.query("SAVEPOINT occupied_target_name");
+  await db.query(
+    'ALTER TABLE public."'+collision.table+'" ADD CONSTRAINT "'+
+      collision.newName+'" CHECK (true)'
+  );
+  await assert.rejects(()=>db.query(sql),e=>e.code==="P0001" &&
+    e.message.includes("ISSUE0129_TARGET_CONSTRAINT_NAME_EXISTS"));
+  await db.query("ROLLBACK TO SAVEPOINT occupied_target_name");
+  assert.deepEqual(await snapshot(db),before,
+    "Occupied-target rejection must restore the full catalog");
+  await db.query("RELEASE SAVEPOINT occupied_target_name");
+
   // Negative regression: a fake swap must fail the explicit catalog preflight
   // before any of the 54 rename statements run. All changes in this test
   // are rolled back inside the disposable DB.
@@ -239,7 +255,7 @@ try {
     database:"atlas_final_db",previous:"atlas_reconciled_db",
     file:SOURCE,sha256:createHash("sha256").update(sql).digest("hex"),
     sameContractRenamed:changes.length,
-    negativeNameSwapRejected:true,negativeDeleteActionRejected:true,
+    negativeTargetCollisionRejected:true,negativeNameSwapRejected:true,negativeDeleteActionRejected:true,
     successfulRollbackVerified:true,wholeConstraintCatalogPreserved:true,
     nonConstraintCatalogPreserved:true,
     committedToDisposablePG16Only:true,productionContact:false,
