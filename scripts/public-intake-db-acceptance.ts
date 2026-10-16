@@ -107,11 +107,6 @@ async function main() {
   assert.equal(honeypot.status, 200, "honeypot should return safe acknowledgement");
   assert.equal((await honeypot.json() as { recorded: boolean }).recorded, false, "honeypot must never persist");
 
-  const trialEmail = mail("trial");
-  const trial = {
-    ...demo, requestType: "trial-access",
-    email: trialEmail, intakeProof: await obtain(base, trialEmail),
-  };
   // The rate limiter has UTC-aligned, fixed one-hour Postgres windows.
   // Earlier CSRF/proof/replay checks can straddle an hour boundary on slow CI
   // jobs; relying on those incidental hits made the sixth-request assertion
@@ -125,6 +120,14 @@ async function main() {
   const rateWindowMs = 60 * 60 * 1000;
   const msUntilWindowEnd = rateWindowMs - (Date.now() % rateWindowMs);
   if (msUntilWindowEnd < 30_000) await sleep(msUntilWindowEnd + 250);
+  // Intake proof itself expires at a five-minute boundary. Obtain it *after*
+  // any hour-boundary pause so both the blocked request and the successful
+  // post-reset trial use an unexpired, independently valid challenge.
+  const trialEmail = mail("trial");
+  const trial = {
+    ...demo, requestType: "trial-access",
+    email: trialEmail, intakeProof: await obtain(base, trialEmail),
+  };
   const rateWindow = Math.floor(Date.now() / rateWindowMs);
 
   await pool.query("DELETE FROM rate_limit_hits WHERE bucket_key = $1", [testLimiter]);
