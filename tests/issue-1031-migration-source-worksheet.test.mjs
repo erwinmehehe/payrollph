@@ -36,6 +36,11 @@ test("source-only worksheet covers every drizzle file with current byte SHA and 
     assert.equal(matches.length,1,path);
     assert.match(matches[0].sha256_exact_committed_bytes,/^[a-f0-9]{64}$/);
     assert.ok(matches[0].statement_count !== "");
+    if (path === "drizzle/0129_non_recovery_fk_names_forward.sql") {
+      assert.equal(matches[0].manual_review_flags,
+        "DOLLAR_BODY_MANUAL_REVIEW | DYNAMIC_SQL_REVIEW | PROCEDURAL_SQL_REVIEW",
+        "review-only table-lock EXECUTE must remain flagged as dynamic SQL");
+    }
     for (const field of RECEIPT_FIELDS) assert.equal(matches[0][field],"",path+" "+field);
   }
   const paths = readdirSync(resolve(root, "drizzle")).map(name => "drizzle/" + name).sort();

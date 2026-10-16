@@ -40,6 +40,9 @@ validation and rename (TOCTOU). Concurrent migrations should fail closed via
 the runner's existing `lock_timeout`; no migration may depend on autocommit
 between preflight and the renames. The disposable PG16 checkpoint independently
 tests a second session's attempted concurrent FK replacement.
+The #1031 source worksheet intentionally flags the reviewed `EXECUTE format()`
+relation-lock statement as `DYNAMIC_SQL_REVIEW`; that uncertainty is retained
+for qualified review rather than silently suppressed or treated as a receipt.
 
 It performs no row reads, DML, BACKFILL, GRANT, REVOKE, constraint recreation,
 validation, monetary changes, employer inference, migration journal updates,
