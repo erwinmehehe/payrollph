@@ -15,6 +15,7 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { canStaffOpenEmployeeVault, documentObjectIdentityMatches, documentBytesMayBeReleased } from "@/lib/employee-document-vault";
 import { documentStorageConfig, signedDocumentObjectUrl } from "@/lib/document-object-storage";
 import { compatibleDocumentColumns } from "@/lib/document-schema-compat";
+import { vaultRecordRemoved } from "@/lib/employee-vault-profile";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export async function GET(
   }
 
   const [document] = await db.select(compatibleDocumentColumns).from(documents).where(eq(documents.id, documentId)).limit(1);
-  if (!document) return Response.json({ error: "Document not found." }, { status: 404 });
+  if (!document || vaultRecordRemoved(document.sourceKey)) return Response.json({ error: "Document not found." }, { status: 404 });
 
   if (user.role === "employee") {
     if (!user.employeeId || document.employeeId !== user.employeeId) {
