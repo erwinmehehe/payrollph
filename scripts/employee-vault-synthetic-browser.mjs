@@ -84,7 +84,7 @@ function assertDenied(response, label) {
 async function uploadAs(state, input) {
   const context = await session(state, 1440);
   try {
-    return await context.request.post(BASE + "/api/documents", {
+    const response = await context.request.post(BASE + "/api/documents", {
       headers: { origin: BASE, "sec-fetch-site": "same-origin" },
       multipart: {
         organizationId: String(input.organizationId),
@@ -97,14 +97,27 @@ async function uploadAs(state, input) {
         },
       },
     });
+    // Preserve the response before disposal; subsequent assertions must not
+    // depend on Playwright retaining a closed request context.
+    const status = response.status();
+    const body = await response.body();
+    return {
+      status: () => status,
+      json: async () => JSON.parse(body.toString("utf8")),
+    };
   } finally { await context.close(); }
 }
 
 try {
-  const [hr, owner, employee, manager, employeeB, hrB] = await Promise.all([
-    login("hr"), login("owner"), login("employee"),
-    login("manager"), login("employeeB"), login("hrB"),
-  ]);
+  // /api/auth/login invokes ensureSeedData. Concurrent first requests race
+  // on the global unique bank-template seed and cause synthetic HTTP 500s.
+  // Keep production auth/seed logic untouched; log in serially in this test.
+  const hr = await login("hr");
+  const owner = await login("owner");
+  const employee = await login("employee");
+  const manager = await login("manager");
+  const employeeB = await login("employeeB");
+  const hrB = await login("hrB");
   // A real authenticated ESS endpoint provides the worker identity.
   const ownProfile = await getAs(employee, "/api/self/documents");
   assert.equal(ownProfile.status(), 200);
