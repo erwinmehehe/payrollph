@@ -114,7 +114,7 @@ BEGIN
   WHERE c.table_schema='public' AND (
     (c.table_name='employee_worksite_assignments' AND c.column_name='decision'
       AND (c.data_type<>'character varying' OR c.character_maximum_length<>8
-           OR c.is_nullable<>'NO' OR c.column_default NOT LIKE '%allow%'))
+           OR c.is_nullable<>'NO' OR COALESCE(c.column_default, '') NOT LIKE '%allow%'))
     OR (c.table_name='separation_records' AND c.column_name IN (
          'thirteenth_entitlement','thirteenth_paid_ytd','unpaid_basic_salary',
          'separation_pay','retirement_pay','other_benefits','final_statutory_deductions','gross_final_pay'
