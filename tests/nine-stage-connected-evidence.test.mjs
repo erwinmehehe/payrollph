@@ -12,7 +12,7 @@ function assertUnsignedCertificateHash(bytes, claimedSha) {
   assert.ok(bytes.length >= 50 && bytes.length <= 8 * 1024 * 1024,
     "Unsigned certificate PDF evidence must be bounded and nonempty");
   assert.equal(bytes.subarray(0, 5).toString("latin1"), "%PDF-");
-  assert.match(bytes.subarray(-1024).toString("latin1"), /%%EOF\\s*$/);
+  assert.match(bytes.subarray(-1024).toString("latin1"), /%%EOF\s*$/);
   assert.equal(createHash("sha256").update(bytes).digest("hex"), claimedSha,
     "Annual receipt hash must match the actual saved source PDF bytes");
 }
@@ -82,7 +82,7 @@ test("governed journey receipt rejects sidecar worker substitution and incomplet
 });
 
 test("a claimed PDF hash alone cannot establish connected evidence", () => {
-  const pdf = Buffer.from("%PDF-1.7\\n1 0 obj\\n<< /Type /Catalog >>\\nendobj\\ntrailer\\n<< /Root 1 0 R >>\\n%%EOF\\n");
+  const pdf = Buffer.from("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n");
   const correct = createHash("sha256").update(pdf).digest("hex");
   assert.doesNotThrow(() => assertUnsignedCertificateHash(pdf, correct));
   assert.throws(() => assertUnsignedCertificateHash(pdf, "a".repeat(64)),
