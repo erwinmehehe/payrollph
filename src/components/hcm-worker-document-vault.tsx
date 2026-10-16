@@ -153,7 +153,7 @@ export function WorkerDocumentVault({ organizationId, employeeId }: {
         </div>
         <button type="button" onClick={refresh} disabled={busy}
           className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50">
-          <RefreshCw size={15} aria-hidden="true" /> Refresh
+          <RefreshCw size={15} aria-hidden="true" /> Reload documents
         </button>
       </div>
 
