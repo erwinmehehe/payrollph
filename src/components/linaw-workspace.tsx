@@ -2,7 +2,7 @@
 import { MoreModules } from "@/components/workspace/more-modules";
 import { CoreReports } from "@/components/workspace/core-reports";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { canOpenPeopleHome } from "@/lib/hcm-people-home-scope";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
@@ -72,7 +72,7 @@ import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll,
 import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
-import { DashboardReadError, readAuthorizedDashboard } from "@/lib/dashboard-read-recovery";
+import { useDashboardReadRecovery } from "@/lib/use-dashboard-read-recovery";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null, optionalUiCapabilities = { overpaymentPreview: false, overpaymentInvestigation: false, tenantReportBuilder: false } }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null; optionalUiCapabilities?: { overpaymentPreview: boolean; overpaymentInvestigation: boolean; tenantReportBuilder: boolean } }) {
   const searchParams = useSearchParams();
@@ -115,10 +115,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
-  const [refreshIssue, setRefreshIssue] = useState<DashboardReadError | null>(null);
-  const [refreshLoading, setRefreshLoading] = useState(false);
-  const dashboardReadVersion = useRef(0);
-  useEffect(() => () => { dashboardReadVersion.current += 1; }, []);
+  const { refresh, refreshIssue, refreshLoading } = useDashboardReadRecovery(
+    data.selectedOrganization.id, setData,
+  );
   useMultiEntityRequestHeaders(data.multiEntity);
   const [page, setPage] = useState(initialPage);
   const [busy, setBusy] = useState(false);
@@ -210,33 +209,6 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   }, [page]);
 
   /* ------------------------------------------------------------- data ops */
-
-  const refresh = useCallback(
-    async (organizationId = data.selectedOrganization.id) => {
-      const readVersion = ++dashboardReadVersion.current;
-      setRefreshLoading(true);
-      setRefreshIssue(null);
-      try {
-        const next = await readAuthorizedDashboard(organizationId);
-        // A late read, or a response for a different employer, must not replace
-        // the current authorized snapshot. This path is a GET only.
-        if (readVersion !== dashboardReadVersion.current) {
-          throw new DashboardReadError("scope", "A newer workspace read has superseded this request.");
-        }
-        setData(next);
-      } catch (cause) {
-        if (readVersion === dashboardReadVersion.current) {
-          setRefreshIssue(cause instanceof DashboardReadError
-            ? cause : new DashboardReadError("network", "Could not refresh the workspace."));
-        }
-        throw cause;
-      } finally {
-        if (readVersion === dashboardReadVersion.current) setRefreshLoading(false);
-      }
-    },
-    [data.selectedOrganization.id],
-  );
-
 
   function changeOrganization(id: number) {
     if (!Number.isSafeInteger(id) || id <= 0 || id === data.selectedOrganization.id) return;
@@ -504,7 +476,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
       >
         {refreshLoading && (
           <p role="status" aria-live="polite" className="mb-3 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
-            Refreshing this employer's workspace. The previous snapshot may still be visible.
+            Refreshing this employer&apos;s workspace. The previous snapshot may still be visible.
           </p>
         )}
         {refreshIssue && (

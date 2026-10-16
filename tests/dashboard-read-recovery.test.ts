@@ -67,9 +67,12 @@ test("malformed success body fails as unreadable instead of empty", async () => 
 
 test("workspace exposes a GET-only retry and prevents late reads overwriting newer employer snapshots", () => {
   const source = readFileSync("src/components/linaw-workspace.tsx", "utf8");
-  assert.ok(source.includes("readAuthorizedDashboard(organizationId)"));
-  assert.ok(source.includes("readVersion !== dashboardReadVersion.current"));
-  assert.ok(source.includes("dashboardReadVersion.current += 1"));
+  const hook = readFileSync("src/lib/use-dashboard-read-recovery.ts", "utf8");
+  assert.ok(source.includes("useDashboardReadRecovery("));
+  assert.ok(hook.includes("readAuthorizedDashboard(requestedOrganizationId)"));
+  assert.ok(hook.includes("readVersion !== dashboardReadVersion.current"));
+  assert.ok(hook.includes("dashboardReadVersion.current += 1"));
+  assert.ok(hook.includes("setRefreshIssue(cause instanceof DashboardReadError"));
   assert.ok(source.includes("role=\"alert\""));
   assert.ok(source.includes("Retry read-only workspace refresh"));
   assert.ok(source.includes("refresh().catch(() => undefined)"));
@@ -77,4 +80,6 @@ test("workspace exposes a GET-only retry and prevents late reads overwriting new
   assert.ok(source.includes("refreshIssue.kind === \"forbidden\""));
   assert.ok(source.includes("refreshIssue.kind === \"scope\""));
   assert.ok(!source.includes('fetch(`/api/dashboard?organizationId=${organizationId}`'));
+  assert.ok(!hook.includes("method: \"POST\""));
+  assert.ok(!hook.includes("method: \"PATCH\""));
 });
