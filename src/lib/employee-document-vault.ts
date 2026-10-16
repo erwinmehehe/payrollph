@@ -54,7 +54,7 @@ export function canIssueExpiryNotice(input: {
 
 /** Medical, identity and employment files require People administration, not bookkeeping. */
 export function canStaffOpenEmployeeVault(role: string): boolean {
-  return role === "owner" || role === "admin" || role === "hr";
+  return role === "owner" || role === "hr";
 }
 
 /** Optional paperwork must never raise required-document deficit counters. */
@@ -73,4 +73,50 @@ export function documentBytesMayBeReleased(input: {
 }): boolean {
   return input.scannedClean ||
     (!input.isProduction && !input.vaultEnabled && !input.hasPrivateObject);
+}
+
+/**
+ * A-5 employee profile vault: deletion is an audited, reversible removal
+ * from active views. It must NEVER delete legal-hold or retained object bytes
+ * or rewrite the immutable uploader or verification receipts.
+ */
+export function vaultDocumentIsArchived(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+  const removed = (metadata as Record<string, unknown>).vaultRemovedAt;
+  return typeof removed === "string" && removed.length > 0;
+}
+
+export type EmployeeVaultActor = {
+  userId: number;
+  role: string;
+  employeeId: number | null;
+  companyWide: boolean;
+};
+
+export function canAccessEmployeeProfileVault(
+  actor: EmployeeVaultActor, targetEmployeeId: number,
+): boolean {
+  if (!Number.isSafeInteger(targetEmployeeId) || targetEmployeeId <= 0) return false;
+  if (actor.role === "employee") {
+    return actor.employeeId === targetEmployeeId;
+  }
+  // Manager delegation is deliberately not implemented: no explicit,
+  // server-verified relationship/policy permission is available yet.
+  return actor.companyWide && canStaffOpenEmployeeVault(actor.role);
+}
+
+export function canArchiveEmployeeVaultUpload(
+  actor: EmployeeVaultActor,
+  document: {
+    employeeId: number | null; sourceType: string;
+    objectStorageKey: string | null; uploadedByUserId: number | null;
+    generationMetadata: unknown;
+  },
+): boolean {
+  return document.employeeId !== null &&
+    canAccessEmployeeProfileVault(actor, document.employeeId) &&
+    document.sourceType === "upload" &&
+    Boolean(document.objectStorageKey) &&
+    !vaultDocumentIsArchived(document.generationMetadata) &&
+    (actor.role !== "employee" || document.uploadedByUserId === actor.userId);
 }
