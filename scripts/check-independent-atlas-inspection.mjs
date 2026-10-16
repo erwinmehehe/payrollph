@@ -34,7 +34,7 @@ function readInspectedSchema(filename, label) {
   const missing = [...expected].filter(name => !actual.includes(name));
   assert.deepEqual(missing, [], label + " did not inspect all source models");
   return { database: label, atlasVisibleTables: actual.length, sourceModels: expected.size,
-    everyModelVisible: true, readOnlyAuditRole: "atlas_auditor" };
+    everyModelVisible: true, readOnlyInspectionRole: "atlas_inspector" };
 }
 
 const results = {
