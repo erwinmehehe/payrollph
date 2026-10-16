@@ -22,14 +22,18 @@ if (tool === "squawk") {
 } else {
   const beforeSql = readFileSync(resolve(path, "atlas-source-vs-train.diff.sql"), "utf8");
   const afterSql = readFileSync(resolve(path, "atlas-post-0128-vs-source.diff.sql"), "utf8");
+  const nameSql = readFileSync(resolve(path, "atlas-post-name-review-vs-source.diff.sql"), "utf8");
   const before = classifyAtlasDiff(beforeSql);
   const after = classifyAtlasDiff(afterSql);
+  const nameReview = classifyAtlasDiff(nameSql);
   result = {
     status: after.status,
     reason: after.status === "PASS" ? "ATLAS_POST_0128_NO_DIFFERENCES" :
       "ATLAS_POST_0128_REMAINS_DIFFERENT_REQUIRES_REVIEW",
     before0128: { ...before, ...summarizeAtlasPlan(beforeSql) },
     after0128: { ...after, ...summarizeAtlasPlan(afterSql) },
+    fourthCloneNameReview: { ...nameReview, ...summarizeAtlasPlan(nameSql),
+      hypotheticalOnly: true, historicalSchemaIsUntouched: true },
     paired0128WasExecutedByAtlas: false,
   };
 }
