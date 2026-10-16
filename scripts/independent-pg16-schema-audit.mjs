@@ -70,14 +70,19 @@ async function main() {
   let transaction = false;
   try {
     const identity = (await client.query(
-      "SELECT current_database() AS db, inet_server_addr()::text AS host, " +
+      "SELECT current_database() AS db, " +
       "current_setting('server_version_num')::integer AS version, " +
-      "current_setting('transaction_read_only') AS readonly"
+      "current_setting('transaction_read_only') AS readonly, " +
+      "pg_is_in_recovery() AS recovering"
     )).rows[0];
     assert.equal(identity.db, "atlas_candidate_db");
-    assert.equal(identity.host, "127.0.0.1");
+    // GitHub Actions publishes the PostgreSQL container through 127.0.0.1,
+    // but inet_server_addr() INSIDE that container is its bridge address.
+    // Enforce the literal loopback client URL and exact DB identity instead.
+    assert.equal(new URL(CANDIDATE_URL).hostname, "127.0.0.1");
     assert.ok(identity.version >= 160000 && identity.version < 170000, "PG16 only");
     assert.equal(identity.readonly, "off");
+    assert.equal(identity.recovering, false);
 
     await client.query("BEGIN");
     transaction = true;
@@ -98,6 +103,9 @@ async function main() {
     }
     for (const file of FILES) {
       const sql = loadSql(file);
+      assert.doesNotMatch(sql.replace(/--[^\\r\\n]*/g, ""),
+        /^\\s*(?:BEGIN|COMMIT|ROLLBACK)\\s*;/im,
+        "reviewed runner, not numbered SQL, owns transaction: " + file);
       if (file.startsWith("0125_")) await client.query(ISSUE1054_PREFLIGHT_SQL);
       await client.query(sql);
       if (file.startsWith("0125_")) await client.query(ISSUE1054_POSTFLIGHT_SQL);
@@ -120,6 +128,9 @@ async function main() {
         path: "drizzle/" + file,
         sha256: createHash("sha256").update(loadSql(file)).digest("hex"),
       })),
+      pgMajor: 16,
+      githubPrHead: process.env.PR_HEAD_SHA || null,
+      githubWorkflowCommit: process.env.GITHUB_SHA || null,
       migrationReceiptCreated: false,
       productionDatabaseAccessed: false,
       releaseApproved: false,
