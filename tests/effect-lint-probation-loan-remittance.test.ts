@@ -8,7 +8,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("probation review panel remounts by employment term and loads asynchronously", () => {
   const source = read(PROBATION);
-  assert.match(source, /HcmProbationReviewPanelContent key=\{props\.employmentTermId\}/);
+  assert.match(source, /HcmProbationReviewPanelContent key=\{`\$\{props\.organizationId\}:\$\{props\.employeeId\}:\$\{props\.employmentTermId\}`\}/);
   assert.match(source, /const load = useCallback\(async \(signal\?: AbortSignal\) => \{\s*setError\(""\)/);
   assert.match(source, /new AbortController\(\)/);
   assert.match(source, /queueMicrotask\(\(\) => \{\s*if \(!controller\.signal\.aborted\) void load\(controller\.signal\)/);
