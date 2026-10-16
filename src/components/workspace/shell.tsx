@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { LinawMark } from "@/components/linaw-mark";
 import { SchedulerAdminBanner } from "./scheduler-admin-banner";
 import {
@@ -24,6 +24,7 @@ import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
 import { payrollHandoffRank } from "@/lib/payroll-handoff";
+import { wrapWorkspaceDrawerTabIndex } from "@/lib/workspace-drawer-focus";
 
 export type Notification = {
   id: string;
@@ -99,6 +100,8 @@ export function WorkspaceShell({
   const [roleOpen, setRoleOpen] = useState(false);
   const [trayOpen, setTrayOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const mobileDrawerRef = useRef<HTMLElement>(null);
+  const drawerOpenerRef = useRef<HTMLButtonElement | null>(null);
 
   const isFreelancer = data.selectedOrganization.accountType === "freelancer";
   const openApprovals = data.tasks.filter((task) => task.status === "Pending").length;
@@ -132,7 +135,30 @@ export function WorkspaceShell({
     .filter((group) => group.items.length > 0);
   const secondaryHasCurrent = secondaryItems.some((item) => item.name === page);
 
+  function openMobileDrawer(opener: HTMLButtonElement) {
+    drawerOpenerRef.current = opener;
+    setDrawer(true);
+  }
+
+  function dismissMobileDrawer() {
+    setDrawer(false);
+    drawerOpenerRef.current?.focus();
+  }
+
+  function keepDrawerKeyboardFocus(event: KeyboardEvent<HTMLElement>) {
+    if (!drawer || event.key !== "Tab") return;
+    const buttons = Array.from(mobileDrawerRef.current?.querySelectorAll<HTMLButtonElement>(
+      'button:not([disabled]):not([tabindex="-1"])',
+    ) ?? []).filter((button) => button.getClientRects().length > 0);
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const wrapTo = wrapWorkspaceDrawerTabIndex(currentIndex, buttons.length, event.shiftKey);
+    if (wrapTo === null) return;
+    event.preventDefault();
+    buttons[wrapTo]?.focus();
+  }
+
   function closeOverlays() {
+    if (drawer) drawerOpenerRef.current?.focus();
     setDrawer(false);
     setClientOpen(false);
     setRoleOpen(false);
@@ -145,6 +171,12 @@ export function WorkspaceShell({
     onPage(next);
   }
 
+  // When the mobile drawer opens, focus enters its first authorized navigation control.
+  useEffect(() => {
+    if (!drawer) return;
+    mobileDrawerRef.current?.querySelector<HTMLButtonElement>(".side-navigation button:not([disabled])")?.focus();
+  }, [drawer]);
+
   // One Escape handler for all three popovers.
   useEffect(() => {
     if (!clientOpen && !roleOpen && !trayOpen && !drawer) return;
@@ -153,6 +185,7 @@ export function WorkspaceShell({
       setClientOpen(false);
       setRoleOpen(false);
       setTrayOpen(false);
+      if (drawer) drawerOpenerRef.current?.focus();
       setDrawer(false);
     }
     window.addEventListener("keydown", handler);
@@ -178,9 +211,14 @@ export function WorkspaceShell({
       data-workspace-role={workspaceRole ?? undefined}
       data-demo-role={displayRole ?? undefined}
     >
-      <button className="nav-scrim" aria-label="Close navigation" onClick={() => setDrawer(false)} tabIndex={drawer ? 0 : -1} />
+      <a href="#workspace-main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:rounded-lg focus:bg-white focus:p-3 focus:text-emerald-950">
+        Skip to workspace content
+      </a>
+      <button className="nav-scrim" aria-label="Close navigation" onClick={dismissMobileDrawer} tabIndex={drawer ? 0 : -1} />
 
-      <aside className="sidebar" aria-label="Workspace navigation">
+      <aside id="workspace-sidebar" ref={mobileDrawerRef} className="sidebar" aria-label="Workspace navigation"
+        role={drawer ? "dialog" : undefined} aria-modal={drawer ? true : undefined}
+        onKeyDown={keepDrawerKeyboardFocus}>
         <div className="sidebar-brand">
           <span className="brand-mark" aria-hidden>
             <LinawMark />
@@ -330,7 +368,9 @@ export function WorkspaceShell({
       <div className="app-main">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="icon-button mobile-menu" onClick={() => setDrawer(true)} aria-label="Open navigation">
+            <button type="button" className="icon-button mobile-menu"
+              onClick={(event) => openMobileDrawer(event.currentTarget)} aria-label="Open navigation"
+              aria-expanded={drawer} aria-controls="workspace-sidebar">
               <Menu size={18} />
             </button>
 
@@ -519,7 +559,7 @@ export function WorkspaceShell({
           </div>
         </header>
 
-        <main className="content-area" id="workspace-main">
+        <main className="content-area" id="workspace-main" tabIndex={-1}>
           <div className="linaw-workspace-context" data-demo={displayRole ? "true" : undefined} role={displayRole ? "status" : undefined}>
             <ShieldCheck size={17} aria-hidden />
             <span>
@@ -555,7 +595,8 @@ export function WorkspaceShell({
             </button>
           );
         })}
-        <button type="button" onClick={() => setDrawer(true)} aria-label="More navigation options" aria-expanded={drawer}>
+        <button type="button" onClick={(event) => openMobileDrawer(event.currentTarget)}
+          aria-label="More navigation options" aria-expanded={drawer} aria-controls="workspace-sidebar">
           <span className="nav-icon t-slate" aria-hidden><MoreHorizontal size={16} /></span>
           <span>More</span>
         </button>
