@@ -53,6 +53,10 @@ export async function GET(
     }
     const denied = await assertMembership(user.id, document.organizationId);
     if (denied) return denied;
+    const [self] = await db.select({ id: employees.id }).from(employees)
+      .where(and(eq(employees.id, user.employeeId),
+        eq(employees.organizationId, document.organizationId))).limit(1);
+    if (!self) return Response.json({ error: "Document not found." }, { status: 404 });
   } else {
     const denied = await assertOrganizationRole(
       user.id,
@@ -208,6 +212,10 @@ export async function DELETE(
     }
     const denied = await assertMembership(user.id, row.organizationId);
     if (denied) return denied;
+    const [self] = await db.select({ id: employees.id }).from(employees)
+      .where(and(eq(employees.id, user.employeeId),
+        eq(employees.organizationId, row.organizationId))).limit(1);
+    if (!self) return Response.json({ error: "Document not found." }, { status: 404 });
   } else {
     const denied = await assertOrganizationRole(user.id, row.organizationId,
       PEOPLE_ADMIN_ROLES, "Only HR and the organization owner can manage private employee documents.");
