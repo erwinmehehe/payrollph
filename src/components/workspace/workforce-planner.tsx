@@ -255,6 +255,10 @@ function WorkforcePlannerContent({
 
   const loadPreview = useCallback(async (signal?: AbortSignal) => {
     const requestId = ++previewRequest.current;
+    // Capture the same tenant/employee/date identity as the GET before awaiting.
+    // Avoid closing over the render-computed previewScopeKey in useCallback:
+    // React Compiler cannot preserve that derived dependency's memoization.
+    const scopeKey = JSON.stringify([organizationId, employeeId, rangeStart, rangeEnd]);
     const isCurrent = () => !signal?.aborted && requestId === previewRequest.current;
     if (!isCurrent()) return;
     if (!employeeId) {
@@ -277,7 +281,7 @@ function WorkforcePlannerContent({
       const payload = await response.json().catch(() => ({}));
       if (!isCurrent()) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not preview the roster.");
-      setPreviewSnapshot({ scopeKey: previewScopeKey, data: payload as Preview });
+      setPreviewSnapshot({ scopeKey, data: payload as Preview });
     } catch (error) {
       if (!isCurrent()) return;
       setPreviewSnapshot(null);
@@ -285,7 +289,7 @@ function WorkforcePlannerContent({
     } finally {
       if (isCurrent()) setLoadingPreview(false);
     }
-  }, [employeeId, organizationId, rangeEnd, rangeStart, notify, previewScopeKey]);
+  }, [employeeId, organizationId, rangeEnd, rangeStart, notify]);
 
   useEffect(() => {
     if (workspaceTab !== "roster") return;

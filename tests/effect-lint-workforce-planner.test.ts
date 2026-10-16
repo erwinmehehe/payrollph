@@ -65,7 +65,10 @@ test("catalog and roster GETs are deferred, abortable and last-request-owned", (
   assert.match(src, /requestId === catalogRequest\.current/);
   assert.match(src, /requestId === previewRequest\.current/);
   assert.match(src, /const previewScopeKey = JSON\.stringify\(\[organizationId, employeeId, rangeStart, rangeEnd\]\)/);
-  assert.match(src, /setPreviewSnapshot\(\{ scopeKey: previewScopeKey, data: payload as Preview \}\)/);
+  assert.match(src, /const scopeKey = JSON\.stringify\(\[organizationId, employeeId, rangeStart, rangeEnd\]\)/);
+  assert.match(src, /setPreviewSnapshot\(\{ scopeKey, data: payload as Preview \}\)/);
+  assert.match(src, /\}, \[employeeId, organizationId, rangeEnd, rangeStart, notify\]\);/);
+  assert.doesNotMatch(src, /\}, \[employeeId, organizationId, rangeEnd, rangeStart, notify, previewScopeKey\]\);/);
   assert.equal((src.match(/const controller = new AbortController\(\)/g) ?? []).length, 2);
   assert.equal((src.match(/queueMicrotask\(\(\) => \{/g) ?? []).length, 2);
   assert.equal((src.match(/return \(\) => controller\.abort\(\)/g) ?? []).length, 2);
