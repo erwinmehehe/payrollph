@@ -394,6 +394,91 @@ test("PG16/18: 0115-0123 exact source, denied writes, money invariants and total
       "#1031 post-reconciliation MISSING/DRIFT/EXTRA: " + JSON.stringify(failures));
     assert.ok(compared.length > 160, "target manifest unexpectedly empty or truncated");
 
+    // Draft #0129: the remaining 54 source/forward FK name pairs belong
+    // OUTSIDE the ten recovery targets. Test them under the same 0115-0128
+    // PG16/PG18 transaction using real pg_catalog and the SAME #1031 source
+    // manifest, with full-rollback and fictional payroll-centavo invariants.
+    const nonRecoveryRenamePath = "0129_non_recovery_fk_names_forward.sql";
+    const sql0129 = source(nonRecoveryRenamePath);
+    const fkRenameMap = [...sql0129.matchAll(
+      /ALTER TABLE public\\."([a-z_]+)" RENAME CONSTRAINT "([a-z0-9_]+)" TO "([a-z0-9_]+)";/g
+    )].map(([,table,oldName,newName]) => ({table,oldName,newName}));
+    assert.equal(fkRenameMap.length, 54, "exact 54 proposed 0129 FK renames");
+    assert.doesNotMatch(sql0129.replace(/--[^\\r\\n]*/g,""),
+      /^\\s*(?:BEGIN|COMMIT|ROLLBACK)\\s*;/im,
+      "the synthetic runner owns the entire transaction");
+    const read1031 = async () => {
+      const physical=(await db.query(fullSchemaCatalogSql)).rows.map(
+        ({table_name,kind,object_name,details}) =>
+          ({table_name,kind,object_name,...details})
+      );
+      return diffSchema(manifest, physical);
+    };
+    const rawBefore0129 = await read1031();
+    const nameKey = r => JSON.stringify([
+      r.table,r.kind,r.object,r.status,r.expected,r.actual,
+    ]);
+    const removedNameKeys = new Set();
+    for(const m of fkRenameMap){
+      const missing=rawBefore0129.filter(r =>
+        r.table===m.table && r.kind==="foreign_key" &&
+        r.status==="MISSING" && r.object===m.newName);
+      const extra=rawBefore0129.filter(r =>
+        r.table===m.table && r.kind==="foreign_key" &&
+        r.status==="EXTRA" && r.object===m.oldName);
+      assert.equal(missing.length,1,"0129 preflight source expected missing "+m.newName);
+      assert.equal(extra.length,1,"0129 preflight physical old FK missing "+m.oldName);
+      assert.deepEqual(extra[0].actual,missing[0].expected,
+        "different FK keys or delete/update actions cannot be renamed");
+      removedNameKeys.add(nameKey(missing[0]));
+      removedNameKeys.add(nameKey(extra[0]));
+    }
+    assert.equal(removedNameKeys.size,108);
+    const catalogBefore0129=await fingerprint(db);
+    await db.query("SAVEPOINT issue0129_positive_rollback");
+    await db.query(sql0129);
+    const rawAfter0129 = await read1031();
+    const beforeUnresolved=rawBefore0129.filter(x =>
+      x.status!=="PASS" && !removedNameKeys.has(nameKey(x)))
+      .map(nameKey).sort();
+    const afterUnresolved=rawAfter0129.filter(x => x.status!=="PASS")
+      .map(nameKey).sort();
+    assert.deepEqual(afterUnresolved,beforeUnresolved,
+      "0129 may not silently reconcile unrelated FKs, columns or NOT VALID constraints");
+    assert.equal(rawAfter0129.filter(r=>r.status==="PASS").length,
+      rawBefore0129.filter(r=>r.status==="PASS").length+54,
+      "54 name-only FKs must become PASS");
+    assert.deepEqual(await money(db),seededMoney,
+      "0129 must not mutate a payroll centavo");
+    await db.query("ROLLBACK TO SAVEPOINT issue0129_positive_rollback");
+    assert.deepEqual(await fingerprint(db),catalogBefore0129,
+      "0129 positive rehearsal must fully roll back on PG16/18");
+    assert.deepEqual(await money(db),seededMoney);
+    await db.query("RELEASE SAVEPOINT issue0129_positive_rollback");
+    await db.query(sql0129);
+    assert.deepEqual(await fingerprint(db).then(x=>x.relations),
+      catalogBefore0129.relations,
+      "renaming FKs cannot create/drop any table or index");
+    await db.query("SAVEPOINT issue0129_negative_replay");
+    try{
+      await assert.rejects(()=>db.query(sql0129),err=>
+        err.code==="P0001" &&
+        err.message.includes("ISSUE0129_TARGET_CONSTRAINT_NAME_EXISTS"),
+        "replay of already-renamed FKs must fail before modifications");
+    }finally{
+      await db.query("ROLLBACK TO SAVEPOINT issue0129_negative_replay");
+      await db.query("RELEASE SAVEPOINT issue0129_negative_replay");
+    }
+    assert.deepEqual(await money(db),seededMoney);
+    console.log(JSON.stringify({
+      stage:"POST_0129_NAME_ONLY_RECONCILIATION",
+      evidence:"SYNTHETIC_PG16_OR_PG18_ROLLBACK_ONLY",
+      renamedFkPairs:fkRenameMap.length,
+      previousNonPassing:rawBefore0129.filter(r=>r.status!=="PASS").length,
+      afterNonPassing:rawAfter0129.filter(r=>r.status!=="PASS").length,
+      otherDiffsRetained:true,receipt:false,releaseApproval:false,
+    }));
+
     // Replayed forward migrations must refuse the existing target, leaving
     // the same catalog (SAVEPOINT ROLLBACK) and unchanged payroll cents.
     for (const [name, code] of [
