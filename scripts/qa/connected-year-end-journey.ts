@@ -108,17 +108,7 @@ export async function generateConnected2316(input: Scope & { runId: number; owne
     const failure = await pdf.clone().json().catch(() => ({}));
     failureCodes = [failure.code, ...(Array.isArray(failure.issues) ? failure.issues : [])]
       .filter((v): v is string => typeof v === "string" && /^[A-Z][A-Z0-9_]{0,100}$/.test(v));
-    // Never upload raw HTTP objects, worker identifiers or full responses as
-    // diagnostics. Save only bounded codes/counts and independently normalized
-    // centavo figures from the disposable fictional scenario.
-    writeFileSync("qa-artifacts/connected-year-end-diagnostic.json", JSON.stringify({
-      httpStatus: pdf.status, failureCodeCount: failureCodes.length,
-      grossCentavos: cents(source.summary.grossCompensation),
-      presentWithheldCentavos: cents(source.withholding.actualPresentWithheld),
-      appliedAdjustmentCentavos: cents(source.withholding.appliedAdjustment),
-      basicCentavos: amounts.basic, benefitCentavos: amounts.benefit,
-      contributionCentavos: contributions, premiumCentavos: remainder,
-    }, null, 2));
+
   }
   assert.equal(pdf.status, 200, "Unsigned certificate: HTTP " + pdf.status + " " + failureCodes.join(","));
   // The actual PDF is intentionally retained as fictional source evidence,
