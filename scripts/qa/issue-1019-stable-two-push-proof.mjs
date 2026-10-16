@@ -90,6 +90,33 @@ function summarize(c) {
   };
 }
 
+// Store only hashes of public schema metadata. No user rows or SQL are logged.
+function objectDigests(c) {
+  const key = {
+    relations: x => x.name + "#" + x.kind,
+    columns: x => x.relation + "." + x.name,
+    constraints: x => x.relation + "." + x.name,
+    indexes: x => x.table_name + "." + x.name,
+  };
+  return Object.fromEntries(Object.entries(c).map(([type,rows])=>[type,
+    Object.fromEntries(rows.map(x=>[key[type](x),
+      createHash("sha256").update(JSON.stringify(x)).digest("hex")]))
+  ]));
+}
+function reportCatalogDelta(previous, current) {
+  for(const group of ["relations","columns","constraints","indexes"]) {
+    const old = previous.objectDigests?.[group] || {};
+    const next = objectDigests(current)[group];
+    const added=Object.keys(next).filter(k=>!(k in old));
+    const removed=Object.keys(old).filter(k=>!(k in next));
+    const modified=Object.keys(next).filter(k=>k in old && next[k]!==old[k]);
+    // Names are source schema metadata, not DDL or user data.
+    process.stdout.write("ISSUE_1019_CATALOG_DELTA_"+group.toUpperCase()+"="+
+      JSON.stringify({added:added.slice(0,20),removed:removed.slice(0,20),
+        modified:modified.slice(0,20),counts:[added.length,removed.length,modified.length]})+"\\n");
+  }
+}
+
 async function negativeTenantProof(client) {
   await client.query("BEGIN");
   try {
@@ -135,7 +162,7 @@ async function negativeTenantProof(client) {
 async function main() {
   verifyEnvironment(process.env);
   const mode=process.argv[2];
-  if(!["preflight","capture","negative","compare","negative-drift"].includes(mode))
+  if(!["preflight","capture","negative","compare","negative-drift","diagnose"].includes(mode))
     fail("UNKNOWN_MODE");
   const client=new pg.Client({connectionString:TARGET,connectionTimeoutMillis:7000,query_timeout:30000});
   try {
@@ -166,13 +193,13 @@ async function main() {
     const current=summarize(before);
     if(mode==="capture") {
       mkdirSync(resolve("qa-artifacts"),{recursive:true});
-      writeFileSync(artifact,JSON.stringify({kind:"issue-1019-stable-push-v1",major, ...current,
+      writeFileSync(artifact,JSON.stringify({kind:"issue-1019-stable-push-v1",major, ...current,\n        objectDigests:objectDigests(before),
         productionApproved:false,db:"app_db",sourceOnly:true})+"\n",{flag:"wx",mode:0o600});
       process.stdout.write("ISSUE_1019_PINNED_STABLE_FIRST_PUSH_PG"+major+"="+current.tables+" tables\n");
       return;
     }
     const previous=JSON.parse(readFileSync(artifact,"utf8"));
-    if(previous.kind!=="issue-1019-stable-push-v1"||previous.major!==major||
+    if(mode==="diagnose") {\n      if(previous.kind!=="issue-1019-stable-push-v1"||previous.major!==major || !previous.objectDigests)\n        fail("DIAGNOSIS_BASELINE_MISSING");\n      reportCatalogDelta(previous,before);\n      process.stdout.write("ISSUE_1019_SECOND_PUSH_CATALOG_EQUAL="+String(previous.sha256===current.sha256)+"\\n");\n      return;\n    }\n    if(previous.kind!=="issue-1019-stable-push-v1"||previous.major!==major||
        previous.sha256!==current.sha256||previous.tables!==current.tables||
        previous.columns!==current.columns||previous.constraints!==current.constraints||
        previous.indexes!==current.indexes||previous.productionApproved!==false) {

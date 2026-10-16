@@ -74,6 +74,9 @@ jobs:
           grep -Fxq '[✓] No changes detected' <<< "$output"
           test "$(grep -Fc '[✓] No changes detected' <<< "$output")" -eq 1
           echo "ISSUE_1019_PINNED_STABLE_SECOND_PUSH_TRUE_NO_OP=PASS"
+      - name: Diagnose schema delta when a previous step failed (disposable CI only)
+        if: ${{ failure() }}
+        run: node scripts/qa/issue-1019-stable-two-push-proof.mjs diagnose
       - name: Compare full PG catalog after second push, no schema changes
         run: node scripts/qa/issue-1019-stable-two-push-proof.mjs compare
       - name: Verify same-tenant allowed and cross-tenant HR COE + message denied
