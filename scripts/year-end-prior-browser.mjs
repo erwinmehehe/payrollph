@@ -3,6 +3,14 @@ export async function testPriorEvidence({browser,owner,checker,employee,fixture,
  const base='https://127.0.0.1:3445';
  const query=`organizationId=${fixture.organizationId}&employeeId=${fixture.employeeId}&taxYear=2026`;
  const api=base+'/api/year-end/prior-evidence?'+query;
+ const separationPath='/api/separation?organizationId='+fixture.organizationId;
+ const signed=await owner.request.get(base+separationPath);assert.equal(signed.status(),200);
+ const signedBody=await signed.json();assert.equal(signedBody.signedReviewEnabled,true);
+ const legacy=await owner.request.get('https://127.0.0.1:3444'+separationPath);assert.equal(legacy.status(),200);
+ const legacyBody=await legacy.json();assert.equal('signedReviewEnabled' in legacyBody,false);
+ assert.deepEqual(signedBody.separations,legacyBody.separations,'Viewing signed review must not mutate frozen rows or payouts');
+ results.push({checkpoint:'signed-final-pay-authenticated-capability',result:'pass',frozenRowsUnchanged:true,flagOffPropertyAbsent:true});
+
  const headers={origin:base,'sec-fetch-site':'same-origin'};
  const anonymous=await browser.newContext({ignoreHTTPSErrors:true});
  assert.equal((await anonymous.request.get(api)).status(),401);await anonymous.close();
