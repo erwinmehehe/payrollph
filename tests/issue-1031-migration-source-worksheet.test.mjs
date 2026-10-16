@@ -11,13 +11,25 @@ const read = file => readFileSync(resolve(root, file), "utf8");
 
 test("source-only worksheet covers every drizzle file with current byte SHA and no populated receipts", () => {
   const result = generateSourceWorksheet();
-  assert.equal(result.summary.totalDrizzleFiles, 143);
-  assert.equal(result.summary.numberedSqlFiles, 141);
-  assert.equal(result.summary.sqlFiles, 142);
+  assert.equal(result.summary.totalDrizzleFiles, 145);
+  assert.equal(result.summary.numberedSqlFiles, 143);
+  assert.equal(result.summary.sqlFiles, 144);
   assert.equal(result.summary.sourceSchemaTables, 271);
   assert.equal(result.summary.duplicatePrefixGroups, 13);
   assert.ok(result.migrationRows.some(row => row.file_path === "drizzle/0127_year_end_prior_evidence.sql" && row.creates_objects.includes("year_end_prior_evidence")));
   assert.ok(result.tableRows.some(row => row.schema_table === "year_end_prior_evidence"));
+  // Both proposed 0128 and 0129 are source paths only. Their checksums
+  // exist for comparison, not as invented live migration journal entries.
+  for (const path of [
+    "drizzle/0128_recovery_foreign_key_names_forward.sql",
+    "drizzle/0129_non_recovery_fk_names_forward.sql",
+  ]) {
+    const matches=result.migrationRows.filter(row=>row.file_path===path);
+    assert.equal(matches.length,1,path);
+    assert.match(matches[0].sha256_exact_committed_bytes,/^[a-f0-9]{64}$/);
+    assert.ok(matches[0].statement_count !== "");
+    for (const field of RECEIPT_FIELDS) assert.equal(matches[0][field],"",path+" "+field);
+  }
   const paths = readdirSync(resolve(root, "drizzle")).map(name => "drizzle/" + name).sort();
   assert.deepEqual(result.migrationRows.map(row => row.file_path).sort(), paths);
   assert.equal(new Set(result.migrationRows.map(row => row.file_path)).size, paths.length);
