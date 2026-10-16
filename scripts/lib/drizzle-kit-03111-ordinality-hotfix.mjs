@@ -15,6 +15,7 @@ const KEY_MARKER = "PAYROLLPH_1019_ORDERED_KEY_COLUMNS_V1";
 const FK_MARKER = "PAYROLLPH_1019_PAIRED_FOREIGN_COLUMNS_V1";
 const INDEX_MARKER = "PAYROLLPH_1019_INDEX_COLUMN_EXPRESSION_V1";
 const FK_NAME_MARKER = "PAYROLLPH_1019_PG63_FOREIGN_NAMES_V1";
+const JSONB_MARKER = "PAYROLLPH_1019_JSONB_CANONICAL_DEFAULT_V1";
 
 const keyQuery = /SELECT\s+c\.column_name,\s+c\.data_type,\s+constraint_type,\s+constraint_name,\s+constraint_schema\s+FROM\s+information_schema\.table_constraints\s+tc\s+JOIN\s+information_schema\.constraint_column_usage\s+AS\s+ccu\s+USING\s*\(constraint_schema,\s*constraint_name\)\s+JOIN\s+information_schema\.columns\s+AS\s+c\s+ON\s+c\.table_schema\s*=\s*tc\.constraint_schema\s+AND\s+tc\.table_name\s*=\s*c\.table_name\s+AND\s+ccu\.column_name\s*=\s*c\.column_name\s+WHERE\s+tc\.table_name\s*=\s*'\$\{[^}]+\}'\s+and\s+constraint_schema\s*=\s*'\$\{[^}]+\}'\s*;/g;
 
@@ -35,18 +36,34 @@ const indexExpression = /CASE\s+WHEN\s+(?:pg_catalog\.)?pg_get_expr\(i\.indexprs
 const fkNameInsertion = /return\s*\{\s*name,\s*tableFrom,\s*tableTo,\s*schemaTo,\s*columnsFrom,\s*columnsTo,\s*onDelete,\s*onUpdate\s*\};\s*\}\);\s*fks\.forEach\(\(it\)\s*=>\s*\{\s*foreignKeysObject\[it\.name\]\s*=\s*it;\s*\}\);/g;
 const anyFkInsertion = /fks\.forEach\(\(it\)\s*=>\s*\{\s*foreignKeysObject\[it\.name\]\s*=\s*it;\s*\}\);/g;
 
+// PG jsonb prints object keys sorted by UTF-8 byte length, then UTF-8 bytes.
+// Preserve array order, scalar values and nested JSON while fixing source
+// default serialization in the two exact pinned PG 0.31.11 branches.
+const pgJsonbDefault = /if\s*\(\s*([A-Za-z_$][\w$]*)\s*===\s*["']jsonb["']\s*\|\|\s*\1\s*===\s*["']json["']\s*\)\s*\{\s*([A-Za-z_$][\w$]*)\.default\s*=\s*`'\$\{JSON\.stringify\(([A-Za-z_$][\w$]*\.default)\)\}'::\$\{\1\}`;\s*\}/g;
+function canonicalJsonbObjectKeyReplacer(_key, value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  return Object.fromEntries(Object.entries(value).sort(([a], [b]) =>
+    Buffer.byteLength(a, "utf8")-Buffer.byteLength(b, "utf8") ||
+    Buffer.compare(Buffer.from(a, "utf8"),Buffer.from(b, "utf8"))));
+}
+export function canonicalPgJsonbDefault(value) {
+  return JSON.stringify(value, canonicalJsonbObjectKeyReplacer);
+}
+
 function fail(code) { throw new Error("DRIZZLE_1019_" + code); }
 function occurrences(s, marker) { return s.split(marker).length - 1; }
 
 export function patchPinnedIntrospectionBinary(binary) {
   if (typeof binary !== "string") fail("BAD_BINARY");
-  if (binary.includes(KEY_MARKER) || binary.includes(FK_MARKER) || binary.includes(INDEX_MARKER) || binary.includes(FK_NAME_MARKER)) {
+  if (binary.includes(KEY_MARKER) || binary.includes(FK_MARKER) || binary.includes(INDEX_MARKER) || binary.includes(FK_NAME_MARKER) || binary.includes(JSONB_MARKER)) {
     const selectedFkQueries = [...binary.matchAll(fkQuery)];
     // Other independent introspection queries in the installed Kit bundle can
     // retain this join shape. Validate only the FK query we actually rewrote.
     if (occurrences(binary, KEY_MARKER) !== 1 || occurrences(binary, FK_MARKER) !== 1 ||
         occurrences(binary, INDEX_MARKER) !== 2 ||
         occurrences(binary, FK_NAME_MARKER) !== 1 ||
+        occurrences(binary, JSONB_MARKER) !== 2 ||
+        [...binary.matchAll(pgJsonbDefault)].length !== 0 ||
         [...binary.matchAll(indexExpression)].length !== 0 ||
         [...binary.matchAll(fkNameInsertion)].length !== 0 ||
         [...binary.matchAll(anyFkInsertion)].length !== 1 ||
@@ -60,10 +77,11 @@ export function patchPinnedIntrospectionBinary(binary) {
   const indexPredicates = [...binary.matchAll(indexExpression)];
   const fkNames = [...binary.matchAll(fkNameInsertion)];
   const allFkNames = [...binary.matchAll(anyFkInsertion)];
+  const jsonbDefaults = [...binary.matchAll(pgJsonbDefault)];
   // The exact release source has one copy of each query. A new upstream
   // package layout must not silently be treated as a supported hotfix.
   if (keys.length !== 1 || fks.length !== 1 || indexPredicates.length !== 2 ||
-      fkNames.length !== 1 || allFkNames.length !== 2 || !fkJoin.test(fks[0][0])) {
+      fkNames.length !== 1 || allFkNames.length !== 2 || jsonbDefaults.length !== 2 || !fkJoin.test(fks[0][0])) {
     fail("UNRECOGNIZED_UPSTREAM_QUERY");
   }
   const patchedKeys = keys[0][0]
@@ -98,7 +116,12 @@ export function patchPinnedIntrospectionBinary(binary) {
   if (!patchedFks.includes(FK_MARKER) || fkJoin.test(patchedFks)) {
     fail("FK_QUERY_REWRITE_INCOMPLETE");
   }
+  const normalizePgJsonbDefault = (fragment, sqlType, _target, colDefault) =>
+    fragment.replace("JSON.stringify(" + colDefault + ")",
+      "JSON.stringify(" + colDefault + ", " + sqlType + ' === "jsonb" ? ' +
+      "(_key, value) => value && typeof value === \"object\" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => Buffer.byteLength(a, \"utf8\") - Buffer.byteLength(b, \"utf8\") || Buffer.compare(Buffer.from(a, \"utf8\"), Buffer.from(b, \"utf8\")))) : value" + " : undefined) /* " + JSONB_MARKER + " */");
   const rewritten = binary.replace(keys[0][0], patchedKeys).replace(fks[0][0], patchedFks)
+    .replace(pgJsonbDefault, normalizePgJsonbDefault)
     .replace(indexExpression,
       "CASE WHEN k.attnum = 0 THEN 1 ELSE 0 END AS is_expression /* " + INDEX_MARKER + " */")
     .replace(fkNames[0][0], fkNames[0][0].replace(anyFkInsertion,
@@ -114,6 +137,8 @@ export function patchPinnedIntrospectionBinary(binary) {
       occurrences(rewritten, FK_MARKER) !== 1 ||
       occurrences(rewritten, INDEX_MARKER) !== 2 ||
       occurrences(rewritten, FK_NAME_MARKER) !== 1 ||
+      occurrences(rewritten, JSONB_MARKER) !== 2 ||
+      [...rewritten.matchAll(pgJsonbDefault)].length !== 0 ||
       [...rewritten.matchAll(fkNameInsertion)].length !== 0 ||
       [...rewritten.matchAll(anyFkInsertion)].length !== 1 ||
       [...rewritten.matchAll(indexExpression)].length !== 0 || keyQuery.test(rewritten)) {

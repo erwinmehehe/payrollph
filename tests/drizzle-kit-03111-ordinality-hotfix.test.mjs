@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   patchPinnedIntrospectionBinary,
   ensurePinnedKitOrdinalityPatch,
+  canonicalPgJsonbDefault,
 } from "../scripts/lib/drizzle-kit-03111-ordinality-hotfix.mjs";
 
 const kit = join("node_modules", "drizzle-kit");
@@ -14,6 +15,14 @@ const markerKey = "PAYROLLPH_1019_ORDERED_KEY_COLUMNS_V1";
 const markerFk = "PAYROLLPH_1019_PAIRED_FOREIGN_COLUMNS_V1";
 const markerIndex = "PAYROLLPH_1019_INDEX_COLUMN_EXPRESSION_V1";
 const markerFkName = "PAYROLLPH_1019_PG63_FOREIGN_NAMES_V1";
+const markerJsonb = "PAYROLLPH_1019_JSONB_CANONICAL_DEFAULT_V1";
+
+test("#1019 canonical JSONB defaults preserve values but match PG object key order", () => {
+  const declared={version:1,all:[],any:[]};
+  assert.equal(canonicalPgJsonbDefault(declared), '{"all":[],"any":[],"version":1}');
+  assert.deepEqual(JSON.parse(canonicalPgJsonbDefault(declared)), declared);
+  assert.equal(canonicalPgJsonbDefault([{long:3,a:2}]), '[{"a":2,"long":3}]');
+});
 
 test("#1019 local Drizzle Kit remains version pinned; no RC dependency promotion", () => {
   const pkg = JSON.parse(readFileSync("package.json", "utf8"));
@@ -42,6 +51,8 @@ test("#1019 patched introspection keeps real CLI and preserves ordered composite
   assert.ok(result.content.includes(markerFk));
   assert.equal(result.content.split(markerIndex).length - 1, 2);
   assert.equal(result.content.split(markerFkName).length - 1, 1);
+  assert.equal(result.content.split(markerJsonb).length - 1, 2);
+  assert.match(result.content, /Buffer\.byteLength\(a, "utf8"\)/);
   assert.equal([...result.content.matchAll(bareInsertion)].length,1,
     "the MySQL FK insertion must be retained unchanged");
   const pgMarkerPos = result.content.indexOf(markerFkName);
@@ -70,6 +81,10 @@ test("#1019 patched introspection keeps real CLI and preserves ordered composite
   );
   assert.throws(
     () => patchPinnedIntrospectionBinary(result.content.replace(markerFkName, "partial-fk-name-hotfix")),
+    /DRIZZLE_1019_PARTIAL_OR_UNKNOWN_PATCH/
+  );
+  assert.throws(
+    () => patchPinnedIntrospectionBinary(result.content.replace(markerJsonb, "partial-jsonb-hotfix")),
     /DRIZZLE_1019_PARTIAL_OR_UNKNOWN_PATCH/
   );
   const wrapper = readFileSync("scripts/strict-db-push.mjs", "utf8");
