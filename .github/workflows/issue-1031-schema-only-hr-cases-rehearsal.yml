@@ -1,0 +1,154 @@
+name: Issue 1031 - HR cases schema-only review rehearsal (disposable PG)
+on:
+  pull_request:
+    paths:
+      - "docs/sql/issue-1031-schema-only-hr-cases-review.sql"
+      - "tests/issue-1031-schema-only-hr-cases.test.mjs"
+      - "tests/issue-1031-schema-only-hr-cases-postgres.test.ts"
+      - "docs/engineering/issue-1031-schema-only-hr-cases-review.md"
+      - ".github/workflows/issue-1031-schema-only-hr-cases-rehearsal.yml"
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  disposable-postgres:
+    name: Exact HR source schema and tenant denials (PG ${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      ISSUE_1031_HR_REHEARSAL: "isolated-ci-only"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Source-only SQL preflight and tenant-FK checks
+        run: node --test tests/issue-1031-schema-only-hr-cases.test.mjs
+      - name: Bootstrap full stable schema ONLY on disposable localhost
+        run: npm run db:push
+      - name: Reconstruct HR group, compare complete catalogs, prove tenant denials
+        run: ./node_modules/.bin/tsx --test tests/issue-1031-schema-only-hr-cases-postgres.test.ts
+
+  isolated-rc-repeat-proof:
+    name: Separate RC-only true full-schema no-op (PG ${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: RC overlay ONLY in this separate empty disposable PG service
+        run: npm install --no-save --package-lock=false drizzle-kit@1.0.0-rc.4 drizzle-orm@1.0.0-rc.4
+      - name: Verify exact matched RC toolchain versions
+        run: |
+          node -e 'const f=require("node:fs");for(const n of ["drizzle-kit","drizzle-orm"]){const v=JSON.parse(f.readFileSync("node_modules/"+n+"/package.json","utf8")).version;if(v!=="1.0.0-rc.4")process.exit(1)}'
+      - run: npm run db:push
+      - name: Second RC push must be a genuine DDL-free no-op
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(npm run db:push)"
+          printf '%s\n' "$output"
+          grep -Fxq '[✓] No changes detected' <<< "$output"
+          echo "SEPARATE_RC_TRUE_NO_OP=PASS"
+
+  complete-npm-test:
+    name: Full npm test on independent disposable PG16
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      SCHEDULER_REHEARSAL_MODE: "isolated-ci-only"
+      OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: "true"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral fictional-only encryption keys
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - run: npm test
