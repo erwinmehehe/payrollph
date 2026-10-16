@@ -19,6 +19,12 @@ on:
       - "src/app/api/payroll/**"
       - "src/app/api/payroll-runs/**"
       - "src/app/api/bir/**"
+      - "src/app/api/year-end/**"
+      - "src/app/api/payroll-earnings/**"
+      - "src/app/api/compliance/data-requests/**"
+      - "src/lib/year-end*.ts"
+      - "src/lib/bir-2316*.ts"
+      - "src/lib/thirteenth-month-centavos.ts"
       - "src/app/api/exports/**"
       - "src/lib/first-payroll-*.ts"
       - "src/lib/hris-onboarding-checklist.ts"
@@ -44,6 +50,11 @@ on:
       - "scripts/qa/nine-stage-connected-acceptance.ts"
       - "scripts/qa/governed-hire-853-bridge.ts"
       - "scripts/qa/connected-governed-hire.ts"
+      - "scripts/qa/connected-year-end-journey.ts"
+      - "scripts/qa/connected-year-end-mapping.ts"
+      - "tests/connected-year-end-mapping.test.ts"
+      - "scripts/qa/connected-year-end-artifact.ts"
+      - "tests/connected-year-end-artifact.test.ts"
       - "scripts/qa/bir-1604c-validation-corpus.ts"
       - "scripts/build-bir-validation-corpus.ts"
       - "tests/bir-validation-corpus.test.ts"
@@ -89,6 +100,12 @@ on:
       - "src/app/api/payroll/**"
       - "src/app/api/payroll-runs/**"
       - "src/app/api/bir/**"
+      - "src/app/api/year-end/**"
+      - "src/app/api/payroll-earnings/**"
+      - "src/app/api/compliance/data-requests/**"
+      - "src/lib/year-end*.ts"
+      - "src/lib/bir-2316*.ts"
+      - "src/lib/thirteenth-month-centavos.ts"
       - "src/app/api/exports/**"
       - "src/lib/first-payroll-*.ts"
       - "src/lib/hris-onboarding-checklist.ts"
@@ -114,6 +131,11 @@ on:
       - "scripts/qa/nine-stage-connected-acceptance.ts"
       - "scripts/qa/governed-hire-853-bridge.ts"
       - "scripts/qa/connected-governed-hire.ts"
+      - "scripts/qa/connected-year-end-journey.ts"
+      - "scripts/qa/connected-year-end-mapping.ts"
+      - "tests/connected-year-end-mapping.test.ts"
+      - "scripts/qa/connected-year-end-artifact.ts"
+      - "tests/connected-year-end-artifact.test.ts"
       - "scripts/qa/bir-1604c-validation-corpus.ts"
       - "scripts/build-bir-validation-corpus.ts"
       - "tests/bir-validation-corpus.test.ts"
@@ -165,11 +187,21 @@ jobs:
             postgres: "16"
           - hire-mode: governed
             postgres: "18"
+          - hire-mode: governed
+            postgres: "16"
+            cutoff: year-end
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
       NINE_STAGE_HIRE_MODE: ${{ matrix.hire-mode }}
       NINE_STAGE_PG_MAJOR: ${{ matrix.postgres }}
+      NINE_STAGE_CUTOFF_MODE: ${{ matrix.cutoff || 'month' }}
+      YEAR_END_PRIOR_EVIDENCE_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
+      BIR_2316_CERTIFICATE_DRAFT_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
+      BIR_2316_WITHHOLDING_EVIDENCE_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
+      BIR_2316_RECONCILIATION_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
       FRESH_PG18_DEV_REHEARSAL: ${{ matrix.postgres == '18' && 'disposable-ci-only' || 'off' }}
       CI: "true"
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -255,6 +287,8 @@ jobs:
       - name: Run focused payroll/WFM safety regressions (separate from connected evidence)
         run: |
           npx tsx --test \
+            tests/connected-year-end-mapping.test.ts \
+            tests/connected-year-end-artifact.test.ts \
             tests/qa-synthetic-session-clock.test.ts \
             tests/web-bundy-overnight-anchor.test.ts \
             tests/payroll-night-differential.test.ts \
@@ -330,7 +364,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: nine-stage-source-connected-no-money-pg${{ matrix.postgres }}-${{ matrix.hire-mode }}
+          name: nine-stage-source-connected-no-money-pg${{ matrix.postgres }}-${{ matrix.hire-mode }}${{ matrix.cutoff == 'year-end' && '-year-end' || '' }}
           path: |
             qa-artifacts/nine-stage-connected-report.json
             qa-artifacts/fresh-pg18-dev-schema.json
@@ -338,13 +372,15 @@ jobs:
             qa-artifacts/issue-853-synthetic-two-tenant-scope.json
             qa-artifacts/governed-hire-853-report.json
             qa-artifacts/bir-validation-corpus/**
+            qa-artifacts/connected-year-end-unsigned.pdf
+            qa-artifacts/connected-year-end-review.json
           if-no-files-found: warn
           retention-days: 14
       - name: Upload fictional desktop and phone layout screenshots
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: nine-stage-role-layout-screenshots-pg${{ matrix.postgres }}-${{ matrix.hire-mode }}
+          name: nine-stage-role-layout-screenshots-pg${{ matrix.postgres }}-${{ matrix.hire-mode }}${{ matrix.cutoff == 'year-end' && '-year-end' || '' }}
           path: qa-artifacts/nine-stage-layout-*.png
           if-no-files-found: warn
           retention-days: 14

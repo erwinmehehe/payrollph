@@ -81,12 +81,14 @@ test("PostgreSQL proven varchar/numeric default deparser casts compare only when
 
 test("PostgreSQL deparsed varchar IN list compares only identical columns and case-sensitive literals",()=>{
  const model: SchemaManifest={...manifest,tables:[{...manifest.tables[0]!,
+   columns:[...manifest.tables[0]!.columns,{name:"status",type:"varchar(16)",nullable:false,default:null,identity:null}],
    checks:[{name:"synthetic_payroll_status_check",
      expression:"synthetic_payroll.status in ('info','warning','blocker')"}]}]};
+ const actual: CatalogRow[]=[...observed,{table_name:"synthetic_payroll",kind:"column",object_name:"status",type:"character varying(16)",nullable:false,default:null,identity:null}];
  const expr="((status)::text = ANY ((ARRAY['info'::character varying, 'warning'::character varying, 'blocker'::character varying])::text[]))";
  const row: CatalogRow={table_name:"synthetic_payroll",kind:"check",
    object_name:"synthetic_payroll_status_check",expression:expr,validated:true};
- assert.ok(diffSchema(model,[...observed,row]).every(x=>x.status==="PASS"));
+ assert.ok(diffSchema(model,[...actual,row]).every(x=>x.status==="PASS"));
  const changed=[
    expr.replace("'blocker'","'critical'"),
    expr.replace("(status)","(other)"),
@@ -94,9 +96,32 @@ test("PostgreSQL deparsed varchar IN list compares only identical columns and ca
    "((status)::text = ANY ((ARRAY['info'::character varying, 'warning'::character varying])::text[]))",
  ];
  for(const expression of changed) {
-   assert.equal(diffSchema(model,[...observed,{...row,expression}])
+   assert.equal(diffSchema(model,[...actual,{...row,expression}])
      .find(x=>x.kind==="check"&&x.object===row.object_name)?.status,"DRIFT");
  }
- assert.equal(diffSchema(model,[...observed,{...row,validated:false}])
+ assert.equal(diffSchema(model,[...actual,{...row,validated:false}])
    .find(x=>x.kind==="check"&&x.object===row.object_name)?.status,"DRIFT");
 });
+
+test("integer IN versus text-cast ANY must remain DRIFT despite matching literal spelling", () => {
+ const model: SchemaManifest={...manifest,tables:[{...manifest.tables[0]!,
+   checks:[{name:"numeric_identity_check",expression:"id in ('01','02')"}]}]};
+ const row: CatalogRow={table_name:"synthetic_payroll",kind:"check",object_name:"numeric_identity_check",
+   expression:"((id)::text = ANY ((ARRAY['01'::character varying, '02'::character varying])::text[]))",validated:true};
+ assert.equal(diffSchema(model,[...observed,row]).find(x=>x.kind==="check")?.status,"DRIFT");
+});
+
+ test("VARCHAR equivalence needs independent observed type and the correct source qualifier", () => {
+  const model: SchemaManifest={...manifest,tables:[{...manifest.tables[0]!,
+    columns:[...manifest.tables[0]!.columns,{name:"status",type:"varchar(16)",nullable:false,default:null,identity:null}],
+    checks:[{name:"typed_status",expression:"status in ('a','b')"}]}]};
+  const check: CatalogRow={table_name:"synthetic_payroll",kind:"check",object_name:"typed_status",
+    expression:"((status)::text = ANY ((ARRAY['a'::character varying, 'b'::character varying])::text[]))",validated:true};
+  for(const type of ["integer","character(16)","citext",null]) {
+    const rows: CatalogRow[]=[...observed,check];
+    if(type) rows.push({table_name:"synthetic_payroll",kind:"column",object_name:"status",type,nullable:false,default:null,identity:null});
+    assert.equal(diffSchema(model,rows).find(x=>x.kind==="check")?.status,"DRIFT");
+  }
+  const wrongQualifier={...model,tables:[{...model.tables[0]!,checks:[{name:"typed_status",expression:"another_table.status in ('a','b')"}]}]};
+  assert.equal(diffSchema(wrongQualifier,[...observed,check,{table_name:"synthetic_payroll",kind:"column",object_name:"status",type:"varchar(16)",nullable:false,default:null,identity:null}]).find(x=>x.kind==="check")?.status,"DRIFT");
+ });

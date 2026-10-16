@@ -92,7 +92,7 @@ function fileSources() {
     return { path: name, prefix, sha256: sourceHash(bytes), sql: filename.endsWith(".sql"),
       parsed: filename.endsWith(".sql") ? parseMigrationSql(bytes.toString("utf8")) : null };
   });
-  if (files.length !== 143) throw Error("EXPECTED_143_DRIZZLE_FILES_FOUND_" + files.length);
+  if (files.length !== 144) throw Error("EXPECTED_144_DRIZZLE_FILES_FOUND_" + files.length);
   return files;
 }
 

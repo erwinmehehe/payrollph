@@ -60,6 +60,7 @@ export function HrisHomeShortcuts({
     () => canQuickFind ? findAuthorizedHrisEmployees(employees, employeeQuery) : [],
     [canQuickFind, employees, employeeQuery],
   );
+  const searchExpanded = employeeQuery.trim().length >= 2;
   const attention = useMemo(
     () => summarizeEverydayHrAttention({ employees, provisioning, approvals: approvalTasks }),
     [employees, provisioning, approvalTasks],
@@ -100,6 +101,8 @@ export function HrisHomeShortcuts({
               autoComplete="off"
               maxLength={80}
               value={employeeQuery}
+              aria-describedby="hris-employee-quick-help"
+              aria-controls={searchExpanded ? "hris-employee-quick-results" : undefined}
               onChange={(event) => setEmployeeQuery(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Escape") setEmployeeQuery("");
@@ -112,14 +115,28 @@ export function HrisHomeShortcuts({
               placeholder="Search name, employee number or job title"
               className="min-h-11 min-w-0 w-full border-0 bg-transparent py-2 text-sm text-slate-900 outline-none"
             />
+            {employeeQuery.length > 0 && (
+              <button type="button" onClick={() => setEmployeeQuery("")}
+                aria-label="Clear employee search"
+                className="min-h-11 shrink-0 rounded-md px-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+                Clear
+              </button>
+            )}
           </div>
-          <p className="mt-2 text-xs text-slate-600">
-            Results come only from your current employer and authorized employee directory.
+          <p id="hris-employee-quick-help" className="mt-2 text-xs text-slate-600">
+            Type at least two characters. Press Enter to open the first match or Tab to choose a result.
+            Only employees from your currently selected employer and authorized directory are searched.
           </p>
-          {employeeQuery.trim().length >= 2 && (
-            <div className="mt-3" aria-live="polite" aria-label="Employee search results">
+          {searchExpanded && (
+            <div id="hris-employee-quick-results" className="mt-3" aria-live="polite" aria-label="Employee search results">
               {matches.length ? (
-                <ul className="grid gap-2 sm:grid-cols-2">
+                <>
+                  <p className="mb-2 text-xs text-slate-700">
+                    {matches.length === 6
+                      ? "Showing up to six matches. Refine your search to find someone else."
+                      : `Showing ${matches.length} matching employee${matches.length === 1 ? "" : "s"}.`}
+                  </p>
+                  <ul className="grid gap-2 sm:grid-cols-2">
                   {matches.map((employee) => (
                     <li key={employee.id}>
                       <button
@@ -143,10 +160,11 @@ export function HrisHomeShortcuts({
                       </button>
                     </li>
                   ))}
-                </ul>
+                  </ul>
+                </>
               ) : (
                 <p className="rounded-lg bg-white p-3 text-sm text-slate-600">
-                  No matching employee in your authorized directory.
+                  No matching employee in your authorized directory. Try another name or employee number.
                 </p>
               )}
             </div>

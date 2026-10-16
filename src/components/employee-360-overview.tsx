@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Employee360Card, Employee360CardId } from "@/lib/employee-360-overview";
+import { focusEmployee360Section } from "@/lib/employee-360-focus";
 
 const ICONS: Record<Employee360CardId, LucideIcon> = {
   employment: BriefcaseBusiness,
@@ -59,12 +60,15 @@ export function Employee360Overview({
           return (
             <button key={card.id} type="button" disabled={isUnavailable}
               aria-label={"Review " + card.title + " details"}
+              aria-controls={card.available ? card.targetId : undefined}
               onClick={() => {
                 const target = document.getElementById(card.targetId);
                 if (!target) return;
-                // Move keyboard/screen-reader focus as well as the scroll position.
-                target.focus({ preventScroll: true });
-                target.scrollIntoView({ behavior: "smooth", block: "start" });
+                // Section headings are not always natively focusable. Preserve
+                // keyboard focus and respect the user's reduced-motion setting.
+                focusEmployee360Section(
+                  target, window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+                );
               }}
               className={
                 "flex min-h-32 flex-col rounded-xl border p-3 text-left outline-offset-2 " +

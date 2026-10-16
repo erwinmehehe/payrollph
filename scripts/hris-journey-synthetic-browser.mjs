@@ -13,6 +13,7 @@ assert.equal(process.env.CI, "true");
 assert.equal(process.env.HRIS_JOURNEY_ACCEPTANCE_MODE, "synthetic-postgres-only");
 assert.equal(base, "http://127.0.0.1:3000");
 assert.equal(process.env.HCM_MY_TEAM_ENABLED, "true");
+assert.equal(process.env.EVERYDAY_HR_HIRE_ENABLED, "true");
 assert.equal(process.env.OPENAI_API_KEY ?? "", "");
 const database = new URL(process.env.DATABASE_URL ?? "");
 assert.ok(["127.0.0.1", "localhost"].includes(database.hostname));
@@ -69,6 +70,14 @@ async function workspace(page, orgId) {
  * change handler. Merely waiting for networkidle does not prove hydration.
  * The actual authorized/no-match search checks remain unchanged.
  */
+/** Use the actual 375/390px drawer, never direct-set component state. */
+async function openMobileApprovals(page) {
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.locator('.sidebar [data-nav-name="Approvals"]').click();
+  await page.locator('[data-workspace-page="Approvals"]').waitFor({ timeout: 60000 });
+  await page.getByRole("heading", { name: "Approvals, without the guesswork." }).waitFor();
+}
+
 async function hydratedEmployeeSearch(page) {
   const input = page.getByRole("searchbox", { name: "Find an employee" });
   await input.waitFor();
@@ -167,6 +176,74 @@ try {
     const latest = after.body;
     assert.equal(latest.employees.find(row => row.employeeId === owner.employeeId)
       .onboarding.find(task => task.id === item.id).done, true);
+  });
+
+  await checkpoint(page, "Everyday HR direct hire creates one real onboarding source", async () => {
+    await workspace(page, 1);
+    await page.getByRole("button", { name: "Open Hire & onboard" }).click();
+    await page.getByRole("heading", { name: "Onboarding checklist" }).waitFor();
+    await page.getByRole("button", { name: "Add employee & start onboarding" }).click();
+    const hire = page.getByRole("dialog", { name: "Add employee" });
+    await hire.waitFor();
+    // The server-exposed flag is explicitly enabled only in this disposable lab.
+    const before = await browserRequest(page, "/api/dashboard?organizationId=1");
+    assert.equal(before.body.everydayHrHireEnabled, true);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      const bounds = await hire.boundingBox();
+      assert.ok(bounds && bounds.x >= -1 && bounds.x + bounds.width <= width + 1,
+        "Hire dialog must fit desktop and 390px");
+      await page.screenshot({ path: `qa-artifacts/hris-hire-${width}px.png`, fullPage: true });
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await hire.getByLabel("First name").fill("Journey");
+    await hire.getByLabel("Last name").fill("Newhire");
+    await hire.getByLabel("Job title").fill("Synthetic HR");
+    await hire.getByLabel("Monthly rate").fill("24000");
+    await hire.getByLabel("Start date").fill("2026-10-15");
+
+    // A transient error must preserve editable input and not claim success.
+    await page.route("**/api/employees", route => route.fulfill({
+      status: 503, contentType: "application/json",
+      body: JSON.stringify({ error: "Synthetic retryable hire failure" }),
+    }), { times: 1 });
+    await hire.getByRole("button", { name: "Create & onboard" }).click();
+    await hire.getByText("Synthetic retryable hire failure", { exact: true }).waitFor();
+    assert.equal(await hire.getByLabel("Start date").inputValue(), "2026-10-15");
+    assert.equal(await hire.getByLabel("First name").inputValue(), "Journey");
+
+    // This is the real protected UI/API, not a seeded fake completed hire.
+    const [create] = await Promise.all([
+      page.waitForResponse(response =>
+        response.url().endsWith("/api/employees") && response.request().method() === "POST"),
+      hire.getByRole("button", { name: "Create & onboard" }).click(),
+    ]);
+    assert.equal(create.status(), 201, "Source employee creation must succeed from Everyday HR");
+    const created = await create.json();
+    const id = created?.employee?.id;
+    assert.ok(Number.isSafeInteger(id) && id > 0);
+    assert.equal(created.employee.organizationId, 1);
+    assert.equal(created.employee.firstName, "Journey");
+    assert.equal(created.employee.lastName, "Newhire");
+    assert.ok(Array.isArray(created.onboarding) && created.onboarding.length > 0,
+      "The owning employee-create API must persist real provisioning tasks");
+
+    await hire.waitFor({ state: "hidden" });
+    const search = page.getByRole("searchbox", { name: "Search onboarding checklists" });
+    await search.fill("Journey Newhire");
+    await page.getByRole("heading", { name: "Journey Newhire" }).waitFor({ timeout: 60000 });
+    const source = await browserRequest(page, "/api/provisioning?organizationId=1");
+    assert.equal(source.status, 200);
+    const actual = source.body?.employees?.find(worker => worker.employeeId === id);
+    assert.ok(actual && actual.onboarding.length > 0, "Checklist must be linked to exactly the new source employee");
+    assert.ok(actual.onboarding.every(task => task.employeeId === id && !task.done));
+    assert.ok(!JSON.stringify(source.body).includes("BetaPrivate"),
+      "A's checklist must never include the other fictional employer's records");
+
+    const other = await browserRequest(page, "/api/provisioning?organizationId=2");
+    assert.equal(other.status, 200);
+    assert.ok(!other.body?.employees?.some(worker => worker.employeeId === id),
+      "B must not expose newly hired A worker by overlapping identifiers");
   });
 
   // P0: use the actual HR Leave form and independent manager approval.
@@ -403,6 +480,10 @@ try {
       "/hcm/my-team?organizationId=2",
       "Review team must not retain the previous employer ID");
     const betaFind = await hydratedEmployeeSearch(mobilePage);
+    assert.equal(await betaFind.inputValue(), "",
+      "Employer switching must discard a prior tenant's employee search");
+    await betaFind.fill("Journey Newhire");
+    await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
     await betaFind.fill("AlphaPrivate");
     await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
     await betaFind.fill("BetaPrivate");
@@ -495,6 +576,206 @@ try {
     const response = await browserRequest(mp, "/api/hcm/my-team?organizationId=2");
     assert.equal(response.status, 403);
   });
+
+  // #1114: read-only HR provides task IDs for an *independent* A-only manager.
+  // Manager never receives a B membership or HR decision privileges to make
+  // the test easier. A foreign resource is intentionally concealed as 404.
+  const aHrSource = await browserRequest(page, "/api/dashboard?organizationId=1");
+  const bHrSource = await browserRequest(page, "/api/dashboard?organizationId=2");
+  assert.equal(aHrSource.status, 200);
+  assert.equal(bHrSource.status, 200);
+  const unassignedA = aHrSource.body.tasks.find(task =>
+    task.title === "Synthetic unassigned HR approval");
+  const foreignB = bHrSource.body.tasks.find(task =>
+    task.title === "BetaPrivate approval");
+  assert.equal(unassignedA?.status, "Pending");
+  assert.equal(foreignB?.status, "Pending");
+  // Reuse the existing A-only Checker from the protected, disposable
+  // baseline. Never give this reviewer a B membership just for test setup.
+  const checkerIdentity = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  await signIn(checkerIdentity, "hcm-checker@example.test");
+  const checkerSession = await checkerIdentity.storageState();
+  await checkerIdentity.close();
+  const hrSession = await hr.storageState();
+
+  for (const width of [375, 390]) {
+    const reviewer = await browser.newContext({
+      viewport: { width, height: 844 }, isMobile: true, hasTouch: true,
+      storageState: checkerSession,
+    });
+    const reviewerPage = await reviewer.newPage();
+    const localErrors = [];
+    reviewerPage.on("pageerror", error => localErrors.push(error.message));
+    try {
+      await checkpoint(reviewerPage, width + "px assigned mobile reviewer / unassigned denials", async () => {
+        await workspace(reviewerPage, 1);
+        await openMobileApprovals(reviewerPage);
+        const title = "Synthetic phone checker approval " + width;
+        const row = reviewerPage.locator(".approval-content").filter({ hasText: title });
+        await row.waitFor({ timeout: 60000 });
+        const before = await browserRequest(reviewerPage, "/api/dashboard?organizationId=1");
+        assert.equal(before.status, 200);
+        const assigned = before.body.tasks.find(task => task.title === title);
+        assert.equal(assigned?.status, "Pending");
+
+        // Company and role assignment are enforced by the API, not the UI.
+        assert.equal(await reviewerPage.getByText(
+          "Synthetic unassigned HR approval", { exact: true }).count(), 0);
+        assert.equal(await reviewerPage.getByText(
+          "BetaPrivate approval", { exact: true }).count(), 0);
+        const deniedUnassigned = await browserRequest(reviewerPage,
+          "/api/approvals/" + unassignedA.id, "PATCH", { status: "Approved" });
+        assert.equal(deniedUnassigned.status, 403,
+          "An A Checker must not approve an A HR-only unassigned task");
+        const concealedForeign = await browserRequest(reviewerPage,
+          "/api/approvals/" + foreignB.id, "PATCH", { status: "Approved" });
+        assert.equal(concealedForeign.status, 404,
+          "Foreign B task IDs are concealed, not exposed as a tenant existence oracle");
+        const wrongDashboard = await browserRequest(reviewerPage,
+          "/api/dashboard?organizationId=2");
+        assert.equal(wrongDashboard.status, 403,
+          "An A-only Checker cannot read B dashboard approval records");
+
+        const layout = await reviewerPage.evaluate(() => {
+          const card = document.querySelector(".p2-approval-queue");
+          const rect = card?.getBoundingClientRect();
+          return { viewport: window.innerWidth,
+            rootWidth: document.documentElement.clientWidth,
+            rootScroll: document.documentElement.scrollWidth,
+            cardLeft: rect?.left ?? -999, cardRight: rect?.right ?? 9999 };
+        });
+        assert.ok(layout.cardLeft >= -1 &&
+          layout.cardRight <= layout.viewport + 1 &&
+          layout.rootScroll <= layout.rootWidth + 1,
+          width + "px approvals must not overflow the phone viewport");
+
+        await row.getByRole("button", { name: "Review & approve" }).click();
+        const confirm = reviewerPage.getByRole("dialog");
+        await confirm.getByRole("heading", { name: "Confirm approval" }).waitFor();
+        const [decision] = await Promise.all([
+          reviewerPage.waitForResponse(response =>
+            response.url().endsWith("/api/approvals/" + assigned.id) &&
+            response.request().method() === "PATCH", { timeout: 60000 }),
+          confirm.getByRole("button", { name: "Confirm approval" }).click(),
+        ]);
+        assert.equal(decision.status(), 200, "Exact assigned mobile source decision must persist");
+        await reviewerPage.getByText(
+          "Approval approved and recorded in the audit trail.").waitFor({ timeout: 60000 });
+        const after = await browserRequest(reviewerPage, "/api/dashboard?organizationId=1");
+        assert.equal(after.status, 200);
+        assert.equal(after.body.tasks.find(task => task.id === assigned.id)?.status, "Approved");
+        assert.equal((await browserRequest(reviewerPage,
+          "/api/approvals/" + assigned.id, "PATCH", { status: "Approved" })).status, 409,
+          "A decided approval is never silently submitted a second time");
+        await reviewerPage.screenshot({
+          path: "qa-artifacts/hris-reviewer-" + width + "px.png", fullPage: true });
+        assert.deepEqual(localErrors, [], "Signed-in reviewer must have no browser exceptions");
+      });
+    } finally {
+      await reviewer.close();
+    }
+  }
+
+  // The Checker legitimately belongs only to A. Instead of inventing a B
+  // reviewer membership, use the existing dual-member HR session for A->B->A
+  // UI scope changes. These full navigations cancel the retired page; they do
+  // NOT assert that a synthetic fixture proved within-document React races.
+  for (const width of [375, 390]) {
+    const switching = await browser.newContext({
+      viewport: { width, height: 844 }, isMobile: true, hasTouch: true,
+      storageState: hrSession,
+    });
+    const switchingPage = await switching.newPage();
+    const errors = [];
+    switchingPage.on("pageerror", error => errors.push(error.message));
+    try {
+      await checkpoint(switchingPage, width + "px authorized A-B-A approvals and failed read recovery", async () => {
+        await workspace(switchingPage, 1);
+        await openMobileApprovals(switchingPage);
+        await switchingPage.getByText(
+          "Synthetic unassigned HR approval", { exact: true }).waitFor();
+
+        const aPattern = "**/api/dashboard?organizationId=1";
+        await switchingPage.route(aPattern, route => route.fulfill({
+          status: 503, contentType: "application/json",
+          body: '{"error":"Synthetic 503 source read only"}',
+        }));
+        const failedRead = await browserRequest(switchingPage, "/api/dashboard?organizationId=1");
+        assert.equal(failedRead.status, 503, "Injected synthetic read outage must be observed");
+        await switchingPage.unroute(aPattern);
+        const recovered = await browserRequest(switchingPage, "/api/dashboard?organizationId=1");
+        assert.equal(recovered.status, 200, "Fresh source retry must recover after 503");
+        assert.ok(recovered.body.tasks.some(task =>
+          task.title === "Synthetic unassigned HR approval"));
+        assert.ok(!recovered.body.tasks.some(task =>
+          task.title === "BetaPrivate HR-only approval"));
+
+        // Hold an actual authenticated A read while the real company-switcher
+        // replaces the page. The delayed old response must never paint in B.
+        let notifyHeld;
+        let releaseHeld;
+        const heldStarted = new Promise(resolve => { notifyHeld = resolve; });
+        const heldFinish = new Promise(resolve => { releaseHeld = resolve; });
+        await switchingPage.route(aPattern, async route => {
+          notifyHeld();
+          await heldFinish;
+          await route.fulfill({
+            status: 503, contentType: "application/json",
+            body: '{"error":"LATE_PRIVATE_A_ERROR"}',
+          }).catch(() => { /* old page cancelled the request during navigation */ });
+        });
+        const obsolete = switchingPage.evaluate(async () => {
+          try {
+            const response = await fetch("/api/dashboard?organizationId=1", { cache: "no-store" });
+            return response.status;
+          } catch { return "aborted"; }
+        }).catch(() => "navigation-cancelled");
+        await heldStarted;
+        await switchingPage.locator(".company-switcher").click();
+        await switchingPage.getByRole("menuitemradio",
+          { name: /Synthetic Beta Employer/ }).click();
+        await switchingPage.waitForURL("**/app?organizationId=2");
+        releaseHeld();
+        await obsolete;
+        await switchingPage.unroute(aPattern);
+        await openMobileApprovals(switchingPage);
+        await switchingPage.getByText("BetaPrivate HR-only approval",
+          { exact: true }).waitFor({ timeout: 60000 });
+        assert.equal(await switchingPage.getByText(
+          "Synthetic unassigned HR approval", { exact: true }).count(), 0);
+        assert.equal(await switchingPage.getByText(
+          "LATE_PRIVATE_A_ERROR", { exact: false }).count(), 0);
+        const inB = await browserRequest(switchingPage, "/api/dashboard?organizationId=2");
+        assert.equal(inB.status, 200);
+        assert.ok(inB.body.tasks.some(task => task.title === "BetaPrivate HR-only approval"));
+        assert.ok(!inB.body.tasks.some(task => task.title === "Synthetic unassigned HR approval"));
+
+        await switchingPage.locator(".company-switcher").click();
+        await switchingPage.getByRole("menuitemradio",
+          { name: /Synthetic Alpha Employer/ }).click();
+        await switchingPage.waitForURL("**/app?organizationId=1");
+        await openMobileApprovals(switchingPage);
+        await switchingPage.getByText(
+          "Synthetic unassigned HR approval", { exact: true }).waitFor({ timeout: 60000 });
+        assert.equal(await switchingPage.getByText(
+          "BetaPrivate HR-only approval", { exact: true }).count(), 0);
+        const inA = await browserRequest(switchingPage, "/api/dashboard?organizationId=1");
+        assert.equal(inA.status, 200);
+        assert.ok(inA.body.tasks.some(task =>
+          task.id === unassignedA.id && task.status === "Pending"));
+        assert.deepEqual(errors, [], "Employer switching must not cause React/browser errors");
+      });
+    } finally {
+      await switching.close();
+    }
+  }
+
+  // None of the denied attempts or network-only injections may mutate source
+  // approval tasks. The two authorized mobile manager tasks alone were decided.
+  const aFinal = await browserRequest(page, "/api/dashboard?organizationId=1");
+  const bFinal = await browserRequest(page, "/api/dashboard?organizationId=2");
+  assert.equal(aFinal.body.tasks.find(task => task.id === unassignedA.id)?.status, "Pending");
+  assert.equal(bFinal.body.tasks.find(task => task.id === foreignB.id)?.status, "Pending");
 
   const unitless = await browser.newContext();
   await signIn(unitless, "hris-unitless@example.test");

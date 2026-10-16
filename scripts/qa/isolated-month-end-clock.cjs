@@ -6,12 +6,12 @@
  * HTTP, but their timestamps are synthetic current-Manila-month-end values.
  */
 const RealDate = Date;
-const { manilaMonthEnd, syntheticEpoch } = require("./synthetic-month-end.cjs");
+const { qaCutoff, syntheticEpoch } = require("./synthetic-month-end.cjs");
 const env = process.env;
 const db = new URL(env.DATABASE_URL || "postgresql://invalid:invalid@invalid/invalid");
 if (
   env.CI !== "true" || env.GITHUB_ACTIONS !== "true"
-  || env.NINE_STAGE_SYNTHETIC_CLOCK !== manilaMonthEnd(RealDate.now())
+  || env.NINE_STAGE_SYNTHETIC_CLOCK !== qaCutoff(env.NINE_STAGE_CUTOFF_MODE, RealDate.now())
   || env.QA_URL !== "http://127.0.0.1:3000"
   || env.APP_BASE_URL !== "http://127.0.0.1:3000"
   || env.DEMO_MODE !== "false"

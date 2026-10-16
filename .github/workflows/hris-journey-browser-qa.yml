@@ -99,6 +99,7 @@ jobs:
     env:
       CI: "true"
       HRIS_JOURNEY_ACCEPTANCE_MODE: synthetic-postgres-only
+      EVERYDAY_HR_HIRE_ENABLED: "true" # isolated fictional acceptance only
       FIRST_PAYROLL_INLINE_ENABLED: "true" # disposable PostgreSQL acceptance only
       HRIS_JOURNEY_ACCEPTANCE_URL: http://127.0.0.1:3000
       HCM_PEOPLE_HOME_ACCEPTANCE_MODE: synthetic-postgres-only
@@ -223,11 +224,15 @@ jobs:
           path: qa-artifacts/hris-journey-failed.png
           if-no-files-found: ignore
           retention-days: 7
-      - name: Upload fictional HR-case desktop and phone screenshots
+      - name: "Upload fictional HR-case and #1114 reviewer phone screenshots"
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: hr-case-role-screenshots
-          path: qa-artifacts/hr-cases-*.png
+          path: |
+            qa-artifacts/hris-hire-*.png
+            qa-artifacts/hr-cases-*.png
+            qa-artifacts/hris-reviewer-375px.png
+            qa-artifacts/hris-reviewer-390px.png
           if-no-files-found: ignore
           retention-days: 7
