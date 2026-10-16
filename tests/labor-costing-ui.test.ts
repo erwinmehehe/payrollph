@@ -41,9 +41,21 @@ test("labor costing UI blocks duplicate finance dimension rows", () => {
 });
 
 test("employee and organization changes cannot silently reuse stale draft state", () => {
-  assert.ok(panel.includes("resetDraftForEmployee"));
-  assert.ok(panel.includes("setDrafts([blankDraft(1)]);"));
-  assert.ok(panel.includes("setEmployeeId(data.employees[0]?.id ?? 0);"));
+  // Remount the stateful child on every employer switch: no previous employer's
+  // employee choice, finance rows or unsaved allocation drafts may render.
+  assert.match(panel, /LaborCostingPanelContent key=\{props\.data\.selectedOrganization\.id\}/);
+  assert.ok(panel.indexOf("function LaborCostingPanelContent(") < panel.indexOf("const [drafts, setDrafts]"));
+  assert.ok(panel.includes("useState<DraftAllocation[]>([blankDraft(1)])"));
+  assert.ok(panel.includes("useState(data.employees[0]?.id ?? 0)"));
+  assert.ok(panel.includes("selectedLaborCostingEmployeeId(employeeIdDraft, data.employees)"));
+  // Explicit employee changes still reset the editable draft and effective window.
+  assert.ok(panel.includes("function resetDraftForEmployee(nextEmployeeId: number)"));
+  assert.ok(panel.includes('setDrafts([blankDraft(1, activeCostCenters[0]?.id ?? "")])'));
+  assert.ok(panel.includes('setEffectiveUntil("")'));
+  // The remount cancels and invalidates any previous employer's outstanding GET.
+  assert.ok(panel.includes("controller.abort()"));
+  assert.ok(panel.includes("loadRevision.current += 1"));
+  assert.doesNotMatch(panel, /useEffect\(\(\) => \{\s*setCostCenters\(\[\]\)/);
 });
 
 test("labor costing UI can seed a new version from the employee's latest plan", () => {
