@@ -1,0 +1,69 @@
+name: Issue 1031 - IT schema-only review rehearsal (disposable PG)
+on:
+  pull_request:
+    paths:
+      - "docs/sql/issue-1031-schema-only-it-assets-review.sql"
+      - "tests/issue-1031-schema-only-it-assets.test.mjs"
+      - "tests/issue-1031-schema-only-it-assets-postgres.test.ts"
+      - "docs/engineering/issue-1031-schema-only-it-assets-review.md"
+      - ".github/workflows/issue-1031-schema-only-it-assets-rehearsal.yml"
+permissions:
+  contents: read
+jobs:
+  disposable-postgres:
+    name: Compare source/final shape on disposable PostgreSQL ${{ matrix.postgres }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      ISSUE_1031_IT_REHEARSAL: "isolated-ci-only"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+    steps:
+      - name: Checkout PR source only (no stored repository credentials)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Validate source-only candidate and guard
+        run: node --test tests/issue-1031-schema-only-it-assets.test.mjs
+      - name: Build FULL current Drizzle schema into disposable localhost PG
+        run: npm run db:push
+      - name: Drop ONLY four IT target tables, test corrupt type, restore, catalog/FK/index match and retry guard
+        run: ./node_modules/.bin/tsx --test tests/issue-1031-schema-only-it-assets-postgres.test.ts
+      - name: Prove the second full-schema drizzle-kit push is an unchanged no-op
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(npm run db:push)"
+          printf '%s\n' "$output"
+          if ! grep -Fq "No changes detected" <<< "$output"; then
+            echo "::error::Second full-schema push was not a proven no-op"
+            exit 1
+          fi
+          echo "POST_REPAIR_FULL_SCHEMA_PUSH_NO_OP=PASS"
