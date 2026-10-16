@@ -237,6 +237,92 @@ An intentional structural difference still leaves the validation gate red
 until reviewed; a linter warning is not automatically a deployment blocker
 dispositioned by an AI assistant.
 
+## #1127 engineering follow-up: separating provenance from parity
+
+The previous 271-model #1031 evidence has **282 non-PASS** rows even on
+the independently pushed fresh source fixture (155 DRIFT, 127 EXTRA).
+Those are **baseline comparator/schema discrepancies**, not proof that
+the 0115–0126 train introduced the problem. They are not waived: a
+PostgreSQL-deparsed check expression can look different, but *semantic
+equivalence has not been demonstrated* for every expression.
+
+The same comparator has 537 non-PASS rows on the source replay, of which
+**280 already occur identically on the fresh source**, 257 are
+candidate-only, and 2 are source-only. The candidate-only rows include
+49 expected-new-MISSING + 49 PG-generated-old-EXTRA recovery FK names that
+match proposed #1121 migration 0128. No other row is deemed resolved by
+similar naming alone.
+
+The new exact-source **three-state disposable PG16 checkpoint** works
+as follows:
+
+1. `app_db`: freshly applied current `schema.ts` (source baseline).
+2. `atlas_candidate_db`: clone source, drop the documented synthetic
+   missing foundation/recovery targets, replay immutable 0115→0126.
+3. `atlas_reconciled_db`: *third* disposable clone of candidate, execute
+   exact proposal `drizzle/0128_recovery_foreign_key_names_forward.sql`
+   once in a savepoint, prove **all 49 FK OIDs and definitions unchanged
+   except names**, **verify full rollback** to the before catalog, then
+   execute it once more on this throwaway database for read-only inspection.
+   Never insert a journal row or claim authentic 0127 receipts.
+
+A three-way read-only #1031 catalog report compares every model and
+records actual before/after 0128 PASS/MISSING/DRIFT/EXTRA, common baseline
+differences, candidate-only residuals, and exact matched FK pairs.
+**Each of the 49 old/new pairs must have the same FK columns, parents,
+ON DELETE/ON UPDATE actions and validation bit**. All ten recovery targets
+must be clean after this specific rename pass. That narrow result is
+`RECOVERY_0128_NAMES_PAIRED_ONLY`, explicitly **not full-app parity**.
+
+Atlas independently inspects all 271 source-model tables in each of the
+three databases under a REFERENCES-only/no-row-SELECT role and emits BOTH
+unaltered SQL plans: `atlas-source-vs-train.diff.sql` and
+`atlas-post-0128-vs-source.diff.sql`. Every proposed DROP COLUMN / DROP
+INDEX / DROP CONSTRAINT in either plan is **inspection evidence only**.
+All remaining nonempty post-0128 Atlas plans are blocking and **never
+executed**. A before/after comparison does not authorize an Atlas push or
+SQL normalization.
+
+**Candidate-only differences outside 0128 still need case-by-case review:**
+
+- Source-code compatibility versus migrations 0115–0123 for
+  `legal_entity_id` columns, tenant-employer relationships, organization
+  module settings, legal-entity address and effective-window indexes;
+  determine whether a forward train is intentionally newer than
+  `schema.ts`, not whether Atlas's destructive reverse plan can be run.
+- Foreign keys referencing a restored table that were removed by the
+  fixture's `DROP TABLE ... CASCADE` can be *synthetic collateral*. Prove
+  the starting live catalog shape independently; neither call them real
+  production missing constraints nor silently ignore them.
+- #1031 CHECK/default/index text DRIFT seen even on the source fixture
+  requires semantic/catalog equivalence proof before downgrading it to a
+  formatting issue. Keep its original raw row evidence and exact SHA.
+
+### Squawk findings: 115 / 115 retained, 0 waivers
+
+| Rule | Count | Review required before any disposition |
+| --- | ---: | --- |
+| `require-lock-timeout` | 3 | Protected PLAN/APPLY runner is source-coded to set 5-second `lock_timeout`; human must verify exact runtime/connection and transactional scope |
+| `require-statement-timeout` | 3 | Same runner sets 90-second `statement_timeout`; human must verify real runtime and lock duration |
+| `prefer-bigint-over-int` | 62 | Existing Drizzle integer PK/FK and downstream type contracts; no unilateral type conversion |
+| `prefer-identity` | 10 | Legacy serial sequence ownership, identity/ORM compatibility and historical checksum |
+| `prefer-text-field` | 37 | Existing varchar boundary and application validation contracts |
+| **Total** | **115** | **OPEN — independent engineering/DBA review** |
+
+The workflow now emits `squawk-independent-review.json`: every finding,
+severity, exact original SQL file and SHA-256, source line, rule, explanation,
+and an **open** human review question. It emits **zero waivers** and retains
+all five original rule families. The existing fail-closed lint gate still
+fails for any warnings, errors, missing JSON, or process failure. Do not
+silence these failures by changing historic 0124–0126 SQL, inventing
+receipts, or turning off a rule.
+
+**Important:** the 0128 three-state checkpoint and new Squawk triage have
+not been accepted as final simply because their source code was committed.
+Use only exact-head CI artifacts to report PG16 post-0128 and independent
+Atlas outcomes. Any unexecuted check remains **NOT_RUN**; on any CI
+failure, production remains **NO-GO**.
+
 ## Release gates not covered here
 
 Historical path+SHA receipts and DBA baseline (#744/#910); full live catalog
