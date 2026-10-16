@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - "drizzle/0129_non_recovery_fk_names_forward.sql"
+      - "scripts/independent-pg16-schema-audit.mjs"
+      - "scripts/independent-pg16-0128-checkpoint.mjs"
+      - "scripts/lib/independent-reconciliation-evidence.mjs"
+      - "scripts/lib/independent-cascade-provenance.mjs"
       - "scripts/independent-pg16-0129-checkpoint.mjs"
       - "scripts/independent-pg16-0129-catalog-parity.mjs"
       - "tests/independent-0129-fk-source.test.mjs"
@@ -67,6 +71,10 @@ jobs:
         run: npm ci
       - name: Source-only guard tests before any database operation
         run: |
+          node --check scripts/independent-pg16-schema-audit.mjs
+          node --check scripts/independent-pg16-0128-checkpoint.mjs
+          node --check scripts/lib/independent-reconciliation-evidence.mjs
+          node --check scripts/lib/independent-cascade-provenance.mjs
           node --check scripts/independent-pg16-0129-checkpoint.mjs
           node --check scripts/independent-pg16-0129-catalog-parity.mjs
           node --test tests/independent-0129-fk-source.test.mjs

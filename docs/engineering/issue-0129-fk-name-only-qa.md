@@ -1,9 +1,14 @@
 # Proposed 0129 — Non-recovery foreign-key name reconciliation
 
 **Status: unapproved engineering proposal; draft only; production NO-GO.**
-This is a *separate logical change* following #1127, which itself is stacked
-on draft #1121 and #1120. `0129` is not a replacement for those PRs, their
-applied-migration history, or any required real DBA authorization.
+This is a *separate logical change* following the schema-recovery work
+merged through #1120 and #1121. Diagnostic PR #1127 was **closed without
+merging** by the repository owner; its deliberately failing Atlas/Squawk
+workflow is **not** included here. This PR now targets `main` directly and
+carries only the four minimum source-only disposable-PG16 fixture helpers
+formerly inherited from the closed review branch. Neither that prior audit
+nor `0129` establishes production parity, approval or genuine migration
+receipts.
 The original numbered 0115–0128 sources have not been modified by this PR.
 
 ## Why this change is deliberately narrow
@@ -26,6 +31,15 @@ columns**, reference a **validated, single-column integer(id) PRIMARY KEY**
 on `public.<expected-parent>`, use the exact expected ON DELETE action,
 NO ACTION ON UPDATE and SIMPLE match semantics. Otherwise `P0001` with explicit
 `ISSUE0129_...` code blocks the *entire* protected transaction.
+
+Before catalog inspection, the preflight locks the **15 exact affected child
+tables** in a deterministic ascending order using `ACCESS EXCLUSIVE` locks.
+The protected runner must retain these locks in its single outer transaction
+until all 54 renames complete, preventing concurrent FK replacement between
+validation and rename (TOCTOU). Concurrent migrations should fail closed via
+the runner's existing `lock_timeout`; no migration may depend on autocommit
+between preflight and the renames. The disposable PG16 checkpoint independently
+tests a second session's attempted concurrent FK replacement.
 
 It performs no row reads, DML, BACKFILL, GRANT, REVOKE, constraint recreation,
 validation, monetary changes, employer inference, migration journal updates,

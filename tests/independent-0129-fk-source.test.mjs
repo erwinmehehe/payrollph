@@ -11,6 +11,20 @@ const renames=[...body.matchAll(renameRegex)].map(([,table,oldName,newName])=>({
   table,oldName,newName,
 }));
 
+
+test("preflight locks exactly the 15 reviewed FK child tables before catalog inspection", () => {
+  const contractScan = body.indexOf("  FOR item IN\n    SELECT * FROM (VALUES");
+  assert.ok(contractScan > 0, "catalog inspection anchor absent");
+  const locks = body.slice(0, contractScan);
+  const lockedTables = [...locks.matchAll(/\('([a-z_]+)'\)/g)].map(match => match[1]);
+  const expected = [...new Set(values.map(item => item.table))].sort();
+  assert.equal(expected.length, 15);
+  assert.deepEqual(lockedTables, expected, "do not omit, duplicate or add locked tables");
+  assert.match(locks, /ORDER BY child_table\s+LOOP/);
+  assert.match(locks, /EXECUTE format\('LOCK TABLE public\.%I IN ACCESS EXCLUSIVE MODE', item\.child_table\);/);
+  assert.equal(locks.split("EXECUTE format(").length, 2, "exactly one dynamic locking operation");
+});
+
 test("exactly 54 forward-only catalog renames without DML, destructive DDL or journal adoption",()=>{
   assert.equal(values.length,54);
   assert.equal(renames.length,54);

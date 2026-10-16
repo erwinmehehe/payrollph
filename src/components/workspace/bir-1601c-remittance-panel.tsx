@@ -48,7 +48,16 @@ function previousMonth() {
   return month.toISOString().slice(0, 7);
 }
 
-export function Bir1601cRemittancePanel({
+export function Bir1601cRemittancePanel(props: {
+  organizationId: number;
+  notify: Notify;
+}) {
+  // Employer scope is tenant-private. Remount on a new organizationId so no
+  // batch, payment or variance state from the previous employer can render.
+  return <Bir1601cRemittancePanelContent key={props.organizationId} {...props} />;
+}
+
+function Bir1601cRemittancePanelContent({
   organizationId,
   notify,
 }: {
@@ -65,21 +74,32 @@ export function Bir1601cRemittancePanel({
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentVarianceNote, setPaymentVarianceNote] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch(
       `/api/compliance/bir-1601c-remittances?organizationId=${organizationId}`,
-      { cache: "no-store" },
+      { cache: "no-store", signal },
     );
     const body = await response.json().catch(() => ({}));
+    if (signal?.aborted) return;
     if (!response.ok) throw new Error(body.error ?? "Could not load BIR 1601-C reconciliation.");
     setBatches(Array.isArray(body.batches) ? body.batches : []);
   }, [organizationId]);
 
   useEffect(() => {
-    void load().catch((error) => notify(
-      error instanceof Error ? error.message : "Could not load BIR 1601-C reconciliation.",
-      "err",
-    ));
+    const controller = new AbortController();
+    // The request runs after effect setup, never in its synchronous phase.
+    // Strict Mode cleanup can cancel this scheduled read before it starts.
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+      void load(controller.signal).catch((error) => {
+        if (controller.signal.aborted) return;
+        notify(
+          error instanceof Error ? error.message : "Could not load BIR 1601-C reconciliation.",
+          "err",
+        );
+      });
+    });
+    return () => controller.abort();
   }, [load, notify]);
 
   const monthBatch = useMemo(

@@ -62,6 +62,11 @@ jobs:
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Apply disposable PostgreSQL schema
         run: npm run db:push
+      - name: Apply 0109 audit protection in disposable regression shard
+        env:
+          PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+          XENDIT_PAYOUTS_ENABLED: "false"
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
       - name: Execute complete regression inventory shard
         run: node scripts/run-sharded-tests.mjs ${{ matrix.shard }} 4
 

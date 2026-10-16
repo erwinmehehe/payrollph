@@ -57,7 +57,14 @@ const STATUS_LABELS: Record<PreviewResult["variance"]["reviewStatus"], string> =
   no_variance: "No gross or net difference in the entered amounts",
 };
 
-export function PayrollOverpaymentPreviewPanel({ organizationId }: { organizationId: number }) {
+export function PayrollOverpaymentPreviewPanel(props: { organizationId: number }) {
+  // Switching employers must immediately hide the previous tenant's payroll
+  // selection and computed financial preview. Remounting by employer clears
+  // every local value before the new tenant's options are requested.
+  return <PayrollOverpaymentPreviewPanelContent key={props.organizationId} {...props} />;
+}
+
+function PayrollOverpaymentPreviewPanelContent({ organizationId }: { organizationId: number }) {
   const [available, setAvailable] = useState(false);
   const [options, setOptions] = useState<OptionsResponse | null>(null);
   const [values, setValues] = useState<FormValues>(INITIAL);
@@ -66,31 +73,30 @@ export function PayrollOverpaymentPreviewPanel({ organizationId }: { organizatio
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    // Switching employers must immediately hide the previous tenant's payroll
-    // selection and computed financial preview, even when its prior fetch is
-    // slow and completes after the user changes workspaces.
+    // A slow fetch for a previous employer is aborted on cleanup, and the
+    // keyed remount above already reset all local state.
     let cancelled = false;
     const controller = new AbortController();
-    setAvailable(false);
-    setOptions(null);
-    setPreview(null);
-    setValues(INITIAL);
-    setError("");
-    void (async () => {
-      try {
-        const response = await fetch(
-          "/api/payroll-overpayment-preview?organizationId=" + organizationId,
-          { cache: "no-store", signal: controller.signal },
-        );
-        if (!response.ok || cancelled) return;
-        const result = await response.json() as OptionsResponse;
-        if (cancelled) return;
-        setOptions(result);
-        setAvailable(true);
-      } catch {
-        // Disabled, unauthorized or disconnected tenants receive no panel.
-      }
-    })();
+    // The request runs after effect setup, never in its synchronous phase.
+    // Strict Mode cleanup can cancel this scheduled read before it starts.
+    queueMicrotask(() => {
+      if (cancelled) return;
+      void (async () => {
+        try {
+          const response = await fetch(
+            "/api/payroll-overpayment-preview?organizationId=" + organizationId,
+            { cache: "no-store", signal: controller.signal },
+          );
+          if (!response.ok || cancelled) return;
+          const result = await response.json() as OptionsResponse;
+          if (cancelled) return;
+          setOptions(result);
+          setAvailable(true);
+        } catch {
+          // Disabled, unauthorized or disconnected tenants receive no panel.
+        }
+      })();
+    });
     return () => {
       cancelled = true;
       controller.abort();

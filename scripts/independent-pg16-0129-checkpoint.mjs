@@ -133,6 +133,52 @@ try {
       "Target FK name already exists");
   }
 
+
+  // Close the catalog-check / rename TOCTOU window. A second session must
+  // be unable to alter even the first FK while the preflight has finished
+  // but the protected outer transaction still holds all 15 child locks.
+  const reviewedPreflight = sql.match(
+    /DO \\$issue_0129_preflight\\$[\\s\\S]*?END \\$issue_0129_preflight\\$;/m
+  )?.[0];
+  assert.ok(reviewedPreflight, "0129 catalog preflight SQL absent");
+  const lockedTables=[...new Set(changes.map(item=>item.table))].sort();
+  await db.query("SAVEPOINT preflight_concurrent_ddl");
+  await db.query(reviewedPreflight);
+  const lockRows=(await db.query(`
+    SELECT DISTINCT cls.relname AS table_name
+    FROM pg_catalog.pg_locks AS locks
+    JOIN pg_catalog.pg_class AS cls ON cls.oid=locks.relation
+    WHERE locks.pid=pg_backend_pid() AND locks.granted
+      AND locks.mode='AccessExclusiveLock'
+      AND cls.relnamespace='public'::regnamespace
+      AND cls.relname=ANY($1::text[])
+    ORDER BY cls.relname
+  `,[lockedTables])).rows;
+  assert.deepEqual(lockRows.map(row=>row.table_name),lockedTables,
+    "all reviewed FK child tables must be held exclusively before checks");
+  const contender=new pg.Client({
+    connectionString:finalUrl,connectionTimeoutMillis:5000,query_timeout:5000,
+  });
+  try {
+    await contender.connect();
+    await contender.query("SET lock_timeout='250ms'");
+    const target=changes[0];
+    await assert.rejects(
+      ()=>contender.query(
+        'ALTER TABLE public."'+target.table+'" RENAME CONSTRAINT "'+
+        target.oldName+'" TO "qa_concurrent_fk_swap"'
+      ),
+      error=>error.code==="55P03",
+      "concurrent FK mutation must time out behind the preflight locks"
+    );
+  } finally {
+    await contender.end().catch(()=>{});
+  }
+  await db.query("ROLLBACK TO SAVEPOINT preflight_concurrent_ddl");
+  await db.query("RELEASE SAVEPOINT preflight_concurrent_ddl");
+  assert.deepEqual(await snapshot(db),before,
+    "concurrency probe must leave every catalog object unchanged");
+
   // Negative regression: a fake swap must fail the explicit catalog preflight
   // before any of the 54 rename statements run. All changes in this test
   // are rolled back inside the disposable DB.

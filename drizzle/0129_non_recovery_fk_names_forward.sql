@@ -14,6 +14,34 @@ DECLARE
   old_name text;
   target_name text;
 BEGIN
+
+  -- Lock every target child in one deterministic order BEFORE consulting
+  -- pg_constraint. The protected runner must keep this DO block and all 54
+  -- RENAME statements inside the SAME transaction; a concurrent ALTER TABLE
+  -- cannot replace the checked FK after this preflight.
+  FOR item IN
+    SELECT child_table FROM (VALUES
+      ('employee_entity_assignments'),
+      ('entity_transfer_requests'),
+      ('payout_batch_transfers'),
+      ('payout_batches'),
+      ('payout_profiles'),
+      ('payout_transfers'),
+      ('provider_events'),
+      ('user_entity_preferences'),
+      ('user_legal_entity_grants'),
+      ('workforce_demand_forecast_issues'),
+      ('workforce_demand_forecast_scores'),
+      ('workforce_demand_import_batches'),
+      ('workforce_demand_observation_revisions'),
+      ('workforce_demand_staffing_policies'),
+      ('workforce_demand_staffing_policy_events')
+    ) AS protected(child_table)
+    ORDER BY child_table
+  LOOP
+    EXECUTE format('LOCK TABLE public.%I IN ACCESS EXCLUSIVE MODE', item.child_table);
+  END LOOP;
+
   FOR item IN
     SELECT * FROM (VALUES
     ('employee_entity_assignments', 'employee_id', 'employees', 'r'),
