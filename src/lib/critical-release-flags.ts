@@ -6,6 +6,18 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  exactThirteenthCentavos: {
+    env: "EXACT_THIRTEENTH_CENTAVOS_ENABLED",
+    owner: "Philippine Payroll / Finance",
+    risk: "Half-cent 13th-month entitlement rounding across compliance, final pay and year end",
+    approval: "Executed tie/boundary tests, flag-off parity, stale-approval rejection and golden reconciliation; no settled-record rewrite",
+  },
+  finalPaySignedReview: {
+    env: "FINAL_PAY_SIGNED_REVIEW_ENABLED",
+    owner: "Philippine Payroll / Finance",
+    risk: "Read-only signed final-pay reconciliation display and CSV; never a negative payout instruction",
+    approval: "Frozen-record centavos, deficit/unknown states, role and desktop/390 acceptance; existing release holds retained",
+  },
   yearEndPriorEvidence: {
     env: "YEAR_END_PRIOR_EVIDENCE_ENABLED",
     owner: "Philippine Payroll / Tax",

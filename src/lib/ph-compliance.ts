@@ -1,4 +1,6 @@
 import { round2 } from "@/lib/round";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+import { thirteenthMonthFromCentavos } from "./thirteenth-month-centavos";
 
 export const PH_COMPLIANCE_RULE_VERSION = "PH-2026.02";
 export const THIRTEENTH_MONTH_DUE_MONTH = 12;
@@ -253,6 +255,7 @@ export function deMinimisPerSemiMonthlyPeriod(
 }
 
 export function computeThirteenthMonthPay(totalBasicSalaryEarned: number) {
+  if (criticalReleaseFlagEnabled("exactThirteenthCentavos")) return thirteenthMonthFromCentavos(totalBasicSalaryEarned);
   return round2(Math.max(0, Number(totalBasicSalaryEarned) || 0) / 12);
 }
 
