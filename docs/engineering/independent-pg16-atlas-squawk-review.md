@@ -7,11 +7,15 @@ receipt, a security approval, or evidence that a Neon backup can be restored.
 ## What the two independent tools do
 
 - **Atlas v1.3.0** runs only `atlas schema diff` on two PostgreSQL 16
-  databases inside one ephemeral GitHub Actions service. Atlas and the #1031
-  catalog query use a dedicated `atlas_auditor` account with no payroll-row
-  SELECT, no table write or elevated privileges, and read-only transaction
-  defaults; the synthetic migration is executed by the separate fixture
-  writer before this role is used. `app_db` is created
+  databases inside one ephemeral GitHub Actions service. The #1031
+  catalog query uses the dedicated `atlas_auditor` role (no table-row SELECT,
+  REFERENCES, DML, DDL or elevated privileges). Atlas v1.3 PostgreSQL
+  inspection instead needs `information_schema.columns` visibility, so it
+  uses a separate `atlas_inspector` role granted **REFERENCES only** on the
+  fictional disposable tables, but no table-row SELECT, DML, schema CREATE
+  or elevated privileges; both roles default to read-only transactions.
+  The synthetic migration runs through a separate disposable fixture writer
+  before either role is used. `app_db` is created
   from one guarded `drizzle-kit push`; `atlas_candidate_db` is copied using
   `CREATE DATABASE ... TEMPLATE app_db`, then a synthetic missing-table
   baseline receives the exact source files 0115 through 0126, in order.
@@ -68,7 +72,7 @@ real generated DDL and Squawk warnings cannot be turned into PASS by these
 classifiers. Tool failures are never hidden by `continue-on-error`.
 
 Before interpreting Atlas diff output, a separate `atlas schema inspect`
-invocation under that same restricted role emits JSON for BOTH fixtures. The
+invocation under the REFERENCES-only read-only `atlas_inspector` role emits JSON for BOTH fixtures. The
 source-generated #1031 manifest is checked against each Atlas-visible
 `public.tables` inventory: a zero-table or partial-visibility inspection
 fails closed instead of being misreported as schema parity. This is a critical
@@ -116,9 +120,16 @@ integer IDs or rewrite previously merged migration SQL to appease a linter.
 
 The initial Atlas job also stopped before a comparison on a
 `inet_server_addr() = 127.0.0.1` assertion (Docker bridge-interface
-mismatch). The present source fixes this erroneous assertion and adds
-restricted-role table inventory checks, but a new exact-head CI result is
-required to claim any structural parity.
+mismatch). An intermediate [independent Atlas CI run](https://github.com/erwinmehehe/payrollph/actions/runs/38879180388)
+then passed the synthetic source train and the catalog-only #1031 comparison,
+but Atlas v1.3 failed parsing `applicant_privacy_legal_basis_check` because
+the no-column-privilege role did not see `legal_basis` through its use of
+`information_schema.columns`. The Drizzle model DOES declare this column;
+this is a tool-role visibility problem, **not proven database schema drift**.
+The current source uses a separate REFERENCES-only metadata inspector role
+with no data-row SELECT or DML; new exact-head Atlas inspect/diff CI is still
+required to establish structural parity. Never use production data or
+grant wider privileges on Neon to work around this synthetic issue.
 
 ## Remaining synthetic parity limitations
 
