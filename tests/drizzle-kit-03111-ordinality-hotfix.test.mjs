@@ -33,6 +33,14 @@ test("#1019 patched introspection keeps real CLI and preserves ordered composite
     return;
   }
   assert.equal(manifest.version, "0.31.11");
+  // Temporary vendor-layout diagnostic: the content is a public package binary,
+  // never application SQL, env vars, database rows, or credentials.
+  for (const token of ["foreignKeysObject", "fks.forEach", "fk.getName()", "foreignKeysObject[it.name]"]) {
+    const first = actual.indexOf(token);
+    const count = actual.split(token).length - 1;
+    const excerpt = first < 0 ? "" : actual.slice(Math.max(0, first-100), first+420);
+    console.log("ISSUE_1019_PINNED_KIT_LAYOUT=" + JSON.stringify({token,count,excerpt}));
+  }
   const result = patchPinnedIntrospectionBinary(actual);
   assert.ok(result.content.includes(markerKey));
   assert.ok(result.content.includes(markerFk));
