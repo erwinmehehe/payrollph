@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import {
   buildOnboardingChecklistGroups,
+  filterOnboardingChecklistGroups,
   type OnboardingEmployee,
   type OnboardingTask,
 } from "@/lib/hris-onboarding-checklist";
@@ -58,16 +59,10 @@ export function HrisOnboardingChecklist({
     () => buildOnboardingChecklistGroups(employees, provisioning ?? []),
     [employees, provisioning],
   );
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("en");
-    return groups.filter((group) => {
-      if (show === "open" && group.remaining === 0) return false;
-      if (!needle) return true;
-      const employee = group.employee;
-      return (employee.firstName + " " + employee.lastName + " " + employee.employeeNo)
-        .toLocaleLowerCase("en").includes(needle);
-    });
-  }, [groups, query, show]);
+  const filtered = useMemo(
+    () => filterOnboardingChecklistGroups(groups, query, show),
+    [groups, query, show],
+  );
   const visible = filtered.slice(0, MAX_VISIBLE_EMPLOYEES);
   const openWorkers = groups.filter((group) => group.remaining > 0).length;
   const outstanding = groups.reduce((sum, group) => sum + group.remaining, 0);
@@ -200,18 +195,35 @@ export function HrisOnboardingChecklist({
                 <Search size={15} aria-hidden="true" className="absolute left-3 top-3 text-slate-500"/>
                 <input type="search" value={query} onChange={(event) => setQuery(event.target.value)}
                   placeholder="Name or employee number" aria-label="Search onboarding checklists"
-                  className="min-h-10 w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900"/>
+                  aria-controls="hris-onboarding-results" aria-describedby="hris-onboarding-search-hint"
+                  className="min-h-11 w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"/>
               </span>
             </label>
+            {query.length > 0 && (
+              <button type="button" onClick={() => setQuery("")} aria-label="Clear onboarding employee search"
+                className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+                Clear search
+              </button>
+            )}
             <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
               Show
               <select value={show} onChange={(event) => setShow(event.target.value === "all" ? "all" : "open")}
-                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900">
+                className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
                 <option value="open">Open checklists</option>
                 <option value="all">All recorded checklists</option>
               </select>
             </label>
           </div>
+          <p id="hris-onboarding-search-hint" className="mt-2 text-xs leading-5 text-slate-600">
+            Search only recorded tasks for employees visible to your current employer and role. Up to 15 matching checklists are shown.
+          </p>
+          {groups.length > 0 && (
+            <p id="hris-onboarding-filter-count" role="status" aria-live="polite"
+              className="mt-2 text-xs font-medium text-slate-700">
+              Showing {visible.length} of {filtered.length} matching recorded checklists.
+              {filtered.length > visible.length ? " Refine your search to see additional matches." : ""}
+            </p>
+          )}
           {error && <p role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}
           {snapshotStale && <p role="status" className="mt-3 text-xs font-semibold text-amber-900">
             Checklist edits are paused until a fresh employer snapshot is loaded. Use Refresh above.
@@ -224,13 +236,19 @@ export function HrisOnboardingChecklist({
             </p>
           )}
           {groups.length > 0 && filtered.length === 0 && (
-            <p role="status" className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
-              No checklists match this filter. Switch to “All recorded checklists” or clear the employee search.
-              An empty filtered list does not verify onboarding.
-            </p>
+            <div role="status" className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-700">
+              <p>
+                No recorded checklists match this filter. This does not verify onboarding completion
+                or mean that employees without recorded tasks are fully onboarded.
+              </p>
+              <button type="button" onClick={() => { setShow("all"); setQuery(""); }}
+                className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-emerald-700 px-4 py-2 font-semibold text-emerald-900 hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+                Show all recorded checklists
+              </button>
+            </div>
           )}
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div id="hris-onboarding-results" className="mt-4 grid gap-4 lg:grid-cols-2">
             {visible.map((group) => (
               <article key={group.employee.id} className="min-w-0 rounded-xl border border-slate-200 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -243,7 +261,8 @@ export function HrisOnboardingChecklist({
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <button type="button" onClick={() => onOpenEmployee(group.employee.id)}
-                      className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-emerald-800 underline-offset-2 hover:underline">
+                      aria-label={"Open employee record for " + group.employee.firstName + " " + group.employee.lastName}
+                      className="inline-flex min-h-11 items-center gap-1 rounded-md text-xs font-semibold text-emerald-800 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
                       Employee record <ArrowRight size={14} aria-hidden="true"/>
                     </button>
                     {allowHirePayrollReview && (
@@ -290,11 +309,6 @@ export function HrisOnboardingChecklist({
               </article>
             ))}
           </div>
-          {filtered.length > visible.length && (
-            <p className="mt-3 text-xs text-slate-600">
-              Showing {visible.length} of {filtered.length} matching employees. Search by name or employee number to review the others.
-            </p>
-          )}
         </>
       )}
 
