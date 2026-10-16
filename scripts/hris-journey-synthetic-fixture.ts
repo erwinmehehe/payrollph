@@ -68,9 +68,9 @@ async function main() {
     // #1114: separate fictional approval per real mobile viewport. The
     // existing desktop manager check remains unchanged and independent.
     ...[375, 390].map(width => ({
-      organizationId: 1, title: "Synthetic phone manager approval " + width,
-      detail: "Non-financial, assigned-only mobile approval proof.",
-      approver: "role:manager", dueLabel: "No due date", priority: "Normal",
+      organizationId: 1, title: "Synthetic phone checker approval " + width,
+      detail: "Non-financial, assigned-only Checker mobile approval proof.",
+      approver: "Synthetic Checker", dueLabel: "No due date", priority: "Normal",
       status: "Pending",
     })),
     {
