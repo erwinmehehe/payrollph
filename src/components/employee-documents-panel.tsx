@@ -12,6 +12,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { essText, type EssLanguage } from "@/lib/ess-language";
+import { WorkerDocumentVault } from "@/components/hcm-worker-document-vault";
 
 type PolicyAssignment = {
   assignmentId: number;
@@ -59,6 +60,7 @@ type DocumentRequirement = {
 };
 
 type Payload = {
+  employee: { id: number; employeeNo: string; name: string };
   policies: PolicyAssignment[];
   documentRequirements: DocumentRequirement[];
   vaultEnabled?: boolean;
@@ -343,6 +345,11 @@ export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { or
             </button>
           </div>
         </article>
+      )}
+
+      {data.vaultEnabled && Number.isSafeInteger(data.employee?.id) && data.employee.id > 0 && (
+        <WorkerDocumentVault key={organizationId + ":" + data.employee.id}
+          organizationId={organizationId} employeeId={data.employee.id} />
       )}
 
       <div className="employee-privacy-note" style={{ marginTop: 16 }}>
