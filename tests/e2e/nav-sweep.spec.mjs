@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { chromium } from "playwright";
 import { generateTotp } from "../../src/lib/totp.ts";
 import { isExpectedDenied } from "./nav-sweep.expected-denied.mjs";
+import { mobileNavVisualFindings } from "./nav-sweep-visual-contract.mjs";
 import { compareNavSweepCaseCoverage, startNavSweepRoleBrowser, startNavSweepViewportBrowser } from "./nav-sweep-startup.mjs";
 
 const BASE = "http://127.0.0.1:3000";
@@ -24,6 +25,15 @@ const broken = process.env.NAV_SWEEP_INJECT_BROKEN === "true";
 const proofOnly = process.env.NAV_SWEEP_ONLY_OWNER === "true";
 const focusRole = process.env.NAV_SWEEP_FOCUS_ROLE || null;
 const focusPage = process.env.NAV_SWEEP_FOCUS_PAGE || null;
+const mobileEdge = process.env.NAV_SWEEP_MOBILE_EDGE === "true";
+const injectedVisualOverflow = process.env.NAV_SWEEP_INJECT_VISUAL_OVERFLOW === "true";
+const sweepViewports = mobileEdge ? [375] : [1280, 390];
+if (mobileEdge) {
+  assert.ok(focusRole && focusPage && !broken && !proofOnly,
+    "The 375px visual contract requires one focused fictional role and page");
+}
+assert.ok(!injectedVisualOverflow || mobileEdge,
+  "Visual overflow injection is restricted to synthetic 375px proof mode");
 // Read-only navigation + view controls. Mutation methods are intercepted, even
 // if a seemingly harmless button hides a write action.
 const SAFE_CONTROL = /^(?:more|close|dismiss|cancel|back|next|previous|open|view|show|hide|expand|collapse|details|preview|search|filter|clear filter|help|info|overview|summary|refresh view|history|about)/i;
@@ -98,6 +108,7 @@ async function checkRole(browser, role, width, authState, pages) {
       const before = errors.length;
       const findings = [];
       const skipped = [];
+      let screenshot = null;
       try {
         const opened = await page.goto(BASE + "/app" + (role === "employee" ? "" : "?organizationId=" + fixture.organizationId), { waitUntil: "load", timeout: 30000 });
         if (!opened || opened.status() < 200 || opened.status() >= 300) {
@@ -186,6 +197,53 @@ async function checkRole(browser, role, width, authState, pages) {
         }
         await page.locator("[data-workspace-page='" + name + "']").waitFor({ timeout: 14000 });
         await page.waitForTimeout(550);
+        if (mobileEdge) {
+          if (injectedVisualOverflow) {
+            // Deliberate failure is DOM-only in a synthetic localhost browser:
+            // proves real horizontal overflow cannot silently pass this sweep.
+            await page.evaluate(() => {
+              const overflow = document.createElement("div");
+              overflow.id = "synthetic-mobile-overflow-negative-proof";
+              overflow.style.cssText =
+                "position:absolute;left:0;top:0;width:1600px;height:1px;pointer-events:none";
+              document.body.appendChild(overflow);
+            });
+          }
+          const geometry = await page.evaluate(() => {
+            const main = document.querySelector(".app-main");
+            const nav = document.querySelector('button[aria-label="Open navigation"]');
+            const mainBox = main?.getBoundingClientRect();
+            const navBox = nav?.getBoundingClientRect();
+            return {
+              viewportWidth: window.innerWidth,
+              documentWidth: document.documentElement.scrollWidth,
+              bodyWidth: document.body.scrollWidth,
+              mainWidth: mainBox?.width ?? 0,
+              mainLeft: mainBox?.left ?? null,
+              mainRight: mainBox?.right ?? null,
+              navWidth: navBox?.width ?? 0,
+              navHeight: navBox?.height ?? 0,
+              navVisible: Boolean(nav && navBox?.width && navBox?.height &&
+                getComputedStyle(nav).visibility !== "hidden"),
+              navExpanded: nav?.getAttribute("aria-expanded") ?? null,
+            };
+          });
+          for (const detail of mobileNavVisualFindings(geometry)) {
+            findings.push({ kind: "mobile visual contract", detail });
+          }
+          const imageDir = dir + "/mobile-edge";
+          mkdirSync(imageDir, { recursive: true });
+          const imagePath = imageDir + "/" + role + "-375-" +
+            name.replace(/[^a-z0-9-]+/gi, "-") + ".png";
+          try {
+            await page.screenshot({ path: imagePath, animations: "disabled",
+              caret: "hide", fullPage: false, scale: "css" });
+            screenshot = imagePath;
+          } catch (error) {
+            findings.push({ kind: "mobile visual contract",
+              detail: "Screenshot capture failed: " + safeText(error.message) });
+          }
+        }
         // Observe all actual error-toast families rather than keyword-matching
         // the benign body copy of a payroll screen.
         const alerts = await page.locator(ERROR_SELECTOR).allTextContents();
@@ -270,8 +328,7 @@ async function checkRole(browser, role, width, authState, pages) {
         findings.push({ kind: "navigation", detail: safeText(e.stack ?? e.message ?? String(e)) });
       }
       findings.push(...errors.slice(before).map(({ kind, detail }) => ({ kind, detail })));
-      let screenshot = null;
-      if (findings.length) {
+      if (findings.length && !screenshot) {
         const screenshots = dir + "/screenshots";
         mkdirSync(screenshots, { recursive: true });
         const file = screenshots + "/" + role + "-" + width + "-" +
@@ -319,7 +376,7 @@ test("read-only navigation and runtime error sweep (real roles, both viewports)"
       });
       let browser = started.browser;
       try {
-        for (const [index, width] of (proofOnly ? [1280] : [1280, 390]).entries()) {
+        for (const [index, width] of (proofOnly ? [1280] : sweepViewports).entries()) {
           activeViewport = width;
           if (index > 0) {
             await browser.close();
@@ -356,7 +413,7 @@ test("read-only navigation and runtime error sweep (real roles, both viewports)"
       .flatMap(({ role, pages: allPages }) => {
         const pages = proofOnly ? ["Overview"] : focusPage
           ? allPages.filter(name => name === focusPage) : allPages;
-        return (proofOnly ? [1280] : [1280, 390])
+        return (proofOnly ? [1280] : sweepViewports)
           .flatMap(width => pages.map(page => JSON.stringify([role, width, page])));
       });
     const observedCases = results
