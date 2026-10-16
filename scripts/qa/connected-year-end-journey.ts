@@ -6,6 +6,7 @@ import { writeFileSync } from "node:fs";
 import { readBasicAndThirteenth } from "../../src/lib/final-pay";
 import { drainPayrollQueue } from "../../src/lib/payroll-engine";
 import { mapConnectedCompensation } from "./connected-year-end-mapping";
+import { readValidatedUnsignedCertificatePdf } from "./connected-year-end-artifact";
 type Client = {
   ok(path: string, method?: string, data?: unknown): Promise<Record<string, any>>;
   json(path: string, method?: string, data?: unknown): Promise<{ status: number; body: Record<string, any> }>;
@@ -107,15 +108,23 @@ export async function generateConnected2316(input: Scope & { runId: number; owne
     const failure = await pdf.clone().json().catch(() => ({}));
     failureCodes = [failure.code, ...(Array.isArray(failure.issues) ? failure.issues : [])]
       .filter((v): v is string => typeof v === "string" && /^[A-Z][A-Z0-9_]{0,100}$/.test(v));
+    // Never upload raw HTTP objects, worker identifiers or full responses as
+    // diagnostics. Save only bounded codes/counts and independently normalized
+    // centavo figures from the disposable fictional scenario.
     writeFileSync("qa-artifacts/connected-year-end-diagnostic.json", JSON.stringify({
-      status: pdf.status, failureCodes, summary: source.summary, withholding: source.withholding,
-      detailItems, basic: amounts.basic, benefit: amounts.benefit, contributions, remainder,
+      httpStatus: pdf.status, failureCodeCount: failureCodes.length,
+      grossCentavos: cents(source.summary.grossCompensation),
+      presentWithheldCentavos: cents(source.withholding.actualPresentWithheld),
+      appliedAdjustmentCentavos: cents(source.withholding.appliedAdjustment),
+      basicCentavos: amounts.basic, benefitCentavos: amounts.benefit,
+      contributionCentavos: contributions, premiumCentavos: remainder,
     }, null, 2));
   }
   assert.equal(pdf.status, 200, "Unsigned certificate: HTTP " + pdf.status + " " + failureCodes.join(","));
-  assert.match(pdf.headers.get("content-type") ?? "", /application\/pdf/);
-  assert.match(pdf.headers.get("cache-control") ?? "", /no-store/);
-  const bytes = Buffer.from(await pdf.arrayBuffer()); assert.equal(bytes.subarray(0,5).toString(), "%PDF-");
+  // The actual PDF is intentionally retained as fictional source evidence,
+  // but no network bytes are persisted until MIME, cache controls, size,
+  // header/trailer and recognizable active-content checks succeed.
+  const bytes = await readValidatedUnsignedCertificatePdf(pdf);
   writeFileSync("qa-artifacts/connected-year-end-unsigned.pdf", bytes);
   writeFileSync("qa-artifacts/connected-year-end-review.json", JSON.stringify({
     query: query({ organizationId, employeeId, taxYear }).toString(), review, employeeName: source.employeeName,
