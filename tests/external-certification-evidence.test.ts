@@ -142,14 +142,25 @@ test("placeholders and absent government references cannot pass", () => {
   });
 });
 
-test("symlink escapes outside private root are rejected", () => {
+test("symlink escapes outside private root are rejected", (t) => {
   withFixture((root, manifest) => {
     const outside = mkdtempSync(join(tmpdir(), "linaw-outside-proof-"));
     try {
       const doc = manifest.documents[0];
       writeFileSync(join(outside, "outside.txt"), "outside file");
       rmSync(join(root, doc.filePath));
-      symlinkSync(join(outside, "outside.txt"), join(root, doc.filePath));
+      try {
+        symlinkSync(join(outside, "outside.txt"), join(root, doc.filePath));
+      } catch (error) {
+        if (process.platform === "win32" &&
+          ["EPERM", "EACCES", "ENOTSUP", "EOPNOTSUPP"].includes(
+            (error as NodeJS.ErrnoException).code ?? "",
+          )) {
+          t.skip("Windows symlink privileges are unavailable for this fixture");
+          return;
+        }
+        throw error;
+      }
       const report = evaluateExternalCertificationEvidence(manifest, root);
       assert.ok(report.issues.some((reason) => reason.includes("file escapes private evidence root")));
     } finally {

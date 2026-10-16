@@ -40,13 +40,29 @@ test("rejects empty and non-JSON approval files", () => {
   });
 });
 
-test("rejects final-component symlinks and directories", () => {
+test("rejects final-component symlinks", (t) => {
   inScratch((dir) => {
     const source = join(dir, "source.json");
     const link = join(dir, "link.json");
     writeFileSync(source, "{}");
-    symlinkSync(source, link);
+    try {
+      symlinkSync(source, link);
+    } catch (error) {
+      if (process.platform === "win32" &&
+          ["EPERM", "EACCES", "ENOTSUP", "EOPNOTSUPP"].includes(
+            (error as NodeJS.ErrnoException).code ?? "",
+          )) {
+        t.skip("Windows symlink privileges are unavailable for this fixture");
+        return;
+      }
+      throw error;
+    }
     assert.throws(() => readSignedCompensationRecoveryApprovalFile(link));
+  });
+});
+
+test("rejects directories independently of symlink support", () => {
+  inScratch((dir) => {
     assert.throws(() => readSignedCompensationRecoveryApprovalFile(dir), /regular file/);
   });
 });
