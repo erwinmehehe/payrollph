@@ -54,7 +54,7 @@ export function canIssueExpiryNotice(input: {
 
 /** Medical, identity and employment files require People administration, not bookkeeping. */
 export function canStaffOpenEmployeeVault(role: string): boolean {
-  return role === "owner" || role === "admin" || role === "hr";
+  return role === "owner" || role === "hr";
 }
 
 /** Optional paperwork must never raise required-document deficit counters. */

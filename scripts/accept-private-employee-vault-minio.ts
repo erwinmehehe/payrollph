@@ -58,6 +58,12 @@ await putDocumentObject(key,bytes,mime,{config});
 await verifyStoredDocumentObject(key, createHash("sha256").update(bytes).digest("hex"), bytes.length, { config });
 const signed=signedDocumentObjectUrl(key,"GET",config,{expirySeconds:60});
 const downloaded=await fetch(signed,{cache:"no-store"});
+const attachmentUrl=signedDocumentObjectUrl(key,"GET",config,{
+  expirySeconds:60,responseContentDisposition:'attachment; filename="synthetic.pdf"',
+});
+const attachment=await fetch(attachmentUrl,{cache:"no-store"});
+assert.equal(attachment.status,200,"signed private attachment GET must succeed");
+assert.match(attachment.headers.get("content-disposition")??"",/attachment.*synthetic\.pdf/i);
 assert.equal(downloaded.status,200,"MinIO signed GET must retrieve actual privately stored bytes");
 const received=Buffer.from(await downloaded.arrayBuffer());
 assert.equal(createHash("sha256").update(received).digest("hex"),

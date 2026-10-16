@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Building2, Copy, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
+import { reconcileLaborCostingDraftCenters, selectedLaborCostingEmployeeId } from "../../lib/labor-costing-panel-view";
 
 type CostCenterRow = {
   id: number;
@@ -75,7 +76,13 @@ function windowStatus(row: AllocationRow, today: string) {
   return "Current";
 }
 
-export function LaborCostingPanel({
+export function LaborCostingPanel(props: { data: DashboardData; notify: Notify }) {
+  // Never reuse loaded finance rows, unsaved dimension drafts or employee
+  // selections across organizations, even for a single intermediate render.
+  return <LaborCostingPanelContent key={props.data.selectedOrganization.id} {...props} />;
+}
+
+function LaborCostingPanelContent({
   data,
   notify,
 }: {
@@ -86,13 +93,18 @@ export function LaborCostingPanel({
   const [costCenters, setCostCenters] = useState<CostCenterRow[]>([]);
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const loadRevision = useRef(0);
   const [saving, setSaving] = useState<string | null>(null);
 
   const [centerCode, setCenterCode] = useState("OPS");
   const [centerName, setCenterName] = useState("Operations");
   const [centerDescription, setCenterDescription] = useState("");
 
-  const [employeeId, setEmployeeId] = useState(data.employees[0]?.id ?? 0);
+  const [employeeIdDraft, setEmployeeId] = useState(data.employees[0]?.id ?? 0);
+  // A disappearing employee never stays selected or reaches a mutation.
+  // The editor resets on employer switch; within one employer, an invalid
+  // choice falls back immediately without effect-driven state repair.
+  const employeeId = selectedLaborCostingEmployeeId(employeeIdDraft, data.employees);
   const [effectiveFrom, setEffectiveFrom] = useState(localToday());
   const [effectiveUntil, setEffectiveUntil] = useState("");
   const [reason, setReason] = useState("Labor costing allocation");
@@ -100,55 +112,49 @@ export function LaborCostingPanel({
   const [nextKey, setNextKey] = useState(2);
   const [drafts, setDrafts] = useState<DraftAllocation[]>([blankDraft(1)]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
+    const revision = ++loadRevision.current;
+    const isCurrent = () => !signal?.aborted && revision === loadRevision.current;
+    if (!isCurrent()) return;
     setLoading(true);
     try {
       const response = await fetch(`/api/workforce/labor-costing?organizationId=${organizationId}`, {
         cache: "no-store",
+        signal,
       });
       const body = await response.json().catch(() => ({}));
+      if (!isCurrent()) return; // A superseded employer/refresh must not publish finance rows.
       if (!response.ok) throw new Error(body.error ?? "Could not load labor costing.");
-      setCostCenters(Array.isArray(body.costCenters) ? body.costCenters : []);
+      const nextCenters: CostCenterRow[] = Array.isArray(body.costCenters) ? body.costCenters : [];
+      setCostCenters(nextCenters);
       setAllocations(Array.isArray(body.allocations) ? body.allocations : []);
+      // This catalog just arrived asynchronously. Reconcile the draft at the
+      // same time, instead of synchronously deriving a state write in an effect.
+      setDrafts((current) => reconcileLaborCostingDraftCenters(current, nextCenters));
     } catch (error) {
+      if (!isCurrent()) return;
       notify(error instanceof Error ? error.message : "Could not load labor costing.", "err");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [notify, organizationId]);
 
   useEffect(() => {
-    setCostCenters([]);
-    setAllocations([]);
-    setEmployeeId(data.employees[0]?.id ?? 0);
-    setEffectiveFrom(localToday());
-    setEffectiveUntil("");
-    setReason("Labor costing allocation");
-    setAllocationBasis("percentage");
-    setDrafts([blankDraft(1)]);
-    setNextKey(2);
-    void load();
-  }, [organizationId, load]);
-
-  useEffect(() => {
-    if (data.employees.some((employee) => employee.id === employeeId)) return;
-    setEmployeeId(data.employees[0]?.id ?? 0);
-  }, [data.employees, employeeId]);
+    const controller = new AbortController();
+    // Start the GET after effect setup. Teardown aborts and invalidates it.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
+    return () => {
+      controller.abort();
+      loadRevision.current += 1;
+    };
+  }, [load]);
 
   const activeCostCenters = useMemo(
     () => costCenters.filter((center) => center.active),
     [costCenters],
   );
-
-  useEffect(() => {
-    const firstActiveId = activeCostCenters[0]?.id;
-    if (!firstActiveId) return;
-    const activeIds = new Set(activeCostCenters.map((center) => String(center.id)));
-    setDrafts((current) => current.map((draft, index) => {
-      if (activeIds.has(draft.costCenterId)) return draft;
-      return index === 0 ? { ...draft, costCenterId: String(firstActiveId) } : { ...draft, costCenterId: "" };
-    }));
-  }, [activeCostCenters]);
 
   const totalPercent = useMemo(
     () => Math.round(drafts.reduce((sum, row) => sum + (Number(row.allocationPercent) || 0), 0) * 1000) / 1000,

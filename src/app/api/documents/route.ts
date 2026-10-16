@@ -15,6 +15,7 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { documentObjectKey, putDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
 import { canStaffOpenEmployeeVault, validExpiryCalendarDate } from "@/lib/employee-document-vault";
 import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
+import { VAULT_REMOVED_SOURCE_PREFIX } from "@/lib/employee-vault-profile";
 import {
   canMutateLegacyHcmDocument, legacyDocumentInsertTable, legacyVisibleDocumentWhere,
 } from "@/lib/document-schema-compat";
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
       createdAt: documents.createdAt,
     }).from(documents)
       .where(and(eq(documents.organizationId, organizationId), eq(documents.employeeId, user.employeeId),
-        or(isNull(documents.sourceKey), notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"))))
+        or(isNull(documents.sourceKey), and(notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"), notLike(documents.sourceKey, VAULT_REMOVED_SOURCE_PREFIX + "%")))))
       .orderBy(desc(documents.id));
 
     return Response.json({
@@ -88,7 +89,7 @@ export async function GET(request: Request) {
   }).from(documents)
     .where(and(
       eq(documents.organizationId, organizationId),
-      or(isNull(documents.sourceKey), notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%")),
+      or(isNull(documents.sourceKey), and(notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + "%"), notLike(documents.sourceKey, VAULT_REMOVED_SOURCE_PREFIX + "%"))),
       // Turning the A-5 flag back off must NOT reveal confidential 201-file
       // metadata to bookkeeper/legacy People roles. The object-backed row
       // remains private even during feature rollback.
@@ -150,6 +151,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "requirementId must be an integer." }, { status: 422 });
   }
   const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
+  // Unattached personal-vault uploads have a fixed category vocabulary.
+  // Assigned HCM requirements keep their existing, separately governed kinds.
+  if (vaultEnabled && requirementId === null &&
+      !["government_id", "contract", "certificate", "onboarding", "other"].includes(kind)) {
+    return Response.json({ error: "Invalid document category." }, { status: 422 });
+  }
   if (vaultEnabled && expiresAtRaw && !validExpiryCalendarDate(expiresAtRaw)) {
     return Response.json({ error: "expiresAt must be a real YYYY-MM-DD date." }, { status: 422 });
   }
