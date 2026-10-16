@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  everydayHrHire: {
+    env: "EVERYDAY_HR_HIRE_ENABLED",
+    owner: "HR Operations / Product",
+    risk: "Everyday HR direct-hire shortcut and Philippine civil-date form defaults",
+    approval: "Executed flag-off render parity, authorized hire/onboarding persistence, tenant isolation and desktop/390px browser evidence; no production activation",
+  },
   exactThirteenthCentavos: {
     env: "EXACT_THIRTEENTH_CENTAVOS_ENABLED",
     owner: "Philippine Payroll / Finance",

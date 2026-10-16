@@ -56,6 +56,7 @@ jobs:
             echo "Dedicated protected catalog-only connection is missing."
             exit 1
           fi
+          node scripts/verify-production-catalog-auditor.mjs --verify
           ./node_modules/.bin/tsx scripts/check-issue-1031-full-schema-diff.ts > full-schema-diff.json
       - name: Retain reviewed structural-only output
         if: always()

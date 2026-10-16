@@ -1,3 +1,4 @@
+import { assertCatalogAuditorPrivilegeBoundary, catalogAuditorConnectionOptions } from "./lib/production-catalog-auditor-gate.mjs";
 import { Client } from "pg";
 import {
   evaluateReleaseSchemaInventory,
@@ -23,7 +24,10 @@ async function main() {
     return;
   }
 
-  const client = new Client({ connectionString, connectionTimeoutMillis: 8000 });
+  let options;
+  try { options = catalogAuditorConnectionOptions(connectionString, expectedDatabase); }
+  catch { console.error("Catalog connection must use the pinned protected TLS endpoint; no database queried."); process.exitCode = 2; return; }
+  const client = new Client(options);
   let connected = false;
   let transactionOpen = false;
   try {
@@ -34,6 +38,7 @@ async function main() {
     await client.query("SET LOCAL statement_timeout = '7000ms'");
     await client.query("SET LOCAL lock_timeout = '2000ms'");
     await client.query("SET LOCAL search_path = pg_catalog");
+    await assertCatalogAuditorPrivilegeBoundary(client, { expectedDatabase });
 
     // Verify the named database and a genuinely least-privileged catalog role.
     // A read-only transaction alone is insufficient if someone accidentally
