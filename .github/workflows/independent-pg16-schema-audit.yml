@@ -120,8 +120,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: Test independent evidence parser (no database)
-        run: node --test tests/independent-schema-evidence.test.mjs
+      - name: Test independent evidence and recovery classifiers (no database)
+        run: node --test tests/independent-schema-evidence.test.mjs tests/independent-reconciliation-evidence.test.mjs
       - name: Guarded first and ONLY source Drizzle push to local app_db
         run: npm run db:push
       - name: Clone only the disposable source schema to a second local DB
@@ -241,7 +241,6 @@ jobs:
             --schema public --format '{{ sql . "" }}' \
             > qa-artifacts/independent-pg16/atlas-post-0128-vs-source.diff.sql
       - name: Fail closed on post-0128 Atlas differences (preserve both plans)
-
         run: node scripts/check-independent-schema-evidence.mjs atlas
       - name: Retain independent structural-only evidence
         if: always()
