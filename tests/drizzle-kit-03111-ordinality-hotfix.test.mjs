@@ -36,7 +36,9 @@ test("#1019 patched introspection keeps real CLI and preserves ordered composite
   assert.ok(result.content.includes(markerFk));
   assert.match(result.content, /information_schema\.key_column_usage/);
   assert.match(result.content, /kcu\.ordinal_position/);
-  assert.match(result.content, /unnest\(con\.conkey, con\.confkey\) WITH ORDINALITY/);
+  assert.match(result.content, /ROWS FROM \(pg_catalog\.unnest\(con\.conkey\), pg_catalog\.unnest\(con\.confkey\)\) WITH ORDINALITY/);
+  assert.doesNotMatch(result.content, /pg_catalog\.unnest\(con\.conkey,\s*con\.confkey\)/);
+  assert.match(result.content, /JOIN LATERAL ROWS FROM/);
   assert.match(result.content, /ORDER BY con\.conname, fkcols\.ord/);
   assert.equal(patchPinnedIntrospectionBinary(result.content).applied, false);
   assert.equal(patchPinnedIntrospectionBinary(result.content).content, result.content);

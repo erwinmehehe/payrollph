@@ -33,7 +33,7 @@ export function patchPinnedIntrospectionBinary(binary) {
     // retain this join shape. Validate only the FK query we actually rewrote.
     if (occurrences(binary, KEY_MARKER) !== 1 || occurrences(binary, FK_MARKER) !== 1 ||
         keyQuery.test(binary) || selectedFkQueries.length !== 1 ||
-        !selectedFkQueries[0][0].includes("JOIN LATERAL pg_catalog.unnest(con.conkey, con.confkey) WITH ORDINALITY") ||
+        !selectedFkQueries[0][0].includes("JOIN LATERAL ROWS FROM (pg_catalog.unnest(con.conkey), pg_catalog.unnest(con.confkey)) WITH ORDINALITY") ||
         !selectedFkQueries[0][0].includes("ORDER BY con.conname, fkcols.ord;")) fail("PARTIAL_OR_UNKNOWN_PATCH");
     return { content: binary, applied: false };
   }
@@ -62,7 +62,9 @@ export function patchPinnedIntrospectionBinary(binary) {
   }
   const patchedFks = fks[0][0]
     .replace(fkJoin,
-      "JOIN LATERAL pg_catalog.unnest(con.conkey, con.confkey) WITH ORDINALITY " +
+      // Schema-qualified pg_catalog.unnest(array,array) is not callable: use
+      // ROWS FROM to zip two schema-qualified one-array calls by ordinality.
+      "JOIN LATERAL ROWS FROM (pg_catalog.unnest(con.conkey), pg_catalog.unnest(con.confkey)) WITH ORDINALITY " +
       "AS fkcols(source_attnum, target_attnum, ord) ON true " +
       "JOIN pg_catalog.pg_attribute att ON att.attnum = fkcols.source_attnum " +
       "AND att.attrelid = con.conrelid " +

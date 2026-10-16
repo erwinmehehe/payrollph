@@ -146,6 +146,16 @@ async function main() {
     if(i.db!=="app_db"||i.role!=="postgres"||
        i.ver < major * 10000 || i.ver >= (major+1)*10000) fail("SERVER_IDENTITY_MISMATCH");
     if(mode==="preflight") {
+      // Exercise the actual PG16/PG18 SQL grammar and positional FK pairing
+      // before allowing the real pinned binary to push any schema.
+      const pairs=(await client.query(
+        "SELECT fkcols.source_attnum,fkcols.target_attnum,fkcols.ord " +
+        "FROM (SELECT ARRAY[1,2]::smallint[] AS conkey, ARRAY[3,4]::smallint[] AS confkey) con " +
+        "JOIN LATERAL ROWS FROM (pg_catalog.unnest(con.conkey), pg_catalog.unnest(con.confkey)) " +
+        "WITH ORDINALITY AS fkcols(source_attnum,target_attnum,ord) ON true ORDER BY fkcols.ord"
+      )).rows;
+      assert.deepEqual(pairs.map(x=>[x.source_attnum,x.target_attnum,Number(x.ord)]),
+        [[1,3,1],[2,4,2]],"FK column ordinal pairing must be preserved");
       const c=await catalog(client);
       if(c.relations.length!==0) fail("NOT_EMPTY");
       process.stdout.write("ISSUE_1019_EMPTY_DISPOSABLE_PG"+major+"=PASS\n");
