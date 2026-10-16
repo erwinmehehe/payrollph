@@ -58,56 +58,8 @@ jobs:
       - name: Reconstruct HR group, compare complete catalogs, prove tenant denials
         run: ./node_modules/.bin/tsx --test tests/issue-1031-schema-only-hr-cases-postgres.test.ts
 
-  isolated-rc-repeat-proof:
-    name: Separate RC-only true full-schema no-op (PG ${{ matrix.postgres }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        postgres: ["16", "18"]
-    env:
-      CI: "true"
-      GITHUB_ACTIONS: "true"
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
-    services:
-      postgres:
-        image: postgres:${{ matrix.postgres }}
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: app_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d app_db"
-          --health-interval 5s
-          --health-timeout 10s
-          --health-retries 12
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: "22"
-          cache: npm
-      - run: npm ci
-      - name: RC overlay ONLY in this separate empty disposable PG service
-        run: npm install --no-save --package-lock=false drizzle-kit@1.0.0-rc.4 drizzle-orm@1.0.0-rc.4
-      - name: Verify exact matched RC toolchain versions
-        run: |
-          node -e 'const f=require("node:fs");for(const n of ["drizzle-kit","drizzle-orm"]){const v=JSON.parse(f.readFileSync("node_modules/"+n+"/package.json","utf8")).version;if(v!=="1.0.0-rc.4")process.exit(1)}'
-      - run: npm run db:push
-      - name: Second RC push must be a genuine DDL-free no-op
-        shell: bash
-        run: |
-          set -euo pipefail
-          output="$(npm run db:push)"
-          printf '%s\n' "$output"
-          grep -Fxq '[✓] No changes detected' <<< "$output"
-          echo "SEPARATE_RC_TRUE_NO_OP=PASS"
-
+  # Owner decision 2026-10-16: second drizzle-kit push: not used as a gate, see #1019.
+  # Retain first stable bootstrap, PG16/18 catalog/drift/guards and full npm test.
   complete-npm-test:
     name: Full npm test on independent disposable PG16
     runs-on: ubuntu-latest
