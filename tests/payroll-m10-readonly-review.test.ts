@@ -130,7 +130,7 @@ test("M-10: tenant mismatch, employee mismatch, unreleased or missing source fai
 });
 
 test("M-10: unknown/posted/submitted/corrected/rejected states require distinct actual evidence", () => {
-  const invalid = [
+  const invalid: Partial<M10ReviewInput>[] = [
     { remittanceState: "unknown" },
     { remittanceState: "submitted_unposted", submissionReference: null },
     { remittanceState: "paid_unposted", originalReceiptReference: null },
