@@ -91,7 +91,6 @@ export async function GET(request: Request) {
             row.sourceType === "upload" && row.uploadedByUserId === user.id,
         })),
       limits, vaultEnabled, uploadEnabled: documentUploadsEnabled(),
-    storageReady: vaultEnabled && privateVaultStorageReady(),
       storageReady: vaultEnabled && privateVaultStorageReady(),
     }, { headers: { "Cache-Control": "private, no-store" } });
   }
@@ -160,6 +159,7 @@ export async function GET(request: Request) {
         }, row.employeeId),
     })),
     limits, vaultEnabled, uploadEnabled: documentUploadsEnabled(),
+    storageReady: vaultEnabled && privateVaultStorageReady(),
   }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
