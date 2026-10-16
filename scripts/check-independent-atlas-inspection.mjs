@@ -44,10 +44,12 @@ const results = {
   source: readInspectedSchema("atlas-source-inspect.json", "app_db"),
   candidate: readInspectedSchema("atlas-candidate-inspect.json", "atlas_candidate_db"),
   reconciled: readInspectedSchema("atlas-reconciled-inspect.json", "atlas_reconciled_db"),
+  nameReview: readInspectedSchema("atlas-name-review-inspect.json", "atlas_name_review_db"),
   migrationReceiptCreated: false,
   approvedForDeployment: false,
 };
 writeFileSync(directory + "atlas-inspection-coverage.json", JSON.stringify(results, null, 2) + "\n");
 console.log(JSON.stringify({
   source: results.source, candidate: results.candidate, reconciled: results.reconciled,
+  nameReview: results.nameReview,
 }));

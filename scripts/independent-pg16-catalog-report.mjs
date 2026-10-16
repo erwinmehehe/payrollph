@@ -14,6 +14,7 @@ import pg from "pg";
 const SOURCE_URL = "postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/app_db";
 const CANDIDATE_URL = "postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/atlas_candidate_db";
 const RECONCILED_URL = "postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/atlas_reconciled_db";
+const NAME_REVIEW_URL = "postgresql://atlas_auditor:synthetic_audit_only@127.0.0.1:5432/atlas_name_review_db";
 const FIXTURE_WRITER_URL = "postgresql://postgres:postgres@127.0.0.1:5432/app_db";
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.GITHUB_ACTIONS, "true");
@@ -130,6 +131,37 @@ if (results.reconciliation.syntheticCascadeProvenance.unsupported.length > 0) {
   console.error("Unproven synthetic CASCADE cause; inspect original FK evidence");
   process.exitCode = 1;
 }
+if (process.env.INDEPENDENT_NAME_REVIEW_READY === "true") {
+  // Both passes preserve the original source/candidate/0128 snapshots.
+  // Only this optional fourth read inspects the reversible name-only rehearsal.
+  const preview = JSON.parse(readFileSync(
+    "qa-artifacts/independent-pg16/issue-1031-name-review-preview.json","utf8"));
+  assert.equal(preview.prHeadSha,process.env.PR_HEAD_SHA||null);
+  assert.equal(preview.exactNameOnlyRenames,54);
+  assert.equal(preview.allOtherDiscrepanciesPreserved,true);
+  assert.equal(preview.productionParityEstablished,false);
+  results.nameReview = await inspect(NAME_REVIEW_URL,"atlas_name_review_db");
+  assert.deepEqual(results.nameReview.counts,preview.fourthCloneCounts);
+  const nameReviewStages = compare1031Stages({
+    source:results.source,pre0128:results.candidate,
+    post0128:results.nameReview,mappings:parse0128Renames(sql0128),
+  });
+  assert.equal(nameReviewStages.verifiedSemanticFkRenames,49);
+  assert.equal(nameReviewStages.afterRecoveryNonPassing,0);
+  assert.equal(nameReviewStages.nameOnlyFkPairCountOutside0128,0);
+  assert.equal(nameReviewStages.postCandidateOnly,
+    results.reconciliation.postCandidateOnly-108);
+  assert.equal(nameReviewStages.postCandidateOnly,preview.candidateOnlyAfter);
+  assert.equal(nameReviewStages.fullSchemaParity,"NOT_ESTABLISHED");
+  results.nameReviewAnalysis = {
+    fourthDisposableDatabaseOnly:true,
+    originalPost0128CandidateOnly:results.reconciliation.postCandidateOnly,
+    postNamePreviewCandidateOnly:nameReviewStages.postCandidateOnly,
+    residualCategories:nameReviewStages.postCandidateOnlyByCategory,
+    noWaiverOrSourceMigration:true,
+    noProductionApproval:true,
+  };
+}
 writeFileSync("qa-artifacts/independent-pg16/issue-1031-side-by-side.json",
   JSON.stringify(results, null, 2) + "\n");
 console.log(JSON.stringify({
@@ -143,6 +175,7 @@ console.log(JSON.stringify({
   post0128NameOnlyFkPairs: results.reconciliation.nameOnlyFkPairCountOutside0128,
   post0128ResidualByCategory: results.reconciliation.postCandidateOnlyByCategory,
   syntheticCascadeProvenance: results.reconciliation.syntheticCascadeProvenance,
+  nameReview: results.nameReviewAnalysis ?? null,
   reconciliationGate: results.reconciliation.catalogReconciliationGate,
   commonNonPassing: results.baselineComparison.commonNonPassing,
   candidateOnly: results.baselineComparison.candidateOnly.length,

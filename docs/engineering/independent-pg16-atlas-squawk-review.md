@@ -422,3 +422,29 @@ recreated, renamed, approved, or excluded from Atlas/#1031 results. Atlas's
 catalog differences, and all 115 Squawk warnings remain fully blocking until
 independent engineering/DBA decisions and real historical evidence. The new
 witness is additional data quality evidence; **PR remains DRAFT / NO-GO**.
+
+## Additional controlled experiment: the 54 matching FK names (review-only)
+
+A separate **fourth disposable PostgreSQL 16 database** now clones the state
+*after* proposed 0128, leaving the original source, replay candidate and
+0128-checkpoint databases untouched. This review-only experiment requires the
+independent #1031 report to contain exactly **54** name-only FK pairs with
+identical columns, parent tables, delete/update actions and validation bits.
+Every pair must still be unapproved. The script checks the exact current PR
+head, validates the identifiers and live catalog, renames these constraints
+only inside the fourth synthetic clone, compares every constraint OID and
+semantic definition plus unrelated indexes/columns/functions, **rolls back
+all 54 via a SAVEPOINT**, proves the full original catalog is restored, and
+repeats the same changes only in that fourth disposable database for an
+independent no-row-SELECT Atlas/#1031 read. No versioned SQL migration is
+generated or executed in any authentic employer database.
+
+If every assertion passes, the expected isolated change is **54 more model
+PASS foreign keys and 108 fewer name-only missing/extra catalog rows**, leaving
+**51 candidate-only discrepancies** still open. The three confirmed
+synthetic CASCADE losses, two NOT VALID FKs, extra scope constraints, and
+columns/indexes remain fully visible and separately classified; Atlas's
+pre/post-0128 plans and all **115 Squawk findings** remain unmodified,
+unsuppressed and blocking. The fourth comparison is additional evidence,
+not an alternate green CI gate, DBA signoff, receipt, forward migration
+approval or production release permission. **DRAFT / NO-GO.**
