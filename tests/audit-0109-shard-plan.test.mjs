@@ -39,3 +39,21 @@ test("reporter keeps TAP logs private and aborts on failures",()=>{
  }
  assert.doesNotMatch(src,/console\.log\(log\)|writeFileSync\([^,]+,\s*log\s*\)/);
 });
+test("required CI regression shards apply guarded 0109 before the test inventory",()=>{
+ const yaml=readFileSync(new URL("../.github/workflows/ci.yml",import.meta.url),"utf8")
+  .replace(/\r\n?/g,"\n");
+ const start=yaml.indexOf("\n  test-shard:\n");
+ const end=yaml.indexOf("\n  check:\n",start);
+ assert.ok(start>=0 && end>start,"CI regression shard job is missing");
+ const shard=yaml.slice(start,end);
+ const bootstrap=shard.indexOf("- name: Apply disposable PostgreSQL schema");
+ const protect=shard.indexOf("- name: Apply 0109 audit protection in disposable regression shard");
+ const execute=shard.indexOf("- name: Execute complete regression inventory shard");
+ assert.ok(bootstrap>=0 && bootstrap<protect && protect<execute,
+  "0109 must run after disposable db:push and before the complete test inventory");
+ const step=shard.slice(protect,execute);
+ assert.match(step,/run:\s*node scripts\/qa\/apply-audit-0109-isolated\.mjs/);
+ assert.match(step,/PAYMONGO_DISBURSEMENTS_ENABLED:\s*"false"/);
+ assert.match(step,/XENDIT_PAYOUTS_ENABLED:\s*"false"/);
+ assert.doesNotMatch(step,/continue-on-error:\s*true/);
+});
