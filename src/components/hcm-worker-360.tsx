@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, RefreshCw, ShieldCheck } from "lucide-react";
 import { Worker360History } from "@/components/hcm-worker-360-history";
+import { WorkerDocumentVault } from "@/components/hcm-worker-document-vault";
 import type { Worker360Summary } from "@/lib/hcm-worker-360-contract";
 import { validWorker360Date } from "@/lib/hcm-worker-360-projection";
 
@@ -191,6 +192,7 @@ function ScopedWorker360({ organizationId, employeeId, initialAsOfDate }: {
               {history && <Worker360History key={scope} organizationId={organizationId}
                 employeeId={employeeId} asOfDate={asOfDate} preview={history} />}
             </div>
+            <WorkerDocumentVault key={`${organizationId}:${employeeId}`} organizationId={organizationId} employeeId={employeeId} />
             <p className="mt-6 max-w-4xl text-xs text-slate-500">
               Worker 360 provides a bounded, source-linked view. It is not proof of complete employment history, verified statutory compliance, payroll settlement or independently approved HR decisions. All changes must occur in their owning workflows.
             </p>
