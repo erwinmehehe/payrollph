@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { AUDIT_CHAIN_PROOF_KEYS, auditChainProtectionProven } from "../src/lib/audit-chain-protection-readiness";
+import { AUDIT_CHAIN_PROOF_KEYS, auditChainProtectionProven } from "../src/lib/audit-role-proof";
 
 const passedProof = () => Object.fromEntries(AUDIT_CHAIN_PROOF_KEYS.map(key => [key, true]));
 
