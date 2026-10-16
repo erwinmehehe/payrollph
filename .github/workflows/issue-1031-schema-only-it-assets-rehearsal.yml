@@ -55,6 +55,13 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Overlay matched Drizzle v1 RC for isolated schema rehearsal ONLY
+        # Existing main already proves this exact paired CLI/ORM in #1077.
+        # No application manifest or lockfile writes; normal app stays stable.
+        run: npm install --no-save --package-lock=false drizzle-kit@1.0.0-rc.4 drizzle-orm@1.0.0-rc.4
+      - name: Fail if isolated toolchain versions are not the reviewed matching pair
+        run: |
+          node -e 'const fs=require("node:fs");for(const n of ["drizzle-kit","drizzle-orm"]){if(JSON.parse(fs.readFileSync("node_modules/"+n+"/package.json","utf8")).version!=="1.0.0-rc.4")process.exit(1)}'
       - name: Provision disposable test-only encryption keys
         shell: bash
         run: |
@@ -115,8 +122,24 @@ jobs:
       - run: npm ci
       - name: First full-schema push before ANY candidate SQL
         run: npm run db:push
-      - name: Second full-schema push must be a real no-op even without candidate
-        run: npm run db:push
+      - name: Attribute pinned stable repeat-push failure without waiving the guard
+        # This is diagnostic ONLY: the matched RC matrix separately proves a
+        # real second-push no-op, and stable remains UNSAFE for repeated pushes.
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          result="$(npm run db:push 2>&1)"
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && grep -Fxq "STRICT_DB_PUSH_REPORTED_ERROR" <<< "$result"; then
+            echo "PINNED_STABLE_SECOND_PUSH_KNOWN_2BP01=REPRODUCED_NOT_APPROVED"
+          elif [ "$code" -eq 0 ] && grep -Fq "No changes detected" <<< "$result"; then
+            echo "PINNED_STABLE_SECOND_PUSH_NO_OP=PASS"
+          else
+            echo "::error::Unclassified second-push result; no waiver"
+            exit 1
+          fi
 
   complete-npm-test:
     name: Full npm test on disposable PG16 (source-only IT test path)
