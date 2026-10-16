@@ -112,20 +112,50 @@ async function main() {
     ...demo, requestType: "trial-access",
     email: trialEmail, intakeProof: await obtain(base, trialEmail),
   };
-  // The five prior same-IP demo requests intentionally exhaust the real
-  // hourly bucket. Verify the legitimate limiter rather than letting it
-  // masquerade as a failure of a later, independent trial-acceptance case.
-  assert.equal((await post(base, "/api/demo-requests", trial)).status, 429,
-    "sixth same-IP request must be limited even with a valid proof");
-  assert.equal(await leadCount(trialEmail), 0, "rate-limited lead must not persist");
-  // Disposable PG16 fixture only: clear this known synthetic limiter bucket.
-  // Never attempt this reset in staging, production, or against Neon.
+  // The rate limiter has UTC-aligned, fixed one-hour Postgres windows.
+  // Earlier CSRF/proof/replay checks can straddle an hour boundary on slow CI
+  // jobs; relying on those incidental hits made the sixth-request assertion
+  // flaky even though the limiter correctly began a new hourly window.
+  //
+  // In this *disposable, CI-only PostgreSQL* fixture (validated above), reset
+  // only the known synthetic unknown-IP bucket and drive the actual HTTP
+  // endpoint five times with missing proof. Each request must be counted and
+  // rejected with 422 before a valid sixth request is blocked with 429.
   const testLimiter = "demo-request:unknown";
+  const rateWindowMs = 60 * 60 * 1000;
+  const msUntilWindowEnd = rateWindowMs - (Date.now() % rateWindowMs);
+  if (msUntilWindowEnd < 30_000) await sleep(msUntilWindowEnd + 250);
+  const rateWindow = Math.floor(Date.now() / rateWindowMs);
+
+  await pool.query("DELETE FROM rate_limit_hits WHERE bucket_key = $1", [testLimiter]);
+  for (let index = 0; index < 5; index++) {
+    const probeEmail = mail(`rate-limit-probe-${index}`);
+    const probe = await post(base, "/api/demo-requests", { ...demo, email: probeEmail });
+    assert.equal(probe.status, 422, `same-IP probe ${index + 1} must require a valid proof`);
+    assert.equal(await leadCount(probeEmail), 0, "invalid-proof probe must never persist");
+  }
+  assert.equal(Math.floor(Date.now() / rateWindowMs), rateWindow,
+    "all five limiter probes must finish within the same fixed hour");
   const fixtureHit = await pool.query<{ hits: number }>(
     "SELECT hits FROM rate_limit_hits WHERE bucket_key = $1 ORDER BY window_start DESC LIMIT 1",
     [testLimiter],
   );
-  assert.ok(Number(fixtureHit.rows[0]?.hits) >= 6, "rate limiter was truly exhausted");
+  assert.equal(Number(fixtureHit.rows[0]?.hits), 5,
+    "the real distributed limiter must count exactly five same-window HTTP requests");
+  const rateLimitedTrial = await post(base, "/api/demo-requests", trial);
+  assert.equal(Math.floor(Date.now() / rateWindowMs), rateWindow,
+    "valid sixth request must remain in the same fixed hour as the five probes");
+  assert.equal(rateLimitedTrial.status, 429,
+    "sixth same-IP request must be limited even with a valid proof");
+  assert.equal(await leadCount(trialEmail), 0, "rate-limited lead must not persist");
+  const exhaustedHit = await pool.query<{ hits: number }>(
+    "SELECT hits FROM rate_limit_hits WHERE bucket_key = $1 ORDER BY window_start DESC LIMIT 1",
+    [testLimiter],
+  );
+  assert.equal(Number(exhaustedHit.rows[0]?.hits), 6,
+    "blocked sixth request must be counted by the distributed PostgreSQL limiter");
+  // Only the isolated CI fixture can reset this synthetic bucket; never
+  // clear live staging, production or Neon rate-limit evidence.
   await pool.query("DELETE FROM rate_limit_hits WHERE bucket_key = $1", [testLimiter]);
   assert.equal((await post(base, "/api/demo-requests", trial)).status, 201,
     "trial intake must persist after isolated fixture-rate reset");
