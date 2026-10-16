@@ -180,6 +180,31 @@ test("#1054 PG16/18: strict P0001 guards, clean create/replay and rollback", {
     await refused(["CREATE TABLE public.employee_availability_rules (id integer)"],
       "ISSUE1054_PARTIAL_OR_EXISTING_SCHEMA_REQUIRES_RECONCILIATION");
 
+    // In a rollback-only synthetic PG transaction, prove the protected
+    // runner search_path will neither shadow pg_catalog built-ins with
+    // public functions nor shadow public FK parents with temp relations.
+    await db.query("SAVEPOINT issue1054_search_path_safety");
+    try {
+      await db.query("CREATE FUNCTION public.now() RETURNS timestamptz LANGUAGE sql STABLE AS " +
+        "$ SELECT '2001-01-01 00:00:00+00'::timestamptz $");
+      await db.query("CREATE TEMP TABLE employees (id integer PRIMARY KEY)");
+      await db.query("SET LOCAL search_path = public, pg_temp");
+      const { rows: [resolved] } = await db.query(
+        "SELECT current_schema() AS target_schema, " +
+        "current_schemas(true) AS search_order, " +
+        "now() = pg_catalog.now() AS builtin_precedes_public, " +
+        "to_regclass('employees') = 'public.employees'::regclass AS public_precedes_temp");
+      assert.equal(resolved.target_schema, "public");
+      assert.ok(resolved.search_order.indexOf("pg_catalog") >= 0);
+      assert.ok(resolved.search_order.indexOf("pg_catalog") <
+        resolved.search_order.indexOf("public"));
+      assert.equal(resolved.builtin_precedes_public, true);
+      assert.equal(resolved.public_precedes_temp, true);
+    } finally {
+      await db.query("ROLLBACK TO SAVEPOINT issue1054_search_path_safety");
+      await db.query("RELEASE SAVEPOINT issue1054_search_path_safety");
+    }
+
     await db.query(preflight);
     await db.query(source);
     await db.query(ISSUE1054_POSTFLIGHT_SQL);

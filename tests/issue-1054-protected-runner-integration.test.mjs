@@ -135,6 +135,8 @@ test("#1054 protected PLAN checks preflight in read-only transaction, without ap
     assert.equal(result.status, "ready");
     assert.equal(result.sqlApplied, false);
     assert.match(db.calls[0], /READ ONLY/);
+    assert.ok(db.calls.includes("SET LOCAL search_path = pg_catalog"));
+    assert.ok(!db.calls.includes("SET LOCAL search_path = public, pg_temp"));
     assert.ok(db.calls.includes(ISSUE1054_PREFLIGHT_SQL));
     assert.ok(!db.calls.includes(ISSUE1054_POSTFLIGHT_SQL));
     assert.ok(!db.calls.includes(ORIGINAL_SQL));
@@ -153,6 +155,13 @@ test("#1054 protected APPLY orders preflight, immutable DDL, postflight, receipt
       sql.startsWith("INSERT INTO public.payrollph_schema_migrations"));
     assert.ok(order.every(x => x >= 0), "all three SQL phases must execute");
     assert.ok(order[0] < order[1] && order[1] < order[2] && order[2] < receipt);
+    const protectedSearchPath = db.calls.indexOf("SET LOCAL search_path = pg_catalog");
+    const applySearchPath = db.calls.indexOf("SET LOCAL search_path = public, pg_temp");
+    assert.ok(protectedSearchPath >= 0 && protectedSearchPath < order[0]);
+    assert.ok(applySearchPath > order[0] && applySearchPath < order[1],
+      "catalog preflight must precede safely scoped public DDL");
+    assert.ok(!db.calls.includes("SET LOCAL search_path = public, pg_catalog"),
+      "explicit catalog-last search path could shadow PostgreSQL built-ins");
     assert.equal(db.calls.at(-1), "COMMIT");
     assert.equal(result.sqlApplied, true);
     assert.deepEqual(db.applied, [recorded(f.target)]);
