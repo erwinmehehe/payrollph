@@ -22,7 +22,7 @@ import { compatibleDocumentColumns } from "@/lib/document-schema-compat";
 export const dynamic = "force-dynamic";
 
 function contentDisposition(fileName: string) {
-  const safe = fileName.replace(/[\\r\\n"]/g, "_");
+  const safe = fileName.replace(/[^A-Za-z0-9._ ()-]/g, "_").slice(0, 180) || "document";
   return `inline; filename="${safe}"`;
 }
 
