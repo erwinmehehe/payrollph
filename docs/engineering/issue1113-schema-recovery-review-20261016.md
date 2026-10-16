@@ -1,5 +1,7 @@
 # Issue #1113 — Schema recovery audit and rehearsal gate (2026-10-16)
 
+**Post-audit update (2026-10-16):** Following explicit owner approval and unused-branch inspection, a free Neon slot was recovered and new isolated branch `br-mute-mode-b740q5zx` created from the original default. A **23-statement, transactionally executed focused schema rehearsal** succeeded on the NEW branch, and the six-table/86-column contract passed **92/92** there; nine original-data table fingerprints still match. See [actual isolated rehearsal evidence](./issue1113-isolated-schema-rehearsal-20261016.md). This original audit's 10/10 branch-capacity blocker records the state **before** this later action. No production migration or historical receipt adoption occurred.
+
 **Status: REVIEW-ONLY. NOT MIGRATED. NOT PRODUCTION-APPROVED.**
 **Prepared from exact GitHub `main` commit:** `acf61b1714d73b18930a0ab30d0932860c66fb91`.
 
