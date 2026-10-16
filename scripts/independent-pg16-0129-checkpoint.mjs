@@ -42,6 +42,15 @@ assert.equal(
   (clean.match(/ALTER TABLE public\."/g)||[]).length,54,
   "Unreviewed ALTER TABLE SQL in proposed source"
 );
+const afterPreflight=clean.replace(/DO \$issue_0129_preflight\$[\s\S]*?END \$issue_0129_preflight\$;/m,"");
+assert.notEqual(afterPreflight,clean,"Strict 0129 preflight must be present");
+const standaloneStatements=afterPreflight.split(";").map(x=>x.trim()).filter(Boolean);
+assert.equal(standaloneStatements.length,54,"Unknown or hidden SQL outside 0129 preflight");
+for(const statement of standaloneStatements){
+  assert.match(statement,
+    /^ALTER TABLE public\."[a-z_]+"\s+RENAME CONSTRAINT "[a-z0-9_]+"\s+TO "[a-z0-9_]+"$/,
+    "Only literal, reviewed FK name-only ALTER TABLE may execute");
+}
 const catalogSql=String.raw`
 SELECT c.oid::text AS oid,t.relname AS table_name,c.conname AS name,
  c.contype,c.convalidated,c.condeferrable,c.condeferred,
