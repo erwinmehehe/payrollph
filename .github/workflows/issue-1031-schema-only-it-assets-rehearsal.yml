@@ -70,6 +70,18 @@ jobs:
         run: npm run db:push
       - name: Drop ONLY four IT target tables, test corrupt type, restore, catalog/FK/index match and retry guard
         run: ./node_modules/.bin/tsx --test tests/issue-1031-schema-only-it-assets-postgres.test.ts
+      - name: Require exact COE cross-tenant FK rejection on disposable PG18 (fictional rollback-only)
+        if: matrix.postgres == '18'
+        env:
+          FRESH_PG18_DEV_REHEARSAL: "disposable-ci-only"
+          DEMO_MODE: "false"
+          PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+          XENDIT_PAYOUTS_ENABLED: "false"
+          XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+          FINAL_PAY_MANUAL_RELEASE_ENABLED: "false"
+          WFM_GEOFENCE_PILOT_ENABLED: "false"
+          WFM_PUNCH_EVIDENCE_ENABLED: "false"
+        run: node scripts/qa/coe-document-tenant-negative-proof.mjs
   # Owner decision 2026-10-16: second drizzle-kit push: not used as a gate, see #1019.
   # Retain first stable bootstrap, PG16/18 catalog/drift/guards and full npm test.
   complete-npm-test:
