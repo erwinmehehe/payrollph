@@ -24,6 +24,9 @@ Additional tests execute the actual rewritten PG FK serializer and retained
 MySQL serializer, preserving paired columns, rejecting name collisions and
 unsupported multibyte truncation, and verifying repeated installer calls on
 temporary local package copies do not rewrite the second time.
+Each job uploads only the catalog baseline counts and per-object hashes. That
+baseline alone is not a successful second push: review it with the same run's
+strict vendor no-op output, final catalog comparisons and negative test results.
 
 1. Independently bootstrap each PostgreSQL major in a **new empty localhost** app_db, with only committed stable drizzle-kit 0.31.11 / drizzle-orm 0.45.4 installed.
 2. First npm run db:push creates the **entire source schema**. Capture a metadata-only fingerprint of all public relation names, columns, defaults, constraints (including validated flag), indexes and their definitions. Assert at least 270 tables and the exact original documents composite UNIQUE plus confidential HR case and message tenant FKs.

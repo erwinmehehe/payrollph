@@ -94,3 +94,11 @@ jobs:
         run: node scripts/qa/issue-1019-stable-two-push-proof.mjs negative-drift
       - name: Reconfirm original catalog after negative tests
         run: node scripts/qa/issue-1019-stable-two-push-proof.mjs compare
+      - name: Save metadata-only baseline for review with this run's CLI results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: issue-1019-stable-catalog-pg${{ matrix.postgres }}
+          path: qa-artifacts/issue-1019-stable-repeat-proof.json
+          if-no-files-found: warn
+          retention-days: 14
