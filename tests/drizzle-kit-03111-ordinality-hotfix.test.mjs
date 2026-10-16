@@ -33,33 +33,20 @@ test("#1019 patched introspection keeps real CLI and preserves ordered composite
     return;
   }
   assert.equal(manifest.version, "0.31.11");
-  // Temporary vendor-layout diagnostic: the content is a public package binary,
-  // never application SQL, env vars, database rows, or credentials.
-  for (const token of ["foreignKeysObject", "fks.forEach", "fk.getName()", "foreignKeysObject[it.name]"]) {
-    const first = actual.indexOf(token);
-    const count = actual.split(token).length - 1;
-    const excerpt = first < 0 ? "" : actual.slice(Math.max(0, first-100), first+420);
-    console.log("ISSUE_1019_PINNED_KIT_LAYOUT=" + JSON.stringify({token,count,excerpt}));
-  }
-  const re = /fks\.forEach\(\(it\)\s*=>\s*\{\s*foreignKeysObject\[it\.name\]\s*=\s*it;\s*\}\);/g;
-  const inserts=[...actual.matchAll(re)];
-  console.log("ISSUE_1019_FK_INSERTION_COUNT="+inserts.length);
-  for(const [idx,hit] of inserts.entries()) {
-    const prefix=actual.slice(Math.max(0,hit.index-20000),hit.index);
-    const marker=prefix.lastIndexOf("const foreignKeysObject = {};");
-    const header=prefix.slice(Math.max(0,marker-450),marker+370);
-    console.log("ISSUE_1019_FK_INSERTION_LAYOUT="+JSON.stringify({idx,header,
-      near:actual.slice(hit.index-420,hit.index+200),
-      pgCoreContext:prefix.slice(Math.max(0,marker-1000),marker).includes("import_pg_core"),
-      sqliteCoreContext:prefix.slice(Math.max(0,marker-1000),marker).includes("import_sqlite_core"),
-      mysqlCoreContext:prefix.slice(Math.max(0,marker-1000),marker).includes("import_mysql_core")
-    }));
-  }
+  // Pinned 0.31.11 contains BOTH MySQL and PostgreSQL foreign-key serializers.
+  // The installed hotfix must change PG only, leaving MySQL unmodified.
+  const bareInsertion = /fks\.forEach\(\(it\)\s*=>\s*\{\s*foreignKeysObject\[it\.name\]\s*=\s*it;\s*\}\);/g;
+  assert.equal([...actual.matchAll(bareInsertion)].length,2);
   const result = patchPinnedIntrospectionBinary(actual);
   assert.ok(result.content.includes(markerKey));
   assert.ok(result.content.includes(markerFk));
   assert.equal(result.content.split(markerIndex).length - 1, 2);
   assert.equal(result.content.split(markerFkName).length - 1, 1);
+  assert.equal([...result.content.matchAll(bareInsertion)].length,1,
+    "the MySQL FK insertion must be retained unchanged");
+  const pgMarkerPos = result.content.indexOf(markerFkName);
+  assert.match(result.content.slice(Math.max(0,pgMarkerPos-330),pgMarkerPos),
+    /schemaTo,\s*columnsFrom,\s*columnsTo/);
   assert.match(result.content, /Buffer\.byteLength\(it\.name, 'utf8'\) > 63/);
   assert.match(result.content, /DRIZZLE_1019_FK_NAME_COLLISION/);
   assert.match(result.content, /DRIZZLE_1019_UNSUPPORTED_MULTIBYTE_FK_NAME/);

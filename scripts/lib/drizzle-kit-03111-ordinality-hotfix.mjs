@@ -32,7 +32,8 @@ const indexExpression = /CASE\s+WHEN\s+(?:pg_catalog\.)?pg_get_expr\(i\.indexprs
 // Only the pinned PostgreSQL serializer's source-FK dictionary insertion:
 // PG silently truncates constraint identifier names after 63 bytes. Source
 // snapshots must compare the same physical name, not a >63-byte JS name.
-const fkNameInsertion = /fks\.forEach\(\(it\)\s*=>\s*\{\s*foreignKeysObject\[it\.name\]\s*=\s*it;\s*\}\);/g;
+const fkNameInsertion = /return\s*\{\s*name,\s*tableFrom,\s*tableTo,\s*schemaTo,\s*columnsFrom,\s*columnsTo,\s*onDelete,\s*onUpdate\s*\};\s*\}\);\s*fks\.forEach\(\(it\)\s*=>\s*\{\s*foreignKeysObject\[it\.name\]\s*=\s*it;\s*\}\);/g;
+const anyFkInsertion = /fks\.forEach\(\(it\)\s*=>\s*\{\s*foreignKeysObject\[it\.name\]\s*=\s*it;\s*\}\);/g;
 
 function fail(code) { throw new Error("DRIZZLE_1019_" + code); }
 function occurrences(s, marker) { return s.split(marker).length - 1; }
@@ -48,6 +49,7 @@ export function patchPinnedIntrospectionBinary(binary) {
         occurrences(binary, FK_NAME_MARKER) !== 1 ||
         [...binary.matchAll(indexExpression)].length !== 0 ||
         [...binary.matchAll(fkNameInsertion)].length !== 0 ||
+        [...binary.matchAll(anyFkInsertion)].length !== 1 ||
         keyQuery.test(binary) || selectedFkQueries.length !== 1 ||
         !selectedFkQueries[0][0].includes("JOIN LATERAL ROWS FROM (pg_catalog.unnest(con.conkey), pg_catalog.unnest(con.confkey)) WITH ORDINALITY") ||
         !selectedFkQueries[0][0].includes("ORDER BY con.conname, fkcols.ord;")) fail("PARTIAL_OR_UNKNOWN_PATCH");
@@ -57,10 +59,11 @@ export function patchPinnedIntrospectionBinary(binary) {
   const fks = [...binary.matchAll(fkQuery)];
   const indexPredicates = [...binary.matchAll(indexExpression)];
   const fkNames = [...binary.matchAll(fkNameInsertion)];
+  const allFkNames = [...binary.matchAll(anyFkInsertion)];
   // The exact release source has one copy of each query. A new upstream
   // package layout must not silently be treated as a supported hotfix.
   if (keys.length !== 1 || fks.length !== 1 || indexPredicates.length !== 2 ||
-      fkNames.length !== 1 || !fkJoin.test(fks[0][0])) {
+      fkNames.length !== 1 || allFkNames.length !== 2 || !fkJoin.test(fks[0][0])) {
     fail("UNRECOGNIZED_UPSTREAM_QUERY");
   }
   const patchedKeys = keys[0][0]
@@ -98,7 +101,7 @@ export function patchPinnedIntrospectionBinary(binary) {
   const rewritten = binary.replace(keys[0][0], patchedKeys).replace(fks[0][0], patchedFks)
     .replace(indexExpression,
       "CASE WHEN k.attnum = 0 THEN 1 ELSE 0 END AS is_expression /* " + INDEX_MARKER + " */")
-    .replace(fkNames[0][0],
+    .replace(fkNames[0][0], fkNames[0][0].replace(anyFkInsertion,
       "fks.forEach((it) => { " +
       "/* " + FK_NAME_MARKER + " */ " +
       "if (Buffer.byteLength(it.name, 'utf8') > 63) { " +
@@ -106,12 +109,13 @@ export function patchPinnedIntrospectionBinary(binary) {
       "it.name = it.name.slice(0, 63); } " +
       "if (Object.prototype.hasOwnProperty.call(foreignKeysObject, it.name)) " +
       "throw new Error('DRIZZLE_1019_FK_NAME_COLLISION'); " +
-      "foreignKeysObject[it.name] = it; });");
+      "foreignKeysObject[it.name] = it; });"));
   if (rewritten === binary || occurrences(rewritten, KEY_MARKER) !== 1 ||
       occurrences(rewritten, FK_MARKER) !== 1 ||
       occurrences(rewritten, INDEX_MARKER) !== 2 ||
       occurrences(rewritten, FK_NAME_MARKER) !== 1 ||
       [...rewritten.matchAll(fkNameInsertion)].length !== 0 ||
+      [...rewritten.matchAll(anyFkInsertion)].length !== 1 ||
       [...rewritten.matchAll(indexExpression)].length !== 0 || keyQuery.test(rewritten)) {
     fail("PATCH_VERIFICATION_FAILED");
   }
