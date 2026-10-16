@@ -8,6 +8,9 @@ on:
       - "scripts/independent-pg16-catalog-report.mjs"
       - "scripts/check-independent-schema-evidence.mjs"
       - "scripts/check-independent-atlas-inspection.mjs"
+      - "scripts/independent-pg16-0128-checkpoint.mjs"
+      - "scripts/lib/independent-reconciliation-evidence.mjs"
+      - "tests/independent-reconciliation-evidence.test.mjs"
       - "scripts/lib/independent-schema-evidence.mjs"
       - "tests/independent-schema-evidence.test.mjs"
       - "drizzle/0115_*.sql"
@@ -22,6 +25,7 @@ on:
       - "drizzle/0124_*.sql"
       - "drizzle/0125_*.sql"
       - "drizzle/0126_*.sql"
+      - "drizzle/0128_*.sql"
       - "src/db/schema.ts"
   # Intentionally no production workflow_dispatch, environment or credentials.
 
@@ -43,7 +47,7 @@ jobs:
         with:
           node-version: "22"
       - name: Test fail-closed independent evidence classification
-        run: node --test tests/independent-schema-evidence.test.mjs
+        run: node --test tests/independent-schema-evidence.test.mjs tests/independent-reconciliation-evidence.test.mjs
       - name: Squawk 2.65.0, PG16, reviewed-runner transaction semantics
         shell: bash
         run: |
@@ -139,7 +143,21 @@ jobs:
           mkdir -p qa-artifacts/independent-pg16
           node scripts/independent-pg16-schema-audit.mjs \
             > qa-artifacts/independent-pg16/synthetic-source-shas.json
-      - name: Provision synthetic catalog-only login on both local PG16 databases
+      - name: Clone disposable candidate for proposed 0128-only reconciliation checkpoint
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE atlas_reconciled_db TEMPLATE atlas_candidate_db'
+      - name: Rehearse 0128 rollback then apply only inside third disposable PG16 DB
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/independent-pg16-0128-checkpoint.mjs \
+            > qa-artifacts/independent-pg16/0128-rollback-and-reconciliation.json
+      - name: Provision synthetic catalog-only and REFERENCES-only inspection roles on three PG16 databases
         shell: bash
         env:
           PGPASSWORD: postgres
@@ -152,9 +170,9 @@ jobs:
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
           ALTER ROLE atlas_auditor SET default_transaction_read_only = on;
           ALTER ROLE atlas_inspector SET default_transaction_read_only = on;
-          GRANT CONNECT ON DATABASE app_db, atlas_candidate_db TO atlas_auditor, atlas_inspector;
+          GRANT CONNECT ON DATABASE app_db, atlas_candidate_db, atlas_reconciled_db TO atlas_auditor, atlas_inspector;
           SQL
-          for db in app_db atlas_candidate_db; do
+          for db in app_db atlas_candidate_db atlas_reconciled_db; do
             psql -h 127.0.0.1 -U postgres -d "$db" -v ON_ERROR_STOP=1 <<'SQL'
           GRANT USAGE ON SCHEMA public TO atlas_auditor, atlas_inspector;
           -- Atlas 1.3 PostgreSQL inspector queries information_schema.columns,
@@ -170,7 +188,7 @@ jobs:
           PGPASSWORD: synthetic_audit_only
         run: |
           set -euo pipefail
-          for db in app_db atlas_candidate_db; do
+          for db in app_db atlas_candidate_db atlas_reconciled_db; do
             state=$(psql -h 127.0.0.1 -U atlas_inspector -d "$db" -v ON_ERROR_STOP=1 -Atc "
               SELECT CASE WHEN current_user='atlas_inspector'
                 AND current_setting('transaction_read_only')='on'
@@ -185,7 +203,7 @@ jobs:
               exit 1
             fi
           done
-      - name: Re-run #1031 source/catalog comparison on BOTH identical PG16 fixtures (read only)
+      - name: Re-run #1031 comparison on source, pre-0128 and post-0128 PG16 (read only)
         shell: bash
         run: |
           set -euo pipefail
@@ -202,6 +220,10 @@ jobs:
             --url 'postgresql://atlas_inspector:synthetic_audit_only@127.0.0.1:5432/atlas_candidate_db?search_path=public&sslmode=disable' \
             --format '{{ json . }}' \
             > qa-artifacts/independent-pg16/atlas-candidate-inspect.json
+          atlas schema inspect \
+            --url 'postgresql://atlas_inspector:synthetic_audit_only@127.0.0.1:5432/atlas_reconciled_db?search_path=public&sslmode=disable' \
+            --format '{{ json . }}' \
+            > qa-artifacts/independent-pg16/atlas-reconciled-inspect.json
           node --import tsx scripts/check-independent-atlas-inspection.mjs
       - name: Read-only independent Atlas schema comparison
         shell: bash
@@ -213,7 +235,13 @@ jobs:
             --to 'postgresql://atlas_inspector:synthetic_audit_only@127.0.0.1:5432/app_db?search_path=public&sslmode=disable' \
             --schema public --format '{{ sql . "" }}' \
             > qa-artifacts/independent-pg16/atlas-source-vs-train.diff.sql
-      - name: Fail closed on Atlas schema differences or unknown output
+          atlas schema diff \
+            --from 'postgresql://atlas_inspector:synthetic_audit_only@127.0.0.1:5432/atlas_reconciled_db?search_path=public&sslmode=disable' \
+            --to 'postgresql://atlas_inspector:synthetic_audit_only@127.0.0.1:5432/app_db?search_path=public&sslmode=disable' \
+            --schema public --format '{{ sql . "" }}' \
+            > qa-artifacts/independent-pg16/atlas-post-0128-vs-source.diff.sql
+      - name: Fail closed on post-0128 Atlas differences (preserve both plans)
+
         run: node scripts/check-independent-schema-evidence.mjs atlas
       - name: Retain independent structural-only evidence
         if: always()
