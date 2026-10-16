@@ -41,6 +41,20 @@ test("#1019 patched introspection keeps real CLI and preserves ordered composite
     const excerpt = first < 0 ? "" : actual.slice(Math.max(0, first-100), first+420);
     console.log("ISSUE_1019_PINNED_KIT_LAYOUT=" + JSON.stringify({token,count,excerpt}));
   }
+  const re = /fks\\.forEach\\(\\(it\\)\\s*=>\\s*\\{\\s*foreignKeysObject\\[it\\.name\\]\\s*=\\s*it;\\s*\\}\\);/g;
+  const inserts=[...actual.matchAll(re)];
+  console.log("ISSUE_1019_FK_INSERTION_COUNT="+inserts.length);
+  for(const [idx,hit] of inserts.entries()) {
+    const prefix=actual.slice(Math.max(0,hit.index-20000),hit.index);
+    const marker=prefix.lastIndexOf("const foreignKeysObject = {};");
+    const header=prefix.slice(Math.max(0,marker-450),marker+370);
+    console.log("ISSUE_1019_FK_INSERTION_LAYOUT="+JSON.stringify({idx,header,
+      near:actual.slice(hit.index-420,hit.index+200),
+      pgCoreContext:prefix.slice(Math.max(0,marker-1000),marker).includes("import_pg_core"),
+      sqliteCoreContext:prefix.slice(Math.max(0,marker-1000),marker).includes("import_sqlite_core"),
+      mysqlCoreContext:prefix.slice(Math.max(0,marker-1000),marker).includes("import_mysql_core")
+    }));
+  }
   const result = patchPinnedIntrospectionBinary(actual);
   assert.ok(result.content.includes(markerKey));
   assert.ok(result.content.includes(markerFk));
