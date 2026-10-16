@@ -77,6 +77,12 @@ jobs:
       - name: Diagnose schema delta when a previous step failed (disposable CI only)
         if: ${{ failure() }}
         run: node scripts/qa/issue-1019-stable-two-push-proof.mjs diagnose
+      - name: Redacted vendor verbose plan on failure (third push, diagnostic ONLY)
+        if: ${{ failure() }}
+        continue-on-error: true
+        env:
+          ISSUE_1019_VERBOSE: "true"
+        run: npm run db:push
       - name: Compare full PG catalog after second push, no schema changes
         run: node scripts/qa/issue-1019-stable-two-push-proof.mjs compare
       - name: Verify same-tenant allowed and cross-tenant HR COE + message denied

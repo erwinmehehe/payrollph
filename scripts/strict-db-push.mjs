@@ -46,7 +46,12 @@ export async function runStrictDbPush(env = process.env) {
   // queries in the local installed copy, then run the original strict push.
   // The pinned version/layout check fails closed; RC-only CI remains separate.
   ensurePinnedKitOrdinalityPatch(BIN, env);
-  const child = spawn(process.execPath, [BIN, "push"], {
+  // Only the dedicated disposable CI diagnosis may opt into vendor verbosity.
+  // The ordinary first/second npm run db:push invocations remain identical.
+  const verbose = env.CI === "true" && env.GITHUB_ACTIONS === "true" &&
+    env.ISSUE_1019_REHEARSAL === "disposable-ci-only" &&
+    env.ISSUE_1019_VERBOSE === "true";
+  const child = spawn(process.execPath, [BIN, "push", ...(verbose ? ["--verbose"] : [])], {
     cwd: ROOT,
     env,
     shell: false,
@@ -74,6 +79,35 @@ export async function runStrictDbPush(env = process.env) {
     clearTimeout(deadline);
   }
   if (launchError || oversized || timedOut) throw new Error("STRICT_DB_PUSH_RUNNER_FAILED");
+  if (verbose) {
+    // Deliberately never print vendor output or SQL. This is a third, bounded
+    // disposable-only diagnostic invocation, not evidence for the second no-op.
+    const output = (stdout + "\n" + stderr).replace(ANSI, "");
+    const patterns = {
+      drop_index: /\bDROP\s+INDEX\b/gi,
+      create_index: /\bCREATE\s+(?:UNIQUE\s+)?INDEX\b/gi,
+      alter_table: /\bALTER\s+TABLE\b/gi,
+      add_constraint: /\bADD\s+CONSTRAINT\b/gi,
+      drop_constraint: /\bDROP\s+CONSTRAINT\b/gi,
+      set_default: /\bSET\s+DEFAULT\b/gi,
+      drop_default: /\bDROP\s+DEFAULT\b/gi,
+      create_table: /\bCREATE\s+TABLE\b/gi,
+      interactive_prompt: /\b(?:yes|no|select|continue|prompt)\b/gi,
+    };
+    const operations = Object.fromEntries(Object.entries(patterns)
+      .map(([key,pattern])=>[key,[...output.matchAll(pattern)].length]));
+    const knownNames = [
+      "labor_gl_mappings_scope_unique",
+      "staffing_requirement_role_unique",
+      "hcm_skill_expectation_defaults_scope_unique",
+      "wfm_staffing_policy_scope_version_unique",
+      "documents_org_employee_id_hr_cases_unique",
+      "employee_hr_cases_coe_document_tenant_fk",
+    ].filter(name=>output.includes(name));
+    process.stderr.write("ISSUE_1019_DISPOSABLE_VENDOR_PLAN="+JSON.stringify({
+      exitCode:code,outputBytes:Buffer.byteLength(output),operations,knownNames,
+    })+"\n");
+  }
   // Diagnostic classification for *disposable* issue-1019 CI only. Never emit
   // vendor output: SQL statements and connection details may contain secrets.
   if (code !== 0 && env.CI === "true" && env.GITHUB_ACTIONS === "true" &&
