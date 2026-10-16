@@ -100,7 +100,20 @@ export async function generateConnected2316(input: Scope & { runId: number; owne
   const review = { text: { rdo: "039", address: "123 Fictional Street", zip: "1100", homeAddress: "123 Fictional Street", homeZip: "1100", foreignAddress: "", contact: "09171234567", minimumDaily: "0.00", minimumMonthly: "0.00", employerAddress: "456 Fictional Avenue", employerZip: "1200", categoryReference: "Fictional single-run BASIC, commission and premium mapping", peraReference: "Fictional zero PERA declaration", "44A": "", "44B": "", "51A": "", "51B": "Fictional holiday and schedule premiums" }, detailItems, previousEmployer: { status: "none-confirmed" }, peraCredit: "0.00", employerType: "main", acknowledged: true };
   assert.equal((await owner.json(api, "POST", { sourceDigest: "stale", review })).status, 409);
   const pdf = await owner.request(api, "POST", { sourceDigest: loaded.sourceDigest, review });
-  assert.equal(pdf.status, 200, "Real released annualization must generate the unsigned certificate");
+  // This entire fixture is fictional and guarded by the parent empty-local-CI
+  // preflight. Persist numerical diagnostics before assertion so failed source
+  // mapping is reviewable without response bodies or credentials in logs.
+  let failureCodes: string[] = [];
+  if (pdf.status !== 200) {
+    const failure = await pdf.clone().json().catch(() => ({}));
+    failureCodes = [failure.code, ...(Array.isArray(failure.issues) ? failure.issues : [])]
+      .filter((v): v is string => typeof v === "string" && /^[A-Z][A-Z0-9_]{0,100}$/.test(v));
+    writeFileSync("qa-artifacts/connected-year-end-diagnostic.json", JSON.stringify({
+      status: pdf.status, failureCodes, summary: source.summary, withholding: source.withholding,
+      detailItems, basic: amounts.basic, benefit: amounts.benefit, contributions, remainder,
+    }, null, 2));
+  }
+  assert.equal(pdf.status, 200, "Unsigned certificate: HTTP " + pdf.status + " " + failureCodes.join(","));
   assert.match(pdf.headers.get("content-type") ?? "", /application\/pdf/);
   assert.match(pdf.headers.get("cache-control") ?? "", /no-store/);
   const bytes = Buffer.from(await pdf.arrayBuffer()); assert.equal(bytes.subarray(0,5).toString(), "%PDF-");
