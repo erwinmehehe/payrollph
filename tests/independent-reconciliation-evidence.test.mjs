@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
-  RECOVERY_TABLES, parse0128Renames, compare1031Stages, summarizeAtlasPlan,
+  RECOVERY_TABLES, DISPOSABLE_MISSING_TABLES, parse0128Renames,
+  compare1031Stages, summarizeAtlasPlan,
 } from "../scripts/lib/independent-reconciliation-evidence.mjs";
 
 const contract = { columns:["employee_id"], refTable:"employees", refColumns:["id"],
@@ -87,4 +88,34 @@ test("Atlas plan summarizes destructive proposed DDL but never executes it",()=>
   assert.equal(x.destructiveSuggestionCount,3);
   assert.equal(x.generatedDdlWasExecuted,false);
   assert.deepEqual(x.touchedTableHints,["open_shifts","payroll_entries"]);
+});
+
+test("the 25-table synthetic omission list includes all ten recovery targets",()=>{
+  assert.equal(DISPOSABLE_MISSING_TABLES.length,25);
+  assert.ok(RECOVERY_TABLES.every(x=>DISPOSABLE_MISSING_TABLES.includes(x)));
+  assert.ok(DISPOSABLE_MISSING_TABLES.includes("entity_transfer_requests"));
+});
+test("unresolved same-contract FK names stay in the red residual, distinct from NOT VALID drift",()=>{
+  const x=stages();
+  const expected={columns:["organization_id"],refTable:"organizations",
+    refColumns:["id"],onDelete:"cascade",onUpdate:"no action",validated:true};
+  x.post0128.nonPassing.push(
+    {table:"provider_events",kind:"foreign_key",status:"MISSING",
+      object:"provider_events_org_fk",expected,actual:null},
+    {table:"provider_events",kind:"foreign_key",status:"EXTRA",
+      object:"provider_events_organization_id_fkey",expected:null,actual:expected},
+    {table:"entity_transfer_requests",kind:"foreign_key",status:"DRIFT",
+      object:"transfer_employee_tenant_fk",expected,
+      actual:{...expected,validated:false}},
+  );
+  x.post0128.counts.MISSING=1;
+  x.post0128.counts.EXTRA=1;
+  x.post0128.counts.DRIFT=1;
+  const result=compare1031Stages(x);
+  assert.equal(result.nameOnlyFkPairCountOutside0128,1);
+  assert.equal(result.postCandidateOnlyByCategory
+    .FK_NAME_ONLY_IDENTICAL_CONTRACT_OUTSIDE_0128_STILL_UNRESOLVED,2);
+  assert.equal(result.postCandidateOnlyByCategory.HISTORICAL_NOT_VALID_FK_REVIEW,1);
+  assert.equal(result.postCandidateOnly,3);
+  assert.equal(result.fullSchemaParity,"NOT_ESTABLISHED");
 });
