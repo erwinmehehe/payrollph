@@ -15,7 +15,7 @@ export function Certificate2316Review({ organizationId, initialEmployeeId, initi
   const reset = () => { setSource(null); setSourceDigest(""); setDownload(""); setText({}); setDetails({}); setPrevious({ status: "" }); setPera(""); setType(""); setAck(false); setError(""); };
   async function load() {
     reset(); setBusy(true);
-    try { const response = await fetch(url(), { cache: "no-store" }); const data = await response.json(); if (!response.ok) throw Error(data.error + (data.code ? " (" + data.code + ")" : "")); setSource(data.source); setSourceDigest(data.sourceDigest); }
+    try { const response = await fetch(url(), { cache: "no-store" }); const data = await response.json(); if (!response.ok) throw Error(data.error + (data.code ? " (" + data.code + ")" : "")); setSource(data.source); setSourceDigest(data.sourceDigest); if (data.source.approvedPriorEvidence) { const e = data.source.approvedPriorEvidence.evidence; setPrevious(e.status === "verified" ? { status: e.status, name: e.employerName, tin: e.employerTin, reference: e.sourceReference, taxableCompensation: e.taxableIncome, taxWithheld: e.taxWithheld } : { status: e.status }); setPera(e.peraCredit); } }
     catch (e) { setError(e instanceof Error ? e.message : "Unable to load source. Retry."); } finally { setBusy(false); }
   }
   async function generate(event: React.FormEvent) {

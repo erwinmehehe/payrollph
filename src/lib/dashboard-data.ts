@@ -427,6 +427,7 @@ export async function getDashboardData(organizationId?: number, request?: Reques
     employeeImportPreviewEnabled: criticalReleaseFlagEnabled("employeeImportPreview"),
     xenditPayoutsEnabled: criticalReleaseFlagEnabled("xenditPayrollPayouts"),
     bir1604cCandidateEnabled: criticalReleaseFlagEnabled("bir1604cReviewedCandidate"),
+    yearEndPriorEvidenceEnabled: criticalReleaseFlagEnabled("yearEndPriorEvidence"),
     bir2316CertificateEnabled: criticalReleaseFlagEnabled("bir2316Certificate") && criticalReleaseFlagEnabled("bir2316Reconciliation") && criticalReleaseFlagEnabled("bir2316WithholdingEvidence"),
     compactMobileHeaderEnabled: criticalReleaseFlagEnabled("compactMobileHeader"),
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,

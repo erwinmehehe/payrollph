@@ -317,6 +317,7 @@ export async function GET(request: Request) {
     : [];
   return Response.json({
     currentUserId: user.id,
+    ...(criticalReleaseFlagEnabled("finalPaySignedReview") ? { signedReviewEnabled: true } : {}),
     manualReleaseEnabled: process.env.FINAL_PAY_MANUAL_RELEASE_ENABLED === "true",
     offboardingClearanceEnabled: offboardingEnabled,
     canAuthorizeClearanceWaivers: offboardingEnabled && access.companyWide &&
@@ -597,6 +598,7 @@ export async function POST(request: Request) {
       appliedStatutoryDeductions: result.appliedStatutoryDeductions,
       unpaidStatutoryDeductions: result.unpaidStatutoryDeductions,
       unpaidMandatoryDeductions: result.unpaidMandatoryDeductions,
+      ...(result.signedNetFinalPay === undefined ? {} : { signedNetFinalPay: result.signedNetFinalPay }),
       shortfallAllocationPolicy: "tax-first-provisional-review-required",
       annualization: result.annualization,
       specialPayTaxReviewed,

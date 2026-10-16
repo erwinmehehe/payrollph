@@ -63,7 +63,7 @@ async function main() {
   });
   const totpSecret = encryptTotpSecret("JBSWY3DPEHPK3PXP");
   const actorIds: number[] = [];
-  for (const role of ["owner", "hr", "employee"]) {
+  for (const role of ["owner", "hr", "employee", "payroll"]) {
     const [user] = await db.insert(users).values({
       name: "Synthetic " + role,
       email: role + "@bir-qa.example.test",

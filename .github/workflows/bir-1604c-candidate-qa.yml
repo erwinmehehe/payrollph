@@ -10,6 +10,12 @@ on:
       - 'src/app/workspace/2316/**'
       - 'src/components/workspace/certificate-2316-review.tsx'
       - 'src/lib/annualization.ts'
+      - 'src/lib/year-end*'
+      - 'src/app/api/year-end/prior-evidence/**'
+      - 'src/app/workspace/prior-employer/**'
+      - 'src/components/workspace/year-end-prior-review.tsx'
+      - 'tests/year-end-prior*'
+      - 'scripts/qa/year-end-prior-component-browser.mjs'
       - 'tests/bir-2316*'
       - 'src/lib/bir-annual-employer-source.ts'
       - 'src/app/api/bir/annual-employer/**'
@@ -46,12 +52,16 @@ jobs:
       - run: npm install --no-save --package-lock=false playwright@1.55.0
       - run: npx playwright install --with-deps chromium
       - name: Execute real component loading/error/focus/download and desktop/390px layout
-        run: node --import tsx scripts/qa/bir-2316-component-browser.mjs
+        run: |
+          node --import tsx scripts/qa/bir-2316-component-browser.mjs
+          node --import tsx scripts/qa/year-end-prior-component-browser.mjs
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: bir-2316-component-browser
-          path: qa-artifacts/bir-2316-component
+          path: |
+            qa-artifacts/bir-2316-component
+            qa-artifacts/year-end-prior-component
           retention-days: 14
   synthetic:
     runs-on: ubuntu-latest
@@ -63,7 +73,7 @@ jobs:
       BIR_2316_POSTGRES_QA: 'true'
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       APP_BASE_URL: https://127.0.0.1:3443
-      TRUSTED_APP_ORIGINS: https://127.0.0.1:3443,https://127.0.0.1:3444
+      TRUSTED_APP_ORIGINS: https://127.0.0.1:3443,https://127.0.0.1:3444,https://127.0.0.1:3445
       DEMO_MODE: 'false'
       REQUIRE_PRIVILEGED_MFA: 'true'
       NEXT_TELEMETRY_DISABLED: '1'
@@ -100,7 +110,7 @@ jobs:
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - run: npm run db:push
       - name: Execute read-only 2316 ledger isolation and final-pay PostgreSQL acceptance
-        run: npx tsx --test tests/bir-2316-withholding-postgres.test.ts
+        run: npx tsx --test tests/bir-2316-withholding-postgres.test.ts tests/year-end-prior-evidence-postgres.test.ts
       - name: Generate and behavior-test the unsigned prescribed-template PDF
         env:
           BIR_2316_PDF_QA: 'true'
@@ -128,7 +138,8 @@ jobs:
         run: |
           BIR_2316_CERTIFICATE_DRAFT_ENABLED=true BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=true BIR_2316_RECONCILIATION_ENABLED=true BIR_1604C_DAT_CANDIDATE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/bir-1604c-on.log 2>&1 &
           BIR_2316_CERTIFICATE_DRAFT_ENABLED=false BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=false BIR_2316_RECONCILIATION_ENABLED=false BIR_1604C_DAT_CANDIDATE_ENABLED=false npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/bir-1604c-off.log 2>&1 &
-          for port in 3000 3001; do
+          YEAR_END_PRIOR_EVIDENCE_ENABLED=true FINAL_PAY_SIGNED_REVIEW_ENABLED=true EXACT_THIRTEENTH_CENTAVOS_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3002 > /tmp/prior-on.log 2>&1 &
+          for port in 3000 3001 3002; do
             ready=false
             for attempt in $(seq 1 60); do
               if curl --silent --fail "http://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi
@@ -139,7 +150,7 @@ jobs:
       - name: Start ephemeral HTTPS reverse proxies for Secure MFA session cookies
         run: |
           node scripts/bir-1604c-synthetic-https-proxy.mjs > /tmp/bir-1604c-tls.log 2>&1 &
-          for port in 3443 3444; do
+          for port in 3443 3444 3445; do
             ready=false
             for attempt in $(seq 1 30); do
               if curl --cacert /tmp/bir-synthetic-https.crt --silent --fail "https://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi

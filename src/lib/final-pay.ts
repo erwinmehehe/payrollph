@@ -1,6 +1,9 @@
 import { annualize } from "@/lib/annualization";
 import { round2 } from "@/lib/round";
 import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
+import { thirteenthMonthFromCentavos } from "./thirteenth-month-centavos";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+import { finalPaySignedBalance } from "./final-pay-signed-balance";
 
 export type FinalPayLine = { code?: string; label?: string; amount?: string | number; notes?: string[] };
 
@@ -153,7 +156,8 @@ export function computeFinalPay(input: {
       + Math.max(0, input.historicalBasicYtd)
       + Math.max(0, input.unpaidBasicSalary),
   );
-  const thirteenthEntitlement = round2(basicSalaryEarnedYtd / 12);
+  const thirteenthEntitlement = criticalReleaseFlagEnabled("exactThirteenthCentavos")
+    ? thirteenthMonthFromCentavos(basicSalaryEarnedYtd) : round2(basicSalaryEarnedYtd / 12);
   const thirteenthPaidYtd = round2(Math.max(0, input.thirteenthPaidYtd));
   const thirteenthDue = round2(Math.max(0, thirteenthEntitlement - thirteenthPaidYtd));
 
@@ -246,6 +250,7 @@ export function computeFinalPay(input: {
     loanDeductions,
     deferredLoanBalance,
     netFinalPay,
+    ...(criticalReleaseFlagEnabled("finalPaySignedReview") ? { signedNetFinalPay: finalPaySignedBalance({ grossFinalPay, taxAdjustment, finalStatutoryDeductions, loanDeductions }) } : {}),
   };
 }
 

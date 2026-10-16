@@ -65,8 +65,28 @@ async function main() {
       approver: "role:manager", dueLabel: "No due date", priority: "Normal",
       status: "Pending",
     },
+    // #1114: separate fictional approval per real mobile viewport. The
+    // existing desktop manager check remains unchanged and independent.
+    ...[375, 390].map(width => ({
+      organizationId: 1, title: "Synthetic phone checker approval " + width,
+      detail: "Non-financial, assigned-only Checker mobile approval proof.",
+      approver: "Synthetic Checker", dueLabel: "No due date", priority: "Normal",
+      status: "Pending",
+    })),
+    {
+      organizationId: 1, title: "Synthetic unassigned HR approval",
+      detail: "Manager may neither see nor decide this HR-only task.",
+      approver: "role:hr", dueLabel: "No due date", priority: "Normal",
+      status: "Pending",
+    },
+    {
+      organizationId: 2, title: "BetaPrivate HR-only approval",
+      detail: "Fictional second-employer visibility canary.",
+      approver: "role:hr", dueLabel: "No due date", priority: "Normal",
+      status: "Pending",
+    },
   ]).returning();
-  assert.equal(tasks.length, 2);
+  assert.equal(tasks.length, 6);
   console.log(JSON.stringify({
     result: "SEEDED", mode: "synthetic-postgres-only",
     organizations: [1, 2], activeManagerUnit: unit.id,

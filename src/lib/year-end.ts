@@ -1,11 +1,15 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employees, historicalPayrollEntries, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
+import { auditEvents, employees, historicalPayrollEntries, legalEntities, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { annualize, ANNUALIZATION_RULE_VERSION, isSharedBenefitPoolEarningType, type AnnualizationResult } from "@/lib/annualization";
 import { readBasicAndThirteenth, retroSourceTaxYear } from "@/lib/final-pay";
 import { round2 } from "@/lib/round";
 import { loadFinalPayRetroSourcePeriods } from "@/lib/final-pay-retro-source-lookup";
+import { priorEvidenceEnabled, priorEmployeeScope, readPriorEvidence } from "./year-end-prior-evidence-server";
+import { annualizeWithPrior } from "./year-end-prior-evidence";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+import { thirteenthMonthFromCentavos } from "./thirteenth-month-centavos";
 
 type LineItem = {
   code?: string;
@@ -121,6 +125,8 @@ export async function runYearEndAnnualization(
   } = {},
 ) {
   await ensureMigrationSchema();
+  const usePriorEvidence = priorEvidenceEnabled();
+  if (usePriorEvidence && criticalReleaseFlagEnabled("multiEntity")) throw new Error("PRIOR_MULTI_ENTITY_DEFERRED");
 
   // All source reads, calculations, adjustment replacement and audit evidence
   // share ONE serializable database snapshot. A failure rolls back the old
@@ -163,6 +169,15 @@ export async function runYearEndAnnualization(
     : releasedRuns;
   const runIds = runs.map((run) => run.id);
   const staff = await tx.select().from(employees).where(eq(employees.organizationId, organizationId));
+  if (usePriorEvidence) {
+    const entities = await tx.select().from(legalEntities).where(eq(legalEntities.organizationId, organizationId));
+    const entityId = entities[0]?.id ?? null;
+    if (entities.length > 1 || (entities.length === 1 && !entities[0].active) ||
+      runs.some(run => run.legalEntityId !== null && run.legalEntityId !== entityId) ||
+      staff.some(worker => worker.legalEntityId !== null && worker.legalEntityId !== entityId)) {
+      throw new Error("PRIOR_MULTI_ENTITY_DEFERRED");
+    }
+  }
 
   const entries = runIds.length
     ? await tx.select().from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds))
@@ -272,6 +287,16 @@ export async function runYearEndAnnualization(
       `Year-end tax adjustments for ${taxYear} have already been settled in payroll and cannot be recomputed in place. Use a separately audited correction instead.`,
     );
   }
+  // Keep approved/bound adjustments immutable even when they are not settled.
+  if (existingAdjustments.some(row => (row.status !== "computed" || row.payrollRunId !== null) &&
+    (usePriorEvidence || (row.breakdown !== null && typeof row.breakdown === "object" && ("priorEvidence" in row.breakdown || "thirteenthRoundingPolicy" in row.breakdown))))) {
+    throw new Error("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED");
+  }
+  // A rollback of the intake feature must never erase previously approved prior credits.
+  if (!usePriorEvidence && existingAdjustments.some(row => row.breakdown !== null &&
+    typeof row.breakdown === "object" && !Array.isArray(row.breakdown) && "priorEvidence" in row.breakdown)) {
+    throw new Error("PRIOR_EVIDENCE_DISABLED_RECOMPUTE_BLOCKED");
+  }
   // Do not delete any previous adjustment until every employee has been
   // calculated. The subsequent delete/insert/audit are one atomic commit.
 
@@ -287,6 +312,7 @@ export async function runYearEndAnnualization(
     deMinimisExcess: number;
     otherBenefits: number;
     mweTaxableSupplementaryCompensation: number;
+    priorEvidence?: { id: number; revision: number; digest: string };
   }> = [];
 
   for (const employee of staff) {
@@ -297,7 +323,8 @@ export async function runYearEndAnnualization(
     // calendar year divided by 12. Do not infer from the employee's current
     // salary or payroll-period count because rate changes and unpaid time make
     // that inaccurate.
-    const thirteenthEntitlement = Math.round(((bucket.basic / 12) + Number.EPSILON) * 100) / 100;
+    const thirteenthEntitlement = criticalReleaseFlagEnabled("exactThirteenthCentavos")
+      ? thirteenthMonthFromCentavos(round2(bucket.basic)) : Math.round(((bucket.basic / 12) + Number.EPSILON) * 100) / 100;
     const annualThirteenth = Math.max(thirteenthEntitlement, bucket.thirteenthPaid);
 
     if (employee.mwe && bucket.importedPeriods > 0) {
@@ -307,7 +334,7 @@ export async function runYearEndAnnualization(
     }
 
     const unpaidThirteenthAccrual = Math.max(0, annualThirteenth - bucket.thirteenthPaid);
-    const result = annualize({
+    let result = annualize({
       grossCompensation: bucket.gross + unpaidThirteenthAccrual,
       thirteenthMonth: annualThirteenth,
       otherBenefits: bucket.otherBenefits,
@@ -321,9 +348,18 @@ export async function runYearEndAnnualization(
         : 0,
     });
 
+    let priorEvidence: { id: number; revision: number; digest: string } | undefined;
+    if (usePriorEvidence) {
+      const scope = await priorEmployeeScope(tx, { organizationId, employeeId: employee.id, taxYear });
+      const approved = await readPriorEvidence(tx, scope, true);
+      if (!approved) throw new Error("PRIOR_APPROVED_EVIDENCE_REQUIRED");
+      result = annualizeWithPrior(result, approved.evidence, taxYear);
+      priorEvidence = { id: approved.row.id, revision: approved.row.revision, digest: approved.row.sourceDigest };
+    }
     rows.push({
       employee,
       result,
+      priorEvidence,
       periods: bucket.periods,
       importedPeriods: bucket.importedPeriods,
       basicSalaryEarned: bucket.basic,
@@ -350,6 +386,7 @@ export async function runYearEndAnnualization(
       employee,
       result,
       periods,
+      priorEvidence,
       importedPeriods,
       basicSalaryEarned,
       thirteenthEntitlement,
@@ -374,6 +411,8 @@ export async function runYearEndAnnualization(
       mwe: result.mwe,
       breakdown: {
         ...result,
+        ...(criticalReleaseFlagEnabled("exactThirteenthCentavos") ? { thirteenthRoundingPolicy: "centavo-half-up-v1" } : {}),
+        ...(priorEvidence ? { priorEvidence } : {}),
         periodsIncluded: periods,
         runsIncluded: runIds.length,
         importedHistoryRows: importedPeriods,
