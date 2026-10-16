@@ -23,36 +23,53 @@ type TreasuryPayload = {
   canConfigure: boolean;
 };
 
-export function TreasuryControlsPanel({
-  organizationId,
-  setNotice,
-}: {
+type TreasuryControlsProps = {
   organizationId: number;
   setNotice: (message: string) => void;
-}) {
+};
+
+export function TreasuryControlsPanel(props: TreasuryControlsProps) {
+  // Never display another employer's treasury authorization policy or operators.
+  return <TreasuryControlsPanelContent key={props.organizationId} {...props} />;
+}
+
+function TreasuryControlsPanelContent({
+  organizationId,
+  setNotice,
+}: TreasuryControlsProps) {
   const [data, setData] = useState<TreasuryPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [operatorUserIds, setOperatorUserIds] = useState<number[]>([]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/treasury-controls?organizationId=${organizationId}`, { cache: "no-store" });
+      const response = await fetch(`/api/treasury-controls?organizationId=${organizationId}`, { cache: "no-store", signal });
       const payload = await response.json().catch(() => ({}));
+      if (signal?.aborted) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not load treasury controls.");
       setData(payload);
       setEnabled(Boolean(payload.policy?.enabled));
       setOperatorUserIds(Array.isArray(payload.operatorUserIds) ? payload.operatorUserIds.map(Number) : []);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not load treasury controls.");
+      if (!signal?.aborted) {
+        setNotice(error instanceof Error ? error.message : "Could not load treasury controls.");
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [organizationId, setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    // Abort the scheduled GET if Strict Mode cleans up this effect.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
+    return () => controller.abort();
+  }, [load]);
 
   async function save() {
     if (enabled && operatorUserIds.length === 0) {
