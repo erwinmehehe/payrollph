@@ -7,6 +7,7 @@ import { GET as compensationGet } from "@/app/api/compensation/route";
 import { GET as attendanceGet } from "@/app/api/workforce/attendance-exception-events/route";
 import { GET as floorGet } from "@/app/api/workforce/live-floor/route";
 import { GET as payrollGet } from "@/app/api/payroll-runs/route";
+import { GET as selfWorkforceGet } from "@/app/api/self/workforce/route";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -34,6 +35,7 @@ async function scenario(persona: string): Promise<{
   ownEndpoints: Record<string, { status: number; pass: boolean }>;
   foreignEndpoints: Record<string, { status: number; pass: boolean }>;
   foreignPayrollRun: { status: number; pass: boolean } | null;
+  ownSelfWorkforce: { status: number; pass: boolean } | null;
   pass: boolean;
 }> {
   const email = FIXTURE_PREFIX + persona + "@example.invalid";
@@ -79,7 +81,7 @@ async function scenario(persona: string): Promise<{
       handler: ReadGet,
       path: string,
       expectedStatus: number,
-      responseKind?: "compensation" | "floor" | "attendance" | "payroll",
+      responseKind?: "compensation" | "floor" | "attendance" | "payroll" | "selfWorkforce",
     ): Promise<{ status: number; pass: boolean }> {
       try {
         const resp = await handler(new Request("https://qa.invalid" + path));
@@ -102,6 +104,11 @@ async function scenario(persona: string): Promise<{
               && payload.exceptions.every((x: any) => x.employeeId == null || visibleEmployeeIds.includes(Number(x.employeeId)));
           } else if (responseKind === "payroll") {
             pass = Array.isArray(payload.runs) && payload.runs.length === 0;
+          } else if (responseKind === "selfWorkforce") {
+            pass = Number(payload.employee?.id) === Number(user.employee_id)
+              && Array.isArray(payload.punches)
+              && Array.isArray(payload.corrections)
+              && !!payload.schedule;
           }
         }
         return { status: resp.status, pass };
@@ -144,11 +151,15 @@ async function scenario(persona: string): Promise<{
         ? await run(payrollGet,"/api/payroll-runs?runId=" + originalRun.rows[0].id + "&include=entries",403)
         : { status: 0, pass: false };
     }
+    const ownSelfWorkforce = user.role === "employee"
+      ? await run(selfWorkforceGet, "/api/self/workforce?startDate=2026-10-01&endDate=2026-10-16",200,"selfWorkforce")
+      : null;
     const pass = !!authOk && scopeOk && ownEmployeeLinked
+      && (ownSelfWorkforce?.pass ?? true)
       && Object.values(ownEndpoints).every(x => x.pass)
       && Object.values(foreignEndpoints).every(x => x.pass)
       && (foreignPayrollRun?.pass ?? true);
-    return { persona,authenticated:!!authOk,scopedMembership:scopeOk,ownEmployeeLinked,ownEndpoints,foreignEndpoints,foreignPayrollRun,pass };
+    return { persona,authenticated:!!authOk,scopedMembership:scopeOk,ownEmployeeLinked,ownEndpoints,foreignEndpoints,foreignPayrollRun,ownSelfWorkforce,pass };
   } finally {
     // Never export the generated cookie or retain any test session. A final
     // delete-cookie header supersedes the temporary in-request cookie.
