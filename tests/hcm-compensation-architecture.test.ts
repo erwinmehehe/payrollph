@@ -11,7 +11,7 @@ const schema = readFileSync("src/db/schema.ts", "utf8");
 const migration = readFileSync("drizzle/0054_hcm_compensation_architecture.sql", "utf8");
 const baseline = readFileSync("drizzle/baseline.sql", "utf8");
 const route = readFileSync("src/app/api/compensation/route.ts", "utf8");
-const governance = readFileSync("src/lib/hcm-compensation.ts", "utf8");
+const governance = readFileSync("src/lib/hcm-compensation.ts", "utf8").replace(/\r\n?/g, "\n");
 const payroll = readFileSync("src/lib/payroll-engine.ts", "utf8");
 const scheduler = readFileSync("src/lib/scheduler.ts", "utf8");
 const panel = readFileSync("src/components/compensation-panel.tsx", "utf8");
@@ -238,6 +238,21 @@ test("applied salaries and recurring activations commit notification intents bef
   assert.ok(governance.includes("intents: recurringActivationIntents(updated)"), "same-day approvals must save identical immutable event contexts");
   assert.ok(scheduler.includes("drainCompensationAutomationIntents("));
   assert.ok(scheduler.includes("compensationAutomationDelivery"));
+});
+
+test("scheduled salary audit transaction boundary matches LF and CRLF source text", () => {
+  const crlf = governance.replace(/\n/g, "\r\n");
+  assert.ok(crlf.includes("\r\n"));
+  for (const candidate of [governance, crlf]) {
+    const normalized = candidate.replace(/\r\n?/g, "\n");
+    const begin = normalized.indexOf("export async function applyScheduledCompensationProposal(");
+    const end = normalized.indexOf("export type RecurringCompensationDecision", begin);
+    assert.ok(begin >= 0 && end > begin);
+    const section = normalized.slice(begin, end);
+    const audit = section.indexOf("tx.insert(auditEvents)");
+    const transactionClose = section.indexOf("\n    });\n  } catch (error)", audit);
+    assert.ok(audit >= 0 && transactionClose > audit);
+  }
 });
 
 test("scheduled salary application locks, pay revision, compensation event and audit before transaction commit", () => {
