@@ -1,0 +1,141 @@
+name: Proposed 0129 FK Name-Only Reconciliation (Synthetic PG16)
+
+on:
+  pull_request:
+    paths:
+      - "drizzle/0129_non_recovery_fk_names_forward.sql"
+      - "scripts/independent-pg16-0129-checkpoint.mjs"
+      - "scripts/independent-pg16-0129-catalog-parity.mjs"
+      - "tests/independent-0129-fk-source.test.mjs"
+      - ".github/workflows/issue-0129-fk-name-reconcile-ci.yml"
+      - "docs/engineering/issue-0129-fk-name-only-qa.md"
+      - "drizzle/0115_*.sql"
+      - "drizzle/0128_*.sql"
+      - "src/db/schema.ts"
+      - "scripts/lib/issue-1031-schema-manifest.ts"
+      - "src/lib/issue-1031-full-schema-diff.ts"
+
+# No workflow_dispatch, production environment, repository secrets or grants.
+permissions:
+  contents: read
+
+jobs:
+  synthetic-0129:
+    name: 54 name-only FKs, negative probes and rollback (PG16, no live DB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      INDEPENDENT_SCHEMA_AUDIT_MODE: isolated-local-pg16
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      MULTI_ENTITY_ENABLED: "false"
+      MULTI_ENTITY_TRANSFERS_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout pinned source, do not persist credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Source-only guard tests before any database operation
+        run: |
+          node --check scripts/independent-pg16-0129-checkpoint.mjs
+          node --check scripts/independent-pg16-0129-catalog-parity.mjs
+          node --test tests/independent-0129-fk-source.test.mjs
+      - name: Initialize guarded local Drizzle source only
+        run: npm run db:push
+      - name: Create throwaway candidate by copying local source
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          mkdir -p qa-artifacts/independent-0129 qa-artifacts/independent-pg16
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE atlas_candidate_db TEMPLATE app_db'
+      - name: Apply reviewed 0115-0126 sources only inside candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/independent-pg16-schema-audit.mjs \
+            > qa-artifacts/independent-0129/0115-to-0126-source-shas.json
+      - name: Copy candidate then independently rehearse 0128
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE atlas_reconciled_db TEMPLATE atlas_candidate_db'
+          node scripts/independent-pg16-0128-checkpoint.mjs \
+            > qa-artifacts/independent-0129/0128-independent-rollback.json
+      - name: Copy post-0128 fixture; verify malicious metadata and rollback probes
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE atlas_final_db TEMPLATE atlas_reconciled_db'
+          node scripts/independent-pg16-0129-checkpoint.mjs \
+            > qa-artifacts/independent-0129/0129-transactional-rollback.json
+      - name: Provision synthetic catalog-only read-only account
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE catalog_auditor LOGIN PASSWORD 'synthetic_catalog_only'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+          ALTER ROLE catalog_auditor SET default_transaction_read_only=on;
+          GRANT CONNECT ON DATABASE atlas_reconciled_db, atlas_final_db TO catalog_auditor;
+          SQL
+          for db in atlas_reconciled_db atlas_final_db; do
+            psql -h 127.0.0.1 -U postgres -d "$db" -v ON_ERROR_STOP=1 \
+              -c 'GRANT USAGE ON SCHEMA public TO catalog_auditor'
+          done
+      - name: Exact #1031 full-catalog pre/post 0129 proof, without normalization
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/independent-pg16-0129-catalog-parity.mjs
+      - name: Retain complete source hashes and schema parity evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: proposed-0129-synthetic-pg16-catalog-checks
+          path: qa-artifacts/independent-0129/
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Boundary reminder
+        if: always()
+        run: |
+          echo 'SYNTHETIC_PG16_ONLY_NOT_PROD_SCHEMA_PARITY'
+          echo 'No real employer or payroll rows, no Neon, no migration receipts.'
+          echo 'Unresolved 0129 unrelated deltas and 115 Squawk warnings remain human-only.'
+          echo 'DO NOT MERGE OR RUN 0129 AGAINST PRODUCTION.'
