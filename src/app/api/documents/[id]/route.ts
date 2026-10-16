@@ -19,13 +19,13 @@ import { vaultRecordRemoved } from "@/lib/employee-vault-profile";
 
 export const dynamic = "force-dynamic";
 
-function contentDisposition(fileName: string) {
-  const safe = fileName.replace(/[\r\n"]/g, "_");
-  return `inline; filename="${safe}"`;
+function contentDisposition(fileName: string, download = false) {
+  const safe = fileName.replace(/[^A-Za-z0-9._() -]/g, "_").slice(0, 180);
+  return (download ? "attachment" : "inline") + '; filename="' + safe + '"';
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const user = await getSessionUser();
@@ -78,6 +78,7 @@ export async function GET(
     }
   }
 
+  const downloadRequested = new URL(request.url).searchParams.get("download") === "1";
   const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
   if (!documentBytesMayBeReleased({
     scannedClean: document.scannedClean,
@@ -100,7 +101,10 @@ export async function GET(
     let signed: URL;
     try {
       signed = signedDocumentObjectUrl(document.objectStorageKey,
-        "GET", documentStorageConfig(), { expirySeconds: 60 });
+        "GET", documentStorageConfig(), {
+          expirySeconds: 60,
+          responseContentDisposition: contentDisposition(document.fileName, downloadRequested),
+        });
     } catch {
       return Response.json({ error: "Private document storage is unavailable." }, { status: 503 });
     }
@@ -152,7 +156,7 @@ export async function GET(
     headers: {
       "Content-Type": document.mimeType,
       "Content-Length": String(body.byteLength),
-      "Content-Disposition": contentDisposition(document.fileName),
+      "Content-Disposition": contentDisposition(document.fileName, downloadRequested),
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; sandbox",

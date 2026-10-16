@@ -56,7 +56,7 @@ export function signedDocumentObjectUrl(
   key: string,
   method: "GET" | "PUT" | "DELETE",
   config: DocumentStorageConfig,
-  options: { now?: Date; expirySeconds?: number } = {},
+  options: { now?: Date; expirySeconds?: number; responseContentDisposition?: string } = {},
 ): URL {
   if (!/^private-documents\/[1-9]\d*\/(?:[1-9]\d*|company)\/[0-9a-f-]{36}$/.test(key)) {
     throw new Error("Untrusted document object key.");
@@ -76,6 +76,13 @@ export function signedDocumentObjectUrl(
     "X-Amz-Expires": String(expires),
     "X-Amz-SignedHeaders": "host",
   });
+  if (options.responseContentDisposition !== undefined) {
+    if (method !== "GET" ||
+        !/^(?:inline|attachment); filename="[A-Za-z0-9._() -]{1,180}"$/.test(options.responseContentDisposition)) {
+      throw new Error("Invalid private document download filename.");
+    }
+    query.set("response-content-disposition", options.responseContentDisposition);
+  }
   const canonicalQuery = [...query.entries()].map(([k,v])=>encodeSegment(k)+"="+encodeSegment(v)).sort().join("&");
   const canonicalRequest = [method, uri, canonicalQuery, "host:" + host + "\n", "host", "UNSIGNED-PAYLOAD"].join("\n");
   const hash = createHash("sha256").update(canonicalRequest).digest("hex");

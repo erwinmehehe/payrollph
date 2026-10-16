@@ -45,3 +45,26 @@ test("pending private COEs stay unreadable through flag rollback, including stag
     "legacy development compatibility remains unchanged when the vault is OFF");
   assert.equal(documentBytesMayBeReleased({ ...pending, scannedClean: true }), true);
 });
+
+test("signed attachment URLs preserve private S3 authentication and reject unsafe overrides", () => {
+  const config = documentStorageConfig({
+    NODE_ENV: "test",
+    DOCUMENT_OBJECT_STORAGE_ENDPOINT: "https://objects.example.invalid/",
+    DOCUMENT_OBJECT_STORAGE_BUCKET: "private-documents",
+    DOCUMENT_OBJECT_STORAGE_REGION: "us-east-1",
+    DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: "synthetic-key",
+    DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: "synthetic-secret",
+  });
+  const key = "private-documents/10/41/00000000-0000-4000-8000-000000000001";
+  const url = signedDocumentObjectUrl(key, "GET", config, {
+    responseContentDisposition: 'attachment; filename="contract.pdf"',
+  });
+  assert.equal(url.searchParams.get("response-content-disposition"), 'attachment; filename="contract.pdf"');
+  assert.ok(url.searchParams.get("X-Amz-Signature"));
+  assert.throws(() => signedDocumentObjectUrl(key, "PUT", config, {
+    responseContentDisposition: 'attachment; filename="contract.pdf"',
+  }), /Invalid private document download filename/);
+  assert.throws(() => signedDocumentObjectUrl(key, "GET", config, {
+    responseContentDisposition: 'attachment; filename="bad\r\nname.pdf"',
+  }), /Invalid private document download filename/);
+});
