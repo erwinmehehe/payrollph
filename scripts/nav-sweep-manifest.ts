@@ -28,6 +28,7 @@ for (const page of knownPages) {
 // Primary tabs can reorder only authorized destinations. This catches stale
 // role menus without granting access to the missing destination.
 for (const [role, primaryPages] of Object.entries(ROLE_PRIMARY_PAGES)) {
+  if (!primaryPages) continue;
   const allowed = workspacePagesForRole(role);
   for (const page of primaryPages) {
     assert.ok(knownPages.has(page), "Unknown primary navigation key: " + role + "/" + page);

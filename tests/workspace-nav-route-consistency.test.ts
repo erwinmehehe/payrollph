@@ -18,6 +18,7 @@ test("every sidebar destination has a real workspace renderer, not an empty page
 test("role-primary navigation is a subset of the real permitted role scope", () => {
   const known = new Set(NAVIGATION.flatMap(group => group.items.map(item => item.name)));
   for (const [role, primary] of Object.entries(ROLE_PRIMARY_PAGES)) {
+    if (!primary) continue;
     assert.equal(new Set(primary).size, primary.length, "Duplicate primary tab for " + role);
     const allowed = workspacePagesForRole(role);
     for (const page of primary) {
