@@ -73,6 +73,12 @@ export async function GET(request: Request) {
     }
     const denied = await assertMembership(user.id, organizationId);
     if (denied) return denied;
+    // A historical document may hold an employee ID belonging to a different
+    // tenant. Membership alone cannot legitimize that inconsistent link.
+    const [self] = await db.select({ id: employees.id }).from(employees)
+      .where(and(eq(employees.id, user.employeeId),
+        eq(employees.organizationId, organizationId))).limit(1);
+    if (!self) return Response.json({ error: "Employee not found." }, { status: 404 });
     const rows = await db.select(columns).from(documents)
       .where(and(eq(documents.organizationId, organizationId),
         eq(documents.employeeId, user.employeeId),
