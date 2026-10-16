@@ -80,22 +80,22 @@ export async function runStrictDbPush(env = process.env) {
       env.ISSUE_1019_REHEARSAL === "disposable-ci-only") {
     const output = (stdout + "\n" + stderr).replace(ANSI, "");
     const signals = [
-      ["dependency-constraint", /\\b2BP01\\b|dependent objects still exist/i],
-      ["duplicate-object", /\\b42P07\\b|already exists/i],
-      ["undefined-object", /\\b42P01\\b|does not exist/i],
-      ["syntax", /\\b42601\\b|syntax error/i],
-      ["permission", /\\b42501\\b|permission denied/i],
+      ["dependency-constraint", /\b2BP01\b|dependent objects still exist/i],
+      ["duplicate-object", /\b42P07\b|already exists/i],
+      ["undefined-object", /\b42P01\b|does not exist/i],
+      ["syntax", /\b42601\b|syntax error/i],
+      ["permission", /\b42501\b|permission denied/i],
       ["interactive", /interactive|prompt|TTY|do you want|proceed|abort|cancel/i],
-      ["node-exception", /TypeError|ReferenceError|SyntaxError|ERR_[A-Z_]+|at [^\\n]+:\\d+:\\d+/i],
+      ["node-exception", /TypeError|ReferenceError|SyntaxError|ERR_[A-Z_]+|at [^\n]+:\d+:\d+/i],
       ["drizzle-disclaimer", /warning|drizzle|introspect|pulling schema|changes detected/i],
       ["ddl-candidate", /DROP|ALTER|CREATE|constraint|index/i],
       ["terminal-ui", /press enter|select an option|confirm action|do you want to continue/i],
     ].filter(([, pattern]) => pattern.test(output)).map(([name]) => name);
     // Only report allowlisted UI/control signals; no SQL, identifiers or values.
     const probes = {
-      prompt_question: /\\?|select|choose|yes|no|confirm/i.test(output),
-      ansi_control: /\\u001b\\[/.test(stdout),
-      cursor_control: /\\u001b\\[(?:\\?25|[0-9]+[ABCDJK])/i.test(stdout),
+      prompt_question: /\?|select|choose|yes|no|confirm/i.test(output),
+      ansi_control: /\u001b\[/.test(stdout),
+      cursor_control: /\u001b\[(?:\?25|[0-9]+[ABCDJK])/i.test(stdout),
       warning: /warning|caution|attention/i.test(output),
       drift: /changes detected|schema changes|alter table|drop constraint/i.test(output),
       terminal_required: /tty|interactive|stdin|terminal/i.test(output),
@@ -105,11 +105,11 @@ export async function runStrictDbPush(env = process.env) {
     };
     process.stderr.write("ISSUE_1019_CLI_PROBES=" + Object.entries(probes)
       .filter(([, active]) => active).map(([key]) => key).join(",") +
-      "; lines=" + output.split("\\n").length +
-      "; control_bytes=" + (stdout.match(/[\\u0000-\\u001f]/g) || []).length + "\\n");
+      "; lines=" + output.split("\n").length +
+      "; control_bytes=" + (stdout.match(/[\u0000-\u001f]/g) || []).length + "\n");
     process.stderr.write("ISSUE_1019_VENDOR_EXIT=" + String(code) +
       "; categories=" + (signals.join(",") || "unclassified") +
-      "; line_lengths=" + output.split("\\n").map(line => line.length).filter(Boolean).slice(0,35).join(",") +
+      "; line_lengths=" + output.split("\n").map(line => line.length).filter(Boolean).slice(0,35).join(",") +
       "; stdout_bytes=" + Buffer.byteLength(stdout) +
       "; stderr_bytes=" + Buffer.byteLength(stderr) + "\n");
   }
