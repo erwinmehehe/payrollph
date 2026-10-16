@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { test } from "node:test";
-import { join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { runInNewContext } from "node:vm";
 import {
   patchPinnedIntrospectionBinary,
   ensurePinnedKitOrdinalityPatch,
@@ -45,8 +47,12 @@ test("#1019 patched introspection keeps real CLI and preserves ordered composite
   // Pinned 0.31.11 contains BOTH MySQL and PostgreSQL foreign-key serializers.
   // The installed hotfix must change PG only, leaving MySQL unmodified.
   const bareInsertion = /fks\.forEach\(\(it\)\s*=>\s*\{\s*foreignKeysObject\[it\.name\]\s*=\s*it;\s*\}\);/g;
-  assert.equal([...actual.matchAll(bareInsertion)].length,2);
+  // Full regression runs AFTER db:push; the standalone two-push proof runs
+  // BEFORE it. Both are valid installed states of the same pinned binary.
+  const alreadyPatched = actual.includes(markerKey);
+  assert.equal([...actual.matchAll(bareInsertion)].length, alreadyPatched ? 1 : 2);
   const result = patchPinnedIntrospectionBinary(actual);
+  assert.equal(result.applied, !alreadyPatched);
   assert.ok(result.content.includes(markerKey));
   assert.ok(result.content.includes(markerFk));
   assert.equal(result.content.split(markerIndex).length - 1, 2);
@@ -95,4 +101,51 @@ test("#1019 patched introspection keeps real CLI and preserves ordered composite
     "remote-target guard runs before any package mutation");
   assert.match(wrapper, /classifyStrictDbPush\(code, stdout, stderr\)/);
   assert.doesNotMatch(wrapper, /--force|--accept-data-loss|DROP SCHEMA|shell:\s*true/);
+});
+
+test("#1019 executes the patched PG serializer without changing MySQL or paired column order", () => {
+  if (manifest.version !== "0.31.11") return;
+  const patched = patchPinnedIntrospectionBinary(actual).content;
+  const pg = patched.match(/fks\.forEach\(\(it\) => \{ \/\* PAYROLLPH_1019_PG63_FOREIGN_NAMES_V1 \*\/[\s\S]*?foreignKeysObject\[it\.name\] = it; \}\);/)?.[0];
+  const mysql = patched.match(/fks\.forEach\(\(it\)\s*=>\s*\{\s*foreignKeysObject\[it\.name\]\s*=\s*it;\s*\}\);/)?.[0];
+  assert.ok(pg && mysql, "Both vendor serializer bodies must be available for execution");
+  const longName = "fk_" + "a".repeat(70);
+  const fixture = () => ({ name: longName, tableFrom: "employee_hr_cases", tableTo: "documents",
+    columnsFrom: ["organization_id", "employee_id", "coe_document_id"],
+    columnsTo: ["organization_id", "employee_id", "id"] });
+  const execute = (source, fks) => {
+    const foreignKeysObject = Object.create(null);
+    runInNewContext(source, { Buffer, fks, foreignKeysObject }, { timeout: 1000 });
+    return foreignKeysObject;
+  };
+  const original = fixture();
+  const pgResult = execute(pg, [structuredClone(original)]);
+  assert.deepEqual(Object.keys(pgResult), [longName.slice(0, 63)]);
+  assert.deepEqual(pgResult[longName.slice(0, 63)], { ...original, name: longName.slice(0, 63) });
+  assert.deepEqual(execute(mysql, [structuredClone(original)])[longName], original);
+  assert.throws(() => execute(pg, [fixture(), { ...fixture(), name: longName + "collision" }]), /DRIZZLE_1019_FK_NAME_COLLISION/);
+  assert.throws(() => execute(pg, [{ ...fixture(), name: "é".repeat(40) }]), /DRIZZLE_1019_UNSUPPORTED_MULTIBYTE_FK_NAME/);
+});
+
+test("#1019 installer accepts both fresh and previously patched local packages without rewriting twice", () => {
+  if (manifest.version !== "0.31.11") return;
+  const root = resolve(tmpdir());
+  const fixture = mkdtempSync(join(root, "payrollph-1019-"));
+  try {
+    const binary = join(fixture, "bin.cjs");
+    writeFileSync(join(fixture, "package.json"), JSON.stringify({ version: "0.31.11" }));
+    for (const source of [actual, patchPinnedIntrospectionBinary(actual).content]) {
+      writeFileSync(binary, source);
+      assert.equal(ensurePinnedKitOrdinalityPatch(binary), source.includes(markerKey) ? "previously-patched" : "patched-pinned-kit");
+      const first = readFileSync(binary, "utf8");
+      assert.equal(ensurePinnedKitOrdinalityPatch(binary), "previously-patched");
+      assert.equal(readFileSync(binary, "utf8"), first);
+    }
+    writeFileSync(join(fixture, "package.json"), JSON.stringify({ version: "0.31.12" }));
+    assert.throws(() => ensurePinnedKitOrdinalityPatch(binary), /UNSUPPORTED_KIT_VERSION/);
+  } finally {
+    assert.equal(dirname(resolve(fixture)), root);
+    assert.ok(basename(fixture).startsWith("payrollph-1019-"));
+    rmSync(fixture, { recursive: true, force: true });
+  }
 });

@@ -63,6 +63,8 @@ jobs:
         run: node scripts/qa/issue-1019-stable-two-push-proof.mjs preflight
       - name: First FULL source schema push with real pinned stable Kit 0.31.11
         run: npm run db:push
+      - name: Re-run patch behavior tests against the already-patched installed Kit
+        run: node --test tests/drizzle-kit-03111-ordinality-hotfix.test.mjs tests/strict-db-push.test.mjs
       - name: Capture complete catalog and all tenant security keys BEFORE second push
         id: captured_catalog
         run: node scripts/qa/issue-1019-stable-two-push-proof.mjs capture

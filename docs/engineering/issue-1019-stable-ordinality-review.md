@@ -16,6 +16,15 @@
 
 ## Exact-head acceptance (pending GitHub CI)
 
+The regression suite runs after its initial schema push, so the installed Kit
+is already patched. The patch tests accept both pristine and patched supported
+installations while still rejecting partial/unknown layouts. The dedicated
+PG16/PG18 jobs execute the tests both before and after their first real push.
+Additional tests execute the actual rewritten PG FK serializer and retained
+MySQL serializer, preserving paired columns, rejecting name collisions and
+unsupported multibyte truncation, and verifying repeated installer calls on
+temporary local package copies do not rewrite the second time.
+
 1. Independently bootstrap each PostgreSQL major in a **new empty localhost** app_db, with only committed stable drizzle-kit 0.31.11 / drizzle-orm 0.45.4 installed.
 2. First npm run db:push creates the **entire source schema**. Capture a metadata-only fingerprint of all public relation names, columns, defaults, constraints (including validated flag), indexes and their definitions. Assert at least 270 tables and the exact original documents composite UNIQUE plus confidential HR case and message tenant FKs.
 3. Run second npm run db:push through the same patched pinned stable Kit. It must be a **genuine no-op**, not an RC result, catalog-only match after a rejected DDL, suppressed error or a skipped Kit invocation. A false-green 2BP01 still fails.
