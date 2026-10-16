@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { LinawMark } from "@/components/linaw-mark";
 import { SchedulerAdminBanner } from "./scheduler-admin-banner";
 import {
@@ -145,7 +145,7 @@ export function WorkspaceShell({
     drawerOpenerRef.current?.focus();
   }
 
-  function keepDrawerKeyboardFocus(event: KeyboardEvent<HTMLElement>) {
+  function keepDrawerKeyboardFocus(event: ReactKeyboardEvent<HTMLElement>) {
     if (!drawer || event.key !== "Tab") return;
     const buttons = Array.from(mobileDrawerRef.current?.querySelectorAll<HTMLButtonElement>(
       'button:not([disabled]):not([tabindex="-1"])',
