@@ -17,6 +17,26 @@ export async function GET(request: Request) {
   const recordSnapshot = Boolean(expected) && constantTimeSecretEqual(supplied, expected);
 
   try {
+    // QA_RUNTIME_BRANCH_ATTESTATION: read-only PostgreSQL session metadata. QA branch only.
+    // This branch must never be promoted to production. Do not expose DB metadata or credentials.
+    if (
+      process.env.VERCEL_ENV !== "preview" ||
+      process.env.VERCEL_GIT_COMMIT_REF !== "qa/neon-repaired-preview-20261016"
+    ) {
+      throw new Error("QA preview runtime identity unavailable");
+    }
+    const identity = await db.execute(sql`
+      SELECT (
+        pg_catalog.current_database() = 'neondb'
+        AND pg_catalog.current_setting('neon.project_id', true) = 'calm-wave-70219564'
+        AND pg_catalog.current_setting('neon.branch_id', true) = 'br-green-hat-b77qj8fs'
+        AND pg_catalog.current_setting('neon.endpoint_id', true) = 'ep-old-paper-b7k36yuc'
+        AND pg_catalog.pg_is_in_recovery() = false
+      ) AS "qaTargetMatches"
+    `);
+    if (identity.rows[0]?.qaTargetMatches !== true) {
+      throw new Error("QA database target mismatch");
+    }
     await db.execute(sql`select 1`);
     const latencyMs = Date.now() - started;
     if (recordSnapshot) {
