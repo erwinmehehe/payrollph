@@ -63,7 +63,7 @@ jobs:
             throw "Bash/jq-only tests must show explicit skip status on native Windows"
           }
           if ($tap -notmatch "# pass [1-9]") { throw "Source/policy assertions must still execute and pass" }
-      - name: Verify #853 private evidence controls and symlink handling
+      - name: Verify issue 853 private evidence controls and symlink handling
         shell: pwsh
         run: |
           node --test --test-reporter=tap tests/issue-853-evidence-ledger.test.mjs

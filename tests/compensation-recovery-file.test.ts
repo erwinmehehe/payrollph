@@ -75,4 +75,7 @@ test("the privileged CLI never performs separate pathname size and content reads
   assert.ok(!cli.includes("statSync(approvalFile)"));
   assert.ok(!cli.includes("readFileSync(approvalFile)"));
   assert.ok(helper.includes("openSync(") && helper.includes("fstatSync(fd)") && helper.includes("readSync(fd,"));
+  assert.ok(helper.includes('lstatSync(path, { bigint: true })'), "Windows no-follow guard must reject reparse-point symlinks");
+  assert.ok(helper.includes("original.ino !== opened.ino"), "Windows must compare opened-descriptor file identity");
+  assert.ok(helper.includes("after.ino !== opened.ino"), "Windows must recheck the final path after the bounded read");
 });
