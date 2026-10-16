@@ -10,7 +10,13 @@ type Cycle = { id: number; name: string; startDate: string; endDate: string; sta
 type Goal = { id: number; employeeId: number; cycleId: number | null; title: string; description: string | null; weight: string; progress: number; status: string; dueDate: string | null };
 type Review = { id: number; employeeId: number; cycleId: number; status: string; selfScore: string | null; employeeReflection: string | null; managerScore: string | null; finalScore: string | null; managerSummary: string | null };
 
-export function PerformancePanel({ organizationId, setNotice }: { organizationId: number; setNotice: (message: string) => void }) {
+export function PerformancePanel(props: { organizationId: number; setNotice: (message: string) => void }) {
+  // Employer scope is tenant-private. Remount on a new organizationId so no
+  // goal, review or cycle state from the previous employer can render.
+  return <PerformancePanelContent key={props.organizationId} {...props} />;
+}
+
+function PerformancePanelContent({ organizationId, setNotice }: { organizationId: number; setNotice: (message: string) => void }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -23,11 +29,11 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
   const [goalForm, setGoalForm] = useState({ employeeId: "", cycleId: "", title: "", description: "", weight: "25", dueDate: "" });
   const [reviewForm, setReviewForm] = useState({ employeeId: "", cycleId: "", managerScore: "3", managerSummary: "" });
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await fetch(`/api/performance?organizationId=${organizationId}`, { cache: "no-store" });
+      const response = await fetch(`/api/performance?organizationId=${organizationId}`, { cache: "no-store", signal });
       const payload = await response.json().catch(() => ({}));
+      if (signal?.aborted) return;
       if (!response.ok) {
         setNotice(payload.error ?? "Could not load performance management.");
         return;
@@ -37,11 +43,19 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
       setGoals(payload.goals ?? []);
       setReviews(payload.reviews ?? []);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [organizationId, setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    // The request runs after effect setup, never in its synchronous phase.
+    // Strict Mode cleanup can cancel this scheduled read before it starts.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
+    return () => controller.abort();
+  }, [load]);
 
   const activeCycle = cycles.find((cycle) => cycle.status === "active") ?? cycles[0];
   const averageProgress = goals.length ? Math.round(goals.reduce((sum, goal) => sum + goal.progress, 0) / goals.length) : 0;
@@ -130,7 +144,7 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
           <p>Run review cycles, connect measurable goals to each employee, and keep performance decisions in the same governed employee record.</p>
         </div>
         <div className="page-actions">
-          <button className="secondary-button" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button>
+          <button className="secondary-button" onClick={() => { setLoading(true); void load(); }} disabled={loading}><RefreshCw size={15} /> Refresh</button>
           <button className="secondary-button" onClick={() => setShowGoal(!showGoal)}><Target size={15} /> Add goal</button>
           <button className="primary-button" onClick={() => setShowCycle(!showCycle)}><Plus size={15} /> New cycle</button>
         </div>

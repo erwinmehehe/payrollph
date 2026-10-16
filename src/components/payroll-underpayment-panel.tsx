@@ -20,7 +20,16 @@ type CorrectionPayload = {
   requests: RequestRow[];
 };
 
-export function PayrollUnderpaymentPanel({
+export function PayrollUnderpaymentPanel(props: {
+  organizationId: number;
+  setNotice: (text: string) => void;
+}) {
+  // Employer scope is tenant-private. Remount on a new organizationId so no
+  // correction request or review state from the previous employer can render.
+  return <PayrollUnderpaymentPanelContent key={props.organizationId} {...props} />;
+}
+
+function PayrollUnderpaymentPanelContent({
   organizationId,
   setNotice,
 }: {
@@ -38,22 +47,31 @@ export function PayrollUnderpaymentPanel({
   const [reviewReason, setReviewReason] = useState("");
   const [taxVerificationReference, setTaxVerificationReference] = useState("");
 
-  const load = useCallback(async () => {
-    const response = await fetch(`/api/payroll-underpayments?organizationId=${organizationId}`, {
-      cache: "no-store",
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setData(null);
-      return; // Payroll correction view may be unavailable to a scoped People user.
+  const load = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const response = await fetch(`/api/payroll-underpayments?organizationId=${organizationId}`, {
+        cache: "no-store", signal,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (signal?.aborted) return;
+      if (!response.ok) {
+        setData(null);
+        return; // Payroll correction view may be unavailable to a scoped People user.
+      }
+      setData(payload as CorrectionPayload);
+    } finally {
+      if (!signal?.aborted) setLoading(false);
     }
-    setData(payload as CorrectionPayload);
   }, [organizationId]);
 
   useEffect(() => {
-    let mounted = true;
-    void load().finally(() => { if (mounted) setLoading(false); });
-    return () => { mounted = false; };
+    const controller = new AbortController();
+    // The request runs after effect setup, never in its synchronous phase.
+    // Strict Mode cleanup can cancel this scheduled read before it starts.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
+    return () => controller.abort();
   }, [load]);
 
   async function submit(event: React.FormEvent) {
