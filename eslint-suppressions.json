@@ -39,11 +39,6 @@
       "count": 1
     }
   },
-  "src/components/government-loan-remittance-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/hcm-business-process-inbox.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -65,11 +60,6 @@
     }
   },
   "src/components/hcm-lifecycle-policy-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/hcm-probation-review-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
