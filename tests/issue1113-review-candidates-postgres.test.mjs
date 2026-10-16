@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { resolve } from "node:path";
 import pg from "pg";
 
-const ready = process.env.ISSUE1113_ACCEPTANCE_MODE === "isolated-ci-only";
+const mode = process.env.ISSUE1113_ACCEPTANCE_MODE;
+const local = mode === "isolated-local-only";
+const ready = local || mode === "isolated-ci-only";
+if(mode && !ready) throw new Error("ISSUE1113_UNKNOWN_ACCEPTANCE_MODE");
 const marker = "__NEW_ISOLATED_NEON_BRANCH_ID__";
 const branch = "fictional-issue1113-disposable";
 const project = "calm-wave-70219564";
@@ -14,9 +18,18 @@ const authorize = sql => sql.replaceAll(marker, branch);
 const gap = authorize(gapRaw), expense = authorize(expenseRaw);
 
 test("review-only candidates: actual PG16/18 shape, identity and atomic rollback", {skip: !ready, timeout: 90000}, async t => {
-  assert.equal(process.env.CI, "true");
-  assert.equal(process.env.GITHUB_ACTIONS, "true");
-  const url = "postgresql://postgres:postgres@127.0.0.1:5432/neondb";
+  if(!local) {
+    assert.equal(process.env.CI, "true");
+    assert.equal(process.env.GITHUB_ACTIONS, "true");
+  }
+  const fixtureDir=resolve(import.meta.dirname,"../../../outputs/pr1116-isolated-postgres/data");
+  if(local) {
+    assert.equal(process.platform,"win32");
+    assert.equal(resolve(process.env.ISSUE1113_LOCAL_FIXTURE_DIR ?? ""),fixtureDir);
+    assert.equal(readFileSync(resolve(fixtureDir,"ISSUE1113_SYNTHETIC_ONLY"),"utf8"),"empty-fictional-fixture\n");
+  }
+  const url = local ? "postgresql://postgres:postgres@127.0.0.1:54116/neondb"
+    : "postgresql://postgres:postgres@127.0.0.1:5432/neondb";
   assert.equal(process.env.DATABASE_URL, url);
   for(const key of ["PAYMONGO_DISBURSEMENTS_ENABLED", "XENDIT_PAYOUTS_ENABLED"]) assert.equal(process.env[key], "false");
   const db = new pg.Client({connectionString:url});
@@ -24,9 +37,11 @@ test("review-only candidates: actual PG16/18 shape, identity and atomic rollback
   try {
     const {rows:[pre]} = await db.query(`SELECT current_database() AS db,
       current_setting('server_version_num')::int AS version,
+      current_setting('data_directory') AS data_dir,
       (SELECT count(*)::int FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
         WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','S')) AS objects`);
     assert.equal(pre.db,"neondb");
+    if(local) assert.equal(resolve(pre.data_dir).toLowerCase(),fixtureDir.toLowerCase(),"Refuse any other local cluster");
     assert.ok([16,18].includes(Math.floor(pre.version/10000)));
     assert.equal(pre.objects,0,"Refuse an existing database");
     await db.query("BEGIN");
