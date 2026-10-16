@@ -12,7 +12,7 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { canAccessEmployeeProfileVault, documentObjectIdentityMatches, documentBytesMayBeReleased, vaultDocumentIsArchived } from "@/lib/employee-document-vault";
+import { canAccessEmployeeProfileVault, canStaffOpenEmployeeVault, documentObjectIdentityMatches, documentBytesMayBeReleased, vaultDocumentIsArchived } from "@/lib/employee-document-vault";
 import { archiveEmployeeVaultUpload } from "@/lib/employee-vault-profile-server";
 import { documentUploadsEnabled } from "@/lib/storage";
 import { enforceSameOriginMutation } from "@/lib/security-request";
@@ -22,8 +22,13 @@ import { compatibleDocumentColumns } from "@/lib/document-schema-compat";
 export const dynamic = "force-dynamic";
 
 function contentDisposition(fileName: string) {
-  const safe = fileName.replace(/[\r\n"]/g, "_");
+  const safe = fileName.replace(/[\\r\\n"]/g, "_");
   return `inline; filename="${safe}"`;
+}
+
+function attachmentDisposition(fileName: string) {
+  const safe = fileName.replace(/[^A-Za-z0-9._ ()-]/g, "_").slice(0, 180) || "document";
+  return `attachment; filename="${safe}"`;
 }
 
 export async function GET(
@@ -60,8 +65,10 @@ export async function GET(
     const access = await getAccess(user.id, document.organizationId);
     if (!access) return Response.json({ error: "Workspace access required." }, { status: 403 });
     if ((criticalReleaseFlagEnabled("employeeDocumentVault") || document.objectStorageKey) &&
-      !canAccessEmployeeProfileVault({ userId: user.id, role: access.role,
-        employeeId: null, companyWide: access.companyWide }, document.employeeId ?? -1)) {
+      !(document.employeeId === null
+        ? access.companyWide && canStaffOpenEmployeeVault(access.role)
+        : canAccessEmployeeProfileVault({ userId: user.id, role: access.role,
+            employeeId: null, companyWide: access.companyWide }, document.employeeId))) {
       return Response.json({ error: "Private HR document not found." }, { status: 404 });
     }
 
@@ -105,7 +112,7 @@ export async function GET(
       const download = new URL(request.url).searchParams.get("download") === "1";
       signed = signedDocumentObjectUrl(document.objectStorageKey,
         "GET", documentStorageConfig(), { expirySeconds: 60,
-          responseContentDisposition: download ? contentDisposition(document.fileName).replace(/^inline;/, "attachment;") : undefined });
+          responseContentDisposition: download ? attachmentDisposition(document.fileName) : undefined });
     } catch {
       return Response.json({ error: "Private document storage is unavailable." }, { status: 503 });
     }
