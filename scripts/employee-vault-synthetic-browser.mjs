@@ -63,8 +63,19 @@ async function session(state, width) {
 }
 async function getAs(state, path) {
   const context = await session(state, 1440);
-  try { return await context.request.get(BASE + path, { maxRedirects: 0 }); }
-  finally { await context.close(); }
+  try {
+    const response = await context.request.get(BASE + path, { maxRedirects: 0 });
+    // Capture the HTTP response BEFORE disposing its Playwright context.
+    const status = response.status();
+    const bytes = await response.body();
+    const headers = response.headers();
+    return {
+      status: () => status,
+      json: async () => JSON.parse(bytes.toString("utf8")),
+      body: async () => bytes,
+      headers: () => headers,
+    };
+  } finally { await context.close(); }
 }
 function assertDenied(response, label) {
   assert.ok([403, 404].includes(response.status()), label + " must be denied");
