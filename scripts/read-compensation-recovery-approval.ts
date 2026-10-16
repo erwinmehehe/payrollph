@@ -23,7 +23,7 @@ export function readSignedCompensationRecoveryApprovalFile(path: string): unknow
   // verification remain mandatory for this privileged recovery CLI.
   const original = process.platform === "win32" ? lstatSync(path, { bigint: true }) : null;
   if (original && (!original.isFile() || original.isSymbolicLink())) {
-    throw new Error("Recovery approval must be a regular non-symlink file.");
+    throw new Error("Recovery approval must be a regular file, not a symlink.");
   }
 
   // POSIX O_NOFOLLOW blocks final-component symlinks atomically. O_NONBLOCK
