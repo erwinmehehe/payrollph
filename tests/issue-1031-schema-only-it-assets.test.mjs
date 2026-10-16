@@ -65,6 +65,9 @@ test("#1031 owner-approved catalog-first acceptance does not require a second pu
   assert.match(wf, /npm run db:push/);
   assert.match(wf, /schema-only-it-assets-postgres\.test\.ts/);
   assert.match(wf, /npm test/);
+  assert.match(wf, /if: matrix\.postgres == '18'/);
+  assert.match(wf, /FRESH_PG18_DEV_REHEARSAL: "disposable-ci-only"/);
+  assert.match(wf, /run: node scripts\/qa\/coe-document-tenant-negative-proof\.mjs/);
   assert.doesNotMatch(wf, /isolated-rc-repeat-proof:|drizzle-kit@1\.0\.0-rc\.4|SEPARATE_RC_TRUE_NO_OP=PASS/);
   assert.match(policy, /Second drizzle-kit push: not used as a gate, see #1019/);
   assert.match(policy, /Deliberately change one candidate column type/);
