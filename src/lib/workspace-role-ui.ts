@@ -5,7 +5,7 @@ export const ROLE_PRIMARY_PAGES: Partial<Record<string, readonly string[]>> = {
   hr: ["Overview", "People", "Time & attendance", "Leave", "Approvals", "Analytics"],
   payroll: ["Overview", "Payroll", "People", "Time & attendance", "Approvals", "Analytics"],
   checker: ["Overview", "Approvals", "Audit trail"],
-  manager: ["Overview", "Approvals", "Planning", "Performance", "Analytics"],
+  manager: ["Overview", "Approvals", "Performance"],
   group_hr: ["Overview", "People", "Analytics"],
 };
 
