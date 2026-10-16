@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarRange,
   Clock3,
@@ -19,6 +19,7 @@ import type {
 } from "@/lib/workforce-schedule-guardrails";
 import type { DashboardData, Notify } from "./types";
 import { buildRotationTemplateDraft } from "@/lib/workforce-rotation-template";
+import { scopedWorkforcePlannerPreview, workforcePlannerDraftDefaults } from "@/lib/workforce-planner-view";
 import { EmptyState, ErrorState, Metric, PageHeading, Spinner, Status } from "./ui";
 import { WorkforceOvertimePanel } from "./workforce-overtime-panel";
 import { WorkforceScheduleSwapPanel } from "./workforce-schedule-swap-panel";
@@ -154,20 +155,29 @@ function scheduleLabel(day: ResolvedDailySchedule) {
     .join(" · ");
 }
 
-export function WorkforcePlanner({
-  data,
-  notify,
-  canManage,
-  onOpenAttendance,
-}: {
+type WorkforcePlannerProps = {
   data: DashboardData;
   notify: Notify;
   canManage: boolean;
   onOpenAttendance: () => void;
-}) {
+};
+
+export function WorkforcePlanner(props: WorkforcePlannerProps) {
+  // The planner contains employer-private roster data and unsaved schedule drafts.
+  return <WorkforcePlannerContent key={props.data.selectedOrganization.id} {...props} />;
+}
+
+function WorkforcePlannerContent({
+  data,
+  notify,
+  canManage,
+  onOpenAttendance,
+}: WorkforcePlannerProps) {
   const organizationId = data.selectedOrganization.id;
   const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [previewSnapshot, setPreviewSnapshot] = useState<{ scopeKey: string; data: Preview } | null>(null);
+  const catalogRequest = useRef(0);
+  const previewRequest = useRef(0);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [catalogError, setCatalogError] = useState("");
   const [workspaceTab, setWorkspaceTab] = useState("today");
@@ -191,42 +201,65 @@ export function WorkforcePlanner({
 
   const [patternCode, setPatternCode] = useState("WEEKLY");
   const [patternName, setPatternName] = useState("Standard weekly rotation");
-  const [patternChoices, setPatternChoices] = useState<string[]>(Array(7).fill(""));
+  const [patternChoicesDraft, setPatternChoicesDraft] = useState<string[] | null>(null);
 
-  const [assignmentPatternId, setAssignmentPatternId] = useState("");
+  const [assignmentPatternIdDraft, setAssignmentPatternIdDraft] = useState<string | null>(null);
   const [assignmentStart, setAssignmentStart] = useState(localToday());
   const [assignmentEnd, setAssignmentEnd] = useState("");
   const [assignmentReason, setAssignmentReason] = useState("Roster assignment");
   const [assignmentWorksiteId, setAssignmentWorksiteId] = useState("");
 
   const [overrideDate, setOverrideDate] = useState(localToday());
-  const [overrideMode, setOverrideMode] = useState("REST");
+  const [overrideModeDraft, setOverrideModeDraft] = useState<string | null>(null);
   const [overrideReason, setOverrideReason] = useState("Roster adjustment");
   const [overrideWorksiteId, setOverrideWorksiteId] = useState("");
 
   const rangeEnd = useMemo(() => addDays(rangeStart, 13), [rangeStart]);
+  // Defaults follow the loaded catalog until the operator explicitly edits a field.
+  // Reading them in render avoids state-setting effects and preserves unsaved drafts.
+  const defaults = useMemo(
+    () => workforcePlannerDraftDefaults(catalog?.shifts[0]?.id, catalog?.patterns[0]?.id),
+    [catalog],
+  );
+  const patternChoices = patternChoicesDraft ?? defaults.patternChoices;
+  const assignmentPatternId = assignmentPatternIdDraft ?? defaults.assignmentPatternId;
+  const overrideMode = overrideModeDraft ?? defaults.overrideMode;
 
-  const loadCatalog = useCallback(async () => {
+  // Employee and date edits immediately hide a previous roster preview.
+  const previewScopeKey = JSON.stringify([organizationId, employeeId, rangeStart, rangeEnd]);
+  const preview = scopedWorkforcePlannerPreview(previewSnapshot, previewScopeKey);
+
+  const loadCatalog = useCallback(async (signal?: AbortSignal) => {
+    const requestId = ++catalogRequest.current;
+    const isCurrent = () => !signal?.aborted && requestId === catalogRequest.current;
+    if (!isCurrent()) return;
     setLoadingCatalog(true);
     try {
       const response = await fetch(`/api/workforce/schedules?organizationId=${organizationId}`, {
         cache: "no-store",
+        signal,
       });
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not load workforce schedules.");
       setCatalog(payload as Catalog);
       setCatalogError("");
     } catch (error) {
+      if (!isCurrent()) return;
       setCatalogError(error instanceof Error ? error.message : "Could not load workforce schedules.");
       notify(error instanceof Error ? error.message : "Could not load workforce schedules.", "err");
     } finally {
-      setLoadingCatalog(false);
+      if (isCurrent()) setLoadingCatalog(false);
     }
   }, [organizationId, notify]);
 
-  const loadPreview = useCallback(async () => {
+  const loadPreview = useCallback(async (signal?: AbortSignal) => {
+    const requestId = ++previewRequest.current;
+    const isCurrent = () => !signal?.aborted && requestId === previewRequest.current;
+    if (!isCurrent()) return;
     if (!employeeId) {
-      setPreview(null);
+      setPreviewSnapshot(null);
+      setLoadingPreview(false);
       return;
     }
     setLoadingPreview(true);
@@ -239,38 +272,45 @@ export function WorkforcePlanner({
       });
       const response = await fetch(`/api/workforce/schedules?${params.toString()}`, {
         cache: "no-store",
+        signal,
       });
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not preview the roster.");
-      setPreview(payload as Preview);
+      setPreviewSnapshot({ scopeKey: previewScopeKey, data: payload as Preview });
     } catch (error) {
-      setPreview(null);
+      if (!isCurrent()) return;
+      setPreviewSnapshot(null);
       notify(error instanceof Error ? error.message : "Could not preview the roster.", "err");
     } finally {
-      setLoadingPreview(false);
+      if (isCurrent()) setLoadingPreview(false);
     }
-  }, [employeeId, organizationId, rangeEnd, rangeStart, notify]);
+  }, [employeeId, organizationId, rangeEnd, rangeStart, notify, previewScopeKey]);
 
   useEffect(() => {
-    if (workspaceTab === "roster") void loadCatalog();
+    if (workspaceTab !== "roster") return;
+    const controller = new AbortController();
+    // Keep the initial GET outside synchronous effect setup; cleanup aborts it.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void loadCatalog(controller.signal);
+    });
+    return () => controller.abort();
   }, [loadCatalog, workspaceTab]);
 
   useEffect(() => {
-    if (workspaceTab === "roster") void loadPreview();
+    if (workspaceTab !== "roster") return;
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void loadPreview(controller.signal);
+    });
+    return () => controller.abort();
   }, [loadPreview, workspaceTab]);
 
-  useEffect(() => {
-    if (!catalog?.shifts.length || patternChoices.some(Boolean)) return;
-    const defaultShift = String(catalog.shifts[0].id);
-    setPatternChoices([defaultShift, defaultShift, defaultShift, defaultShift, defaultShift, "REST", "REST"]);
-    setOverrideMode(defaultShift);
-  }, [catalog, patternChoices]);
-
-  useEffect(() => {
-    if (!assignmentPatternId && catalog?.patterns[0]) {
-      setAssignmentPatternId(String(catalog.patterns[0].id));
-    }
-  }, [assignmentPatternId, catalog]);
+  useEffect(() => () => {
+    // Invalidate any user-triggered refresh still pending when this scope unmounts.
+    catalogRequest.current += 1;
+    previewRequest.current += 1;
+  }, []);
 
   async function mutate(action: string, payload: Record<string, unknown>, success: string) {
     setSaving(action);
@@ -324,7 +364,7 @@ export function WorkforcePlanner({
           : [{ shiftDefinitionId: Number(patternChoices[index]) }],
       })),
     }, `Rotation ${patternCode.toUpperCase()} created.`);
-    if (ok) setAssignmentPatternId("");
+    if (ok) setAssignmentPatternIdDraft(null);
   }
 
   function applyExistingPatternTemplate(pattern: PatternRow) {
@@ -340,7 +380,7 @@ export function WorkforcePlanner({
     }
     setPatternCode(result.code);
     setPatternName(result.name);
-    setPatternChoices(result.choices);
+    setPatternChoicesDraft(result.choices);
     notify("Rotation loaded for review. It has not been saved or assigned.");
   }
 
@@ -641,7 +681,7 @@ export function WorkforcePlanner({
                   {day}
                   <select
                     value={patternChoices[index]}
-                    onChange={(event) => setPatternChoices((current) => current.map((value, dayIndex) => dayIndex === index ? event.target.value : value))}
+                    onChange={(event) => setPatternChoicesDraft((current) => (current ?? patternChoices).map((value, dayIndex) => dayIndex === index ? event.target.value : value))}
                   >
                     <option value="">Choose...</option>
                     <option value="REST">Rest day</option>
@@ -688,7 +728,7 @@ export function WorkforcePlanner({
               </label>
               <label>
                 Rotation
-                <select value={assignmentPatternId} onChange={(event) => setAssignmentPatternId(event.target.value)}>
+                <select value={assignmentPatternId} onChange={(event) => setAssignmentPatternIdDraft(event.target.value || null)}>
                   <option value="">Choose...</option>
                   {(catalog?.patterns ?? []).map((pattern) => <option key={pattern.id} value={pattern.id}>{pattern.code} · {pattern.name}</option>)}
                 </select>
@@ -741,7 +781,7 @@ export function WorkforcePlanner({
               <label>Work date<input type="date" value={overrideDate} onChange={(event) => setOverrideDate(event.target.value)} /></label>
               <label>
                 Override
-                <select value={overrideMode} onChange={(event) => setOverrideMode(event.target.value)}>
+                <select value={overrideMode} onChange={(event) => setOverrideModeDraft(event.target.value)}>
                   <option value="REST">Rest day / off</option>
                   {(catalog?.shifts ?? []).map((shift) => <option key={shift.id} value={shift.id}>{shift.code} · {shift.name}</option>)}
                 </select>

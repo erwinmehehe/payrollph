@@ -213,10 +213,5 @@
     "react-hooks/set-state-in-effect": {
       "count": 2
     }
-  },
-  "src/components/workspace/workforce-planner.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 4
-    }
   }
 }
