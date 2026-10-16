@@ -104,8 +104,24 @@ export async function runStrictDbPush(env = process.env) {
       "documents_org_employee_id_hr_cases_unique",
       "employee_hr_cases_coe_document_tenant_fk",
     ].filter(name=>output.includes(name));
+    // Expose only recognized PostgreSQL constraint identifier tokens; never
+    // print definitions, expressions, values, connection data or full SQL.
+    const constraintNames = [...output.matchAll(/\bDROP\s+CONSTRAINT\s+(?:"([A-Za-z0-9_]{1,128})"|([A-Za-z0-9_]{1,128}))/gi)]
+      .map(m=>m[1]||m[2]);
+    const uniqueNames = [...new Set(constraintNames)].sort();
+    const kinds = {
+      check: uniqueNames.filter(n=>n.endsWith("_check")).length,
+      fk: uniqueNames.filter(n=>n.endsWith("_fk") || n.endsWith("_fkey")).length,
+      unique: uniqueNames.filter(n=>n.endsWith("_unique") || n.endsWith("_key")).length,
+      pk: uniqueNames.filter(n=>n.endsWith("_pk") || n.endsWith("_pkey")).length,
+    };
+    kinds.other=uniqueNames.length-Object.values(kinds).reduce((a,b)=>a+b,0);
+    const defaultColumns = [...output.matchAll(/\bALTER\s+TABLE\s+"?([A-Za-z0-9_]+)"?\s+ALTER\s+COLUMN\s+"?([A-Za-z0-9_]+)"?\s+SET\s+DEFAULT/gi)]
+      .slice(0,10).map(m=>m[1]+"."+m[2]);
     process.stderr.write("ISSUE_1019_DISPOSABLE_VENDOR_PLAN="+JSON.stringify({
       exitCode:code,outputBytes:Buffer.byteLength(output),operations,knownNames,
+      constraintKinds:kinds,constraintNameSample:uniqueNames.slice(0,36),
+      constraintTotal:uniqueNames.length,defaultColumns,
     })+"\n");
   }
   // Diagnostic classification for *disposable* issue-1019 CI only. Never emit
