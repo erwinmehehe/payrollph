@@ -54,7 +54,10 @@ function tokenize(text) {
       if (match) {
         const delimiter = match[0], from = i + delimiter.length;
         const until = text.indexOf(delimiter, from);
-        if (until < 0) throw Error("Unclosed SQL dollar block");
+        if (until < 0) {
+          tokens.push({ kind: "dollar_unclosed", value: text.slice(from), offset: a });
+          i = text.length; continue;
+        }
         tokens.push({ kind: "dollar", value: text.slice(from, until), offset: a });
         i = until + delimiter.length; continue;
       }
@@ -176,7 +179,8 @@ export function parseMigrationSql(text) {
     }
     // DDL inside a DO/function body may be conditional or dynamic. Report a
     // conservative hazard; do not promote it to verified table definitions.
-    for(const fragment of stmt.filter(t=>t.kind==="dollar")) {
+    for(const fragment of stmt.filter(t=>t.kind==="dollar" || t.kind==="dollar_unclosed")) {
+      if (fragment.kind === "dollar_unclosed") { review.add("UNTERMINATED_DOLLAR_BODY"); hazards.add("PARSER_UNCERTAINTY"); }
       review.add("DOLLAR_BODY_MANUAL_REVIEW");
       const inner=tokenize(fragment.value);
       for(const action of innerActions(inner)){hazards.add(action);if(["UPDATE","DELETE","INSERT"].includes(action))hazards.add("BACKFILL");}
