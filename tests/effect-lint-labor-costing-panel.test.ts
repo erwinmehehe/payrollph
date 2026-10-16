@@ -83,10 +83,8 @@ test("writes, reconciliation guards and role-sensitive API remain unchanged", ()
     'effectiveUntil: effectiveUntil || null',
     'allocations: drafts.map',
   ]) assert.ok(content.includes(unchanged), "Missing original allocation guard: " + unchanged);
-  const manifest = JSON.parse(readFileSync("eslint-suppressions.json", "utf8"));
+  const manifest = JSON.parse(readFileSync("eslint-suppressions.json", "utf8")) as Record<string, unknown>;
+  // Do not freeze the global suppression count: later #774 cleanup batches
+  // should not break a passing behavior test as they retire more allowances.
   assert.equal(manifest[FILE], undefined);
-  const counts = Object.values(manifest as Record<string, Record<string, { count: number }>>)
-    .reduce((sum, rules) => sum + Object.values(rules).reduce((n, item) => n + item.count, 0), 0);
-  assert.equal(counts, 51);
-  assert.equal(Object.keys(manifest).length, 42);
 });
