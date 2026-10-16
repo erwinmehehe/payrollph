@@ -70,6 +70,15 @@ test("SQL parser honors quoted content, nested comments and dollar bodies while 
   assert.ok(!parsed.objects.includes("imaginary"));
 });
 
+test("malformed historical DO dollar block is explicitly flagged, not guessed or executed", () => {
+  const row = generateSourceWorksheet().migrationRows.find(r => r.file_path ===
+    "drizzle/0093_mwe_classification_governance.sql");
+  assert.ok(row);
+  assert.match(row.statement_types, /CREATE TABLE/);
+  assert.match(row.hazards, /PARSER_UNCERTAINTY/);
+  assert.match(row.manual_review_flags, /UNTERMINATED_DOLLAR_BODY/);
+});
+
 test("no SQL execution or production-verification transport is referenced by generator", () => {
   const content = read("scripts/generate-issue-1031-source-worksheet.mjs");
   assert.doesNotMatch(content, /PRODUCTION_DATABASE_URL|DATABASE_URL|PRODUCTION_MIGRATION_AUDIT_DATABASE_URL/);
