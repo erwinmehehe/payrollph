@@ -1,0 +1,149 @@
+name: A-5 Employee Vault Authenticated Browser QA (Synthetic Only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/api/documents/**"
+      - "src/lib/document-object-storage.ts"
+      - "src/lib/employee-document-vault.ts"
+      - "src/lib/employee-vault-profile-server.ts"
+      - "src/components/employee-documents-panel.tsx"
+      - "src/components/hcm-worker-document-vault.tsx"
+      - "src/components/hcm-worker-360.tsx"
+      - "scripts/employee-vault-synthetic-*.mjs"
+      - ".github/workflows/employee-vault-authenticated-browser-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: a5-employee-vault-browser-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-worker-vault:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: "true"
+      VAULT_BROWSER_ACCEPTANCE_MODE: synthetic-postgres-only
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      ESS_PROFILE_ACCEPTANCE_MODE: synthetic-postgres-only
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      PII_LEGACY_READ_ENABLED: "false"
+      EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
+      DOCUMENT_UPLOADS_ENABLED: "true"
+      HCM_WORKER_360_ENABLED: "true"
+      NEXT_PUBLIC_HCM_WORKER_360_ENABLED: "true"
+      DOCUMENT_OBJECT_STORAGE_ENDPOINT: http://127.0.0.1:9000/
+      DOCUMENT_OBJECT_STORAGE_BUCKET: employee-vault-qa
+      DOCUMENT_OBJECT_STORAGE_REGION: us-east-1
+      DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: synthetic-vault-user-only
+      DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: synthetic-vault-secret-only
+      AWS_ACCESS_KEY_ID: synthetic-vault-user-only
+      AWS_SECRET_ACCESS_KEY: synthetic-vault-secret-only
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: "true"
+      MALWARE_SCAN_URL: http://127.0.0.1:3877/scan
+      MALWARE_SCAN_TOKEN: synthetic-scanner-token-only
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Generate isolated PII, TOTP and bank encryption fixtures
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Bootstrap first-and-only pinned stable push in disposable PG16
+        run: npm run db:push
+      - name: Seed two fictional employers with MFA and isolated workers
+        run: |
+          npx tsx scripts/employee-import-synthetic-fixture.ts
+          npx tsx scripts/ess-profile-synthetic-fixture.ts
+      - name: Verify tenant, role, archived metadata and private download contracts
+        run: npx tsx --test --test-concurrency=1 tests/employee-worker-vault.test.ts
+      - name: Build pinned private object-storage emulator
+        run: docker build -f tests/fixtures/minio/Dockerfile -t payrollph-a5-minio:ci .
+      - name: Start loopback-only private S3 and create a private test bucket
+        run: |
+          docker run -d --rm --name a5-worker-vault \
+            -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER="$AWS_ACCESS_KEY_ID" \
+            -e MINIO_ROOT_PASSWORD="$AWS_SECRET_ACCESS_KEY" \
+            payrollph-a5-minio:ci server /data --address :9000
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null
+          aws --endpoint-url http://127.0.0.1:9000 s3api create-bucket \
+            --bucket "$DOCUMENT_OBJECT_STORAGE_BUCKET"
+      - name: Install pinned Chromium for authenticated real-HTTP UI acceptance
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start ONLY local Next.js and scanner contract fixture
+        shell: bash
+        run: |
+          NODE_ENV=development node scripts/employee-vault-synthetic-scanner.mjs > /tmp/vault-scanner.log 2>&1 &
+          npx next dev --hostname 127.0.0.1 -p 3000 > /tmp/vault-app.log 2>&1 &
+          ready=false
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:3000/login >/dev/null &&
+               test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3877/scan)" = "404"; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if test "$ready" != true; then
+            tail -n 25 /tmp/vault-scanner.log
+            tail -n 50 /tmp/vault-app.log
+            exit 1
+          fi
+      - name: Authenticated Worker 360 upload/view/download/archive, roles and viewport screenshots
+        run: node --import tsx scripts/employee-vault-synthetic-browser.mjs
+      - name: Upload only fictional real-UI screenshots and sanitized QA report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: a5-worker-vault-browser-desktop-390-fictional
+          path: qa-artifacts/employee-vault
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Destroy disposable local private object service
+        if: always()
+        run: docker rm -f a5-worker-vault >/dev/null 2>&1 || true
+
+# LOCAL SYNTHETIC TEST ONLY: not live S3, ClamAV, DPA, key custody, legal hold,
+# DBA migration approval or production flag activation. No real employee data.
