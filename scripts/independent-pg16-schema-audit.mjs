@@ -104,7 +104,7 @@ async function main() {
     for (const file of FILES) {
       const sql = loadSql(file);
       assert.doesNotMatch(sql.replace(/--[^\r\n]*/g, ""),
-        /^\\s*(?:BEGIN|COMMIT|ROLLBACK)\\s*;/im,
+        /^\s*(?:BEGIN|COMMIT|ROLLBACK)\s*;/im,
         "reviewed runner, not numbered SQL, owns transaction: " + file);
       if (file.startsWith("0125_")) await client.query(ISSUE1054_PREFLIGHT_SQL);
       await client.query(sql);
