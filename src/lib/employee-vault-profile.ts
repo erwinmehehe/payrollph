@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees } from "@/db/schema";
-import { assertMembership, getAccess, type AccessScope } from "@/lib/access";
+import { assertMembership, assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, type AccessScope } from "@/lib/access";
 
 /** Hide retired metadata and bytes from normal vault access; retain audited
  * object pointers until A-5 retention, legal-hold and erasure approvals. */
@@ -63,6 +63,15 @@ export async function authorizeEmployeeVault(
     actorEmployeeId: user.employeeId ?? null, targetEmployeeId: target.id,
   })) {
     return { ok: false, response: Response.json({ error: "Employee vault access denied." }, { status: 403 }) };
+  }
+  if (access.role !== "employee") {
+    // Custom People permission-set denials remain effective, even when a
+    // membership's broad HR or owner role otherwise matches.
+    const denied = await assertOrganizationRole(
+      user.id, organizationId, PEOPLE_ADMIN_ROLES,
+      "Private employee documents require an authorized People role.",
+    );
+    if (denied) return { ok: false, response: denied };
   }
   return { ok: true, access };
 }

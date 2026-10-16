@@ -56,6 +56,9 @@ test("Worker 360 uses the existing guarded upload/download pipeline, not payroll
   }
   assert.match(page, /criticalReleaseFlagEnabled\("employeeDocumentVault"\)/);
   assert.match(get, /authorizeEmployeeVault\(user, organizationId, employeeId\)/);
+  const sharedAccess = readFileSync("src/lib/employee-vault-profile.ts", "utf8");
+  assert.match(sharedAccess, /assertOrganizationRole\(/);
+  assert.match(sharedAccess, /PEOPLE_ADMIN_ROLES/);
   assert.match(get, /eq\(documents\.organizationId, organizationId\)/);
   assert.match(get, /eq\(documents\.employeeId, employeeId\)/);
   assert.match(get, /VAULT_REMOVED_SOURCE_PREFIX/);
