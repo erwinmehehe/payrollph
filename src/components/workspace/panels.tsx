@@ -740,6 +740,7 @@ function YearEndPanel({ organizationId, setNotice, birCandidateEnabled, certific
             <option value={2025}>Tax year 2025</option>
           </select>
           <button className="primary-button" onClick={runAnnualization} disabled={busy || checkingBIR}>{busy ? "Computing…" : "Run annualization"}</button>
+          {priorEvidenceEnabled && <a className="secondary-button" href={`/workspace/prior-employer?organizationId=${organizationId}&taxYear=${taxYear}`}>Review prior employer / PERA</a>}
           <button type="button" className="secondary-button" onClick={() => void checkBirPreflight()} disabled={busy || checkingBIR}>{checkingBIR ? "Checking…" : "Check BIR source"}</button>
         </div>
       </div>
