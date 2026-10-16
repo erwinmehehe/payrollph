@@ -67,6 +67,13 @@ or the exact documented no-change notice is a PASS. All other output is
 real generated DDL and Squawk warnings cannot be turned into PASS by these
 classifiers. Tool failures are never hidden by `continue-on-error`.
 
+Before interpreting Atlas diff output, a separate `atlas schema inspect`
+invocation under that same restricted role emits JSON for BOTH fixtures. The
+source-generated #1031 manifest is checked against each Atlas-visible
+`public.tables` inventory: a zero-table or partial-visibility inspection
+fails closed instead of being misreported as schema parity. This is a critical
+guard because catalog-only roles can be more limited than database owners.
+
 The jobs fail closed on tool/runtime errors and on structural/lint findings;
 a red CI result requires reviewer triage.
 A green result would mean only that the inspected **synthetic** resources
