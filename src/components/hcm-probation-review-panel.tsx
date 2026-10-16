@@ -49,7 +49,19 @@ function readable(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function HcmProbationReviewPanel({
+export function HcmProbationReviewPanel(props: {
+  organizationId: number;
+  employeeId: number;
+  employmentTermId: number;
+  probationReviewDate: string | null;
+  onChanged?: () => Promise<unknown> | unknown;
+}) {
+  // One specific employment term's review. Remount on a new term so no prior
+  // worker's draft rating or recommendation can render while the next loads.
+  return <HcmProbationReviewPanelContent key={props.employmentTermId} {...props} />;
+}
+
+function HcmProbationReviewPanelContent({
   organizationId,
   employeeId,
   employmentTermId,
@@ -78,16 +90,17 @@ export function HcmProbationReviewPanel({
     developmentAreas: "",
   });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setError("");
     try {
       const response = await fetch(
         "/api/hcm/probation-reviews?organizationId=" + organizationId
           + "&employeeId=" + employeeId
           + "&employmentTermId=" + employmentTermId,
-        { cache: "no-store" },
+        { cache: "no-store", signal },
       );
       const data = await response.json().catch(() => ({}));
+      if (signal?.aborted) return;
       if (!response.ok) throw new Error(data.error ?? "Could not load probation review.");
       const next = data as Payload;
       setPayload(next);
@@ -105,13 +118,20 @@ export function HcmProbationReviewPanel({
         });
       }
     } catch (loadError) {
+      if (signal?.aborted) return;
       setPayload(null);
       setError(loadError instanceof Error ? loadError.message : "Could not load probation review.");
     }
   }, [employeeId, employmentTermId, organizationId]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    // The request runs after effect setup, never in its synchronous phase.
+    // Strict Mode cleanup can cancel this scheduled read before it starts.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
+    return () => controller.abort();
   }, [load]);
 
   async function createDraft() {
