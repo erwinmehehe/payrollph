@@ -6,6 +6,9 @@ import { annualize, ANNUALIZATION_RULE_VERSION, isSharedBenefitPoolEarningType, 
 import { readBasicAndThirteenth, retroSourceTaxYear } from "@/lib/final-pay";
 import { round2 } from "@/lib/round";
 import { loadFinalPayRetroSourcePeriods } from "@/lib/final-pay-retro-source-lookup";
+import { priorEvidenceEnabled, priorEmployeeScope, readPriorEvidence } from "./year-end-prior-evidence-server";
+import { annualizeWithPrior } from "./year-end-prior-evidence";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 
 type LineItem = {
   code?: string;
@@ -121,6 +124,8 @@ export async function runYearEndAnnualization(
   } = {},
 ) {
   await ensureMigrationSchema();
+  const usePriorEvidence = priorEvidenceEnabled();
+  if (usePriorEvidence && criticalReleaseFlagEnabled("multiEntity")) throw new Error("PRIOR_MULTI_ENTITY_DEFERRED");
 
   // All source reads, calculations, adjustment replacement and audit evidence
   // share ONE serializable database snapshot. A failure rolls back the old
@@ -287,6 +292,7 @@ export async function runYearEndAnnualization(
     deMinimisExcess: number;
     otherBenefits: number;
     mweTaxableSupplementaryCompensation: number;
+    priorEvidence?: { id: number; revision: number; digest: string };
   }> = [];
 
   for (const employee of staff) {
@@ -307,7 +313,7 @@ export async function runYearEndAnnualization(
     }
 
     const unpaidThirteenthAccrual = Math.max(0, annualThirteenth - bucket.thirteenthPaid);
-    const result = annualize({
+    let result = annualize({
       grossCompensation: bucket.gross + unpaidThirteenthAccrual,
       thirteenthMonth: annualThirteenth,
       otherBenefits: bucket.otherBenefits,
@@ -321,9 +327,18 @@ export async function runYearEndAnnualization(
         : 0,
     });
 
+    let priorEvidence: { id: number; revision: number; digest: string } | undefined;
+    if (usePriorEvidence) {
+      const scope = await priorEmployeeScope(tx, { organizationId, employeeId: employee.id, taxYear });
+      const approved = await readPriorEvidence(tx, scope, true);
+      if (!approved) throw new Error("PRIOR_APPROVED_EVIDENCE_REQUIRED");
+      result = annualizeWithPrior(result, approved.evidence, taxYear);
+      priorEvidence = { id: approved.row.id, revision: approved.row.revision, digest: approved.row.sourceDigest };
+    }
     rows.push({
       employee,
       result,
+      priorEvidence,
       periods: bucket.periods,
       importedPeriods: bucket.importedPeriods,
       basicSalaryEarned: bucket.basic,
@@ -350,6 +365,7 @@ export async function runYearEndAnnualization(
       employee,
       result,
       periods,
+      priorEvidence,
       importedPeriods,
       basicSalaryEarned,
       thirteenthEntitlement,
@@ -374,6 +390,7 @@ export async function runYearEndAnnualization(
       mwe: result.mwe,
       breakdown: {
         ...result,
+        ...(priorEvidence ? { priorEvidence } : {}),
         periodsIncluded: periods,
         runsIncluded: runIds.length,
         importedHistoryRows: importedPeriods,

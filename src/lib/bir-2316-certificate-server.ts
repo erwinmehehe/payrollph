@@ -7,6 +7,7 @@ import { loadFinalPay2316Withholding, loadYearEnd2316Withholding, bir2316Withhol
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import type { CertificateScope, CertificateSource } from "./bir-2316-certificate";
 import type { AnnualizationResult } from "./annualization";
+import { priorEvidenceEnabled, priorEmployeeScope, readPriorEvidence } from "./year-end-prior-evidence-server";
 export const certificateDraftEnabled = () => criticalReleaseFlagEnabled("bir2316Certificate") && bir2316WithholdingEnabled();
 export class CertificateSourceError extends Error {}
 export async function load2316CertificateSource(scope: CertificateScope): Promise<CertificateSource> {
@@ -17,6 +18,7 @@ export async function load2316CertificateSource(scope: CertificateScope): Promis
     if (!employee || !organization) throw new CertificateSourceError("SOURCE_NOT_FOUND");
     const entities = await tx.select().from(legalEntities).where(eq(legalEntities.organizationId, scope.organizationId));
     let summary: CertificateSource["summary"], employer: ReturnType<typeof historical2316Employer>, periodTo: string, mwe: boolean, withholding: CertificateSource["withholding"];
+    let approvedPriorEvidence: CertificateSource["approvedPriorEvidence"];
     if (scope.separationId) {
       const [separation] = await tx.select().from(separationRecords).where(and(eq(separationRecords.id, scope.separationId), eq(separationRecords.organizationId, scope.organizationId), eq(separationRecords.employeeId, scope.employeeId))).limit(1);
       if (!separation || separation.status !== "released" || !separation.lastDay.startsWith(String(scope.taxYear) + "-")) throw new CertificateSourceError("RELEASED_SEPARATION_REQUIRED");
@@ -33,6 +35,13 @@ export async function load2316CertificateSource(scope: CertificateScope): Promis
       const matches = await tx.select().from(yearEndAdjustments).where(and(eq(yearEndAdjustments.organizationId, scope.organizationId), eq(yearEndAdjustments.employeeId, scope.employeeId), eq(yearEndAdjustments.taxYear, scope.taxYear)));
       if (matches.length !== 1) throw new CertificateSourceError("UNIQUE_ANNUALIZATION_REQUIRED");
       const adjustment = matches[0], legalEntityId = entities[0]?.id ?? null;
+      const binding = (adjustment.breakdown as { priorEvidence?: { id: number; revision: number; digest: string } } | null)?.priorEvidence;
+      if (binding) {
+        if (!priorEvidenceEnabled()) throw new CertificateSourceError("PRIOR_EVIDENCE_DISABLED");
+        const approved = await readPriorEvidence(tx, await priorEmployeeScope(tx, scope), true);
+        if (!approved || approved.row.id !== binding.id || approved.row.revision !== binding.revision || approved.row.sourceDigest !== binding.digest) throw new CertificateSourceError("PRIOR_SOURCE_CHANGED");
+        approvedPriorEvidence = { digest: binding.digest, revision: binding.revision, evidence: approved.evidence };
+      } else if (priorEvidenceEnabled()) throw new CertificateSourceError("PRIOR_ANNUALIZATION_RECOMPUTE_REQUIRED");
       employer = historical2316Employer({ organizationId: scope.organizationId, snapshot: { sourceFingerprint: { employeeLegalEntityId: legalEntityId } }, entities, legacy: organization });
       summary = { grossCompensation: adjustment.grossCompensation, nonTaxable: adjustment.nonTaxable, taxableIncome: adjustment.taxableIncome, taxDue: adjustment.taxDue, withheldBeforeYearEnd: adjustment.taxWithheld, yearEndAdjustment: adjustment.adjustment };
       periodTo = `${scope.taxYear}-12-31`; mwe = adjustment.mwe;
@@ -43,6 +52,7 @@ export async function load2316CertificateSource(scope: CertificateScope): Promis
     return { scope, legalEntityId: employer.legalEntityId, employerName: employer.name, employerTin: employer.tin,
       employeeName: [employee.lastName, employee.firstName, employee.middleName].filter(Boolean).join(", "),
       employeeTin: `${digits(employee.tin)}-${digits(employee.tinBranchCode)}`, birthDate: employee.birthDate,
-      periodFrom: employee.startDate > `${scope.taxYear}-01-01` ? employee.startDate : `${scope.taxYear}-01-01`, periodTo, mwe, summary, withholding };
+      periodFrom: employee.startDate > `${scope.taxYear}-01-01` ? employee.startDate : `${scope.taxYear}-01-01`, periodTo, mwe, summary, withholding,
+      ...(approvedPriorEvidence ? { approvedPriorEvidence } : {}) };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
