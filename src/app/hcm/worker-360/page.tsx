@@ -5,6 +5,8 @@ import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/acc
 import { getSessionUser } from "@/lib/auth";
 import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import { philippineWorker360Date } from "@/lib/hcm-worker-360-projection";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { documentUploadsEnabled } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -56,6 +58,8 @@ export default async function Worker360Page({
         organizationId={organizationId}
         employeeId={employeeId}
         initialAsOfDate={philippineWorker360Date()}
+        vaultEnabled={criticalReleaseFlagEnabled("employeeDocumentVault") && ["owner", "hr"].includes(access.role)}
+        vaultUploadsEnabled={documentUploadsEnabled()}
       />
     </>
   );

@@ -12,6 +12,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { essText, type EssLanguage } from "@/lib/ess-language";
+import { EmployeeVaultProfilePanel } from "@/components/employee-vault-profile-panel";
 
 type PolicyAssignment = {
   assignmentId: number;
@@ -59,6 +60,8 @@ type DocumentRequirement = {
 };
 
 type Payload = {
+  employee: { id: number; employeeNo: string; name: string };
+  vaultUploadsEnabled?: boolean;
   policies: PolicyAssignment[];
   documentRequirements: DocumentRequirement[];
   vaultEnabled?: boolean;
@@ -345,6 +348,11 @@ export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { or
         </article>
       )}
 
+      {data.vaultEnabled && Number.isSafeInteger(data.employee?.id) && (
+        <EmployeeVaultProfilePanel key={organizationId + ":" + data.employee.id}
+          organizationId={organizationId} employeeId={data.employee.id}
+          uploadsEnabled={data.vaultUploadsEnabled === true} />
+      )}
       <div className="employee-privacy-note" style={{ marginTop: 16 }}>
         <Clock3 size={15} />
         <span>{t("Policy acknowledgements are bound to your signed-in user, employee record, policy version, exact policy content hash and acknowledgement timestamp.")}</span>
