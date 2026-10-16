@@ -89,7 +89,7 @@ export async function runStrictDbPush(env = process.env) {
       ["node-exception", /TypeError|ReferenceError|SyntaxError|ERR_[A-Z_]+|at [^\\n]+:\\d+:\\d+/i],
       ["drizzle-disclaimer", /warning|drizzle|introspect|pulling schema|changes detected/i],
       ["ddl-candidate", /DROP|ALTER|CREATE|constraint|index/i],
-      ["terminal-ui", /\\? |\\(y\\/n\\)|\\[Y\\/n\\]|\\[y\\/N\\]|press enter/i],
+      ["terminal-ui", /press enter|select an option|confirm action|do you want to continue/i],
     ].filter(([, pattern]) => pattern.test(output)).map(([name]) => name);
     process.stderr.write("ISSUE_1019_VENDOR_EXIT=" + String(code) +
       "; categories=" + (signals.join(",") || "unclassified") +
