@@ -5,7 +5,7 @@ import test from "node:test";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../src/db";
 import { documents, employees, hcmDocumentRequirements, hcmEmployeeDocumentCompliance,
-  organizations, userOrganizations, users } from "../src/db/schema";
+  organizations, permissionSets, userOrganizations, userPermissionAssignments, users } from "../src/db/schema";
 import { documentObjectKey } from "../src/lib/document-object-storage";
 import { removeEmployeeVaultDocument } from "../src/lib/employee-vault-document-removal";
 import { authorizeEmployeeVault, employeeVaultCanRemove, employeeVaultRoleAllowed,
@@ -102,18 +102,31 @@ test("Synthetic PostgreSQL authorization and removal deny wrong role/tenant and 
         passwordHash: "synthetic-disabled-login", role: "bookkeeper" },
       { name: "Fictional Vault ESS", email: "ess-" + marker + "@synthetic.invalid",
         passwordHash: "synthetic-disabled-login", role: "employee", employeeId: staff[0].id },
+      { name: "Fictional Vault Restricted HR", email: "restricted-" + marker + "@synthetic.invalid",
+        passwordHash: "synthetic-disabled-login", role: "hr" },
     ]).returning();
     people.push(...actorRows.map(row => row.id));
-    await db.insert(userOrganizations).values(actorRows.map((actor, index) => ({
+    const memberships = await db.insert(userOrganizations).values(actorRows.map((actor, index) => ({
       userId: actor.id, organizationId: orgs[0].id,
-      role: index === 0 ? "hr" : index === 1 ? "bookkeeper" : "employee",
+      role: index === 0 || index === 3 ? "hr" : index === 1 ? "bookkeeper" : "employee",
       active: true,
-    })));
+    }))).returning();
+    const [restrictedPermissions] = await db.insert(permissionSets).values({
+      organizationId: orgs[0].id, name: "Vault denied HR " + marker,
+      permissions: ["payroll.view"], active: true,
+    }).returning();
+    await db.insert(userPermissionAssignments).values({
+      organizationId: orgs[0].id,
+      userOrganizationId: memberships[3].id,
+      permissionSetId: restrictedPermissions.id,
+    });
     assert.equal((await authorizeEmployeeVault({ id: actorRows[0].id }, orgs[0].id, staff[0].id)).ok, true);
     assert.equal((await authorizeEmployeeVault({ id: actorRows[0].id }, orgs[1].id, staff[2].id)).ok, false,
       "No membership in other employer");
     assert.equal((await authorizeEmployeeVault({ id: actorRows[1].id }, orgs[0].id, staff[0].id)).ok, false,
       "Bookkeeper must be denied");
+    assert.equal((await authorizeEmployeeVault({ id: actorRows[3].id }, orgs[0].id, staff[0].id)).ok, false,
+      "HR with a custom permission-set denying People administration must be denied");
     assert.equal((await authorizeEmployeeVault({ id: actorRows[2].id, employeeId: staff[0].id },
       orgs[0].id, staff[1].id)).ok, false, "Employee cannot see a colleague's vault");
 
