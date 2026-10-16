@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {spawnSync} from "node:child_process";
 import {readFileSync} from "node:fs";
 import {regressionFiles} from "../scripts/run-sharded-tests.mjs";
 import {proveCoverage} from "../scripts/qa/verify-audit-0109-shard-plan.mjs";
@@ -39,21 +40,19 @@ test("reporter keeps TAP logs private and aborts on failures",()=>{
  }
  assert.doesNotMatch(src,/console\.log\(log\)|writeFileSync\([^,]+,\s*log\s*\)/);
 });
-test("required CI regression shards apply guarded 0109 before the test inventory",()=>{
- const yaml=readFileSync(new URL("../.github/workflows/ci.yml",import.meta.url),"utf8")
-  .replace(/\r\n?/g,"\n");
- const start=yaml.indexOf("\n  test-shard:\n");
- const end=yaml.indexOf("\n  check:\n",start);
- assert.ok(start>=0 && end>start,"CI regression shard job is missing");
- const shard=yaml.slice(start,end);
- const bootstrap=shard.indexOf("- name: Apply disposable PostgreSQL schema");
- const protect=shard.indexOf("- name: Apply 0109 audit protection in disposable regression shard");
- const execute=shard.indexOf("- name: Execute complete regression inventory shard");
- assert.ok(bootstrap>=0 && bootstrap<protect && protect<execute,
-  "0109 must run after disposable db:push and before the complete test inventory");
- const step=shard.slice(protect,execute);
- assert.match(step,/run:\s*node scripts\/qa\/apply-audit-0109-isolated\.mjs/);
- assert.match(step,/PAYMONGO_DISBURSEMENTS_ENABLED:\s*"false"/);
- assert.match(step,/XENDIT_PAYOUTS_ENABLED:\s*"false"/);
- assert.doesNotMatch(step,/continue-on-error:\s*true/);
+test("required-shard audit installer refuses non-CI, external and payout-enabled contexts before connecting",()=>{
+ const base={PATH:process.env.PATH,SystemRoot:process.env.SystemRoot,
+  GITHUB_ACTIONS:"true",CI:"true",
+  DATABASE_URL:"postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+  PAYMONGO_DISBURSEMENTS_ENABLED:"false",XENDIT_PAYOUTS_ENABLED:"false"};
+ for(const change of [{GITHUB_ACTIONS:"false"},{CI:"false"},
+  {DATABASE_URL:"postgresql://fictional:unused@example.invalid/unapproved"},
+  {PAYMONGO_DISBURSEMENTS_ENABLED:"true"},{XENDIT_PAYOUTS_ENABLED:"true"}]){
+  const child=spawnSync(process.execPath,["scripts/qa/apply-audit-0109-isolated.mjs"],{
+   env:{...base,...change},encoding:"utf8",timeout:5000,windowsHide:true});
+  assert.equal(child.error,undefined);
+  assert.equal(child.status,1);
+  assert.match(child.stderr,/AssertionError/);
+  assert.equal(child.stdout,"");
+ }
 });
