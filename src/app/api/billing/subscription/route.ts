@@ -48,6 +48,7 @@ export async function GET(request: Request) {
       billingCycle: sub.billingCycle,
       provider: sub.provider,
       paidThrough: accessUntil,
+      trialEndsAt: sub.trialEndsAt,
       cancelAtPeriodEnd: state?.cancelAtPeriodEnd ?? false,
       recoveryUrl: state?.recoveryUrl ?? null,
       activeAccess: sub.provider === "xendit" && accessUntil
