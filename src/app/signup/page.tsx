@@ -47,7 +47,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
           </p>
           <div className="mt-6 grid gap-3 text-[14px] text-[#2B2F45]">
             {(isPilot
-              ? ["One signup form for every new company", "Email verification before owner access", "10 Core employee seats during the pilot", "Use fictional/test data only; no real payroll or bank records"]
+              ? ["One signup form for every new company", "Email verification or private invitation before owner access", "10 Core employee seats during the pilot", "Use fictional/test data only; no real payroll or bank records"]
               : ["Separate company and employee records", "Verified owner email", "Role-based company permissions", "No card details on this form"]
             ).map((line) => (
               <p key={line} className="flex gap-2"><Check size={17} className="mt-0.5 shrink-0 text-[#13805c]" />{line}</p>
