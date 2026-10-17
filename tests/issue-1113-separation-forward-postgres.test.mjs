@@ -72,7 +72,7 @@ test('#1113: actual old-schema Drizzle failure, 18-column repair, money/tenancy/
     const before=(await db.query('SELECT to_jsonb(s) AS row FROM separation_records s ORDER BY id')).rows;
     const orm=drizzle(db);
     await db.query('SAVEPOINT missing_select');
-    try {await assert.rejects(()=>orm.select().from(separationRecords).where(eq(separationRecords.organizationId,orgs[0])),e=>(e.cause?.code??e.code)==='42703');}
+    try {await assert.rejects(async()=>await orm.select().from(separationRecords).where(eq(separationRecords.organizationId,orgs[0])),e=>(e.cause?.code??e.code)==='42703');}
     finally {await db.query('ROLLBACK TO SAVEPOINT missing_select');await db.query('RELEASE SAVEPOINT missing_select');}
 
     const probes=[
