@@ -63,10 +63,17 @@ not inferred from these documentation files.
 - Dedicated GitHub workflow provisions isolated PostgreSQL **16 and 18**,
   performs one guarded, stable `npm run db:push` from the current
   `src/db/schema.ts`, then captures the fresh `pg_catalog` baseline.
-- The runner uses the existing TypeScript-AST/Drizzle schema manifest and
-  full-schema catalog comparator to compare every candidate's **table,
-  column type/nullability/default, named foreign key and delete action,
-  check, unique constraint, primary key and index** with the fresh push.
+- The runner uses the TypeScript-AST/Drizzle manifest for the full 23-table
+  inventory and FK dependency checks. Candidate acceptance is based on
+  **exact PostgreSQL catalog row equality** with the fresh Drizzle push:
+  table, column type/nullability/default, named FK and delete action, check,
+  unique constraint, primary key, index and predicate metadata.
+- The repository's separate manifest comparator presently reports equivalent
+  PostgreSQL deparser renderings as DRIFT for 19 check/predicate objects
+  *on the untouched fresh push itself*. These are logged as baseline
+  diagnostics, not used to excuse any candidate/catalog difference.
+  The exact catalog comparison remains strict, including check expressions,
+  partial-index predicates and non-validated constraints.
 - For every group, it drops only the named targets inside a
   **ROLLBACK-only transaction**, refuses unforeseen external FK dependents,
   applies its literal DDL (except stripping top-level BEGIN/COMMIT wrappers
