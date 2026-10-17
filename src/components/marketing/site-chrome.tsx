@@ -181,7 +181,7 @@ export function SiteNav() {
           ))}
           <Link href="/payroll-outsourcing">Payroll outsourcing</Link>
           <Link href="/pricing">Pricing</Link>
-          <Link href="/signup">Sign up / request access</Link>
+          <Link href="/signup">Create an account</Link>
           <div className="ln-mobile-actions">
             <Link href="/login">Sign in</Link>
             <Link href="/demo">Try demo</Link>
