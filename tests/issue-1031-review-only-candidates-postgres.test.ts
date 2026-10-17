@@ -69,7 +69,7 @@ function dropOrder(names: readonly string[], manifest: SchemaManifest): string[]
 function meaningfulDrift(manifest: SchemaManifest, rows: CatalogRow[]): string[] {
   return diffSchema(manifest, rows).filter(row => row.status !== "PASS")
     .map(row => [row.table, row.kind, row.object, row.status,
-      JSON.stringify(row.expected), JSON.stringify(row.observed)].join(" | "));
+      JSON.stringify(row.expected), JSON.stringify(row.actual)].join(" | "));
 }
 
 test("#1031 review candidates: exact fresh-push PostgreSQL catalog parity (19 legacy + four new)", {
