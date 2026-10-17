@@ -1,0 +1,63 @@
+name: Audit role isolation real-login acceptance (synthetic only)
+on:
+  pull_request:
+    paths:
+      - "docs/sql/issue908-audit-trigger-boundary-REVIEW_ONLY.sql"
+      - "docs/sql/issue908-missing-foundation-REVIEW_ONLY.sql"
+      - "src/lib/audit-role-proof.ts"
+      - "src/lib/audit-chain.ts"
+      - "src/lib/audit-sealer-connection.ts"
+      - "src/lib/audit-chain-protection-readiness.ts"
+      - "src/lib/critical-release-flags.ts"
+      - "tests/audit-role-proof.test.ts"
+      - "tests/audit-sealer-connection.test.ts"
+      - "tests/audit-role-isolation-postgres.test.mjs"
+      - ".github/workflows/audit-role-isolation-acceptance.yml"
+permissions:
+  contents: read
+concurrency:
+  group: audit-role-isolation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  privileges:
+    name: audit-role-isolation (PG${{ matrix.postgres }}, ${{ matrix.foundation }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: [16, 18]
+        foundation: [legacy-0109, forward-candidate]
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      ISSUE908_ACCEPTANCE_MODE: isolated-ci-only
+      ISSUE908_FOUNDATION_CANDIDATE: ${{ matrix.foundation == 'forward-candidate' && 'true' || 'false' }}
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/neondb
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: neondb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d neondb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx tsx --test tests/audit-role-proof.test.ts tests/audit-sealer-connection.test.ts
+      - run: node --import tsx --test tests/audit-role-isolation-postgres.test.mjs

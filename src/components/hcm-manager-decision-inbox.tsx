@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   ArrowLeft, ArrowRight, CalendarDays, CheckSquare2,
   Clock3, FileCheck2, LockKeyhole, RefreshCw, ShieldCheck,
@@ -10,6 +10,7 @@ import {
 import type {
   DecisionSource, ManagerDecisionPage, ManagerDecisionItem,
 } from "@/lib/hcm-manager-decision-contract";
+import { nextManagerDecisionTab } from "@/lib/hcm-manager-decision-tabs";
 
 const SOURCES: Array<{
   key: DecisionSource; label: string; hint: string;
@@ -18,6 +19,7 @@ const SOURCES: Array<{
   { key: "leave", label: "Leave", hint: "Linked leave approval tasks" },
   { key: "overtime", label: "Overtime", hint: "Linked overtime approval tasks" },
 ];
+const SOURCE_ORDER = SOURCES.map((option) => option.key);
 type LoadState = {
   key: string;
   status: "ready" | "error";
@@ -114,6 +116,16 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
     setCursors([null]);
   }
 
+  function handleSourceKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    const next = nextManagerDecisionTab(source, event.key, SOURCE_ORDER);
+    if (next === null) return; // Preserve Tab, Shift+Tab and vertical scrolling.
+    event.preventDefault();
+    if (next !== source) changeSource(next);
+    event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(
+      `[id="manager-decision-tab-${next}"]`,
+    )?.focus();
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 px-4 pb-16 pt-6 text-slate-900 sm:px-8">
       <div className="mx-auto max-w-6xl">
@@ -170,6 +182,8 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
               id={"manager-decision-tab-" + option.key}
               aria-selected={source === option.key}
               aria-controls="manager-decision-results"
+              tabIndex={source === option.key ? 0 : -1}
+              onKeyDown={handleSourceKeyDown}
               onClick={() => changeSource(option.key)}
               className={"min-h-16 rounded-lg px-4 py-3 text-left transition-colors " +
                 (source === option.key

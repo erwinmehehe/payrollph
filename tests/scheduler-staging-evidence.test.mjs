@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   InvalidEvidence, readEvidenceFile, validateEvidence, validateEvidenceFile,
 } from '../scripts/validate-scheduler-staging-evidence.mjs';
+import { symlinkSkip } from './helpers/symlink-capability.mjs';
 
 const scriptPath = fileURLToPath(new URL('../scripts/validate-scheduler-staging-evidence.mjs', import.meta.url));
 const sha = 'a'.repeat(40);
@@ -88,7 +89,7 @@ test('unknown fields cannot smuggle secrets or employee records into evidence ma
   const person = good(); person.observations[0].employeeName='private-person';
   errorCode(person,'INVALID_OBSERVATION_SCHEMA');
 });
-test('bounded regular-file reader and CLI emit no input JSON', () => {
+test('bounded regular-file reader and CLI emit no input JSON', { skip: symlinkSkip }, () => {
   const folder=mkdtempSync(join(tmpdir(),'scheduler-evidence-'));
   const accepted=join(folder,'good.json');
   const oversized=join(folder,'oversized.json');

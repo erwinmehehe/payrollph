@@ -3,6 +3,24 @@ on:
   pull_request:
     paths:
       - 'src/lib/final-pay*'
+      - 'src/lib/payroll-engine.ts'
+      - 'src/lib/payroll-money.ts'
+      - 'src/lib/payroll-mandatory-shortfall.ts'
+      - 'src/lib/payroll-assurance*.ts'
+      - 'src/lib/payroll-retro-statutory-source-period.ts'
+      - 'src/lib/payroll-m10-*.ts'
+      - 'src/lib/payroll-rules.ts'
+      - 'src/lib/ph-statutory-rule-packs.ts'
+      - 'src/lib/pay-basis.ts'
+      - 'src/lib/payroll-release-checklist.ts'
+      - 'src/lib/payroll-release-segregation.ts'
+      - 'tests/final-pay-shortfall-evidence.test.ts'
+      - 'tests/payroll-mandatory-shortfall*.test.ts'
+      - 'tests/payroll-assurance.test.ts'
+      - 'tests/payroll-retro-statutory-source-period.test.ts'
+      - 'tests/payroll-m10-*.test.ts'
+      - 'tests/payroll-release-checklist.test.ts'
+      - 'tests/payroll-release-segregation.test.ts'
       - 'src/lib/thirteenth-month-centavos.ts'
       - 'src/lib/ph-compliance.ts'
       - 'src/lib/year-end.ts'
@@ -55,7 +73,21 @@ jobs:
           done
       - run: npm run db:push
       - name: Execute real migration rollback, rounding and financial-source behavior
-        run: npx tsx --test tests/prior-evidence-migration-rehearsal.test.ts tests/money-closes.test.ts tests/a3-money-path-centavos.test.ts tests/hcm-final-pay-source-transaction.test.ts
+        run: |
+          npx tsx --test \
+            tests/prior-evidence-migration-rehearsal.test.ts \
+            tests/money-closes.test.ts \
+            tests/a3-money-path-centavos.test.ts \
+            tests/hcm-final-pay-source-transaction.test.ts \
+            tests/final-pay-shortfall-evidence.test.ts \
+            tests/payroll-mandatory-shortfall.test.ts \
+            tests/payroll-mandatory-shortfall-integration.test.ts \
+            tests/payroll-assurance.test.ts \
+            tests/payroll-retro-statutory-source-period.test.ts \
+            tests/payroll-m10-readonly-review.test.ts \
+            tests/payroll-m10-centavo-evidence.test.ts \
+            tests/payroll-release-checklist.test.ts \
+            tests/payroll-release-segregation.test.ts
       - name: Golden payroll with both new flags ON (normal CI proves OFF)
         env:
           EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'true'

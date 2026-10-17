@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/lib/reviewed-migration-runner.mjs"
+      - "scripts/lib/reviewed-migration-control-ledger.mjs"
       - "scripts/lib/historical-catalog-gate.mjs"
       - "scripts/lib/schema-lineage-preflight.mjs"
       - "scripts/lib/database-generation-fingerprint.mjs"
@@ -19,6 +20,7 @@ on:
     branches: [main]
     paths:
       - "scripts/lib/reviewed-migration-runner.mjs"
+      - "scripts/lib/reviewed-migration-control-ledger.mjs"
       - "scripts/lib/historical-catalog-gate.mjs"
       - "scripts/lib/schema-lineage-preflight.mjs"
       - "scripts/lib/database-generation-fingerprint.mjs"
@@ -71,6 +73,7 @@ jobs:
       - name: Check Node module syntax and pure migration decision tests
         run: |
           node --check scripts/lib/reviewed-migration-runner.mjs
+          node --check scripts/lib/reviewed-migration-control-ledger.mjs
           node --check scripts/lib/historical-catalog-gate.mjs
           node --check tests/historical-catalog-gate.test.mjs
           node --check scripts/lib/schema-lineage-preflight.mjs

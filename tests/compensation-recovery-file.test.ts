@@ -7,6 +7,7 @@ import {
   MAX_COMPENSATION_RECOVERY_APPROVAL_BYTES,
   readSignedCompensationRecoveryApprovalFile,
 } from "../scripts/read-compensation-recovery-approval";
+import { symlinkSkip } from "./helpers/symlink-capability.mjs";
 
 function inScratch(testCase: (dir: string) => void) {
   const root = mkdtempSync(join(tmpdir(), "payrollph-recovery-approval-"));
@@ -40,28 +41,20 @@ test("rejects empty and non-JSON approval files", () => {
   });
 });
 
-test("rejects final-component symlinks", (t) => {
+test("rejects final-component symlinks (never skipped in CI)", { skip: symlinkSkip }, () => {
   inScratch((dir) => {
     const source = join(dir, "source.json");
     const link = join(dir, "link.json");
     writeFileSync(source, "{}");
-    try {
-      symlinkSync(source, link);
-    } catch (error) {
-      if (process.platform === "win32" &&
-          ["EPERM", "EACCES", "ENOTSUP", "EOPNOTSUPP"].includes(
-            (error as NodeJS.ErrnoException).code ?? "",
-          )) {
-        t.skip("Windows symlink privileges are unavailable for this fixture");
-        return;
-      }
-      throw error;
-    }
+    // The imported capability probe allows local Windows without symlink
+    // privileges to skip, but in CI it NEVER skips: inability to create a
+    // symlink is a real security-regression test failure, not a silent pass.
+    symlinkSync(source, link);
     assert.throws(() => readSignedCompensationRecoveryApprovalFile(link));
   });
 });
 
-test("rejects directories independently of symlink support", () => {
+test("rejects directories even where local symlink creation is unavailable", () => {
   inScratch((dir) => {
     assert.throws(() => readSignedCompensationRecoveryApprovalFile(dir), /regular file/);
   });

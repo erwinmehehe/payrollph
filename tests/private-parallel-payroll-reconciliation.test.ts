@@ -13,6 +13,7 @@ import {
   type ParallelCycle,
   type ParallelReconciliationManifest,
 } from "../src/lib/private-parallel-payroll-reconciliation";
+import { symlinkSkip } from "./helpers/symlink-capability.mjs";
 
 type SourceName = "incumbentPayroll" | "linawPayroll" | "incumbentJournal" | "linawJournal";
 const EMPLOYER = "PH-EMPLOYER-STRICT-01";
@@ -197,7 +198,7 @@ test("stale hashes, missing proof and absolute or escaping paths are rejected", 
   });
 });
 
-test("symlink escapes outside the private root are blocked", () => {
+test("symlink escapes outside the private root are blocked", { skip: symlinkSkip }, () => {
   withFixture((root, manifest) => {
     const outside = mkdtempSync(join(tmpdir(), "parallel-external-source-"));
     try {
