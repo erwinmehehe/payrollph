@@ -4,7 +4,7 @@ import { DEMO_MODE } from "@/db/seed";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { AuthScreen } from "@/components/auth-screen";
-import { publicSelfServeReady } from "@/lib/saas-launch-config";
+import { publicSignupReady } from "@/lib/saas-launch-config";
 import { SiteNav } from "@/components/marketing/site-chrome";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +45,7 @@ export default async function LoginPage({
       <AuthScreen
         demoMode={DEMO_MODE}
         setupAvailable={setupAvailable}
-        registrationAvailable={publicSelfServeReady()}
+        registrationAvailable={publicSignupReady()}
         initialError={initialError || (accountStatusUnavailable ? "We couldn't check workspace availability. You can try signing in, or retry later if the service is unavailable." : "")}
       />
     </div>
