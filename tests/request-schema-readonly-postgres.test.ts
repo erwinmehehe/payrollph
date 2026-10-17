@@ -113,7 +113,7 @@ test("PostgreSQL 16 catalog audits all six additional request-schema writers aft
             "WHERE t.relname='marketing_leads' AND a.attnum>0 AND NOT a.attisdropped ORDER BY a.attnum",
           );
           console.error("Synthetic marketing catalog mismatch:", JSON.stringify({
-            indexKeys: indexKeys.rows, columns: columns.rows,
+            indexDDL: indexes.rows, indexKeys: indexKeys.rows, columns: columns.rows,
             constraints: constraints.rows,
             expectedIndexKeys: marketingLeadSchemaSpec.indexes,
           }));

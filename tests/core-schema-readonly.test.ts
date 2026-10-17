@@ -78,14 +78,57 @@ function fixture(overrides: {
   return { query, calls };
 }
 
-test("default legacy behavior remains until DBA-approved read-only switch", () => {
-  assert.equal(coreSchemaCompatibilityMode(undefined), "legacy");
-  assert.equal(coreSchemaCompatibilityMode("legacy"), "legacy");
-  assert.equal(coreSchemaCompatibilityMode("read-only"), "read-only");
-  for (const value of ["", "readOnly", "READ-ONLY", "apply", "repair", "off", " true "]) {
-    assert.throws(() => coreSchemaCompatibilityMode(value),
-      /Invalid CORE_SCHEMA_COMPATIBILITY_MODE/);
+test("normal runtime defaults to read-only and rejects legacy regardless of env override", () => {
+  const deployed: NodeJS.ProcessEnv = {
+    NODE_ENV: "production",
+    DATABASE_URL: "postgresql://app@remote.example:5432/payroll",
+    VERCEL: "1",
+  };
+  assert.equal(coreSchemaCompatibilityMode(undefined, deployed), "read-only");
+  assert.equal(coreSchemaCompatibilityMode("read-only", deployed), "read-only");
+  for (const value of ["legacy", "", "readOnly", "READ-ONLY", "apply", "repair", "off", " true "]) {
+    assert.throws(() => coreSchemaCompatibilityMode(value, deployed),
+      /CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN/);
   }
+});
+
+test("only a disposable GitHub-hosted local PostgreSQL fixture may retain legacy setup", () => {
+  const fixture: NodeJS.ProcessEnv = {
+    NODE_ENV: "production", CI: "true", GITHUB_ACTIONS: "true",
+    GITHUB_REPOSITORY: "erwinmehehe/payrollph", RUNNER_ENVIRONMENT: "github-hosted",
+    DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+  };
+  assert.equal(coreSchemaCompatibilityMode(undefined, fixture), "legacy");
+  assert.equal(coreSchemaCompatibilityMode("legacy", fixture), "legacy");
+  assert.equal(coreSchemaCompatibilityMode("read-only", fixture), "read-only");
+  for (const change of [
+    { CI: "false" }, { GITHUB_ACTIONS: "false" }, { RUNNER_ENVIRONMENT: "self-hosted" },
+    { GITHUB_REPOSITORY: "other/payrollph" }, { VERCEL: "1" }, { VERCEL_ENV: "production" },
+    { DATABASE_URL: "postgresql://postgres:postgres@neon.example:5432/app_db" },
+    { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:6543/app_db" },
+    { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/neondb" },
+    { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db?sslmode=disable" },
+    { DATABASE_URL: "" },
+  ]) {
+    const env = { ...fixture, ...change };
+    assert.equal(coreSchemaCompatibilityMode(undefined, env), "read-only", JSON.stringify(change));
+    assert.throws(() => coreSchemaCompatibilityMode("legacy", env),
+      /CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN/, JSON.stringify(change));
+  }
+});
+
+test("all retained core CREATE TABLE targets have canonical Drizzle declarations", () => {
+  // Name-level guard only: catalog/index/FK parity and deployment receipts
+  // remain separate DBA checks. Legacy SQL must not be run by requests.
+  const legacy = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  const created = [...legacy.matchAll(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+"?([a-z_][a-z0-9_]*)"?\s*\(/gi)]
+    .map(match => match[1]);
+  const declared = new Set([...schema.matchAll(/pgTable\(\s*"([a-z_][a-z0-9_]*)"/gi)]
+    .map(match => match[1]));
+  assert.ok(created.length >= 50, "must inspect the whole historical core creator");
+  assert.deepEqual(created.filter(name => !declared.has(name)), [],
+    "historical core table identifiers cannot drift beyond src/db/schema.ts");
 });
 
 test("read-only catalog preconditions pass with all required release structures, never mutate", async () => {
