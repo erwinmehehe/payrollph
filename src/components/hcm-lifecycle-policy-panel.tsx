@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, History, RefreshCw, Save, Settings2, ShieldCheck } from "lucide-react";
 
 type Policy = {
@@ -36,7 +36,14 @@ function csvNumbers(value: string) {
   return value.split(",").map((part) => Number(part.trim())).filter((value) => Number.isFinite(value));
 }
 
-export function HcmLifecyclePolicyPanel({ organizationId }: { organizationId: number }) {
+type HcmLifecyclePolicyProps = { organizationId: number };
+
+// A new legal employer never inherits a previous policy version or edit draft.
+export function HcmLifecyclePolicyPanel(props: HcmLifecyclePolicyProps) {
+  return <ScopedHcmLifecyclePolicyPanel key={props.organizationId} {...props} />;
+}
+
+function ScopedHcmLifecyclePolicyPanel({ organizationId }: HcmLifecyclePolicyProps) {
   const [payload, setPayload] = useState<PolicyPayload | null>(null);
   const [form, setForm] = useState({
     actionWindowDays: "30",
@@ -51,14 +58,29 @@ export function HcmLifecyclePolicyPanel({ organizationId }: { organizationId: nu
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  const mountedRef = useRef(false);
+  const requestRevisionRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
+
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    const revision = ++requestRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === requestRevisionRef.current;
+    // A refresh can revoke policy management; hide stale policy and edit controls.
+    setPayload(null);
+    setEditing(false);
     setError("");
     try {
       const response = await fetch(
         `/api/hcm/lifecycle-policy?organizationId=${organizationId}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal: controller.signal },
       );
       const body = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(body.error ?? "Could not load lifecycle policy.");
       const next = body as PolicyPayload;
       setPayload(next);
@@ -71,12 +93,20 @@ export function HcmLifecyclePolicyPanel({ organizationId }: { organizationId: nu
         requireNonRenewalAttachment: next.policy.requireNonRenewalAttachment,
       });
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load lifecycle policy.");
+      if (isCurrent()) setError(loadError instanceof Error ? loadError.message : "Could not load lifecycle policy.");
     }
   }, [organizationId]);
 
   useEffect(() => {
-    void load();
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      requestRevisionRef.current += 1;
+      requestControllerRef.current?.abort();
+    };
   }, [load]);
 
   async function save(event: React.FormEvent) {
@@ -101,14 +131,15 @@ export function HcmLifecyclePolicyPanel({ organizationId }: { organizationId: nu
         }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(body.error ?? "Lifecycle policy could not be saved.");
       setNotice("Lifecycle policy saved. Readiness, reminders, and future approvals now use this version.");
       setEditing(false);
       await load();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Lifecycle policy could not be saved.");
+      if (mountedRef.current) setError(saveError instanceof Error ? saveError.message : "Lifecycle policy could not be saved.");
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   }
 
