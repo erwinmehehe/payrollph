@@ -16,6 +16,7 @@ import {
   Clock3,
 } from "lucide-react";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
+import { parseTreasuryExportStatus, treasuryExportPermissions, treasuryExportScope, visibleTreasuryExportStatus, type ScopedTreasuryExportStatus } from "@/lib/treasury-export-visibility";
 import { FilingEvidencePanel } from "./filing-evidence";
 import { EntityBadge } from "./multi-entity-ui";
 import { XenditPayoutPanel } from "./xendit-payout-panel";
@@ -64,7 +65,7 @@ export function ExportsView({
   const [submittingPayout, setSubmittingPayout] = useState(false);
   const [reconcilingPayout, setReconcilingPayout] = useState(false);
   const [retryingFailedPayouts, setRetryingFailedPayouts] = useState(false);
-  const [treasuryStatus, setTreasuryStatus] = useState<{ enabled: boolean; assigned: boolean } | null>(null);
+  const [treasuryObservation, setTreasuryObservation] = useState<ScopedTreasuryExportStatus | null>(null);
 
   const run = runs.find((item) => item.id === runId) ?? runs[0];
   const organizationId = data.selectedOrganization.id;
@@ -72,14 +73,17 @@ export function ExportsView({
   const payoutState = run ? derivePayrollPayoutState(data.auditEvents, run.id) : null;
   const bookkeeperMode = data.access?.role === "bookkeeper";
   const treasuryStatusEligible = ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "");
-  const canRecordManualPayout = treasuryStatus
-    ? treasuryStatus.enabled ? treasuryStatus.assigned : data.access?.role === "owner"
-    : data.access?.role === "owner";
-  const canGenerateLiveBankFile = treasuryStatus
-    ? treasuryStatus.enabled
-      ? treasuryStatus.assigned
-      : ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "")
-    : ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "");
+  const treasuryScope = treasuryExportScope({
+    organizationId,
+    userId: data.user?.id ?? null,
+    role: data.access?.role ?? null,
+    companyWide: data.access?.companyWide === true,
+  });
+  // During a role/employer switch, a prior user's authorization must never
+  // enable controls while the current scope's status is unresolved.
+  const treasuryStatus = visibleTreasuryExportStatus(treasuryScope, treasuryStatusEligible, treasuryObservation);
+  const { canRecordManualPayout, canGenerateLiveBankFile } =
+    treasuryExportPermissions(data.access?.role ?? null, treasuryStatus);
 
   const expectedPayoutCents = Math.round(Number(run?.netPay ?? 0) * 100);
   const payoutTransfers = payoutState?.reconciliation.transfers ?? [];
@@ -100,23 +104,26 @@ export function ExportsView({
   const employeeByNo = new Map(data.employees.map((employee) => [employee.employeeNo, employee]));
 
   useEffect(() => {
-    if (!treasuryStatusEligible) {
-      setTreasuryStatus({ enabled: false, assigned: false });
-      return;
-    }
-    let cancelled = false;
-    void fetch(`/api/treasury-controls?organizationId=${organizationId}&view=current-user`, { cache: "no-store" })
+    if (!treasuryStatusEligible) return;
+    let active = true;
+    const controller = new AbortController();
+    void fetch(`/api/treasury-controls?organizationId=${organizationId}&view=current-user`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
       .then(async (response) => {
-        const payload = await response.json().catch(() => ({}));
-        if (cancelled || !response.ok) return;
-        setTreasuryStatus({
-          enabled: Boolean(payload.policy?.enabled),
-          assigned: Boolean(payload.currentUserAssigned),
-        });
+        if (!response.ok) return null;
+        return parseTreasuryExportStatus(await response.json().catch(() => null));
       })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [organizationId, treasuryStatusEligible]);
+      .then((status) => {
+        if (active && status) setTreasuryObservation({ scope: treasuryScope, status });
+      })
+      .catch(() => {
+        // An unverified response must never grant access; the API remains
+        // authoritative for all payout and export writes.
+      });
+    return () => { active = false; controller.abort(); };
+  }, [organizationId, treasuryScope, treasuryStatusEligible]);
 
   async function download(url: string, label: string) {
     setExporting(label);
