@@ -1,20 +1,10 @@
 {
-  "src/components/approval-chain-admin.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/automation-studio-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
   },
   "src/components/compensation-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/dynamic-worker-groups-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
