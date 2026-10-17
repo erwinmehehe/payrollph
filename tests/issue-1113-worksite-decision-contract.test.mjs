@@ -40,7 +40,7 @@ test("#1113 PostgreSQL rehearsal is guarded to isolated CI, records rollback and
   const workflow = readFileSync(".github/workflows/issue-1113-worksite-forward-qa.yml", "utf8");
   const pgTest = readFileSync("tests/issue-1113-worksite-decision-postgres.test.mjs", "utf8");
   const doc = readFileSync("docs/engineering/issue-1113-worksite-decision-plan.md", "utf8");
-  assert.match(workflow, /postgres: \$\{\{ matrix\.postgres \}\}/);
+  assert.match(workflow, /services:\s*postgres:\s*image:\s*postgres:\$\{\{ matrix\.postgres \}\}/);
   assert.match(workflow, /postgres: \["16", "18"\]/);
   assert.match(workflow, /MIGRATION_REHEARSAL_MODE: isolated-ci-only/);
   assert.match(workflow, /ISSUE_1113_REHEARSAL: isolated-ci-only/);
