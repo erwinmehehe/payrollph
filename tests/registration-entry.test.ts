@@ -27,8 +27,10 @@ test("pilot registration is independently gated by email delivery and HTTPS base
   assert.equal(signupMode({ ...base, PUBLIC_SIGNUP_MODE: "unknown" }), "disabled");
   assert.equal(signupMode({ ...base, APP_BASE_URL: "http://localhost:3000", PUBLIC_SIGNUP_MODE: "pilot" }), "disabled");
   assert.equal(signupMode({ NODE_ENV: "production", APP_BASE_URL: "https://payrollsoftware.ph", PUBLIC_SIGNUP_MODE: "pilot" }), "disabled");
-  assert.equal(signupMode({ ...base, PUBLIC_SIGNUP_MODE: "paid", XENDIT_BILLING_ENABLED: "true",
-    XENDIT_SECRET_KEY: "test", XENDIT_CALLBACK_TOKEN: "test", XENDIT_BUSINESS_ID: "test" }), "paid");
+  const billed = { ...base, PUBLIC_SIGNUP_MODE: "paid", XENDIT_BILLING_ENABLED: "true",
+    XENDIT_SECRET_KEY: "test", XENDIT_CALLBACK_TOKEN: "test", XENDIT_BUSINESS_ID: "test" } as const;
+  assert.equal(signupMode(billed), "disabled", "Xendit alone cannot bypass signed-off self-service launch");
+  assert.equal(signupMode({ ...billed, SELF_SERVE_SIGNUP_ENABLED: "true" }), "paid");
 });
 
 test("pilot API creates trial entitlements and ignores user-submitted billing prices", () => {
