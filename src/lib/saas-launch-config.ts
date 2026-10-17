@@ -12,7 +12,10 @@ export function signupMode(env: NodeJS.ProcessEnv = process.env): SignupMode {
     || env.NODE_ENV !== "production";
   if (!hasCanonicalUrl || !deliveryCapable(env)) return "disabled";
   if (env.PUBLIC_SIGNUP_MODE === "pilot") return "pilot";
-  if (env.PUBLIC_SIGNUP_MODE === "paid" && recurringBillingReady(env)) return "paid";
+  // Retain the independent go-live approval flag for paid enrollment.
+  if (env.PUBLIC_SIGNUP_MODE === "paid"
+    && env.SELF_SERVE_SIGNUP_ENABLED === "true"
+    && recurringBillingReady(env)) return "paid";
   return "disabled";
 }
 
