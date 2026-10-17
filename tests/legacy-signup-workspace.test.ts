@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { legacySignupTableFallback } from "../src/lib/saas-workspace-access";
 
-test("unmigrated private-pilot tenants may continue only when self-serve is disabled", () => {
+test("unmigrated private-pilot tenants may continue only when new signup is disabled", () => {
   assert.equal(legacySignupTableFallback(false), false);
   assert.throws(
     () => legacySignupTableFallback(true),
@@ -15,7 +15,7 @@ test("the legacy schema fallback is a read-only existence probe, not an automati
   const source = readFileSync("src/lib/saas-workspace-access.ts", "utf8");
   assert.ok(source.includes("to_regclass('public.saas_signup_verifications')"));
   assert.ok(source.includes("publicSelfServeReady()"));
-  assert.ok(source.includes("legacySignupTableFallback(publicSelfServeReady())"));
+  assert.ok(source.includes("legacySignupTableFallback(publicSignupReady())"));
   assert.ok(source.includes("from(saasSignupVerifications)"));
   assert.ok(!source.includes("CREATE TABLE"));
   assert.ok(!source.includes("DROP TABLE"));
@@ -38,7 +38,7 @@ test("app server uses the shared gate, preserving billing redirects for subscrib
   assert.ok(!page.includes("db.select({ organizationId: saasSignupVerifications.organizationId })"));
 });
 
-test("authoritative paid-write service remains gated for real self-serve employers", () => {
+test("authoritative write service stays gated for self-serve pilot and paid employers", () => {
   const source = readFileSync("src/lib/saas-workspace-access.ts", "utf8");
   assert.ok(source.includes("if (!(await isSelfServeOrganization(organizationId))) return null;"));
   assert.ok(source.includes("if (entitlements.active) return null;"));
