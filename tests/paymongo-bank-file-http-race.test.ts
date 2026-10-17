@@ -77,6 +77,7 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
     };
     const providerFirst = await newRun("Provider wins first");
     const bankFirst = await newRun("Bank file wins first");
+    const walletParallel = await newRun("Different payroll shares wallet");
     const uncertain = await newRun("Provider acknowledgement lost");
     Object.assign(process.env, {
       PAYMONGO_SECRET_KEY: "sk_test_synthetic_http_only",
@@ -177,6 +178,7 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
     };
     await preflight(providerFirst.id);
     await preflight(bankFirst.id);
+    await preflight(walletParallel.id);
     await preflight(uncertain.id);
 
     // Provider wins. Hold the real PayMongo HTTP POST while GET attempts to
@@ -190,14 +192,27 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
     const firstSubmission = post(providerFirst.id, { confirm: true });
     await providerReached;
     try {
+      assert.equal((await post(providerFirst.id, { confirm: true })).status, 409,
+        "two concurrent POSTs for the same payroll must have exactly one winner");
+      assert.equal((await post(walletParallel.id, { confirm: true })).status, 502,
+        "another payroll cannot concurrently spend from the same PayMongo wallet");
       const blockedBank = await getBank(providerFirst.id);
       assert.equal(blockedBank.status, 409, "a bank file may not race a provider submit");
       assert.equal(bankGenerations, 0);
+      const pending = await db.select().from(auditEvents)
+        .where(eq(auditEvents.organizationId, org.id));
+      assert.equal(pending.filter((event) =>
+        event.action === "Payroll payout submission initiated via PayMongo"
+        && Number((event.metadata as Record<string, unknown>).runId) === walletParallel.id
+      ).length, 0, "losing the wallet lock never creates a false provider intent");
     } finally {
       releaseProvider();
     }
     assert.equal((await firstSubmission).status, 200);
     assert.equal(providerPostCount, 1);
+    assert.equal((await post(walletParallel.id, { confirm: true })).status, 200,
+      "a denied wallet contender may submit after the first sender completes");
+    assert.equal(providerPostCount, 2);
     const providerRetry = await post(providerFirst.id, { confirm: true });
     assert.equal(providerRetry.status, 409, "a completed HTTP request must not send salaries twice");
     assert.equal((await getBank(providerFirst.id)).status, 409);
@@ -216,25 +231,26 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
     await bankReached;
     try {
       assert.equal((await post(bankFirst.id, { confirm: true })).status, 409);
-      assert.equal(providerPostCount, 1, "bank-first overlap cannot contact PayMongo");
+      assert.equal(providerPostCount, 2, "bank-first overlap cannot contact PayMongo");
     } finally {
       releaseBank();
     }
     assert.equal((await firstBank).status, 200);
     assert.equal((await post(bankFirst.id, { confirm: true })).status, 409);
-    assert.equal(providerPostCount, 1);
+    assert.equal(providerPostCount, 2);
     assert.equal((await getBank(bankFirst.id)).status, 409, "final bank file is one-time");
 
     // Unknown provider acknowledgement: a recorded pre-POST submission intent
     // survives the HTTP 502 and blocks both retry and fallback bank generation.
     const timedOut = await post(uncertain.id, { confirm: true });
     assert.equal(timedOut.status, 502);
-    assert.equal(providerPostCount, 2);
+    assert.equal(providerPostCount, 3);
     assert.equal((await post(uncertain.id, { confirm: true })).status, 409);
     assert.equal((await getBank(uncertain.id)).status, 409);
-    assert.equal(providerPostCount, 2);
+    assert.equal(providerPostCount, 3);
     assert.deepEqual(postKeys, [
-      "payroll-run-" + providerFirst.id, "payroll-run-" + uncertain.id,
+      "payroll-run-" + providerFirst.id, "payroll-run-" + walletParallel.id,
+      "payroll-run-" + uncertain.id,
     ]);
     const events = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, org.id));
     const count = (id: number, action: string) => events.filter((event) =>
@@ -242,6 +258,7 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
         (event.metadata as Record<string, unknown> | null)?.runId,
       ) === id).length;
     assert.equal(count(providerFirst.id, "Payroll payout submission initiated via PayMongo"), 1);
+    assert.equal(count(walletParallel.id, "Payroll payout submission initiated via PayMongo"), 1);
     assert.equal(count(uncertain.id, "Payroll payout submission initiated via PayMongo"), 1);
     assert.equal(count(bankFirst.id, "bank export generated"), 1);
     assert.equal(count(bankFirst.id, "Payroll payout submission initiated via PayMongo"), 0);
