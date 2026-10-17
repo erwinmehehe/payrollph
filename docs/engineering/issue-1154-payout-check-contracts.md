@@ -2,7 +2,7 @@
 
 Source-only acceptance for five of group C's six raw catalog records. This
 does not resolve the separate missing entity-transfer unique constraint or
-the other 46 candidate-only objects. No production SQL or model changes.
+the other 45 candidate-only objects. No production SQL or model changes.
 
 | Table | Source model | Forward 0116 | Proposed disposition after successful exact-head PG16/18 |
 | --- | --- | --- | --- |
