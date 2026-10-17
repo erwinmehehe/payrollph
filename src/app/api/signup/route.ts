@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations, subscriptions, userOrganizations, users } from "@/db/schema";
 import { saasSignupVerifications } from "@/lib/saas-billing-schema";
-import { publicSelfServeReady } from "@/lib/saas-launch-config";
+import { signupMode } from "@/lib/saas-launch-config";
 import { isSellablePlan, safeSeats, subscriptionQuote } from "@/lib/saas-pricing";
 import { getPublicPricingPlans } from "@/lib/pricing-catalog";
 import { randomToken, sha256, hashPassword } from "@/lib/crypto";
@@ -19,8 +19,9 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const denied = enforceSameOriginMutation(request);
   if (denied) return denied;
-  if (!publicSelfServeReady()) {
-    return Response.json({ error: "Self-service registration is not enabled. Please request trial access." }, { status: 503 });
+  const mode = signupMode();
+  if (mode === "disabled") {
+    return Response.json({ error: "Company registration is temporarily unavailable. Please try again later." }, { status: 503 });
   }
   const ip = clientIp(request);
   const limited = await rateLimitDistributed("signup:" + ip, { limit: 4, windowMs: 60 * 60_000 });
@@ -31,17 +32,20 @@ export async function POST(request: Request) {
   const company = typeof body.company === "string" ? body.company.trim() : "";
   const email = normalizeEmail(body.email);
   const password = typeof body.password === "string" ? body.password : "";
-  const plan = body.plan;
-  const seats = safeSeats(body.seats);
+  // A pilot creates a temporary, non-billable Core workspace with 10 seats.
+  // Client-supplied paid plan and seats are ignored in this mode.
+  const isPilot = mode === "pilot";
+  const plan = isPilot ? "Core" : body.plan;
+  const seats = isPilot ? 10 : safeSeats(body.seats);
   const acceptTerms = body.acceptTerms === true;
   const problems = [
     ...(name.length < 2 || name.length > 120 ? ["Enter your full name (2–120 characters)."] : []),
     ...(company.length < 2 || company.length > 160 ? ["Enter a company name (2–160 characters)."] : []),
     ...(!validEmail(email) || email.length > 180 ? ["Enter a valid work email."] : []),
     ...passwordIssues(password),
-    ...(!isSellablePlan(plan) ? ["Choose a paid employer plan."] : []),
-    ...(!seats ? ["Choose between 1 and 2,000 employee seats."] : []),
-    ...(!acceptTerms ? ["Accept the subscription billing terms to continue."] : []),
+    ...(!isPilot && !isSellablePlan(plan) ? ["Choose a paid employer plan."] : []),
+    ...(!isPilot && !seats ? ["Choose between 1 and 2,000 employee seats."] : []),
+    ...(!acceptTerms ? [isPilot ? "Accept the pilot evaluation terms to continue." : "Accept the subscription billing terms to continue."] : []),
   ];
   if (problems.length) return Response.json({ error: "Check your registration details.", problems }, { status: 422 });
   const proofDenied = await enforceIntakeProof(body, email);
@@ -59,10 +63,16 @@ export async function POST(request: Request) {
 
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
   if (existing) return Response.json({ ok: true, message: "If the address is eligible, check your inbox for the verification link." }, { status: 202 });
-  const catalog = await getPublicPricingPlans();
-  const selected = catalog.find((row) => row.name === plan);
-  if (!selected || !seats) return Response.json({ error: "The selected plan is unavailable." }, { status: 422 });
-  const quote = subscriptionQuote(selected, seats);
+  let quote: { plan: string; seats: number; amountCents: number };
+  if (isPilot) {
+    quote = { plan: "Core", seats: 10, amountCents: 0 };
+  } else {
+    const catalog = await getPublicPricingPlans();
+    const selected = catalog.find((row) => row.name === plan && row.active);
+    if (!selected || !seats) return Response.json({ error: "The selected plan is unavailable." }, { status: 422 });
+    quote = subscriptionQuote(selected, seats);
+  }
+  const trialEndsAt = isPilot ? new Date(Date.now() + 14 * 86_400_000) : null;
   const token = randomToken(24);
   let created: { userId: number; organizationId: number } | null = null;
   try {
@@ -93,11 +103,14 @@ export async function POST(request: Request) {
       await tx.insert(subscriptions).values({
         organizationId: org.id,
         plan: quote.plan,
-        status: "pending_payment",
+        status: isPilot ? "trialing" : "pending_payment",
         seatLimit: quote.seats,
         billingCycle: "monthly",
         amountCents: quote.amountCents,
         currency: "PHP",
+        provider: isPilot ? "pilot" : null,
+        trialEndsAt,
+        periodStart: isPilot ? new Date() : null,
       });
       await tx.insert(saasSignupVerifications).values({
         organizationId: org.id,
@@ -123,7 +136,9 @@ export async function POST(request: Request) {
     purpose: "signup-email-verification",
     body: [
       "Verify your email address to activate your Linaw company login.",
-      "No payment has been collected, and no subscription is active yet.",
+      isPilot
+        ? "Your Core pilot workspace runs for 14 days with 10 employee seats. No card or payment is required. Use fictional/test data only."
+        : "No payment has been collected, and no subscription is active yet.",
       "",
       verificationUrl,
       "",
@@ -134,12 +149,15 @@ export async function POST(request: Request) {
   await recordAuditEvent({
     organizationId: created.organizationId,
     actor: name,
-    action: "Self-service owner signup requested",
+    action: "Company owner signup requested",
     resource: "Email verification pending",
-    metadata: { selectedPlan: quote.plan, seats: quote.seats, amountCents: quote.amountCents, deliveryStatus: sent.status },
+    metadata: { registrationMode: mode, selectedPlan: quote.plan, seats: quote.seats, amountCents: quote.amountCents, trialEndsAt: trialEndsAt?.toISOString() ?? null, deliveryStatus: sent.status },
   });
   return Response.json({
-    ok: true, message: "Check your email for a verification link. Your subscription will not start until you authorize payment.",
+    ok: true,
+    message: isPilot
+      ? "Check your email to verify your account and begin your 14-day pilot. No payment is required."
+      : "Check your email to verify your account. No subscription starts until you authorize payment.",
     delivery: sent.delivered ? "accepted_by_provider" : "not_confirmed",
   }, { status: 202 });
 }

@@ -2,7 +2,7 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { db } from "@/db";
 import { saasSignupVerifications } from "@/lib/saas-billing-schema";
-import { users } from "@/db/schema";
+import { subscriptions, users } from "@/db/schema";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
 import { sha256 } from "@/lib/crypto";
 import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
@@ -34,7 +34,20 @@ export async function POST(request: Request) {
       .where(and(eq(users.id, pending.userId), eq(users.role, "owner")))
       .returning({ id: users.id, name: users.name, email: users.email });
     if (!owner) throw new Error("Owner verification record is invalid.");
-    return { ...pending, owner };
+    const [subscription] = await tx.select({ id: subscriptions.id, status: subscriptions.status, provider: subscriptions.provider })
+      .from(subscriptions).where(eq(subscriptions.organizationId, pending.organizationId)).limit(1);
+    if (!subscription) throw new Error("Company subscription state is missing.");
+    const pilot = subscription.status === "trialing" && subscription.provider === "pilot";
+    if (pilot) {
+      // Count the 14 days from verified activation, not from form submission.
+      // The one-time verification token is already claimed within this same transaction.
+      const activatedAt = new Date();
+      await tx.update(subscriptions).set({
+        periodStart: activatedAt,
+        trialEndsAt: new Date(activatedAt.getTime() + 14 * 86_400_000),
+      }).where(eq(subscriptions.id, subscription.id));
+    }
+    return { ...pending, owner, pilot };
   });
   if (!verified) return Response.json({ error: "Verification link is invalid, expired or already used." }, { status: 422 });
   const session = await createSession(verified.userId, requestMeta(request));
@@ -43,9 +56,9 @@ export async function POST(request: Request) {
   await recordAuditEvent({
     organizationId: verified.organizationId,
     actor: verified.owner.name,
-    action: "Self-service company email verified",
-    resource: "Owner access enabled; subscription awaiting payment",
-    metadata: { userId: verified.userId },
+    action: "Company owner email verified",
+    resource: verified.pilot ? "Pilot workspace enabled with no billing" : "Owner access enabled; subscription awaiting payment",
+    metadata: { userId: verified.userId, pilot: verified.pilot },
   });
-  return Response.json({ ok: true, redirectTo: "/billing/setup" });
+  return Response.json({ ok: true, redirectTo: verified.pilot ? "/app" : "/billing/setup" });
 }

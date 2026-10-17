@@ -71,10 +71,10 @@ export function AccessRequestForm() {
         </span>
         <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Access request</p>
         <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">
-          Your request is in.
+          Your registration request is in.
         </h2>
         <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">
-          We recorded your company and headcount so workspace access can be provisioned without asking for employee payroll data.
+          We recorded your company and headcount for our access review. No user account or company workspace has been created yet. If approved, you can complete registration using an invitation.
         </p>
         <div className="mt-6 flex flex-wrap gap-2.5">
           <Link href="/demo" className="inline-flex items-center gap-2 rounded-full bg-[#11141F] px-5 py-3 text-[13.5px] font-semibold text-white">
@@ -90,10 +90,10 @@ export function AccessRequestForm() {
 
   return (
     <form className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7" onSubmit={submit} noValidate>
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Request trial access</p>
-      <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em]">Tell us who will run payroll.</h2>
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">New company registration</p>
+      <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em]">Start with your company details.</h2>
       <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">
-        We only need your operating shape. Do not send employee names, government IDs, bank details or payroll files.
+        This is an access request, not an instant account. We only need your basic company information. Do not send employee names, government IDs, bank details or payroll files.
       </p>
 
       {problems.length > 0 && (
@@ -163,7 +163,7 @@ export function AccessRequestForm() {
         className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0877ff] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-60"
       >
         {saving ? <LoaderCircle size={15} className="animate-spin" /> : <Send size={15} />}
-        {saving ? "Submitting…" : "Request trial access"}
+        {saving ? "Submitting…" : "Request a company account"}
       </button>
     </form>
   );

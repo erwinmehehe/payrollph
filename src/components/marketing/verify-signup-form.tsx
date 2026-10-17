@@ -17,7 +17,7 @@ export function VerifySignupForm({ token }: { token: string }) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) return setError(data.error || "The link could not be verified.");
-      window.location.assign(data.redirectTo || "/billing/setup");
+      window.location.assign(data.redirectTo || "/app");
     } catch {
       setError("Verification service is unavailable. Please try again.");
     } finally {
@@ -29,7 +29,7 @@ export function VerifySignupForm({ token }: { token: string }) {
       <CheckCircle2 size={32} className="text-[#0877ff]" />
       <h1 className="font-display mt-5 text-[32px] font-semibold">Verify your email</h1>
       <p className="mt-3 text-sm leading-relaxed text-[#5B6080]">
-        Complete the email verification to enable your owner login. You&#39;ll review and authorize your subscription after you sign in; this step does not charge your payment method.
+        Verify your address to activate your company owner account. Pilot users go directly to their workspace without a card or payment; paid subscriptions require a separate, explicit authorization.
       </p>
       {error && <p className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800" role="alert">{error}</p>}
       <button type="button" disabled={!token || busy} onClick={() => void confirm()} className="mt-6 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full bg-[#0877ff] px-5 font-semibold text-white disabled:opacity-50">

@@ -56,7 +56,7 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
       { label: "Privacy notice", href: "/privacy" },
       { label: "System status", href: "/status" },
       { label: "Evidence methodology", href: "/methodology" },
-      { label: "Request trial access", href: "/trial" },
+      { label: "Create company account", href: "/signup" },
       { label: "Book a demo", href: "/book-demo" },
       { label: "Sign in", href: "/login" },
     ],
