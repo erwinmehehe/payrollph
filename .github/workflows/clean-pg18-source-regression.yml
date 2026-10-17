@@ -23,6 +23,10 @@ jobs:
     env:
       CI: "true"
       FRESH_PG18_DEV_REHEARSAL: disposable-ci-only
+      NINE_STAGE_PG_MAJOR: "18"
+      DEMO_MODE: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       PAYMONGO_DISBURSEMENTS_ENABLED: "false"
       XENDIT_PAYOUTS_ENABLED: "false"
@@ -124,6 +128,10 @@ jobs:
     env:
       CI: "true"
       FRESH_PG18_DEV_REHEARSAL: disposable-ci-only
+      NINE_STAGE_PG_MAJOR: "18"
+      DEMO_MODE: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       PAYMONGO_DISBURSEMENTS_ENABLED: "false"
       XENDIT_PAYOUTS_ENABLED: "false"
