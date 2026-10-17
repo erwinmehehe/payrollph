@@ -60,8 +60,9 @@ The guard independently checks:
    restored tables are rejected.
 3. The invoking role **does not own any control relation**. It cannot
    UPDATE/DELETE/TRUNCATE existing receipts, cutover or journal records, or
-   INSERT historic receipts/cutover; the separately authorized forward
-   writer can INSERT only its own execution journal.
+   obtain TRIGGER/REFERENCES privileges on control tables, or INSERT historic
+   receipts/cutover; the separately authorized forward writer can INSERT only
+   its own execution journal.
 
 The checker reads NO migration receipt *rows*, app data or secrets. It
 deliberately defaults to denial on unexpected structure or privilege bits.
