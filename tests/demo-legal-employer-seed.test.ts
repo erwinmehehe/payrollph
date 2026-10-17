@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../src/db";
-import { employees, legalEntities, organizations } from "../src/db/schema";
+import { employees, legalEntities, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
 import { DEMO_MODE, ensureSeedData } from "../src/db/seed";
 
 // This test owns a dedicated, throwaway, empty loopback app_db. It must never
@@ -43,6 +43,41 @@ test("verified demo fixtures receive idempotent, tenant-scoped primary legal emp
     assert.equal(staff.length, spec.expected);
     assert.ok(staff.every((person) => person.legalEntityId === primaries[0].id),
       `${spec.name}: every fixture employee belongs to their same-tenant legal employer`);
+  }
+
+  // #1102: Verify persisted fictional run headers against actual payroll
+  // entry rows, not just the shared TypeScript fixture generator. This test
+  // is gated to a newly empty, disposable loopback PostgreSQL app_db.
+  const [loom] = await db.select().from(organizations)
+    .where(eq(organizations.name, "Loom & Local"));
+  assert.ok(loom, "missing fictional payroll employer");
+  const fictionalRuns = await db.select().from(payrollRuns)
+    .where(eq(payrollRuns.organizationId, loom.id));
+  assert.equal(fictionalRuns.length, 3, "expected two populated test runs and an empty draft");
+  const toCentavos = (amount: string) => {
+    assert.match(amount, /^\\d+\\.\\d{2}$/, "PostgreSQL money fixture must have two decimal places");
+    return BigInt(amount.replace(".", ""));
+  };
+  for (const run of fictionalRuns) {
+    const rows = await db.select().from(payrollEntries)
+      .where(eq(payrollEntries.payrollRunId, run.id));
+    let totalGross = 0n;
+    let totalNet = 0n;
+    for (const row of rows) {
+      const gross = toCentavos(row.grossPay);
+      const deductions = toCentavos(row.deductions);
+      const net = toCentavos(row.netPay);
+      assert.equal(gross - deductions, net, `run ${run.id}: employee gross-to-net identity`);
+      totalGross += gross;
+      totalNet += net;
+    }
+    assert.equal(totalGross, toCentavos(run.grossPay), `run ${run.id}: persisted gross header mismatch`);
+    assert.equal(totalNet, toCentavos(run.netPay), `run ${run.id}: persisted net header mismatch`);
+    if (run.status === "Draft") {
+      assert.equal(rows.length, 0, "unprocessed fictional draft must have no pay entries");
+    } else {
+      assert.equal(rows.length, run.employeeCount, `run ${run.id}: persisted employee count`);
+    }
   }
 
   await ensureSeedData();
