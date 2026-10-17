@@ -6,6 +6,7 @@ import test from "node:test";
 import { inventoryMigrationSources } from "../scripts/lib/migration-receipt-audit.mjs";
 import { HISTORICAL_REQUIRED_OBJECTS } from "../scripts/lib/historical-catalog-gate.mjs";
 import { REQUIRED_MODERN_SCHEMA_COLUMNS } from "../scripts/lib/schema-lineage-preflight.mjs";
+import { MIGRATION_CONTROL_LEDGER_CATALOG_SQL } from "../scripts/lib/reviewed-migration-control-ledger.mjs";
 import {
   cutoverSourceManifest, runReviewedMigrationOnClient,
 } from "../scripts/lib/reviewed-migration-runner.mjs";
@@ -92,6 +93,11 @@ function client(f, { failAt, alreadyApplied = false } = {}) {
       if (sql.includes('AS "pathPrimaryKey"')) return { rows: [{
         pathPrimaryKey: true, numberUnique: true, cutoverPrimaryKey: true,
       }] };
+      if (sql === MIGRATION_CONTROL_LEDGER_CATALOG_SQL) return { rows: [{
+        controlColumnsValid: true, controlColumnCountsValid: true,
+        controlChecksValid: true, controlNumberMatchesPath: true,
+        controlWritesDenied: true,
+      }] };
       if (sql.includes("FROM public.payrollph_migration_cutover")) {
         return { rows: [f.cutover] };
       }
@@ -136,6 +142,10 @@ test("#1054 protected PLAN checks preflight in read-only transaction, without ap
     assert.equal(result.sqlApplied, false);
     assert.match(db.calls[0], /READ ONLY/);
     assert.ok(db.calls.includes("SET LOCAL search_path = pg_catalog"));
+    assert.ok(db.calls.includes(MIGRATION_CONTROL_LEDGER_CATALOG_SQL));
+    assert.ok(db.calls.indexOf(MIGRATION_CONTROL_LEDGER_CATALOG_SQL) <
+      db.calls.findIndex(sql => sql.includes("FROM public.payrollph_migration_cutover")),
+      "journal contract must precede cutover receipt read");
     assert.ok(!db.calls.includes("SET LOCAL search_path = public, pg_temp"));
     assert.ok(db.calls.includes(ISSUE1054_PREFLIGHT_SQL));
     assert.ok(!db.calls.includes(ISSUE1054_POSTFLIGHT_SQL));

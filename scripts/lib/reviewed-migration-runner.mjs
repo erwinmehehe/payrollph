@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { reconcileMigrationReceipts } from "./migration-receipt-audit.mjs";
 import { assertModernSchemaLineage } from "./schema-lineage-preflight.mjs";
 import { assertHistoricalCatalog } from "./historical-catalog-gate.mjs";
+import { assertMigrationControlLedgerCatalog } from "./reviewed-migration-control-ledger.mjs";
 import { ISSUE1054_MIGRATION_PATH, ISSUE1054_PREFLIGHT_SQL, ISSUE1054_POSTFLIGHT_SQL } from "./issue-1054-protected-preflight.mjs";
 
 const MIGRATION_PATH = /^drizzle\/([0-9]{4})_[a-z0-9][a-z0-9_-]*\.sql$/;
@@ -309,6 +310,10 @@ export async function runReviewedMigrationOnClient({
     if (!integrity?.pathPrimaryKey || !integrity.numberUnique || !integrity.cutoverPrimaryKey) {
       refuse("LEDGER_CONSTRAINTS_MISSING");
     }
+    // A table name and its PK are not sufficient to trust an adopted ledger.
+    // Check all columns, validated constraints and immutable role privileges
+    // before reading either historical receipts or forward execution history.
+    await assertMigrationControlLedgerCatalog(client);
     const adopted = (await client.query(
       "SELECT historical_prefix AS \"historicalPrefix\", " +
       "historical_manifest_sha256 AS \"historicalManifestSha256\", evidence_ref AS \"evidenceRef\", " +
