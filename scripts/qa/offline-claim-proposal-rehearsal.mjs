@@ -26,7 +26,11 @@ assert.notEqual(process.env.FACE_OFFLINE_PUNCH_UI_ENABLED, "true",
 
 const path = new URL("../../docs/engineering/migration-proposals/offline-punch-claims.sql", import.meta.url);
 const sql = readFileSync(path, "utf8");
-assert.ok(sql.startsWith("-- UNNUMBERED PROPOSAL / NOT FOR PRODUCTION."));
+const proposalHeader = sql.split("\n").slice(0, 10).join("\n");
+assert.match(proposalHeader, /^-- UNNUMBERED PROPOSAL \/ NOT FOR PRODUCTION\./m,
+  "The proposal must retain its review-only, non-production safety banner");
+assert.match(proposalHeader, /^-- #1031 .*source-only review reconciliation\./m,
+  "The proposal must identify its current-schema review reconciliation");
 const digest = createHash("sha256").update(sql).digest("hex");
 const suffix = randomBytes(6).toString("hex");
 const schema = "offline_claim_qa_" + suffix;
@@ -80,10 +84,31 @@ try {
     [schema + ".offline_punch_claims"],
   );
   const names = new Set(catalog.rows.map(row => row.conname));
-  for (const name of ["workflow_offline_employee_tenant_fk", "offline_punch_client_event_unique",
+  for (const name of ["workflow_offline_employee_tenant_fk",
     "offline_claim_action_type_check", "offline_claim_status_check"]) {
     assert.ok(names.has(name), "Exact proposal omitted constraint: " + name);
   }
+  // schema.ts declares the dedupe guarantee as a unique *index*, not a
+  // UNIQUE table constraint. Inspect pg_index instead of weakening the guard.
+  const dedupe = await client.query(
+    "SELECT i.indisunique AS unique, " +
+    "array_agg(a.attname ORDER BY k.ord) AS columns " +
+    "FROM pg_catalog.pg_index i " +
+    "JOIN pg_catalog.pg_class idx ON idx.oid=i.indexrelid " +
+    "JOIN pg_catalog.pg_class tbl ON tbl.oid=i.indrelid " +
+    "JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum,ord) " +
+    "ON k.ord <= i.indnkeyatts " +
+    "JOIN pg_catalog.pg_attribute a ON a.attrelid=tbl.oid AND a.attnum=k.attnum " +
+    "WHERE tbl.oid=$1::regclass AND idx.relname=$2 " +
+    "GROUP BY i.indisunique",
+    [schema + ".offline_punch_claims", "offline_punch_client_event_unique"],
+  );
+  assert.equal(dedupe.rows.length, 1, "Exact proposal omitted unique dedupe index");
+  assert.equal(dedupe.rows[0].unique, true, "Client event index must be unique");
+  assert.deepEqual(dedupe.rows[0].columns,
+    ["organization_id", "employee_id", "client_event_id"],
+    "Dedupe index columns/order must match the current Drizzle source");
+  checks.push("exact unique index name, uniqueness and tenant-scoped key order");
   const parent = await client.query(
     "SELECT confrelid::regclass::text AS referenced FROM pg_constraint " +
     "WHERE conrelid=$1::regclass AND conname='workflow_offline_employee_tenant_fk'",
