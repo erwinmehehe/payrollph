@@ -26,6 +26,9 @@ test("clean PG18 gate is selected by both PR and main schema/journey changes", (
 });
 
 test("same-sha, full-regression and authenticated PG18 source journey gate one another", () => {
+  const checkoutPattern = /- uses: actions\\/checkout@[^\\n]+\\n\\s+with:\\n\\s+persist-credentials: false\\n(?:\\s+#[^\\n]+\\n)*\\s+ref: \\$\\{\\{ github\\.event\\.pull_request\\.head\\.sha \\|\\| github\\.sha \\}\\}/g;
+  assert.equal([...pg18.matchAll(checkoutPattern)].length, 2,
+    "Both clean schema and regression jobs must checkout the exact PR head, never refs/pull/N/merge");
   assert.match(pg18, /connected-journey:\n\s+name:[^\n]+\n\s+needs: \[source-ddl, regression\]/);
   assert.match(pg18, /uses: \.\/\.github\/workflows\/nine-stage-connected-acceptance\.yml\n\s+with:\n\s+pg18_only: true/);
   assert.match(pg18, /complete-gate:\n\s+name:[^\n]+\n\s+needs: \[source-ddl, regression, connected-journey\]\n\s+if: always\(\)/);
