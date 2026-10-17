@@ -128,7 +128,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   const setPage = useCallback((next: typeof initialPage) => {
     if (next !== "Settings") setSettingsInitialTab("organization");
     updatePage(next);
-  }, []);
+  }, [setSettingsInitialTab]);
   // A source-link can focus only a worker already in this selected employer's
   // authorized People snapshot. A stale or cross-employer URL opens no drawer.
   const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(() =>
