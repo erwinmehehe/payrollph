@@ -17,5 +17,7 @@ test("expense claim UI uses decision-specific copy and accurately labels unpaid 
   const ui = readFileSync("src/components/wallet-panel.tsx", "utf8");
   assert.match(ui, /setNotice\(expenseClaimDecisionNotice\(status\)\)/);
   assert.doesNotMatch(ui, /Approved claims reimburse on the next payroll run/);
-  assert.match(ui, /<p>APPROVED \/ UNPAID<\/p>/);
+  assert.match(ui, /reviewMode \? "APPROVED \/ UNPAID" : "TO REIMBURSE"/);
+  assert.doesNotMatch(ui, /<p>APPROVED \/ UNPAID<\/p>/);
+  assert.match(ui, /expenseClaimDecisionNotice\(status\)/);
 });
