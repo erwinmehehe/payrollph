@@ -55,3 +55,13 @@ Independent 14-scenario WFM/mobile UAT, real employer centavo-for-centavo
 comparison, official agency import validations, historical migration
 adoption, backup/restore and runtime-DDL elimination remain outstanding.
 **No production, payout or government filing release is approved.**
+
+## Integrated PG18 source + two-employer acceptance gate (2026-10-17)
+
+The clean-PG18 workflow now **fails closed on three dependent job groups at the exact PR/main source SHA**:
+
+1. Fresh disposable PostgreSQL 18 empty-catalog preflight, first-and-only guarded Drizzle source bootstrap, catalog fingerprint/audit controls, and **schema-only** artifact (no application rows).
+2. Four independent, freshly bootstrapped PG18 full-regression shards. Every shard must succeed; one failed, skipped or cancelled shard blocks the workflow.
+3. After those pass, a reusable invocation of the *existing* nine-stage connected payroll workflow restricted to **one** PG18 governed-Hire case. It starts a **third independent empty disposable PG18 database** (shards do not share mutable state), builds the actual Next.js server, executes both fictional employers' nine protected HTTP stages through four hash-bound draft filing files each, confirms tenant/role denies, synthetic 375px/390px A → B → A browser switch/retry, and validates the separate governed-Hire sidecar. The validator fails if any stage, employee/run identity, filing hash, or required denial is missing.
+
+A final `complete-gate` requires all three preceding job groups to be **success**, rejecting even skipped/cancelled results. The reusable journey's ordinary direct triggers still run their original four PG16/18/direct/governed/year-end combinations. No provider keys, production/Neon targets, payouts or real filings are used. The integrated gate is synthetic, not an observed human acceptance; #853's 27 human observations, #691 physical WFM, #579 employer centavo reconciliation, and the database migration/production gate remain separate **NOT_RUN / NO-GO**.
