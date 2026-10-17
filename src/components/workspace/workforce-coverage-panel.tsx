@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, CircleAlert, Plus, RefreshCcw, ShieldCheck, UsersRound } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
@@ -309,20 +309,38 @@ function peso(value: number | null | undefined) {
   }).format(value);
 }
 
-export function WorkforceCoveragePanel({
-  data,
-  notify,
-  canManage,
-}: {
+type WorkforceCoverageProps = {
   data: DashboardData;
   notify: Notify;
   canManage: boolean;
-}) {
+};
+
+// Discard staffing evidence, availability selections and action drafts when
+// employer, legal entity, authenticated person or manager rights change.
+export function WorkforceCoveragePanel(props: WorkforceCoverageProps) {
+  const scope = [
+    props.data.selectedOrganization.id,
+    props.data.multiEntity?.legalEntityId ?? "all",
+    props.data.user?.id ?? "anonymous",
+    props.data.access?.role ?? "none",
+    props.data.access?.orgUnitName ?? "all",
+    props.data.access?.companyWide === true,
+    props.canManage,
+  ].join(":");
+  return <ScopedWorkforceCoveragePanel key={scope} {...props} />;
+}
+
+function ScopedWorkforceCoveragePanel({
+  data,
+  notify,
+  canManage,
+}: WorkforceCoverageProps) {
   const organizationId = data.selectedOrganization.id;
   const [startDate, setStartDate] = useState(localToday());
   const endDate = useMemo(() => addDays(startDate, 13), [startDate]);
   const [payload, setPayload] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState<string | null>(null);
   const [simulateHighRisk, setSimulateHighRisk] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState<RecoveryMode>("coverage");
@@ -356,8 +374,37 @@ export function WorkforceCoveragePanel({
     .sort((a, b) => a.weekday - b.weekday ||
       a.effectiveFrom.localeCompare(b.effectiveFrom) || a.id - b.id);
 
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const mutationRevisionRef = useRef(0);
+  const reviewMutationRevisionRef = useRef(0);
+
+  const selectedRequirementWorksiteId = (payload?.worksites ?? []).some(
+    (site) => String(site.id) === requirementWorksiteId,
+  ) ? requirementWorksiteId : String(payload?.worksites[0]?.id ?? "");
+  const selectedRequirementShiftId = (payload?.shifts ?? []).some(
+    (shift) => String(shift.id) === requirementShiftId,
+  ) ? requirementShiftId : String(payload?.shifts[0]?.id ?? "");
+  // A removed or unauthorised approval chain must never remain a valid choice.
+  const selectedReviewChainCode = reviewChains.some((chain) => chain.code === reviewChainCode)
+    ? reviewChainCode : (reviewChains[0]?.code ?? "");
+
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
+    // Suppress old costs, employee availability and human approval history
+    // before checking the next scoped time window or dynamic group.
     setLoading(true);
+    setLoadError("");
+    setPayload(null);
+    setReviewChains([]);
+    setReviewByClaimId({});
     try {
       const params = new URLSearchParams({
         organizationId: String(organizationId),
@@ -365,10 +412,12 @@ export function WorkforceCoveragePanel({
         endDate,
       });
       if (dynamicGroupCode) params.set("dynamicGroupCode", dynamicGroupCode);
-      const response = await fetch(`/api/workforce/coverage?${params.toString()}`, { cache: "no-store" });
+      const response = await fetch(`/api/workforce/coverage?${params.toString()}`, {
+        cache: "no-store", signal: controller.signal,
+      });
       const body = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(body.error ?? "Could not load coverage planning.");
-      setPayload(body as Payload);
       const claimIds = (body.claims ?? [])
         .filter((claim: Claim) => claim.status === "pending")
         .map((claim: Claim) => claim.id);
@@ -377,41 +426,53 @@ export function WorkforceCoveragePanel({
         sourceType: "wfm_roster_claim_review",
       });
       if (claimIds.length) reviewParams.set("sourceIds", claimIds.slice(0, 40).join(","));
-      const reviewResponse = await fetch(`/api/governed-handoffs?${reviewParams.toString()}`, { cache: "no-store" });
+      const reviewResponse = await fetch(`/api/governed-handoffs?${reviewParams.toString()}`, {
+        cache: "no-store", signal: controller.signal,
+      });
+      if (!isCurrent()) return;
       if (reviewResponse.ok) {
         const reviewPayload = await reviewResponse.json().catch(() => ({}));
+        if (!isCurrent()) return;
         const chains = (reviewPayload.approvalChains ?? []) as HandoffChain[];
         setReviewChains(chains);
-        setReviewChainCode((current) => chains.some((row) => row.code === current)
-          ? current : chains[0]?.code ?? "");
         setReviewByClaimId(Object.fromEntries(
           (reviewPayload.handoffs ?? []).map((row: SourceHandoffStatus) => [row.sourceId, row]),
         ));
       }
+      // Commit staffing coverage only after all ownership checks.
+      setPayload(body as Payload);
     } catch (error) {
-      // A failed staffing source must never leave previously loaded employee
-      // preferences presented as the current planning window.
-      setPayload(null);
-      notify(error instanceof Error ? error.message : "Could not load coverage planning.", "err");
+      if (isCurrent()) {
+        const message = error instanceof Error ? error.message : "Could not load coverage planning.";
+        setLoadError(message);
+        notify(message, "err");
+      }
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [dynamicGroupCode, endDate, notify, organizationId, startDate]);
 
   useEffect(() => {
-    void load();
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      mutationRevisionRef.current += 1;
+      reviewMutationRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
   }, [load]);
 
-  useEffect(() => {
-    if (!requirementWorksiteId && payload?.worksites[0]) {
-      setRequirementWorksiteId(String(payload.worksites[0].id));
-    }
-    if (!requirementShiftId && payload?.shifts[0]) {
-      setRequirementShiftId(String(payload.shifts[0].id));
-    }
-  }, [payload, requirementShiftId, requirementWorksiteId]);
-
   async function mutate(action: string, extra: Record<string, unknown>, success: string) {
+    if (!mountedRef.current) return false;
+    const mutationRevision = ++mutationRevisionRef.current;
+    const readRevision = loadRevisionRef.current;
+    const isCurrentMutation = () =>
+      mountedRef.current && mutationRevision === mutationRevisionRef.current
+      && readRevision === loadRevisionRef.current;
     setSaving(action);
     try {
       const response = await fetch("/api/workforce/coverage", {
@@ -420,26 +481,27 @@ export function WorkforceCoveragePanel({
         body: JSON.stringify({ organizationId, action, ...extra }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!isCurrentMutation()) return false;
       if (!response.ok) throw new Error(body.error ?? "Coverage change could not be saved.");
       notify(success, "ok");
       await load();
-      return true;
+      return mountedRef.current;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Coverage change could not be saved.", "err");
+      if (isCurrentMutation()) notify(error instanceof Error ? error.message : "Coverage change could not be saved.", "err");
       return false;
     } finally {
-      setSaving(null);
+      if (mountedRef.current && mutationRevision === mutationRevisionRef.current) setSaving(null);
     }
   }
 
   async function saveRequirement() {
-    if (!requirementWorksiteId || !requirementShiftId || !requirementDate) {
+    if (!selectedRequirementWorksiteId || !selectedRequirementShiftId || !requirementDate) {
       notify("Worksite, shift and date are required.", "err");
       return;
     }
     await mutate("create_requirement", {
-      worksiteId: Number(requirementWorksiteId),
-      shiftDefinitionId: Number(requirementShiftId),
+      worksiteId: Number(selectedRequirementWorksiteId),
+      shiftDefinitionId: Number(selectedRequirementShiftId),
       jobProfileId: requirementJobProfileId ? Number(requirementJobProfileId) : null,
       workDate: requirementDate,
       requiredHeadcount: Number(requiredHeadcount),
@@ -472,10 +534,16 @@ export function WorkforceCoveragePanel({
   }
 
   async function requestRosterReview(claimId: number) {
-    if (!reviewChainCode) {
+    if (!selectedReviewChainCode) {
       notify("Configure and activate an Automation Studio approval chain before requesting roster review.", "err");
       return;
     }
+    if (!mountedRef.current) return;
+    const revision = ++reviewMutationRevisionRef.current;
+    const readRevision = loadRevisionRef.current;
+    const isCurrentReview = () =>
+      mountedRef.current && revision === reviewMutationRevisionRef.current
+      && readRevision === loadRevisionRef.current;
     setReviewSavingClaimId(claimId);
     try {
       const response = await fetch("/api/governed-handoffs", {
@@ -485,17 +553,18 @@ export function WorkforceCoveragePanel({
           organizationId,
           sourceType: "wfm_roster_claim_review",
           sourceId: claimId,
-          chainCode: reviewChainCode,
+          chainCode: selectedReviewChainCode,
         }),
       });
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrentReview()) return;
       if (!response.ok) throw new Error(payload.error ?? "Roster review handoff could not be routed.");
       notify(`Human approval requested for claim #${claimId}. A manager must still approve the claim after that review.`, "ok");
       await load();
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Roster review handoff failed.", "err");
+      if (isCurrentReview()) notify(error instanceof Error ? error.message : "Roster review handoff failed.", "err");
     } finally {
-      setReviewSavingClaimId(null);
+      if (mountedRef.current && revision === reviewMutationRevisionRef.current) setReviewSavingClaimId(null);
     }
   }
 
@@ -666,6 +735,19 @@ export function WorkforceCoveragePanel({
       })),
     }, "Recovery plan staged as pending claims for governed approval.");
   }
+
+  if (!payload && (loading || loadError)) return (
+    <article className="card" style={{ marginTop: 16 }} data-wfm-coverage>
+      <div className="card-body">
+        {loading ? <Spinner label="Loading coverage planning" /> : (
+          <div className="notice notice-red">
+            <span>{loadError}</span>
+            <button type="button" className="secondary-button" onClick={() => void load()}>Retry</button>
+          </div>
+        )}
+      </div>
+    </article>
+  );
 
   return (
     <article className="card" style={{ marginTop: 16 }} data-wfm-coverage>
@@ -1144,13 +1226,13 @@ export function WorkforceCoveragePanel({
               <label>Date<input type="date" value={requirementDate} onChange={(event) => setRequirementDate(event.target.value)} /></label>
               <label>
                 Worksite
-                <select value={requirementWorksiteId} onChange={(event) => setRequirementWorksiteId(event.target.value)}>
+                <select value={selectedRequirementWorksiteId} onChange={(event) => setRequirementWorksiteId(event.target.value)}>
                   {(payload?.worksites ?? []).map((site) => <option key={site.id} value={site.id}>{site.code} · {site.name}</option>)}
                 </select>
               </label>
               <label>
                 Shift
-                <select value={requirementShiftId} onChange={(event) => setRequirementShiftId(event.target.value)}>
+                <select value={selectedRequirementShiftId} onChange={(event) => setRequirementShiftId(event.target.value)}>
                   {(payload?.shifts ?? []).map((shift) => <option key={shift.id} value={shift.id}>{shift.code} · {shift.name}</option>)}
                 </select>
               </label>
@@ -1332,7 +1414,7 @@ export function WorkforceCoveragePanel({
                           <>
                             <select
                               aria-label={`Human approval policy for claim #${claim.id}`}
-                              value={reviewChainCode}
+                              value={selectedReviewChainCode}
                               onChange={(event) => setReviewChainCode(event.target.value)}
                               disabled={reviewSavingClaimId !== null || reviewChains.length === 0}
                               style={{ maxWidth: 180 }}
@@ -1344,7 +1426,7 @@ export function WorkforceCoveragePanel({
                             </select>
                             <button
                               className="secondary-button"
-                              disabled={saving !== null || reviewSavingClaimId !== null || !reviewChainCode}
+                              disabled={saving !== null || reviewSavingClaimId !== null || !selectedReviewChainCode}
                               onClick={() => void requestRosterReview(claim.id)}
                             >
                               {reviewSavingClaimId === claim.id ? "Routing..." : "Request human review"}
