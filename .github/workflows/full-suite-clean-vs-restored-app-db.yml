@@ -1,0 +1,141 @@
+name: Full Suite Clean vs Restored app_db (Synthetic Control)
+on:
+  pull_request:
+    paths: ['.github/workflows/full-suite-clean-vs-restored-app-db.yml']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/full-suite-clean-vs-restored-app-db.yml']
+permissions:
+  contents: read
+jobs:
+  shard:
+    name: clean/restore regression shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      TZ: Asia/Manila
+      CI: 'true'
+      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+      OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: 'true'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      RESTORE_CONTROL_MODE: disposable-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      SHARD_INDEX: '${{ matrix.shard }}'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral fictional encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          bk="$(openssl rand -hex 32)"
+          pk="$(openssl rand -hex 32)"
+          echo "::add-mask::$bk"
+          echo "::add-mask::$pk"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bk" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pk" >> "$GITHUB_ENV"
+      - name: Fresh isolated source bootstrap
+        run: npm run db:push
+      - name: Add isolated audit protection
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Run entire shard on clean DB, restore into app_db, run same shard again
+        shell: bash
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          if [[ "$CI" != true || "$GITHUB_ACTIONS" != true ||
+                "$RESTORE_CONTROL_MODE" != disposable-pg16-only ||
+                "$DATABASE_URL" != postgresql://postgres:postgres@127.0.0.1:5432/app_db ||
+                -z "$PG_CONTAINER" ]]; then
+            echo "::error::NON_ISOLATED_DATABASE_TARGET"
+            exit 2
+          fi
+          test "$(docker inspect "$PG_CONTAINER" --format '{{.State.Running}}')" = true
+          mkdir -p qa-artifacts/recovery-compare
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          table_sql="SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r'"
+          fk_sql="SELECT count(*) FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_namespace n ON n.oid=k.connamespace WHERE n.nspname='public' AND k.contype='f'"
+          before_tables="$(docker exec "$PG_CONTAINER" psql -XAt -U postgres -d app_db -c "$table_sql")"
+          before_fks="$(docker exec "$PG_CONTAINER" psql -XAt -U postgres -d app_db -c "$fk_sql")"
+          docker exec "$PG_CONTAINER" pg_dump -U postgres -d app_db -Fc --no-owner --no-privileges > "$work/source.dump"
+          test -s "$work/source.dump"
+          set +e
+          node scripts/run-sharded-tests.mjs "$SHARD_INDEX" 4 > qa-artifacts/recovery-compare/clean.tap 2>&1
+          clean_exit=$?
+          set -e
+          docker exec "$PG_CONTAINER" createdb -U postgres restored_copy
+          docker exec -i "$PG_CONTAINER" pg_restore -U postgres -d restored_copy --exit-on-error --no-owner --no-privileges < "$work/source.dump"
+          test "$(docker exec "$PG_CONTAINER" psql -XAt -U postgres -d restored_copy -c "$table_sql")" = "$before_tables"
+          test "$(docker exec "$PG_CONTAINER" psql -XAt -U postgres -d restored_copy -c "$fk_sql")" = "$before_fks"
+          docker exec "$PG_CONTAINER" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'ALTER DATABASE app_db RENAME TO clean_tested_db' > /dev/null
+          docker exec "$PG_CONTAINER" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'ALTER DATABASE restored_copy RENAME TO app_db' > /dev/null
+          set +e
+          node scripts/run-sharded-tests.mjs "$SHARD_INDEX" 4 > qa-artifacts/recovery-compare/restored.tap 2>&1
+          restored_exit=$?
+          set -e
+          CLEAN_EXIT="$clean_exit" RESTORED_EXIT="$restored_exit" SOURCE_TABLES="$before_tables" SOURCE_FKS="$before_fks" node <<'JS'
+          const fs=require('node:fs');
+          const root='qa-artifacts/recovery-compare/';
+          function parse(which){
+            const text=fs.readFileSync(root+which+'.tap','utf8');
+            const f=[...new Set(text.split(/\r?\n/).flatMap(s=>{
+              const x=/^\s*not ok\s+\d+\s+-\s+(.*)$/.exec(s);
+              return x?[x[1].replace(/[\x00-\x1f\x7f]/g,' ').trim().slice(0,175)]:[];
+            }))].sort();
+            const exit=Number(process.env[which==='clean'?'CLEAN_EXIT':'RESTORED_EXIT']);
+            if(exit!==0&&!f.length)f.push('__nonzero_exit_without_TAP_failure__');
+            return {exit,failures:f};
+          }
+          const clean=parse('clean'),restored=parse('restored');
+          const c=new Set(clean.failures),r=new Set(restored.failures);
+          const output={kind:'synthetic-restore-regression',actualNeonRecovery:false,
+            sha:process.env.GITHUB_SHA,shard:Number(process.env.SHARD_INDEX),
+            sourceTables:Number(process.env.SOURCE_TABLES),sourceFKs:Number(process.env.SOURCE_FKS),
+            cleanFailures:clean.failures,restoredFailures:restored.failures,
+            recoveredOnly:[...r].filter(x=>!c.has(x)).sort(),
+            cleanOnly:[...c].filter(x=>!r.has(x)).sort(),
+            shared:[...r].filter(x=>c.has(x)).sort(),
+            cleanExit:clean.exit,restoredExit:restored.exit};
+          fs.writeFileSync(root+'result.json',JSON.stringify(output,null,2)+'\n');
+          console.log('RECOVERED_APP_DB_FULL_SUITE '+JSON.stringify(output));
+          if(clean.exit!==0||restored.exit!==0)process.exitCode=1;
+          JS
+      - name: Upload sanitized failure names only (never the database dump)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: recovery-suite-shard-${{ matrix.shard }}
+          path: qa-artifacts/recovery-compare/result.json
+          retention-days: 7
+          if-no-files-found: warn
+
+# The source is a fresh Drizzle bootstrap restored through pg_dump/pg_restore.
+# NOT the existing Neon database. This is an isolated restored-schema control,
+# not customer launch certification or a substitute for the real recovered dump.

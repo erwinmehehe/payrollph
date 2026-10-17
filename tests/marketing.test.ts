@@ -312,15 +312,20 @@ test("homepage navigation exposes the real public site", () => {
 
 
 
-test("public signup requests controlled trial access instead of exposing tenant provisioning", () => {
+test("public signup is one guarded company owner registration, never bootstrap or duplicate access request", () => {
   const signup = read("src/app/signup/page.tsx");
-  const form = read("src/components/marketing/access-request-form.tsx");
-  assert.ok(signup.includes("Request access to a Linaw trial workspace."), "signup must present the real access model");
-  assert.ok(signup.includes("<AccessRequestForm />"), "signup must collect a trial access request");
-  assert.ok(!signup.includes("This workspace already has an owner."), "public signup must not expose tenant provisioning as a dead end");
+  const form = read("src/components/marketing/self-serve-signup-form.tsx");
+  const api = read("src/app/api/signup/route.ts");
+  assert.ok(signup.includes("Create your Linaw company account."), "signup must describe actual company registration");
+  assert.ok(signup.includes("<SelfServeSignupForm"), "signup must contain the unified owner form");
+  assert.ok(signup.includes('mode === "disabled"'), "registration must fail closed before launch");
+  assert.ok(!signup.includes("<AccessRequestForm"), "a competing trial request form must never be shown");
   assert.ok(!signup.includes("SetupWizard"), "public signup must never become the owner bootstrap wizard");
   assert.ok(!signup.includes("needsSetup"), "public signup must not change based on database initialization state");
-  assert.ok(form.includes("Request trial access"), "trial access form must have a clear submission CTA");
+  assert.ok(form.includes('fetch("/api/signup"'), "company creation must go through one guarded API");
+  assert.ok(api.includes("enforceSameOriginMutation") && api.includes("enforceIntakeProof"));
+  assert.ok(api.includes("rateLimitDistributed") && api.includes("saasSignupVerifications"));
+  assert.ok(api.includes("active: false"), "new owner access must await proof of email ownership");
 });
 
 test("login auth screen stays focused and product-consistent", () => {

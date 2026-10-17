@@ -13,6 +13,7 @@ type BillingPayload = {
     currency: string;
     billingCycle: string;
     paidThrough: string | null;
+    trialEndsAt?: string | null;
     recoveryUrl?: string | null;
     cancelAtPeriodEnd: boolean;
     activeAccess: boolean;
@@ -98,6 +99,7 @@ export function SubscriptionManager({ organizationId, companyName }: { organizat
   }
 
   const sub = data?.subscription;
+  const isPilot = sub?.provider === "pilot" && sub.status === "trialing";
   const canStart = sub?.status === "pending_payment";
   const canCancel = sub?.provider === "xendit" && ["active", "past_due"].includes(sub.status) && !sub.cancelAtPeriodEnd;
 
@@ -118,18 +120,23 @@ export function SubscriptionManager({ organizationId, companyName }: { organizat
             <div className="flex flex-wrap items-start justify-between gap-5">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-[.12em] text-[#7C82A1]">{sub.plan} plan</span>
-                <p className="font-display mt-2 text-[36px] font-semibold text-[#0B0D1A]">{pesos(sub.amountCents)} <span className="text-base font-normal text-[#5B6080]">/ month</span></p>
+                <p className="font-display mt-2 text-[36px] font-semibold text-[#0B0D1A]">{isPilot ? "No payment" : pesos(sub.amountCents)} {!isPilot && <span className="text-base font-normal text-[#5B6080]">/ month</span>}</p>
                 <p className="mt-1 text-sm text-[#5B6080]">{sub.seats} employee seat{sub.seats === 1 ? "" : "s"} included · PHP billing</p>
               </div>
               <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${sub.activeAccess ? "bg-[#e6f7ef] text-[#0a8455]" : "bg-[#fff4e5] text-[#9d5d08]"}`}>
-                {sub.status === "cancel_at_period_end" ? "Cancelling at paid term" : sub.status === "pending_payment" ? "Payment required" : sub.status === "past_due" ? "Payment needs attention" : sub.status.replaceAll("_", " ")}
+                {isPilot ? "14-day development pilot" : sub.status === "cancel_at_period_end" ? "Cancelling at paid term" : sub.status === "pending_payment" ? "Payment required" : sub.status === "past_due" ? "Payment needs attention" : sub.status.replaceAll("_", " ")}
               </span>
             </div>
             <div className="mt-6 grid gap-3 border-t border-[#E2E4F0] pt-5 sm:grid-cols-3">
               <div><span className="text-xs text-[#7C82A1]">Access</span><p className="mt-1 text-sm font-semibold">{sub.activeAccess ? "Active" : "Pending or expired"}</p></div>
-              <div><span className="text-xs text-[#7C82A1]">Paid through</span><p className="mt-1 text-sm font-semibold">{friendlyDate(sub.paidThrough)}</p></div>
-              <div><span className="text-xs text-[#7C82A1]">Automatic renewal</span><p className="mt-1 text-sm font-semibold">{sub.cancelAtPeriodEnd ? "Off" : sub.status === "active" ? "On" : "Not active"}</p></div>
+              <div><span className="text-xs text-[#7C82A1]">{isPilot ? "Pilot ends" : "Paid through"}</span><p className="mt-1 text-sm font-semibold">{friendlyDate(isPilot ? sub.trialEndsAt ?? null : sub.paidThrough)}</p></div>
+              <div><span className="text-xs text-[#7C82A1]">Automatic renewal</span><p className="mt-1 text-sm font-semibold">{isPilot ? "Not enabled" : sub.cancelAtPeriodEnd ? "Off" : sub.status === "active" ? "On" : "Not active"}</p></div>
             </div>
+            {isPilot && (
+              <div className="mt-6 rounded-2xl border border-[#BDD8FF] bg-[#EDF5FF] p-4 text-sm leading-relaxed text-[#0B3E8C]">
+                This is a no-payment development pilot. No subscription renewal or charge will be made. Use fictional/test data only. To extend the pilot, contact the Linaw team.
+              </div>
+            )}
             {canStart && (
               <div className="mt-6 rounded-2xl border border-[#bdd8ff] bg-[#edf5ff] p-4">
                 <p className="text-sm font-semibold text-[#0B3E8C]">Authorize your first subscription payment</p>

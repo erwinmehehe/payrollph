@@ -382,7 +382,7 @@ jobs:
           async function qaPublicRoutes(browser) {
             const routes = [
               { path: "/demo", heading: "See Linaw from the seat you actually use." },
-              { path: "/signup", heading: "Request access to a Linaw trial workspace." },
+              { path: "/signup", heading: "Create your Linaw company account." },
               { path: "/payroll-outsourcing", heading: "Payroll Outsourcing Philippines" },
               { path: "/small-business-payroll", heading: "One cutoff. Every decision, from inputs to release." },
               { path: "/resources", heading: "Practical guidance for buying, migrating and operating Philippine payroll." },

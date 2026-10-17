@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BadgeCheck, CalendarClock, CheckCircle2, MessageSquare, RefreshCw, Target } from "lucide-react";
 import { PerformanceDevelopmentSelfPanel } from "@/components/performance-development-self-panel";
 
@@ -128,8 +128,13 @@ export function HcmSelfPerformance() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const mutationRevisionRef = useRef(0);
 
-  function loadDraft(review: Review | undefined) {
+  const loadDraft = useCallback((review: Review | undefined) => {
     setSelfScore(review?.selfScore ? String(Number(review.selfScore)) : "3");
     setReflection(review?.employeeReflection ?? "");
     setItemScores(Object.fromEntries((review?.items ?? []).map((item) => [
@@ -140,18 +145,39 @@ export function HcmSelfPerformance() {
       item.id,
       item.employeeComment ?? "",
     ])));
-  }
+  }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
+    if (!mountedRef.current) return false;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
     setLoading(true);
+    setSaving(false);
     setNotice("");
+    setLoadError("");
+    // Never retain another signed-in employee's appraisal scores or manager
+    // feedback while reauthorizing this private self-service response.
+    setReviews([]);
+    setGoals([]);
+    setOneOnOnes([]);
+    setSharedFeedback([]);
+    setAgendaDrafts({});
+    setAgendaSavingId(null);
+    setActionSavingId(null);
+    setSelectedReviewId(null);
+    setSelfScore("3");
+    setReflection("");
+    setItemScores({});
+    setItemComments({});
     try {
-      const response = await fetch("/api/self/performance", { cache: "no-store" });
+      const response = await fetch("/api/self/performance", { cache: "no-store", signal: controller.signal });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setNotice(payload.error ?? "Could not load performance reviews.");
-        return;
-      }
+      if (!isCurrent()) return false;
+      if (!response.ok) throw new Error(payload.error ?? "Could not load performance reviews.");
       const nextReviews: Review[] = payload.reviews ?? [];
       setReviews(nextReviews);
       setGoals(payload.goals ?? []);
@@ -162,12 +188,31 @@ export function HcmSelfPerformance() {
         setSelectedReviewId(editable.id);
         loadDraft(editable);
       }
+      return true;
+    } catch (error) {
+      if (isCurrent()) {
+        const message = error instanceof Error ? error.message : "Could not load performance reviews.";
+        setLoadError(message);
+        setNotice(message);
+      }
+      return false;
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, []);
+  }, [loadDraft]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      mutationRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
+  }, [load]);
 
   const activeReview = useMemo(
     () => reviews.find((review) => review.id === selectedReviewId) ?? null,
@@ -182,6 +227,7 @@ export function HcmSelfPerformance() {
   );
 
   function chooseReview(id: number) {
+    mutationRevisionRef.current += 1;
     const review = reviews.find((item) => item.id === id);
     setSelectedReviewId(id);
     loadDraft(review);
@@ -194,6 +240,12 @@ export function HcmSelfPerformance() {
       setNotice("Add at least 5 characters for your 1:1 agenda item.");
       return;
     }
+    if (!mountedRef.current) return;
+    const mutationRevision = ++mutationRevisionRef.current;
+    const readRevision = loadRevisionRef.current;
+    const isCurrentMutation = () =>
+      mountedRef.current && mutationRevision === mutationRevisionRef.current
+      && readRevision === loadRevisionRef.current;
     setAgendaSavingId(meeting.id);
     setNotice("");
     try {
@@ -203,21 +255,28 @@ export function HcmSelfPerformance() {
         body: JSON.stringify({ oneOnOneId: meeting.id, content }),
       });
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrentMutation()) return;
       if (!response.ok) {
         setNotice(payload.error ?? "Could not add your 1:1 agenda item.");
         return;
       }
       setAgendaDrafts((current) => ({ ...current, [meeting.id]: "" }));
-      await load();
-      setNotice("Agenda item shared for your upcoming 1:1. It remains separate from manager-private notes.");
+      const refreshed = await load();
+      if (mountedRef.current && refreshed) setNotice("Agenda item shared for your upcoming 1:1. It remains separate from manager-private notes.");
     } catch {
-      setNotice("Could not add the agenda item because the server could not be reached.");
+      if (isCurrentMutation()) setNotice("Could not add the agenda item because the server could not be reached.");
     } finally {
-      setAgendaSavingId(null);
+      if (mountedRef.current && mutationRevision === mutationRevisionRef.current) setAgendaSavingId(null);
     }
   }
 
   async function updateActionItem(item: ActionItem, status: "in_progress" | "completed") {
+    if (!mountedRef.current) return;
+    const mutationRevision = ++mutationRevisionRef.current;
+    const readRevision = loadRevisionRef.current;
+    const isCurrentMutation = () =>
+      mountedRef.current && mutationRevision === mutationRevisionRef.current
+      && readRevision === loadRevisionRef.current;
     setActionSavingId(item.id);
     setNotice("");
     try {
@@ -227,22 +286,28 @@ export function HcmSelfPerformance() {
         body: JSON.stringify({ id: item.id, status }),
       });
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrentMutation()) return;
       if (!response.ok) {
         setNotice(payload.error ?? "Could not update the 1:1 action item.");
         return;
       }
-      await load();
-      setNotice(status === "completed" ? "Action item completed." : "Action item marked in progress.");
+      const refreshed = await load();
+      if (mountedRef.current && refreshed) setNotice(status === "completed" ? "Action item completed." : "Action item marked in progress.");
     } catch {
-      setNotice("Could not update the action item because the server could not be reached.");
+      if (isCurrentMutation()) setNotice("Could not update the action item because the server could not be reached.");
     } finally {
-      setActionSavingId(null);
+      if (mountedRef.current && mutationRevision === mutationRevisionRef.current) setActionSavingId(null);
     }
   }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!activeReview) return;
+    if (!activeReview || !mountedRef.current) return;
+    const mutationRevision = ++mutationRevisionRef.current;
+    const readRevision = loadRevisionRef.current;
+    const isCurrentMutation = () =>
+      mountedRef.current && mutationRevision === mutationRevisionRef.current
+      && readRevision === loadRevisionRef.current;
     setSaving(true);
     setNotice("");
     try {
@@ -261,21 +326,27 @@ export function HcmSelfPerformance() {
         }),
       });
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrentMutation()) return;
       if (!response.ok) {
         setNotice(payload.error ?? "Could not submit your self-assessment.");
         return;
       }
-      setNotice("Self-assessment saved. Your manager will see it as evidence, while the final rating remains a separate manager decision.");
-      await load();
+      const refreshed = await load();
+      if (mountedRef.current && refreshed) setNotice("Self-assessment saved. Your manager will see it as evidence, while the final rating remains a separate manager decision.");
     } catch {
-      setNotice("Could not submit your self-assessment because the server could not be reached.");
+      if (isCurrentMutation()) setNotice("Could not submit your self-assessment because the server could not be reached.");
     } finally {
-      setSaving(false);
+      if (mountedRef.current && mutationRevision === mutationRevisionRef.current) setSaving(false);
     }
   }
 
   if (loading) {
     return <div className="employee-empty-row">Loading performance reviews…</div>;
+  }
+  if (loadError) {
+    return <div className="employee-empty-row">
+      {loadError} <button type="button" className="secondary-button" onClick={() => void load()}>Retry</button>
+    </div>;
   }
 
   return (

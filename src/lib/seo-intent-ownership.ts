@@ -352,12 +352,11 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
   { primaryIntent: "monthly salary credit definition philippines", ownerPath: "/glossary/monthly-salary-credit", intentClass: "glossary" },
   { primaryIntent: "13th month pay definition philippines", ownerPath: "/glossary/13th-month-pay", intentClass: "glossary" },
   { primaryIntent: "payroll annualization definition philippines", ownerPath: "/glossary/annualization", intentClass: "glossary" },
-  { primaryIntent: "payroll software trial philippines", ownerPath: "/trial", intentClass: "conversion" },
   {
     primaryIntent: "payroll software demo philippines",
     ownerPath: "/demo",
     intentClass: "conversion",
-    supportingIntents: ["live payroll software demo philippines", "payroll product demo philippines"],
+    supportingIntents: ["live payroll software demo philippines", "payroll product demo philippines", "payroll software trial philippines"],
     note: "Own self-serve product-demo intent using populated sample data.",
   },
   {
