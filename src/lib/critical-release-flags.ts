@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  auditRoleIsolationProof: {
+    env: "AUDIT_ROLE_ISOLATION_PROOF_ENABLED",
+    owner: "Security / Database Operations",
+    risk: "Stricter metadata-only audit privilege and forward-trigger readiness proof",
+    approval: "Executed restricted-login PG16/18 tamper tests, unchanged flag-off query, genuine role mapping and approved forward repair; no automatic production activation",
+  },
   everydayHrHire: {
     env: "EVERYDAY_HR_HIRE_ENABLED",
     owner: "HR Operations / Product",
