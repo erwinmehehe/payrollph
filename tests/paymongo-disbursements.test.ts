@@ -456,6 +456,41 @@ test("PayMongo outward transfer webhooks map only canonical payroll references",
   }), null);
 });
 
+test("unknown PayMongo submission receipt blocks a misleading ready-to-resubmit state", () => {
+  const started = {
+    id: 1, actor: "Fictional Treasury Operator",
+    action: "Payroll payout submission initiated via PayMongo",
+    resource: "Synthetic October cutoff",
+    metadata: { runId: 501, provider: "PayMongo",
+      idempotencyKey: "payroll-run-501", providerOutcomeVerified: false },
+    createdAt: "2026-10-17T00:00:00Z",
+  };
+  const preflight = {
+    ...started, id: 0, action: "PayMongo payroll preflight passed",
+    createdAt: "2026-10-16T23:58:00Z",
+  };
+  const unknown = derivePayrollPayoutState([preflight, started], 501);
+  assert.equal(unknown.payout.status, "submitted", "unknown is not permission to resubmit");
+  assert.equal(unknown.reconciliation.provider, "PayMongo");
+  assert.equal(unknown.reconciliation.status, "attention");
+  assert.equal(unknown.reconciliation.canRetryFailed, false);
+  assert.match(unknown.payout.label, /acceptance is unverified/);
+  assert.match(unknown.payout.label, /before any retry or bank-file payout/);
+  assert.equal(unknown.payout.reference, null, "never invent a provider batch id");
+  const otherRun = derivePayrollPayoutState([preflight, started], 502);
+  assert.equal(otherRun.payout.status, "awaiting-preflight", "receipt belongs only to its own run");
+
+  const acknowledged = derivePayrollPayoutState([preflight, started, {
+    ...started, id: 2, action: "Payroll payout submitted via PayMongo",
+    createdAt: "2026-10-17T00:01:00Z",
+    metadata: { runId: 501, batchId: "batch_test_1", transferCount: 1 },
+  }], 501);
+  assert.equal(acknowledged.payout.status, "submitted");
+  assert.equal(acknowledged.payout.reference, "batch_test_1");
+  assert.notEqual(acknowledged.reconciliation.status, "attention",
+    "a known pending batch is not an unknown provider outcome");
+});
+
 test("a verified later transfer failure reopens a previously settled payroll", () => {
   const events = [
     {
