@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BadgeCheck, BriefcaseBusiness, Link2, Plus, RefreshCw, ShieldCheck } from "lucide-react";
 
 type JobProfile = {
@@ -80,13 +80,20 @@ type Coverage = {
   }>;
 };
 
-export function PerformanceCompetencyArchitecturePanel({
-  organizationId,
-  setNotice,
-}: {
+type PerformanceCompetencyArchitectureProps = {
   organizationId: number;
   setNotice: (message: string) => void;
-}) {
+};
+
+// Remount both fetched and editable performance evidence on employer switch.
+export function PerformanceCompetencyArchitecturePanel(props: PerformanceCompetencyArchitectureProps) {
+  return <PerformanceCompetencyArchitectureContent key={props.organizationId} {...props} />;
+}
+
+function PerformanceCompetencyArchitectureContent({
+  organizationId,
+  setNotice,
+}: PerformanceCompetencyArchitectureProps) {
   const [profiles, setProfiles] = useState<JobProfile[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [requirements, setRequirements] = useState<Requirement[]>([]);
@@ -120,52 +127,85 @@ export function PerformanceCompetencyArchitecturePanel({
   const [defaultMandatory, setDefaultMandatory] = useState<Record<number, boolean>>({});
   const [defaultActive, setDefaultActive] = useState<Record<number, boolean>>({});
 
-  const load = useCallback(async () => {
-    const response = await fetch("/api/performance/competencies?organizationId=" + organizationId, { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setNotice(payload.error ?? "Could not load job-profile competency architecture.");
-      return;
-    }
-    setProfiles(payload.profiles ?? []);
-    setSkills(payload.skills ?? []);
-    setRequirements(payload.requirements ?? []);
-    setDefaults(payload.defaults ?? []);
-    setFamilies(payload.families ?? []);
-    setLevels(payload.levels ?? []);
-    setTemplates(payload.templates ?? []);
-    setCoverage(payload.coverage ?? []);
-    setMappingSkill(Object.fromEntries((payload.templates ?? []).map((template: Template) => [
-      template.id,
-      template.skillId ? String(template.skillId) : "",
-    ])));
-    setMappingProfile(Object.fromEntries((payload.templates ?? []).map((template: Template) => [
-      template.id,
-      template.jobProfileId ? String(template.jobProfileId) : "",
-    ])));
-    setRequirementLevels(Object.fromEntries((payload.requirements ?? []).map((requirement: Requirement) => [
-      requirement.id,
-      String(requirement.minimumProficiency),
-    ])));
-    setRequirementMandatory(Object.fromEntries((payload.requirements ?? []).map((requirement: Requirement) => [
-      requirement.id,
-      requirement.mandatory,
-    ])));
-    setDefaultLevels(Object.fromEntries((payload.defaults ?? []).map((row: ExpectationDefault) => [
-      row.id,
-      String(row.minimumProficiency),
-    ])));
-    setDefaultMandatory(Object.fromEntries((payload.defaults ?? []).map((row: ExpectationDefault) => [
-      row.id,
-      row.mandatory,
-    ])));
-    setDefaultActive(Object.fromEntries((payload.defaults ?? []).map((row: ExpectationDefault) => [
-      row.id,
-      row.active,
-    ])));
-  }, [organizationId, setNotice]);
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const announce = useCallback((message: string) => {
+    if (mountedRef.current) setNotice(message);
+  }, [setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  // Refresh and post-mutation reads share a cancelable, single request owner.
+  const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () => mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
+    try {
+      const response = await fetch("/api/performance/competencies?organizationId=" + organizationId, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
+      if (!response.ok) {
+        announce(payload.error ?? "Could not load job-profile competency architecture.");
+        return;
+      }
+      setProfiles(payload.profiles ?? []);
+      setSkills(payload.skills ?? []);
+      setRequirements(payload.requirements ?? []);
+      setDefaults(payload.defaults ?? []);
+      setFamilies(payload.families ?? []);
+      setLevels(payload.levels ?? []);
+      setTemplates(payload.templates ?? []);
+      setCoverage(payload.coverage ?? []);
+      setMappingSkill(Object.fromEntries((payload.templates ?? []).map((template: Template) => [
+        template.id,
+        template.skillId ? String(template.skillId) : "",
+      ])));
+      setMappingProfile(Object.fromEntries((payload.templates ?? []).map((template: Template) => [
+        template.id,
+        template.jobProfileId ? String(template.jobProfileId) : "",
+      ])));
+      setRequirementLevels(Object.fromEntries((payload.requirements ?? []).map((requirement: Requirement) => [
+        requirement.id,
+        String(requirement.minimumProficiency),
+      ])));
+      setRequirementMandatory(Object.fromEntries((payload.requirements ?? []).map((requirement: Requirement) => [
+        requirement.id,
+        requirement.mandatory,
+      ])));
+      setDefaultLevels(Object.fromEntries((payload.defaults ?? []).map((row: ExpectationDefault) => [
+        row.id,
+        String(row.minimumProficiency),
+      ])));
+      setDefaultMandatory(Object.fromEntries((payload.defaults ?? []).map((row: ExpectationDefault) => [
+        row.id,
+        row.mandatory,
+      ])));
+      setDefaultActive(Object.fromEntries((payload.defaults ?? []).map((row: ExpectationDefault) => [
+        row.id,
+        row.active,
+      ])));
+    } catch (error) {
+      if (isCurrent()) announce(error instanceof Error ? error.message : "Could not load job-profile competency architecture.");
+    }
+  }, [organizationId, announce]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    // Avoid effect-phase state updates and skip Strict Mode retired setups.
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
+  }, [load]);
 
   const skillById = useMemo(() => new Map(skills.map((skill) => [skill.id, skill])), [skills]);
   const profileById = useMemo(() => new Map(profiles.map((profile) => [profile.id, profile])), [profiles]);
@@ -184,14 +224,15 @@ export function PerformanceCompetencyArchitecturePanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not create HCM skill.");
+      announce(payload.error ?? "Could not create HCM skill.");
       return;
     }
     setSkillForm({ code: "", name: "", category: "General", description: "" });
     setShowSkill(false);
     await load();
-    setNotice("HCM skill created for job-profile competency governance.");
+    announce("HCM skill created for job-profile competency governance.");
   }
 
   async function createRequirement(event: React.FormEvent) {
@@ -209,20 +250,21 @@ export function PerformanceCompetencyArchitecturePanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not add job-profile skill requirement.");
+      announce(payload.error ?? "Could not add job-profile skill requirement.");
       return;
     }
     setRequirementForm({ jobProfileId: "", skillId: "", minimumProficiency: "3", mandatory: true });
     setShowRequirement(false);
     await load();
-    setNotice("Job-profile skill requirement added.");
+    announce("Job-profile skill requirement added.");
   }
 
   async function createDefault(event: React.FormEvent) {
     event.preventDefault();
     if (!defaultForm.jobFamilyId && !defaultForm.jobLevelId) {
-      setNotice("Choose a job family, a job level, or both for the inherited expectation.");
+      announce("Choose a job family, a job level, or both for the inherited expectation.");
       return;
     }
     const response = await fetch("/api/performance/competencies", {
@@ -239,14 +281,15 @@ export function PerformanceCompetencyArchitecturePanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not create inherited competency expectation.");
+      announce(payload.error ?? "Could not create inherited competency expectation.");
       return;
     }
     setDefaultForm({ jobFamilyId: "", jobLevelId: "", skillId: "", minimumProficiency: "3", mandatory: false });
     setShowDefault(false);
     await load();
-    setNotice("Inherited competency expectation created.");
+    announce("Inherited competency expectation created.");
   }
 
   async function saveRequirement(requirement: Requirement) {
@@ -262,12 +305,13 @@ export function PerformanceCompetencyArchitecturePanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not update job-profile skill requirement.");
+      announce(payload.error ?? "Could not update job-profile skill requirement.");
       return;
     }
     await load();
-    setNotice("Job-profile proficiency expectation updated.");
+    announce("Job-profile proficiency expectation updated.");
   }
 
   async function saveDefault(row: ExpectationDefault) {
@@ -284,12 +328,13 @@ export function PerformanceCompetencyArchitecturePanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not update inherited competency expectation.");
+      announce(payload.error ?? "Could not update inherited competency expectation.");
       return;
     }
     await load();
-    setNotice("Inherited competency expectation updated.");
+    announce("Inherited competency expectation updated.");
   }
 
   async function saveMapping(template: Template) {
@@ -305,12 +350,13 @@ export function PerformanceCompetencyArchitecturePanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not map competency to job architecture.");
+      announce(payload.error ?? "Could not map competency to job architecture.");
       return;
     }
     await load();
-    setNotice("Performance competency mapped to job-profile skill architecture.");
+    announce("Performance competency mapped to job-profile skill architecture.");
   }
 
   return (

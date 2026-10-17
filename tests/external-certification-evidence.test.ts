@@ -11,6 +11,7 @@ import {
   type EvidenceKind,
   type ExternalCertificationManifest,
 } from "../src/lib/external-certification-evidence";
+import { symlinkSkip } from "./helpers/symlink-capability.mjs";
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "linaw-external-cert-validation-"));
@@ -142,7 +143,7 @@ test("placeholders and absent government references cannot pass", () => {
   });
 });
 
-test("symlink escapes outside private root are rejected", () => {
+test("symlink escapes outside private root are rejected", { skip: symlinkSkip }, () => {
   withFixture((root, manifest) => {
     const outside = mkdtempSync(join(tmpdir(), "linaw-outside-proof-"));
     try {
