@@ -184,18 +184,26 @@ async function exercise(width) {
         filename: "synthetic-onboarding-photo.jpg", category: "onboarding",
         mime: "image/jpeg", type: "jpeg",
         bytes: Buffer.from([
-          "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALDA4MChAODQ4S",
-          "ERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1R",
-          "V19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhC",
-          "Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2Nj",
-          "Y2NjY2NjY2NjY2NjY2P/wAARCAABAAEDASIAAhEBAxEB/8QA",
-          "FQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAA",
-          "AAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAABAX/xAAUEQEA",
-          "AAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCOAoAP/9k="
+          "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHBwgHBgoICAgLCgoLDhgQDg0NDh0V",
+          "FhEYIx8lJCIfIiEmKzcvJik0KSEiMEExNDk7Pj4+JS5ESUM8SDc9Pjv/2wBDAQoL",
+          "Cw4NDhwQEBw7KCIoOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7",
+          "Ozs7Ozs7Ozs7Ozs7Ozv/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAA",
+          "AAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAA",
+          "AAAABv/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AJkAiHn/2Q=="
         ].join(""), "base64"),
       },
     ];
     for (const image of imageCases) {
+      // Byte signatures alone cannot guarantee a usable image. Decode these
+      // fictional test pixels in Chromium before private upload.
+      const decoded = await page.evaluate(({ mime, data }) => new Promise((resolve, reject) => {
+        const bitmap = new Image();
+        bitmap.onload = () => resolve({ width: bitmap.naturalWidth, height: bitmap.naturalHeight });
+        bitmap.onerror = () => reject(new Error("Synthetic image is not browser-decodable"));
+        bitmap.src = "data:" + mime + ";base64," + data;
+      }), { mime: image.mime, data: image.bytes.toString("base64") });
+      assert.deepEqual(decoded, { width: 1, height: 1 },
+        image.filename + " must decode as a 1x1 pixel");
       await panel.getByRole("combobox", { name: "Category" }).selectOption(image.category);
       await panel.getByLabel("File", { exact: true }).setInputFiles({
         name: image.filename, mimeType: image.mime, buffer: image.bytes,
