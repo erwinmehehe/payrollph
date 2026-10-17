@@ -38,6 +38,7 @@ import { ensureSubscription } from "@/lib/billing";
 import { DEFAULT_PRICING_PLANS } from "@/lib/pricing-catalog";
 import { generateBackupCodes, hashPassword } from "@/lib/crypto";
 import { encryptBankAccount } from "@/lib/bank-account-crypto";
+import { DEV_DEMO_PAYROLL_WORKERS, fictionalDevSeedPayroll } from "@/lib/dev-demo-payroll-fixture";
 
 const people = [
   ["Mariel", "Santos", "Operations Lead", "MS", "Active", "Regular", "38500.00", false, "1234567890", "BDO", "09171230001"],
@@ -133,7 +134,14 @@ export async function ensureSeedData() {
 
   await ensureDemoLegalEmployerLinks();
 
-  const loomPeople = await db.select().from(employees).where(eq(employees.organizationId, loom.id));
+  const loomPeople = await db.select().from(employees)
+    .where(eq(employees.organizationId, loom.id))
+    .orderBy(asc(employees.employeeNo));
+  if (loomPeople.length !== DEV_DEMO_PAYROLL_WORKERS) {
+    throw new Error("The fictional development payroll needs exactly eight original workers.");
+  }
+  const processingFixture = fictionalDevSeedPayroll("processing");
+  const releasedFixture = fictionalDevSeedPayroll("released");
   const punchRows = loomPeople.flatMap((employee, index) => {
     const base = [
       {
@@ -186,32 +194,34 @@ export async function ensureSeedData() {
   await db.insert(timePunches).values(punchRows);
 
   const [processingRun, draftRun, releasedRun] = await db.insert(payrollRuns).values([
-    { organizationId: loom.id, periodLabel: "Mar 1–15, 2026", periodStart: "2026-03-01", periodEnd: "2026-03-15", scopeLabel: "All locations", scopeOrgUnitId: null, status: "Needs review", payDate: "2026-03-18", employeeCount: 8, grossPay: "346820.00", netPay: "285614.42", exceptions: 2, ruleVersion: "PH-2026.01", processedChunks: 1, totalChunks: 1 },
-    { organizationId: loom.id, periodLabel: "Feb 16–28, 2026", periodStart: "2026-02-16", periodEnd: "2026-02-28", scopeLabel: "Makati HQ", scopeOrgUnitId: units[0].id, status: "Draft", payDate: "2026-03-05", employeeCount: 3, grossPay: "261400.00", netPay: "218909.88", exceptions: 0, ruleVersion: "PH-2026.01" },
-    { organizationId: loom.id, periodLabel: "Feb 1–15, 2026", periodStart: "2026-02-01", periodEnd: "2026-02-15", scopeLabel: "All locations", scopeOrgUnitId: null, status: "Released", payDate: "2026-02-18", employeeCount: 8, grossPay: "341200.00", netPay: "281950.37", exceptions: 0, ruleVersion: "PH-2026.01" },
+    { organizationId: loom.id, periodLabel: "Mar 1–15, 2026", periodStart: "2026-03-01", periodEnd: "2026-03-15", scopeLabel: "All locations", scopeOrgUnitId: null, status: "Needs review", payDate: "2026-03-18", employeeCount: processingFixture.entries.length, grossPay: processingFixture.grossPay, netPay: processingFixture.netPay, exceptions: 2, ruleVersion: "PH-2026.01", processedChunks: 1, totalChunks: 1 },
+    { organizationId: loom.id, periodLabel: "Feb 16–28, 2026", periodStart: "2026-02-16", periodEnd: "2026-02-28", scopeLabel: "Makati HQ", scopeOrgUnitId: units[0].id, status: "Draft", payDate: "2026-03-05", employeeCount: 3, grossPay: "0.00", netPay: "0.00", exceptions: 0, ruleVersion: "PH-2026.01" },
+    { organizationId: loom.id, periodLabel: "Feb 1–15, 2026", periodStart: "2026-02-01", periodEnd: "2026-02-15", scopeLabel: "All locations", scopeOrgUnitId: null, status: "Released", payDate: "2026-02-18", employeeCount: releasedFixture.entries.length, grossPay: releasedFixture.grossPay, netPay: releasedFixture.netPay, exceptions: 0, ruleVersion: "PH-2026.01" },
   ]).returning();
 
-  await db.insert(payrollEntries).values(loomPeople.map((employee, index) => ({
-    payrollRunId: processingRun.id,
-    employeeId: employee.id,
-    grossPay: [38500, 29200, 36500, 32500, 24500, 21800, 41000, 34800][index].toFixed(2),
-    deductions: [7284, 5540, 6942, 6175, 4655, 4142, 7790, 6608][index].toFixed(2),
-    netPay: [31216, 23660, 29558, 26325, 19845, 17658, 33210, 28192][index].toFixed(2),
-    status: index === 2 || index === 5 ? "Exception" : "Ready",
-    lineItems: [
-      { code: "BASIC", label: "Basic / worked pay", amount: [38500, 29200, 36500, 32500, 24500, 21800, 41000, 34800][index].toFixed(2) },
-      { code: "SSS", label: "SSS contribution", amount: (-[7284, 5540, 6942, 6175, 4655, 4142, 7790, 6608][index] * 0.25).toFixed(2) },
-    ],
-    trace: { ruleVersion: "PH-2026.01", inputs: ["approved timesheet", "SSS 2026", "semi-monthly table"] },
-  })))
+  // One fictional source supplies BOTH the run header and its eight rows.
+  await db.insert(payrollEntries).values(loomPeople.map((employee, index) => {
+    const { gross, deductions, net } = processingFixture.entries[index];
+    return {
+      payrollRunId: processingRun.id,
+      employeeId: employee.id,
+      grossPay: gross.toFixed(2),
+      deductions: deductions.toFixed(2),
+      netPay: net.toFixed(2),
+      status: index === 2 || index === 5 ? "Exception" : "Ready",
+      lineItems: [
+        { code: "BASIC", label: "Basic / worked pay", amount: gross.toFixed(2) },
+        { code: "SSS", label: "SSS contribution", amount: (-(deductions * 0.25)).toFixed(2) },
+      ],
+      trace: { ruleVersion: "PH-2026.01", inputs: ["approved timesheet", "SSS 2026", "semi-monthly table"] },
+    };
+  }));
 
   // Released history keeps the Employee sandbox populated with a real pay
   // period. Self-service reads released payroll entries directly and the PDF
   // download is generated from the same stored line items.
   await db.insert(payrollEntries).values(loomPeople.map((employee, index) => {
-    const gross = [37400, 28400, 35200, 31600, 23800, 21000, 39800, 33600][index];
-    const deductions = [7100, 5380, 6680, 6000, 4520, 3990, 7560, 6380][index];
-    const net = gross - deductions;
+    const { gross, deductions, net } = releasedFixture.entries[index];
     return {
       payrollRunId: releasedRun.id,
       employeeId: employee.id,
@@ -230,7 +240,6 @@ export async function ensureSeedData() {
     };
   }));
 
-;
 
   await db.insert(pricingPlans).values(DEFAULT_PRICING_PLANS.map((plan) => ({ ...plan })));
 

@@ -6,8 +6,13 @@ on:
   pull_request:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # A newer push to a pull request supersedes that PR's older run. Pushes to
+  # main are keyed by commit SHA and are never cancelled: the required "check"
+  # job fails closed on a cancelled shard, so cancelling a main run because
+  # another merge landed minutes later left that commit permanently red and
+  # could hide a genuine failure behind a "cancelled" result.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
