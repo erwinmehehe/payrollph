@@ -1,0 +1,62 @@
+name: Issue 1154 payout check contracts (synthetic PostgreSQL)
+
+on:
+  pull_request:
+    paths:
+      - "tests/issue-1154-payout-check-contracts-postgres.test.ts"
+      - "src/db/schema.ts"
+      - "drizzle/0116_payout_ledger_foundation.sql"
+      - ".github/workflows/issue-1154-payout-check-contracts.yml"
+      - "docs/engineering/issue-1154-payout-check-contracts.md"
+
+permissions:
+  contents: read
+
+jobs:
+  payout-check-contracts:
+    name: Payout check boundaries and rollback (PG${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: fixture
+          POSTGRES_PASSWORD: fixture
+          POSTGRES_DB: issue1154_contracts
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fixture -d issue1154_contracts"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Execute exact forward source and current model checks; always roll back
+        env:
+          TZ: Asia/Manila
+          ISSUE1154_DISPOSABLE_PG_URL: postgresql://fixture:fixture@127.0.0.1:5432/issue1154_contracts
+          ISSUE1154_PG_REQUIRED: "true"
+          PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+          XENDIT_PAYOUTS_ENABLED: "false"
+        run: node --import tsx --test tests/issue-1154-payout-check-contracts-postgres.test.ts
+      - name: Retain unsuppressed catalog definitions and boundary witnesses
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: issue1154-payout-check-contracts-pg${{ matrix.postgres }}
+          path: qa-artifacts/issue1154/
+          if-no-files-found: error
+          retention-days: 14

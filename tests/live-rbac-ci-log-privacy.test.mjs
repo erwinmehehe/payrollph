@@ -5,11 +5,14 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { posixShellTestSkipReason } from "./helpers/posix-shell-prerequisites.mjs";
 
 const workflow = readFileSync(
   new URL("../.github/workflows/live-rbac-sandbox-smoke.yml", import.meta.url),
   "utf8",
 );
+const bashJqSkip = posixShellTestSkipReason({ needsJq: true });
+
 // Limit the fixture to this step's YAML body. A following workflow step must
 // never become part of the extracted Bash (or leak its private environment).
 const roleStep = workflow.split("- name: Verify all six RBAC personas on production")[1]
@@ -135,7 +138,7 @@ function runRoleSmoke(mode) {
 }
 
 test("fictional rejected auth hides secret-like response and cookie contents", {
-  skip: process.platform === "win32",
+  skip: bashJqSkip,
 }, () => {
   const { status, transcript } = runRoleSmoke("reject");
   assert.equal(status, 1);
@@ -144,7 +147,7 @@ test("fictional rejected auth hides secret-like response and cookie contents", {
 });
 
 test("fictional success verifies all six roles without logging response bodies", {
-  skip: process.platform === "win32",
+  skip: bashJqSkip,
 }, () => {
   const { status, transcript } = runRoleSmoke("success");
   assert.equal(status, 0, transcript);

@@ -237,7 +237,8 @@ test('NEEDS_FIX requires witnessed observation and opaque BUG ID; BLOCKED and NO
   assert.ok(evaluate(l).problems.some(s=>s.includes('Invalid status')));
 });
 
-test('CLI init is non-overwriting, private-only; check exits 2 without fabricated evidence', { skip: symlinkSkip },async()=>{
+test('CLI init is non-overwriting, private-only; check exits 2 without fabricated evidence',async()=>{
+  // Always runs, even on local Windows without symlink permissions.
   const home=await mkdtemp(join(tmpdir(),'issue853-v2-test-'));
   try {
     const pathname=join(home,'private-evidence','ledger.json');
@@ -251,9 +252,22 @@ test('CLI init is non-overwriting, private-only; check exits 2 without fabricate
     assert.equal(run('check',pathname).status,2);
     assert.equal(run('init',pathname).status,1,'must refuse overwriting an evidence ledger');
     assert.equal(run('init',join(repoRoot,'qa-artifacts','issue853-private-test.json')).status,1);
+  } finally {
+    await rm(home,{recursive:true,force:true});
+  }
+});
+
+test('CLI refuses a directory symlink redirecting private evidence into checkout',
+  { skip: symlinkSkip },async()=>{
+  // symlinkSkip can skip a *local* machine lacking privileges, NEVER in CI.
+  const home=await mkdtemp(join(tmpdir(),'issue853-v2-symlink-test-'));
+  try {
     const alias=join(home,'symlink-to-repo');
     await symlink(repoRoot,alias,'dir');
-    assert.equal(run('init',join(alias,'should-not-exist.json')).status,1,'symlink must not redirect private data into checkout');
+    const result=spawnSync(process.execPath,[script,'init',join(alias,'should-not-exist.json')],{
+      encoding:'utf8',cwd:repoRoot,
+    });
+    assert.equal(result.status,1,'symlink must not redirect private evidence into checkout');
   } finally {
     await rm(home,{recursive:true,force:true});
   }

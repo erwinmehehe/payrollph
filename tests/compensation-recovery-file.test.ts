@@ -41,13 +41,21 @@ test("rejects empty and non-JSON approval files", () => {
   });
 });
 
-test("rejects final-component symlinks and directories", { skip: symlinkSkip }, () => {
+test("rejects final-component symlinks (never skipped in CI)", { skip: symlinkSkip }, () => {
   inScratch((dir) => {
     const source = join(dir, "source.json");
     const link = join(dir, "link.json");
     writeFileSync(source, "{}");
+    // The imported capability probe allows local Windows without symlink
+    // privileges to skip, but in CI it NEVER skips: inability to create a
+    // symlink is a real security-regression test failure, not a silent pass.
     symlinkSync(source, link);
     assert.throws(() => readSignedCompensationRecoveryApprovalFile(link));
+  });
+});
+
+test("rejects directories even where local symlink creation is unavailable", () => {
+  inScratch((dir) => {
     assert.throws(() => readSignedCompensationRecoveryApprovalFile(dir), /regular file/);
   });
 });
@@ -60,4 +68,7 @@ test("the privileged CLI never performs separate pathname size and content reads
   assert.ok(!cli.includes("statSync(approvalFile)"));
   assert.ok(!cli.includes("readFileSync(approvalFile)"));
   assert.ok(helper.includes("openSync(") && helper.includes("fstatSync(fd)") && helper.includes("readSync(fd,"));
+  assert.ok(helper.includes('lstatSync(path, { bigint: true })'), "Windows no-follow guard must reject reparse-point symlinks");
+  assert.ok(helper.includes("original.ino !== opened.ino"), "Windows must compare opened-descriptor file identity");
+  assert.ok(helper.includes("after.ino !== opened.ino"), "Windows must recheck the final path after the bounded read");
 });

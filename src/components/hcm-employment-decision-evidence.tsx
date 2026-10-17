@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, FileCheck2, Paperclip, RefreshCw, ShieldCheck } from "lucide-react";
 
 type EvidencePacket = {
@@ -118,17 +118,26 @@ function compactHash(value: string | null) {
   return `${value.slice(0, 10)}…${value.slice(-8)}`;
 }
 
-export function HcmEmploymentDecisionEvidence({
-  organizationId,
-  decisionId,
-  compact = false,
-  onChanged,
-}: {
+type HcmEmploymentDecisionEvidenceProps = {
   organizationId: number;
   decisionId: number;
   compact?: boolean;
   onChanged?: () => Promise<unknown> | unknown;
-}) {
+};
+
+// A decision-specific remount drops the prior employer's evidence, signed-off
+// recommendation, freeform notes and unsent file before any new fetch begins.
+export function HcmEmploymentDecisionEvidence(props: HcmEmploymentDecisionEvidenceProps) {
+  return <ScopedHcmEmploymentDecisionEvidence
+    key={props.organizationId + ":" + props.decisionId} {...props} />;
+}
+
+function ScopedHcmEmploymentDecisionEvidence({
+  organizationId,
+  decisionId,
+  compact = false,
+  onChanged,
+}: HcmEmploymentDecisionEvidenceProps) {
   const [payload, setPayload] = useState<EvidenceResponse | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -140,25 +149,48 @@ export function HcmEmploymentDecisionEvidence({
   const [label, setLabel] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
+  const mountedRef = useRef(false);
+  const requestRevisionRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
+
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    const revision = ++requestRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === requestRevisionRef.current;
+    // A refresh must not keep a formerly authorized private packet on screen.
+    setPayload(null);
     setError("");
     try {
       const response = await fetch(
         `/api/hcm/employment-term-decisions/${decisionId}/evidence?organizationId=${organizationId}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal: controller.signal },
       );
       const data = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(data.error ?? "Could not load the decision evidence packet.");
       setPayload(data as EvidenceResponse);
       if (!(data as EvidenceResponse).managerReviewOnly) setNoteKind("hr_review");
     } catch (loadError) {
+      if (!isCurrent()) return;
       setPayload(null);
       setError(loadError instanceof Error ? loadError.message : "Could not load the decision evidence packet.");
     }
   }, [decisionId, organizationId]);
 
   useEffect(() => {
-    void load();
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      requestRevisionRef.current += 1;
+      requestControllerRef.current?.abort();
+    };
   }, [load]);
 
   const packet = payload?.packet ?? null;
@@ -190,14 +222,15 @@ export function HcmEmploymentDecisionEvidence({
         },
       );
       const data = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(data.error ?? "Could not add review evidence.");
       setNote("");
       await load();
-      await onChanged?.();
+      if (mountedRef.current) await onChanged?.();
     } catch (mutationError) {
-      setError(mutationError instanceof Error ? mutationError.message : "Could not add review evidence.");
+      if (mountedRef.current) setError(mutationError instanceof Error ? mutationError.message : "Could not add review evidence.");
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   }
 
@@ -220,14 +253,15 @@ export function HcmEmploymentDecisionEvidence({
         },
       );
       const data = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(data.error ?? "Could not submit manager attestation.");
       setManagerStatement("");
       await load();
-      await onChanged?.();
+      if (mountedRef.current) await onChanged?.();
     } catch (mutationError) {
-      setError(mutationError instanceof Error ? mutationError.message : "Could not submit manager attestation.");
+      if (mountedRef.current) setError(mutationError instanceof Error ? mutationError.message : "Could not submit manager attestation.");
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   }
 
@@ -247,15 +281,16 @@ export function HcmEmploymentDecisionEvidence({
         { method: "POST", body: form },
       );
       const data = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(data.error ?? "Could not upload decision evidence.");
       setLabel("");
       setFile(null);
       await load();
-      await onChanged?.();
+      if (mountedRef.current) await onChanged?.();
     } catch (mutationError) {
-      setError(mutationError instanceof Error ? mutationError.message : "Could not upload decision evidence.");
+      if (mountedRef.current) setError(mutationError instanceof Error ? mutationError.message : "Could not upload decision evidence.");
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   }
 
