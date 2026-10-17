@@ -1,6 +1,12 @@
 name: Nine-Stage Connected Payroll Development Acceptance (No Money)
 
 on:
+  workflow_call:
+    inputs:
+      pg18_only:
+        description: Restrict reused journey to the guarded, disposable PG18 governed-Hire case
+        type: boolean
+        default: false
   # Re-prove the merged source on main without deploying another environment.
   # Source-connected acceptance also runs after changes to the authoritative
   # hire/onboarding, time-to-pay and draft filing inputs (not only phone CSS).
@@ -175,7 +181,7 @@ concurrency:
   # A newer push to a pull request supersedes its older run. Runs for main and
   # manual dispatch are keyed by commit and never cancelled, so a quick follow-up
   # merge cannot leave a main commit with a cancelled (or missing) result.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: nine-stage-source-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -183,16 +189,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - hire-mode: direct
-            postgres: "16"
-          - hire-mode: governed
-            postgres: "16"
-          - hire-mode: governed
-            postgres: "18"
-          - hire-mode: governed
-            postgres: "16"
-            cutoff: year-end
+        # Direct PR/main runs preserve all four modes. The clean-PG18 caller
+        # runs exactly one separate, fresh guarded PG18 employer A/B journey.
+        include: ${{ fromJSON(inputs.pg18_only && '[{"hire-mode":"governed","postgres":"18"}]' || '[{"hire-mode":"direct","postgres":"16"},{"hire-mode":"governed","postgres":"16"},{"hire-mode":"governed","postgres":"18"},{"hire-mode":"governed","postgres":"16","cutoff":"year-end"}]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:

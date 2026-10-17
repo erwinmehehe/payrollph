@@ -5,11 +5,32 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/clean-pg18-source-regression.yml"
-      - "docs/engineering/clean-pg18-source-baseline.md"
       - ".github/workflows/nine-stage-connected-acceptance.yml"
+      - "docs/engineering/clean-pg18-source-baseline.md"
+      - "tests/clean-pg18-two-employer-gate.test.mjs"
+      - "src/db/schema.ts"
+      - "drizzle.config.ts"
+      - "scripts/qa/fresh-pg18-development-schema.mjs"
+      - "scripts/qa/verified-pg18-bootstrap.mjs"
+      - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/nine-stage-mobile-browser.mjs"
+      - "scripts/qa/issue-853-synthetic-coverage.mjs"
+      - "tests/nine-stage-connected-evidence.test.mjs"
   push:
     branches: [main]
-    paths: [".github/workflows/clean-pg18-source-regression.yml"]
+    paths:
+      - ".github/workflows/clean-pg18-source-regression.yml"
+      - ".github/workflows/nine-stage-connected-acceptance.yml"
+      - "docs/engineering/clean-pg18-source-baseline.md"
+      - "tests/clean-pg18-two-employer-gate.test.mjs"
+      - "src/db/schema.ts"
+      - "drizzle.config.ts"
+      - "scripts/qa/fresh-pg18-development-schema.mjs"
+      - "scripts/qa/verified-pg18-bootstrap.mjs"
+      - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/nine-stage-mobile-browser.mjs"
+      - "scripts/qa/issue-853-synthetic-coverage.mjs"
+      - "tests/nine-stage-connected-evidence.test.mjs"
   workflow_dispatch:
 
 permissions:
@@ -54,6 +75,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          # A PR's default checkout is refs/pull/N/merge, which is NOT its head.
+          # The schema, all shards, and called journey must all test one exact SHA.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
@@ -158,6 +182,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          # A PR's default checkout is refs/pull/N/merge, which is NOT its head.
+          # The schema, all shards, and called journey must all test one exact SHA.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
@@ -214,5 +241,44 @@ jobs:
           path: qa-artifacts/pg18/shard-${{ matrix.shard }}.json
           retention-days: 7
           if-no-files-found: warn
+
+  connected-journey:
+    name: PG18 source-connected 2 x 9 employer stages (no money)
+    needs: [source-ddl, regression]
+    # Invoke the same authenticated employer A/B tests and mobile scope validators
+    # as the standalone nine-stage workflow, not a weaker duplicate.
+    uses: ./.github/workflows/nine-stage-connected-acceptance.yml
+    with:
+      pg18_only: true
+    permissions:
+      contents: read
+
+  complete-gate:
+    name: PG18 clean bootstrap + 4 shards + two-employer journey
+    needs: [source-ddl, regression, connected-journey]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      SCHEMA_RESULT: ${{ needs.source-ddl.result }}
+      REGRESSION_RESULT: ${{ needs.regression.result }}
+      JOURNEY_RESULT: ${{ needs.connected-journey.result }}
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Reject failed, cancelled, partial or skipped evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in SCHEMA_RESULT REGRESSION_RESULT JOURNEY_RESULT; do
+            if [[ "${!key}" != "success" ]]; then
+              echo "::error::Clean PG18 gate BLOCKED: ${key} is not successful"
+              exit 1
+            fi
+          done
+          test -n "$SOURCE_SHA"
+          echo "CLEAN_PG18_TWO_EMPLOYER_GATE PASS source=$SOURCE_SHA (disposable CI only)"
+          echo "NOT independent human UAT, real Neon parity, payment or official filing approval"
 
 # Entirely isolated PG18 CI. No actual Neon secrets, payroll transfers or agency submissions.
