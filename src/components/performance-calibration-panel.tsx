@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, RefreshCw, Scale } from "lucide-react";
 
 type Session = {
@@ -75,13 +75,20 @@ type CalibrationPolicy = {
   requireFlagResolution: boolean;
 };
 
-export function PerformanceCalibrationPanel({
-  organizationId,
-  setNotice,
-}: {
+type PerformanceCalibrationProps = {
   organizationId: number;
   setNotice: (message: string) => void;
-}) {
+};
+
+// Remount both fetched and editable performance evidence on employer switch.
+export function PerformanceCalibrationPanel(props: PerformanceCalibrationProps) {
+  return <PerformanceCalibrationContent key={props.organizationId} {...props} />;
+}
+
+function PerformanceCalibrationContent({
+  organizationId,
+  setNotice,
+}: PerformanceCalibrationProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -96,43 +103,76 @@ export function PerformanceCalibrationPanel({
   const [scores, setScores] = useState<Record<number, string>>({});
   const [rationales, setRationales] = useState<Record<number, string>>({});
 
-  const load = useCallback(async () => {
-    const response = await fetch("/api/performance/calibration?organizationId=" + organizationId, { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setNotice(payload.error ?? "Could not load performance calibration.");
-      return;
-    }
-    setSessions(payload.sessions ?? []);
-    setEntries(payload.entries ?? []);
-    setReviews(payload.reviews ?? []);
-    setEmployees(payload.employees ?? []);
-    setCycles(payload.cycles ?? []);
-    setFlags(payload.flags ?? []);
-    const nextPolicy: CalibrationPolicy | null = payload.policy ?? null;
-    setPolicy(nextPolicy);
-    if (nextPolicy) setPolicyForm({
-      minimumManagerSample: String(nextPolicy.minimumManagerSample),
-      managerMeanDeviationThreshold: String(nextPolicy.managerMeanDeviationThreshold),
-      highRatingThreshold: String(nextPolicy.highRatingThreshold),
-      highRatingShareThreshold: String(nextPolicy.highRatingShareThreshold),
-      lowRatingThreshold: String(nextPolicy.lowRatingThreshold),
-      lowRatingShareThreshold: String(nextPolicy.lowRatingShareThreshold),
-      largeScoreChangeThreshold: String(nextPolicy.largeScoreChangeThreshold),
-      requireFlagResolution: nextPolicy.requireFlagResolution,
-    });
-    setFlagNotes(Object.fromEntries((payload.flags ?? []).map((flag: CalibrationFlag) => [flag.id, flag.resolutionNote ?? ""])));
-    setScores(Object.fromEntries((payload.entries ?? []).map((entry: Entry) => [
-      entry.id,
-      entry.calibratedScore ? String(Number(entry.calibratedScore)) : String(Number(entry.originalScore)),
-    ])));
-    setRationales(Object.fromEntries((payload.entries ?? []).map((entry: Entry) => [
-      entry.id,
-      entry.rationale ?? "",
-    ])));
-  }, [organizationId, setNotice]);
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const announce = useCallback((message: string) => {
+    if (mountedRef.current) setNotice(message);
+  }, [setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  // Refresh and post-mutation reads share a cancelable, single request owner.
+  const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () => mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
+    try {
+      const response = await fetch("/api/performance/calibration?organizationId=" + organizationId, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
+      if (!response.ok) {
+        announce(payload.error ?? "Could not load performance calibration.");
+        return;
+      }
+      setSessions(payload.sessions ?? []);
+      setEntries(payload.entries ?? []);
+      setReviews(payload.reviews ?? []);
+      setEmployees(payload.employees ?? []);
+      setCycles(payload.cycles ?? []);
+      setFlags(payload.flags ?? []);
+      const nextPolicy: CalibrationPolicy | null = payload.policy ?? null;
+      setPolicy(nextPolicy);
+      if (nextPolicy) setPolicyForm({
+        minimumManagerSample: String(nextPolicy.minimumManagerSample),
+        managerMeanDeviationThreshold: String(nextPolicy.managerMeanDeviationThreshold),
+        highRatingThreshold: String(nextPolicy.highRatingThreshold),
+        highRatingShareThreshold: String(nextPolicy.highRatingShareThreshold),
+        lowRatingThreshold: String(nextPolicy.lowRatingThreshold),
+        lowRatingShareThreshold: String(nextPolicy.lowRatingShareThreshold),
+        largeScoreChangeThreshold: String(nextPolicy.largeScoreChangeThreshold),
+        requireFlagResolution: nextPolicy.requireFlagResolution,
+      });
+      setFlagNotes(Object.fromEntries((payload.flags ?? []).map((flag: CalibrationFlag) => [flag.id, flag.resolutionNote ?? ""])));
+      setScores(Object.fromEntries((payload.entries ?? []).map((entry: Entry) => [
+        entry.id,
+        entry.calibratedScore ? String(Number(entry.calibratedScore)) : String(Number(entry.originalScore)),
+      ])));
+      setRationales(Object.fromEntries((payload.entries ?? []).map((entry: Entry) => [
+        entry.id,
+        entry.rationale ?? "",
+      ])));
+    } catch (error) {
+      if (isCurrent()) announce(error instanceof Error ? error.message : "Could not load performance calibration.");
+    }
+  }, [organizationId, announce]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    // Avoid effect-phase state updates and skip Strict Mode retired setups.
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
+  }, [load]);
 
   const employeeName = useMemo(
     () => new Map(employees.map((employee) => [employee.id, employee.firstName + " " + employee.lastName])),
@@ -154,14 +194,15 @@ export function PerformanceCalibrationPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not open calibration.");
+      announce(payload.error ?? "Could not open calibration.");
       return;
     }
     setForm({ cycleId: "", name: "", notes: "" });
     setShowCreate(false);
     await load();
-    setNotice("Performance calibration opened from completed manager ratings.");
+    announce("Performance calibration opened from completed manager ratings.");
   }
 
   async function saveEntry(session: Session, entry: Entry) {
@@ -178,12 +219,13 @@ export function PerformanceCalibrationPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not save calibrated rating.");
+      announce(payload.error ?? "Could not save calibrated rating.");
       return;
     }
     await load();
-    setNotice("Calibrated rating saved with audit evidence.");
+    announce("Calibrated rating saved with audit evidence.");
   }
 
   async function finalize(session: Session) {
@@ -197,12 +239,13 @@ export function PerformanceCalibrationPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not finalize calibration.");
+      announce(payload.error ?? "Could not finalize calibration.");
       return;
     }
     await load();
-    setNotice("Calibration finalized. Calibrated ratings are now the performance final ratings; compensation remains unchanged.");
+    announce("Calibration finalized. Calibrated ratings are now the performance final ratings; compensation remains unchanged.");
   }
 
   async function savePolicy(event: React.FormEvent) {
@@ -225,12 +268,13 @@ export function PerformanceCalibrationPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not update calibration policy.");
+      announce(payload.error ?? "Could not update calibration policy.");
       return;
     }
     await load();
-    setNotice("Calibration distribution policy version updated. Existing sessions keep their frozen policy snapshot.");
+    announce("Calibration distribution policy version updated. Existing sessions keep their frozen policy snapshot.");
   }
 
   async function closeFlag(session: Session, flag: CalibrationFlag, status: "accepted" | "resolved") {
@@ -247,12 +291,13 @@ export function PerformanceCalibrationPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not close calibration flag.");
+      announce(payload.error ?? "Could not close calibration flag.");
       return;
     }
     await load();
-    setNotice(status === "accepted" ? "Calibration outlier accepted with rationale." : "Calibration outlier resolved.");
+    announce(status === "accepted" ? "Calibration outlier accepted with rationale." : "Calibration outlier resolved.");
   }
 
   return (
