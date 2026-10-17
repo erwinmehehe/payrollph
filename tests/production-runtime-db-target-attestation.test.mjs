@@ -116,3 +116,12 @@ test("#1198 protected manual-only workflow cannot use DB writer credentials or m
   assert.doesNotMatch(source, /\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\s+(?:TABLE|INTO|FROM|ROLE)\b/i);
   assert.match(source, /redirect: "error"/);
 });
+
+test("#1198 external GitHub actions must use full immutable 40-character pins", () => {
+  const yaml = readFileSync(".github/workflows/production-runtime-db-target-attestation.yml", "utf8");
+  const pins = [...yaml.matchAll(/^[ \t]*uses:[ \t]*(actions\/[a-z0-9_-]+)@([^ \t#\r\n]+)/gm)];
+  assert.equal(pins.length, 2, "Both GitHub Actions dependencies must be pinned");
+  for (const [, action, ref] of pins) {
+    assert.match(ref, /^[0-9a-f]{40}$/, action + " must use a complete immutable commit SHA");
+  }
+});
