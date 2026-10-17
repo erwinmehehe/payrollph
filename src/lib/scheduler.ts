@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
 import { drainOutboxRetries } from "@/lib/mailer";
-import { purgeExpiredOperationalData } from "@/lib/data-retention";
+import { purgeExpiredOperationalData, RetentionPurgeIncompleteError } from "@/lib/data-retention";
 import { enhancedPunchEnabled, drainExpiredPunchPhotoBatches } from "@/lib/workforce-punch-evidence";
 import { purgeExpiredPunchPhotos } from "@/lib/workforce-punch-retention";
 import { drainMarketingLeadNotifications } from "@/lib/marketing-leads";
@@ -117,8 +117,22 @@ async function runScheduledJobs(
   const retentionDue =
     !retentionState?.lastRunAt
     || now.getTime() - retentionState.lastRunAt.getTime() >= 24 * 60 * 60 * 1000;
+  // A failed retention step (for example a table that was never created) must
+  // not stop approval escalations, statutory sync, compliance alerts and the
+  // other jobs below. Every step was still attempted; the failure is rethrown
+  // after the remaining jobs finish, and the retention marker is not advanced
+  // so the whole purge is retried on the next tick.
   if (retentionDue) await assertLeaseOwnership();
-  const retention = retentionDue ? await purgeExpiredOperationalData(now.getTime()) : null;
+  let retention: Awaited<ReturnType<typeof purgeExpiredOperationalData>> | null = null;
+  let retentionFailure: RetentionPurgeIncompleteError | null = null;
+  if (retentionDue) {
+    try {
+      retention = await purgeExpiredOperationalData(now.getTime());
+    } catch (error) {
+      if (!(error instanceof RetentionPurgeIncompleteError)) throw error;
+      retentionFailure = error;
+    }
+  }
   // Retention must continue after selfie collection is disabled; otherwise
   // switching the feature flag OFF strands existing encrypted evidence.
   // Older databases without the optional migration should not fail cleanup.
@@ -367,7 +381,7 @@ async function runScheduledJobs(
     }
   }
 
-  if (retentionDue) {
+  if (retentionDue && !retentionFailure) {
     await assertLeaseOwnership();
     const retentionPayload = { at: now.toISOString(), deleted: retention, punchPhotos: punchPhotoPurge };
     if (retentionState) {
@@ -416,6 +430,10 @@ async function runScheduledJobs(
       marketingLeads: marketingLeadResults.slice(0, 10),
     },
   };
+
+  // Every other job has now run. Surface the retention failure instead of
+  // recording a completion receipt for a tick that did not finish its work.
+  if (retentionFailure) throw retentionFailure;
 
   await assertLeaseOwnership();
   // Final liveness evidence is written under a row lock on the current
