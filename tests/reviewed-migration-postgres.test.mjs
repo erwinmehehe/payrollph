@@ -12,6 +12,7 @@ import { assertIsolatedMigrationTarget } from "../scripts/lib/isolated-migration
 import { inventoryMigrationSources } from "../scripts/lib/migration-receipt-audit.mjs";
 import { assertModernSchemaLineage } from "../scripts/lib/schema-lineage-preflight.mjs";
 import { assertHistoricalCatalog } from "../scripts/lib/historical-catalog-gate.mjs";
+import { assertMigrationControlLedgerCatalog } from "../scripts/lib/reviewed-migration-control-ledger.mjs";
 import { cutoverSourceManifest, runReviewedMigrationOnClient } from "../scripts/lib/reviewed-migration-runner.mjs";
 
 const ONLY_ISOLATED = process.env.MIGRATION_REHEARSAL_MODE === "isolated-ci-only";
@@ -138,6 +139,28 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
     assert.equal(preview.sqlApplied, false);
     assert.equal((await admin.query("SELECT count(*)::int AS count FROM public.payrollph_schema_migrations")).rows[0].count, 0);
     assert.equal((await admin.query("SELECT to_regclass('public.synthetic_forward_once') AS name")).rows[0].name, null);
+
+    // Real PG16 catalog semantics: source-accurate DBA control tables pass
+    // under the dedicated auditor, while drifted schemas and mutable receipt
+    // grants fail. Every negative fixture is rolled back before applying SQL.
+    await admin.query("SET ROLE synthetic_migration_audit");
+    await assert.doesNotReject(() => assertMigrationControlLedgerCatalog(admin));
+    await admin.query("RESET ROLE");
+    await admin.query("BEGIN");
+    await admin.query("ALTER TABLE public.payrollph_release_migration_receipts ALTER COLUMN evidence_ref DROP NOT NULL");
+    await admin.query("SET LOCAL ROLE synthetic_migration_audit");
+    await assert.rejects(() => assertMigrationControlLedgerCatalog(admin),
+      /REVIEWED_MIGRATION_CONTROL_LEDGER_INVALID/);
+    await admin.query("ROLLBACK");
+    await admin.query("BEGIN");
+    await admin.query("GRANT UPDATE ON public.payrollph_release_migration_receipts TO synthetic_migration_audit");
+    await admin.query("SET LOCAL ROLE synthetic_migration_audit");
+    await assert.rejects(() => assertMigrationControlLedgerCatalog(admin),
+      /REVIEWED_MIGRATION_CONTROL_LEDGER_INVALID/);
+    await admin.query("ROLLBACK");
+    await admin.query("SET ROLE synthetic_migration_audit");
+    await assert.doesNotReject(() => assertMigrationControlLedgerCatalog(admin));
+    await admin.query("RESET ROLE");
 
     const [first, second] = await Promise.all([
       runReviewedMigrationOnClient({ ...args, client: one, mode: "apply" }),
