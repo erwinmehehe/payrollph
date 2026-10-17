@@ -1,5 +1,6 @@
 export async function obtainIntakeProof(email: string) {
-  if (process.env.NEXT_PUBLIC_PUBLIC_INTAKE_PROOF_ENABLED !== "true") return undefined;
+  // The server is the authority for the challenge gate. Build-time public flags
+  // can be stale across deployments and must never silently skip a required proof.
   const response = await fetch("/api/intake-challenge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
   const challenge = await response.json();
   if (!response.ok) throw Error(challenge.error ?? "Security check unavailable. Please retry.");
