@@ -56,7 +56,7 @@ test("a healthy purge still resolves with numeric counts and the original shape"
 
 test("the scheduler keeps running other jobs after a retention failure and rethrows before the receipt", () => {
   const source = readFileSync("src/lib/scheduler.ts", "utf8");
-  assert.match(source, /import \{ purgeExpiredOperationalData, RetentionPurgeIncompleteError \} from "@\/lib\/data-retention"/);
+  assert.match(source, /import \{ (?:describeFailure, )?purgeExpiredOperationalData, RetentionPurgeIncompleteError \} from "@\/lib\/data-retention"/);
   const caught = source.indexOf("error instanceof RetentionPurgeIncompleteError");
   const otherJob = source.indexOf("runDueApprovalChainEscalations(now)");
   const rethrow = source.indexOf("if (retentionFailure) throw retentionFailure");
@@ -66,5 +66,5 @@ test("the scheduler keeps running other jobs after a retention failure and rethr
   // Only the typed aggregate error is swallowed at the call site; anything else still propagates.
   assert.match(source, /if \(!\(error instanceof RetentionPurgeIncompleteError\)\) throw error;/);
   // The retention marker must not advance on failure, so the whole purge retries next tick.
-  assert.match(source, /if \(retentionDue && !retentionFailure\) \{/);
+  assert.match(source, /if \(retentionDue && !retentionFailure && !punchPhotoFailed\) \{/);
 });
