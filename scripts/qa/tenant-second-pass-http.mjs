@@ -128,7 +128,7 @@ async function makeFixture() {
       type: "department", code: "ATTA-" + nonce, name: "Attacker A department" },
     { organizationId: attackerB.id, legalEntityId: entities[2].id,
       type: "department", code: "ATTB-" + nonce, name: "Attacker B department" },
-  ]).returning({ id: orgUnits.id, organizationId: orgUnits.organizationId });
+  ]).returning({ id: orgUnits.id, organizationId: orgUnits.organizationId, name: orgUnits.name });
   const victimUnits = units.filter((u) => u.organizationId === victim.id);
   const ownedUnits = orgs.map((org) => units.filter((u) => u.organizationId === org.id).at(-1));
   const victimEmployees = await db.insert(employees).values(Array.from({ length: 8 }, (_, idx) => ({
@@ -418,12 +418,23 @@ async function verifyCrossTenant(f) {
         displayName: "Own fictional SCIM provisioning",
         externalId: "own-test-" + owner.id,
         organizationId: victim.id,
+        // SCIM correctly refuses unscoped, company-wide new memberships.
+        // Prove the positive path using a department owned by this bearer org.
+        "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+          department: f.ownedUnits[idx].name,
+        },
       },
-    }), 201, "Attacker " + idx + " can provision only its own SCIM organization");
+    }), 201, "Attacker " + idx + " can provision only its own scoped SCIM organization");
     const [scimCreated] = await db.select().from(scimIdentities)
       .where(eq(scimIdentities.id, Number(ownScimCreate.json.id)));
     assert.equal(scimCreated.organizationId, attacker.id,
       "SCIM caller's bearer, not attacker-supplied organizationId, must choose the target org");
+    const [createdMembership] = await db.select().from(userOrganizations).where(and(
+      eq(userOrganizations.userId, scimCreated.userId),
+      eq(userOrganizations.organizationId, attacker.id),
+    ));
+    assert.equal(createdMembership?.orgUnitId, ownUnit,
+      "SCIM must not grant unscoped company-wide access or accept a victim department");
 
     const ownSessions = list(await request("/api/account/sessions", {
       cookie: attackerCookie,
