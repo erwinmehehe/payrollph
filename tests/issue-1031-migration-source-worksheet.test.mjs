@@ -11,9 +11,9 @@ const read = file => readFileSync(resolve(root, file), "utf8");
 
 test("source-only worksheet covers every drizzle file with current byte SHA and no populated receipts", () => {
   const result = generateSourceWorksheet();
-  assert.equal(result.summary.totalDrizzleFiles, 144);
-  assert.equal(result.summary.numberedSqlFiles, 142);
-  assert.equal(result.summary.sqlFiles, 143);
+  assert.equal(result.summary.totalDrizzleFiles, 145);
+  assert.equal(result.summary.numberedSqlFiles, 143);
+  assert.equal(result.summary.sqlFiles, 144);
   assert.equal(result.summary.sourceSchemaTables, 271);
   assert.equal(result.summary.duplicatePrefixGroups, 13);
   assert.ok(result.migrationRows.some(row => row.file_path === "drizzle/0127_year_end_prior_evidence.sql" && row.creates_objects.includes("year_end_prior_evidence")));
@@ -26,6 +26,23 @@ test("source-only worksheet covers every drizzle file with current byte SHA and 
   assert.ok(rename.requires_tables.includes("employee_availability_rules"));
   assert.equal(rename.receipt_found, "");
   assert.equal(rename.disposition, "");
+  // Both proposed 0128 and 0129 are source paths only. Their checksums
+  // exist for comparison, not as invented live migration journal entries.
+  for (const path of [
+    "drizzle/0128_recovery_foreign_key_names_forward.sql",
+    "drizzle/0129_non_recovery_fk_names_forward.sql",
+  ]) {
+    const matches=result.migrationRows.filter(row=>row.file_path===path);
+    assert.equal(matches.length,1,path);
+    assert.match(matches[0].sha256_exact_committed_bytes,/^[a-f0-9]{64}$/);
+    assert.ok(matches[0].statement_count !== "");
+    if (path === "drizzle/0129_non_recovery_fk_names_forward.sql") {
+      assert.equal(matches[0].manual_review_flags,
+        "DOLLAR_BODY_MANUAL_REVIEW | DYNAMIC_SQL_REVIEW | PROCEDURAL_SQL_REVIEW",
+        "review-only table-lock EXECUTE must remain flagged as dynamic SQL");
+    }
+    for (const field of RECEIPT_FIELDS) assert.equal(matches[0][field],"",path+" "+field);
+  }
   const paths = readdirSync(resolve(root, "drizzle")).map(name => "drizzle/" + name).sort();
   assert.deepEqual(result.migrationRows.map(row => row.file_path).sort(), paths);
   assert.equal(new Set(result.migrationRows.map(row => row.file_path)).size, paths.length);
