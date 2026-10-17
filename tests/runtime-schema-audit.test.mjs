@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { symlinkSkip } from './helpers/symlink-capability.mjs';
 
 const before = `
 export async function ensureDoleReportingSchema() {
@@ -110,7 +111,7 @@ test('directory inventory includes all findings and remains source-only', () => 
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('source symlinks are rejected instead of followed', () => {
+test('source symlinks are rejected instead of followed', { skip: symlinkSkip }, () => {
   const dir = mkdtempSync(join(tmpdir(), 'runtime-schema-audit-'));
   try {
     writeFileSync(join(dir, 'src.ts'), before);

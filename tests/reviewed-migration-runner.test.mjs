@@ -10,6 +10,7 @@ import {
   cutoverSourceManifest, evaluateReviewedMigration, loadReviewedSql,
   runReviewedMigrationOnClient,
 } from "../scripts/lib/reviewed-migration-runner.mjs";
+import { noFollowSkip, symlinkSkip } from "./helpers/symlink-capability.mjs";
 
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "payrollph-forward-migration-"));
@@ -88,7 +89,7 @@ test("historical adoption refuses receipts outside the explicit baseline", () =>
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
 
-test("ordinary backslashes cannot hide a COMMIT when standard strings are on", () => {
+test("ordinary backslashes cannot hide a COMMIT when standard strings are on", { skip: noFollowSkip }, () => {
   const f = fixture();
   try {
     const path = join(f.directory, "0022_forward.sql");
@@ -215,7 +216,7 @@ test("new forward prefix gaps or collisions are never implicitly ordered", () =>
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
 
-test("exact-byte checks reject changed SQL and transaction or journal escapes", () => {
+test("exact-byte checks reject changed SQL and transaction or journal escapes", { skip: noFollowSkip }, () => {
   const f = fixture();
   try {
     assert.match(loadReviewedSql(f.directory, f.target), /CREATE TABLE isolated_forward_fixture/);
@@ -230,7 +231,7 @@ test("exact-byte checks reject changed SQL and transaction or journal escapes", 
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
 
-test("plan uses READ ONLY/rollback and never executes SQL or inserts receipts", async () => {
+test("plan uses READ ONLY/rollback and never executes SQL or inserts receipts", { skip: noFollowSkip }, async () => {
   const f = fixture();
   try {
     const db = fakeClient(f);
@@ -248,7 +249,7 @@ test("plan uses READ ONLY/rollback and never executes SQL or inserts receipts", 
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
 
-test("apply locks, records once, commits; reentry sees already applied and cannot submit twice", async () => {
+test("apply locks, records once, commits; reentry sees already applied and cannot submit twice", { skip: noFollowSkip }, async () => {
   const f = fixture();
   try {
     const db = fakeClient(f);
@@ -271,7 +272,7 @@ test("apply locks, records once, commits; reentry sees already applied and canno
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
 
-test("SQL failure rolls back without writing an application receipt", async () => {
+test("SQL failure rolls back without writing an application receipt", { skip: noFollowSkip }, async () => {
   const f = fixture();
   try {
     const db = fakeClient(f, { throwDuringSql: true });
@@ -288,7 +289,7 @@ test("SQL failure rolls back without writing an application receipt", async () =
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
 
-test("SQL parser preserves dollar-quoted routines but forbids transaction escape after comments", () => {
+test("SQL parser preserves dollar-quoted routines but forbids transaction escape after comments", { skip: noFollowSkip }, () => {
   const f = fixture();
   try {
     const path = join(f.directory, "0022_forward.sql");
@@ -369,7 +370,7 @@ test("P0-4 live Neon legacy lineage cannot be treated as a numbered migration ba
 });
 
 
-test("normal UPDATE ... SET is accepted as transactional DML but session SET is blocked", () => {
+test("normal UPDATE ... SET is accepted as transactional DML but session SET is blocked", { skip: noFollowSkip }, () => {
   const f = fixture();
   try {
     const path = join(f.directory, "0022_forward.sql");
@@ -405,7 +406,7 @@ test("normal UPDATE ... SET is accepted as transactional DML but session SET is 
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
 
-test("reviewed SQL file reader refuses a symlink even if it points to a valid file", () => {
+test("reviewed SQL file reader refuses a symlink even if it points to a valid file", { skip: symlinkSkip }, () => {
   const f = fixture();
   try {
     const path = join(f.directory, "0022_forward.sql");

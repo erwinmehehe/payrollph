@@ -7,6 +7,7 @@ import {
   MAX_COMPENSATION_RECOVERY_APPROVAL_BYTES,
   readSignedCompensationRecoveryApprovalFile,
 } from "../scripts/read-compensation-recovery-approval";
+import { symlinkSkip } from "./helpers/symlink-capability.mjs";
 
 function inScratch(testCase: (dir: string) => void) {
   const root = mkdtempSync(join(tmpdir(), "payrollph-recovery-approval-"));
@@ -40,7 +41,7 @@ test("rejects empty and non-JSON approval files", () => {
   });
 });
 
-test("rejects final-component symlinks and directories", () => {
+test("rejects final-component symlinks and directories", { skip: symlinkSkip }, () => {
   inScratch((dir) => {
     const source = join(dir, "source.json");
     const link = join(dir, "link.json");
