@@ -91,7 +91,7 @@ try {
   // schema.ts declares the dedupe guarantee as a unique *index*, not a
   // UNIQUE table constraint. Inspect pg_index instead of weakening the guard.
   const dedupe = await client.query(
-    "SELECT i.indisunique AS unique, " +
+    "SELECT i.indisunique AS is_unique, " +
     "array_agg(a.attname ORDER BY k.ord) AS columns " +
     "FROM pg_catalog.pg_index i " +
     "JOIN pg_catalog.pg_class idx ON idx.oid=i.indexrelid " +
@@ -104,7 +104,7 @@ try {
     [schema + ".offline_punch_claims", "offline_punch_client_event_unique"],
   );
   assert.equal(dedupe.rows.length, 1, "Exact proposal omitted unique dedupe index");
-  assert.equal(dedupe.rows[0].unique, true, "Client event index must be unique");
+  assert.equal(dedupe.rows[0].is_unique, true, "Client event index must be unique");
   assert.deepEqual(dedupe.rows[0].columns,
     ["organization_id", "employee_id", "client_event_id"],
     "Dedupe index columns/order must match the current Drizzle source");
