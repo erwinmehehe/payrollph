@@ -51,6 +51,7 @@ test("pilot API creates trial entitlements and ignores user-submitted billing pr
 test("verification continues into workspace only for server-stored pilot accounts", () => {
   const verification = read("src/app/api/signup/verify/route.ts");
   assert.ok(verification.includes('subscription.provider === "pilot"'));
+  assert.ok(verification.includes('trialEndsAt: new Date(activatedAt.getTime() + 14 * 86_400_000)'));
   assert.ok(verification.includes('redirectTo: verified.pilot ? "/app" : "/billing/setup"'));
   assert.ok(read("src/components/marketing/verify-signup-form.tsx").includes('window.location.assign(data.redirectTo || "/app")'));
   assert.ok(read("src/app/app/page.tsx").includes('billing.status === "pending_payment"'));
