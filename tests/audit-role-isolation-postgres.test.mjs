@@ -9,6 +9,7 @@ import {drizzle} from "drizzle-orm/node-postgres";
 const mode=process.env.ISSUE908_ACCEPTANCE_MODE;
 const local=mode==="isolated-local-only";
 const ready=local||mode==="isolated-ci-only";
+const foundationMode=process.env.ISSUE908_FOUNDATION_CANDIDATE==="true";
 if(mode&&!ready) throw Error("ISSUE908_UNKNOWN_ACCEPTANCE_MODE");
 
 test("actual restricted logins: audit grants, GUC spoofing and forward guards",{skip:!ready,timeout:120000},async t=>{
@@ -41,10 +42,62 @@ test("actual restricted logins: audit grants, GUC spoofing and forward guards",{
    CREATE ROLE payrollph_audit_maintenance NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
    CREATE TABLE public.organizations(id integer PRIMARY KEY);
    CREATE TABLE public.audit_events(id serial PRIMARY KEY,organization_id integer REFERENCES public.organizations(id) ON DELETE CASCADE,
-    actor text NOT NULL,action text NOT NULL,resource text NOT NULL,metadata jsonb NOT NULL DEFAULT '{}',created_at timestamptz NOT NULL DEFAULT now());
+    actor varchar(120) NOT NULL,action varchar(160) NOT NULL,resource varchar(160) NOT NULL,metadata jsonb NOT NULL DEFAULT '{}',created_at timestamptz NOT NULL DEFAULT now());
    INSERT INTO public.organizations VALUES(1),(2);
    INSERT INTO public.audit_events(organization_id,actor,action,resource) VALUES(1,'fictional-original','fixture','qa908')`);
-  await admin.query(readFileSync(new URL("../drizzle/0109_tamper_evident_audit_chain.sql",import.meta.url),"utf8"));
+  if(foundationMode){
+   await admin.query("ALTER TABLE public.audit_events ADD COLUMN chain_seq bigint,ADD COLUMN prev_hash varchar(64),ADD COLUMN row_hash varchar(64)");
+   const raw=readFileSync(new URL("../docs/sql/issue908-missing-foundation-REVIEW_ONLY.sql",import.meta.url),"utf8");
+   const bound=raw.replaceAll("__ISSUE908_FOUNDATION_BRANCH__","fictional-qa908");
+   async function rollback(fn){await admin.query("BEGIN");try{return await fn();}finally{await admin.query("ROLLBACK");}}
+   for(const[name,setup,sql,expected]of [
+    ["unbound identity marker","",raw,/ISOLATED_REVIEW_ONLY/],
+    ["production target","SELECT set_config('neon.branch_id','br-lucky-sound-b79i56jw',true)",bound,/ISOLATED_REVIEW_ONLY/],
+    ["partial existing foundation","CREATE TABLE public.audit_chain_heads(id integer)",bound,/MISSING_OR_PARTIAL_STATE/],
+    ["wrong actor type","ALTER TABLE public.audit_events ALTER COLUMN actor TYPE text",bound,/AUDIT_SHAPE_REFUSED/],
+    ["missing column","ALTER TABLE public.audit_events DROP COLUMN row_hash",bound,/AUDIT_SHAPE_REFUSED/],
+    ["missing nullability","ALTER TABLE public.audit_events ALTER COLUMN actor DROP NOT NULL",bound,/AUDIT_SHAPE_REFUSED/],
+    ["injected chain default","ALTER TABLE public.audit_events ALTER COLUMN chain_seq SET DEFAULT 5",bound,/AUDIT_SHAPE_REFUSED/],
+    ["existing chain evidence","UPDATE public.audit_events SET prev_hash=repeat('0',64)",bound,/EXISTING_CHAIN_EVIDENCE_REFUSED/],
+   ])await t.test("new foundation rejects "+name,()=>rollback(async()=>{
+    await admin.query("SELECT set_config('neon.project_id','calm-wave-70219564',true),set_config('neon.branch_id','fictional-qa908',true)");
+    if(setup)await admin.query(setup);
+    await assert.rejects(()=>admin.query(sql),e=>e.code==="P0001"&&expected.test(e.message));
+   }));
+   await t.test("foundation and companion execute atomically without rewriting existing evidence",async()=>{
+    await rollback(async()=>{
+     await admin.query("SELECT set_config('neon.project_id','calm-wave-70219564',true),set_config('neon.branch_id','fictional-qa908',true)");
+     await admin.query(bound);
+     const companion=readFileSync(new URL("../docs/sql/issue908-audit-trigger-boundary-REVIEW_ONLY.sql",import.meta.url),"utf8").replaceAll("__ISSUE908_ISOLATED_BRANCH__","fictional-qa908");
+     await admin.query(companion);
+     const {rows:[row]}=await admin.query("SELECT actor,chain_seq,prev_hash,row_hash FROM public.audit_events WHERE id=1");
+     assert.deepEqual(row,{actor:"fictional-original",chain_seq:null,prev_hash:null,row_hash:null});
+     assert.equal((await admin.query("SELECT count(*)::int AS n FROM pg_catalog.pg_trigger WHERE tgrelid='public.audit_events'::regclass AND NOT tgisinternal")).rows[0].n,3);
+    });
+    assert.equal((await admin.query("SELECT to_regclass('public.audit_chain_heads') AS heads")).rows[0].heads,null);
+   });
+   await t.test("failed companion repair rolls back new foundation and preserves original row",async()=>{
+    await rollback(async()=>{
+     await admin.query("SELECT set_config('neon.project_id','calm-wave-70219564',true),set_config('neon.branch_id','fictional-qa908',true)");
+     await admin.query(bound);
+     await admin.query("ALTER ROLE payrollph_audit_sealing INHERIT");
+     const companion=readFileSync(new URL("../docs/sql/issue908-audit-trigger-boundary-REVIEW_ONLY.sql",import.meta.url),"utf8").replaceAll("__ISSUE908_ISOLATED_BRANCH__","fictional-qa908");
+     await assert.rejects(()=>admin.query(companion),e=>e.code==="P0001");
+    });
+    assert.equal((await admin.query("SELECT to_regclass('public.audit_chain_heads') AS heads")).rows[0].heads,null);
+    assert.equal((await admin.query("SELECT actor FROM public.audit_events WHERE id=1")).rows[0].actor,"fictional-original");
+   });
+   await admin.query("BEGIN");try{
+    await admin.query("SELECT set_config('neon.project_id','calm-wave-70219564',true),set_config('neon.branch_id','fictional-qa908',true)");
+    await admin.query(bound);await admin.query("COMMIT");
+   }catch(e){await admin.query("ROLLBACK");throw e;}
+   await t.test("new foundation alone refuses caller maintenance mutation",()=>rollback(async()=>{
+    await admin.query("SET LOCAL linaw.audit_maintenance='on'");
+    await assert.rejects(()=>admin.query("UPDATE public.audit_events SET actor='tamper' WHERE id=1"),e=>e.code==="42501");
+   }));
+  }else{
+   await admin.query(readFileSync(new URL("../drizzle/0109_tamper_evident_audit_chain.sql",import.meta.url),"utf8"));
+  }
   const credentials=new Map();
   for(const name of ["qa908_app","qa908_worker","qa908_sealer","qa908_maint"]){
    const password=randomBytes(24).toString("hex");credentials.set(name,password);
@@ -67,7 +120,7 @@ test("actual restricted logins: audit grants, GUC spoofing and forward guards",{
   async function proof(c,strict=true){return auditChainProtectionProven((await c.query(strict?STRICT_AUDIT_ROLE_PROOF_SQL:LEGACY_AUDIT_ROLE_PROOF_SQL)).rows[0],strict);}
   async function transaction(c,fn){await c.query("BEGIN");try{return await fn();}finally{await c.query("ROLLBACK");}}
   const denied=(c,sql)=>transaction(c,()=>assert.rejects(()=>c.query(sql),e=>e.code==="42501"));
-  await t.test("reproduce old metadata false-PASS and caller-controlled maintenance bypass",async()=>{
+  if(!foundationMode)await t.test("reproduce old metadata false-PASS and caller-controlled maintenance bypass",async()=>{
    await admin.query("GRANT UPDATE(actor) ON public.audit_events TO qa908_app");
    try{
     assert.equal(await proof(app,false),true);
