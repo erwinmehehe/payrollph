@@ -30,9 +30,18 @@ const server = createServer((request, response) => {
   request.on("end", () => {
     if (response.writableEnded) return;
     const bytes = Buffer.concat(chunks);
-    const pdf = bytes.subarray(0, 4).equals(Buffer.from("%PDF"));
-    const clean = pdf && request.headers["content-type"] === "application/pdf" &&
-      bytes.length >= 12 && request.headers["x-upload-filename"] !== "synthetic-threat.pdf";
+    // This synthetic scanner exercises the same PDF/PNG/JPEG transport
+    // paths as the vault, without claiming to perform actual malware analysis.
+    const mime = request.headers["content-type"];
+    const signatureMatches = mime === "application/pdf"
+      ? bytes.subarray(0, 4).equals(Buffer.from("%PDF"))
+      : mime === "image/png"
+        ? bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+        : mime === "image/jpeg"
+          ? bytes.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))
+          : false;
+    const clean = signatureMatches && bytes.length >= 12 &&
+      !String(request.headers["x-upload-filename"] ?? "").startsWith("synthetic-threat.");
     response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
       .end(JSON.stringify({ clean, engine: "synthetic-scanner-contract-only" }));
   });
