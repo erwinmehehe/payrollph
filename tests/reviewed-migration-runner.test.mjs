@@ -7,6 +7,10 @@ import { spawnSync } from "node:child_process";
 import { inventoryMigrationSources } from "../scripts/lib/migration-receipt-audit.mjs";
 import { REQUIRED_MODERN_SCHEMA_COLUMNS } from "../scripts/lib/schema-lineage-preflight.mjs";
 import {
+  MIGRATION_CONTROL_LEDGER_CATALOG_SQL, MIGRATION_CONTROL_LEDGER_REQUIRED_FLAGS,
+  verifyMigrationControlLedgerCatalog,
+} from "../scripts/lib/reviewed-migration-control-ledger.mjs";
+import {
   cutoverSourceManifest, evaluateReviewedMigration, loadReviewedSql,
   runReviewedMigrationOnClient,
 } from "../scripts/lib/reviewed-migration-runner.mjs";
@@ -132,6 +136,14 @@ function fakeClient(f, opts = {}) {
       if (sql.includes('AS "pathPrimaryKey"')) return { rows: [{
         pathPrimaryKey: true, numberUnique: true, cutoverPrimaryKey: true,
         ...(opts.constraints ?? {}),
+      }] };
+      if (sql === MIGRATION_CONTROL_LEDGER_CATALOG_SQL) return { rows: [{
+        controlColumnsValid: true,
+        controlColumnCountsValid: true,
+        controlChecksValid: true,
+        controlNumberMatchesPath: true,
+        controlWritesDenied: true,
+        ...(opts.controlLedger ?? {}),
       }] };
       if (sql.includes("FROM public.payrollph_migration_cutover")) return { rows: [f.cutover] };
       if (sql.includes("FROM public.payrollph_release_migration_receipts")) return { rows: f.receipts };
@@ -449,5 +461,65 @@ test("wrong Neon project, branch or endpoint is rejected before inspecting migra
     await assert.rejects(runReviewedMigrationOnClient({
       ...inputs, client: fakeClient(f), expectedNeonIdentity: null,
     }), /NEON_TARGET_PIN_REQUIRED/);
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("P0-4 control ledger verifies complete typed structure and immutable privileges", () => {
+  const healthy = Object.fromEntries(MIGRATION_CONTROL_LEDGER_REQUIRED_FLAGS.map(k => [k,true]));
+  assert.deepEqual(MIGRATION_CONTROL_LEDGER_REQUIRED_FLAGS, [
+    "controlColumnsValid", "controlColumnCountsValid", "controlChecksValid",
+    "controlNumberMatchesPath", "controlWritesDenied",
+  ]);
+  const result = verifyMigrationControlLedgerCatalog([healthy]);
+  assert.equal(result.controlStructureVerified, true);
+  assert.equal(result.historicalReceiptsProven, false);
+  assert.equal(result.productionReleaseApproved, false);
+  for (const name of MIGRATION_CONTROL_LEDGER_REQUIRED_FLAGS) {
+    for (const value of [false, null, undefined, "true"]) {
+      assert.throws(() => verifyMigrationControlLedgerCatalog([
+        { ...healthy, [name]: value },
+      ]), /REVIEWED_MIGRATION_CONTROL_LEDGER_INVALID/, name);
+    }
+  }
+  for (const malformed of [null, [], [{}], [healthy,healthy], "true"]) {
+    assert.throws(() => verifyMigrationControlLedgerCatalog(malformed),
+      /REVIEWED_MIGRATION_CONTROL_LEDGER_INVALID/);
+  }
+});
+
+test("P0-4 controller inspects pg_catalog without reading actual payroll or adopted receipts", () => {
+  assert.match(MIGRATION_CONTROL_LEDGER_CATALOG_SQL, /pg_catalog\.pg_attribute/);
+  assert.match(MIGRATION_CONTROL_LEDGER_CATALOG_SQL, /pg_catalog\.pg_constraint/);
+  assert.match(MIGRATION_CONTROL_LEDGER_CATALOG_SQL, /pg_catalog\.pg_has_role/);
+  assert.match(MIGRATION_CONTROL_LEDGER_CATALOG_SQL, /controlWritesDenied/);
+  assert.doesNotMatch(MIGRATION_CONTROL_LEDGER_CATALOG_SQL,
+    /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|TRUNCATE)\s+(?:INTO|FROM|TABLE|ROLE|INDEX|SCHEMA|DATABASE)\b/i);
+  assert.doesNotMatch(MIGRATION_CONTROL_LEDGER_CATALOG_SQL,
+    /(?:FROM|JOIN)\s+(?:public\.)?(?:employees|payroll_entries|payroll_runs|bank_accounts)\b/i);
+  assert.ok(!MIGRATION_CONTROL_LEDGER_CATALOG_SQL.includes(
+    "FROM public.payrollph_release_migration_receipts"));
+});
+
+test("P0-4 malformed control journal aborts plan and apply before reading a historical receipt", async () => {
+  const f = fixture();
+  try {
+    for (const mode of ["plan", "apply"]) {
+      for (const flag of MIGRATION_CONTROL_LEDGER_REQUIRED_FLAGS) {
+        const db = fakeClient(f, { controlLedger: { [flag]: false } });
+        await assert.rejects(() => runReviewedMigrationOnClient({
+          client: db, inventory: f.inventory, sourceDirectory: f.directory,
+          mode, requestedPath: f.target.path, expectedSha256: f.target.sha256,
+          expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY,
+          releaseEnvironment: { ORDERED_RELEASE_MIGRATIONS_ENABLED: "true" },
+          operator: "reviewed-operator", approvalRef: "DBA-CHANGE-2026-001",
+        }), /REVIEWED_MIGRATION_CONTROL_LEDGER_INVALID/);
+        assert.ok(db.calls.includes(MIGRATION_CONTROL_LEDGER_CATALOG_SQL));
+        assert.ok(!db.calls.some(sql => sql.includes("FROM public.payrollph_migration_cutover")));
+        assert.ok(!db.calls.some(sql => sql.includes("FROM public.payrollph_release_migration_receipts")));
+        assert.ok(!db.calls.some(sql => sql.startsWith("INSERT INTO ")));
+        assert.equal(db.state.applied.length, 0);
+        assert.equal(db.calls.at(-1), "ROLLBACK");
+      }
+    }
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });

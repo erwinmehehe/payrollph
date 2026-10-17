@@ -6,12 +6,14 @@ import test from "node:test";
 import { inventoryMigrationSources } from "../scripts/lib/migration-receipt-audit.mjs";
 import { HISTORICAL_REQUIRED_OBJECTS } from "../scripts/lib/historical-catalog-gate.mjs";
 import { REQUIRED_MODERN_SCHEMA_COLUMNS } from "../scripts/lib/schema-lineage-preflight.mjs";
+import { MIGRATION_CONTROL_LEDGER_CATALOG_SQL } from "../scripts/lib/reviewed-migration-control-ledger.mjs";
 import {
   cutoverSourceManifest, runReviewedMigrationOnClient,
 } from "../scripts/lib/reviewed-migration-runner.mjs";
 import {
   ISSUE1054_MIGRATION_PATH, ISSUE1054_PREFLIGHT_SQL, ISSUE1054_POSTFLIGHT_SQL,
 } from "../scripts/lib/issue-1054-protected-preflight.mjs";
+import { noFollowSkip } from "./helpers/symlink-capability.mjs";
 
 // These are fake, in-memory catalog/ledger responses. The separate PG16/18
 // rehearsal exercises real catalog effects on disposable localhost databases.
@@ -92,6 +94,11 @@ function client(f, { failAt, alreadyApplied = false } = {}) {
       if (sql.includes('AS "pathPrimaryKey"')) return { rows: [{
         pathPrimaryKey: true, numberUnique: true, cutoverPrimaryKey: true,
       }] };
+      if (sql === MIGRATION_CONTROL_LEDGER_CATALOG_SQL) return { rows: [{
+        controlColumnsValid: true, controlColumnCountsValid: true,
+        controlChecksValid: true, controlNumberMatchesPath: true,
+        controlWritesDenied: true,
+      }] };
       if (sql.includes("FROM public.payrollph_migration_cutover")) {
         return { rows: [f.cutover] };
       }
@@ -128,7 +135,7 @@ function run(f, db, mode) {
   });
 }
 
-test("#1054 protected PLAN checks preflight in read-only transaction, without applying DDL", async () =>
+test("#1054 protected PLAN checks preflight in read-only transaction, without applying DDL", { skip: noFollowSkip }, async () =>
   withFixture(async f => {
     const db = client(f);
     const result = await run(f, db, "plan");
@@ -136,6 +143,10 @@ test("#1054 protected PLAN checks preflight in read-only transaction, without ap
     assert.equal(result.sqlApplied, false);
     assert.match(db.calls[0], /READ ONLY/);
     assert.ok(db.calls.includes("SET LOCAL search_path = pg_catalog"));
+    assert.ok(db.calls.includes(MIGRATION_CONTROL_LEDGER_CATALOG_SQL));
+    assert.ok(db.calls.indexOf(MIGRATION_CONTROL_LEDGER_CATALOG_SQL) <
+      db.calls.findIndex(sql => sql.includes("FROM public.payrollph_migration_cutover")),
+      "journal contract must precede cutover receipt read");
     assert.ok(!db.calls.includes("SET LOCAL search_path = public, pg_temp"));
     assert.ok(db.calls.includes(ISSUE1054_PREFLIGHT_SQL));
     assert.ok(!db.calls.includes(ISSUE1054_POSTFLIGHT_SQL));
@@ -144,7 +155,7 @@ test("#1054 protected PLAN checks preflight in read-only transaction, without ap
     assert.equal(db.calls.at(-1), "ROLLBACK");
   }));
 
-test("#1054 protected APPLY orders preflight, immutable DDL, postflight, receipt, COMMIT", async () =>
+test("#1054 protected APPLY orders preflight, immutable DDL, postflight, receipt, COMMIT", { skip: noFollowSkip }, async () =>
   withFixture(async f => {
     const db = client(f);
     const result = await run(f, db, "apply");
@@ -168,7 +179,7 @@ test("#1054 protected APPLY orders preflight, immutable DDL, postflight, receipt
   }));
 
 for (const failAt of ["preflight", "postflight"]) {
-  test("#1054 protected " + failAt + " failure rolls back without a receipt", async () =>
+  test("#1054 protected " + failAt + " failure rolls back without a receipt", { skip: noFollowSkip }, async () =>
     withFixture(async f => {
       const db = client(f, { failAt });
       await assert.rejects(() => run(f, db, "apply"), error =>
@@ -181,7 +192,7 @@ for (const failAt of ["preflight", "postflight"]) {
     }));
 }
 
-test("#1054 recorded migration reentry skips DDL and both companion guards", async () =>
+test("#1054 recorded migration reentry skips DDL and both companion guards", { skip: noFollowSkip }, async () =>
   withFixture(async f => {
     const db = client(f, { alreadyApplied: true });
     const result = await run(f, db, "apply");
