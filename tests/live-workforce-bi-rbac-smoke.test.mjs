@@ -4,10 +4,12 @@ import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { jqSkip } from "./helpers/symlink-capability.mjs";
+import { posixShellTestSkipReason } from "./helpers/posix-shell-prerequisites.mjs";
 
 const script = resolve("scripts/live-workforce-bi-rbac-smoke.sh");
 const commit = "a".repeat(40);
+const bashOnlySkip = posixShellTestSkipReason();
+const bashJqSkip = posixShellTestSkipReason({ needsJq: true });
 
 // These tests mock curl only to validate the shell matrix and fail-closed
 // response contracts. REAL deployed HTTP evidence is emitted by the main-only
@@ -125,12 +127,12 @@ test("live GitHub job checks out the exact commit before running the repo script
   assert.match(workflow, /EXPECTED_COMMIT_SHA: \$\{\{ github\.sha \}\}/, "the exact deployment SHA must remain pinned to the workflow event");
 });
 
-test("shell source is syntactically valid", () => {
+test("shell source is syntactically valid", { skip: bashOnlySkip }, () => {
   const result = spawnSync("bash", ["-n", script], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
 });
 
-test("anonymous calls require real denial shape for all three routes", { skip: jqSkip }, (t) => {
+test("anonymous calls require real denial shape for all three routes", { skip: bashJqSkip }, (t) => {
   const f = fixture(t, "anonymous");
   const result = spawnSync("bash", [script, "--anonymous"], {
     env: f.env, encoding: "utf8", timeout: 10_000,
@@ -140,7 +142,7 @@ test("anonymous calls require real denial shape for all three routes", { skip: j
 });
 
 for (const role of ["owner", "hr", "payroll", "checker", "bookkeeper", "employee"]) {
-  test("fictional " + role + " HTTP allow/deny matrix", { skip: jqSkip }, (t) => {
+  test("fictional " + role + " HTTP allow/deny matrix", { skip: bashJqSkip }, (t) => {
     const result = run(t, role);
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.equal((result.stdout.match(/route=\/api\//g) || []).length, role === "owner" ? 6 : 3);
@@ -148,25 +150,25 @@ for (const role of ["owner", "hr", "payroll", "checker", "bookkeeper", "employee
   });
 }
 
-test("refuses non-main and non-approved deployment URLs", (t) => {
+test("refuses non-main and non-approved deployment URLs", { skip: bashOnlySkip }, (t) => {
   const result = run(t, "owner", { BASE_URL: "https://other.example", GITHUB_REF: "refs/heads/feature" });
   assert.equal(result.status, 2);
   assert.ok(!result.stdout.includes("http_status="), "must not issue any HTTP probe");
 });
 
-test("fails closed on unexpected authorized HTTP denial", { skip: jqSkip }, (t) => {
+test("fails closed on unexpected authorized HTTP denial", { skip: bashJqSkip }, (t) => {
   const result = run(t, "owner", { MOCK_WRONG_STATUS: "1" });
   assert.equal(result.status, 1);
   assert.match(result.stdout, /HTTP status mismatch/);
 });
 
-test("fails closed when a successful 200 carries foreign organization rows", { skip: jqSkip }, (t) => {
+test("fails closed when a successful 200 carries foreign organization rows", { skip: bashJqSkip }, (t) => {
   const result = run(t, "owner", { MOCK_WRONG_TENANT: "1" });
   assert.equal(result.status, 1);
   assert.match(result.stdout, /tenant-scoping check failed/);
 });
 
-test("fails closed when an unauthorized response includes planning records", { skip: jqSkip }, (t) => {
+test("fails closed when an unauthorized response includes planning records", { skip: bashJqSkip }, (t) => {
   const result = run(t, "employee", { MOCK_DENIED_DATA: "1" });
   assert.equal(result.status, 1);
   assert.match(result.stdout, /denied response shape invalid/);

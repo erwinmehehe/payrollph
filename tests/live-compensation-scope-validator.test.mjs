@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { verifyLiveCompensationPrivacy } from "../scripts/verify-live-compensation-scope.mjs";
+import { posixShellTestSkipReason } from "./helpers/posix-shell-prerequisites.mjs";
 
 function fixture() {
   const company = {
@@ -66,11 +67,9 @@ test("live response contract fails closed for budget, worker and proposal leaks"
   }
 });
 
-test("production smoke has strict main/SHA guard and shell syntax", () => {
+test("production smoke has strict main/SHA source guards", () => {
   const script = "scripts/live-compensation-scope-smoke.sh";
   const source = readFileSync(script, "utf8");
-  const syntax = spawnSync("bash", ["-n", script], { encoding: "utf8" });
-  assert.equal(syntax.status, 0, syntax.stderr);
   for (const required of [
     "GITHUB_ACTIONS", "GITHUB_REF", "EXPECTED_COMMIT_SHA",
     "PRODUCTION_READINESS_TOKEN", "--proto '=https'",
@@ -79,6 +78,12 @@ test("production smoke has strict main/SHA guard and shell syntax", () => {
     "trap 'rm -rf -- \"$work_dir\"' EXIT",
   ]) assert.ok(source.includes(required), "Missing guarded smoke path: " + required);
   assert.doesNotMatch(source, /echo .*cookie|cat .*response|curl -v|set -x/);
+});
+
+test("production smoke Bash syntax is valid", { skip: posixShellTestSkipReason() }, () => {
+  const script = "scripts/live-compensation-scope-smoke.sh";
+  const syntax = spawnSync("bash", ["-n", script], { encoding: "utf8" });
+  assert.equal(syntax.status, 0, syntax.stderr ?? String(syntax.error ?? ""));
 });
 
 test("production demo unit HR auth is secret gated and separate from ordinary HR", () => {
