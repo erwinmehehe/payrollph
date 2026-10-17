@@ -61,8 +61,8 @@ test("verified demo fixtures receive idempotent, tenant-scoped primary legal emp
   for (const run of fictionalRuns) {
     const rows = await db.select().from(payrollEntries)
       .where(eq(payrollEntries.payrollRunId, run.id));
-    let totalGross = 0n;
-    let totalNet = 0n;
+    let totalGross = BigInt(0);
+    let totalNet = BigInt(0);
     for (const row of rows) {
       const gross = toCentavos(row.grossPay);
       const deductions = toCentavos(row.deductions);
