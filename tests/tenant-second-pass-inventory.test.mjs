@@ -50,3 +50,15 @@ test("high-risk resource and credential families cannot be dropped from the seco
     assert.deepEqual(SECOND_PASS_ROUTES[route].split(" ").sort(), verbs.sort(), route);
   }
 });
+
+test("second-pass CI must not source-control Resend signing secrets", () => {
+  const workflow = readFileSync(".github/workflows/security-http-smoke.yml", "utf8");
+  assert.doesNotMatch(workflow, /^\s*RESEND_WEBHOOK_SECRET:\s*["'][^"'\n]+["']\s*$/m,
+    "CI webhook signing secret must be generated at runtime, never stored as a literal");
+  assert.match(workflow, /resend_webhook_secret="whsec_\$\(openssl rand -base64 32/,
+    "CI must use a fresh provider-shaped synthetic secret");
+  assert.match(workflow, /::add-mask::\$resend_webhook_secret/,
+    "The generated secret must be masked before launching the server");
+  assert.match(workflow, /export RESEND_WEBHOOK_SECRET="\$resend_webhook_secret"/,
+    "The synthetic signing secret must be supplied to the localhost server only");
+});
