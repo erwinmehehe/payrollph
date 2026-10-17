@@ -52,6 +52,24 @@ async function exercise(width) {
   await files.getByText("synthetic-contract.pdf").waitFor({ timeout: 90_000 });
   await panel.screenshot({ path: out + "/" + width + "-upload.png" });
 
+  // Mobile touch controls must be usable while an actual file row is visible.
+  if (width === 390) {
+    const touchTargets = [
+      ["Refresh", panel.getByRole("button", { name: "Refresh" })],
+      ["Category", panel.getByRole("combobox", { name: "Category" })],
+      ["File", panel.getByLabel("File", { exact: true })],
+      ["Upload", panel.getByRole("button", { name: "Upload", exact: true })],
+      ["View", files.getByRole("link", { name: "View" })],
+      ["Download", files.getByRole("link", { name: "Download" })],
+      ["Delete", files.getByRole("button", { name: "Delete" })],
+    ];
+    for (const [name, control] of touchTargets) {
+      const rect = await control.boundingBox();
+      assert.ok(rect && rect.width >= 43 && rect.height >= 43,
+        name + " must have a usable 44px-class touch target at 390px");
+    }
+  }
+
   const view = files.getByRole("link", { name: "View" });
   const href = await view.getAttribute("href");
   assert.match(href ?? "", /^\/api\/documents\/[1-9]\d*$/);
@@ -59,6 +77,24 @@ async function exercise(width) {
   const viewed = await context.request.get(BASE + href, { maxRedirects: 5 });
   assert.equal(viewed.status(), 200, "Authorized signed-GET PDF view");
   assert.deepEqual(Buffer.from(await viewed.body()), pdf, "Private viewed bytes must match scanned upload");
+
+  // A guessed direct object URL must never bypass authentication or role checks.
+  const anonymous = await browser.newContext();
+  try {
+    const guessed = await anonymous.request.get(BASE + href, { maxRedirects: 0 });
+    assert.equal(guessed.status(), 401, "Unauthenticated direct document GET must fail");
+  } finally {
+    await anonymous.close();
+  }
+  const manager = await browser.newContext();
+  try {
+    await login(manager, "hcm-manager@example.test");
+    const guessed = await manager.request.get(BASE + href, { maxRedirects: 0 });
+    assert.ok([403, 404].includes(guessed.status()),
+      "Non-People manager cannot use guessed direct document URL");
+  } finally {
+    await manager.close();
+  }
 
   // Use a genuinely authenticated, linked synthetic ESS identity rather than
   // assuming that an HR view proves employee self-service isolation.
@@ -83,6 +119,11 @@ async function exercise(width) {
   // presigned URLs or browser context/session state to artifacts.
   await view.focus();
   await panel.screenshot({ path: out + "/" + width + "-view.png" });
+  // This is diagnostic only: the test server uses Next dev, whose own
+  // development overlay is not proof of a production UI defect.
+  const developmentOverlayObserved = await page.evaluate(() =>
+    [...document.querySelectorAll("nextjs-portal")].some(portal =>
+      /\b\d+\s+Issues?\b/.test(portal.shadowRoot?.textContent ?? "")));
   // 390px must remain scroll-free with the document row and all action controls
   // present. A check only after Delete missed a real earlier regression.
   const visibleFileLayout = await page.evaluate(() => ({
@@ -117,9 +158,56 @@ async function exercise(width) {
   }));
   assert.ok(dimensions.scrollWidth <= dimensions.width + 1,
     "Horizontal overflow at " + width + "px: " + JSON.stringify(dimensions));
+  // Fully decodable fictional 1x1 PNG/JPEG pixels exercise upload, scanning,
+  // private signed read, metadata, and guarded removal (not just PDF magic).
+  if (width === 1440) {
+    const imageCases = [
+      {
+        filename: "synthetic-government-id.png", category: "government_id",
+        mime: "image/png", type: "png",
+        bytes: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQjeoHAAG2AQ9xVRxuAAAAAElFTkSuQmCC", "base64"),
+      },
+      {
+        filename: "synthetic-onboarding-photo.jpg", category: "onboarding",
+        mime: "image/jpeg", type: "jpeg",
+        bytes: Buffer.from("/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHBwgHBgoICAgLCgoLDhgQDg0NDh0VFhEYIx8lJCIfIiEmKzcvJik0KSEiMEExNDk7Pj4+JS5ESUM8SDc9Pjv/2wBDAQoLCw4NDhwQEBw7KCIoOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozv/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0xwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDmaKKK9w8Y/9k=", "base64"),
+      },
+    ];
+    for (const image of imageCases) {
+      await panel.getByRole("combobox", { name: "Category" }).selectOption(image.category);
+      await panel.getByLabel("File", { exact: true }).setInputFiles({
+        name: image.filename, mimeType: image.mime, buffer: image.bytes,
+      });
+      await panel.getByRole("button", { name: "Upload", exact: true }).click();
+      const row = files.getByRole("listitem").filter({ hasText: image.filename });
+      await row.waitFor({ timeout: 90_000 });
+      const listing = await context.request.get(BASE + "/api/employee-vault?organizationId=1&employeeId=1");
+      assert.equal(listing.status(), 200);
+      const record = (await listing.json()).documents.find(d => d.fileName === image.filename);
+      assert.ok(record, "New image must be listed");
+      assert.equal(record.kind, image.category, "Image category must persist");
+      assert.equal(record.mimeType, image.mime, "Verified MIME must persist");
+      assert.equal(record.canRemove, true);
+      assert.ok(record.uploadedAt && record.uploadedBy);
+      await panel.screenshot({ path: out + "/1440-" + image.type + "-upload.png" });
+      const imageHref = await row.getByRole("link", { name: "View" }).getAttribute("href");
+      assert.match(imageHref ?? "", /^\/api\/documents\/[1-9]\d*$/);
+      const viewImage = await context.request.get(BASE + imageHref, { maxRedirects: 5 });
+      assert.equal(viewImage.status(), 200);
+      assert.deepEqual(Buffer.from(await viewImage.body()), image.bytes);
+      await row.getByRole("button", { name: "Delete" }).click();
+      await row.getByRole("button", { name: "Confirm" }).click();
+      await row.waitFor({ state: "detached", timeout: 90_000 });
+      const oldView = await context.request.get(BASE + imageHref, { maxRedirects: 0 });
+      assert.equal(oldView.status(), 404, "Removed image must not mint fresh read URL");
+    }
+  }
+
   checks.push({ width, upload: true, view: true, download: true, removal: true,
     noOverflow: true, noOverflowWithDocument: true, viewAfterRemovalDenied: true,
-    employeeSelfAccess: true, foreignEmployeeDenied: true });
+    employeeSelfAccess: true, foreignEmployeeDenied: true,
+    directAnonymousAndManagerReadsDenied: true, touchTargetsChecked: width === 390,
+    developmentOverlayObserved });
   await context.close();
 }
 
@@ -151,12 +239,13 @@ try {
   // Exercise the real multipart HTTP gate with fictional bytes; this must
   // reject forged content, invalid category and cross-site mutations before
   // creating a scanned document or any private S3 object.
-  const negativeUpload = async ({ name, buffer, kind = "contract", origin = BASE, site = "same-origin" }) =>
+  const negativeUpload = async ({ name, buffer, kind = "contract", origin = BASE,
+    site = "same-origin", mimeType = "application/pdf" }) =>
     hr.request.post(BASE + "/api/documents", {
       headers: { origin, "sec-fetch-site": site },
       multipart: {
         organizationId: "1", employeeId: "1", kind,
-        file: { name, mimeType: "application/pdf", buffer },
+        file: { name, mimeType, buffer },
       },
       failOnStatusCode: false,
     });
@@ -164,6 +253,17 @@ try {
     name: "forged-contract.pdf", buffer: Buffer.from("NOT A PDF, SYNTHETIC ONLY"),
   });
   assert.equal(fake.status(), 422, "Forged PDF bytes must be rejected");
+  const misdeclared = await negativeUpload({
+    name: "mismatch.jpg", mimeType: "image/jpeg",
+    buffer: Buffer.from("%PDF-1.7\\nnot really a JPEG"),
+  });
+  assert.equal(misdeclared.status(), 422, "Spoofed JPEG MIME must be rejected");
+  const oversized = await negativeUpload({
+    name: "oversized.pdf", buffer: Buffer.concat([
+      Buffer.from("%PDF-1.7\\n"), Buffer.alloc(5 * 1024 * 1024),
+    ]),
+  });
+  assert.equal(oversized.status(), 413, "Over-5MB multipart upload must be rejected");
   const category = await negativeUpload({
     name: "test-contract.pdf", buffer: Buffer.from("%PDF-1.7\\nsynthetic test"),
     kind: "unknown_kind",
@@ -181,10 +281,13 @@ try {
   await writeFile(out + "/synthetic-acceptance.json", JSON.stringify({
     result: "PASS", checks, wrongRolesDenied: true, wrongTenantDenied: true,
     restrictedHrDenied: true, linkedEssReadProven: true, authorizedTenantSwitchScoped: true,
-    forgedFileDenied: true, invalidCategoryDenied: true, crossSiteMutationDenied: true,
+    forgedFileDenied: true, mismatchedMimeDenied: true, oversizedMultipartDenied: true,
+    pngJpegPrivateLifecycle: true, unauthenticatedDirectReadDenied: true,
+    managerDirectReadDenied: true, mobileTouchTargetsChecked: true,
+    invalidCategoryDenied: true, crossSiteMutationDenied: true,
     syntheticOnly: true, productionEnabled: false, storageProviderApproved: false,
   }, null, 2), { mode: 0o600 });
-  console.log("PASS synthetic vault desktop/390px, linked ESS, HR scope/tenant switch, upload/download/removal and negative upload/origin gates.");
+  console.log("PASS synthetic vault desktop/390px, PDF/PNG/JPEG private lifecycle, ESS, HR scope, mobile touch targets and negative upload/origin gates.");
 } finally {
   await browser.close();
 }
