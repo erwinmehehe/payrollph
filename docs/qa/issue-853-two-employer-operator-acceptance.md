@@ -17,14 +17,14 @@ The CI-connected nine-stage acceptance creates Employer A and a separate Employe
 
 The new `scripts/qa/issue-853-synthetic-coverage.mjs` runs after both connected and mobile automation and writes `qa-artifacts/issue-853-synthetic-two-tenant-scope.json`, which is safe to upload as a CI artifact. The scope validator fails if a required tenant denial, real authenticated employee access denial, stage, source SHA, or no-money invariant is absent. It **must** report `fullyAutomatedEmployerJourneys: 2`, `employerA.automatedStagesPassed: 9`, `employerB.automatedStagesPassed: 9`, and `humanObservation.passed: 0`. These are scripted API and synthetic-browser checks, not independent human navigation, physical phone acceptance, or approval to send payroll funds.
 
-The independent two-employer operator session follows the 27 separate rows in this guide. Record those rows privately; the CI artifact cannot be copied into the manual ledger as observed `PASS`.
+The independent two-employer operator session follows the 27 separate rows in this guide. Record those rows privately; the CI artifact cannot be copied into the manual ledger as observed `PASS`. If the same session also rehearses the Employee Document Vault, follow [the combined #853/#1146 field handoff](issue-853-1146-joint-field-session.md) for #1146's **separate** 16 hands-on and real-provider gates. Never add vault cases to, or auto-mark rows in, the canonical 27-row #853 ledger.
 
 ## Safe test preparation
 
 - Record the **exact Git commit SHA served by the development deployment**. The GitHub PR SHA and a Vercel `READY` status are not by themselves proof that the browser app is running that source. If you cannot verify the deployed SHA, classify the test as `BLOCKED`.
 - Use an isolated development database seeded with **fictional data only**. Do not touch Neon production/default or paste secrets into GitHub. Never create an AWS account just for this.
 - Confirm `XENDIT_PAYOUTS_ENABLED=false`, `PAYMONGO_DISBURSEMENTS_ENABLED=false` and other live transfer/release switches are OFF in the protected development environment. Verify agency submission integrations cannot transmit live data. If any money or filing operation is live, STOP.
-- Use one Manila date range (suggested October 1–15, 2026) and identical source-traced setup for comparisons. Keep clocks, cutoff policy and statutory treatment explicitly recorded. Tax/government calculations still need later independent validation.
+- Use a Manila pay period **containing the actual wall-clock Web Bundy punch and the applicable live cutoff** for the human session. `2026-10-01/2026-10-15` is a **format-only historic example**, not valid proof of a fresh October 17 clock-in. Do not reuse CI's guarded virtual clock or backdate/seed a punch and describe it as a physical current-day UI observation. Keep clocks, cutoff policy, source-traced setup and statutory treatment explicitly recorded. Tax/government calculations still need later independent validation.
 - Prepare six distinct fictional authenticated actor identities. Use the example fixture `fixtures/issue-853-fictional-tenants.json` only as non-secret labels; create protected test accounts through the supported app setup flows. No passwords or live IDs belong in that JSON.
 
 | Actor | A membership | B membership | Purpose |
