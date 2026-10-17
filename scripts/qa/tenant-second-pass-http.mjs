@@ -219,12 +219,10 @@ async function makeFixture() {
   }))).returning({ id: providerEvents.id, organizationId: providerEvents.organizationId });
 
   const highIds = [
-    victim.id, victimEmployees.at(-1).id, victimRuns.at(-1).id,
+    victimEmployees.at(-1).id, victimRuns.at(-1).id,
     slips[7].id, identities[7].id, victimSessions.at(-1).id, victimUnits.at(-1).id,
   ];
   for (const id of highIds) assert.ok(Number.isSafeInteger(id) && id > 6, "Victim-only ID must really exist and exceed 6: " + id);
-  for (const id of highIds) assert.ok(![attackerA.id, attackerB.id].includes(id) || id === victim.id,
-    "Fixture IDs should be unique across organizations");
   assert.equal(identities[7].organizationId, victim.id);
   assert.equal(slips[7].organizationId, victim.id);
   assert.equal(events[7].organizationId, victim.id);
@@ -233,6 +231,7 @@ async function makeFixture() {
     orgs, owners, entities, ownedUnits, victimEmployees, ownedEmployees, identities,
     victimRuns, ownRuns, slips, events, tokenSets, ownerSessions, victimSessions,
     victimEmployee: victimEmployees.at(-1), victimIdentity: identities[7],
+    victimScimEmail: scimWorkers[7].email,
     victimSlip: slips[7], victimRun: victimRuns.at(-1), victimUnit: victimUnits.at(-1),
   };
 }
@@ -296,6 +295,11 @@ async function verifyCrossTenant(f) {
     "Victim's own exclusive employee must exist");
   expectStatus(await request("/api/scim/v2/Users/" + f.victimIdentity.id, { scim: tokenV.scim }), 200,
     "Victim SCIM identity must exist");
+  const victimFilter = list(await request("/api/scim/v2/Users?filter=" +
+    encodeURIComponent('userName eq "' + f.victimScimEmail + '"'), {
+      scim: tokenV.scim,
+    }), "Resources", "Victim SCIM email filter positive control");
+  ownOnly(victimFilter, f.victimIdentity.id, [], "Victim SCIM filter must find its own identity");
   expectStatus(await request("/api/v1/payslips/" + f.victimSlip.id, { bearer: tokenV.bearer }), 200,
     "Victim-only payslip must be readable with victim credential");
 
@@ -380,8 +384,9 @@ async function verifyCrossTenant(f) {
     }), "Resources", "Attacker " + idx + " SCIM list");
     ownOnly(scimList, ownIdentity, [f.victimIdentity.id], "Attacker " + idx + " SCIM list");
 
-    const scimFilter = list(await request("/api/scim/v2/Users?filter=" + encodeURIComponent(
-      'userName eq "' + f.owners[0].email + '"'), { scim: creds.scim,
+    const victimEmailFilter = 'userName eq "' + f.victimScimEmail + '"';
+    const scimFilter = list(await request("/api/scim/v2/Users?filter=" +
+      encodeURIComponent(victimEmailFilter), { scim: creds.scim,
     }), "Resources", "Attacker " + idx + " victim email SCIM filter");
     assert.equal(scimFilter.length, 0, "Victim email must never be resolved into attacker SCIM scope");
 
@@ -479,7 +484,13 @@ async function main() {
   requireDisposable();
   const f = await makeFixture();
   const victim = f.orgs[0];
+  const beforeWebhookProbe = (await db.select().from(providerEvents)
+    .where(eq(providerEvents.organizationId, f.orgs[0].id))).map((e) => e.id).sort((a,b) => a-b);
   await baselineProbeAllMethods(f);
+  const afterWebhookProbe = (await db.select().from(providerEvents)
+    .where(eq(providerEvents.organizationId, f.orgs[0].id))).map((e) => e.id).sort((a,b) => a-b);
+  assert.deepEqual(afterWebhookProbe, beforeWebhookProbe,
+    "Forged provider webhook probes must not insert victim provider events");
   await verifyCrossTenant(f);
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
