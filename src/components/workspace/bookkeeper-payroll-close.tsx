@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
+import { bookkeeperCloseRequestKey, visibleBookkeeperCloseRead, type BookkeeperCloseRead } from "@/lib/bookkeeper-close-read-state";
 import type { DashboardData, Notify, PayrollRun } from "./types";
 import { Status, formatDate, money } from "./ui";
 
@@ -92,41 +93,53 @@ export function BookkeeperPayrollClose({
   onRefresh: () => Promise<void>;
   onExportJournal: () => Promise<void>;
 }) {
-  const [payload, setPayload] = useState<ClosePayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const [observedClose, setObservedClose] = useState<BookkeeperCloseRead<ClosePayload> | null>(null);
   const [closing, setClosing] = useState(false);
-  const [confirmClose, setConfirmClose] = useState(false);
-  const [ackEvidence, setAckEvidence] = useState(false);
+  const [confirmCloseForKey, setConfirmCloseForKey] = useState<string | null>(null);
+  const [ackEvidenceForKey, setAckEvidenceForKey] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
+  const requestKey = bookkeeperCloseRequestKey({
+    organizationId: data.selectedOrganization.id,
+    runId: run.id,
+    auditEventCount: data.auditEvents.length,
+    reloadKey,
+  });
+  // The previous run's close status and acknowledgements are never reused.
+  const { loading, payload, loadError } = visibleBookkeeperCloseRead(requestKey, observedClose);
+  const confirmClose = confirmCloseForKey === requestKey;
+  const ackEvidence = ackEvidenceForKey === requestKey;
+
   useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    fetch("/api/payroll-runs/" + run.id + "/close", { cache: "no-store" })
+    let active = true;
+    const controller = new AbortController();
+    void fetch("/api/payroll-runs/" + run.id + "/close", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
       .then(async (response) => ({ ok: response.ok, payload: await response.json().catch(() => ({})) }))
       .then(({ ok, payload: next }) => {
-        if (!alive) return;
+        if (!active) return;
         if (!ok) {
-          setPayload(null);
-          setLoadError(next.error ?? "Payroll close status could not be loaded.");
+          setObservedClose({
+            requestKey,
+            payload: null,
+            loadError: next.error ?? "Payroll close status could not be loaded.",
+          });
           return;
         }
-        setPayload(next);
-        setLoadError("");
+        setObservedClose({ requestKey, payload: next as ClosePayload, loadError: "" });
       })
       .catch(() => {
-        if (!alive) return;
-        setPayload(null);
-        setLoadError("Payroll close status could not be loaded because the server could not be reached.");
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
+        if (!active) return;
+        setObservedClose({
+          requestKey,
+          payload: null,
+          loadError: "Payroll close status could not be loaded because the server could not be reached.",
+        });
       });
-    return () => {
-      alive = false;
-    };
-  }, [run.id, data.auditEvents.length, reloadKey]);
+    return () => { active = false; controller.abort(); };
+  }, [run.id, requestKey]);
 
   async function closePayroll() {
     if (!payload) return;
@@ -147,8 +160,8 @@ export function BookkeeperPayrollClose({
         return;
       }
       notify(body.alreadyClosed ? "This payroll was already closed." : "Payroll close recorded in the audit trail.", "ok");
-      setConfirmClose(false);
-      setAckEvidence(false);
+      setConfirmCloseForKey(null);
+      setAckEvidenceForKey(null);
       await onRefresh();
       setReloadKey((key) => key + 1);
     } catch {
@@ -330,7 +343,7 @@ export function BookkeeperPayrollClose({
             <input
               type="checkbox"
               checked={ackEvidence}
-              onChange={(event) => setAckEvidence(event.target.checked)}
+              onChange={(event) => setAckEvidenceForKey(event.target.checked ? requestKey : null)}
             />
             <span>
               I reviewed the outstanding filing evidence. Closing this cutoff records the accounting close only and does not claim the agencies accepted or received anything that is not evidenced above.
@@ -345,7 +358,7 @@ export function BookkeeperPayrollClose({
             <input
               type="checkbox"
               checked={confirmClose}
-              onChange={(event) => setConfirmClose(event.target.checked)}
+              onChange={(event) => setConfirmCloseForKey(event.target.checked ? requestKey : null)}
             />
             <span>I reviewed the completed payout, balanced journal, statutory liabilities and filing-evidence status for this payroll.</span>
           </label>
