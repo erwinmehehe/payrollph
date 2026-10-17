@@ -84,11 +84,18 @@ test("profile photo, ID and password labels are localized without altering maske
 
 test("the existing English-first language choice flows through nested screens; payroll computations and evidence are unchanged", () => {
   const source = read("src/components/self-service-portal.tsx");
-  assert.match(source, /useState<EssLanguage>\("en"\)/);
+  // The default stays English on the server and during hydration, while
+  // saved Taglish is loaded through a React-supported external store.
+  assert.match(source, /useSyncExternalStore\(subscribeEssLanguage, getEssLanguageSnapshot, getEssLanguageServerSnapshot\)/);
+  assert.match(source, /const language = sessionLanguage \?\? storedLanguage;/);
+  const preferences = read("src/lib/ess-language-preference-store.ts");
+  assert.match(preferences, /export function getEssLanguageServerSnapshot\(\): EssLanguage \{\s*\/\/[\s\S]*?return "en";/);
+  assert.match(preferences, /parseEssLanguage\(window\.localStorage\.getItem\(ESS_LANGUAGE_STORAGE_KEY\)\)/);
+  assert.match(preferences, /window\.addEventListener\("storage", onStorage\)/);
   assert.match(source, /<EmployeeWorkforcePanel key=\{[^}]+\} language=\{language\} \/>/);
   assert.match(source, /<EmployeeDocumentsPanel organizationId=\{data\.employer\.id\} language=\{language\} \/>/);
   assert.match(source, /<EmployeeProfileExtras\s+language=\{language\}/);
-  assert.match(source, /ESS_LANGUAGE_STORAGE_KEY/);
+  assert.match(preferences, /ESS_LANGUAGE_STORAGE_KEY/);
   const dictionary = read("src/lib/ess-language.ts");
   assert.match(dictionary, /if \(language !== "fil"\) return english;/);
   const names = Array.from(dictionary.matchAll(/^\s*"([^"]+)":/gm), (match) => match[1]);
