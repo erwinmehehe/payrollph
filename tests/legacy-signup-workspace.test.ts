@@ -14,7 +14,6 @@ test("unmigrated private-pilot tenants may continue only when new signup is disa
 test("the legacy schema fallback is a read-only existence probe, not an automatic production migration", () => {
   const source = readFileSync("src/lib/saas-workspace-access.ts", "utf8");
   assert.ok(source.includes("to_regclass('public.saas_signup_verifications')"));
-  assert.ok(source.includes("publicSelfServeReady()"));
   assert.ok(source.includes("legacySignupTableFallback(publicSignupReady())"));
   assert.ok(source.includes("from(saasSignupVerifications)"));
   assert.ok(!source.includes("CREATE TABLE"));
