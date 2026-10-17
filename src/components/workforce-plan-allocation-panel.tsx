@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, CircleDollarSign, Send, ShieldCheck, UsersRound, XCircle } from "lucide-react";
+import { effectiveWorkforcePlanId, scopedWorkforceAllocationId } from "../lib/workforce-plan-allocation-view";
 
 type Plan = {
   id: number;
@@ -66,17 +67,25 @@ function statusClass(status: string) {
   return "status";
 }
 
-export function WorkforcePlanAllocationPanel({
-  organizationId,
-  plans,
-  orgUnits,
-  setNotice,
-}: {
+type WorkforcePlanAllocationProps = {
   organizationId: number;
   plans: Plan[];
   orgUnits: OrgUnit[];
   setNotice: (message: string) => void;
-}) {
+};
+
+export function WorkforcePlanAllocationPanel(props: WorkforcePlanAllocationProps) {
+  // Never reuse tenant-specific evidence, unsaved requests or decision notes
+  // after a selected-organization switch, even for a transient render.
+  return <WorkforcePlanAllocationContent key={props.organizationId} {...props} />;
+}
+
+function WorkforcePlanAllocationContent({
+  organizationId,
+  plans,
+  orgUnits,
+  setNotice,
+}: WorkforcePlanAllocationProps) {
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [access, setAccess] = useState<AllocationAccess | null>(null);
@@ -87,7 +96,10 @@ export function WorkforcePlanAllocationPanel({
   const [savingAllocation, setSavingAllocation] = useState(false);
   const [savingSubmission, setSavingSubmission] = useState(false);
   const [actingSubmissionId, setActingSubmissionId] = useState<number | null>(null);
-  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [selectedPlanIdDraft, setSelectedPlanId] = useState("");
+  // The first available plan is selected in render without setState in an
+  // effect; an explicit nonempty selection never silently changes plans.
+  const selectedPlanId = effectiveWorkforcePlanId(plans, selectedPlanIdDraft);
   const [allocationForm, setAllocationForm] = useState({
     orgUnitId: "",
     headcountCeiling: "",
@@ -102,17 +114,19 @@ export function WorkforcePlanAllocationPanel({
   });
   const [decisionNotes, setDecisionNotes] = useState<Record<number, string>>({});
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     const revision = ++loadRevisionRef.current;
+    const isCurrent = () => !signal?.aborted && revision === loadRevisionRef.current;
+    if (!isCurrent()) return;
     setLoading(true);
     setLoadError(null);
     try {
       const response = await fetch(
         `/api/workforce-planning/allocations?organizationId=${organizationId}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal },
       );
       const payload = await response.json().catch(() => ({}));
-      if (revision !== loadRevisionRef.current) return;
+      if (!isCurrent()) return;
       if (!response.ok) {
         setLoadedOrganizationId(null);
         setAccess(null);
@@ -121,12 +135,20 @@ export function WorkforcePlanAllocationPanel({
         setLoadError(typeof payload.error === "string" ? payload.error : "Could not load workforce plan allocations.");
         return;
       }
-      setAllocations(payload.allocations ?? []);
-      setSubmissions(payload.submissions ?? []);
+      const nextAllocations: Allocation[] = Array.isArray(payload.allocations) ? payload.allocations : [];
+      setAllocations(nextAllocations);
+      setSubmissions(Array.isArray(payload.submissions) ? payload.submissions : []);
       setAccess(payload.access ?? null);
       setLoadedOrganizationId(organizationId);
+      // A refreshed catalog can revoke a previously selected allocation:
+      // clear that edit choice before it can be reused by a later refresh.
+      setSubmissionForm((current) =>
+        current.allocationId && !nextAllocations.some((row) => String(row.id) === current.allocationId)
+          ? { ...current, allocationId: "" }
+          : current,
+      );
     } catch {
-      if (revision === loadRevisionRef.current) {
+      if (isCurrent()) {
         setLoadedOrganizationId(null);
         setAccess(null);
         setAllocations([]);
@@ -134,17 +156,22 @@ export function WorkforcePlanAllocationPanel({
         setLoadError("Could not reach workforce allocation planning.");
       }
     } finally {
-      if (revision === loadRevisionRef.current) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [organizationId]);
 
-  useEffect(() => { void load(); }, [load]);
-
   useEffect(() => {
-    if (!selectedPlanId && plans.length) {
-      setSelectedPlanId(String(plans[0].id));
-    }
-  }, [plans, selectedPlanId]);
+    const controller = new AbortController();
+    // StrictMode replay or tenant teardown aborts the deferred initial GET;
+    // neither a prior request nor its errors may overwrite current evidence.
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
+    return () => {
+      controller.abort();
+      loadRevisionRef.current += 1;
+    };
+  }, [load]);
 
   const selectedPlan = plans.find((plan) => plan.id === Number(selectedPlanId)) ?? null;
   const planAllocations = useMemo(
@@ -163,8 +190,9 @@ export function WorkforcePlanAllocationPanel({
     (sum, allocation) => sum + allocation.headcountCeiling,
     0,
   );
+  const selectedAllocationId = scopedWorkforceAllocationId(planAllocations, submissionForm.allocationId);
   const selectedAllocation = planAllocations.find(
-    (allocation) => allocation.id === Number(submissionForm.allocationId),
+    (allocation) => String(allocation.id) === selectedAllocationId,
   ) ?? null;
   const acceptedByAllocation = useMemo(() => {
     const map = new Map<number, Submission>();
@@ -175,15 +203,6 @@ export function WorkforcePlanAllocationPanel({
     }
     return map;
   }, [planSubmissions]);
-
-  useEffect(() => {
-    if (
-      submissionForm.allocationId
-      && !planAllocations.some((allocation) => allocation.id === Number(submissionForm.allocationId))
-    ) {
-      setSubmissionForm((current) => ({ ...current, allocationId: "" }));
-    }
-  }, [planAllocations, submissionForm.allocationId]);
 
   async function saveAllocation(event: React.FormEvent) {
     event.preventDefault();
@@ -247,7 +266,7 @@ export function WorkforcePlanAllocationPanel({
         return;
       }
       setSubmissionForm({
-        allocationId: submissionForm.allocationId,
+        allocationId: selectedAllocationId,
         requestedHeadcount: "",
         requestedAnnualBudget: "",
         rationale: "",
@@ -334,7 +353,11 @@ export function WorkforcePlanAllocationPanel({
       <div className="setting-form" style={{ marginBottom: 16 }}>
         <label>
           Workforce plan
-          <select value={selectedPlanId} onChange={(event) => setSelectedPlanId(event.target.value)}>
+          <select value={selectedPlanId} onChange={(event) => {
+            setSelectedPlanId(event.target.value);
+            // Switching plans invalidates the prior allocation synchronously.
+            setSubmissionForm((current) => current.allocationId ? { ...current, allocationId: "" } : current);
+          }}>
             <option value="">Select plan</option>
             {plans.map((plan) => (
               <option key={plan.id} value={plan.id}>
@@ -431,7 +454,7 @@ export function WorkforcePlanAllocationPanel({
               Org-unit allocation
               <select
                 required
-                value={submissionForm.allocationId}
+                value={selectedAllocationId}
                 onChange={(event) => setSubmissionForm({ ...submissionForm, allocationId: event.target.value })}
               >
                 <option value="">Select allocation</option>

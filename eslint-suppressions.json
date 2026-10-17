@@ -109,11 +109,6 @@
       "count": 1
     }
   },
-  "src/components/workforce-plan-allocation-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 3
-    }
-  },
   "src/components/workforce-planning-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
