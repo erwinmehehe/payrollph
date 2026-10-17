@@ -52,4 +52,11 @@ The five visible login roles are not safe reusable backup readers: four have wri
 - `BACKUP_ENCRYPTED_NOT_RESTORED`: after real ciphertext and custody checks, not recoverability.
 - `RECOVERY_VERIFIED`: only after an actual detached restore and verified parity with retained private receipts. Not a real-payroll release authorization.
 
+## Disposable PostgreSQL 18 verification receipt (synthetic only)
+
+- Dedicated [PG18 workflow #39005860262](https://github.com/erwinmehehe/payrollph/actions/runs/39005860262) executed on 2026-10-17 using [test PR #1174](https://github.com/erwinmehehe/payrollph/pull/1174), original tested SHA `4f365c6044542ae3f6f744507838a17067495479`. Reported **1 test passed, 0 failed, 0 skipped**.
+- The test bootstrapped an *unmodified* operator SQL proposal against a newly created, isolated PostgreSQL 18 service with **empty fictional** 136 public + 9 Neon Auth table fixtures and 134 public sequences. It exercised `SET ROLE` SELECT success, denied mutation, DDL/role creation, sequence `nextval`, double execution, and rollback of intentionally unsafe grants and BYPASSRLS. No actual production data or credentials entered CI.
+- Localhost tests **simulated** the Neon identity GUC strings to exercise SQL decisions; they cannot prove real Neon endpoint identity or installed `payrollph_backup_reader` production privileges. This receipt is labeled `SYNTHETIC_PG18_PERMISSION_REHEARSAL_PASS` only, **not** `ROLE_INSTALLED_DISABLED`, `RECOVERY_VERIFIED` or payroll release acceptance.
+- GitHub's protected `main` rules require the full check matrix for a PR actually targeting `main`. An earlier stacked-branch PR did not initially run three base-sensitive required checks, so the review commit accompanying this receipt triggers a fresh `pull_request` check cycle against `main`. No required check may be waived or manually forged.
+
 **Never invent a role, protected media, archive receipt, SQL execution, restored data parity or an independent witness because code or CI passed.**
