@@ -134,6 +134,7 @@ export function SiteNav() {
         </div>
         <div className="ln-actions">
           <Link href="/login">Sign in</Link>
+          <Link href="/signup">Sign up</Link>
           <Link href="/demo" className="ln-demo">
             Try demo
           </Link>
@@ -180,6 +181,7 @@ export function SiteNav() {
           ))}
           <Link href="/payroll-outsourcing">Payroll outsourcing</Link>
           <Link href="/pricing">Pricing</Link>
+          <Link href="/signup">Sign up / request access</Link>
           <div className="ln-mobile-actions">
             <Link href="/login">Sign in</Link>
             <Link href="/demo">Try demo</Link>
