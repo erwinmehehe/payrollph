@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { SelfServeSignupForm } from "@/components/marketing/self-serve-signup-form";
 import { signupMode } from "@/lib/saas-launch-config";
+import { deliveryCapable } from "@/lib/mail-provider";
+import { privatePilotInviteReady } from "@/lib/private-pilot-invite";
 import { getPublicPricingPlans } from "@/lib/pricing-catalog";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 
@@ -21,6 +23,8 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
   // The pilot needs no paid plan catalog or subscription checkout.
   const plans = mode === "paid" ? await getPublicPricingPlans() : [];
   const isPilot = mode === "pilot";
+  const emailDeliveryAvailable = deliveryCapable();
+  const privateInviteEnabled = isPilot && privatePilotInviteReady();
 
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
@@ -34,7 +38,9 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
           <h1 className="font-display mt-5 text-[42px] font-semibold leading-[1.05] tracking-tight sm:text-[53px]">Create your Linaw company account.</h1>
           <p className="mt-5 text-[15px] leading-relaxed text-[#5B6080]">
             {isPilot
-              ? "Create an owner login and a separate, empty company workspace for a 14-day development pilot. Verify your email to start. No payment or card is required."
+              ? privateInviteEnabled && !emailDeliveryAvailable
+                ? "Create a separate, empty company workspace with your private invitation code. No email confirmation or payment is needed for this test-only 14-day pilot."
+                : "Create an owner login and a separate, empty company workspace for a 14-day development pilot. Verify your email to start, or use an authorized private invitation. No card is required."
               : mode === "paid"
                 ? "Create your company owner account, verify your email, and authorize billing through secure hosted checkout."
                 : "Company registration is temporarily unavailable while email verification and workspace setup are being configured."}
@@ -50,7 +56,9 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
           <div className="mt-7 rounded-2xl border border-[#DEEAF8] bg-[#F5F9FF] p-4 text-[13px] leading-relaxed text-[#4A5972]">
             <strong className="block text-[#203652]">How it works</strong>
             <p className="mt-1">{isPilot
-              ? "1. Create your owner account. 2. Verify your email. 3. Open your pilot workspace and explore with test data. The pilot ends after 14 days unless extended by the team."
+              ? privateInviteEnabled && !emailDeliveryAvailable
+                ? "1. Enter your invitation code and create a company account. 2. Sign in with your new password. 3. Explore with fictional/test data. The pilot expires after 14 days."
+                : "1. Create your owner account. 2. Verify your email or use a private invitation. 3. Open your pilot workspace and explore with test data."
               : mode === "paid"
                 ? "1. Create your owner account. 2. Verify your email. 3. Authorize your selected plan through hosted checkout."
                 : "Registration will reopen when the required services are ready."}</p>
@@ -69,6 +77,8 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
             mode={mode}
             plans={plans.map((plan) => ({ name: plan.name, monthlyBase: String(plan.monthlyBase), perEmployee: String(plan.perEmployee), active: plan.active }))}
             initialPlan={params?.plan}
+            privateInviteEnabled={privateInviteEnabled}
+            emailDeliveryAvailable={emailDeliveryAvailable}
           />
         )}
       </main>
