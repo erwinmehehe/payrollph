@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Clock3, RefreshCcw, ShieldCheck, X } from "lucide-react";
 import type { Employee, Notify, Punch } from "./types";
 import { EmptyState, Spinner, Status } from "./ui";
@@ -52,15 +52,7 @@ function timeLabel(value: string | null | undefined) {
   }).format(date);
 }
 
-export function AttendanceCorrectionsPanel({
-  organizationId,
-  punches,
-  employees,
-  notify,
-  canManage,
-  canDecide,
-  currentUserId,
-}: {
+type AttendanceCorrectionsProps = {
   organizationId: number;
   punches: Punch[];
   employees: Employee[];
@@ -68,7 +60,23 @@ export function AttendanceCorrectionsPanel({
   canManage: boolean;
   canDecide: boolean;
   currentUserId: number | null;
-}) {
+};
+
+// Never keep an approver's punch corrections when employer, user, or review rights change.
+export function AttendanceCorrectionsPanel(props: AttendanceCorrectionsProps) {
+  const scope = [props.organizationId, props.currentUserId ?? "none", props.canManage, props.canDecide].join(":");
+  return <ScopedAttendanceCorrectionsPanel key={scope} {...props} />;
+}
+
+function ScopedAttendanceCorrectionsPanel({
+  organizationId,
+  punches,
+  employees,
+  notify,
+  canManage,
+  canDecide,
+  currentUserId,
+}: AttendanceCorrectionsProps) {
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,25 +90,47 @@ export function AttendanceCorrectionsPanel({
     [employees],
   );
 
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
     setLoading(true);
+    // A fresh read is required before showing sensitive original/proposed punch snapshots.
+    setCorrections([]);
     try {
       const response = await fetch(
         `/api/workforce/attendance-corrections?organizationId=${organizationId}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal: controller.signal },
       );
       const body = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(body.error ?? "Could not load attendance corrections.");
       setCorrections(Array.isArray(body.requests) ? body.requests : []);
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not load attendance corrections.", "err");
+      if (isCurrent()) notify(error instanceof Error ? error.message : "Could not load attendance corrections.", "err");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [notify, organizationId]);
 
   useEffect(() => {
-    void load();
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
   }, [load]);
 
   const pendingPunchIds = useMemo(
@@ -128,6 +158,7 @@ export function AttendanceCorrectionsPanel({
   }
 
   async function requestCorrection() {
+    if (!mountedRef.current) return;
     if (!selectedPunchId || !reason.trim()) {
       notify("Choose a punch and enter the correction reason.", "err");
       return;
@@ -147,6 +178,7 @@ export function AttendanceCorrectionsPanel({
         }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(body.error ?? "Could not request attendance correction.");
       notify("Attendance correction sent for independent approval.", "ok");
       setSelectedPunchId(null);
@@ -155,13 +187,14 @@ export function AttendanceCorrectionsPanel({
       setReason("");
       await load();
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not request attendance correction.", "err");
+      if (mountedRef.current) notify(error instanceof Error ? error.message : "Could not request attendance correction.", "err");
     } finally {
-      setSaving(false);
+      if (mountedRef.current) setSaving(false);
     }
   }
 
   async function decide(requestId: number, decision: "approved" | "rejected") {
+    if (!mountedRef.current) return;
     setSaving(true);
     try {
       const response = await fetch("/api/workforce/attendance-corrections", {
@@ -175,6 +208,7 @@ export function AttendanceCorrectionsPanel({
         }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(body.error ?? "Could not decide attendance correction.");
       notify(
         decision === "approved"
@@ -188,9 +222,9 @@ export function AttendanceCorrectionsPanel({
       }
       await load();
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not decide attendance correction.", "err");
+      if (mountedRef.current) notify(error instanceof Error ? error.message : "Could not decide attendance correction.", "err");
     } finally {
-      setSaving(false);
+      if (mountedRef.current) setSaving(false);
     }
   }
 

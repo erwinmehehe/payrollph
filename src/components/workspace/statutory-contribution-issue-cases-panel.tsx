@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, RefreshCcw, SearchCheck } from "lucide-react";
 import {
   allowedContributionCaseOutcomes,
@@ -57,17 +57,27 @@ const OUTCOME_LABELS: Record<ContributionResolutionOutcome, string> = {
   referred_to_agency: "Referred to agency · keep case open",
 };
 
-export function StatutoryContributionIssueCasesPanel({
-  organizationId,
-  legalEntityId,
-  notify,
-}: {
+type StatutoryContributionIssueCasesProps = {
   organizationId: number;
   legalEntityId?: number | null;
   notify: Notify;
-}) {
+};
+
+// Do not carry private employee cases or partially drafted resolutions
+// between legal employers or individual legal entities.
+export function StatutoryContributionIssueCasesPanel(props: StatutoryContributionIssueCasesProps) {
+  const scope = props.organizationId + ":" + String(props.legalEntityId ?? "all");
+  return <ScopedStatutoryContributionIssueCasesPanel key={scope} {...props} />;
+}
+
+function ScopedStatutoryContributionIssueCasesPanel({
+  organizationId,
+  legalEntityId,
+  notify,
+}: StatutoryContributionIssueCasesProps) {
   const [cases, setCases] = useState<ContributionIssueCase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [resolveId, setResolveId] = useState<number | null>(null);
   const [updateId, setUpdateId] = useState<number | null>(null);
@@ -75,25 +85,52 @@ export function StatutoryContributionIssueCasesPanel({
   const [resolutionOutcome, setResolutionOutcome] = useState<ContributionResolutionOutcome>("posting_confirmed");
   const [resolutionNote, setResolutionNote] = useState("");
 
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
+    // A refreshed permission/scope can be narrower. Hide previous cases until authorized.
     setLoading(true);
+    setCases([]);
+    setLoadError("");
     try {
       const response = await fetch(
         `/api/compliance/contribution-issues?organizationId=${organizationId}${legalEntityId ? `&legalEntityId=${legalEntityId}` : ""}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal: controller.signal },
       );
       const body = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(body.error ?? "Could not load employee contribution cases.");
       setCases(Array.isArray(body.cases) ? body.cases : []);
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not load employee contribution cases.", "err");
+      if (isCurrent()) {
+        const message = error instanceof Error ? error.message : "Could not load employee contribution cases.";
+        setLoadError(message);
+        notify(message, "err");
+      }
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [legalEntityId, notify, organizationId]);
 
   useEffect(() => {
-    void load();
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
   }, [load]);
 
   const active = useMemo(
@@ -113,6 +150,7 @@ export function StatutoryContributionIssueCasesPanel({
     payload: Record<string, unknown>,
     success: string,
   ) {
+    if (!mountedRef.current) return false;
     setBusy(`${action}:${caseId}`);
     try {
       const response = await fetch("/api/compliance/contribution-issues", {
@@ -121,16 +159,18 @@ export function StatutoryContributionIssueCasesPanel({
         body: JSON.stringify({ organizationId, caseId, action, ...payload }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return false;
       if (!response.ok) throw new Error(body.error ?? "Contribution case could not be updated.");
       notify(success, "ok");
       await load();
+      if (!mountedRef.current) return false;
       window.dispatchEvent(new Event("statutory-remittance-changed"));
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Contribution case could not be updated.", "err");
+      if (mountedRef.current) notify(error instanceof Error ? error.message : "Contribution case could not be updated.", "err");
       return false;
     } finally {
-      setBusy(null);
+      if (mountedRef.current) setBusy(null);
     }
   }
 
@@ -152,6 +192,7 @@ export function StatutoryContributionIssueCasesPanel({
   }
 
   async function requestMissingMemberCorrection(issue: ContributionIssueCase) {
+    if (!mountedRef.current) return;
     setBusy(`missing_member:${issue.id}`);
     try {
       const response = await fetch("/api/compliance/statutory-remittance-corrections", {
@@ -165,13 +206,14 @@ export function StatutoryContributionIssueCasesPanel({
         }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(body.error ?? "Missing-member correction could not be requested.");
       notify("Missing-member correction sent for independent approval.", "ok");
       window.dispatchEvent(new Event("statutory-remittance-changed"));
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Missing-member correction could not be requested.", "err");
+      if (mountedRef.current) notify(error instanceof Error ? error.message : "Missing-member correction could not be requested.", "err");
     } finally {
-      setBusy(null);
+      if (mountedRef.current) setBusy(null);
     }
   }
 
@@ -212,7 +254,15 @@ export function StatutoryContributionIssueCasesPanel({
       </div>
 
       <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 14 }}>
-        {active.length === 0 ? (
+        {loading ? (
+          <div className="empty-state"><Spinner label="Loading contribution cases" /></div>
+        ) : loadError ? (
+          <div className="notice notice-red">
+            <AlertTriangle size={15} />
+            <span>{loadError}</span>
+            <button type="button" className="secondary-button" onClick={() => void load()}>Retry</button>
+          </div>
+        ) : active.length === 0 ? (
           <div className="notice notice-green" style={{ margin: 0 }}>
             <CheckCircle2 size={15} />
             <span><strong>No unresolved employee contribution cases.</strong></span>
