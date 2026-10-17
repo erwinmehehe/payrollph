@@ -152,12 +152,15 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
     await assert.rejects(() => assertMigrationControlLedgerCatalog(admin),
       /REVIEWED_MIGRATION_CONTROL_LEDGER_INVALID/);
     await admin.query("ROLLBACK");
-    await admin.query("BEGIN");
-    await admin.query("GRANT UPDATE ON public.payrollph_release_migration_receipts TO synthetic_migration_audit");
-    await admin.query("SET LOCAL ROLE synthetic_migration_audit");
-    await assert.rejects(() => assertMigrationControlLedgerCatalog(admin),
-      /REVIEWED_MIGRATION_CONTROL_LEDGER_INVALID/);
-    await admin.query("ROLLBACK");
+    for (const unsafeGrant of ["UPDATE", "TRIGGER", "REFERENCES"]) {
+      await admin.query("BEGIN");
+      await admin.query("GRANT " + unsafeGrant +
+        " ON public.payrollph_release_migration_receipts TO synthetic_migration_audit");
+      await admin.query("SET LOCAL ROLE synthetic_migration_audit");
+      await assert.rejects(() => assertMigrationControlLedgerCatalog(admin),
+        /REVIEWED_MIGRATION_CONTROL_LEDGER_INVALID/, unsafeGrant);
+      await admin.query("ROLLBACK");
+    }
     await admin.query("SET ROLE synthetic_migration_audit");
     await assert.doesNotReject(() => assertMigrationControlLedgerCatalog(admin));
     await admin.query("RESET ROLE");
