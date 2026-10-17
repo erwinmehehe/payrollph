@@ -68,7 +68,13 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
   const [open, setOpen] = useState(false);
   const [policyOpen, setPolicyOpen] = useState(false);
   const [employeeId, setEmployeeId] = useState(data.employees[0]?.id ?? 0);
-  const [leaveType, setLeaveType] = useState("Annual leave");
+  const [requestedLeaveType, setLeaveType] = useState("Annual leave");
+  // Render the effective active choice directly: changing policies must not
+  // leave a stale or unauthorized leave type selected until an effect runs.
+  const leaveType = configuredPolicies.length > 0 &&
+    !configuredPolicies.some((policy) => policy.leaveType === requestedLeaveType)
+    ? configuredPolicies[0].leaveType
+    : requestedLeaveType;
   // Fill Manila-local dates when the form opens, not from a frozen build-time date.
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -133,15 +139,6 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
   const [annualDays, setAnnualDays] = useState(15);
   const [payTreatment, setPayTreatment] = useState<"paid" | "unpaid" | "partial">("paid");
   const [paidPercentage, setPaidPercentage] = useState(50);
-
-  useEffect(() => {
-    if (
-      configuredPolicies.length > 0 &&
-      !configuredPolicies.some((policy) => policy.leaveType === leaveType)
-    ) {
-      setLeaveType(configuredPolicies[0].leaveType);
-    }
-  }, [configuredPolicies, leaveType]);
 
   function preciseIntervals() {
     if (timingMode === "full_day") return [];
