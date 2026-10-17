@@ -267,6 +267,13 @@ try {
     buffer: Buffer.from("%PDF-1.7\\nnot really a JPEG"),
   });
   assert.equal(misdeclared.status(), 422, "Spoofed JPEG MIME must be rejected");
+  const simulatedThreat = await negativeUpload({
+    name: "synthetic-threat.pdf",
+    buffer: Buffer.from("%PDF-1.7\\nFICTIONAL TEST SIGNATURE ONLY"),
+  });
+  assert.equal(simulatedThreat.status(), 422, "Scanner-flagged file must be rejected");
+  assert.equal((await simulatedThreat.json()).code, "MALWARE_DETECTED",
+    "Scanner refusal must preserve its rejection contract");
   const oversized = await negativeUpload({
     name: "oversized.pdf", buffer: Buffer.concat([
       Buffer.from("%PDF-1.7\\n"), Buffer.alloc(5 * 1024 * 1024),
@@ -290,7 +297,8 @@ try {
   await writeFile(out + "/synthetic-acceptance.json", JSON.stringify({
     result: "PASS", checks, wrongRolesDenied: true, wrongTenantDenied: true,
     restrictedHrDenied: true, linkedEssReadProven: true, authorizedTenantSwitchScoped: true,
-    forgedFileDenied: true, mismatchedMimeDenied: true, oversizedMultipartDenied: true,
+    forgedFileDenied: true, mismatchedMimeDenied: true, syntheticScannerThreatDenied: true,
+    oversizedMultipartDenied: true,
     pngJpegPrivateLifecycle: true, unauthenticatedDirectReadDenied: true,
     managerDirectReadDenied: true, mobileTouchTargetsChecked: true,
     invalidCategoryDenied: true, crossSiteMutationDenied: true,
