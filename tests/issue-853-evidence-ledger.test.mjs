@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {makeBlankLedger, evaluate, STAGES, CROSS_TENANT} from '../scripts/qa/issue-853-evidence-ledger.mjs';
+import { symlinkSkip } from './helpers/symlink-capability.mjs';
 
 const repoRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const script=join(repoRoot,'scripts/qa/issue-853-evidence-ledger.mjs');
@@ -236,7 +237,7 @@ test('NEEDS_FIX requires witnessed observation and opaque BUG ID; BLOCKED and NO
   assert.ok(evaluate(l).problems.some(s=>s.includes('Invalid status')));
 });
 
-test('CLI init is non-overwriting, private-only; check exits 2 without fabricated evidence',async()=>{
+test('CLI init is non-overwriting, private-only; check exits 2 without fabricated evidence', { skip: symlinkSkip },async()=>{
   const home=await mkdtemp(join(tmpdir(),'issue853-v2-test-'));
   try {
     const pathname=join(home,'private-evidence','ledger.json');

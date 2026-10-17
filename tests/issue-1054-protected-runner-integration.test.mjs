@@ -13,6 +13,7 @@ import {
 import {
   ISSUE1054_MIGRATION_PATH, ISSUE1054_PREFLIGHT_SQL, ISSUE1054_POSTFLIGHT_SQL,
 } from "../scripts/lib/issue-1054-protected-preflight.mjs";
+import { noFollowSkip } from "./helpers/symlink-capability.mjs";
 
 // These are fake, in-memory catalog/ledger responses. The separate PG16/18
 // rehearsal exercises real catalog effects on disposable localhost databases.
@@ -134,7 +135,7 @@ function run(f, db, mode) {
   });
 }
 
-test("#1054 protected PLAN checks preflight in read-only transaction, without applying DDL", async () =>
+test("#1054 protected PLAN checks preflight in read-only transaction, without applying DDL", { skip: noFollowSkip }, async () =>
   withFixture(async f => {
     const db = client(f);
     const result = await run(f, db, "plan");
@@ -154,7 +155,7 @@ test("#1054 protected PLAN checks preflight in read-only transaction, without ap
     assert.equal(db.calls.at(-1), "ROLLBACK");
   }));
 
-test("#1054 protected APPLY orders preflight, immutable DDL, postflight, receipt, COMMIT", async () =>
+test("#1054 protected APPLY orders preflight, immutable DDL, postflight, receipt, COMMIT", { skip: noFollowSkip }, async () =>
   withFixture(async f => {
     const db = client(f);
     const result = await run(f, db, "apply");
@@ -178,7 +179,7 @@ test("#1054 protected APPLY orders preflight, immutable DDL, postflight, receipt
   }));
 
 for (const failAt of ["preflight", "postflight"]) {
-  test("#1054 protected " + failAt + " failure rolls back without a receipt", async () =>
+  test("#1054 protected " + failAt + " failure rolls back without a receipt", { skip: noFollowSkip }, async () =>
     withFixture(async f => {
       const db = client(f, { failAt });
       await assert.rejects(() => run(f, db, "apply"), error =>
@@ -191,7 +192,7 @@ for (const failAt of ["preflight", "postflight"]) {
     }));
 }
 
-test("#1054 recorded migration reentry skips DDL and both companion guards", async () =>
+test("#1054 recorded migration reentry skips DDL and both companion guards", { skip: noFollowSkip }, async () =>
   withFixture(async f => {
     const db = client(f, { alreadyApplied: true });
     const result = await run(f, db, "apply");
