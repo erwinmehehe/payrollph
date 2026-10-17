@@ -77,6 +77,17 @@ jobs:
       - run: npm run build
 
       - name: Start production server
+        # ONLY this isolated localhost CI process exercises normally default-OFF API
+        # extension/provider signature branches. Does not change any deployed flag.
+        env:
+          PUBLIC_API_V1_EXTENDED_ENABLED: "true"
+          API_V1_EXTENDED_READS_ENABLED: "true"
+          PAYMONGO_WEBHOOK_SECRET: "ci-fake-paymongo-webhook-signing-secret"
+          RESEND_WEBHOOK_SECRET: "whsec_Y2ktZmFrZS1yZXNlbmQtc2lnbmVy"
+          XENDIT_PAYOUT_CALLBACK_TOKEN: "ci-fake-xendit-payout-callback"
+          XENDIT_CALLBACK_TOKEN: "ci-fake-xendit-subscription-callback"
+          XENDIT_BUSINESS_ID: "ci-fictional-merchant"
+          XENDIT_BILLING_ENABLED: "true"
         shell: bash
         run: |
           nohup npm start -- -H 127.0.0.1 > /tmp/payrollph-security.log 2>&1 &
@@ -95,6 +106,12 @@ jobs:
           CI: "true"
           WORKFORCE_BI_HTTP_ACCEPTANCE_MODE: isolated-ci-only
         run: npx tsx scripts/security-http-smoke.ts
+
+      - name: Real-HTTP second-pass tenant isolation (victim + two attacker organizations)
+        env:
+          CI: "true"
+          TENANT_SECOND_PASS_MODE: isolated-ci-only
+        run: npx tsx scripts/qa/tenant-second-pass-http.mjs
 
       - name: Show server log on failure
         if: failure()
