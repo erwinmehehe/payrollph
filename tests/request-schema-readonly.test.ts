@@ -321,7 +321,7 @@ test("marketing index preflight matches schema.ts and numbered SQL, not legacy N
   ] as const;
   for (const [name, firstColumn] of expected) {
     assert.ok(canonical.includes(
-      `index("${name}").on(table.${firstColumn}, table.createdAt.desc())`,
+      `index("${name}").on(table.${firstColumn}, table.createdAt.desc().nullsFirst())`,
     ), name + " must use canonical Drizzle DESC ordering");
     assert.ok(migration.includes(
       `ON marketing_leads(${firstColumn}, created_at DESC);`,

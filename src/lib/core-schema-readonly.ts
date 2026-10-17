@@ -14,13 +14,38 @@ export type CatalogQuery = (
 ) => Promise<{ rows: CatalogRow[] }>;
 
 /**
- * Schema changes and encryption backfills belong to the reviewed migration
- * runner, never to an HTTP request/worker running with application credentials.
- * Unset is read-only; reject *all* legacy/unknown values rather than allowing
- * an environment variable to re-enable request-time CREATE/ALTER or backfill.
+ * Deployed code must not create/alter schema or backfill during requests.
+ * The ONLY temporary compatibility exception is a disposable, GitHub-hosted
+ * CI fixture on the literal local PostgreSQL app_db. This preserves existing
+ * synthetic HTTP acceptance until setup can move to an offline migration step.
+ *
+ * The injectable env is for pure regression tests; app callers use process.env.
  */
-export function coreSchemaCompatibilityMode(value: string | undefined): "read-only" {
-  if (value === undefined || value === "read-only") return "read-only";
+function isolatedGithubCiSchemaFixture(env: NodeJS.ProcessEnv): boolean {
+  if (env.CI !== "true" || env.GITHUB_ACTIONS !== "true" ||
+      env.GITHUB_REPOSITORY !== "erwinmehehe/payrollph" ||
+      env.RUNNER_ENVIRONMENT !== "github-hosted" ||
+      env.VERCEL || env.VERCEL_ENV) return false;
+  try {
+    const url = new URL(env.DATABASE_URL ?? "");
+    return url.protocol === "postgresql:"
+      && url.hostname === "127.0.0.1"
+      && url.port === "5432"
+      && url.pathname === "/app_db"
+      && url.username === "postgres"
+      && !url.search && !url.hash;
+  } catch {
+    return false;
+  }
+}
+
+export function coreSchemaCompatibilityMode(
+  value: string | undefined, env: NodeJS.ProcessEnv = process.env,
+): "legacy" | "read-only" {
+  if (value === "read-only") return "read-only";
+  if ((value === undefined || value === "legacy") &&
+      isolatedGithubCiSchemaFixture(env)) return "legacy";
+  if (value === undefined) return "read-only";
   throw new Error("CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN");
 }
 

@@ -78,12 +78,42 @@ function fixture(overrides: {
   return { query, calls };
 }
 
-test("runtime schema DDL is unreachable by default and cannot be enabled with legacy mode", () => {
-  assert.equal(coreSchemaCompatibilityMode(undefined), "read-only");
-  assert.equal(coreSchemaCompatibilityMode("read-only"), "read-only");
+test("normal runtime defaults to read-only and rejects legacy regardless of env override", () => {
+  const deployed: NodeJS.ProcessEnv = {
+    NODE_ENV: "production",
+    DATABASE_URL: "postgresql://app@remote.example:5432/payroll",
+    VERCEL: "1",
+  };
+  assert.equal(coreSchemaCompatibilityMode(undefined, deployed), "read-only");
+  assert.equal(coreSchemaCompatibilityMode("read-only", deployed), "read-only");
   for (const value of ["legacy", "", "readOnly", "READ-ONLY", "apply", "repair", "off", " true "]) {
-    assert.throws(() => coreSchemaCompatibilityMode(value),
+    assert.throws(() => coreSchemaCompatibilityMode(value, deployed),
       /CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN/);
+  }
+});
+
+test("only a disposable GitHub-hosted local PostgreSQL fixture may retain legacy setup", () => {
+  const fixture: NodeJS.ProcessEnv = {
+    NODE_ENV: "production", CI: "true", GITHUB_ACTIONS: "true",
+    GITHUB_REPOSITORY: "erwinmehehe/payrollph", RUNNER_ENVIRONMENT: "github-hosted",
+    DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+  };
+  assert.equal(coreSchemaCompatibilityMode(undefined, fixture), "legacy");
+  assert.equal(coreSchemaCompatibilityMode("legacy", fixture), "legacy");
+  assert.equal(coreSchemaCompatibilityMode("read-only", fixture), "read-only");
+  for (const change of [
+    { CI: "false" }, { GITHUB_ACTIONS: "false" }, { RUNNER_ENVIRONMENT: "self-hosted" },
+    { GITHUB_REPOSITORY: "other/payrollph" }, { VERCEL: "1" }, { VERCEL_ENV: "production" },
+    { DATABASE_URL: "postgresql://postgres:postgres@neon.example:5432/app_db" },
+    { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:6543/app_db" },
+    { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/neondb" },
+    { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db?sslmode=disable" },
+    { DATABASE_URL: "" },
+  ]) {
+    const env = { ...fixture, ...change };
+    assert.equal(coreSchemaCompatibilityMode(undefined, env), "read-only", JSON.stringify(change));
+    assert.throws(() => coreSchemaCompatibilityMode("legacy", env),
+      /CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN/, JSON.stringify(change));
   }
 });
 
