@@ -406,6 +406,7 @@ Set the environment variables before the first deploy, not after:
 | `SETUP_TOKEN` | strong random first-run bootstrap secret |
 | `TOTP_ENCRYPTION_KEY` | exactly 32 bytes, encoded as 64 hex characters or base64 |
 | `BANK_DATA_ENCRYPTION_KEY` | optional dedicated 32-byte override for AES-256-GCM employee bank-account encryption; when absent, Linaw derives a domain-separated bank-data key from the required `TOTP_ENCRYPTION_KEY` |
+| `PII_ENCRYPTION_KEY` | exactly 32 bytes, as 64 hex characters or base64; **required** to store employee and contractor government identifiers (TIN, SSS, PhilHealth, Pag-IBIG). Those writes fail closed without it, and there is no fallback to `TOTP_ENCRYPTION_KEY`. During rotation, keep the old key in `PII_ENCRYPTION_KEY_PREVIOUS` |
 | `MALWARE_SCAN_URL` | HTTPS scanner endpoint, for example the Railway ClamAV service |
 | `MALWARE_SCAN_TOKEN` | strong random bearer secret shared only with the scanner |
 | `PG_POOL_MAX` | a low number on serverless, where each instance opens its own pool |
