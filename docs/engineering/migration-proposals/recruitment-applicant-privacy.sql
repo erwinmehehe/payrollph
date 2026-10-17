@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS applicant_privacy_evidence (
   CONSTRAINT applicant_privacy_purged_rejected_check
     CHECK (purged_at IS NULL OR rejected_at IS NOT NULL)
 );
-CREATE UNIQUE INDEX applicant_privacy_org_candidate_unique ON applicant_privacy_evidence (organization_id,applicant_id);
+CREATE UNIQUE INDEX IF NOT EXISTS applicant_privacy_org_candidate_unique ON applicant_privacy_evidence (organization_id,applicant_id);
 CREATE INDEX IF NOT EXISTS applicant_privacy_rejection_due_idx
   ON applicant_privacy_evidence (organization_id, rejected_at, purged_at);
 COMMIT;
