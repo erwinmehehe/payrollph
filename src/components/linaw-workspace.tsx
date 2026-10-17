@@ -119,10 +119,16 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
     data.selectedOrganization.id, setData,
   );
   useMultiEntityRequestHeaders(data.multiEntity);
-  const [page, setPage] = useState(initialPage);
+  const [page, updatePage] = useState(initialPage);
   const [busy, setBusy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"organization" | "team">("organization");
+  // Reset the settings entry tab at the navigation boundary, not in an effect.
+  // Keep this callback stable for the command palette's memoized actions.
+  const setPage = useCallback((next: typeof initialPage) => {
+    if (next !== "Settings") setSettingsInitialTab("organization");
+    updatePage(next);
+  }, [setSettingsInitialTab]);
   // A source-link can focus only a worker already in this selected employer's
   // authorized People snapshot. A stale or cross-employer URL opens no drawer.
   const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(() =>
@@ -203,10 +209,6 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   }
 
   usePaletteShortcut(() => setPaletteOpen(true));
-
-  useEffect(() => {
-    if (page !== "Settings") setSettingsInitialTab("organization");
-  }, [page]);
 
   /* ------------------------------------------------------------- data ops */
 
