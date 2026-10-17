@@ -36,8 +36,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: scheduler-disposable-pg-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # A newer push to a pull request supersedes its older run. Runs for main and
+  # manual dispatch are keyed by commit and never cancelled, so a quick follow-up
+  # merge cannot leave a main commit with a cancelled (or missing) result.
+  group: scheduler-disposable-pg-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   scheduler-postgres:
