@@ -37,7 +37,7 @@ async function expectFailedTick(job: string) {
     "Missing failing job " + job + ": " + caught.failures.map((failure) => failure.job).join(", "));
   for (const failure of caught.failures) {
     assert.ok(failure.message.length <= 160, "scheduler error details must be bounded");
-    assert.doesNotMatch(failure.message, /(?:select|insert|update|delete)\\s+|params:|\\$1/i,
+    assert.doesNotMatch(failure.message, /(?:select|insert|update|delete)\s+|params:|\$1/i,
       "scheduler failure details must not expose SQL or parameters");
   }
   assert.deepEqual(await receipt(), before, "a partial tick must not advance the completion receipt");
@@ -135,14 +135,14 @@ test("every previously swallowed scheduled error is aggregated without bypassing
     assert.match(source, new RegExp('isolate\\("' + job + '"\\)\\(error\\)'),
       job + " exceptions must be visible to scheduler failure aggregation");
   }
-  assert.match(source, /intent\\.reason === "dispatch_error_unconfirmed"/,
+  assert.match(source, /intent\.reason === "dispatch_error_unconfirmed"/,
     "per-intent unconfirmed errors must fail a tick, not become apparent success");
   const alertStart = source.indexOf("if (complianceAlertsDue) {");
   const alertEnd = source.indexOf("const [hcmLifecycleNotificationState]", alertStart);
   const alertBlock = source.slice(alertStart, alertEnd);
-  assert.match(alertBlock, /await assertLeaseOwnership\\(\\);[\\s\\S]*runScheduledComplianceDeadlineAlerts/,
+  assert.match(alertBlock, /await assertLeaseOwnership\(\);[\s\S]*runScheduledComplianceDeadlineAlerts/,
     "compliance delivery requires a live lease before side effects");
-  assert.match(alertBlock, /if \\(Array\\.isArray\\(complianceDeadlineAlerts\\)\\) \\{[\\s\\S]*lastRunAt: now/,
+  assert.match(alertBlock, /if \(Array\.isArray\(complianceDeadlineAlerts\)\) \{[\s\S]*lastRunAt: now/,
     "only successful deadline delivery may advance the throttle");
   const aggregate = source.indexOf("throw new SchedulerJobsIncompleteError(failures)");
   const receipt = source.indexOf("await recordSchedulerCompletion(ownerToken, payload)");
