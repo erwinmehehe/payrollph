@@ -1,0 +1,151 @@
+# Issue #1198 — catalog name inventory (2026-10-17)
+
+**READ-ONLY OBSERVATION / NO-GO.** This evidence compares application `pgTable(...)` declarations at source branch `audit/issue1198-runtime-identity-readonly-20261017` (parent SHA `7c7d38b773ac949f4abae2b3f969e35e01cf050e`) to PostgreSQL `pg_catalog` table names returned by the linked Neon connector. No application rows, row counts, DDL, DML, role changes or release receipts were accessed.
+
+- Observed default Neon project: `calm-wave-70219564`
+- Observed default branch: `br-lucky-sound-b79i56jw`
+- Session endpoint: `ep-cool-hat-b7e7gpoo`, database `neondb`, PostgreSQL major 18
+- Declared application tables: **271**
+- Existing `public` tables: **154**
+- Expected tables missing: **124**
+- Live-only tables: **7**
+- Exact Vercel application runtime session identity: **UNVERIFIED** until private token-gated attestation under separate protected workflow
+
+## Declared application tables missing from observed Neon `public` (124)
+
+- `applicant_privacy_evidence`
+- `automation_event_log`
+- `automation_executions`
+- `automation_operational_cases`
+- `automation_rule_versions`
+- `automation_rules`
+- `compensation_automation_intents`
+- `email_change_tokens`
+- `employee_availability_rules`
+- `employee_entity_assignments`
+- `employee_entity_bank_accounts`
+- `employee_hr_case_messages`
+- `employee_hr_cases`
+- `employee_payout_change_requests`
+- `engagement_survey_participants`
+- `engagement_surveys`
+- `entity_transfer_requests`
+- `expense_category_policies`
+- `expense_claim_evidence`
+- `expense_report_items`
+- `expense_reports`
+- `external_identities`
+- `hcm_document_expiry_notices`
+- `hcm_document_requirements`
+- `hcm_employee_document_compliance`
+- `hcm_employee_skills`
+- `hcm_employment_decision_documents`
+- `hcm_employment_decision_events`
+- `hcm_employment_decision_manager_attestations`
+- `hcm_employment_decision_notes`
+- `hcm_employment_term_decisions`
+- `hcm_employment_terms`
+- `hcm_job_profile_credential_requirements`
+- `hcm_job_profile_skill_requirements`
+- `hcm_lifecycle_notification_events`
+- `hcm_lifecycle_notification_tasks`
+- `hcm_lifecycle_policies`
+- `hcm_lifecycle_policy_events`
+- `hcm_policy_assignments`
+- `hcm_policy_versions`
+- `hcm_probation_review_acknowledgments`
+- `hcm_probation_review_events`
+- `hcm_probation_reviews`
+- `hcm_skill_expectation_defaults`
+- `hcm_skills`
+- `hcm_work_arrangements`
+- `hcm_worksite_authorizations`
+- `identity_domains`
+- `identity_providers`
+- `integration_connector_deliveries`
+- `integration_connectors`
+- `it_access_grants`
+- `it_applications`
+- `it_device_events`
+- `it_managed_devices`
+- `legal_entity_profile_change_requests`
+- `legal_entity_statutory_registrations`
+- `legal_entity_transfer_liability_evidence`
+- `offline_punch_claims`
+- `oidc_login_states`
+- `open_shift_claims`
+- `open_shifts`
+- `payout_batch_transfers`
+- `payout_batches`
+- `payout_profiles`
+- `payout_transfers`
+- `payroll_underpayment_requests`
+- `performance_action_item_reminder_events`
+- `performance_action_item_reminder_tasks`
+- `performance_action_reminder_policies`
+- `performance_action_reminder_policy_events`
+- `performance_calibration_entries`
+- `performance_calibration_flags`
+- `performance_calibration_policies`
+- `performance_calibration_policy_events`
+- `performance_calibration_sessions`
+- `performance_cycle_evidence_amendments`
+- `performance_cycle_evidence_seals`
+- `performance_cycle_templates`
+- `performance_cycles`
+- `performance_evidence_policies`
+- `performance_evidence_policy_events`
+- `performance_feedback`
+- `performance_goals`
+- `performance_one_on_one_action_item_events`
+- `performance_one_on_one_action_items`
+- `performance_one_on_one_agenda_contributions`
+- `performance_one_on_ones`
+- `performance_reminder_events`
+- `performance_reminder_tasks`
+- `performance_review_items`
+- `performance_reviews`
+- `performance_skill_development_milestones`
+- `performance_skill_development_plan_events`
+- `performance_skill_development_plans`
+- `performance_skill_development_progress`
+- `performance_templates`
+- `provider_events`
+- `saml_login_states`
+- `saved_report_definitions`
+- `scim_identities`
+- `scim_tokens`
+- `separation_clearance_waivers`
+- `spend_card_transactions`
+- `spend_cards`
+- `statutory_remittance_payment_evidence`
+- `treasury_control_policies`
+- `treasury_operator_assignments`
+- `user_entity_preferences`
+- `user_legal_entity_grants`
+- `workforce_demand_forecast_issues`
+- `workforce_demand_forecast_scores`
+- `workforce_demand_import_batches`
+- `workforce_demand_observation_revisions`
+- `workforce_demand_staffing_policies`
+- `workforce_demand_staffing_policy_events`
+- `workforce_punch_photo_consents`
+- `workforce_punch_photo_evidence`
+- `workforce_punch_submissions`
+- `workforce_roster_batches`
+- `workforce_roster_rule_policies`
+- `worksite_geofence_boundaries`
+- `worksite_punch_policies`
+- `year_end_prior_evidence`
+
+## Observed Neon `public` tables not declared by current primary schema module (7)
+
+- `ess_employee_photos`
+- `ess_identifier_requests`
+- `ess_other_identifiers`
+- `saas_billing_checkouts`
+- `saas_billing_events`
+- `saas_billing_state`
+- `saas_signup_verifications`
+
+**Do not auto-create the missing tables, replay numbered sources, or drop live-only tables.** Live-only tables may be intentionally maintained outside the primary schema module. The database lacks independently adopted release receipt/cutover journals, and catalog presence/absence alone cannot prove historical execution. A forward-only, checksum-pinned repair must be independently planned and authorized after Vercel session identity, source lineage, backup/restore and privacy safeguards pass.

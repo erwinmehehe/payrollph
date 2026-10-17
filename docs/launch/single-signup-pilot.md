@@ -31,3 +31,20 @@ An email-verified pilot owner gets a subscription `trialing` with `provider=pilo
 
 ## Live paid signup remains a separate release
 Paid enrollment additionally requires `SELF_SERVE_SIGNUP_ENABLED=true` and `XENDIT_BILLING_ENABLED=true` alongside `PUBLIC_SIGNUP_MODE=paid`; neither billing flag is needed for pilots. Do not choose paid mode until the separate Xendit merchant, webhook, reconciliation, cancellation, disclosures, company isolation and financial release gates in [self-service-billing-runbook.md](./self-service-billing-runbook.md) and [issue #687](https://github.com/erwinmehehe/payrollph/issues/687) have passed. There is still just one signup path regardless of later mode.
+
+
+## Temporary single-recipient invitation for development testing
+
+When a real outbound email service is unavailable, do **not** turn on unrestricted no-verification signup. For a *single invited tester* only, the same `/signup` form can accept a short-lived, high-entropy invitation code in place of an email-verification link. It is not a second signup page.
+
+Only enable this escape hatch during the fictional-data development pilot, and only with all four server-side values:
+- `PRIVATE_PILOT_INVITE_ENABLED=true`
+- `PRIVATE_PILOT_INVITE_EMAIL_SHA256` — SHA-256 of the invited email after lowercasing/trimming; never a global domain allowlist
+- `PRIVATE_PILOT_INVITE_CODE_SHA256` — SHA-256 of an independently generated **48-character or longer** random access code; only the invited user receives the raw code
+- `PRIVATE_PILOT_INVITE_EXPIRES_AT` — explicit future UTC ISO timestamp, ideally no more than 48–72 hours away
+
+Use **encrypted** Vercel environment variables for the email hash and code hash, and set them only on the intended production target. The invite must never be hardcoded in GitHub, exposed in public JavaScript, or placed in an URL/query parameter. The server uses constant-time SHA-256 comparisons to validate both digests. Normal origin checks, distributed rate limits, password rules, intake proof, unique email constraint and tenant provisioning remain mandatory.
+
+The invited pilot user becomes active immediately; the audit log records that `emailVerified=false`. This is an **invitation-authorized evaluation account**, not proof of email ownership. There are no email messages, subscriptions charges, checkout redirects, or real-payroll features. The pilot runs 14 days with a Core plan and 10 seats, fictional information only.
+
+Once the invited account has been created, **unset `PRIVATE_PILOT_INVITE_ENABLED` and redeploy**. Configure/verify Resend, Postmark, or SMTP and the sender domain before opening ordinary public signup; the invitation mechanism is not a substitute for an email provider. Keep paid signup and Xendit gates disabled until separate go-live approval.

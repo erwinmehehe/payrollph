@@ -1,0 +1,74 @@
+name: Production Runtime DB Target Attestation (Read Only)
+
+# Manual and exact-main only. No DB credentials, SQL client, migrations or writes.
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Independently reviewed exact 40-character main/deployment SHA
+        required: true
+        type: string
+      expected_database_name:
+        description: DBA-verified database name, never a URL or password
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payrollph-runtime-db-identity-readonly
+  cancel-in-progress: false
+
+jobs:
+  identity:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: production
+    env:
+      CI: "true"
+      EXPECTED_PRODUCTION_DATABASE_NAME: ${{ inputs.expected_database_name }}
+      EXPECTED_PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+      EXPECTED_PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
+      EXPECTED_PRODUCTION_NEON_ENDPOINT_ID: ${{ vars.PRODUCTION_NEON_ENDPOINT_ID }}
+      EXPECTED_PRODUCTION_RUNTIME_DB_ROLE: ${{ vars.PRODUCTION_RUNTIME_DB_ROLE }}
+    steps:
+      - name: Refuse unreviewed commit or incomplete independent target metadata
+        shell: bash
+        env:
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$REVIEWED_SHA" != "$GITHUB_SHA" ]; then
+            echo 'Blocked: reviewed SHA must match main workflow commit.'
+            exit 1
+          fi
+          for key in EXPECTED_PRODUCTION_DATABASE_NAME EXPECTED_PRODUCTION_NEON_PROJECT_ID \
+              EXPECTED_PRODUCTION_NEON_BRANCH_ID EXPECTED_PRODUCTION_NEON_ENDPOINT_ID \
+              EXPECTED_PRODUCTION_RUNTIME_DB_ROLE; do
+            if [ -z "${!key:-}" ]; then
+              echo 'Blocked: independently reviewed runtime target metadata is incomplete.'
+              exit 1
+            fi
+          done
+      - name: Checkout exact reviewed main without persisting credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288ca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Prove offline no-secret verifier behavior
+        run: node --test tests/production-runtime-db-target-attestation.test.mjs
+      - name: Verify private runtime session identity without printing response
+        env:
+          PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
+        run: node scripts/qa/verify-production-runtime-db-target.mjs
+      - name: Keep separate approval boundary visible
+        if: always()
+        run: |
+          echo 'Runtime target check is metadata only, not a migration receipt.'
+          echo 'No SQL is executed, no backup is created and no release is approved.'

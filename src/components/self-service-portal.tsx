@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { employeeNavigationTabs, employeeTabEnabled, EMPLOYEE_PAGE_LABELS, ESS_PRIMARY_TABS, type EmployeeSelfTab } from "@/lib/employee-navigation";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
@@ -45,7 +45,8 @@ import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DEMO_ROLES, demoRolePath, type DemoRoleId } from "@/lib/demo-roles";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
-import { essText, parseEssLanguage, ESS_LANGUAGE_STORAGE_KEY, type EssLanguage } from "@/lib/ess-language";
+import { essText, parseEssLanguage, type EssLanguage } from "@/lib/ess-language";
+import { getEssLanguageServerSnapshot, getEssLanguageSnapshot, persistEssLanguage, subscribeEssLanguage } from "@/lib/ess-language-preference-store";
 
 type Payslip = {
   entryId: number;
@@ -267,7 +268,9 @@ export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false
   const workflowUi = useWorkflowUi();
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demoRole") === "employee";
-  const [language, setLanguage] = useState<EssLanguage>("en");
+  const storedLanguage = useSyncExternalStore(subscribeEssLanguage, getEssLanguageSnapshot, getEssLanguageServerSnapshot);
+  const [sessionLanguage, setSessionLanguage] = useState<EssLanguage | null>(null);
+  const language = sessionLanguage ?? storedLanguage;
   const t = (label: string) => essText(language, label);
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");
@@ -305,13 +308,10 @@ export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false
     applicableMonth?: string;
   } | null>(null);
 
-  useEffect(() => {
-    try { setLanguage(parseEssLanguage(window.localStorage.getItem(ESS_LANGUAGE_STORAGE_KEY))); } catch { /* Private browsing may disable storage. */ }
-  }, []);
-
   function changeLanguage(next: EssLanguage) {
-    setLanguage(next);
-    try { window.localStorage.setItem(ESS_LANGUAGE_STORAGE_KEY, next); } catch { /* Preference remains usable for this session. */ }
+    // Persisted values update subscribers without an effect. Keep a session
+    // fallback if private browsing blocks storage, as before.
+    setSessionLanguage(persistEssLanguage(next) ? null : next);
   }
 
   function navigateTo(next: SelfTab) {

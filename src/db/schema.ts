@@ -2588,6 +2588,7 @@ export const governmentFilingValidations = pgTable(
   (table) => [
     uniqueIndex("government_filing_file_unique").on(table.organizationId, table.legalEntityId, table.agency, table.form, table.fileSha256),
     index("government_filing_status_idx").on(table.organizationId, table.legalEntityId, table.agency, table.form, table.status),
+    index("government_filing_month_idx").on(table.organizationId, table.agency, table.applicableMonth, table.status),
   ],
 );
 

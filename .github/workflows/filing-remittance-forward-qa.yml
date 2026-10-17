@@ -1,0 +1,56 @@
+name: Filing Remittance Forward Repair (Synthetic PG16/PG18)
+on:
+  pull_request:
+    paths:
+      - 'drizzle/0132_filing_remittance_evidence_forward.sql'
+      - 'tests/filing-remittance-forward-postgres.test.mjs'
+      - 'src/db/schema.ts'
+      - '.github/workflows/filing-remittance-forward-qa.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'drizzle/0132_filing_remittance_evidence_forward.sql'
+      - 'tests/filing-remittance-forward-postgres.test.mjs'
+      - 'src/db/schema.ts'
+      - '.github/workflows/filing-remittance-forward-qa.yml'
+permissions:
+  contents: read
+jobs:
+  filing-forward:
+    name: Filing legacy repair and rollback (PG${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['16', '18']
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      TZ: Asia/Manila
+      FILING_FORWARD_REHEARSAL: synthetic-only
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Mark empty synthetic database and bootstrap source schema
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "COMMENT ON DATABASE app_db IS 'FILING_FORWARD_SYNTHETIC_ONLY'"
+          npm run db:push
+      - name: Execute actual missing-schema, scoped-query, guard and rollback cases
+        run: node --import tsx --test tests/filing-remittance-forward-postgres.test.mjs
