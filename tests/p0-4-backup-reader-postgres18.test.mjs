@@ -153,6 +153,8 @@ test("P0-4: real PG18 enforces NOLOGIN, read-only grants, negative privileges an
         /P0_4_BACKUP_READER_TABLE_PRIVILEGES_INVALID/],
       ["GRANT USAGE ON SEQUENCE public.fixture_seq_1 TO payrollph_backup_reader",
         /P0_4_BACKUP_READER_SEQUENCE_PRIVILEGES_INVALID/],
+      ["GRANT CREATE ON SCHEMA public TO payrollph_backup_reader",
+        /P0_4_BACKUP_READER_SCHEMA_PRIVILEGES_INVALID/],
       ["ALTER ROLE payrollph_backup_reader BYPASSRLS",
         /P0_4_BACKUP_READER_FLAGS_UNSAFE/],
     ]) {
