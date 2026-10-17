@@ -9,11 +9,6 @@
       "count": 1
     }
   },
-  "src/components/employee-workforce-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/enterprise-controls-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -25,11 +20,6 @@
     }
   },
   "src/components/hcm-self-performance.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/hmo-benefits-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
@@ -80,11 +70,6 @@
     }
   },
   "src/components/workspace/exports.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/workspace/labor-inspection-readiness-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }

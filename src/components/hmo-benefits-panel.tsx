@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HeartPulse, Plus, RefreshCw, Send, ShieldCheck, Users } from "lucide-react";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { benefitEnrollmentReviewConfirmed, benefitEnrollmentReviewKey } from "@/lib/benefit-enrollment-review";
@@ -59,13 +59,20 @@ type HmoData = {
 const peso = (value: string | number) =>
   `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function HmoBenefitsPanel({
-  organizationId,
-  setNotice,
-}: {
+type HmoBenefitsProps = {
   organizationId: number;
   setNotice: (message: string) => void;
-}) {
+};
+
+// Enrollment confirmations and deductions must not outlive employer selection.
+export function HmoBenefitsPanel(props: HmoBenefitsProps) {
+  return <ScopedHmoBenefitsPanel key={props.organizationId} {...props} />;
+}
+
+function ScopedHmoBenefitsPanel({
+  organizationId,
+  setNotice,
+}: HmoBenefitsProps) {
   const enhancedEnrollment = useWorkflowUi().benefitsLoans;
   const [reviewedKey, setReviewedKey] = useState<string | null>(null);
   const [data, setData] = useState<HmoData | null>(null);
@@ -79,22 +86,51 @@ export function HmoBenefitsPanel({
   const [relationship, setRelationship] = useState("child");
   const [birthDate, setBirthDate] = useState("");
 
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const announce = useCallback((message: string) => {
+    if (mountedRef.current) setNotice(message);
+  }, [setNotice]);
+
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
     setLoading(true);
+    // A refresh might revoke HMO access: hide old coverage costs and revoke the review checkbox.
+    setData(null);
+    setReviewedKey(null);
     try {
-      const response = await fetch(`/api/benefits/hmo?organizationId=${organizationId}`, { cache: "no-store" });
+      const response = await fetch(`/api/benefits/hmo?organizationId=${organizationId}`, {
+        cache: "no-store", signal: controller.signal,
+      });
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not load HMO administration.");
       setData(payload as HmoData);
-      setReviewedKey(null);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not load HMO administration.");
+      if (isCurrent()) announce(error instanceof Error ? error.message : "Could not load HMO administration.");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [organizationId, setNotice]);
+  }, [organizationId, announce]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
+  }, [load]);
 
   const employeeById = useMemo(
     () => new Map((data?.employees ?? []).map((employee) => [employee.id, employee.name])),
@@ -118,7 +154,8 @@ export function HmoBenefitsPanel({
 
   async function createPlan(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const response = await fetch("/api/benefits/hmo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -139,10 +176,11 @@ export function HmoBenefitsPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) return setNotice(payload.error ?? "Could not create HMO plan.");
-    setNotice("HMO plan created.");
+    if (!mountedRef.current) return;
+    if (!response.ok) return announce(payload.error ?? "Could not create HMO plan.");
+    announce("HMO plan created.");
     setShowPlanForm(false);
-    event.currentTarget.reset();
+    formElement.reset();
     await load();
   }
 
@@ -150,7 +188,7 @@ export function HmoBenefitsPanel({
     event.preventDefault();
     if (!employeeId || !planId) return;
     if (enhancedEnrollment && !reviewConfirmed) {
-      setNotice("Review the employee, HMO plan and effective date before enrolling.");
+      announce("Review the employee, HMO plan and effective date before enrolling.");
       return;
     }
     const plan = planById.get(planId);
@@ -166,8 +204,9 @@ export function HmoBenefitsPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) return setNotice(payload.error ?? "Could not enroll employee.");
-    setNotice("HMO enrollment created. Payroll deduction and automation event are ready.");
+    if (!mountedRef.current) return;
+    if (!response.ok) return announce(payload.error ?? "Could not enroll employee.");
+    announce("HMO enrollment created. Payroll deduction and automation event are ready.");
     setEmployeeId(0);
     setPlanId(0);
     setReviewedKey(null);
@@ -190,8 +229,9 @@ export function HmoBenefitsPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) return setNotice(payload.error ?? "Could not add dependent.");
-    setNotice("Dependent added. Any employee-paid premium was calculated from the plan rules.");
+    if (!mountedRef.current) return;
+    if (!response.ok) return announce(payload.error ?? "Could not add dependent.");
+    announce("Dependent added. Any employee-paid premium was calculated from the plan rules.");
     setDependentName("");
     setBirthDate("");
     await load();
@@ -204,8 +244,9 @@ export function HmoBenefitsPanel({
       body: JSON.stringify({ action: "update_dependent", organizationId, dependentId, status }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) return setNotice(payload.error ?? "Could not update HMO dependent.");
-    setNotice(status === "active"
+    if (!mountedRef.current) return;
+    if (!response.ok) return announce(payload.error ?? "Could not update HMO dependent.");
+    announce(status === "active"
       ? "Dependent activated. Any employee-paid premium will flow into payroll."
       : "Dependent status updated.");
     await load();
@@ -221,12 +262,22 @@ export function HmoBenefitsPanel({
       body: JSON.stringify({ action: "update_enrollment", organizationId, enrollmentId, ...patch }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) return setNotice(payload.error ?? "Could not update HMO enrollment.");
-    setNotice("HMO enrollment updated.");
+    if (!mountedRef.current) return;
+    if (!response.ok) return announce(payload.error ?? "Could not update HMO enrollment.");
+    announce("HMO enrollment updated.");
     await load();
   }
 
-  if (loading && !data) return <div className="empty-state">Loading HMO administration…</div>;
+  if (!data) return (
+    <div className="empty-state">
+      {loading ? "Loading HMO administration…" : (
+        <>
+          <span>HMO administration unavailable.</span>
+          <button className="secondary-button" type="button" onClick={() => void load()}>Retry</button>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <section style={{ marginBottom: 22 }}>

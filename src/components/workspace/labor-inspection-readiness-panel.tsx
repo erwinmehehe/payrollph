@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -102,13 +102,20 @@ function confidenceLabel(value: Finding["exposureConfidence"]) {
   return "";
 }
 
-export function LaborInspectionReadinessPanel({
-  organizationId,
-  notify,
-}: {
+type LaborInspectionReadinessProps = {
   organizationId: number;
   notify: Notify;
-}) {
+};
+
+// Employer-keyed findings, closeout drafts and exports never leak to the next tenant.
+export function LaborInspectionReadinessPanel(props: LaborInspectionReadinessProps) {
+  return <ScopedLaborInspectionReadinessPanel key={props.organizationId} {...props} />;
+}
+
+function ScopedLaborInspectionReadinessPanel({
+  organizationId,
+  notify,
+}: LaborInspectionReadinessProps) {
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -119,28 +126,59 @@ export function LaborInspectionReadinessPanel({
   const [closeReference, setCloseReference] = useState("");
   const [closeNote, setCloseNote] = useState("");
 
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const exportRevisionRef = useRef(0);
+  const exportControllerRef = useRef<AbortController | null>(null);
+
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
+    // A refresh may revoke access: discard both current findings and outstanding exports.
+    exportRevisionRef.current += 1;
+    exportControllerRef.current?.abort();
+    setBusy((current) => current === "export" ? null : current);
     setLoading(true);
+    setPayload(null);
     setLoadError("");
     try {
       const response = await fetch(
         `/api/compliance/labor-inspection?organizationId=${organizationId}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal: controller.signal },
       );
       const body = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) {
         setLoadError(body.error ?? "Labor inspection readiness could not be loaded.");
         return;
       }
       setPayload(body);
     } catch {
-      setLoadError("Labor inspection readiness could not be loaded because the server could not be reached.");
+      if (isCurrent()) setLoadError("Labor inspection readiness could not be loaded because the server could not be reached.");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [organizationId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+      exportRevisionRef.current += 1;
+      exportControllerRef.current?.abort();
+    };
+  }, [load]);
 
   const visibleFindings = useMemo(
     () => (payload?.findings ?? []).filter((finding) => !attentionOnly || finding.severity !== "info"),
@@ -148,34 +186,48 @@ export function LaborInspectionReadinessPanel({
   );
 
   async function downloadEvidencePack() {
+    if (!mountedRef.current) return;
+    exportControllerRef.current?.abort();
+    const controller = new AbortController();
+    exportControllerRef.current = controller;
+    const revision = ++exportRevisionRef.current;
+    const isCurrentExport = () =>
+      mountedRef.current && !controller.signal.aborted && revision === exportRevisionRef.current;
     setBusy("export");
     try {
       const response = await fetch(
         `/api/compliance/labor-inspection/evidence-pack?organizationId=${organizationId}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal: controller.signal },
       );
+      if (!isCurrentExport()) return;
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
+        if (!isCurrentExport()) return;
         throw new Error(body.error ?? "Inspection evidence pack could not be generated.");
       }
       const blob = await response.blob();
+      // Even a completed export cannot download after the view or read owner changes.
+      if (!isCurrentExport()) return;
       const disposition = response.headers.get("content-disposition") ?? "";
       const filename = disposition.match(/filename="([^"]+)"/)?.[1]
         ?? `labor-inspection-evidence-${organizationId}.json`;
       const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      } finally {
+        URL.revokeObjectURL(url);
+      }
       const hash = response.headers.get("x-payrollph-evidence-sha256");
       notify(hash ? `Evidence pack exported · SHA-256 ${hash.slice(0, 12)}…` : "Evidence pack exported.", "ok");
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Inspection evidence pack could not be generated.", "err");
+      if (isCurrentExport()) notify(error instanceof Error ? error.message : "Inspection evidence pack could not be generated.", "err");
     } finally {
-      setBusy(null);
+      if (isCurrentExport()) setBusy(null);
     }
   }
 
@@ -192,6 +244,7 @@ export function LaborInspectionReadinessPanel({
         body: JSON.stringify({ organizationId, action, findingKey, ...extra }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(body.error ?? "Inspection remediation action failed.");
       notify(
         action === "close"
@@ -206,9 +259,9 @@ export function LaborInspectionReadinessPanel({
       setCloseNote("");
       await load();
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Inspection remediation action failed.", "err");
+      if (mountedRef.current) notify(error instanceof Error ? error.message : "Inspection remediation action failed.", "err");
     } finally {
-      setBusy(null);
+      if (mountedRef.current) setBusy(null);
     }
   }
 

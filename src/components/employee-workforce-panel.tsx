@@ -92,6 +92,8 @@ export function EmployeeWorkforcePanel({ language = "en" }: { language?: EssLang
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const currentLoad = useRef<AbortController | null>(null);
+  const mountedRef = useRef(false);
+  const correctionRevisionRef = useRef(0);
   const [selected, setSelected] = useState<Punch | null>(null);
   const [timeIn, setTimeIn] = useState("");
   const [timeOut, setTimeOut] = useState("");
@@ -101,6 +103,13 @@ export function EmployeeWorkforcePanel({ language = "en" }: { language?: EssLang
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    // Refresh invalidates an outdated correction draft or late write response.
+    correctionRevisionRef.current += 1;
+    setSelected(null);
+    setSaving(false);
+    setPayload(null);
+    setError("");
     // Ignore late responses after a new request or view unmount.
     currentLoad.current?.abort();
     const controller = new AbortController();
@@ -116,25 +125,32 @@ export function EmployeeWorkforcePanel({ language = "en" }: { language?: EssLang
           && typeof body.error === "string" ? body.error : "Could not load your workforce schedule.";
         throw new Error(message);
       }
-      if (currentLoad.current !== controller || controller.signal.aborted) return;
+      if (!mountedRef.current || currentLoad.current !== controller || controller.signal.aborted) return;
       setPayload(body as Payload);
       setToday(manilaWorkDate());
       setError("");
     } catch (cause) {
-      if (currentLoad.current !== controller || controller.signal.aborted) return;
+      if (!mountedRef.current || currentLoad.current !== controller || controller.signal.aborted) return;
       // Never retain a previous employee's schedule after a scope/auth failure.
       setPayload(null);
       setError(cause instanceof Error ? cause.message : "Could not load your workforce schedule.");
     } finally {
-      if (currentLoad.current === controller && !controller.signal.aborted) {
+      if (mountedRef.current && currentLoad.current === controller && !controller.signal.aborted) {
         setLoading(false);
       }
     }
   }, []);
 
   useEffect(() => {
-    void load();
-    return () => currentLoad.current?.abort();
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      correctionRevisionRef.current += 1;
+      currentLoad.current?.abort();
+    };
   }, [load]);
 
   const pendingByPunch = useMemo(
@@ -160,6 +176,8 @@ export function EmployeeWorkforcePanel({ language = "en" }: { language?: EssLang
     event.preventDefault();
     if (!selected || reason.trim().length < 3) return;
     setSaving(true);
+    const revision = ++correctionRevisionRef.current;
+    const isCurrent = () => mountedRef.current && revision === correctionRevisionRef.current;
     try {
       const response = await fetch("/api/self/workforce", {
         method: "POST",
@@ -175,14 +193,16 @@ export function EmployeeWorkforcePanel({ language = "en" }: { language?: EssLang
         }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(body.error ?? "Could not submit the attendance correction.");
       setSelected(null);
       setReason("");
+      setSaving(false);
       await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not submit the attendance correction.");
+      if (isCurrent()) setError(cause instanceof Error ? cause.message : "Could not submit the attendance correction.");
     } finally {
-      setSaving(false);
+      if (isCurrent()) setSaving(false);
     }
   }
 
