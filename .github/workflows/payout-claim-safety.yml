@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/lib/payroll-run-payout-lock.ts"
+      - "src/lib/paymongo-disbursements.ts"
       - "src/lib/payout-ledger.ts"
       - "src/lib/xendit-payroll-operations.ts"
       - "src/lib/xendit-payout-ledger.ts"
