@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -137,8 +137,8 @@ test('operator CLI writes user-only local plaintext outside the repository; neve
   const identity = validateRuntimeIdentity(payload(), sha, now);
   const encrypted = encryptRuntimeIdentity(identity, evidenceRecipient(recipient));
   const decryptScript = fileURLToPath(new URL('../scripts/qa/decrypt-runtime-identity.mjs', import.meta.url));
-  const run = (destination, envOverride = {}) => spawnSync(
-    process.execPath, [decryptScript, artifact, privatePem, destination],
+  const run = (destination, envOverride = {}, sourceFile = artifact, keyFile = privatePem) => spawnSync(
+    process.execPath, [decryptScript, sourceFile, keyFile, destination],
     { encoding: 'utf8', env: { ...process.env, CI: '', GITHUB_ACTIONS: '', ...envOverride } });
   try {
     writeFileSync(artifact, JSON.stringify(encrypted) + '\n', { mode: 0o600 });
@@ -153,6 +153,26 @@ test('operator CLI writes user-only local plaintext outside the repository; neve
     const insideRepo = fileURLToPath(new URL('../plaintext-must-not-write.json', import.meta.url));
     assert.notEqual(run(insideRepo).status, 0, 'repository destination rejected');
     assert.equal(existsSync(insideRepo), false);
+    const artifactSymlink = join(temp, 'linked-artifact.json');
+    const privateKeySymlink = join(temp, 'linked-private-key.pem');
+    symlinkSync(artifact, artifactSymlink);
+    symlinkSync(privatePem, privateKeySymlink);
+    const linkedArtifactOutput = join(temp, 'linked-artifact-output.json');
+    const linkedKeyOutput = join(temp, 'linked-key-output.json');
+    assert.notEqual(run(linkedArtifactOutput, {}, artifactSymlink).status, 0);
+    assert.notEqual(run(linkedKeyOutput, {}, artifact, privateKeySymlink).status, 0);
+    assert.equal(existsSync(linkedArtifactOutput), false);
+    assert.equal(existsSync(linkedKeyOutput), false);
+    const oversizedArtifact = join(temp, 'oversized-artifact.json');
+    writeFileSync(oversizedArtifact, 'x'.repeat(32769), { mode: 0o600 });
+    const oversizedOutput = join(temp, 'oversized-output.json');
+    assert.notEqual(run(oversizedOutput, {}, oversizedArtifact).status, 0);
+    assert.equal(existsSync(oversizedOutput), false);
+    const unsafeDirectory = join(temp, 'group-writable');
+    mkdirSync(unsafeDirectory, { mode: 0o777 });
+    chmodSync(unsafeDirectory, 0o777);
+    assert.notEqual(run(join(unsafeDirectory, 'unsafe-output.json')).status, 0);
+    assert.equal(existsSync(join(unsafeDirectory, 'unsafe-output.json')), false);
     const invalidArtifact = { ...encrypted, tag: Buffer.alloc(16).toString('base64') };
     writeFileSync(artifact, JSON.stringify(invalidArtifact), { mode: 0o600 });
     const invalidOutput = join(temp, 'tampered-plaintext.json');

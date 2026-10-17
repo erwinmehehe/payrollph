@@ -1,6 +1,6 @@
 import { createDecipheriv, createPrivateKey, constants, privateDecrypt } from 'node:crypto';
-import { readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { closeSync, constants as fsConstants, fstatSync, openSync, readSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateRuntimeIdentity } from './audit-runtime-identity.mjs';
 
@@ -79,19 +79,49 @@ export function decryptRuntimeIdentity(envelope, privateKey) {
 }
 
 function boundedFile(path, maxBytes) {
-  const metadata = statSync(path);
-  if (!metadata.isFile() || metadata.size === 0 || metadata.size > maxBytes) fail('INVALID_INPUT');
-  return readFileSync(path, 'utf8');
+  // Inspect and read the same open descriptor, not the pathname after a separate
+  // stat(). O_NOFOLLOW rejects symlinked evidence/private keys on POSIX.
+  let descriptor;
+  try {
+    descriptor = openSync(path, fsConstants.O_RDONLY
+      | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0));
+    const metadata = fstatSync(descriptor);
+    if (!metadata.isFile() || metadata.size === 0 || metadata.size > maxBytes) fail('INVALID_INPUT');
+
+    // Bound the bytes actually read as well: a concurrent writer must not turn
+    // a small file into an unbounded allocation after the initial fstat.
+    const buffer = Buffer.alloc(maxBytes + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const count = readSync(descriptor, buffer, length, buffer.length - length, null);
+      if (count === 0) break;
+      length += count;
+    }
+    if (length === 0 || length > maxBytes) fail('INVALID_INPUT');
+    const text = buffer.toString('utf8', 0, length);
+    buffer.fill(0);
+    return text;
+  } catch {
+    fail('INVALID_INPUT');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
 }
 
 export function decryptRuntimeIdentityToFile(artifactPath, privateKeyPath, outputPath, env = process.env) {
   if (env.CI === 'true' || env.GITHUB_ACTIONS === 'true') fail('OFFLINE_ONLY');
   // Canonicalize the destination parent so a symlinked directory cannot bypass this guard.
-  const output = resolve(outputPath);
-  const directory = realpathSync(dirname(output));
+  const requestedOutput = resolve(outputPath);
+  const directory = realpathSync(dirname(requestedOutput));
+  // Use the canonical directory for the actual write, not the potentially
+  // symlinked pathname that was checked above.
+  const output = join(directory, basename(requestedOutput));
   const fromRoot = relative(ROOT, directory);
   if (fromRoot === '' || (fromRoot !== '..' && !fromRoot.startsWith('..' + sep)
     && !isAbsolute(fromRoot))) fail('OUTPUT_OUTSIDE_REPOSITORY_REQUIRED');
+  const directoryInfo = statSync(directory);
+  if (!directoryInfo.isDirectory() || (directoryInfo.mode & 0o022) !== 0)
+    fail('PRIVATE_OUTPUT_DIRECTORY_REQUIRED');
 
   const envelope = JSON.parse(boundedFile(artifactPath, 32768));
   const privatePem = boundedFile(privateKeyPath, 16384);
