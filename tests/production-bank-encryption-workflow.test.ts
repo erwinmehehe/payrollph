@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { jqSkip } from "./helpers/symlink-capability.mjs";
 
 const workflow = readFileSync(".github/workflows/production-bank-encryption.yml", "utf8");
 // Extract only this workflow's literal run blocks. Never execute deployment,
@@ -76,7 +77,7 @@ test("dry-run cannot prepare database columns and apply validates the key first"
   assert.ok(workflow.includes("run: npx tsx scripts/verify-bank-account-envelopes.ts"));
 });
 
-test("readiness requires one valid report, the matching key, and no bank blocker", () => {
+test("readiness requires one valid report, the matching key, and no bank blocker", { skip: jqSkip }, () => {
   const script = scripts.find((value) => value.includes("Bank encryption gate verified; no payroll or payout activation is implied."));
   assert.ok(script);
   // Only this literal verification block is replayed. Shell functions replace

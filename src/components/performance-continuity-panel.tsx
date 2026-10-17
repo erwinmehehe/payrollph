@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   CalendarClock,
@@ -177,13 +177,20 @@ function localDateTime(value: string) {
   });
 }
 
-export function PerformanceContinuityPanel({
-  organizationId,
-  setNotice,
-}: {
+type PerformanceContinuityProps = {
   organizationId: number;
   setNotice: (message: string) => void;
-}) {
+};
+
+// Employer-keyed remount also clears manager-private notes before the next render.
+export function PerformanceContinuityPanel(props: PerformanceContinuityProps) {
+  return <PerformanceContinuityContent key={props.organizationId} {...props} />;
+}
+
+function PerformanceContinuityContent({
+  organizationId,
+  setNotice,
+}: PerformanceContinuityProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [oneOnOnes, setOneOnOnes] = useState<OneOnOne[]>([]);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
@@ -218,41 +225,75 @@ export function PerformanceContinuityPanel({
     visibility: "employee_shared" as "employee_shared" | "manager_private",
   });
 
-  const load = useCallback(async () => {
-    const [continuousResponse, analyticsResponse] = await Promise.all([
-      fetch("/api/performance/continuous?organizationId=" + organizationId, { cache: "no-store" }),
-      fetch("/api/performance/analytics?organizationId=" + organizationId, { cache: "no-store" }),
-    ]);
-    const [continuousPayload, analyticsPayload] = await Promise.all([
-      continuousResponse.json().catch(() => ({})),
-      analyticsResponse.json().catch(() => ({})),
-    ]);
-    if (!continuousResponse.ok) {
-      setNotice(continuousPayload.error ?? "Could not load continuous performance data.");
-      return;
-    }
-    if (!analyticsResponse.ok) {
-      setNotice(analyticsPayload.error ?? "Could not load performance analytics.");
-      return;
-    }
-    setEmployees(continuousPayload.employees ?? []);
-    setOneOnOnes(continuousPayload.oneOnOnes ?? []);
-    setFeedback(continuousPayload.feedback ?? []);
-    setReminders(continuousPayload.reminders ?? []);
-    setGoals(continuousPayload.goals ?? []);
-    setAccess(continuousPayload.access ?? null);
-    setAnalytics(analyticsPayload);
-    setSummaries(Object.fromEntries((continuousPayload.oneOnOnes ?? []).map((meeting: OneOnOne) => [
-      meeting.id,
-      meeting.sharedSummary ?? "",
-    ])));
-    setPrivateNotes(Object.fromEntries((continuousPayload.oneOnOnes ?? []).map((meeting: OneOnOne) => [
-      meeting.id,
-      meeting.privateManagerNotes ?? "",
-    ])));
-  }, [organizationId, setNotice]);
+  const mountedRef = useRef(false);
+  const requestRevisionRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const announce = useCallback((message: string) => {
+    if (mountedRef.current) setNotice(message);
+  }, [setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    const revision = ++requestRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === requestRevisionRef.current;
+    try {
+      const [continuousResponse, analyticsResponse] = await Promise.all([
+        fetch("/api/performance/continuous?organizationId=" + organizationId, {
+          cache: "no-store", signal: controller.signal,
+        }),
+        fetch("/api/performance/analytics?organizationId=" + organizationId, {
+          cache: "no-store", signal: controller.signal,
+        }),
+      ]);
+      const [continuousPayload, analyticsPayload] = await Promise.all([
+        continuousResponse.json().catch(() => ({})),
+        analyticsResponse.json().catch(() => ({})),
+      ]);
+      if (!isCurrent()) return;
+      if (!continuousResponse.ok) {
+        announce(continuousPayload.error ?? "Could not load continuous performance data.");
+        return;
+      }
+      if (!analyticsResponse.ok) {
+        announce(analyticsPayload.error ?? "Could not load performance analytics.");
+        return;
+      }
+      setEmployees(continuousPayload.employees ?? []);
+      setOneOnOnes(continuousPayload.oneOnOnes ?? []);
+      setFeedback(continuousPayload.feedback ?? []);
+      setReminders(continuousPayload.reminders ?? []);
+      setGoals(continuousPayload.goals ?? []);
+      setAccess(continuousPayload.access ?? null);
+      setAnalytics(analyticsPayload);
+      setSummaries(Object.fromEntries((continuousPayload.oneOnOnes ?? []).map((meeting: OneOnOne) => [
+        meeting.id,
+        meeting.sharedSummary ?? "",
+      ])));
+      setPrivateNotes(Object.fromEntries((continuousPayload.oneOnOnes ?? []).map((meeting: OneOnOne) => [
+        meeting.id,
+        meeting.privateManagerNotes ?? "",
+      ])));
+    } catch (error) {
+      if (isCurrent()) announce(error instanceof Error ? error.message : "Could not load continuous performance data.");
+    }
+  }, [organizationId, announce]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    // Defer the initial stateful fetch and ignore retired Strict Mode setups.
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      requestRevisionRef.current += 1;
+      requestControllerRef.current?.abort();
+    };
+  }, [load]);
 
   const employeeName = useMemo(
     () => new Map(employees.map((employee) => [employee.id, employee.firstName + " " + employee.lastName])),
@@ -285,14 +326,15 @@ export function PerformanceContinuityPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not schedule 1:1.");
+      announce(payload.error ?? "Could not schedule 1:1.");
       return;
     }
     setMeetingForm({ employeeId: "", scheduledFor: "", agenda: "" });
     setShowMeeting(false);
     await load();
-    setNotice("1:1 scheduled and added to the governed performance record.");
+    announce("1:1 scheduled and added to the governed performance record.");
   }
 
   async function addFeedback(event: React.FormEvent) {
@@ -311,14 +353,15 @@ export function PerformanceContinuityPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not record feedback.");
+      announce(payload.error ?? "Could not record feedback.");
       return;
     }
     setFeedbackForm({ employeeId: "", goalId: "", feedbackType: "general", visibility: "employee_shared", content: "" });
     setShowFeedback(false);
     await load();
-    setNotice("Continuous performance feedback recorded.");
+    announce("Continuous performance feedback recorded.");
   }
 
   async function updateMeeting(meeting: OneOnOne, action: "complete" | "cancel") {
@@ -334,12 +377,13 @@ export function PerformanceContinuityPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not update 1:1.");
+      announce(payload.error ?? "Could not update 1:1.");
       return;
     }
     await load();
-    setNotice(action === "complete" ? "1:1 completed. Shared and manager-private notes remain separated." : "1:1 cancelled.");
+    announce(action === "complete" ? "1:1 completed. Shared and manager-private notes remain separated." : "1:1 cancelled.");
   }
 
   async function createActionItem(meeting: OneOnOne) {
@@ -357,14 +401,15 @@ export function PerformanceContinuityPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not create the 1:1 action item.");
+      announce(payload.error ?? "Could not create the 1:1 action item.");
       return;
     }
     setActionForm({ title: "", detail: "", dueDate: "", ownerKind: "employee", visibility: "employee_shared" });
     setActionMeetingId(null);
     await load();
-    setNotice("1:1 action item created with governed ownership and due date.");
+    announce("1:1 action item created with governed ownership and due date.");
   }
 
   async function changeActionItem(
@@ -384,13 +429,14 @@ export function PerformanceContinuityPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not update the 1:1 action item.");
+      announce(payload.error ?? "Could not update the 1:1 action item.");
       return;
     }
     setActionNotes((current) => ({ ...current, [item.id]: "" }));
     await load();
-    setNotice(
+    announce(
       action === "reopen"
         ? "Action item reopened with rationale."
         : action === "cancel"

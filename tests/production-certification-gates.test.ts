@@ -13,6 +13,7 @@ import {
 import type { ParallelReconciliationResult } from "../src/lib/private-parallel-payroll-reconciliation";
 import type { CertificationEvidenceResult } from "../src/lib/external-certification-evidence";
 import type { AcceptanceBindingResult } from "../src/lib/external-acceptance-bindings";
+import { symlinkSkip } from "./helpers/symlink-capability.mjs";
 
 const COMMIT = "a".repeat(40);
 const ENTITY = "PAYROLL-PH-EMPLOYER-01";
@@ -151,7 +152,7 @@ test("source SHA and any private operational evidence hash must be exact", () =>
   });
 });
 
-test("missing or duplicate proof and symlink escapes fail closed", () => {
+test("missing or duplicate proof and symlink escapes fail closed", { skip: symlinkSkip }, () => {
   withFixture((root, manifest) => {
     const removed = manifest.documents.pop()!;
     let report = evaluateOperationalReadiness(manifest, root, COMMIT);

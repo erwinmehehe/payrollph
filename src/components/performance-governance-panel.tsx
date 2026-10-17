@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Download, Flag, Plus, Target, Trophy } from "lucide-react";
 import { PerformanceCalibrationPanel } from "@/components/performance-calibration-panel";
 import { PerformanceCompetencyArchitecturePanel } from "@/components/performance-competency-architecture-panel";
@@ -77,13 +77,20 @@ type Readiness = {
   ready: boolean;
 };
 
-export function PerformanceGovernancePanel({
-  organizationId,
-  setNotice,
-}: {
+type PerformanceGovernanceProps = {
   organizationId: number;
   setNotice: (message: string) => void;
-}) {
+};
+
+// Remount both fetched and editable performance evidence on employer switch.
+export function PerformanceGovernancePanel(props: PerformanceGovernanceProps) {
+  return <PerformanceGovernanceContent key={props.organizationId} {...props} />;
+}
+
+function PerformanceGovernanceContent({
+  organizationId,
+  setNotice,
+}: PerformanceGovernanceProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
@@ -133,42 +140,79 @@ export function PerformanceGovernancePanel({
   const [itemScores, setItemScores] = useState<Record<number, string>>({});
   const [itemComments, setItemComments] = useState<Record<number, string>>({});
 
-  const load = useCallback(async () => {
-    const response = await fetch("/api/performance?organizationId=" + organizationId, { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setNotice(payload.error ?? "Could not load performance governance.");
-      return;
-    }
-    setEmployees(payload.employees ?? []);
-    setOrgUnits(payload.orgUnits ?? []);
-    setCycles(payload.cycles ?? []);
-    setGoals(payload.goals ?? []);
-    setTemplates(payload.templates ?? []);
-    setCycleTemplates(payload.cycleTemplates ?? []);
-    setReviews(payload.reviews ?? []);
-    setReviewItems(payload.reviewItems ?? []);
-    setReadiness(payload.cycleReadiness ?? {});
-    setCanCalibrate(Boolean(payload.access?.companyWide && ["owner", "admin", "bookkeeper", "hr"].includes(payload.access?.role)));
-    setManagerScores(Object.fromEntries((payload.reviews ?? []).map((review: Review) => [
-      review.id,
-      review.managerScore ? String(Number(review.managerScore)) : "3",
-    ])));
-    setManagerSummaries(Object.fromEntries((payload.reviews ?? []).map((review: Review) => [
-      review.id,
-      review.managerSummary ?? "",
-    ])));
-    setItemScores(Object.fromEntries((payload.reviewItems ?? []).map((item: ReviewItem) => [
-      item.id,
-      item.managerScore ? String(Number(item.managerScore)) : "3",
-    ])));
-    setItemComments(Object.fromEntries((payload.reviewItems ?? []).map((item: ReviewItem) => [
-      item.id,
-      item.managerComment ?? "",
-    ])));
-  }, [organizationId, setNotice]);
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const exportRevisionRef = useRef(0);
+  const exportControllerRef = useRef<AbortController | null>(null);
+  const announce = useCallback((message: string) => {
+    if (mountedRef.current) setNotice(message);
+  }, [setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  // Refresh and post-mutation reads share a cancelable, single request owner.
+  const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () => mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
+    try {
+      const response = await fetch("/api/performance?organizationId=" + organizationId, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
+      if (!response.ok) {
+        announce(payload.error ?? "Could not load performance governance.");
+        return;
+      }
+      setEmployees(payload.employees ?? []);
+      setOrgUnits(payload.orgUnits ?? []);
+      setCycles(payload.cycles ?? []);
+      setGoals(payload.goals ?? []);
+      setTemplates(payload.templates ?? []);
+      setCycleTemplates(payload.cycleTemplates ?? []);
+      setReviews(payload.reviews ?? []);
+      setReviewItems(payload.reviewItems ?? []);
+      setReadiness(payload.cycleReadiness ?? {});
+      setCanCalibrate(Boolean(payload.access?.companyWide && ["owner", "admin", "bookkeeper", "hr"].includes(payload.access?.role)));
+      setManagerScores(Object.fromEntries((payload.reviews ?? []).map((review: Review) => [
+        review.id,
+        review.managerScore ? String(Number(review.managerScore)) : "3",
+      ])));
+      setManagerSummaries(Object.fromEntries((payload.reviews ?? []).map((review: Review) => [
+        review.id,
+        review.managerSummary ?? "",
+      ])));
+      setItemScores(Object.fromEntries((payload.reviewItems ?? []).map((item: ReviewItem) => [
+        item.id,
+        item.managerScore ? String(Number(item.managerScore)) : "3",
+      ])));
+      setItemComments(Object.fromEntries((payload.reviewItems ?? []).map((item: ReviewItem) => [
+        item.id,
+        item.managerComment ?? "",
+      ])));
+    } catch (error) {
+      if (isCurrent()) announce(error instanceof Error ? error.message : "Could not load performance governance.");
+    }
+  }, [organizationId, announce]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    // Avoid effect-phase state updates and skip Strict Mode retired setups.
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+      exportRevisionRef.current += 1;
+      exportControllerRef.current?.abort();
+    };
+  }, [load]);
 
   const employeeName = useMemo(
     () => new Map(employees.map((employee) => [employee.id, employee.firstName + " " + employee.lastName])),
@@ -215,9 +259,9 @@ export function PerformanceGovernancePanel({
       setGoalForm({ scope: "company", employeeId: "", orgUnitId: "", parentGoalId: "", cycleId: "", title: "", description: "", weight: "25", dueDate: "" });
       setShowGoal(false);
       await load();
-      setNotice("Cascaded goal created.");
+      announce("Cascaded goal created.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not create goal.");
+      announce(error instanceof Error ? error.message : "Could not create goal.");
     }
   }
 
@@ -232,9 +276,9 @@ export function PerformanceGovernancePanel({
       setTemplateForm({ code: "", name: "", type: "competency", description: "", defaultWeight: "20" });
       setShowTemplate(false);
       await load();
-      setNotice("Competency/KRA template created.");
+      announce("Competency/KRA template created.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not create template.");
+      announce(error instanceof Error ? error.message : "Could not create template.");
     }
   }
 
@@ -251,9 +295,9 @@ export function PerformanceGovernancePanel({
       setAttachForm({ cycleId: "", templateId: "", weight: "20", required: true });
       setShowAttach(false);
       await load();
-      setNotice("Review template attached to cycle.");
+      announce("Review template attached to cycle.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not attach template.");
+      announce(error instanceof Error ? error.message : "Could not attach template.");
     }
   }
 
@@ -268,9 +312,9 @@ export function PerformanceGovernancePanel({
       setReviewForm({ employeeId: "", cycleId: "" });
       setShowReview(false);
       await load();
-      setNotice("Structured performance review opened.");
+      announce("Structured performance review opened.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not open review.");
+      announce(error instanceof Error ? error.message : "Could not open review.");
     }
   }
 
@@ -283,9 +327,9 @@ export function PerformanceGovernancePanel({
         managerComment: itemComments[item.id] ?? "",
       });
       await load();
-      setNotice("Structured review item saved.");
+      announce("Structured review item saved.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not save review item.");
+      announce(error instanceof Error ? error.message : "Could not save review item.");
     }
   }
 
@@ -299,9 +343,9 @@ export function PerformanceGovernancePanel({
         status,
       });
       await load();
-      setNotice(status === "completed" ? "Review completed." : "Manager draft saved.");
+      announce(status === "completed" ? "Review completed." : "Manager draft saved.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not save review.");
+      announce(error instanceof Error ? error.message : "Could not save review.");
     }
   }
 
@@ -309,17 +353,23 @@ export function PerformanceGovernancePanel({
     try {
       await patch({ entityType: "cycle", id: cycle.id });
       await load();
-      setNotice("Performance cycle completed and locked.");
+      announce("Performance cycle completed and locked.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not complete cycle.");
+      announce(error instanceof Error ? error.message : "Could not complete cycle.");
     }
   }
 
   async function exportEvidence() {
     if (!evidenceEmployeeId) {
-      setNotice("Select an employee before exporting performance evidence.");
+      announce("Select an employee before exporting performance evidence.");
       return;
     }
+    if (!mountedRef.current) return;
+    exportControllerRef.current?.abort();
+    const controller = new AbortController();
+    exportControllerRef.current = controller;
+    const revision = ++exportRevisionRef.current;
+    const isCurrentExport = () => mountedRef.current && !controller.signal.aborted && revision === exportRevisionRef.current;
     setEvidenceExporting(true);
     try {
       const params = new URLSearchParams({
@@ -328,14 +378,20 @@ export function PerformanceGovernancePanel({
       });
       if (evidenceCycleId) params.set("cycleId", evidenceCycleId);
 
-      const response = await fetch("/api/performance/evidence?" + params.toString(), { cache: "no-store" });
+      const response = await fetch("/api/performance/evidence?" + params.toString(), {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!isCurrentExport()) return;
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        setNotice(payload.error ?? "Could not export the performance evidence package.");
+        if (!isCurrentExport()) return;
+        announce(payload.error ?? "Could not export the performance evidence package.");
         return;
       }
 
       const blob = await response.blob();
+      if (!isCurrentExport()) return;
       const disposition = response.headers.get("content-disposition") ?? "";
       const match = disposition.match(/filename="([^"]+)"/);
       const filename = match?.[1] ?? "performance-evidence.json";
@@ -347,11 +403,11 @@ export function PerformanceGovernancePanel({
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(href);
-      setNotice("Performance evidence package exported with a verifiable evidence hash.");
+      announce("Performance evidence package exported with a verifiable evidence hash.");
     } catch {
-      setNotice("Could not export performance evidence because the server could not be reached.");
+      if (isCurrentExport()) announce("Could not export performance evidence because the server could not be reached.");
     } finally {
-      setEvidenceExporting(false);
+      if (isCurrentExport()) setEvidenceExporting(false);
     }
   }
 
@@ -594,11 +650,11 @@ export function PerformanceGovernancePanel({
         })}
       </article>
 
-      {canCalibrate && <PerformanceCompetencyArchitecturePanel organizationId={organizationId} setNotice={setNotice} />}
+      {canCalibrate && <PerformanceCompetencyArchitecturePanel organizationId={organizationId} setNotice={announce} />}
 
-      {canCalibrate && <PerformanceCalibrationPanel organizationId={organizationId} setNotice={setNotice} />}
+      {canCalibrate && <PerformanceCalibrationPanel organizationId={organizationId} setNotice={announce} />}
 
-      <PerformanceContinuityPanel organizationId={organizationId} setNotice={setNotice} />
+      <PerformanceContinuityPanel organizationId={organizationId} setNotice={announce} />
     </div>
   );
 }
