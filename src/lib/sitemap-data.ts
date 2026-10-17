@@ -28,7 +28,6 @@ export const pagesSitemapEntries: SitemapEntry[] = [
   { path: "/templates/payroll-security-checklist", changeFrequency: "monthly" },
   { path: "/demo", changeFrequency: "monthly" },
   { path: "/book-demo", changeFrequency: "monthly" },
-  { path: "/trial", changeFrequency: "monthly" },
 ];
 
 export const productSitemapEntries: SitemapEntry[] = [
