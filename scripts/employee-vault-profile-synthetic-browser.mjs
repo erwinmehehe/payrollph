@@ -59,6 +59,26 @@ async function exercise(width) {
   const viewed = await context.request.get(BASE + href, { maxRedirects: 5 });
   assert.equal(viewed.status(), 200, "Authorized signed-GET PDF view");
   assert.deepEqual(Buffer.from(await viewed.body()), pdf, "Private viewed bytes must match scanned upload");
+
+  // Use a genuinely authenticated, linked synthetic ESS identity rather than
+  // assuming that an HR view proves employee self-service isolation.
+  const ess = await browser.newContext();
+  try {
+    await login(ess, "hcm-employee@example.test");
+    const own = await ess.request.get(BASE + "/api/employee-vault?organizationId=1&employeeId=1");
+    assert.equal(own.status(), 200, "Linked ESS worker can list own documents");
+    const ownBody = await own.json();
+    assert.equal(ownBody.organizationId, 1);
+    assert.equal(ownBody.employeeId, 1);
+    assert.ok(ownBody.documents.some(item => item.id === id), "Own PDF must appear in ESS list");
+    const ownView = await ess.request.get(BASE + href, { maxRedirects: 5 });
+    assert.equal(ownView.status(), 200, "Employee can view only own private PDF");
+    assert.deepEqual(Buffer.from(await ownView.body()), pdf);
+    const foreign = await ess.request.get(BASE + "/api/employee-vault?organizationId=2&employeeId=2");
+    assert.ok([403, 404].includes(foreign.status()), "ESS must be denied foreign employer records");
+  } finally {
+    await ess.close();
+  }
   // Capture the real document panel after the authorized view; do not save
   // presigned URLs or browser context/session state to artifacts.
   await view.focus();
@@ -98,14 +118,19 @@ async function exercise(width) {
   assert.ok(dimensions.scrollWidth <= dimensions.width + 1,
     "Horizontal overflow at " + width + "px: " + JSON.stringify(dimensions));
   checks.push({ width, upload: true, view: true, download: true, removal: true,
-    noOverflow: true, noOverflowWithDocument: true, viewAfterRemovalDenied: true });
+    noOverflow: true, noOverflowWithDocument: true, viewAfterRemovalDenied: true,
+    employeeSelfAccess: true, foreignEmployeeDenied: true });
   await context.close();
 }
 
 try {
   await exercise(1440);
   await exercise(390);
-  for (const email of ["hcm-manager@example.test", "hcm-payroll@example.test", "hcm-checker@example.test"]) {
+  for (const email of [
+    "hcm-manager@example.test", "hcm-payroll@example.test",
+    "hcm-checker@example.test", "hcm-denied@example.test",
+    "hcm-unit@example.test",
+  ]) {
     const context = await browser.newContext();
     await login(context, email);
     const result = await context.request.get(BASE + "/api/employee-vault?organizationId=1&employeeId=1");
@@ -116,12 +141,50 @@ try {
   await login(hr, "hcm-hr@example.test");
   const crossTenant = await hr.request.get(BASE + "/api/employee-vault?organizationId=1&employeeId=2");
   assert.equal(crossTenant.status(), 404, "Foreign employer worker in local tenant must not resolve");
+  const beta = await hr.request.get(BASE + "/api/employee-vault?organizationId=2&employeeId=2");
+  assert.equal(beta.status(), 200, "Authorized HR can select the second fictional employer");
+  const betaBody = await beta.json();
+  assert.equal(betaBody.organizationId, 2);
+  assert.equal(betaBody.employeeId, 2);
+  assert.deepEqual(betaBody.documents, [], "Tenant B cannot inherit Tenant A's documents");
+
+  // Exercise the real multipart HTTP gate with fictional bytes; this must
+  // reject forged content, invalid category and cross-site mutations before
+  // creating a scanned document or any private S3 object.
+  const negativeUpload = async ({ name, buffer, kind = "contract", origin = BASE, site = "same-origin" }) =>
+    hr.request.post(BASE + "/api/documents", {
+      headers: { origin, "sec-fetch-site": site },
+      multipart: {
+        organizationId: "1", employeeId: "1", kind,
+        file: { name, mimeType: "application/pdf", buffer },
+      },
+      failOnStatusCode: false,
+    });
+  const fake = await negativeUpload({
+    name: "forged-contract.pdf", buffer: Buffer.from("NOT A PDF, SYNTHETIC ONLY"),
+  });
+  assert.equal(fake.status(), 422, "Forged PDF bytes must be rejected");
+  const category = await negativeUpload({
+    name: "test-contract.pdf", buffer: Buffer.from("%PDF-1.7\\nsynthetic test"),
+    kind: "unknown_kind",
+  });
+  assert.equal(category.status(), 422, "Unknown document category must be rejected");
+  const origin = await negativeUpload({
+    name: "test-contract.pdf", buffer: Buffer.from("%PDF-1.7\\nsynthetic test"),
+    origin: "https://attacker.example.invalid", site: "cross-site",
+  });
+  assert.equal(origin.status(), 403, "Cross-origin upload mutation must be rejected");
+  const after = await hr.request.get(BASE + "/api/employee-vault?organizationId=1&employeeId=1");
+  assert.equal(after.status(), 200);
+  assert.deepEqual((await after.json()).documents, [], "Rejected uploads must create no active document");
   await hr.close();
   await writeFile(out + "/synthetic-acceptance.json", JSON.stringify({
     result: "PASS", checks, wrongRolesDenied: true, wrongTenantDenied: true,
+    restrictedHrDenied: true, linkedEssReadProven: true, authorizedTenantSwitchScoped: true,
+    forgedFileDenied: true, invalidCategoryDenied: true, crossSiteMutationDenied: true,
     syntheticOnly: true, productionEnabled: false, storageProviderApproved: false,
   }, null, 2), { mode: 0o600 });
-  console.log("PASS synthetic vault desktop/390px screenshots, stored PDF view/download, removal, role/tenant denials.");
+  console.log("PASS synthetic vault desktop/390px, linked ESS, HR scope/tenant switch, upload/download/removal and negative upload/origin gates.");
 } finally {
   await browser.close();
 }
