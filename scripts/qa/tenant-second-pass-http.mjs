@@ -152,7 +152,7 @@ async function makeFixture() {
       email: "attacker-scim-" + idx + "-" + nonce + "@example.invalid",
       name: "AttackerSCIM" + idx, passwordHash: "ci-scim-only", role: "employee",
     })),
-  ]).returning({ id: users.id });
+  ]).returning({ id: users.id, email: users.email });
   await db.insert(userOrganizations).values(scimWorkers.map((u, idx) => ({
     userId: u.id,
     organizationId: idx < 8 ? victim.id : orgs[idx - 7].id,
