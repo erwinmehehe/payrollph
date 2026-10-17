@@ -487,14 +487,14 @@ test("P0-4 control ledger verifies complete typed structure and immutable privil
 });
 
 test("P0-4 controller inspects pg_catalog without reading actual payroll or adopted receipts", () => {
-  assert.match(MIGRATION_CONTROL_LEDGER_CATALOG_SQL, /pg_catalog\\.pg_attribute/);
-  assert.match(MIGRATION_CONTROL_LEDGER_CATALOG_SQL, /pg_catalog\\.pg_constraint/);
-  assert.match(MIGRATION_CONTROL_LEDGER_CATALOG_SQL, /pg_catalog\\.pg_has_role/);
+  assert.match(MIGRATION_CONTROL_LEDGER_CATALOG_SQL, /pg_catalog\.pg_attribute/);
+  assert.match(MIGRATION_CONTROL_LEDGER_CATALOG_SQL, /pg_catalog\.pg_constraint/);
+  assert.match(MIGRATION_CONTROL_LEDGER_CATALOG_SQL, /pg_catalog\.pg_has_role/);
   assert.match(MIGRATION_CONTROL_LEDGER_CATALOG_SQL, /controlWritesDenied/);
   assert.doesNotMatch(MIGRATION_CONTROL_LEDGER_CATALOG_SQL,
-    /\\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|TRUNCATE)\\s+(?:INTO|FROM|TABLE|ROLE|INDEX|SCHEMA|DATABASE)\\b/i);
+    /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|TRUNCATE)\s+(?:INTO|FROM|TABLE|ROLE|INDEX|SCHEMA|DATABASE)\b/i);
   assert.doesNotMatch(MIGRATION_CONTROL_LEDGER_CATALOG_SQL,
-    /(?:FROM|JOIN)\\s+(?:public\\.)?(?:employees|payroll_entries|payroll_runs|bank_accounts)\\b/i);
+    /(?:FROM|JOIN)\s+(?:public\.)?(?:employees|payroll_entries|payroll_runs|bank_accounts)\b/i);
   assert.ok(!MIGRATION_CONTROL_LEDGER_CATALOG_SQL.includes(
     "FROM public.payrollph_release_migration_receipts"));
 });
