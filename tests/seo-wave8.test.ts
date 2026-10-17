@@ -32,7 +32,7 @@ test("self-serve sample demo and company signup remain distinct experiences", ()
   const signup = read("src/app/signup/page.tsx");
   assert.ok(signup.includes('href="/demo"'), "The demo remains immediately accessible");
   assert.ok(signup.includes("Separate company and employee records"));
-  assert.ok(signup.includes("Email verification before owner access"));
+  assert.ok(signup.includes("Email verification or private invitation before owner access"));
   assert.ok(!signup.includes("AccessRequestForm"));
 });
 

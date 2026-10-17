@@ -116,7 +116,7 @@ test("release API gates before claiming or settling payroll and cannot rely on o
   const api = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
   const loader = readFileSync("src/lib/payroll-release-segregation.ts", "utf8");
   const guard = api.indexOf("await checkPayrollReleaseSegregation({");
-  const claim = api.indexOf('.set({ status: "Releasing" })');
+  const claim = api.indexOf("await claimPayrollRunForRelease(run)");
   const settle = api.indexOf("await settlePayrollRun(runId");
   assert.ok(guard > 0 && guard < claim && claim < settle,
     "mandatory segregation check must run before release claim and financial settlement");

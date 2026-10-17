@@ -18,7 +18,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
 import { runAutomationEventSafely } from "@/lib/automation";
-import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
+import { claimPayrollRunForRelease, findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
 import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { checkPayrollReleaseSegregation } from "@/lib/payroll-release-segregation";
@@ -227,12 +227,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // Claim the release transition atomically so two concurrent requests cannot
   // settle the same ledgers twice.
-  const [claimed] = await db.update(payrollRuns)
-    .set({ status: "Releasing" })
-    .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Ready for release")))
-    .returning();
+  // The overlap check above is only a fast pre-check; the claim re-runs it
+  // under a per-employer lock so two overlapping runs cannot both reach Releasing.
+  const claim = await claimPayrollRunForRelease(run);
+  if (claim.status === "period-conflict") {
+    return Response.json({
+      error: claim.conflict
+        ? `Payroll overlaps ${claim.conflict.status.toLowerCase()} run #${claim.conflict.id} (${claim.conflict.periodLabel}). A worker population cannot be released twice for overlapping payroll periods.`
+        : "Another payroll release for an overlapping period is in progress. Refresh and review its current status.",
+      code: "PAYROLL_RELEASE_PERIOD_CONFLICT",
+      ...(claim.conflict ? { conflictingRun: claim.conflict } : {}),
+    }, { status: 409 });
+  }
 
-  if (!claimed) {
+  if (claim.status === "not-ready") {
     return Response.json({ error: "Payroll is no longer ready for release. Refresh and review its current status." }, { status: 409 });
   }
 

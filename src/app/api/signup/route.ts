@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { organizations, subscriptions, userOrganizations, users } from "@/db/schema";
 import { saasSignupVerifications } from "@/lib/saas-billing-schema";
 import { signupMode } from "@/lib/saas-launch-config";
+import { validPrivatePilotInvite } from "@/lib/private-pilot-invite";
+import { deliveryCapable } from "@/lib/mail-provider";
 import { isSellablePlan, safeSeats, subscriptionQuote } from "@/lib/saas-pricing";
 import { getPublicPricingPlans } from "@/lib/pricing-catalog";
 import { randomToken, sha256, hashPassword } from "@/lib/crypto";
@@ -35,6 +37,11 @@ export async function POST(request: Request) {
   // A pilot creates a temporary, non-billable Core workspace with 10 seats.
   // Client-supplied paid plan and seats are ignored in this mode.
   const isPilot = mode === "pilot";
+  const inviteCode = isPilot && typeof body.privatePilotInviteCode === "string"
+    ? body.privatePilotInviteCode.trim()
+    : "";
+  const invitedPilot = isPilot && inviteCode.length > 0
+    && validPrivatePilotInvite(email, inviteCode);
   const plan = isPilot ? "Core" : body.plan;
   const seats = isPilot ? 10 : safeSeats(body.seats);
   const acceptTerms = body.acceptTerms === true;
@@ -48,6 +55,14 @@ export async function POST(request: Request) {
     ...(!acceptTerms ? [isPilot ? "Accept the pilot evaluation terms to continue." : "Accept the subscription billing terms to continue."] : []),
   ];
   if (problems.length) return Response.json({ error: "Check your registration details.", problems }, { status: 422 });
+  // Only the explicitly invited email/code pair may skip outbound email
+  // verification. A public applicant without email delivery always fails closed.
+  if (isPilot && inviteCode && !invitedPilot) {
+    return Response.json({ error: "Invalid or expired private pilot invitation. Check the email and invitation code." }, { status: 422 });
+  }
+  if (isPilot && !deliveryCapable() && !invitedPilot) {
+    return Response.json({ error: "A private pilot invitation code is required to create an account right now." }, { status: 422 });
+  }
   const proofDenied = await enforceIntakeProof(body, email);
   if (proofDenied) return proofDenied;
   if (criticalReleaseFlagEnabled("publicIntakeProof")) {
@@ -62,7 +77,13 @@ export async function POST(request: Request) {
   catch { return Response.json({ error: "Registration URL is not configured." }, { status: 503 }); }
 
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
-  if (existing) return Response.json({ ok: true, message: "If the address is eligible, check your inbox for the verification link." }, { status: 202 });
+  if (existing) return Response.json({
+    ok: true,
+    ...(invitedPilot ? { activated: true, redirectTo: "/login" } : {}),
+    message: invitedPilot
+      ? "If you have already registered with this invitation, sign in using your account password."
+      : "If the address is eligible, check your inbox for the verification link.",
+  }, { status: 202 });
   let quote: { plan: string; seats: number; amountCents: number };
   if (isPilot) {
     quote = { plan: "Core", seats: 10, amountCents: 0 };
@@ -73,7 +94,7 @@ export async function POST(request: Request) {
     quote = subscriptionQuote(selected, seats);
   }
   const trialEndsAt = isPilot ? new Date(Date.now() + 14 * 86_400_000) : null;
-  const token = randomToken(24);
+  const token = invitedPilot ? null : randomToken(24);
   let created: { userId: number; organizationId: number } | null = null;
   try {
     created = await db.transaction(async (tx) => {
@@ -90,7 +111,7 @@ export async function POST(request: Request) {
         email,
         passwordHash: hashPassword(password),
         role: "owner",
-        active: false,
+        active: invitedPilot,
         totpEnabled: false,
         backupCodes: [],
       }).returning({ id: users.id });
@@ -112,12 +133,14 @@ export async function POST(request: Request) {
         trialEndsAt,
         periodStart: isPilot ? new Date() : null,
       });
-      await tx.insert(saasSignupVerifications).values({
-        organizationId: org.id,
-        userId: owner.id,
-        tokenHash: sha256(token),
-        expiresAt: new Date(Date.now() + 60 * 60_000),
-      });
+      if (token) {
+        await tx.insert(saasSignupVerifications).values({
+          organizationId: org.id,
+          userId: owner.id,
+          tokenHash: sha256(token),
+          expiresAt: new Date(Date.now() + 60 * 60_000),
+        });
+      }
       return { userId: owner.id, organizationId: org.id };
     });
   } catch (error) {
@@ -128,6 +151,24 @@ export async function POST(request: Request) {
     throw error;
   }
   if (!created) return Response.json({ error: "Could not initialize registration." }, { status: 503 });
+  if (invitedPilot) {
+    await recordAuditEvent({
+      organizationId: created.organizationId,
+      actor: "private-pilot-invitation",
+      action: "Single-recipient fictional-data pilot provisioned",
+      resource: "Owner activated by private invitation; email ownership unverified",
+      metadata: {
+        registrationMode: "pilot", emailVerified: false, inviteBoundToEmail: true,
+        selectedPlan: "Core", seats: 10, amountCents: 0,
+        trialEndsAt: trialEndsAt?.toISOString() ?? null,
+      },
+    });
+    return Response.json({
+      ok: true, activated: true, redirectTo: "/login",
+      message: "Your private 14-day test-only pilot account is created. Sign in with the password you just chose.",
+    }, { status: 201 });
+  }
+  if (!token) return Response.json({ error: "Unable to initialize email verification." }, { status: 503 });
   const verificationUrl = origin + "/verify-signup?token=" + token;
   const sent = await queueMessage({
     organizationId: created.organizationId,

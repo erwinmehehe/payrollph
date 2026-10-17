@@ -233,6 +233,43 @@ async function exercise(width) {
     }
   }
 
+  // #1146 Gate B-02 documents all five selectable categories. Contract PDF,
+  // government ID PNG and onboarding JPEG are exercised above. Run the two
+  // remaining PDF categories through the SAME authenticated UI and private
+  // object lifecycle; do not claim this is human UAT or real S3 acceptance.
+  if (width === 1440) {
+    for (const kind of ["certificate", "other"]) {
+      const fileName = "synthetic-" + kind + ".pdf";
+      const bytes = Buffer.from("%PDF-1.7\n% fictional " + kind + " only\n1 0 obj <<>> endobj\n%%EOF");
+      await panel.getByRole("combobox", { name: "Category" }).selectOption(kind);
+      await panel.getByLabel("File", { exact: true }).setInputFiles({
+        name: fileName, mimeType: "application/pdf", buffer: bytes,
+      });
+      await panel.getByRole("button", { name: "Upload", exact: true }).click();
+      const row = files.getByRole("listitem").filter({ hasText: fileName });
+      await row.waitFor({ timeout: 90_000 });
+      const listed = await context.request.get(BASE + "/api/employee-vault?organizationId=1&employeeId=1");
+      assert.equal(listed.status(), 200, "Authorized list for " + kind);
+      const record = (await listed.json()).documents.find(item => item.fileName === fileName);
+      assert.ok(record, "Category upload must appear in the intended worker vault: " + kind);
+      assert.equal(record.kind, kind, "Upload category must persist");
+      assert.equal(record.mimeType, "application/pdf");
+      assert.equal(record.byteSize, bytes.length);
+      assert.equal(record.canRemove, true);
+      assert.ok(record.uploadedAt && record.uploadedBy, "Audit metadata must persist");
+      const link = await row.getByRole("link", { name: "View" }).getAttribute("href");
+      assert.match(link ?? "", /^\/api\/documents\/[1-9]\d*$/);
+      const read = await context.request.get(BASE + link, { maxRedirects: 5 });
+      assert.equal(read.status(), 200, "Authorized signed document view: " + kind);
+      assert.deepEqual(Buffer.from(await read.body()), bytes);
+      await row.getByRole("button", { name: "Delete" }).click();
+      await row.getByRole("button", { name: "Confirm" }).click();
+      await row.waitFor({ state: "detached", timeout: 90_000 });
+      const removed = await context.request.get(BASE + link, { maxRedirects: 0 });
+      assert.equal(removed.status(), 404, "Retired " + kind + " must no longer issue private GET");
+    }
+  }
+
   checks.push({ width, upload: true, view: true, download: true, removal: true,
     noOverflow: true, noOverflowWithDocument: true, viewAfterRemovalDenied: true,
     employeeSelfAccess: true, foreignEmployeeDenied: true,
@@ -320,12 +357,13 @@ try {
     restrictedHrDenied: true, linkedEssReadProven: true, authorizedTenantSwitchScoped: true,
     forgedFileDenied: true, mismatchedMimeDenied: true, syntheticScannerThreatDenied: true,
     oversizedMultipartDenied: true,
-    pngJpegPrivateLifecycle: true, unauthenticatedDirectReadDenied: true,
+    pngJpegPrivateLifecycle: true, allFiveDocumentCategoriesSynthetic: true,
+    unauthenticatedDirectReadDenied: true,
     managerDirectReadDenied: true, mobileTouchTargetsChecked: true,
     invalidCategoryDenied: true, crossSiteMutationDenied: true,
     syntheticOnly: true, productionEnabled: false, storageProviderApproved: false,
   }, null, 2), { mode: 0o600 });
-  console.log("PASS synthetic vault desktop/390px, PDF/PNG/JPEG private lifecycle, ESS, HR scope, mobile touch targets and negative upload/origin gates.");
+  console.log("PASS synthetic vault desktop/390px, all five category lifecycles (PDF/PNG/JPEG), ESS, HR scope, mobile touch targets and negative upload/origin gates.");
 } finally {
   loginCookies.clear();
   await browser.close();

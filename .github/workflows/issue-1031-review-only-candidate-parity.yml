@@ -1,0 +1,78 @@
+name: Issue 1031 - Review-Only Candidate Fresh-Push Parity (No Production SQL)
+on:
+  pull_request:
+    paths:
+      - "docs/sql/issue-1031-*-additive-candidate.sql"
+      - "docs/sql/issue-1031-schema-only-*-review.sql"
+      - "docs/engineering/migration-proposals/*.sql"
+      - "docs/sql/pending-multi-entity-registration-versions.sql"
+      - "scripts/lib/issue-1031-review-only-candidate-inventory.mjs"
+      - "tests/issue-1031-review-only-candidate-inventory.test.mjs"
+      - "tests/issue-1031-review-only-candidates-postgres.test.ts"
+      - "src/db/schema.ts"
+      - ".github/workflows/issue-1031-review-only-candidate-parity.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  synthetic-catalog-parity:
+    name: Fresh push and 19+4 source candidate equality (PG ${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      ISSUE1031_CANDIDATE_PARITY: "isolated-ci-only"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DEMO_MODE: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
+      SCHEDULER_REHEARSAL_MODE: "isolated-ci-only"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+    steps:
+      - name: Checkout unprivileged PR source only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Confirm review-only SQL has no DML or missing-creator coverage gaps
+        run: node --test tests/issue-1031-review-only-candidate-inventory.test.mjs
+      - name: Fresh first push of complete src/db/schema.ts into disposable localhost only
+        run: npm run db:push
+      - name: Compare 19 legacy candidate tables and four new candidates to canonical fresh-push catalog
+        run: ./node_modules/.bin/tsx --test tests/issue-1031-review-only-candidates-postgres.test.ts
+      - name: Log evidence boundary
+        if: always()
+        run: |
+          echo "SOURCE_ONLY_NOT_A_RELEASE_MIGRATION"
+          echo "No Neon credentials, production SQL, business rows or migration receipts were used."
+          echo "A candidate parity PASS only checks current src/db/schema.ts in disposable PG."

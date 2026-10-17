@@ -1,0 +1,218 @@
+name: Clean PG18 Source Bootstrap + Full Regression (No Money)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/clean-pg18-source-regression.yml"
+      - "docs/engineering/clean-pg18-source-baseline.md"
+      - ".github/workflows/nine-stage-connected-acceptance.yml"
+  push:
+    branches: [main]
+    paths: [".github/workflows/clean-pg18-source-regression.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-ddl:
+    name: PG18 empty first push + sanitized schema-only artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      FRESH_PG18_DEV_REHEARSAL: disposable-ci-only
+      NINE_STAGE_PG_MAJOR: "18"
+      DEMO_MODE: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      TZ: Asia/Manila
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Synthetic encryption keys, never used outside CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          bk="$(openssl rand -hex 32)"
+          pk="$(openssl rand -hex 32)"
+          echo "::add-mask::$bk"
+          echo "::add-mask::$pk"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bk" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pk" >> "$GITHUB_ENV"
+      - name: Assert truly empty PG18 and guarded bootstrap source
+        run: |
+          node --test tests/fresh-pg18-development-schema.test.mjs tests/verified-pg18-bootstrap.test.mjs
+          node scripts/qa/fresh-pg18-development-schema.mjs preflight
+      - name: Run the first and ONLY PG18 source schema push
+        run: node scripts/qa/verified-pg18-bootstrap.mjs
+      - name: Capture exact source catalog + isolated audit protections
+        run: |
+          node scripts/qa/fresh-pg18-development-schema.mjs capture
+          node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: pg_dump SCHEMA ONLY from empty-before-first-push local service
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CI" = true && test "$GITHUB_ACTIONS" = true
+          test "$FRESH_PG18_DEV_REHEARSAL" = disposable-ci-only
+          test "$DATABASE_URL" = postgresql://postgres:postgres@127.0.0.1:5432/app_db
+          test -n "$PG_CONTAINER"
+          test "$(docker inspect "$PG_CONTAINER" --format '{{.State.Running}}')" = true
+          test "$(docker exec "$PG_CONTAINER" psql -XAt -U postgres -d app_db -c "SELECT current_setting('server_version_num')::int BETWEEN 180000 AND 189999")" = t
+          count="$(docker exec "$PG_CONTAINER" psql -XAt -U postgres -d app_db -c "SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname='public'")"
+          test "$count" -ge 271
+          mkdir -p qa-artifacts/pg18
+          docker exec "$PG_CONTAINER" pg_dump -U postgres -d app_db --schema-only --schema=public --no-owner --no-privileges --no-tablespaces --no-security-labels > qa-artifacts/pg18/schema-only.sql
+          test -s qa-artifacts/pg18/schema-only.sql
+          bytes="$(wc -c < qa-artifacts/pg18/schema-only.sql)"
+          test "$bytes" -lt 3000000
+          sha="$(sha256sum qa-artifacts/pg18/schema-only.sql | cut -d' ' -f1)"
+          printf '{"kind":"clean-source-pg18-schema-only","postgresMajor":18,"tables":%s,"bytes":%s,"sha256":"%s","realNeonAccess":false,"applicationRowsExported":false,"productionApproved":false}\n' "$count" "$bytes" "$sha" > qa-artifacts/pg18/manifest.json
+          echo "CLEAN_PG18_SCHEMA_MANIFEST $(cat qa-artifacts/pg18/manifest.json)"
+      - name: Emit deterministic SCHEMA-ONLY blocks for verified transfer to empty development DB
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "CLEAN_PG18_SCHEMA_B64_BEGIN"
+          base64 -w0 qa-artifacts/pg18/schema-only.sql | fold -w 1400 | sed 's/^/CLEAN_PG18_SCHEMA_B64 /'
+          echo "CLEAN_PG18_SCHEMA_B64_END"
+          echo "NO_DATA_NO_NEON_SECRETS_NO_PRODUCTION_RELEASE"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: clean-pg18-source-schema-only
+          path: qa-artifacts/pg18/
+          retention-days: 3
+          if-no-files-found: warn
+
+  regression:
+    name: Full PG18 regression shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      CI: "true"
+      FRESH_PG18_DEV_REHEARSAL: disposable-ci-only
+      NINE_STAGE_PG_MAJOR: "18"
+      DEMO_MODE: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      TZ: Asia/Manila
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Synthetic encryption keys
+        shell: bash
+        run: |
+          bk="$(openssl rand -hex 32)"
+          pk="$(openssl rand -hex 32)"
+          echo "::add-mask::$bk"
+          echo "::add-mask::$pk"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bk" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pk" >> "$GITHUB_ENV"
+      - name: One guarded first-push and audit controls
+        run: |
+          set -euo pipefail
+          node scripts/qa/fresh-pg18-development-schema.mjs preflight
+          node scripts/qa/verified-pg18-bootstrap.mjs
+          node scripts/qa/fresh-pg18-development-schema.mjs capture
+          node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Run ENTIRE test shard; retain only test labels and exit status
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$DATABASE_URL" = postgresql://postgres:postgres@127.0.0.1:5432/app_db
+          mkdir -p qa-artifacts/pg18
+          set +e
+          node scripts/run-sharded-tests.mjs "$SHARD_INDEX" 4 >/tmp/regression.tap 2>&1
+          exit_code=$?
+          set -e
+          TEST_EXIT="$exit_code" node <<'JS'
+          const fs=require("node:fs");
+          const s=fs.readFileSync("/tmp/regression.tap","utf8");
+          const failures=[...new Set(s.split(/\r?\n/).flatMap(line=>{
+            const x=/^\s*not ok\s+\d+\s+-\s+(.*)$/.exec(line);
+            return x?[x[1].replace(/[\x00-\x1f\x7f]/g," ").trim().slice(0,150)]:[];
+          }))].sort();
+          const exit=Number(process.env.TEST_EXIT);
+          if(exit!==0&&!failures.length)failures.push("__NONZERO_WITHOUT_TAP_FAILURE__");
+          const result={kind:"disposable-source-PG18-full-regression",shard:Number(process.env.SHARD_INDEX),exit,failures,
+            actualNeonTested:false,customerDataQueried:false,moneyMoved:false,releaseApproved:false};
+          fs.writeFileSync("qa-artifacts/pg18/shard-"+process.env.SHARD_INDEX+".json",JSON.stringify(result,null,2)+"\n");
+          console.log("CLEAN_PG18_FULL_REGRESSION "+JSON.stringify(result));
+          if(exit!==0)process.exitCode=1;
+          JS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: clean-pg18-full-shard-${{ matrix.shard }}
+          path: qa-artifacts/pg18/shard-${{ matrix.shard }}.json
+          retention-days: 7
+          if-no-files-found: warn
+
+# Entirely isolated PG18 CI. No actual Neon secrets, payroll transfers or agency submissions.

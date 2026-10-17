@@ -325,7 +325,8 @@ test("public signup is one guarded company owner registration, never bootstrap o
   assert.ok(form.includes('fetch("/api/signup"'), "company creation must go through one guarded API");
   assert.ok(api.includes("enforceSameOriginMutation") && api.includes("enforceIntakeProof"));
   assert.ok(api.includes("rateLimitDistributed") && api.includes("saasSignupVerifications"));
-  assert.ok(api.includes("active: false"), "new owner access must await proof of email ownership");
+  assert.ok(api.includes("active: invitedPilot"), "only a separately validated private invitation may activate a pilot immediately");
+  assert.ok(api.includes("validPrivatePilotInvite(email, inviteCode)"), "no public applicant may bypass email verification");
 });
 
 test("login auth screen stays focused and product-consistent", () => {
