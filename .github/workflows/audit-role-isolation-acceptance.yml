@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "docs/sql/issue908-audit-trigger-boundary-REVIEW_ONLY.sql"
+      - "docs/sql/issue908-missing-foundation-REVIEW_ONLY.sql"
       - "src/lib/audit-role-proof.ts"
       - "src/lib/audit-chain.ts"
       - "src/lib/audit-sealer-connection.ts"
@@ -19,17 +20,19 @@ concurrency:
   cancel-in-progress: true
 jobs:
   privileges:
-    name: audit-role-isolation (PG${{ matrix.postgres }})
+    name: audit-role-isolation (PG${{ matrix.postgres }}, ${{ matrix.foundation }})
     runs-on: ubuntu-latest
     timeout-minutes: 12
     strategy:
       fail-fast: false
       matrix:
         postgres: [16, 18]
+        foundation: [legacy-0109, forward-candidate]
     env:
       CI: "true"
       TZ: Asia/Manila
       ISSUE908_ACCEPTANCE_MODE: isolated-ci-only
+      ISSUE908_FOUNDATION_CANDIDATE: ${{ matrix.foundation == 'forward-candidate' && 'true' || 'false' }}
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/neondb
       PAYMONGO_DISBURSEMENTS_ENABLED: "false"
       XENDIT_PAYOUTS_ENABLED: "false"
