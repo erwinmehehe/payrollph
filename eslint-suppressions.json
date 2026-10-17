@@ -24,11 +24,6 @@
       "count": 1
     }
   },
-  "src/components/legal-entities-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 2
-    }
-  },
   "src/components/linaw-workspace.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -50,11 +45,6 @@
     }
   },
   "src/components/workspace/bookkeeper-payroll-close.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/workspace/dole-thirteenth-month-report-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }

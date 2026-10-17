@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Building2, Landmark, Plus, RefreshCw, Save, ShieldCheck, UsersRound } from "lucide-react";
 
 type LegalEntity = {
@@ -83,35 +83,76 @@ function fromEntity(entity: LegalEntity): FormState {
   };
 }
 
-export function LegalEntitiesPanel({
-  organizationId,
-  setNotice,
-}: {
+type LegalEntitiesProps = {
   organizationId: number;
   setNotice: (message: string) => void;
-}) {
+};
+
+// Never reuse bank configuration, statutory registrations or unsaved drafts
+// when the signed-in workspace switches legal employers.
+export function LegalEntitiesPanel(props: LegalEntitiesProps) {
+  return <ScopedLegalEntitiesPanel key={props.organizationId} {...props} />;
+}
+
+function ScopedLegalEntitiesPanel({
+  organizationId,
+  setNotice,
+}: LegalEntitiesProps) {
   const [entities, setEntities] = useState<LegalEntity[]>([]);
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [form, setForm] = useState<FormState>(blank);
+  const [formDraft, setFormDraft] = useState<{ entityId: number | null; value: FormState } | null>(null);
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState<string | null>(null);
+
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
 
   const selected = useMemo(
     () => entities.find((entity) => entity.id === selectedId) ?? entities[0] ?? null,
     [entities, selectedId],
   );
+  // Derive the display form from the selected employer. Only user edits are
+  // retained in state, tagged with their originating legal employer ID.
+  const scopedId = creating ? null : selected?.id ?? null;
+  const form = formDraft?.entityId === scopedId
+    ? formDraft.value
+    : creating ? blank : selected ? fromEntity(selected) : blank;
+  const setForm: React.Dispatch<React.SetStateAction<FormState>> = (value) => {
+    setFormDraft((current) => {
+      const previous = current?.entityId === scopedId
+        ? current.value : creating ? blank : selected ? fromEntity(selected) : blank;
+      return {
+        entityId: scopedId,
+        value: typeof value === "function" ? value(previous) : value,
+      };
+    });
+  };
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
+    if (!mountedRef.current) return false;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
     setLoading(true);
+    setLoadError("");
+    setEntities([]);
+    setEmployees([]);
+    setFormDraft(null);
     try {
-      const response = await fetch(`/api/legal-entities?organizationId=${organizationId}`, { cache: "no-store" });
+      const response = await fetch(
+        `/api/legal-entities?organizationId=${organizationId}`,
+        { cache: "no-store", signal: controller.signal },
+      );
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setNotice(payload.error ?? "Could not load legal employers.");
-        return;
-      }
+      if (!isCurrent()) return false;
+      if (!response.ok) throw new Error(payload.error ?? "Could not load legal employers.");
       const nextEntities = Array.isArray(payload.legalEntities) ? payload.legalEntities as LegalEntity[] : [];
       setEntities(nextEntities);
       setEmployees(Array.isArray(payload.employees) ? payload.employees as EmployeeRow[] : []);
@@ -120,23 +161,36 @@ export function LegalEntitiesPanel({
           ? current
           : nextEntities.find((entity) => entity.primaryEntity)?.id ?? nextEntities[0]?.id ?? null,
       );
-    } catch {
-      setNotice("Could not reach legal-employer management.");
+      return true;
+    } catch (error) {
+      if (isCurrent()) {
+        const message = error instanceof Error ? error.message : "Could not reach legal-employer management.";
+        setLoadError(message);
+        setNotice(message);
+      }
+      return false;
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [organizationId, setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
-
   useEffect(() => {
-    if (creating) return;
-    if (selected) setForm(fromEntity(selected));
-  }, [selected, creating]);
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
+  }, [load]);
 
   async function createEntity(event: React.FormEvent) {
     event.preventDefault();
+    if (!mountedRef.current) return;
     setSaving("create");
+    const readRevision = loadRevisionRef.current;
     try {
       const response = await fetch("/api/legal-entities", {
         method: "POST",
@@ -144,24 +198,28 @@ export function LegalEntitiesPanel({
         body: JSON.stringify({ organizationId, ...form }),
       });
       const payload = await response.json().catch(() => ({}));
+      if (!mountedRef.current || readRevision !== loadRevisionRef.current) return;
       if (!response.ok) {
         setNotice(payload.error ?? "Could not create legal employer.");
         return;
       }
+      const refreshed = await load();
+      if (!mountedRef.current || !refreshed) return;
       setCreating(false);
-      setForm(blank);
-      await load();
+      setFormDraft(null);
       setSelectedId(payload.legalEntity?.id ?? null);
       setNotice("Legal employer created.");
     } catch {
-      setNotice("Could not reach legal-employer management.");
+      if (mountedRef.current) setNotice("Could not reach legal-employer management.");
     } finally {
-      setSaving(null);
+      if (mountedRef.current) setSaving(null);
     }
   }
 
   async function patch(payload: Record<string, unknown>, success: string) {
+    if (!mountedRef.current) return false;
     setSaving(String(payload.action ?? "save"));
+    const readRevision = loadRevisionRef.current;
     try {
       const response = await fetch("/api/legal-entities", {
         method: "PATCH",
@@ -169,18 +227,20 @@ export function LegalEntitiesPanel({
         body: JSON.stringify({ organizationId, ...payload }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!mountedRef.current || readRevision !== loadRevisionRef.current) return false;
       if (!response.ok) {
         setNotice(body.error ?? "The legal-employer change could not be saved.");
         return false;
       }
-      await load();
+      const refreshed = await load();
+      if (!mountedRef.current || !refreshed) return false;
       setNotice(success);
       return true;
     } catch {
-      setNotice("Could not reach legal-employer management.");
+      if (mountedRef.current) setNotice("Could not reach legal-employer management.");
       return false;
     } finally {
-      setSaving(null);
+      if (mountedRef.current) setSaving(null);
     }
   }
 
@@ -203,7 +263,7 @@ export function LegalEntitiesPanel({
       disbursementAccountName: form.disbursementAccountName,
       ...(form.disbursementAccount.trim() ? { disbursementAccount: form.disbursementAccount.trim() } : {}),
     }, "Legal employer settings updated.");
-    if (saved) setForm((current) => ({ ...current, disbursementAccount: "" }));
+    if (saved) setFormDraft(null);
   }
 
   async function assignEmployee(employeeId: number, legalEntityId: number) {
@@ -213,6 +273,17 @@ export function LegalEntitiesPanel({
       legalEntityId,
     }, "Employee legal employer updated.");
   }
+
+  if (loading || loadError) return (
+    <section className="card" style={{ marginBottom: 16, padding: 16 }}>
+      {loading ? "Loading legal employers…" : (
+        <div className="notice notice-red">
+          <span>{loadError}</span>
+          <button className="secondary-button" type="button" onClick={() => void load()}>Retry</button>
+        </div>
+      )}
+    </section>
+  );
 
   return (
     <section style={{ marginBottom: 16 }}>
@@ -224,7 +295,7 @@ export function LegalEntitiesPanel({
         </div>
         <div className="page-actions">
           <button className="secondary-button" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button>
-          <button className="primary-button" onClick={() => { setCreating(true); setForm(blank); }}><Plus size={15} /> Legal employer</button>
+          <button className="primary-button" onClick={() => { setCreating(true); setFormDraft({ entityId: null, value: blank }); }}><Plus size={15} /> Legal employer</button>
         </div>
       </div>
 
@@ -243,7 +314,7 @@ export function LegalEntitiesPanel({
       {creating && (
         <article className="card" style={{ padding: 20, marginBottom: 16 }}>
           <div className="card-header"><div><div className="card-kicker">NEW LEGAL EMPLOYER</div><h2>Create an employer record</h2><p>The first existing employer remains primary. New entities are inactive only when explicitly disabled later.</p></div></div>
-          <EntityForm form={form} setForm={setForm} includeCode onSubmit={createEntity} saving={saving === "create"} submitLabel="Create legal employer" onCancel={() => { setCreating(false); setForm(selected ? fromEntity(selected) : blank); }} />
+          <EntityForm form={form} setForm={setForm} includeCode onSubmit={createEntity} saving={saving === "create"} submitLabel="Create legal employer" onCancel={() => { setCreating(false); setFormDraft(null); }} />
         </article>
       )}
 
@@ -257,7 +328,7 @@ export function LegalEntitiesPanel({
               type="button"
               className="leave-request"
               style={{ width: "100%", border: 0, borderTop: "1px solid var(--line)", textAlign: "left", cursor: "pointer", background: selected?.id === entity.id ? "var(--green-light)" : "transparent" }}
-              onClick={() => { setCreating(false); setSelectedId(entity.id); setForm(fromEntity(entity)); }}
+              onClick={() => { setCreating(false); setSelectedId(entity.id); setFormDraft(null); }}
             >
               <div className="inline-icon purple"><Building2 size={16} /></div>
               <div style={{ flex: 1 }}>

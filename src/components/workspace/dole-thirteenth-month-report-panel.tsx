@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BadgeCheck,
   Download,
@@ -84,13 +84,21 @@ function currentYear() {
   return Number(new Intl.DateTimeFormat("en", { timeZone: "Asia/Manila", year: "numeric" }).format(new Date()));
 }
 
-export function DoleThirteenthMonthReportPanel({
-  organizationId,
-  notify,
-}: {
+type DoleThirteenthMonthReportProps = {
   organizationId: number;
   notify: Notify;
-}) {
+};
+
+// Submission evidence, payroll aggregates and contact details are private
+// to a particular legal employer, not the parent workspace.
+export function DoleThirteenthMonthReportPanel(props: DoleThirteenthMonthReportProps) {
+  return <ScopedDoleThirteenthMonthReportPanel key={props.organizationId} {...props} />;
+}
+
+function ScopedDoleThirteenthMonthReportPanel({
+  organizationId,
+  notify,
+}: DoleThirteenthMonthReportProps) {
   const [taxYear, setTaxYear] = useState(currentYear());
   const [state, setState] = useState<State | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,15 +114,40 @@ export function DoleThirteenthMonthReportPanel({
   const [portalReference, setPortalReference] = useState("");
   const [submittedAt, setSubmittedAt] = useState(new Date().toISOString().slice(0, 10));
 
-  const load = useCallback(async () => {
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const mutationRevisionRef = useRef(0);
+
+  const load = useCallback(async (): Promise<boolean> => {
+    if (!mountedRef.current) return false;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
     setLoading(true);
+    setSaving(false);
     setError("");
+    // A different annual report could invalidate a previous submission proof.
+    // Never show prior year's aggregate pay, portal reference or editable PII.
+    setState(null);
+    setPortalReference("");
+    setProfile({
+      establishmentAddress: "",
+      principalBusiness: "",
+      contactName: "",
+      contactPosition: "",
+      contactPhone: "",
+    });
     try {
       const response = await fetch(
         `/api/compliance/dole-13th-month?organizationId=${organizationId}&taxYear=${taxYear}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal: controller.signal },
       );
       const body = await response.json().catch(() => ({}));
+      if (!isCurrent()) return false;
       if (!response.ok) throw new Error(body.error ?? "DOLE 13th-month report could not be loaded.");
       setState(body);
       setProfile({
@@ -124,17 +157,35 @@ export function DoleThirteenthMonthReportPanel({
         contactPosition: body.profile?.contactPosition ?? "",
         contactPhone: body.profile?.contactPhone ?? "",
       });
+      return true;
     } catch (loadError) {
-      setState(null);
-      setError(loadError instanceof Error ? loadError.message : "DOLE 13th-month report could not be loaded.");
+      if (isCurrent()) setError(loadError instanceof Error ? loadError.message : "DOLE 13th-month report could not be loaded.");
+      return false;
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [organizationId, taxYear]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      mutationRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
+  }, [load]);
 
   async function mutate(action: "save_profile" | "record_submission", extra: Record<string, unknown>) {
+    if (!mountedRef.current) return;
+    const revision = ++mutationRevisionRef.current;
+    const readRevision = loadRevisionRef.current;
+    const isCurrentMutation = () =>
+      mountedRef.current && revision === mutationRevisionRef.current
+      && readRevision === loadRevisionRef.current;
     setSaving(true);
     try {
       const response = await fetch("/api/compliance/dole-13th-month", {
@@ -143,7 +194,10 @@ export function DoleThirteenthMonthReportPanel({
         body: JSON.stringify({ organizationId, taxYear, action, ...extra }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!isCurrentMutation()) return;
       if (!response.ok) throw new Error(body.error ?? "DOLE reporting update failed.");
+      const refreshed = await load();
+      if (!mountedRef.current || !refreshed) return;
       notify(
         action === "save_profile"
           ? "DOLE reporting profile saved."
@@ -151,11 +205,10 @@ export function DoleThirteenthMonthReportPanel({
         "ok",
       );
       if (action === "record_submission") setPortalReference("");
-      await load();
     } catch (mutationError) {
-      notify(mutationError instanceof Error ? mutationError.message : "DOLE reporting update failed.", "err");
+      if (isCurrentMutation()) notify(mutationError instanceof Error ? mutationError.message : "DOLE reporting update failed.", "err");
     } finally {
-      setSaving(false);
+      if (mountedRef.current && revision === mutationRevisionRef.current) setSaving(false);
     }
   }
 
