@@ -1,0 +1,126 @@
+name: Recovered Neon Catalog and Intent Repair Rehearsal (Synthetic Only)
+
+on:
+  pull_request:
+    paths:
+      - "qa/recovery/recovered-neon-20261017.catalog.json"
+      - "scripts/qa/recovered-schema-plan.ts"
+      - "tests/recovered-schema-plan.test.ts"
+      - ".github/workflows/recovered-neon-schema-rehearsal.yml"
+      - "docs/engineering/recovered-neon-catalog-rehearsal-20261017.md"
+  push:
+    branches: [main]
+    paths:
+      - "qa/recovery/recovered-neon-20261017.catalog.json"
+      - "scripts/qa/recovered-schema-plan.ts"
+      - "tests/recovered-schema-plan.test.ts"
+      - ".github/workflows/recovered-neon-schema-rehearsal.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Catalog-only dependency plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: ./node_modules/.bin/tsx --test tests/recovered-schema-plan.test.ts
+      - name: Save structural-only plan
+        run: |
+          mkdir -p qa-artifacts/recovered-neon
+          ./node_modules/.bin/tsx scripts/qa/recovered-schema-plan.ts > qa-artifacts/recovered-neon/dependency-plan.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: recovery-catalog-dependency-plan
+          path: qa-artifacts/recovered-neon/dependency-plan.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  missing-intent:
+    name: Fictional intent reconstruction PG${{ matrix.pg }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: ["16", "18"]
+    env:
+      CI: "true"
+      MIGRATION_REHEARSAL_MODE: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Bootstrap disposable source schema
+        run: npm run db:push
+      - name: Recreate missing intent table using historical 0100 in disposable DB
+        shell: bash
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          test "$CI" = true
+          test "$GITHUB_ACTIONS" = true
+          test "$MIGRATION_REHEARSAL_MODE" = isolated-ci-only
+          test "$DATABASE_URL" = postgresql://postgres:postgres@127.0.0.1:5432/app_db
+          test -n "$PG_CONTAINER"
+          test "$(docker inspect "$PG_CONTAINER" --format '{{.State.Running}}')" = true
+          psql_local() { docker exec "$PG_CONTAINER" psql -XAt -v ON_ERROR_STOP=1 -U postgres -d app_db -c "$1"; }
+          test "$(psql_local "SELECT to_regclass('public.compensation_automation_intents') IS NOT NULL")" = t
+          test "$(psql_local "SELECT to_regclass('public.compensation_events') IS NOT NULL")" = t
+          test "$(psql_local 'SELECT count(*) FROM public.compensation_automation_intents')" = 0
+          docker exec "$PG_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d app_db \
+            -c 'DROP TABLE public.compensation_automation_intents'
+          test "$(psql_local "SELECT to_regclass('public.compensation_automation_intents') IS NULL")" = t
+          docker exec -i "$PG_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d app_db \
+            < drizzle/0100_compensation_automation_intents.sql > /dev/null
+          test "$(psql_local "SELECT to_regclass('public.compensation_automation_intents') IS NOT NULL")" = t
+          test "$(psql_local "SELECT count(*) FROM pg_catalog.pg_attribute WHERE attrelid='public.compensation_automation_intents'::regclass AND attnum>0 AND NOT attisdropped")" = 15
+          test "$(psql_local "SELECT count(*) FROM pg_catalog.pg_constraint WHERE conrelid='public.compensation_automation_intents'::regclass AND contype='f' AND convalidated")" = 3
+          test "$(psql_local "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid='public.compensation_automation_intents'::regclass AND confrelid='public.compensation_events'::regclass AND contype='f' AND confdeltype='c' AND convalidated)")" = t
+          test "$(psql_local "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_indexes WHERE schemaname='public' AND tablename='compensation_automation_intents' AND indexname='comp_automation_intent_key_unique')")" = t
+          test "$(psql_local "SELECT count(*) FROM public.compensation_automation_intents")" = 0
+          mkdir -p qa-artifacts/recovered-neon
+          printf '{"kind":"synthetic-missing-intent-reconstruction","postgresMajor":${{ matrix.pg }},"realNeonSnapshotTested":false,"databaseStateFictional":true,"productionOrNeonChanged":false,"releaseApproved":false,"allStructuralAssertionsPassed":true}\n' \
+            > qa-artifacts/recovered-neon/intent-${{ matrix.pg }}.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: synthetic-intent-repair-pg${{ matrix.pg }}
+          path: qa-artifacts/recovered-neon/intent-${{ matrix.pg }}.json
+          retention-days: 7
+          if-no-files-found: warn
+
+# Uses disposable PostgreSQL only; no Neon credentials or production data.
