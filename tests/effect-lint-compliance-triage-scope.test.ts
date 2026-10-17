@@ -115,6 +115,8 @@ test("remittance payment, posting, exceptional-evidence writes remain scoped and
   ]) assert.ok(source.includes(key), key);
   assert.match(source, /const body = await response\.json\(\)\.catch\(\(\) => \(\{\}\)\);\s*if \(!mountedRef\.current\) return false;/);
   assert.match(source, /if \(mountedRef\.current\) setBusy\(null\)/);
+  // The posting-import child requires a Promise<void> completion callback.
+  assert.match(source, /onImported=\{async \(\) => \{ await load\(\); \}\}/);
   assert.match(source, /window\.dispatchEvent\(new Event\("statutory-remittance-changed"\)\)/);
   assert.ok(source.includes("A filing acceptance is not treated as proof of payment or employee posting."));
 });

@@ -382,7 +382,7 @@ function ScopedStatutoryRemittancePanel({
                   agency={batch.agency}
                   applicableMonth={batch.applicableMonth}
                   notify={notify}
-                  onImported={load}
+                  onImported={async () => { await load(); }}
                 />
               )}
 
