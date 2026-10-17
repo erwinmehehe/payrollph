@@ -5,12 +5,14 @@ on:
     paths:
       - "src/lib/payroll-run-payout-lock.ts"
       - "src/lib/paymongo-disbursements.ts"
+      - "src/lib/payroll-payout-state.ts"
       - "src/lib/payout-ledger.ts"
       - "src/lib/xendit-payroll-operations.ts"
       - "src/lib/xendit-payout-ledger.ts"
       - "src/app/api/payroll-runs/**"
       - "tests/payroll-run-payout-lock.test.ts"
       - "tests/paymongo-bank-file-http-race.test.ts"
+      - "tests/paymongo-disbursements.test.ts"
       - "tests/payroll-concurrent-approvals-http-pg.test.ts"
       - "src/app/api/approvals/**"
       - "tests/xendit-payroll-ledger-integration.test.ts"
@@ -81,6 +83,7 @@ jobs:
           npx tsx --test --test-concurrency=1
           tests/payroll-run-payout-lock.test.ts
           tests/paymongo-bank-file-http-race.test.ts
+          tests/paymongo-disbursements.test.ts
           tests/payroll-concurrent-approvals-http-pg.test.ts
           tests/xendit-payroll-ledger-integration.test.ts
           tests/payroll-lifecycle-safety.test.ts
