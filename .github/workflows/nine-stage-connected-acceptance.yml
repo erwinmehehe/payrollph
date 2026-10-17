@@ -387,3 +387,5 @@ jobs:
           path: qa-artifacts/nine-stage-layout-*.png
           if-no-files-found: warn
           retention-days: 14
+
+# 2026-10-17 QA: retrigger existing PG16/PG18 fictional two-employer source journey; no behavior changed.
