@@ -8,6 +8,7 @@ import test from 'node:test';
 import {
   WFM_CASES, createWfmWitnessTemplate, evaluateWfmWitnessPacket,
 } from '../scripts/qa/wfm-independent-witness.mjs';
+import { symlinkSkip } from './helpers/symlink-capability.mjs';
 
 const SHA = 'a'.repeat(40);
 const witness = id => {
@@ -144,7 +145,7 @@ test('CLI reads local packet and prints redacted summary, not private observatio
 });
 
 
-test('CLI refuses symlink and oversized private packet without exposing paths or content', () => {
+test('CLI refuses symlink and oversized private packet without exposing paths or content', { skip: symlinkSkip }, () => {
   const script = fileURLToPath(new URL('../scripts/qa/wfm-independent-witness.mjs', import.meta.url));
   const root = mkdtempSync(join(tmpdir(), 'wfm-private-boundary-'));
   try {

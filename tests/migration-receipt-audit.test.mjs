@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import test from 'node:test';
 import { inventoryMigrationSources, reconcileMigrationReceipts } from '../scripts/lib/migration-receipt-audit.mjs';
+import { symlinkSkip } from './helpers/symlink-capability.mjs';
 
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'payrollph-migration-audit-'));
@@ -42,7 +43,7 @@ test('inventory is stable, exact-byte hashed and preserves colliding historical 
     assert.notEqual(changed.digest, a.digest);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
-test('unexpected SQL file names and symlinked SQL are not silently assigned receipts', () => {
+test('unexpected SQL file names and symlinked SQL are not silently assigned receipts', { skip: symlinkSkip }, () => {
   const dir = fixture();
   try {
     writeFileSync(join(dir, 'unnumbered.sql'), 'SELECT 1');
