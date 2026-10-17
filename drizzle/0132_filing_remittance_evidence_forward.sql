@@ -46,6 +46,19 @@ BEGIN
   WHERE a.attnum IS NULL OR a.attnotnull IS DISTINCT FROM e.not_null
     OR pg_catalog.format_type(a.atttypid,a.atttypmod)<>e.sql_type;
   IF mismatch IS NOT NULL THEN RAISE EXCEPTION 'FILING_FORWARD_LEGACY_COLUMN_DRIFT: %',mismatch; END IF;
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a
+    LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
+    WHERE a.attrelid=target AND a.attnum>0 AND NOT a.attisdropped
+      AND (a.attidentity<>'' OR a.attgenerated<>'' OR
+        pg_catalog.pg_get_expr(d.adbin,d.adrelid) IS DISTINCT FROM
+        CASE a.attname
+          WHEN 'id' THEN pg_catalog.format('nextval(%L::regclass)',
+            pg_catalog.pg_get_serial_sequence('public.government_filing_validations','id')::regclass::text)
+          WHEN 'status' THEN '''generated''::character varying'
+          WHEN 'created_at' THEN 'now()'
+          ELSE NULL END)) THEN
+    RAISE EXCEPTION 'FILING_FORWARD_LEGACY_DEFAULT_DRIFT';
+  END IF;
   IF EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='public' AND c.relname=ANY(ARRAY[
       'government_filing_month_idx','statutory_remittance_payment_evidence',

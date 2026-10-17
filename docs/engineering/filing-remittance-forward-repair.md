@@ -39,7 +39,7 @@ its exact catalog, recreates the observed old shape, and reproduces actual
 Drizzle 42703/42P01 errors. It executes the new source, requires exact catalog
 parity, preserves old accepted filing rows and hashes, exercises month/amount
 queries and two fictional employers' proof reads, rejects duplicates/bad FKs,
-checks uploader SET NULL and batch CASCADE, rejects seven malformed catalogs
+checks uploader SET NULL and batch CASCADE, rejects eight malformed catalogs
 and concurrent reader locks, and proves compound failure and outer rollback.
 
 No UI code or route response changes. With no migration execution, runtime and

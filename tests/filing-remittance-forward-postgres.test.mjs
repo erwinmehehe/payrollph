@@ -65,6 +65,7 @@ test('filing forward repair restores real Drizzle reads, preserves outcomes, fai
     for(const [mutation,marker] of [
       ['ALTER TABLE government_filing_validations ADD COLUMN employee_count integer','LEGACY_COLUMN_COUNT'],
       ['ALTER TABLE government_filing_validations ALTER COLUMN status TYPE varchar(17)','LEGACY_COLUMN_DRIFT'],
+      ["ALTER TABLE government_filing_validations ALTER COLUMN status SET DEFAULT 'accepted'",'LEGACY_DEFAULT_DRIFT'],
       ['CREATE INDEX government_filing_month_idx ON organizations(id)','TARGET_OCCUPIED'],
       ['CREATE TABLE statutory_remittance_payment_evidence(id integer)','TARGET_OCCUPIED'],
       ['ALTER TABLE government_filing_validations DROP CONSTRAINT "'+fk+'"','ATTRIBUTION_FK_DRIFT'],
@@ -79,7 +80,9 @@ test('filing forward repair restores real Drizzle reads, preserves outcomes, fai
     // A failure after both DDLs must undo the compound operation atomically.
     await reject(source.replace('END\n$filing_remittance_forward$;',"RAISE EXCEPTION 'INJECTED_POST_DDL_FAILURE';\nEND\n$filing_remittance_forward$;"),'P0001','INJECTED_POST_DDL_FAILURE');
     assert.deepEqual(await catalog(),legacy);
+    await client.query('SET LOCAL search_path=pg_catalog');
     await client.query(source);
+    await client.query('SET LOCAL search_path=public,pg_catalog');
     assert.deepEqual(await catalog(),pristine,'exact catalog parity with fresh Drizzle schema');
     const rows=await orm.select().from(filings).where(and(eq(filings.organizationId,orgs[0]),eq(filings.legalEntityId,entities[0])));
     assert.equal(rows.length,1);assert.equal(rows[0].status,'accepted');
@@ -102,6 +105,6 @@ test('filing forward repair restores real Drizzle reads, preserves outcomes, fai
     await client.query('ROLLBACK');active=false;
     assert.deepEqual(await catalog(),pristine);
     assert.equal((await client.query('SELECT count(*)::int AS n FROM organizations')).rows[0].n,0);
-    console.log(JSON.stringify({event:'filing_forward_behavior',missingReadsReproduced:true,exactCatalogParity:true,legacyRowsPreserved:true,scopedQueries:true,negativeCatalogCases:7,lockRefusal:true,compoundRollback:true,duplicateAndForeignKeys:true,outerRollback:true}));
+    console.log(JSON.stringify({event:'filing_forward_behavior',missingReadsReproduced:true,exactCatalogParity:true,legacyRowsPreserved:true,scopedQueries:true,negativeCatalogCases:8,lockRefusal:true,compoundRollback:true,duplicateAndForeignKeys:true,outerRollback:true}));
   }finally{if(active)await client.query('ROLLBACK');await client.end();}
 });
