@@ -18,14 +18,27 @@ assert.equal(url.pathname, "/app_db");
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const checks = [];
+// Keep fictional session cookies strictly in process memory; never persist
+// browser storage state, credentials, or cookies in the screenshot artifact.
+// Reuse one real login per identity so this extended acceptance suite respects
+// the application's unchanged 10-logins-per-minute IP security policy.
+const loginCookies = new Map();
 
 async function login(context, email) {
+  const existing = loginCookies.get(email);
+  if (existing) {
+    await context.addCookies(existing);
+    return;
+  }
   const result = await context.request.post(BASE + "/api/auth/login", {
     headers: { origin: BASE, "sec-fetch-site": "same-origin" },
     data: { email, password: "Synthetic-HCM-QA-Password-Only-2026!" },
     failOnStatusCode: false,
   });
-  assert.equal(result.status(), 200, "Synthetic login failed");
+  assert.equal(result.status(), 200, "Synthetic login failed for " + email);
+  const cookies = await context.cookies(BASE);
+  assert.ok(cookies.length > 0, "Synthetic sign-in must set a browser session");
+  loginCookies.set(email, cookies);
 }
 
 async function exercise(width) {
@@ -306,5 +319,6 @@ try {
   }, null, 2), { mode: 0o600 });
   console.log("PASS synthetic vault desktop/390px, PDF/PNG/JPEG private lifecycle, ESS, HR scope, mobile touch targets and negative upload/origin gates.");
 } finally {
+  loginCookies.clear();
   await browser.close();
 }
