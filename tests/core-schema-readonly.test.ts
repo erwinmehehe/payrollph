@@ -92,9 +92,9 @@ test("all retained core CREATE TABLE targets have canonical Drizzle declarations
   // remain separate DBA checks. Legacy SQL must not be run by requests.
   const legacy = readFileSync("src/lib/core-schema-compat.ts", "utf8");
   const schema = readFileSync("src/db/schema.ts", "utf8");
-  const created = [...legacy.matchAll(/CREATE\\s+TABLE\\s+IF\\s+NOT\\s+EXISTS\\s+(\\w+)\\s*\\(/gi)]
+  const created = [...legacy.matchAll(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)\s*\(/gi)]
     .map(match => match[1]);
-  const declared = new Set([...schema.matchAll(/pgTable\\(\\s*"([a-z_][a-z0-9_]*)"/gi)]
+  const declared = new Set([...schema.matchAll(/pgTable\(\s*"([a-z_][a-z0-9_]*)"/gi)]
     .map(match => match[1]));
   assert.ok(created.length >= 50, "must inspect the whole historical core creator");
   assert.deepEqual(created.filter(name => !declared.has(name)), [],
