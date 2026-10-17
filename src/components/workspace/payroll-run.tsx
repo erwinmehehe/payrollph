@@ -23,6 +23,7 @@ import { EntityBadge } from "./multi-entity-ui";
 import { PayrollConnectedImpactPanel } from "./payroll-connected-impact-panel";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
+import { visiblePayrollReleaseChecklist, type ObservedPayrollReleaseChecklist } from "@/lib/payroll-release-checklist-visibility";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
@@ -102,7 +103,7 @@ export function PayrollRunView({
   const [reviewApproverId, setReviewApproverId] = useState<number | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
-  const [releaseChecklist, setReleaseChecklist] = useState<{
+  type ReleaseChecklist = {
     ready: boolean;
     items: ReleaseChecklistItem[];
     assuranceSummary?: { high: number; medium: number; blocking: number } | null;
@@ -114,7 +115,9 @@ export function PayrollRunView({
       detail: string;
       employeeId: number | null;
     }>;
-  } | null>(null);
+  };
+  const [checklistObservation, setChecklistObservation] =
+    useState<ObservedPayrollReleaseChecklist<ReleaseChecklist> | null>(null);
   const [releaseReceipt, setReleaseReceipt] = useState<PayrollReleaseReceipt | null>(null);
   const [releaseFailure, setReleaseFailure] = useState<{ runId: number; error: string } | null>(null);
 
@@ -156,27 +159,45 @@ export function PayrollRunView({
     };
   }, [runId, data.payrollRuns]);
 
+  const checklistScope = {
+    organizationId: data.selectedOrganization.id,
+    runId: runId ?? null,
+    payrollRuns: data.payrollRuns,
+    tasks: data.tasks,
+  };
+  // Never display a checklist captured for a different run, employer, or
+  // dashboard approval snapshot while the current read is in flight.
+  const releaseChecklist = visiblePayrollReleaseChecklist(checklistScope, checklistObservation);
+
   useEffect(() => {
-    if (!runId) {
-      setReleaseChecklist(null);
-      return;
-    }
-    let alive = true;
+    if (!runId) return;
+    let active = true;
+    const controller = new AbortController();
+    const requestScope = {
+      organizationId: data.selectedOrganization.id,
+      runId,
+      payrollRuns: data.payrollRuns,
+      tasks: data.tasks,
+    };
     (async () => {
       try {
-        const response = await fetch(`/api/payroll-runs/${runId}/release-checklist`, { cache: "no-store" });
-        if (!alive) return;
+        const response = await fetch(`/api/payroll-runs/${runId}/release-checklist`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!active) return;
         if (!response.ok) {
-          setReleaseChecklist(null);
+          setChecklistObservation({ scope: requestScope, checklist: null });
           return;
         }
-        setReleaseChecklist(await response.json());
+        const checklist = await response.json() as ReleaseChecklist;
+        if (active) setChecklistObservation({ scope: requestScope, checklist });
       } catch {
-        if (alive) setReleaseChecklist(null);
+        if (active) setChecklistObservation({ scope: requestScope, checklist: null });
       }
     })();
-    return () => { alive = false; };
-  }, [runId, data.payrollRuns, data.tasks]);
+    return () => { active = false; controller.abort(); };
+  }, [runId, data.selectedOrganization.id, data.payrollRuns, data.tasks]);
 
   const loadedForSelection = Boolean(fetched && fetched.runId === runId);
   const entries = useMemo(
