@@ -420,8 +420,8 @@ export const marketingLeadSchemaSpec: RequestSchemaSpec = {
     { name: "marketing_leads.notification_outbox_id", type: "integer" },
   ],
   indexes: [
-    { name: "marketing_leads_status_created_idx", tableName: "marketing_leads", keys: ["status", "created_at"], unique: false, definitionTokens: ["(status, created_at DESC NULLS LAST)"] },
-    { name: "marketing_leads_kind_created_idx", tableName: "marketing_leads", keys: ["kind", "created_at"], unique: false, definitionTokens: ["(kind, created_at DESC NULLS LAST)"] },
+    { name: "marketing_leads_status_created_idx", tableName: "marketing_leads", keys: ["status", "created_at"], unique: false, definitionTokens: ["(status, created_at DESC)"] },
+    { name: "marketing_leads_kind_created_idx", tableName: "marketing_leads", keys: ["kind", "created_at"], unique: false, definitionTokens: ["(kind, created_at DESC)"] },
   ],
   constraints: [
     { tableName: "marketing_leads", kind: "p", tokens: ["primarykey(id)"] },

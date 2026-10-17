@@ -1,5 +1,51 @@
 # P0-4 — Runtime schema writer source inventory
 
+## October 17, 2026 source hardening (DRAFT; not a database migration)
+
+`coreSchemaCompatibilityMode(undefined)` now returns `read-only`; the only
+accepted explicit value is `read-only`. `legacy`, typos and empty strings
+throw before the old DDL path, including when a previous in-process schema
+readiness cache is set. Every audited compatibility helper delegates through
+this parser and a catalog-only checker. The 2,600-line historical core SQL
+and other legacy DDL text remain in source temporarily for forensic review,
+but normal application requests cannot select their former write mode.
+The strict whole-`src` source scan and the parser regression are required CI
+checks; indirect/new SQL execution sites still require separate review.
+
+**Do not merge or deploy solely because these source tests pass.** The
+application must have its reviewed schema installed first. On an incomplete
+target (see #1198), the preflight will reject a request instead of creating
+missing objects. Development repair of fictional/test data may follow the
+separate approved disposable-DB or reviewed migration workflow; this PR
+does not connect to Neon, execute SQL, grant roles or apply any migrations.
+The serving database identity, authentic migration receipts, restoration and
+least-privilege roles remain independent operator verification tasks.
+
+### Source-only table and lock review
+
+- `src/lib/core-schema-compat.ts` contains 54 distinct historical
+  `CREATE TABLE IF NOT EXISTS` targets. All 54 table **names** appear in
+  `src/db/schema.ts`. This does **not** prove equality of columns,
+  defaults, foreign keys, checks, indexes, backfill effects or history.
+- `src/lib/marketing-leads.ts` creates `marketing_leads` under a
+  transaction-scoped `pg_advisory_xact_lock`. Its old
+  `created_at DESC NULLS LAST` index expressions differ from the canonical
+  `schema.ts` and `drizzle/0024_marketing_leads.sql` expressions
+  (`created_at DESC`). The read-only catalog index requirement now checks
+  the canonical expressions. Existing drift must be reconciled by reviewed
+  SQL, **not** by a request handler.
+- Core's compatibility DDL also uses a transaction-scoped advisory lock.
+  Advisory locks serialize *cooperating callers of the same lock key* only;
+  they do not stop unrelated schema writers or prevent heavyweight table
+  locks from delaying application traffic. The legacy DDL transactions
+  do not establish a bounded lock-wait/statement-timeout policy. Retiring
+  their invocation removes this request-path lock risk; it is **not** an
+  audit of actual deployed DB role grants.
+- Canonical numbered SQL and `schema.ts` are the review sources, not the
+  legacy `IF NOT EXISTS` creator; that clause never validates the shape
+  of an existing relation. The migration-table coverage test still documents
+  historical objects without numbered creators.
+
 This is a conservative static source audit for PayrollPH. It does not connect
 to PostgreSQL, Vercel, a payment provider, or any employer. It does not run
 migrations or authorize a production payroll release.
@@ -52,8 +98,10 @@ the guards or the underlying database satisfy release requirements.
 
 Work through the strict findings by introducing an independently verified,
 fail-closed catalog or data-read preflight **before** each legacy schema writer.
-Retain legacy behavior by default until independently approved DBA adoption.
-Do not silently disable or auto-repair the missing database structure.
+Historical policy (superseded by the October 17 source-only change):
+the legacy creator used to run by default. Current behavior is read-only and
+fails on missing structure; an approved migration must precede its deployment.
+Do not silently auto-repair the missing database structure.
 
 ## Limitations and production gates
 

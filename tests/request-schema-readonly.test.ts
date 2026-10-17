@@ -312,6 +312,31 @@ const newlyGuardedSpecs: RequestSchemaSpec[] = [
   outboxDeliverySchemaSpec, statutoryCorrectionSchemaSpec, statutoryMonthCloseSchemaSpec,
 ];
 
+test("marketing index preflight matches schema.ts and numbered SQL, not legacy NULLS LAST DDL", async () => {
+  const canonical = readFileSync("src/db/schema.ts", "utf8");
+  const migration = readFileSync("drizzle/0024_marketing_leads.sql", "utf8");
+  const expected = [
+    ["marketing_leads_status_created_idx", "status"],
+    ["marketing_leads_kind_created_idx", "kind"],
+  ] as const;
+  for (const [name, firstColumn] of expected) {
+    assert.ok(canonical.includes(
+      `index("${name}").on(table.${firstColumn}, table.createdAt.desc())`,
+    ), name + " must use canonical Drizzle DESC ordering");
+    assert.ok(migration.includes(
+      `ON marketing_leads(${firstColumn}, created_at DESC);`,
+    ), name + " must match numbered migration ordering");
+    const index = marketingLeadSchemaSpec.indexes.find(row => row.name === name);
+    assert.deepEqual(index?.definitionTokens, [`(${firstColumn}, created_at DESC)`]);
+    assert.ok(!index?.definitionTokens?.some(token => token.includes("NULLS LAST")));
+  }
+  const { query, calls } = simulate(marketingLeadSchemaSpec,
+    { wrongIndexDefinition: "marketing_leads_status_created_idx" });
+  await assert.rejects(() => verifyRequestSchemaReadOnly(query, marketingLeadSchemaSpec),
+    /REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
+  assert.equal(calls.at(-1), "ROLLBACK");
+});
+
 test("remaining request-time schema catalog checks are read-only and rollback cleanly", async () => {
   for (const spec of newlyGuardedSpecs) {
     const { query, calls } = simulate(spec);

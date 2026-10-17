@@ -78,14 +78,27 @@ function fixture(overrides: {
   return { query, calls };
 }
 
-test("default legacy behavior remains until DBA-approved read-only switch", () => {
-  assert.equal(coreSchemaCompatibilityMode(undefined), "legacy");
-  assert.equal(coreSchemaCompatibilityMode("legacy"), "legacy");
+test("runtime schema DDL is unreachable by default and cannot be enabled with legacy mode", () => {
+  assert.equal(coreSchemaCompatibilityMode(undefined), "read-only");
   assert.equal(coreSchemaCompatibilityMode("read-only"), "read-only");
-  for (const value of ["", "readOnly", "READ-ONLY", "apply", "repair", "off", " true "]) {
+  for (const value of ["legacy", "", "readOnly", "READ-ONLY", "apply", "repair", "off", " true "]) {
     assert.throws(() => coreSchemaCompatibilityMode(value),
-      /Invalid CORE_SCHEMA_COMPATIBILITY_MODE/);
+      /CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN/);
   }
+});
+
+test("all retained core CREATE TABLE targets have canonical Drizzle declarations", () => {
+  // Name-level guard only: catalog/index/FK parity and deployment receipts
+  // remain separate DBA checks. Legacy SQL must not be run by requests.
+  const legacy = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  const created = [...legacy.matchAll(/CREATE\\s+TABLE\\s+IF\\s+NOT\\s+EXISTS\\s+(\\w+)\\s*\\(/gi)]
+    .map(match => match[1]);
+  const declared = new Set([...schema.matchAll(/pgTable\\(\\s*"([a-z_][a-z0-9_]*)"/gi)]
+    .map(match => match[1]));
+  assert.ok(created.length >= 50, "must inspect the whole historical core creator");
+  assert.deepEqual(created.filter(name => !declared.has(name)), [],
+    "historical core table identifiers cannot drift beyond src/db/schema.ts");
 });
 
 test("read-only catalog preconditions pass with all required release structures, never mutate", async () => {

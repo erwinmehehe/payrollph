@@ -14,13 +14,14 @@ export type CatalogQuery = (
 ) => Promise<{ rows: CatalogRow[] }>;
 
 /**
- * Deliberately does not flip the production default until DBA/release approval.
- * An explicit, invalid mode is an error rather than an accidental legacy write.
+ * Schema changes and encryption backfills belong to the reviewed migration
+ * runner, never to an HTTP request/worker running with application credentials.
+ * Unset is read-only; reject *all* legacy/unknown values rather than allowing
+ * an environment variable to re-enable request-time CREATE/ALTER or backfill.
  */
-export function coreSchemaCompatibilityMode(value: string | undefined): "legacy" | "read-only" {
-  if (value === undefined || value === "legacy") return "legacy";
-  if (value === "read-only") return "read-only";
-  throw new Error("Invalid CORE_SCHEMA_COMPATIBILITY_MODE; refusing runtime schema writes.");
+export function coreSchemaCompatibilityMode(value: string | undefined): "read-only" {
+  if (value === undefined || value === "read-only") return "read-only";
+  throw new Error("CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN");
 }
 
 /**
