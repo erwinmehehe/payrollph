@@ -40,3 +40,47 @@ Require real employer payroll reconciliation in a no-money-moving mode, independ
 ## Decision
 
 **NO PRODUCTION CUTOVER.** Production changes require approved exact-head schema repairs, protected PLAN/APPLY with migration receipts, separate DBA acceptance, and independent payroll/statutory UAT. This PR makes NO changes to existing Neon branches and authorizes none.
+
+## Supplemental actual-recovery branch-only rehearsal (October 17, 2026)
+
+**Scope:** Cloned the existing recovery development branch `br-mute-mode-b740q5zx`
+into a newly created, unprotected/non-default Neon rehearsal branch
+`br-twilight-shape-b70olxgv`. This retains the source branch's existing state
+inside the Neon project; **it is not a sanitized or fictional archive** and
+must not be exported or used for unrestricted testing with application rows.
+The default Neon and original recovery branches were not modified.
+
+- Initial schema-only catalog check: 148 public tables; absent
+  `compensation_automation_intents` and `email_change_tokens`; all three
+  intent parent tables had single-column integer primary keys and there
+  were no leftover intent objects.
+- Applied the source-reviewed DDL shape from
+  `drizzle/0100_compensation_automation_intents.sql` inside **one atomic
+  DO block on the isolated clone only**, with strict missing-object and
+  parent-PK preflight, a short lock timeout and postflight assertions.
+  Historical `IF NOT EXISTS` guards were deliberately replaced with
+  strict CREATE statements inside the guarded rehearsal block.
+  Source blob: `159ed09ffc1834c15f2d68e9e62bb0348951c165`.
+- Applied the already documented additive
+  `docs/sql/issue-retention-email-change-tokens-additive-candidate.sql`
+  solely to the same isolated clone after read-only table/parent preflight.
+  Source blob: `d7db76224e1511ad353e693961b95b3df652ea07`.
+- Verified the isolated clone reached **150 tables / 413 FKs**, with 15
+  intent columns and three validated intent FKs (including validated
+  event cascade), seven token columns and one validated token FK.
+- Independently rechecked the original recovery branch: **148 tables**.
+  A read-only comparison of table column declarations, defaults,
+  constraints, indexes and RLS flags found exactly two additional tables
+  on the isolated clone and **zero modified or removed shared tables
+  among the original 148**. These fingerprint comparisons do not cover
+  data rows, functions, triggers, privileges or application behavior.
+- No original/production branch DDL, customer-row query, payout operation,
+  government filing, raw schema export or migration-receipt fabrication.
+
+**Residual blocker:** This is a real recovered-state *branch copy* rehearsal
+for two missing objects, not a full actual recovered-schema **sanitized**
+regression. The cloned state still lacks **124 of the 271 source-declared
+tables**, not counting other schema drift. It is not a production-ready
+migration, historical prefix adoption or approval to apply these statements
+to the original branch. Full schema validation, historical DBA sign-off and
+independent employer/payroll acceptance remain mandatory.
