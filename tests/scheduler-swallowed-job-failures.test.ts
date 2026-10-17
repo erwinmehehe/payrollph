@@ -6,6 +6,10 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "../src/db";
 import { organizations, payrollRuns } from "../src/db/schema";
 import { SchedulerJobsIncompleteError, tickScheduler } from "../src/lib/scheduler";
+import { assertIsolatedSchedulerRehearsal } from "./helpers/scheduler-isolated-guard";
+
+const isolatedCiOnly = process.env.CI === "true"
+  ? {} : { skip: "Fault injection requires a disposable PG16 CI database." };
 
 // These fault-injection tests use the same disposable PG fixture as the other
 // scheduler integration tests. They never submit filings, transfer funds, or
@@ -48,7 +52,8 @@ async function expectFailedTick(job: string) {
   assert.equal(lease.rows[0]?.status, "failed", "watchdog must see a failed lease");
 }
 
-test("failed audit sealing is reported, while later compliance work is still attempted", async () => {
+test("failed audit sealing is reported, while later compliance work is still attempted", isolatedCiOnly, async () => {
+  assertIsolatedSchedulerRehearsal(process.env);
   const oldFlag = process.env.AUDIT_ROLE_ISOLATION_PROOF_ENABLED;
   const oldSealer = process.env.AUDIT_SEALER_DATABASE_URL;
   process.env.AUDIT_ROLE_ISOLATION_PROOF_ENABLED = "true";
@@ -70,7 +75,8 @@ test("failed audit sealing is reported, while later compliance work is still att
   }
 });
 
-test("missing compensation outbox schema fails the tick, not a silently successful drain", async () => {
+test("missing compensation outbox schema fails the tick, not a silently successful drain", isolatedCiOnly, async () => {
+  assertIsolatedSchedulerRehearsal(process.env);
   const hidden = "compensation_automation_intents_hidden_for_scheduler_test";
   const exists = await db.execute<{ name: string | null }>(sql`
     SELECT to_regclass('public.compensation_automation_intents')::text AS name
@@ -84,7 +90,8 @@ test("missing compensation outbox schema fails the tick, not a silently successf
   }
 });
 
-test("failed compliance alerts retain their due marker for retry and fail the tick", async () => {
+test("failed compliance alerts retain their due marker for retry and fail the tick", isolatedCiOnly, async () => {
+  assertIsolatedSchedulerRehearsal(process.env);
   const marker = randomUUID().slice(0, 12);
   const [organization] = await db.insert(organizations).values({
     name: "Scheduler alert fault " + marker, legalName: "Scheduler alert fault " + marker,
