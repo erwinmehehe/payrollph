@@ -12,7 +12,7 @@ const fieldClass = "mt-2 w-full min-h-[46px] rounded-xl border border-[#D9DCEC] 
 export function SelfServeSignupForm({ plans, initialPlan }: { plans: PlanView[]; initialPlan?: string }) {
   const sellable = plans.filter((plan) => isSellablePlan(plan.name) && plan.active);
   const [plan, setPlan] = useState<SellablePlan>(
-    isSellablePlan(initialPlan) && sellable.some((row) => row.name === initialPlan) ? initialPlan : "Core",
+    isSellablePlan(initialPlan) && sellable.some((row) => row.name === initialPlan) ? initialPlan : (sellable.find((row) => row.name === "Core")?.name ?? sellable[0]?.name ?? "Core") as SellablePlan,
   );
   const [seats, setSeats] = useState("10");
   const [values, setValues] = useState({ name: "", email: "", company: "", password: "", confirm: "" });
@@ -21,6 +21,11 @@ export function SelfServeSignupForm({ plans, initialPlan }: { plans: PlanView[];
   const [issues, setIssues] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [deliveryConfirmed, setDeliveryConfirmed] = useState(true);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const [resendError, setResendError] = useState("");
 
   const quote = useMemo(() => {
     const selected = sellable.find((row) => row.name === plan);
@@ -61,6 +66,8 @@ export function SelfServeSignupForm({ plans, initialPlan }: { plans: PlanView[];
         setError(body.error || "Registration could not be completed.");
         return;
       }
+      setVerificationEmail(values.email.trim());
+      setDeliveryConfirmed(body.delivery === "accepted_by_provider");
       setSubmitted(true);
       setValues({ name: "", email: "", company: "", password: "", confirm: "" });
     } catch {
@@ -70,14 +77,59 @@ export function SelfServeSignupForm({ plans, initialPlan }: { plans: PlanView[];
     }
   }
 
+  async function resendVerification() {
+    setResendBusy(true);
+    setResendMessage("");
+    setResendError("");
+    try {
+      const response = await fetch("/api/signup/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: verificationEmail }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setResendError(payload.error || "We could not resend the verification email.");
+        return;
+      }
+      // The server gives an identical response whether or not the address exists.
+      setResendMessage(payload.message || "If verification is pending, a new link will be sent.");
+    } catch {
+      setResendError("The email service is unavailable. Please try again later.");
+    } finally {
+      setResendBusy(false);
+    }
+  }
+
+  if (sellable.length === 0) {
+    return (
+      <div className="rounded-[24px] border border-[#D9DCEC] bg-white p-7" role="status">
+        <h2 className="font-display text-[25px] font-semibold">Registration plans are temporarily unavailable</h2>
+        <p className="mt-3 text-sm leading-relaxed text-[#5B6080]">Company account creation cannot proceed without an active plan. You have not been charged.</p>
+        <Link href="/contact" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#0868dc]">Contact our team <ArrowRight size={16} /></Link>
+      </div>
+    );
+  }
+
   if (submitted) {
     return (
       <div className="rounded-[24px] border border-[#d5e7db] bg-[#f2fff6] p-7" role="status">
         <CheckCircle2 size={32} className="text-[#13805c]" />
         <h2 className="mt-3 font-display text-[26px] font-semibold">Check your work email</h2>
         <p className="mt-3 text-[14px] leading-relaxed text-[#42546d]">
-          If the account is eligible, you&#39;ll receive a one-time verification link. Confirm your email and sign in to authorize the monthly subscription. You have not been charged.
+          If the account is eligible, you&#39;ll receive a one-time verification link at <strong>{verificationEmail}</strong>. Confirm your email before signing in to authorize your monthly subscription. You have not been charged.
         </p>
+        {!deliveryConfirmed && (
+          <p className="mt-4 rounded-xl border border-[#FFE2A3] bg-[#FFFBEB] p-3 text-[12px] leading-relaxed text-[#765216]" role="alert">
+            The server could not confirm that the verification email was sent. You can request a new link below. Check your spam folder too.
+          </p>
+        )}
+        <button type="button" onClick={() => void resendVerification()} disabled={resendBusy} className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl border border-[#B8D3F8] px-4 text-[13px] font-semibold text-[#0868dc] disabled:opacity-50">
+          {resendBusy ? "Requesting…" : "Resend verification email"}
+        </button>
+        {resendMessage && <p className="mt-3 text-[12px] text-[#42546d]" role="status">{resendMessage}</p>}
+        {resendError && <p className="mt-3 text-[12px] text-[#9E2239]" role="alert">{resendError}</p>}
+        <p className="mt-3 text-[12px] text-[#6B718C]">Links are valid for one hour. If you already have a verified account, use sign in or password recovery instead.</p>
         <Link href="/login" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#0868dc]">Already verified? Sign in <ArrowRight size={16} /></Link>
       </div>
     );
@@ -86,8 +138,13 @@ export function SelfServeSignupForm({ plans, initialPlan }: { plans: PlanView[];
   return (
     <form onSubmit={(event) => void register(event)} className="rounded-[24px] border border-[#D9DCEC] bg-white p-5 shadow-[0_18px_55px_-38px_rgba(30,34,70,.38)] sm:p-7">
       <span className="text-[11px] font-bold uppercase tracking-[.14em] text-[#0877ff]">Create a company workspace</span>
-      <h2 className="font-display mt-2 text-[27px] font-semibold text-[#11141F]">Choose your monthly plan</h2>
-      <p className="mt-2 text-[13px] leading-relaxed text-[#5B6080]">No sample employees. Your company starts with zero staff and no payroll history.</p>
+      <h2 className="font-display mt-2 text-[27px] font-semibold text-[#11141F]">Create your owner account</h2>
+      <p className="mt-2 text-[13px] leading-relaxed text-[#5B6080]">Choose a plan, set your company details, and verify your work email. Your workspace starts with zero employees and no payroll history.</p>
+      <ol className="mt-5 grid grid-cols-3 gap-2 text-center text-[11px] font-semibold text-[#4B5670]" aria-label="Registration steps">
+        <li className="rounded-lg bg-[#EDF5FF] px-2 py-2">1. Register</li>
+        <li className="rounded-lg bg-[#F3F5F9] px-2 py-2">2. Verify email</li>
+        <li className="rounded-lg bg-[#F3F5F9] px-2 py-2">3. Authorize plan</li>
+      </ol>
       <fieldset className="mt-5 grid gap-2">
         <legend className="mb-2 text-[12px] font-semibold text-[#2B2F45]">Software plan</legend>
         {sellable.map((item) => (
