@@ -103,7 +103,8 @@ test("exactly three old per-file set-state-in-effect allowances disappear withou
   const manifest = JSON.parse(read("eslint-suppressions.json")) as Record<string, Record<string, { count: number }>>;
   for (const path of Object.values(files)) assert.equal(manifest[path], undefined, path);
   const count = Object.values(manifest).reduce((total, rules) => total + (rules["react-hooks/set-state-in-effect"]?.count ?? 0), 0);
-  assert.equal(count, 37);
-  assert.equal(Object.keys(manifest).length, 30);
+  // These are ceilings: subsequent cleanup batches may retire more allowances.
+  assert.ok(count <= 37, `React effect warning debt must not rise above 37 (got ${count})`);
+  assert.ok(Object.keys(manifest).length <= 30, "React effect suppression file debt must not rise above 30");
   assert.ok(read("scripts/check-lint-warning-debt.mjs").includes("warningDebt"));
 });
