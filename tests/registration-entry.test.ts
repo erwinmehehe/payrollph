@@ -21,7 +21,7 @@ test("only one canonical signup destination exists for marketing, trial and regi
 });
 
 test("pilot registration is independently gated by email delivery and HTTPS base URL", () => {
-  const base = { NODE_ENV: "production", APP_BASE_URL: "https://payrollsoftware.ph", RESEND_API_KEY: "test" };
+  const base = { NODE_ENV: "production", APP_BASE_URL: "https://payrollsoftware.ph", RESEND_API_KEY: "test" } as const;
   assert.equal(signupMode({ ...base, PUBLIC_SIGNUP_MODE: "pilot" }), "pilot");
   assert.equal(signupMode({ ...base, PUBLIC_SIGNUP_MODE: "paid" }), "disabled");
   assert.equal(signupMode({ ...base, PUBLIC_SIGNUP_MODE: "unknown" }), "disabled");
