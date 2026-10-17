@@ -34,10 +34,20 @@ export async function POST(request: Request) {
       .where(and(eq(users.id, pending.userId), eq(users.role, "owner")))
       .returning({ id: users.id, name: users.name, email: users.email });
     if (!owner) throw new Error("Owner verification record is invalid.");
-    const [subscription] = await tx.select({ status: subscriptions.status, provider: subscriptions.provider })
+    const [subscription] = await tx.select({ id: subscriptions.id, status: subscriptions.status, provider: subscriptions.provider })
       .from(subscriptions).where(eq(subscriptions.organizationId, pending.organizationId)).limit(1);
     if (!subscription) throw new Error("Company subscription state is missing.");
-    return { ...pending, owner, pilot: subscription.status === "trialing" && subscription.provider === "pilot" };
+    const pilot = subscription.status === "trialing" && subscription.provider === "pilot";
+    if (pilot) {
+      // Count the 14 days from verified activation, not from form submission.
+      // The one-time verification token is already claimed within this same transaction.
+      const activatedAt = new Date();
+      await tx.update(subscriptions).set({
+        periodStart: activatedAt,
+        trialEndsAt: new Date(activatedAt.getTime() + 14 * 86_400_000),
+      }).where(eq(subscriptions.id, subscription.id));
+    }
+    return { ...pending, owner, pilot };
   });
   if (!verified) return Response.json({ error: "Verification link is invalid, expired or already used." }, { status: 422 });
   const session = await createSession(verified.userId, requestMeta(request));
