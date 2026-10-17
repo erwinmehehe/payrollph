@@ -1,0 +1,38 @@
+name: Audit Runtime Identity (Encrypted, Read Only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: payrollph-runtime-db-identity-readonly
+  cancel-in-progress: false
+jobs:
+  capture:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Validate encrypted diagnostic behavior without credentials
+        run: node --test tests/audit-runtime-identity.test.mjs
+      - name: Capture only existing private database-session metadata
+        env:
+          PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
+          AUDIT_EVIDENCE_PUBLIC_KEY_BASE64: ${{ vars.AUDIT_EVIDENCE_PUBLIC_KEY_BASE64 }}
+        run: node scripts/qa/audit-runtime-identity.mjs "$RUNNER_TEMP/audit-runtime-identity.encrypted.json"
+      - name: Retain ciphertext only (no plaintext response or credentials)
+        uses: actions/upload-artifact@v7
+        with:
+          name: audit-runtime-identity-encrypted
+          path: ${{ runner.temp }}/audit-runtime-identity.encrypted.json
+          if-no-files-found: error
+          retention-days: 1
+# No database connection, demo session, business GET, general readiness call,
+# migration, flag activation, grant, role change, sealer run or money operation.
