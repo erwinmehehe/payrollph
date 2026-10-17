@@ -277,6 +277,8 @@ async function baselineProbeAllMethods(f) {
           [400,401,403,404,409,422,503].includes(result.status),
           "Invalid/unauthenticated " + key + " unexpectedly succeeded: HTTP " + result.status,
         );
+        assert.ok(result.json && typeof result.json === "object",
+          "Invalid/unauthenticated " + key + " must return handler JSON, not an unrouted 404 page");
         assertions++;
       }
       probed++;
