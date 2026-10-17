@@ -156,8 +156,14 @@ function ScopedHcmEmploymentLifecycleActionCenter({
   }, [selection]);
 
   useEffect(() => {
-    void load();
-    return () => activeRequest.current?.abort();
+    let retired = false;
+    // Keep initial state updates outside the synchronous effect phase and
+    // suppress Strict Mode's retired first setup.
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      activeRequest.current?.abort();
+    };
   }, [load]);
 
   const actionable = payload?.rows.filter((row) =>
