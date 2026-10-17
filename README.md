@@ -407,6 +407,12 @@ Set the environment variables before the first deploy, not after:
 | `TOTP_ENCRYPTION_KEY` | exactly 32 bytes, encoded as 64 hex characters or base64 |
 | `BANK_DATA_ENCRYPTION_KEY` | optional dedicated 32-byte override for AES-256-GCM employee bank-account encryption; when absent, Linaw derives a domain-separated bank-data key from the required `TOTP_ENCRYPTION_KEY` |
 | `PII_ENCRYPTION_KEY` | exactly 32 bytes, as 64 hex characters or base64; **required** to store employee and contractor government identifiers (TIN, SSS, PhilHealth, Pag-IBIG). Those writes fail closed without it, and there is no fallback to `TOTP_ENCRYPTION_KEY`. During rotation, keep the old key in `PII_ENCRYPTION_KEY_PREVIOUS` |
+| `BANK_DATA_ENCRYPTION_KEY_PREVIOUS`, `TOTP_ENCRYPTION_KEY_PREVIOUS` | rotation only: the previous key, so existing encrypted values stay readable until a rewrap finishes; remove afterwards |
+| `DOCUMENT_OBJECT_STORAGE_ENDPOINT`, `DOCUMENT_OBJECT_STORAGE_BUCKET`, `DOCUMENT_OBJECT_STORAGE_REGION`, `DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID`, `DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY` | **required** for private document uploads (`DOCUMENT_UPLOADS_ENABLED`): a private S3-compatible bucket. No fallback storage; uploads fail with "not configured" if any is missing. HTTPS only |
+| `PUBLIC_INTAKE_PROOF_SECRET` | at least 32 characters; signs the public intake proof (`/api/intake-challenge`), which fails closed without it. See `docs/security/public-intake-proof-rollout.md` |
+| `PUNCH_DEVICE_HASH_KEY` | at least 32 characters; peppers the web-bundy device hash. The opt-in evidence capture throws without it |
+| `HEALTH_TOKEN` | monitoring token sent as `x-health-token`. `/api/readiness/billing` returns 404 without it; `/api/health` falls back to `WORKER_TOKEN` |
+| `HCM_SLA_CRON_SECRET` | bearer secret for the HCM work-item SLA scheduler; the endpoint returns 503 without it. See `docs/HCM_WORK_ITEM_SLA.md` |
 | `MALWARE_SCAN_URL` | HTTPS scanner endpoint, for example the Railway ClamAV service |
 | `MALWARE_SCAN_TOKEN` | strong random bearer secret shared only with the scanner |
 | `PG_POOL_MAX` | a low number on serverless, where each instance opens its own pool |
