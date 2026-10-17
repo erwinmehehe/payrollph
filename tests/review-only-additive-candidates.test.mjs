@@ -14,7 +14,7 @@ for (const [file, codes] of Object.entries(CANDIDATES)) {
     assert.match(sql, /Do NOT execute against\s+-- production/);
     assert.equal((sql.match(/^DO \$/gm) ?? []).length, 1, "one atomic DO block");
     for (const code of codes) assert.ok(sql.includes(code), code);
-    const code = sql.replace(/--.*$/gm, "").replace(/ON DELETE w+/gi, "");
+    const code = sql.replace(/--.*$/gm, "").replace(/ON DELETE [A-Za-z]+/gi, "");
     assert.doesNotMatch(code, /\b(DROP|DELETE|TRUNCATE|UPDATE|INSERT)\b/i, "no destructive or DML statements");
     assert.doesNotMatch(code, /IF NOT EXISTS/i, "an existing object must fail closed, not no-op");
   });
