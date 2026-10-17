@@ -55,7 +55,7 @@ test("verified demo fixtures receive idempotent, tenant-scoped primary legal emp
     .where(eq(payrollRuns.organizationId, loom.id));
   assert.equal(fictionalRuns.length, 3, "expected two populated test runs and an empty draft");
   const toCentavos = (amount: string) => {
-    assert.match(amount, /^\\d+\\.\\d{2}$/, "PostgreSQL money fixture must have two decimal places");
+    assert.match(amount, /^[0-9]+[.][0-9]{2}$/, "PostgreSQL money fixture must have two decimal places");
     return BigInt(amount.replace(".", ""));
   };
   for (const run of fictionalRuns) {
