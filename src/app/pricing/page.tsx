@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Calculator, Check, ShieldCheck } from "lucide-react";
 import { getPublicPricingPlans } from "@/lib/pricing-catalog";
-import { publicSelfServeReady } from "@/lib/saas-launch-config";
+import { signupMode } from "@/lib/saas-launch-config";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { StructuredData } from "@/components/marketing/structured-data";
 
@@ -27,7 +27,7 @@ const faq = [
   {
     question: "Can I try Linaw before moving real payroll data?",
     answer:
-      "Yes. The public role-based demo uses sample data, and dedicated trial workspaces are provisioned through controlled access so you can evaluate the workflow before uploading production payroll information.",
+      "The public demo uses sample data. When pilot registration is open, new companies can create one time-limited evaluation workspace after email verification. Pilot workspaces must only contain fictional/test data.",
   },
   {
     question: "Which plan should a growing payroll team choose?",
@@ -69,13 +69,14 @@ function planModules(value: unknown) {
 
 export const metadata: Metadata = {
   title: "Payroll Software Pricing Philippines | Plans & Costs | Linaw",
-  description: "See Linaw payroll software pricing for Philippine businesses, with current plan details, controlled trial access, live demo options and payroll outsourcing.",
+  description: "See Linaw payroll software pricing for Philippine businesses, with current plan details, development pilot registration, live demo options and payroll outsourcing.",
   alternates: { canonical: "/pricing" },
 };
 
 export default async function PricingPage() {
   const plans = await getPublicPricingPlans();
-  const selfServeOpen = publicSelfServeReady();
+  const registration = signupMode();
+  const paidSignup = registration === "paid";
 
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
@@ -114,8 +115,8 @@ export default async function PricingPage() {
                 per-employee amount, included modules and the operating model each plan is designed to support.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
-                <Link href={selfServeOpen ? "/signup?plan=Core" : "/trial"} className="rounded-full bg-[#0877ff] px-6 py-3.5 text-[14px] font-semibold text-white">
-                  {selfServeOpen ? "Choose a plan & subscribe" : "Request trial access"}
+                <Link href={paidSignup ? "/signup?plan=Core" : "/signup"} className="rounded-full bg-[#0877ff] px-6 py-3.5 text-[14px] font-semibold text-white">
+                  {paidSignup ? "Choose a plan & subscribe" : registration === "pilot" ? "Create a pilot account" : "Company registration"}
                 </Link>
                 <Link
                   href="/demo"
@@ -201,7 +202,7 @@ export default async function PricingPage() {
                     ) : null}
 
                     <p className="mt-5 text-[12px] leading-relaxed text-[#6B718C]">{positioning.note}</p>
-                    {selfServeOpen && plan.name !== "Solo" && (
+                    {paidSignup && plan.name !== "Solo" && (
                       <Link href={"/signup?plan=" + encodeURIComponent(plan.name)}
                         className="mt-4 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-[#0877ff] px-4 text-sm font-semibold text-white">
                         Subscribe to {plan.name} <ArrowRight size={16} />
@@ -270,15 +271,15 @@ export default async function PricingPage() {
               <div>
                 <h2 className="font-display text-[24px] font-semibold">See the workflow before choosing a plan.</h2>
                 <p className="mt-2 max-w-[620px] text-[13.5px] leading-relaxed text-white/60">
-                  Start with the sample-data demo, then request a controlled workspace if you want to evaluate your own operating model.
+                  Start with the sample-data demo, then register your company through the single signup page when pilot registration is available.
                 </p>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2.5">
                 <Link href="/demo" className="linaw-light-button rounded-full bg-white px-5 py-3 text-[13.5px] font-semibold text-[#11141F]">
                   Try live demo
                 </Link>
-                <Link href="/trial" className="rounded-full border border-white/20 bg-white/10 px-5 py-3 text-[13.5px] font-semibold text-white">
-                  Request trial
+                <Link href="/signup" className="rounded-full border border-white/20 bg-white/10 px-5 py-3 text-[13.5px] font-semibold text-white">
+                  Create company account
                 </Link>
               </div>
             </div>
