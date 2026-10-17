@@ -25,7 +25,6 @@ jobs:
       XENDIT_PAYOUTS_ENABLED: 'false'
       RESTORE_CONTROL_MODE: disposable-pg16-only
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
-      PG_CONTAINER: '${{ job.services.postgres.id }}'
       SHARD_INDEX: '${{ matrix.shard }}'
     services:
       postgres:
@@ -66,6 +65,8 @@ jobs:
         run: node scripts/qa/apply-audit-0109-isolated.mjs
       - name: Run entire shard on clean DB, restore into app_db, run same shard again
         shell: bash
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
           if [[ "$CI" != true || "$GITHUB_ACTIONS" != true ||
