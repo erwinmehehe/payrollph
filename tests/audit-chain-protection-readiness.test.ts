@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { AUDIT_CHAIN_PROOF_KEYS, auditChainProtectionProven } from "../src/lib/audit-chain-protection-readiness";
+import { AUDIT_CHAIN_PROOF_KEYS, auditChainProtectionProven } from "../src/lib/audit-role-proof";
 
 const passedProof = () => Object.fromEntries(AUDIT_CHAIN_PROOF_KEYS.map(key => [key, true]));
 
@@ -30,9 +30,6 @@ test("readiness and rollout both fail closed on unverified audit database protec
   assert.match(route, /blocks: auditChainProtectionReady \? "none" : "launch"/);
   assert.match(pilot, /"audit-chain-protection"/);
   assert.match(rollout, /"audit-chain-protection"/);
-  assert.match(probe, /pg_catalog\.pg_trigger/);
-  assert.match(probe, /runtimeAuditMutationDenied/);
-  assert.match(probe, /runtimeHeadMutationDenied/);
-  assert.match(probe, /runtimeNoDdlPrivileges/);
+  assert.match(probe, /executeAuditRoleProof/);
   assert.doesNotMatch(probe, /\b(?:INSERT|UPDATE|DELETE|ALTER|DROP|CREATE)\s+(?:TABLE|TRIGGER|FUNCTION|INTO|audit_events)\b/i);
 });

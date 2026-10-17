@@ -16,6 +16,27 @@ const roles = [...new Set([
 ])].filter((role) => role !== "group_hr"); // default-off multi-entity-only role
 
 const knownPages = new Set(NAVIGATION.flatMap((group) => group.items.map((item) => item.name)));
+// Static shell contract: a menu entry is not implemented just because it exists
+// in the nav model. Every reachable key must render a real workspace page.
+// Keep this derived from the actual JSX rather than a second hand-maintained map.
+const workspaceSource = readFileSync("src/components/linaw-workspace.tsx", "utf8");
+const renderedPages = new Set([...workspaceSource.matchAll(/\bpage === "([^"]+)"/g)]
+  .map((match) => match[1]));
+for (const page of knownPages) {
+  assert.ok(renderedPages.has(page), "Navigation key has no workspace page renderer: " + page);
+}
+// Primary tabs can reorder only authorized destinations. This catches stale
+// role menus without granting access to the missing destination.
+for (const [role, primaryPages] of Object.entries(ROLE_PRIMARY_PAGES)) {
+  if (!primaryPages) continue;
+  const allowed = workspacePagesForRole(role);
+  for (const page of primaryPages) {
+    assert.ok(knownPages.has(page), "Unknown primary navigation key: " + role + "/" + page);
+    if (allowed) {
+      assert.ok(allowed.includes(page), "Primary tab outside role scope: " + role + "/" + page);
+    }
+  }
+}
 const records = roles.map((role) => {
   const pages = role === "employee"
     ? employeeNavigationTabs(false).allTabs.map((tab) => "employee-" + tab)
@@ -63,6 +84,8 @@ const manifest = {
     "src/lib/roles.ts", "src/lib/employee-navigation.ts"],
   excludedRoles: [{ role: "group_hr", reason: "Default-off multi-entity capability" }],
   navItemCount: knownPages.size,
+  renderedPageCount: renderedPages.size,
+  primaryRoleContractChecked: Object.keys(ROLE_PRIMARY_PAGES).length,
   roles: records,
   errorEmitters,
 };

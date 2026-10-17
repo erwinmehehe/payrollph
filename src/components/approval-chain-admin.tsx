@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GitBranch, Plus, RefreshCw, Save, ShieldCheck, Trash2 } from "lucide-react";
 
 type ChainStep = {
@@ -45,15 +45,22 @@ function normalizedSteps(value: unknown): ChainStep[] {
   });
 }
 
-export function ApprovalChainAdmin({
-  organizationId,
-  setNotice,
-  onChanged,
-}: {
+type ApprovalChainAdminProps = {
   organizationId: number;
   setNotice: (message: string) => void;
   onChanged?: () => void | Promise<void>;
-}) {
+};
+
+// Key all approval policy data and unsaved editor state to the visible employer.
+export function ApprovalChainAdmin(props: ApprovalChainAdminProps) {
+  return <ApprovalChainAdminContent key={props.organizationId} {...props} />;
+}
+
+function ApprovalChainAdminContent({
+  organizationId,
+  setNotice,
+  onChanged,
+}: ApprovalChainAdminProps) {
   const [policies, setPolicies] = useState<ChainPolicy[]>([]);
   const [dynamicGroups, setDynamicGroups] = useState<Array<{ id: number; code: string; name: string; version: number }>>([]);
   const [loading, setLoading] = useState(true);
@@ -70,12 +77,26 @@ export function ApprovalChainAdmin({
   const [steps, setSteps] = useState<ChainStep[]>([
     { label: "Primary approval", approver: "People Ops", dueLabel: "Review required", priority: "Normal", minimumAmount: 0 },
   ]);
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
 
+  // Refresh and post-mutation reads share one owner: older responses cannot
+  // replace newer approval-chain evidence or announce stale errors.
   const load = useCallback(async () => {
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () => mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
     setLoading(true);
     try {
-      const response = await fetch(`/api/approval-chains?organizationId=${organizationId}`, { cache: "no-store" });
+      const response = await fetch(`/api/approval-chains?organizationId=${organizationId}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not load approval chains.");
       setPolicies(Array.isArray(payload.policies) ? payload.policies : []);
       setDynamicGroups(Array.isArray(payload.dynamicGroups) ? payload.dynamicGroups : []);
@@ -84,13 +105,24 @@ export function ApprovalChainAdmin({
         ? payload.heldEscalationInstances : []);
       setRecoveryInventoryLimited(payload.recoveryInventoryLimited === true);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not load approval chains.");
+      if (isCurrent()) setNotice(error instanceof Error ? error.message : "Could not load approval chains.");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [organizationId, setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    // The initial read starts outside the synchronous effect phase.
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
+  }, [load]);
 
   function reset() {
     setEditingId(null);
@@ -135,15 +167,16 @@ export function ApprovalChainAdmin({
         }),
       });
       const payload = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not save approval chain.");
       setNotice(`${payload.name} saved as approval-chain version ${payload.version}.`);
       reset();
       await load();
-      await onChanged?.();
+      if (mountedRef.current) await onChanged?.();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not save approval chain.");
+      if (mountedRef.current) setNotice(error instanceof Error ? error.message : "Could not save approval chain.");
     } finally {
-      setSaving(false);
+      if (mountedRef.current) setSaving(false);
     }
   }
 
@@ -160,12 +193,14 @@ export function ApprovalChainAdmin({
         }),
       });
       const payload = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not update approval chain.");
       await load();
+      if (!mountedRef.current) return;
       await onChanged?.();
-      setNotice(`${policy.name} ${active ? "enabled" : "disabled"}.`);
+      if (mountedRef.current) setNotice(`${policy.name} ${active ? "enabled" : "disabled"}.`);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not update approval chain.");
+      if (mountedRef.current) setNotice(error instanceof Error ? error.message : "Could not update approval chain.");
     }
   }
 

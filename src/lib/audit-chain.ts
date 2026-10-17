@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { Client } from "pg";
+import { dispatchAuditSealing } from "./audit-sealer-connection";
 
 export const AUDIT_CHAIN_GENESIS_HASH = "0".repeat(64);
 
@@ -70,8 +72,10 @@ export function evaluateAuditChain(rows: AuditChainRow[]): AuditChainReport {
  * holds the lock, so it is safe to call from the scheduler and the verifier.
  */
 export async function sealAuditEvents(maxRows = 500): Promise<number> {
-  const result = await db.execute(sql`SELECT seal_audit_events(${maxRows}) AS sealed`);
-  return Number((result.rows[0] as { sealed?: unknown } | undefined)?.sealed ?? 0);
+  return dispatchAuditSealing(async () => {
+    const result = await db.execute(sql`SELECT seal_audit_events(${maxRows}) AS sealed`);
+    return Number((result.rows[0] as { sealed?: unknown } | undefined)?.sealed ?? 0);
+  }, (config) => new Client(config), maxRows);
 }
 
 export async function verifyAuditChain(organizationId: number): Promise<AuditChainReport> {
