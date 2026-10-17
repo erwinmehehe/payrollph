@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { generateSchemaManifest } from "../lib/issue-1031-schema-manifest";
@@ -15,6 +15,41 @@ export type CatalogInventory = {
   rowDataIncluded: false; schemaOnlyArchiveIncluded: false;
   fullSchemaEquivalenceVerified: false; tables: string[];
 };
+
+
+/** Historical SQL mentions are candidate creators, NOT evidence of application. */
+function historicalCreatorCandidates(missing: string[]) {
+  const root = resolve(process.cwd(), "drizzle");
+  const files = readdirSync(root).filter(name =>
+    /^\d{4}_.+\.sql$/.test(name) || name === "baseline.sql"
+  ).sort();
+  if (files.length < 100) throw new Error("HISTORICAL_MIGRATION_FILES_MISSING");
+  const missingSet = new Set(missing);
+  const creators = new Map<string, string[]>();
+  const pattern = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?public"?\.)?"?([A-Za-z0-9_]+)"?\s*\(/gi;
+  for (const file of files) {
+    const sql = readFileSync(resolve(root, file), "utf8").replace(/--.*$/gm, "");
+    for (const match of sql.matchAll(pattern)) {
+      const table = match[1]?.toLowerCase();
+      if (!table || !missingSet.has(table)) continue;
+      const list = creators.get(table) ?? [];
+      list.push("drizzle/" + file);
+      creators.set(table, list);
+    }
+  }
+  const withCreator = missing.filter(name => creators.has(name));
+  const withoutCreator = missing.filter(name => !creators.has(name));
+  return {
+    evidenceScope: "HISTORICAL_SQL_CREATE_TABLE_MENTION_NOT_APPLIED_RECEIPT",
+    historicalFilesScanned: files.length,
+    missingWithHistoricalCreator: withCreator,
+    missingWithoutHistoricalCreator: withoutCreator,
+    historicalFileCandidatesByTable: Object.fromEntries(
+      withCreator.map(name => [name, [...new Set(creators.get(name)!)].sort()])
+    ),
+    appliedMigrationsVerified: false,
+  };
+}
 
 export function planRecoveredSchema(catalog: CatalogInventory, schema: SchemaManifest) {
   if (catalog.formatVersion !== 1 || catalog.evidenceScope !== RECOVERY_SCOPE
@@ -80,6 +115,7 @@ export function planRecoveredSchema(catalog: CatalogInventory, schema: SchemaMan
       missingDeclaredTables: missing.length,
       extraLegacyTables: extra.length,
     },
+    historicalCreatorCoverage: historicalCreatorCandidates(missing),
     missingDeclaredTables: missing,
     extraLegacyTables: extra,
     prerequisitePhases: phases,

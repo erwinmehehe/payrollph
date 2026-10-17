@@ -17,6 +17,15 @@ test("observed inventory is incomplete and MUST NOT certify release", () => {
     extraLegacyTables: 3,
   });
   assert.equal(report.missingCompensationAutomationIntents, true);
+  assert.equal(report.historicalCreatorCoverage.evidenceScope,
+    "HISTORICAL_SQL_CREATE_TABLE_MENTION_NOT_APPLIED_RECEIPT");
+  assert.equal(report.historicalCreatorCoverage.missingWithoutHistoricalCreator.length, 24);
+  assert.equal(report.historicalCreatorCoverage.missingWithHistoricalCreator.length, 102);
+  assert.ok(report.historicalCreatorCoverage.missingWithoutHistoricalCreator.includes("email_change_tokens"));
+  assert.ok(report.historicalCreatorCoverage.missingWithHistoricalCreator.includes("compensation_automation_intents"));
+  assert.ok(report.historicalCreatorCoverage.historicalFileCandidatesByTable["compensation_automation_intents"]
+    ?.includes("drizzle/0100_compensation_automation_intents.sql"));
+  assert.equal(report.historicalCreatorCoverage.appliedMigrationsVerified, false);
   for (const name of ["email_change_tokens", "payout_batches", "attendance_exception_events"]) {
     assert.ok(report.missingDeclaredTables.includes(name));
   }
