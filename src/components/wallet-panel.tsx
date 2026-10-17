@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Banknote, CheckCircle2, Plus, ReceiptText, X } from "lucide-react";
 import { visibleScopedEmployeeDirectory, type ScopedEmployeeDirectory } from "@/lib/scoped-employee-directory";
+import { expenseClaimDecisionNotice } from "@/lib/expense-claim-communication";
 
 type Employee = { id: number; firstName: string; lastName: string };
 
@@ -133,7 +134,7 @@ export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = f
     });
     const data = await res.json();
     if (!res.ok) return setNotice(data.error ?? "Could not update claim.");
-    setNotice(`Claim ${status}. Approved claims reimburse on the next payroll run.`);
+    setNotice(expenseClaimDecisionNotice(status));
     await load();
     } catch { setNotice("The decision response was not received. Refresh the claim before retrying."); }
     finally { setDecisionBusy(null); }
@@ -161,7 +162,7 @@ export function ExpensesPanel({ organizationId, setNotice, reviewModeEnabled = f
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
         <div className="stat-card"><div className="stat-icon mint"><ReceiptText size={18} /></div><p>TOTAL CLAIMS</p><h3>{displayClaims.length}</h3><span>submitted</span></div>
         <div className="stat-card"><div className="stat-icon amber"><ReceiptText size={18} /></div><p>AWAITING REVIEW</p><h3>{displayClaims.filter((c) => c.status === "pending").length}</h3><span>pending approval</span></div>
-        <div className="stat-card"><div className="stat-icon blue"><ReceiptText size={18} /></div><p>TO REIMBURSE</p><h3>{peso(pendingTotal)}</h3><span>approved, unpaid</span></div>
+        <div className="stat-card"><div className="stat-icon blue"><ReceiptText size={18} /></div><p>{reviewMode ? "APPROVED / UNPAID" : "TO REIMBURSE"}</p><h3>{peso(pendingTotal)}</h3><span>approved, unpaid</span></div>
       </div>
 
       {open && (
