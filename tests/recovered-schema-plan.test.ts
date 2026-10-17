@@ -59,7 +59,7 @@ test("fail closed on duplicate, incomplete or overclaimed catalog", () => {
   }, source), /DUPLICATED/);
   assert.throws(() => planRecoveredSchema({
     ...baseline, fullSchemaEquivalenceVerified: true,
-  } as CatalogInventory, source), /OVERCLAIMED/);
+  } as unknown as CatalogInventory, source), /OVERCLAIMED/);
 });
 
 test("even same-table-count source changes require a new catalog capture", () => {
