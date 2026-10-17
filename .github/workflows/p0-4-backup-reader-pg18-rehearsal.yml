@@ -1,0 +1,61 @@
+name: P0-4 Backup Reader Privilege Rehearsal (Synthetic PG18)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/sql/p0-4-proposed-backup-reader-bootstrap.sql"
+      - "tests/p0-4-backup-reader-postgres18.test.mjs"
+      - ".github/workflows/p0-4-backup-reader-pg18-rehearsal.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/sql/p0-4-proposed-backup-reader-bootstrap.sql"
+      - "tests/p0-4-backup-reader-postgres18.test.mjs"
+      - ".github/workflows/p0-4-backup-reader-pg18-rehearsal.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-postgres18-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CI: "true"
+      P0_4_BACKUP_READER_REHEARSAL_MODE: isolated-synthetic-pg18
+      BACKUP_READER_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/neondb
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: neondb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d neondb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout reviewed source without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Check syntax of isolated PostgreSQL privilege test
+        run: node --check tests/p0-4-backup-reader-postgres18.test.mjs
+      - name: Run synthetic empty-fixture PostgreSQL 18 permission and rollback test
+        run: node --test tests/p0-4-backup-reader-postgres18.test.mjs
+
+# CI only: no Neon connection, AWS, external storage, credentials, real
+# payroll records, production ALTER ROLE, migration ledger or releases.
+# Test simulates Neon session GUC values on local postgres:18; this is NOT
+# an authentic Neon identity, backup, independently restored archive, or GO.
