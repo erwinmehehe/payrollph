@@ -249,7 +249,7 @@ export function SelfServeSignupForm({ mode, plans, initialPlan, privateInviteEna
             {emailDeliveryAvailable ? " Leave this blank to use ordinary email verification." : ""}
           </span>
         </label>
-      )>
+      )}
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <label className="text-[12px] font-semibold">Create password
           <input className={fieldClass} type="password" value={values.password} onChange={(event) => set("password", event.target.value)} autoComplete="new-password" minLength={12} maxLength={256} required />
