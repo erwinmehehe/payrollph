@@ -1,4 +1,5 @@
 import { constants, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -42,3 +43,13 @@ export const noFollowSkip =
   noFollowAvailable || process.env.CI === "true"
     ? false
     : "this platform has no O_NOFOLLOW (Windows), so the reviewed migration runner refuses to read SQL here by design; runs in CI";
+
+// Several workflow-contract tests run the repo's real bash scripts, which pipe
+// API responses through `jq`. It is preinstalled on GitHub runners and absent on
+// a default Windows machine. Same CI rule: never skipped in CI.
+export const jqAvailable = spawnSync("jq", ["--version"], { stdio: "ignore" }).status === 0;
+
+export const jqSkip =
+  jqAvailable || process.env.CI === "true"
+    ? false
+    : "jq is not installed here (preinstalled on GitHub runners); runs in CI";

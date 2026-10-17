@@ -174,7 +174,7 @@ test("fails closed when an unauthorized response includes planning records", { s
   assert.match(result.stdout, /denied response shape invalid/);
 });
 
-test("refuses a demo session not explicitly marked fictional and redacted", { skip: bashJqSkip }, (t) => {
+test("refuses a demo session not explicitly marked fictional and redacted", (t) => {
   const f = fixture(t, "owner");
   writeFileSync(join(f.work, "demo-switch.json"), JSON.stringify({
     ok: true, organizationId: 777, user: { role: "owner" },

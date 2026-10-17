@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, BookOpenCheck, CheckCircle2, LockKeyhole, Plus, RefreshCw, ShieldCheck } from "lucide-react";
 
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null };
@@ -39,15 +39,22 @@ type Governance = {
   reminderSummary: { open: number; overdue: number; escalated: number; resolved: number };
 };
 
-export function PerformanceFollowThroughPanel({
-  organizationId,
-  canGovern,
-  setNotice,
-}: {
+type PerformanceFollowThroughProps = {
   organizationId: number;
   canGovern: boolean;
   setNotice: (message: string) => void;
-}) {
+};
+
+// Both tenant selection and lost governance access invalidate evidence-policy drafts.
+export function PerformanceFollowThroughPanel(props: PerformanceFollowThroughProps) {
+  return <PerformanceFollowThroughContent key={props.organizationId + ":" + String(props.canGovern)} {...props} />;
+}
+
+function PerformanceFollowThroughContent({
+  organizationId,
+  canGovern,
+  setNotice,
+}: PerformanceFollowThroughProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -68,47 +75,84 @@ export function PerformanceFollowThroughPanel({
   const [sealNotes, setSealNotes] = useState<Record<number, string>>({});
   const [amendmentDetail, setAmendmentDetail] = useState<Record<number, string>>({});
 
+  const mountedRef = useRef(false);
+  const requestRevisionRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const announce = useCallback((message: string) => {
+    if (mountedRef.current) setNotice(message);
+  }, [setNotice]);
+
   const load = useCallback(async () => {
-    const developmentRequest = fetch("/api/performance/development-plans?organizationId=" + organizationId, { cache: "no-store" });
-    const governanceRequest = canGovern
-      ? fetch("/api/performance/follow-through-governance?organizationId=" + organizationId, { cache: "no-store" })
-      : Promise.resolve(null);
-
-    const [developmentResponse, governanceResponse] = await Promise.all([developmentRequest, governanceRequest]);
-    const development = await developmentResponse.json().catch(() => ({}));
-    if (!developmentResponse.ok) {
-      setNotice(development.error ?? "Could not load skill development plans.");
-      return;
-    }
-    setEmployees(development.employees ?? []);
-    setSkills(development.skills ?? []);
-    setPlans(development.plans ?? []);
-
-    if (governanceResponse) {
-      const payload = await governanceResponse.json().catch(() => ({}));
-      if (!governanceResponse.ok) {
-        setNotice(payload.error ?? "Could not load performance follow-through governance.");
+    if (!mountedRef.current) return;
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    const revision = ++requestRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === requestRevisionRef.current;
+    try {
+      const [developmentResponse, governanceResponse] = await Promise.all([
+        fetch("/api/performance/development-plans?organizationId=" + organizationId, {
+          cache: "no-store", signal: controller.signal,
+        }),
+        canGovern
+          ? fetch("/api/performance/follow-through-governance?organizationId=" + organizationId, {
+              cache: "no-store", signal: controller.signal,
+            })
+          : Promise.resolve(null),
+      ]);
+      const [development, governancePayload] = await Promise.all([
+        developmentResponse.json().catch(() => ({})),
+        governanceResponse ? governanceResponse.json().catch(() => ({})) : Promise.resolve(null),
+      ]);
+      if (!isCurrent()) return;
+      if (!developmentResponse.ok) {
+        announce(development.error ?? "Could not load skill development plans.");
         return;
       }
-      setGovernance(payload);
-      const reminder = payload.reminderPolicy as ReminderPolicy;
-      setReminderForm({
-        enabled: reminder.enabled,
-        reminderDaysBefore: String(reminder.reminderDaysBefore),
-        escalationDaysOverdue: String(reminder.escalationDaysOverdue),
-        notifyManagerOnEmployeeItem: reminder.notifyManagerOnEmployeeItem,
-        notifyPeopleAdminOnEscalation: reminder.notifyPeopleAdminOnEscalation,
-      });
-      const evidence = payload.evidencePolicy as EvidencePolicy;
-      setEvidenceForm({
-        retentionYears: String(evidence.retentionYears),
-        autoSealCompletedCycles: evidence.autoSealCompletedCycles,
-        allowPostSealAmendments: evidence.allowPostSealAmendments,
-      });
+      if (governanceResponse && !governanceResponse.ok) {
+        announce(governancePayload?.error ?? "Could not load performance follow-through governance.");
+        return;
+      }
+      // Treat both scoped endpoints as one response generation; never mix an old
+      // employee's plans with the next organization's governance or evidence.
+      setEmployees(development.employees ?? []);
+      setSkills(development.skills ?? []);
+      setPlans(development.plans ?? []);
+      if (governancePayload) {
+        setGovernance(governancePayload);
+        const reminder = governancePayload.reminderPolicy as ReminderPolicy;
+        setReminderForm({
+          enabled: reminder.enabled,
+          reminderDaysBefore: String(reminder.reminderDaysBefore),
+          escalationDaysOverdue: String(reminder.escalationDaysOverdue),
+          notifyManagerOnEmployeeItem: reminder.notifyManagerOnEmployeeItem,
+          notifyPeopleAdminOnEscalation: reminder.notifyPeopleAdminOnEscalation,
+        });
+        const evidence = governancePayload.evidencePolicy as EvidencePolicy;
+        setEvidenceForm({
+          retentionYears: String(evidence.retentionYears),
+          autoSealCompletedCycles: evidence.autoSealCompletedCycles,
+          allowPostSealAmendments: evidence.allowPostSealAmendments,
+        });
+      }
+    } catch (error) {
+      if (isCurrent()) announce(error instanceof Error ? error.message : "Could not load performance follow-through governance.");
     }
-  }, [organizationId, canGovern, setNotice]);
+  }, [organizationId, canGovern, announce]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    // Defer the initial stateful fetch and ignore retired Strict Mode setups.
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      requestRevisionRef.current += 1;
+      requestControllerRef.current?.abort();
+    };
+  }, [load]);
 
   const employeeById = useMemo(() => new Map(employees.map((employee) => [employee.id, employee])), [employees]);
   const skillById = useMemo(() => new Map(skills.map((skill) => [skill.id, skill])), [skills]);
@@ -132,14 +176,15 @@ export function PerformanceFollowThroughPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not create development plan.");
+      announce(payload.error ?? "Could not create development plan.");
       return;
     }
     setPlanForm({ employeeId: "", skillId: "", title: "", objective: "", targetProficiency: "3", targetDate: "" });
     setShowPlan(false);
     await load();
-    setNotice("Skill development plan created from verified persistent-gap evidence.");
+    announce("Skill development plan created from verified persistent-gap evidence.");
   }
 
   async function addMilestone(plan: Plan) {
@@ -150,13 +195,14 @@ export function PerformanceFollowThroughPanel({
       body: JSON.stringify({ organizationId, entityType: "milestone", planId: plan.id, ...draft }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not add development milestone.");
+      announce(payload.error ?? "Could not add development milestone.");
       return;
     }
     setMilestoneDrafts((current) => ({ ...current, [plan.id]: { title: "", dueDate: "" } }));
     await load();
-    setNotice("Development milestone added.");
+    announce("Development milestone added.");
   }
 
   async function updatePlan(plan: Plan, status: Plan["status"]) {
@@ -168,12 +214,13 @@ export function PerformanceFollowThroughPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not update development plan.");
+      announce(payload.error ?? "Could not update development plan.");
       return;
     }
     await load();
-    setNotice("Development plan status updated.");
+    announce("Development plan status updated.");
   }
 
   async function updateMilestone(milestone: Milestone, status: Milestone["status"]) {
@@ -183,12 +230,13 @@ export function PerformanceFollowThroughPanel({
       body: JSON.stringify({ organizationId, entityType: "milestone", id: milestone.id, status }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (!mountedRef.current) return;
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not update development milestone.");
+      announce(payload.error ?? "Could not update development milestone.");
       return;
     }
     await load();
-    setNotice("Development milestone updated.");
+    announce("Development milestone updated.");
   }
 
   async function saveReminderPolicy(event: React.FormEvent) {
@@ -207,9 +255,10 @@ export function PerformanceFollowThroughPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) return setNotice(payload.error ?? "Could not save action reminder policy.");
+    if (!mountedRef.current) return;
+    if (!response.ok) return announce(payload.error ?? "Could not save action reminder policy.");
     await load();
-    setNotice("1:1 action reminder policy version updated.");
+    announce("1:1 action reminder policy version updated.");
   }
 
   async function saveEvidencePolicy(event: React.FormEvent) {
@@ -226,9 +275,10 @@ export function PerformanceFollowThroughPanel({
       }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) return setNotice(payload.error ?? "Could not save evidence policy.");
+    if (!mountedRef.current) return;
+    if (!response.ok) return announce(payload.error ?? "Could not save evidence policy.");
     await load();
-    setNotice("Performance evidence retention policy version updated.");
+    announce("Performance evidence retention policy version updated.");
   }
 
   async function evidenceAction(cycleId: number, action: "seal_cycle" | "verify_cycle" | "legal_hold" | "amend_seal", extra: Record<string, unknown> = {}) {
@@ -238,9 +288,10 @@ export function PerformanceFollowThroughPanel({
       body: JSON.stringify({ organizationId, cycleId, action, ...extra }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) return setNotice(payload.error ?? "Could not complete performance evidence action.");
+    if (!mountedRef.current) return;
+    if (!response.ok) return announce(payload.error ?? "Could not complete performance evidence action.");
     await load();
-    setNotice(
+    announce(
       action === "verify_cycle" ? "Performance evidence seal verified."
         : action === "seal_cycle" ? "Performance cycle evidence sealed."
           : action === "amend_seal" ? "Tamper-evident amendment appended to the seal."
