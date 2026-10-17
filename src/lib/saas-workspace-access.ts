@@ -49,6 +49,13 @@ export async function requireSaasPaidWrites(organizationId: number): Promise<Res
   if (!(await isSelfServeOrganization(organizationId))) return null;
   const entitlements = await getEntitlements(organizationId);
   if (entitlements.active) return null;
+  if (entitlements.provider === "pilot" && entitlements.status === "trialing") {
+    return Response.json({
+      error: "Your development pilot has expired. Contact the Linaw team to extend access. No payment is due.",
+      code: "PILOT_EXPIRED",
+      contactUrl: "/contact",
+    }, { status: 402 });
+  }
   return Response.json({
     error: "This company needs an active, paid subscription to change payroll or employee records.",
     code: "SUBSCRIPTION_REQUIRED",
