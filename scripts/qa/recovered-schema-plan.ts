@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { generateSchemaManifest } from "../lib/issue-1031-schema-manifest";
 import type { SchemaManifest } from "../../src/lib/issue-1031-full-schema-diff";
@@ -23,6 +24,15 @@ export function planRecoveredSchema(catalog: CatalogInventory, schema: SchemaMan
   }
   if (!/^[a-f0-9]{40}$/.test(catalog.sourceSchemaGitBlobSha)) {
     throw new Error("MISSING_SOURCE_BLOB_ID");
+  }
+  // SHA-1 Git blob identity pins the exact schema bytes; table count alone
+  // cannot distinguish a changed column/FK declaration.
+  const sourceBytes = readFileSync(resolve(process.cwd(), "src/db/schema.ts"));
+  const actualBlobSha = createHash("sha1")
+    .update("blob " + sourceBytes.byteLength + "\0")
+    .update(sourceBytes).digest("hex");
+  if (actualBlobSha !== catalog.sourceSchemaGitBlobSha) {
+    throw new Error("SOURCE_SCHEMA_BLOB_DRIFT_REQUIRES_NEW_CATALOG_CAPTURE");
   }
   if (!Array.isArray(catalog.tables) || !Number.isSafeInteger(catalog.publicTableCount)
     || catalog.tables.length !== catalog.publicTableCount

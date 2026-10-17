@@ -61,3 +61,9 @@ test("fail closed on duplicate, incomplete or overclaimed catalog", () => {
     ...baseline, fullSchemaEquivalenceVerified: true,
   } as CatalogInventory, source), /OVERCLAIMED/);
 });
+
+test("even same-table-count source changes require a new catalog capture", () => {
+  assert.throws(() => planRecoveredSchema({
+    ...baseline, sourceSchemaGitBlobSha: "0".repeat(40),
+  }, source), /SOURCE_SCHEMA_BLOB_DRIFT/);
+});
