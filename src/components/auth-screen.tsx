@@ -306,10 +306,10 @@ export function AuthScreen({
 
             <div className="mt-6 grid gap-3 border-t border-[#ECEEF4] pt-5">
               <p className="text-center text-[12px] text-[#777D93]">
-                New to Linaw? <Link href="/signup" className="font-semibold text-[#4A4AE0]">{registrationAvailable ? "Create a company account" : "Request access to a company account"}</Link>
+                New to Linaw? <Link href="/signup" className="font-semibold text-[#4A4AE0]">{registrationAvailable ? "Create a company account" : "Company registration"}</Link>
               </p>
               <p className="text-center text-[11px] leading-relaxed text-[#8B90AA]">
-                {registrationAvailable ? "Sign up, verify your email, then authorize your chosen subscription." : "New workspaces are invitation-based during the controlled rollout. Submitting a request does not create login credentials."}
+                {registrationAvailable ? "Register once, verify your email, then enter your company workspace." : "Registration is temporarily unavailable while workspace services are configured."}
               </p>
               <Link href="/demo" className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-[#E1E3EC] bg-[#FAFBFD] px-4 text-[12px] font-semibold text-[#4E546A] transition hover:border-[#D3D6E2] hover:bg-[#F4F5F9]">
                 Explore the role-based demo <ArrowRight size={13} aria-hidden />
