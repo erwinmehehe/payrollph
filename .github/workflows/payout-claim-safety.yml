@@ -9,6 +9,9 @@ on:
       - "src/lib/xendit-payout-ledger.ts"
       - "src/app/api/payroll-runs/**"
       - "tests/payroll-run-payout-lock.test.ts"
+      - "tests/paymongo-bank-file-http-race.test.ts"
+      - "tests/payroll-concurrent-approvals-http-pg.test.ts"
+      - "src/app/api/approvals/**"
       - "tests/xendit-payroll-ledger-integration.test.ts"
       - "src/components/payout-profiles-panel.tsx"
       - "src/components/workspace/exports.tsx"
@@ -76,6 +79,8 @@ jobs:
         run: >
           npx tsx --test --test-concurrency=1
           tests/payroll-run-payout-lock.test.ts
+          tests/paymongo-bank-file-http-race.test.ts
+          tests/payroll-concurrent-approvals-http-pg.test.ts
           tests/xendit-payroll-ledger-integration.test.ts
           tests/payroll-lifecycle-safety.test.ts
           tests/xendit-payout-ui.test.ts
