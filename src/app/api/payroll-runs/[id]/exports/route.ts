@@ -706,24 +706,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (previousPaymongoAttempt) {
         throw new Error("PAYROLL_PAYMONGO_SUBMISSION_ALREADY_RECORDED: Reconcile the prior PayMongo attempt before retrying; its provider outcome may be unknown.");
       }
-      // Persist intent BEFORE provider contact: a crash, HTTP timeout or
-      // ambiguous acknowledgement must never enable a second payout path.
-      await recordAuditEvent({
-        organizationId: run.organizationId,
-        actor: user.name,
-        action: "Payroll payout submission initiated via PayMongo",
-        resource: run.periodLabel,
-        metadata: {
-          runId: run.id,
-          provider: "PayMongo",
-          idempotencyKey: `payroll-run-${run.id}`,
-          providerOutcomeVerified: false,
-          treasury: treasuryEvidence,
-        },
+      // Acquire both the run and wallet locks *before* recording intent.
+      // Losing a wallet lock cannot have called PayMongo and must not create
+      // a false unknown-provider-outcome receipt for this run.
+      const result = await withPayrollPayoutSubmissionLock(async () => {
+        // Persist intent BEFORE provider contact: a crash, HTTP timeout or
+        // ambiguous acknowledgement must never enable a second payout path.
+        await recordAuditEvent({
+          organizationId: run.organizationId,
+          actor: user.name,
+          action: "Payroll payout submission initiated via PayMongo",
+          resource: run.periodLabel,
+          metadata: {
+            runId: run.id,
+            provider: "PayMongo",
+            idempotencyKey: `payroll-run-${run.id}`,
+            providerOutcomeVerified: false,
+            treasury: treasuryEvidence,
+          },
+        });
+        return createPaymongoPayrollDisbursement(runId);
       });
-      const result = await withPayrollPayoutSubmissionLock(
-        () => createPaymongoPayrollDisbursement(runId),
-      );
     const everyTransferCompleted =
       result.transfers.length > 0 &&
       result.transfers.every((transfer) => transfer.status.toLowerCase() === "succeeded");
