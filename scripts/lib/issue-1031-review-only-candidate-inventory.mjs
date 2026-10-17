@@ -1,7 +1,8 @@
 // Source-only inventory for #1031. This is NOT a migration execution order.
 // 19 legacy source-only tables have proposals; four Spend/Expense tables are new.
-// The duplicate HR source must be audited too: a later review file does not
-// make an older proposal safe to reuse without a schema-parity comparison.
+// The legacy HR proposal is superseded by the separately tested, strict
+// docs/sql/issue-1031-schema-only-hr-cases-review.sql. Inventory the old file
+// for provenance but DO NOT assert its obsolete DDL matches current schema.ts.
 export const NEW_FOUR = Object.freeze([
   "expense_reports", "expense_report_items",
   "spend_cards", "spend_card_transactions",
@@ -33,7 +34,7 @@ export const CANDIDATE_GROUPS = Object.freeze([
   { id: "employee-hr-cases-current", kind: "existing",
     tables: ["employee_hr_cases", "employee_hr_case_messages"],
     files: ["docs/sql/issue-1031-schema-only-hr-cases-review.sql"] },
-  { id: "employee-hr-cases-legacy", kind: "existing",
+  { id: "employee-hr-cases-legacy", kind: "superseded",
     tables: ["employee_hr_cases", "employee_hr_case_messages"],
     files: ["docs/engineering/migration-proposals/employee-hr-cases.sql"] },
   { id: "engagement-surveys", kind: "existing",

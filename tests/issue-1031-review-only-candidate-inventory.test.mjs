@@ -13,6 +13,8 @@ test("#1031 table source inventory has precisely 19 existing and four missing ca
   assert.equal(new Set(NEW_FOUR).size, 4);
   assert.deepEqual(EXISTING_NINETEEN.filter(n => NEW_FOUR.includes(n)), []);
   assert.equal(new Set(CANDIDATE_GROUPS.map(x => x.id)).size, CANDIDATE_GROUPS.length);
+  assert.deepEqual(CANDIDATE_GROUPS.filter(g => g.kind === "superseded").map(g => g.id),
+    ["employee-hr-cases-legacy"], "older HR SQL must remain explicitly superseded");
   for (const kind of ["existing", "new"]) {
     const expected = kind === "existing" ? EXISTING_NINETEEN : NEW_FOUR;
     const actual = [...new Set(CANDIDATE_GROUPS.filter(x => x.kind === kind).flatMap(x => x.tables))].sort();

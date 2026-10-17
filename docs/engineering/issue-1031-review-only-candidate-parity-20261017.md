@@ -41,7 +41,7 @@ cases proposal:
 | --- | --- |
 | `docs/engineering/migration-proposals/employee-document-vault-a5.sql` | `hcm_document_expiry_notices` |
 | `docs/sql/issue-1031-schema-only-hr-cases-review.sql` | `employee_hr_cases`, `employee_hr_case_messages` |
-| `docs/engineering/migration-proposals/employee-hr-cases.sql` | same two HR tables (older proposal; checked separately) |
+| `docs/engineering/migration-proposals/employee-hr-cases.sql` | same two HR tables (superseded historical proposal; inventory only, **not** valid current DDL) |
 | `docs/engineering/migration-proposals/hcm-engagement-survey-aggregate.sql` | `engagement_surveys`, `engagement_survey_participants` |
 | `docs/engineering/migration-proposals/offboarding-clearance-a6.sql` | `separation_clearance_waivers` |
 | `docs/engineering/migration-proposals/offline-punch-claims.sql` | `offline_punch_claims` |
@@ -51,7 +51,11 @@ cases proposal:
 | `docs/sql/issue-1031-schema-only-it-assets-review.sql` | `it_applications`, `it_managed_devices`, `it_access_grants`, `it_device_events` |
 | `docs/sql/pending-multi-entity-registration-versions.sql` | `legal_entity_statutory_registrations`, `legal_entity_profile_change_requests`, `employee_entity_bank_accounts`, `legal_entity_transfer_liability_evidence` |
 
-Existing proposals are **not silently rewritten or accepted**. An exact
+Eight older, unnumbered review proposals have been reconciled in this branch
+to current Drizzle FK names/delete actions and index/check definitions. The
+superseded HR-cases source stays unchanged and is deliberately excluded from
+current-shape acceptance: the separately reviewed HR-case source already
+matches. No production migrations were changed. An exact
 schema-parity failure or an unmet prerequisite is a blocker to representing
 that proposal as current. Historical migration or production presence is
 not inferred from these documentation files.

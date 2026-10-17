@@ -126,7 +126,7 @@ test("#1031 review candidates: exact fresh-push PostgreSQL catalog parity (19 le
     console.log("FRESH_PUSH_SOURCE_CATALOG_CAPTURED=PASS; TABLES=23; POSTGRES=" +
       Math.floor(identity.version / 10000));
 
-    for (const group of CANDIDATE_GROUPS) {
+    for (const group of CANDIDATE_GROUPS.filter(g => g.kind !== "superseded")) {
       await t.test(group.id + " exact candidate catalog compared with current schema.ts", async () => {
         const scope = new Set(group.tables);
         // Refuse CASCADE: a new external FK makes isolated drop unsafe and

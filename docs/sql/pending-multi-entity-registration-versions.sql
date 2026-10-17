@@ -1,3 +1,5 @@
+-- #1031 / 2026-10-17: current-schema source-only review reconciliation.
+-- These are unnumbered proposals, NOT applied migrations or DBA approval.
 -- SOURCE ONLY / DBA REVIEW REQUIRED. Not numbered or released to Neon.
 -- Assign the next contiguous migration prefix ONLY after the canonical 0121
 -- preflight and pending overlapping 0122+ drafts have been reconciled.
@@ -11,12 +13,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS employee_org_id_for_entity_scope
 
 CREATE TABLE IF NOT EXISTS legal_entity_statutory_registrations (
   id serial PRIMARY KEY,
-  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  legal_entity_id integer NOT NULL REFERENCES legal_entities(id) ON DELETE RESTRICT,
+  organization_id integer NOT NULL CONSTRAINT "legal_entity_statutory_registrations_organization_id_organizati" REFERENCES "organizations"("id") ON DELETE CASCADE,
+  legal_entity_id integer NOT NULL CONSTRAINT "legal_entity_statutory_registrations_legal_entity_id_legal_enti" REFERENCES "legal_entities"("id") ON DELETE RESTRICT,
   revision integer NOT NULL CHECK (revision > 0),
   effective_date date NOT NULL,
   profile_envelope text NOT NULL,
-  approved_by_user_id integer NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  approved_by_user_id integer NOT NULL CONSTRAINT "legal_entity_statutory_registrations_approved_by_user_id_users_" REFERENCES "users"("id") ON DELETE RESTRICT,
   source_change_id integer NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -29,16 +31,16 @@ CREATE INDEX IF NOT EXISTS legal_entity_registration_history_idx
 
 CREATE TABLE IF NOT EXISTS legal_entity_profile_change_requests (
   id serial PRIMARY KEY,
-  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  legal_entity_id integer NOT NULL REFERENCES legal_entities(id) ON DELETE RESTRICT,
+  organization_id integer NOT NULL CONSTRAINT "legal_entity_profile_change_requests_organization_id_organizati" REFERENCES "organizations"("id") ON DELETE CASCADE,
+  legal_entity_id integer NOT NULL CONSTRAINT "legal_entity_profile_change_requests_legal_entity_id_legal_enti" REFERENCES "legal_entities"("id") ON DELETE RESTRICT,
   expected_entity_updated_at timestamptz NOT NULL,
   effective_date date NOT NULL,
   changed_fields jsonb NOT NULL DEFAULT '[]'::jsonb,
   profile_envelope text NOT NULL,
   reason varchar(400) NOT NULL,
   status varchar(24) NOT NULL DEFAULT 'pending_approval',
-  requested_by_user_id integer NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  decided_by_user_id integer REFERENCES users(id) ON DELETE RESTRICT,
+  requested_by_user_id integer NOT NULL CONSTRAINT "legal_entity_profile_change_requests_requested_by_user_id_users" REFERENCES "users"("id") ON DELETE RESTRICT,
+  decided_by_user_id integer CONSTRAINT "legal_entity_profile_change_requests_decided_by_user_id_users_i" REFERENCES "users"("id") ON DELETE RESTRICT,
   decided_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT legal_entity_profile_status_check
@@ -54,15 +56,15 @@ CREATE INDEX IF NOT EXISTS legal_entity_profile_request_idx
 
 CREATE TABLE IF NOT EXISTS employee_entity_bank_accounts (
   id serial PRIMARY KEY,
-  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  employee_id integer NOT NULL REFERENCES employees(id) ON DELETE RESTRICT,
-  legal_entity_id integer NOT NULL REFERENCES legal_entities(id) ON DELETE RESTRICT,
+  organization_id integer NOT NULL CONSTRAINT "employee_entity_bank_accounts_organization_id_organizations_id_" REFERENCES "organizations"("id") ON DELETE CASCADE,
+  employee_id integer NOT NULL CONSTRAINT "employee_entity_bank_accounts_employee_id_employees_id_fk" REFERENCES "employees"("id") ON DELETE RESTRICT,
+  legal_entity_id integer NOT NULL CONSTRAINT "employee_entity_bank_accounts_legal_entity_id_legal_entities_id" REFERENCES "legal_entities"("id") ON DELETE RESTRICT,
   bank_code varchar(32) NOT NULL,
   account_name varchar(160) NOT NULL,
   account_envelope text NOT NULL,
   effective_from date NOT NULL,
   effective_until date,
-  approved_by_user_id integer REFERENCES users(id) ON DELETE RESTRICT,
+  approved_by_user_id integer CONSTRAINT "employee_entity_bank_accounts_approved_by_user_id_users_id_fk" REFERENCES "users"("id") ON DELETE RESTRICT,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT employee_entity_bank_dates_check
     CHECK (effective_until IS NULL OR effective_until >= effective_from)
@@ -73,14 +75,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS employee_entity_bank_one_current_unique
 
 CREATE TABLE IF NOT EXISTS legal_entity_transfer_liability_evidence (
   id serial PRIMARY KEY,
-  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  employee_id integer NOT NULL REFERENCES employees(id) ON DELETE RESTRICT,
-  transfer_request_id integer NOT NULL REFERENCES entity_transfer_requests(id) ON DELETE RESTRICT,
-  from_legal_entity_id integer NOT NULL REFERENCES legal_entities(id) ON DELETE RESTRICT,
-  to_legal_entity_id integer NOT NULL REFERENCES legal_entities(id) ON DELETE RESTRICT,
+  organization_id integer NOT NULL CONSTRAINT "legal_entity_transfer_liability_evidence_organization_id_organi" REFERENCES "organizations"("id") ON DELETE CASCADE,
+  employee_id integer NOT NULL CONSTRAINT "legal_entity_transfer_liability_evidence_employee_id_employees_" REFERENCES "employees"("id") ON DELETE RESTRICT,
+  transfer_request_id integer NOT NULL CONSTRAINT "legal_entity_transfer_liability_evidence_transfer_request_id_en" REFERENCES "entity_transfer_requests"("id") ON DELETE RESTRICT,
+  from_legal_entity_id integer NOT NULL CONSTRAINT "legal_entity_transfer_liability_evidence_from_legal_entity_id_l" REFERENCES "legal_entities"("id") ON DELETE RESTRICT,
+  to_legal_entity_id integer NOT NULL CONSTRAINT "legal_entity_transfer_liability_evidence_to_legal_entity_id_leg" REFERENCES "legal_entities"("id") ON DELETE RESTRICT,
   review_state varchar(24) NOT NULL DEFAULT 'unresolved',
   reviewed_liability_envelope text,
-  reviewed_by_user_id integer REFERENCES users(id) ON DELETE RESTRICT,
+  reviewed_by_user_id integer CONSTRAINT "legal_entity_transfer_liability_evidence_reviewed_by_user_id_us" REFERENCES "users"("id") ON DELETE RESTRICT,
   reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT legal_entity_transfer_liability_state_check
@@ -96,8 +98,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS legal_entity_transfer_liability_unique
 -- Immutable child evidence must match the exact authenticated parent
 -- tenant, employer, employee and (for transfers) BOTH legal employers.
 -- A standalone numeric source_change_id/transfer_request_id FK is insufficient.
-CREATE UNIQUE INDEX IF NOT EXISTS entity_profile_request_scope_reference_unique
-  ON legal_entity_profile_change_requests(organization_id, legal_entity_id, id);
+ALTER TABLE legal_entity_profile_change_requests
+  ADD CONSTRAINT entity_profile_request_scope_reference_unique
+  UNIQUE (organization_id, legal_entity_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS entity_transfer_scope_reference_unique
   ON entity_transfer_requests(
     organization_id, id, employee_id, from_legal_entity_id, to_legal_entity_id);
