@@ -1,0 +1,566 @@
+/**
+ * SECOND-PASS tenant isolation: actual production-mode HTTP against disposable
+ * PostgreSQL 16, with a victim and TWO independent authenticated attacker orgs.
+ * Unlike the historical 1..6 anonymous sweep, every victim-only ID is real,
+ * belongs exclusively to the victim, and exceeds 6.
+ *
+ * No live DB, production endpoint, provider credential or transfer is permitted.
+ * All mutations use fictional CI records and a dedicated localhost server.
+ */
+import assert from "node:assert/strict";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import { db } from "../../src/db";
+import {
+  apiKeys, employees, legalEntities, organizations, orgUnits, payrollEntries,
+  payrollRuns, payslips, providerEvents, scimIdentities, scimTokens,
+  sessions, userOrganizations, users,
+} from "../../src/db/schema";
+import { mintApiKey } from "../../src/lib/api-keys";
+import { mintScimToken } from "../../src/lib/scim";
+import { SECOND_PASS_ROUTES, SECOND_PASS_FAMILIES } from "./tenant-second-pass-manifest.mjs";
+
+const BASE = process.env.SECURITY_SMOKE_URL ?? "";
+const ORIGIN = { origin: BASE, "sec-fetch-site": "same-origin" };
+let assertions = 0;
+
+function requireDisposable() {
+  let app;
+  let database;
+  try {
+    app = new URL(BASE);
+    database = new URL(process.env.DATABASE_URL ?? "");
+  } catch {
+    throw new Error("Tenant second pass requires explicit local database and server URLs.");
+  }
+  if (
+    process.env.CI !== "true" ||
+    process.env.TENANT_SECOND_PASS_MODE !== "isolated-ci-only" ||
+    app.protocol !== "http:" || app.hostname !== "127.0.0.1" || app.port !== "3000" ||
+    database.protocol !== "postgresql:" ||
+    !["127.0.0.1", "localhost"].includes(database.hostname) ||
+    database.port !== "5432" || database.pathname !== "/app_db" ||
+    process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true" ||
+    process.env.XENDIT_PAYOUTS_ENABLED === "true"
+  ) {
+    throw new Error("Refusing tenant second pass outside isolated CI localhost PostgreSQL.");
+  }
+}
+
+async function request(path, { method = "GET", bearer, cookie, scim, body, headers = {} } = {}) {
+  const h = { ...headers };
+  if (bearer || scim) h.authorization = "Bearer " + (bearer ?? scim);
+  if (cookie) h.cookie = cookie;
+  if (method !== "GET") Object.assign(h, ORIGIN);
+  if (body !== undefined) h["content-type"] = "application/json";
+  const response = await fetch(new URL(path, BASE), {
+    method,
+    headers: h,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    redirect: "manual",
+    cache: "no-store",
+  });
+  const text = await response.text();
+  let json;
+  try { json = JSON.parse(text); } catch { json = null; }
+  return { status: response.status, text, json, headers: response.headers };
+}
+
+function expectStatus(response, status, label) {
+  assert.equal(response.status, status, label + " got " + response.status + " " + response.text.slice(0, 160));
+  assertions++;
+  return response;
+}
+
+function list(response, field, label) {
+  expectStatus(response, 200, label);
+  assert.ok(response.json && Array.isArray(response.json[field]), label + " must have a data array");
+  assertions++;
+  return response.json[field];
+}
+
+function ownOnly(rows, ownId, foreignIds, label, field = "id") {
+  const ids = rows.map((row) => Number(row[field]));
+  assert.ok(ids.includes(ownId), label + " own seeded fixture missing (empty-response false pass)");
+  for (const id of foreignIds) assert.ok(!ids.includes(id), label + " disclosed foreign record " + id);
+  assertions++;
+}
+
+async function makeSession(userId) {
+  const raw = randomBytes(32).toString("hex");
+  const [row] = await db.insert(sessions).values({
+    userId,
+    tokenHash: createHash("sha256").update(raw).digest("hex"),
+    expiresAt: new Date(Date.now() + 3_600_000),
+    lastSeenAt: new Date(),
+  }).returning({ id: sessions.id });
+  return { id: row.id, cookie: "__Host-linaw_session=" + raw };
+}
+
+async function makeFixture() {
+  const nonce = randomUUID().replaceAll("-", "").slice(0, 12);
+  const [victim, attackerA, attackerB] = await db.insert(organizations).values([
+    { name: "Victim Only " + nonce, legalName: "Fictional Victim " + nonce },
+    { name: "Attacker A " + nonce, legalName: "Fictional Attacker A " + nonce },
+    { name: "Attacker B " + nonce, legalName: "Fictional Attacker B " + nonce },
+  ]).returning({ id: organizations.id });
+  const orgs = [victim, attackerA, attackerB];
+  const owners = await db.insert(users).values(orgs.map((_, idx) => ({
+    email: "secondpass-owner-" + idx + "-" + nonce + "@example.invalid",
+    name: ["Victim Account " + nonce, "Attacker A " + nonce, "Attacker B " + nonce][idx],
+    passwordHash: "fictional-session-only-no-password-login",
+    role: "owner",
+  }))).returning({ id: users.id, email: users.email, name: users.name });
+  await db.insert(userOrganizations).values(orgs.map((org, idx) => ({
+    userId: owners[idx].id, organizationId: org.id, role: "owner", active: true,
+  })));
+  const entities = await db.insert(legalEntities).values(orgs.map((org, idx) => ({
+    organizationId: org.id, code: "QA-" + idx, legalName: "Fictional Entity " + idx,
+    displayName: "Test Entity " + idx, primaryEntity: true,
+  }))).returning({ id: legalEntities.id });
+  const units = await db.insert(orgUnits).values([
+    ...Array.from({ length: 8 }, (_, idx) => ({
+      organizationId: victim.id, legalEntityId: entities[0].id,
+      type: "department", code: "VICTIM-" + nonce + "-" + idx,
+      name: "Victim only department " + idx,
+    })),
+    { organizationId: attackerA.id, legalEntityId: entities[1].id,
+      type: "department", code: "ATTA-" + nonce, name: "Attacker A department" },
+    { organizationId: attackerB.id, legalEntityId: entities[2].id,
+      type: "department", code: "ATTB-" + nonce, name: "Attacker B department" },
+  ]).returning({ id: orgUnits.id, organizationId: orgUnits.organizationId, name: orgUnits.name });
+  const victimUnits = units.filter((u) => u.organizationId === victim.id);
+  const ownedUnits = orgs.map((org) => units.filter((u) => u.organizationId === org.id).at(-1));
+  const victimEmployees = await db.insert(employees).values(Array.from({ length: 8 }, (_, idx) => ({
+    organizationId: victim.id, legalEntityId: entities[0].id,
+    orgUnitId: victimUnits[idx].id, employeeNo: "V-" + nonce + "-" + idx,
+    firstName: "VictimExclusive" + idx, lastName: "Synthetic", title: "Victim confidential",
+    avatarInitials: "VS", basicRate: "20000.00", startDate: "2026-10-01",
+  }))).returning({ id: employees.id, organizationId: employees.organizationId, employeeNo: employees.employeeNo });
+  const ownedEmployees = await db.insert(employees).values([attackerA, attackerB].map((org, idx) => ({
+    organizationId: org.id, legalEntityId: entities[idx + 1].id, orgUnitId: ownedUnits[idx + 1].id,
+    employeeNo: "A-" + nonce + "-" + idx, firstName: "OwnEmployee" + idx,
+    lastName: "Synthetic", title: "Attacker own employee", avatarInitials: "OS",
+    basicRate: "18000.00", startDate: "2026-10-01",
+  }))).returning({ id: employees.id });
+  const scimWorkers = await db.insert(users).values([
+    ...Array.from({ length: 8 }, (_, idx) => ({
+      email: "victim-scim-" + idx + "-" + nonce + "@example.invalid",
+      name: "VictimSCIM" + idx, passwordHash: "ci-scim-only", role: "employee",
+    })),
+    ...[0, 1].map((idx) => ({
+      email: "attacker-scim-" + idx + "-" + nonce + "@example.invalid",
+      name: "AttackerSCIM" + idx, passwordHash: "ci-scim-only", role: "employee",
+    })),
+  ]).returning({ id: users.id, email: users.email });
+  await db.insert(userOrganizations).values(scimWorkers.map((u, idx) => ({
+    userId: u.id,
+    organizationId: idx < 8 ? victim.id : orgs[idx - 7].id,
+    role: "employee", active: true,
+  })));
+  const identities = await db.insert(scimIdentities).values(scimWorkers.map((u, idx) => ({
+    organizationId: idx < 8 ? victim.id : orgs[idx - 7].id,
+    userId: u.id, externalId: "fictional-" + nonce + "-" + idx,
+  }))).returning({ id: scimIdentities.id, organizationId: scimIdentities.organizationId });
+  const tokenSets = await Promise.all(orgs.map(async (org, idx) => {
+    const api = mintApiKey();
+    await db.insert(apiKeys).values({
+      organizationId: org.id, name: "Second-pass test " + idx,
+      prefix: api.prefix, keyHash: api.keyHash,
+      scopes: ["employees:read","employees:write","payroll:read","org-units:read","payslips:read","events:read"],
+    });
+    const scim = mintScimToken();
+    await db.insert(scimTokens).values({
+      organizationId: org.id, name: "Second-pass SCIM " + idx,
+      prefix: scim.prefix, tokenHash: scim.tokenHash, createdByUserId: owners[idx].id,
+    });
+    return { bearer: api.key, scim: scim.token };
+  }));
+  const ownerSessions = await Promise.all(owners.map((owner) => makeSession(owner.id)));
+  // Produce an actual victim-only, high-valued session ID, not a guessed 1..6 probe.
+  const victimSessions = [];
+  for (let idx = 0; idx < 8; idx++) victimSessions.push(await makeSession(owners[0].id));
+
+  const runs = await db.insert(payrollRuns).values([
+    ...Array.from({ length: 8 }, (_, idx) => ({
+      organizationId: victim.id, legalEntityId: entities[0].id,
+      periodLabel: "VICTIM-ONLY-" + idx, periodStart: "2026-10-01",
+      periodEnd: "2026-10-15", payDate: "2026-10-16", status: "Released",
+    })),
+    ...[attackerA, attackerB].map((org, idx) => ({
+      organizationId: org.id, legalEntityId: entities[idx + 1].id,
+      periodLabel: "ATTACKER-" + idx, periodStart: "2026-10-01",
+      periodEnd: "2026-10-15", payDate: "2026-10-16", status: "Released",
+    })),
+  ]).returning({ id: payrollRuns.id, organizationId: payrollRuns.organizationId });
+  const victimRuns = runs.filter((r) => r.organizationId === victim.id);
+  const ownRuns = orgs.map((org) => runs.filter((r) => r.organizationId === org.id).at(-1));
+  const entries = await db.insert(payrollEntries).values([
+    ...victimEmployees.map((emp, idx) => ({
+      payrollRunId: victimRuns[idx].id, employeeId: emp.id,
+      grossPay: "9000.00", deductions: "1000.00", netPay: "8000.00",
+    })),
+    ...ownedEmployees.map((emp, idx) => ({
+      payrollRunId: ownRuns[idx + 1].id, employeeId: emp.id,
+      grossPay: "5000.00", deductions: "500.00", netPay: "4500.00",
+    })),
+  ]).returning({ id: payrollEntries.id });
+  const slips = await db.insert(payslips).values(entries.map((entry, idx) => ({
+    payrollEntryId: entry.id, organizationId: idx < 8 ? victim.id : orgs[idx - 7].id,
+    employeeId: idx < 8 ? victimEmployees[idx].id : ownedEmployees[idx - 8].id,
+    periodLabel: "CI-2026-10",
+    content: idx < 8 ? "VICTIM-EXCLUSIVE-PAYSLIP-" + nonce + "-" + idx
+      : "ATTACKER-OWN-PAYSLIP-" + nonce + "-" + idx,
+  }))).returning({ id: payslips.id, organizationId: payslips.organizationId });
+  const events = await db.insert(providerEvents).values(runs.map((run, idx) => ({
+    organizationId: run.organizationId, payrollRunId: run.id,
+    provider: "linaw", eventId: "tenant-second-pass-" + nonce + "-" + idx,
+    eventType: idx < 8 ? "victim.exclusive" : "attacker.own",
+  }))).returning({ id: providerEvents.id, organizationId: providerEvents.organizationId });
+
+  const highIds = [
+    victimEmployees.at(-1).id, victimRuns.at(-1).id,
+    slips[7].id, identities[7].id, victimSessions.at(-1).id, victimUnits.at(-1).id,
+  ];
+  for (const id of highIds) assert.ok(Number.isSafeInteger(id) && id > 6, "Victim-only ID must really exist and exceed 6: " + id);
+  assert.equal(identities[7].organizationId, victim.id);
+  assert.equal(slips[7].organizationId, victim.id);
+  assert.equal(events[7].organizationId, victim.id);
+
+  return {
+    orgs, owners, entities, ownedUnits, victimEmployees, ownedEmployees, identities,
+    victimRuns, ownRuns, slips, events, tokenSets, ownerSessions, victimSessions,
+    victimEmployee: victimEmployees.at(-1), victimIdentity: identities[7],
+    victimScimEmail: scimWorkers[7].email,
+    victimSlip: slips[7], victimRun: victimRuns.at(-1), victimUnit: victimUnits.at(-1),
+  };
+}
+
+async function baselineProbeAllMethods(f) {
+  const publicCases = new Set([
+    "GET auth/me", "POST auth/logout", "POST auth/sso/resolve",
+    "GET scim/v2/ServiceProviderConfig", "GET v1",
+  ]);
+  const strongUnauthorized = new Set([
+    "GET scim/v2/Users", "POST scim/v2/Users",
+    "GET scim/v2/Users/[id]", "PATCH scim/v2/Users/[id]", "DELETE scim/v2/Users/[id]",
+    "GET jobs/admin-status", "GET jobs/dispatch-readiness", "POST jobs/tick",
+    "POST webhooks/drain",
+  ]);
+  let probed = 0;
+  for (const [route, declared] of Object.entries(SECOND_PASS_ROUTES)) {
+    for (const method of declared.split(" ")) {
+      const path = "/api/" + route.replaceAll("[id]", String(f.victimIdentity.id))
+        .replaceAll("[providerId]", "99999999");
+      const target = route.startsWith("v1/") && route.includes("[id]")
+        ? "/api/" + route.replaceAll("[id]", String(f.victimEmployee.id)) : path;
+      const result = await request(target, {
+        method, body: method === "GET" ? undefined : {
+          organizationId: f.orgs[0].id, userId: f.owners[0].id, id: f.victimEmployee.id,
+          employeeId: f.victimEmployee.id, token: "invalid",
+        },
+      });
+      const key = method + " " + route;
+      if (strongUnauthorized.has(key)) {
+        expectStatus(result, 401, "Anonymous credential boundary " + key);
+      } else if (key.startsWith("GET v1/") || key.startsWith("POST v1/")
+        || key.startsWith("PATCH v1/") || key.startsWith("DELETE v1/")) {
+        // All v1 protected routes must be authenticated in this isolated CI run.
+        // Both extension release flags are intentionally ON in the localhost process.
+        expectStatus(result, 401, "Anonymous API key boundary " + key);
+      } else if (publicCases.has(key)) {
+        expectStatus(result, 200, "Intentionally public/auth-status endpoint " + key);
+      } else if (route.startsWith("webhooks/") && route !== "webhooks/drain") {
+        expectStatus(result, 401, "Bad provider signature must be denied " + key);
+      } else {
+        assert.ok(
+          [400,401,403,404,409,422,503].includes(result.status),
+          "Invalid/unauthenticated " + key + " unexpectedly succeeded: HTTP " + result.status,
+        );
+        assert.ok(result.json && typeof result.json === "object",
+          "Invalid/unauthenticated " + key + " must return handler JSON, not an unrouted 404 page");
+        assertions++;
+      }
+      probed++;
+    }
+  }
+  assert.ok(probed >= 50 && SECOND_PASS_FAMILIES.length === 6);
+  console.log("PASS second-pass route inventory: " + probed + " actual HTTP method probes in six omitted families");
+}
+
+async function verifyCrossTenant(f) {
+  const victim = f.orgs[0];
+  const tokenV = f.tokenSets[0];
+  const checkVictimId = f.victimEmployee.id;
+
+  expectStatus(await request("/api/v1/employees/" + checkVictimId, { bearer: tokenV.bearer }), 200,
+    "Victim's own exclusive employee must exist");
+  expectStatus(await request("/api/scim/v2/Users/" + f.victimIdentity.id, { scim: tokenV.scim }), 200,
+    "Victim SCIM identity must exist");
+  const victimFilter = list(await request("/api/scim/v2/Users?filter=" +
+    encodeURIComponent('userName eq "' + f.victimScimEmail + '"'), {
+      scim: tokenV.scim,
+    }), "Resources", "Victim SCIM email filter positive control");
+  ownOnly(victimFilter, f.victimIdentity.id, [], "Victim SCIM filter must find its own identity");
+  expectStatus(await request("/api/v1/payslips/" + f.victimSlip.id, { bearer: tokenV.bearer }), 200,
+    "Victim-only payslip must be readable with victim credential");
+
+  const victimEmployeeBefore = (await db.select().from(employees)
+    .where(and(eq(employees.id, checkVictimId),eq(employees.organizationId,victim.id))))[0];
+  const victimScimBefore = (await db.select().from(scimIdentities)
+    .where(eq(scimIdentities.id, f.victimIdentity.id)))[0];
+  const victimScimIdsBefore = (await db.select({ id: scimIdentities.id }).from(scimIdentities)
+    .where(eq(scimIdentities.organizationId, victim.id))).map((r) => r.id).sort((a,b) => a-b);
+  const victimEmployeeIdsBefore = (await db.select({ id: employees.id }).from(employees)
+    .where(eq(employees.organizationId, victim.id))).map((r) => r.id).sort((a,b) => a-b);
+  const victimOwnerBefore = (await db.select().from(users).where(eq(users.id, f.owners[0].id)))[0];
+  const eventIdsBefore = (await db.select().from(providerEvents)
+    .where(eq(providerEvents.organizationId, victim.id))).map((e) => e.id).sort((a,b) => a-b);
+
+  for (const idx of [1, 2]) {
+    const attacker = f.orgs[idx];
+    const creds = f.tokenSets[idx];
+    const owner = f.owners[idx];
+    const attackerCookie = f.ownerSessions[idx].cookie;
+    const ownEmployee = f.ownedEmployees[idx - 1].id;
+    const ownIdentity = f.identities[8 + idx - 1].id;
+    const ownSlip = f.slips[8 + idx - 1].id;
+    const ownRun = f.ownRuns[idx].id;
+    const ownUnit = f.ownedUnits[idx].id;
+
+    const ownAccount = expectStatus(await request("/api/account", { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " must have a valid authenticated account");
+    assert.equal(ownAccount.json.profile.id, owner.id);
+    const me = expectStatus(await request("/api/auth/me", { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " must have a valid auth session");
+    assert.equal(me.json.user.id, owner.id);
+    const ownEmployeeRead = expectStatus(await request("/api/v1/employees/" + ownEmployee, {
+      bearer: creds.bearer,
+    }), 200, "Attacker " + idx + " API key own employee");
+    assert.equal(ownEmployeeRead.json.id, ownEmployee);
+    const ownScimRead = expectStatus(await request("/api/scim/v2/Users/" + ownIdentity, {
+      scim: creds.scim,
+    }), 200, "Attacker " + idx + " SCIM key own identity");
+    assert.equal(Number(ownScimRead.json.id), ownIdentity);
+    expectStatus(await request("/api/v1/payslips/" + ownSlip, { bearer: creds.bearer }), 200,
+      "Attacker " + idx + " payslip own control");
+
+    expectStatus(await request("/api/v1/employees/" + checkVictimId, { bearer: creds.bearer }), 404,
+      "Attacker " + idx + " must not GET victim employee");
+    expectStatus(await request("/api/v1/employees/" + checkVictimId, {
+      bearer: creds.bearer, method: "PATCH",
+      body: { title: "UNAUTHORIZED CHANGE", organizationId: victim.id },
+    }), 404, "Attacker " + idx + " must not PATCH victim employee");
+    expectStatus(await request("/api/v1/employees/" + checkVictimId, {
+      bearer: creds.bearer, method: "DELETE", body: { organizationId: victim.id },
+    }), 404, "Attacker " + idx + " must not DELETE victim employee");
+    const employeeList = list(await request("/api/v1/employees?limit=100&organizationId=" + victim.id, {
+      bearer: creds.bearer,
+    }), "data", "Attacker " + idx + " forged employee list");
+    ownOnly(employeeList, ownEmployee, f.victimEmployees.map((e) => e.id),
+      "Attacker " + idx + " employee list");
+
+    // ID-in-body creation must be bound to bearer key's tenant, not request JSON.
+    const create = expectStatus(await request("/api/v1/employees", {
+      method: "POST", bearer: creds.bearer,
+      body: {
+        organizationId: victim.id, firstName: "ForgedTenant" + idx,
+        lastName: "Fixture", title: "Read-only acceptance fixture",
+        basicRate: 15000, startDate: "2026-10-01",
+        employeeNo: "CI-CROSS-ATTACK-" + idx + "-" + owner.id,
+      },
+    }), 201, "Attacker " + idx + " API employee creation must be scoped to caller");
+    const [created] = await db.select().from(employees).where(eq(employees.id, create.json.id));
+    assert.equal(created.organizationId, attacker.id,
+      "Attacker " + idx + " body organizationId must be ignored in favor of API token");
+
+    expectStatus(await request("/api/scim/v2/Users/" + f.victimIdentity.id, {
+      scim: creds.scim,
+    }), 404, "Attacker " + idx + " must not GET victim SCIM identity");
+    expectStatus(await request("/api/scim/v2/Users/" + f.victimIdentity.id, {
+      method: "PATCH", scim: creds.scim,
+      body: { Operations: [{ op: "replace", path: "active", value: false }],
+        organizationId: victim.id },
+    }), 404, "Attacker " + idx + " must not PATCH victim SCIM identity");
+    expectStatus(await request("/api/scim/v2/Users/" + f.victimIdentity.id, {
+      method: "DELETE", scim: creds.scim,
+    }), 404, "Attacker " + idx + " must not DELETE victim SCIM identity");
+    const scimList = list(await request("/api/scim/v2/Users?count=100", {
+      scim: creds.scim,
+    }), "Resources", "Attacker " + idx + " SCIM list");
+    ownOnly(scimList, ownIdentity, [f.victimIdentity.id], "Attacker " + idx + " SCIM list");
+
+    const victimEmailFilter = 'userName eq "' + f.victimScimEmail + '"';
+    const scimFilter = list(await request("/api/scim/v2/Users?filter=" +
+      encodeURIComponent(victimEmailFilter), { scim: creds.scim,
+    }), "Resources", "Attacker " + idx + " victim email SCIM filter");
+    assert.equal(scimFilter.length, 0, "Victim email must never be resolved into attacker SCIM scope");
+
+    // A SCIM bearer must not be able to bind a victim-only employee via an
+    // enterprise extension, even if the body names the victim organization.
+    expectStatus(await request("/api/scim/v2/Users", {
+      method: "POST", scim: creds.scim,
+      body: {
+        userName: "foreign-scim-" + idx + "-" + owner.id + "@example.invalid",
+        displayName: "Cross-org binding rejected",
+        externalId: "foreign-test-" + owner.id,
+        organizationId: victim.id,
+        "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+          employeeNumber: f.victimEmployee.employeeNo,
+        },
+      },
+    }), 404, "Attacker " + idx + " SCIM POST cannot bind victim employeeNumber");
+
+    const ownScimCreate = expectStatus(await request("/api/scim/v2/Users", {
+      method: "POST", scim: creds.scim,
+      body: {
+        userName: "own-scim-" + idx + "-" + owner.id + "@example.invalid",
+        displayName: "Own fictional SCIM provisioning",
+        externalId: "own-test-" + owner.id,
+        organizationId: victim.id,
+        // SCIM correctly refuses unscoped, company-wide new memberships.
+        // Prove the positive path using a department owned by this bearer org.
+        "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+          department: f.ownedUnits[idx].name,
+        },
+      },
+    }), 201, "Attacker " + idx + " can provision only its own scoped SCIM organization");
+    const [scimCreated] = await db.select().from(scimIdentities)
+      .where(eq(scimIdentities.id, Number(ownScimCreate.json.id)));
+    assert.equal(scimCreated.organizationId, attacker.id,
+      "SCIM caller's bearer, not attacker-supplied organizationId, must choose the target org");
+    const [createdMembership] = await db.select().from(userOrganizations).where(and(
+      eq(userOrganizations.userId, scimCreated.userId),
+      eq(userOrganizations.organizationId, attacker.id),
+    ));
+    assert.equal(createdMembership?.orgUnitId, ownUnit,
+      "SCIM must not grant unscoped company-wide access or accept a victim department");
+
+    const ownSessions = list(await request("/api/account/sessions", {
+      cookie: attackerCookie,
+    }), "sessions", "Attacker " + idx + " account sessions");
+    assert.ok(ownSessions.some((s) => s.id === f.ownerSessions[idx].id));
+    assert.ok(!ownSessions.some((s) => s.id === f.victimSessions.at(-1).id));
+    expectStatus(await request("/api/account/sessions", {
+      method: "DELETE", cookie: attackerCookie,
+      body: { id: f.victimSessions.at(-1).id, organizationId: victim.id },
+    }), 404, "Attacker " + idx + " must not revoke victim-only session");
+
+    const spoofProfile = expectStatus(await request("/api/account/profile", {
+      method: "POST", cookie: attackerCookie,
+      body: { userId: f.owners[0].id, organizationId: victim.id,
+        name: "Attacker Own Profile " + idx },
+    }), 200, "Account change may only rename the authenticated user");
+    assert.equal(spoofProfile.json.name, "Attacker Own Profile " + idx);
+    const [nameRow] = await db.select({ name: users.name }).from(users).where(eq(users.id, owner.id));
+    assert.equal(nameRow.name, "Attacker Own Profile " + idx);
+
+    const ownAdmin = expectStatus(await request("/api/jobs/admin-status?organizationId=" + attacker.id, {
+      cookie: attackerCookie,
+    }), 200, "Attacker " + idx + " own scheduler read is authorized");
+    assert.equal(typeof ownAdmin.json.state, "string");
+    expectStatus(await request("/api/jobs/admin-status?organizationId=" + victim.id, {
+      cookie: attackerCookie,
+    }), 403, "Attacker " + idx + " must not choose victim org's scheduler status");
+
+    const runs = list(await request("/api/v1/payroll-runs?organizationId=" + victim.id, {
+      bearer: creds.bearer,
+    }), "data", "Attacker " + idx + " payroll run list");
+    ownOnly(runs, ownRun, f.victimRuns.map((r) => r.id), "Attacker " + idx + " payroll runs");
+
+    const units = list(await request("/api/v1/org-units?organizationId=" + victim.id, {
+      bearer: creds.bearer,
+    }), "data", "Attacker " + idx + " org-unit list");
+    ownOnly(units, ownUnit, [f.victimUnit.id], "Attacker " + idx + " org units");
+
+    const payslips = list(await request("/api/v1/payslips?organizationId=" + victim.id, {
+      bearer: creds.bearer,
+    }), "data", "Attacker " + idx + " payslip list");
+    ownOnly(payslips, ownSlip, [f.victimSlip.id], "Attacker " + idx + " payslips");
+    expectStatus(await request("/api/v1/payslips/" + f.victimSlip.id, {
+      bearer: creds.bearer,
+    }), 404, "Attacker " + idx + " victim-only payslip direct URL");
+
+    const events = list(await request("/api/v1/events?organizationId=" + victim.id, {
+      bearer: creds.bearer,
+    }), "data", "Attacker " + idx + " outbound event feed");
+    assert.ok(events.some((e) => e.eventType === "attacker.own"),
+      "Attacker event feed must have own fixture");
+    assert.ok(events.every((e) => e.eventType !== "victim.exclusive"),
+      "Attacker event feed exposed victim event");
+    const inbox = list(await request("/api/v1/provider-events?organizationId=" + victim.id, {
+      bearer: creds.bearer,
+    }), "data", "Attacker " + idx + " inbound provider feed");
+    assert.ok(inbox.some((e) => e.id === f.events[8 + idx - 1].id),
+      "Attacker must see own verified provider receipt");
+    assert.ok(!inbox.some((e) => f.events.slice(0,8).some((v) => v.id === e.id)),
+      "Attacker leaked victim provider receipt");
+    expectStatus(await request("/api/v1/journal-entries?startDate=2026-10-01&endDate=2026-10-31&legalEntityId="
+      + f.entities[0].id, { bearer: creds.bearer,
+    }), 403, "Attacker " + idx + " must not select victim legal employer journal");
+
+    console.log("PASS second-pass real HTTP attacker-" + idx +
+      ": own credential controls, victim-only high IDs, SCIM, v1, account, jobs and mutations");
+  }
+
+  const victimEmployeeAfter = (await db.select().from(employees)
+    .where(eq(employees.id, checkVictimId)))[0];
+  const victimScimAfter = (await db.select().from(scimIdentities)
+    .where(eq(scimIdentities.id, f.victimIdentity.id)))[0];
+  const victimScimIdsAfter = (await db.select({ id: scimIdentities.id }).from(scimIdentities)
+    .where(eq(scimIdentities.organizationId, victim.id))).map((r) => r.id).sort((a,b) => a-b);
+  const victimEmployeeIdsAfter = (await db.select({ id: employees.id }).from(employees)
+    .where(eq(employees.organizationId, victim.id))).map((r) => r.id).sort((a,b) => a-b);
+  const victimOwnerAfter = (await db.select().from(users)
+    .where(eq(users.id, f.owners[0].id)))[0];
+  const victimSessionsAfter = (await db.select().from(sessions)
+    .where(eq(sessions.id, f.victimSessions.at(-1).id)))[0];
+  const victimEventsAfter = (await db.select().from(providerEvents)
+    .where(eq(providerEvents.organizationId, victim.id))).map((e) => e.id).sort((a,b) => a-b);
+
+  assert.deepEqual(victimEmployeeAfter, victimEmployeeBefore,
+    "Cross-tenant employee PATCH/DELETE must have no victim side effects");
+  assert.deepEqual(victimScimAfter, victimScimBefore,
+    "Cross-tenant SCIM PATCH/DELETE must not alter victim identity");
+  assert.deepEqual(victimScimIdsAfter, victimScimIdsBefore,
+    "Cross-tenant SCIM POST must not add a victim identity");
+  assert.deepEqual(victimEmployeeIdsAfter, victimEmployeeIdsBefore,
+    "Forged API employee POST must not add a victim employee");
+  assert.deepEqual(victimOwnerAfter, victimOwnerBefore,
+    "Account profile spoof must not modify victim user");
+  assert.equal(victimSessionsAfter.revokedAt, null, "Victim-only session must remain active");
+  assert.deepEqual(victimEventsAfter, eventIdsBefore,
+    "Unsigned/mismatched webhook bodies may not insert victim provider receipts");
+  assertions += 5;
+}
+
+async function main() {
+  requireDisposable();
+  const f = await makeFixture();
+  const victim = f.orgs[0];
+  const beforeWebhookProbe = (await db.select().from(providerEvents)
+    .where(eq(providerEvents.organizationId, f.orgs[0].id))).map((e) => e.id).sort((a,b) => a-b);
+  await baselineProbeAllMethods(f);
+  const afterWebhookProbe = (await db.select().from(providerEvents)
+    .where(eq(providerEvents.organizationId, f.orgs[0].id))).map((e) => e.id).sort((a,b) => a-b);
+  assert.deepEqual(afterWebhookProbe, beforeWebhookProbe,
+    "Forged provider webhook probes must not insert victim provider events");
+  await verifyCrossTenant(f);
+  // Every record is fictional and written only to the isolated CI database.
+  console.log(JSON.stringify({
+    result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,
+    inventoriedRoutes: Object.keys(SECOND_PASS_ROUTES).length,
+    probedHttpMethods: Object.values(SECOND_PASS_ROUTES).reduce((n,s) => n+s.split(" ").length, 0),
+    attackerOrganizations: 2, victimOnlyIdsAboveSix: [
+      f.victimEmployee.id, f.victimIdentity.id, f.victimSlip.id, f.victimRun.id,
+      f.victimUnit.id, f.victimSessions.at(-1).id,
+    ],
+    victimOrganizationId: victim.id, assertions,
+    humanUatAccepted: false, externalProviderAccepted: false, productionApproved: false,
+  }));
+}
+
+main().catch((error) => {
+  console.error("Second-pass tenant isolation FAILED (not accepted):", error);
+  process.exitCode = 1;
+});
