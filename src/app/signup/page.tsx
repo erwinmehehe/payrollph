@@ -10,9 +10,9 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Request Linaw Trial Access | Philippine Payroll Software",
+  title: "Sign up or request company access | Linaw Payroll",
   description:
-    "Request access to a Linaw trial workspace for Philippine payroll. Explore the live role-based demo immediately or send your company and headcount for controlled workspace access.",
+    "Start a Linaw payroll company registration. Create an account when self-service is available, or request a controlled trial workspace.",
   alternates: { canonical: "/signup" },
   robots: { index: false, follow: false },
 };
@@ -26,15 +26,20 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
         <SiteNav />
         <main className="mx-auto grid max-w-[1120px] gap-8 px-5 py-14 sm:px-8 lg:grid-cols-[.8fr_1.2fr] lg:py-20">
           <div className="lg:sticky lg:top-24 lg:self-start">
-            <span className="text-[11px] font-bold uppercase tracking-[.15em] text-[#0877ff]">Linaw payroll subscriptions</span>
-            <h1 className="font-display mt-5 text-[42px] font-semibold leading-[1.05] tracking-tight sm:text-[53px]">Start payroll in your own workspace.</h1>
-            <p className="mt-5 text-[15px] leading-relaxed text-[#5B6080]">Create an empty, private company workspace. Verify your email, authorize monthly billing, then invite your payroll team and add employees.</p>
+            <span className="text-[11px] font-bold uppercase tracking-[.15em] text-[#0877ff]">New company registration</span>
+            <h1 className="font-display mt-5 text-[42px] font-semibold leading-[1.05] tracking-tight sm:text-[53px]">Create your Linaw company account.</h1>
+            <p className="mt-5 text-[15px] leading-relaxed text-[#5B6080]">Register as a company owner, verify your work email, then authorize the plan and seat count you choose. Your workspace starts empty until you add employees.</p>
             <div className="mt-6 grid gap-3 text-[14px] text-[#2B2F45]">
               {["Separate company and employee records","Secure recurring payments and billing history","Government ID numbers protected and access-controlled","Cancel automatic renewal from your account"].map((line) => (
                 <p key={line} className="flex gap-2"><Check size={17} className="mt-0.5 shrink-0 text-[#13805c]" />{line}</p>
               ))}
             </div>
-            <Link href="/demo" className="mt-7 inline-flex items-center gap-2 text-[13px] font-semibold text-[#0868dc]">Try the sample-data demo first <ArrowRight size={16} /></Link>
+            <div className="mt-7 rounded-2xl border border-[#DEEAF8] bg-[#F5F9FF] p-4 text-[13px] leading-relaxed text-[#4A5972]">
+              <strong className="block text-[#203652]">How registration works</strong>
+              <p className="mt-1">1. Enter your account details and choose a plan. 2. Verify your email. 3. Authorize billing to complete workspace setup. No payment is taken on this form.</p>
+            </div>
+            <p className="mt-5 text-[13px] text-[#5B6080]">Already registered? <Link href="/login" className="font-semibold text-[#0868dc]">Sign in</Link></p>
+            <Link href="/demo" className="mt-4 inline-flex items-center gap-2 text-[13px] font-semibold text-[#0868dc]">Try the sample-data demo first <ArrowRight size={16} /></Link>
           </div>
           <SelfServeSignupForm
             plans={plans.map((plan) => ({ name: plan.name, monthlyBase: String(plan.monthlyBase), perEmployee: String(plan.perEmployee), active: plan.active }))}
@@ -58,20 +63,19 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
             <div className="lg:sticky lg:top-24">
               <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#0868dc] shadow-sm">
                 <ShieldCheck size={14} />
-                Controlled trial access
+                Account registration by invitation
               </span>
               <h1 className="font-display mt-6 text-balance text-[43px] font-semibold leading-[1.02] tracking-[-0.045em] sm:text-[58px]">
-                Request access to a Linaw trial workspace.
+                Register your company for Linaw.
               </h1>
               <p className="mt-5 max-w-[680px] text-[16px] leading-relaxed text-[#5B6080]">
-                The live demo is available immediately. Trial workspaces are invitation-based while rollout stays controlled,
-                so we can provision the right company structure and roles without opening a second owner on an existing tenant.
+                New company accounts are currently approved and provisioned by invitation. Submit an access request below and our team can help you complete registration. This form does not create login credentials or activate a subscription.
               </p>
 
               <div className="mt-7 grid gap-3">
                 {[
                   "Explore Owner, HR, Payroll, Checker, Bookkeeper and Employee before requesting access",
-                  "Start with sample data instead of uploading a real payroll file",
+                  "Only your contact and company information is needed for this request",
                   "Invite your team only after the workspace and roles are ready",
                 ].map((line) => (
                   <span key={line} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[#3E435B]">
@@ -83,7 +87,10 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
                 ))}
               </div>
 
-              <Link href="/demo" className="mt-7 inline-flex items-center gap-2 text-[13.5px] font-semibold text-[#0868dc]">
+              <p className="mt-7 text-[13px] text-[#5B6080]">
+                Already have an account or accepted an invitation? <Link href="/login" className="font-semibold text-[#0868dc]">Sign in</Link>.
+              </p>
+              <Link href="/demo" className="mt-4 inline-flex items-center gap-2 text-[13.5px] font-semibold text-[#0868dc]">
                 Prefer to look around first? Try the live demo <ArrowRight size={14} />
               </Link>
             </div>
