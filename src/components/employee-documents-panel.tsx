@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -89,7 +89,14 @@ function statusTone(status: string) {
   return "neutral";
 }
 
-export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { organizationId: number; language?: EssLanguage }) {
+type EmployeeDocumentsProps = { organizationId: number; language?: EssLanguage };
+
+// Reset policy-version acknowledgements, selected files and sensitive document reads on employer change.
+export function EmployeeDocumentsPanel(props: EmployeeDocumentsProps) {
+  return <EmployeeDocumentsContent key={props.organizationId} {...props} />;
+}
+
+function EmployeeDocumentsContent({ organizationId, language = "en" }: EmployeeDocumentsProps) {
   const t = (label: string) => essText(language, label);
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");
@@ -99,19 +106,45 @@ export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { or
   const [file, setFile] = useState<File | null>(null);
   const [expiresAt, setExpiresAt] = useState("");
 
+  const mountedRef = useRef(false);
+  const requestRevisionRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
+
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    const revision = ++requestRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === requestRevisionRef.current;
     try {
-      const response = await fetch("/api/self/documents", { cache: "no-store" });
+      const response = await fetch("/api/self/documents", {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not load documents.");
       setData(payload as Payload);
       setError("");
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load documents.");
+    } catch (error) {
+      if (isCurrent()) setError(error instanceof Error ? error.message : "Could not load documents.");
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    // Defer the initial stateful fetch and ignore retired Strict Mode setups.
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      requestRevisionRef.current += 1;
+      requestControllerRef.current?.abort();
+    };
+  }, [load]);
 
   const selectedRequirement = useMemo(
     () => data?.documentRequirements.find((row) => row.complianceId === Number(requirementId)) ?? null,
@@ -131,6 +164,7 @@ export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { or
         }),
       });
       const payload = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not acknowledge policy.");
       setConfirmed((current) => {
         const next = new Set(current);
@@ -139,9 +173,9 @@ export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { or
       });
       await load();
     } catch (ackError) {
-      setError(ackError instanceof Error ? ackError.message : "Could not acknowledge policy.");
+      if (mountedRef.current) setError(ackError instanceof Error ? ackError.message : "Could not acknowledge policy.");
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   }
 
@@ -164,6 +198,7 @@ export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { or
 
       const response = await fetch("/api/documents", { method: "POST", body: form });
       const payload = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not upload document.");
 
       setFile(null);
@@ -171,9 +206,9 @@ export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { or
       setRequirementId("");
       await load();
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Could not upload document.");
+      if (mountedRef.current) setError(uploadError instanceof Error ? uploadError.message : "Could not upload document.");
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   }
 
