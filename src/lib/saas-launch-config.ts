@@ -1,4 +1,5 @@
 import { deliveryCapable } from "@/lib/mail-provider";
+import { privatePilotInviteReady } from "@/lib/private-pilot-invite";
 
 export type SignupMode = "disabled" | "pilot" | "paid";
 
@@ -10,8 +11,9 @@ export type SignupMode = "disabled" | "pilot" | "paid";
 export function signupMode(env: NodeJS.ProcessEnv = process.env): SignupMode {
   const hasCanonicalUrl = Boolean(env.APP_BASE_URL?.startsWith("https://"))
     || env.NODE_ENV !== "production";
-  if (!hasCanonicalUrl || !deliveryCapable(env)) return "disabled";
-  if (env.PUBLIC_SIGNUP_MODE === "pilot") return "pilot";
+  if (!hasCanonicalUrl) return "disabled";
+  if (env.PUBLIC_SIGNUP_MODE === "pilot" && (deliveryCapable(env) || privatePilotInviteReady(env))) return "pilot";
+  if (!deliveryCapable(env)) return "disabled";
   // Retain the independent go-live approval flag for paid enrollment.
   if (env.PUBLIC_SIGNUP_MODE === "paid"
     && env.SELF_SERVE_SIGNUP_ENABLED === "true"

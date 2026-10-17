@@ -10,10 +10,12 @@ type PlanView = { name: string; monthlyBase: string; perEmployee: string; active
 type RegistrationMode = "pilot" | "paid";
 const fieldClass = "mt-2 w-full min-h-[46px] rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-base text-[#11141F] outline-none focus:border-[#0877ff] focus:ring-4 focus:ring-[#0877ff]/10";
 
-export function SelfServeSignupForm({ mode, plans, initialPlan }: {
+export function SelfServeSignupForm({ mode, plans, initialPlan, privateInviteEnabled = false, emailDeliveryAvailable = true }: {
   mode: RegistrationMode;
   plans: PlanView[];
   initialPlan?: string;
+  privateInviteEnabled?: boolean;
+  emailDeliveryAvailable?: boolean;
 }) {
   const isPilot = mode === "pilot";
   const sellable = useMemo(() => plans.filter((item) => item.active && isSellablePlan(item.name)), [plans]);
@@ -28,6 +30,8 @@ export function SelfServeSignupForm({ mode, plans, initialPlan }: {
   const [error, setError] = useState("");
   const [issues, setIssues] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [activated, setActivated] = useState(false);
+  const [privatePilotInviteCode, setPrivatePilotInviteCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
   const [deliveryConfirmed, setDeliveryConfirmed] = useState(true);
@@ -55,6 +59,9 @@ export function SelfServeSignupForm({ mode, plans, initialPlan }: {
     if (!isPilot && !quote) { setError("Choose a valid plan and employee seat count."); return; }
     if (values.password !== values.confirm) { setError("Passwords do not match."); return; }
     if (!agreed) { setError("Please accept the registration terms."); return; }
+    if (isPilot && privateInviteEnabled && !emailDeliveryAvailable && !privatePilotInviteCode.trim()) {
+      setError("Enter the private pilot invitation code issued for your email."); return;
+    }
     setBusy(true);
     try {
       const intakeProof = await obtainIntakeProof(values.email);
@@ -68,7 +75,7 @@ export function SelfServeSignupForm({ mode, plans, initialPlan }: {
           company: values.company,
           password: values.password,
           // The server independently fixes pilot plan, seats, and price.
-          ...(isPilot ? {} : { plan, seats: quote?.seats }),
+          ...(isPilot ? { privatePilotInviteCode: privatePilotInviteCode.trim() } : { plan, seats: quote?.seats }),
           acceptTerms: agreed,
         }),
       });
@@ -79,11 +86,15 @@ export function SelfServeSignupForm({ mode, plans, initialPlan }: {
         return;
       }
       setVerificationEmail(values.email.trim());
+      setActivated(payload.activated === true);
       setDeliveryConfirmed(payload.delivery === "accepted_by_provider");
       setSubmitted(true);
+      setPrivatePilotInviteCode("");
       setValues({ name: "", email: "", company: "", password: "", confirm: "" });
-    } catch {
-      setError("The registration service is unavailable. Please try again later.");
+    } catch (error) {
+      setError(error instanceof Error && error.message.length < 220
+        ? error.message
+        : "The registration service is unavailable. Please try again later.");
     } finally {
       setBusy(false);
     }
@@ -122,26 +133,40 @@ export function SelfServeSignupForm({ mode, plans, initialPlan }: {
     return (
       <section className="rounded-[24px] border border-[#d5e7db] bg-[#f2fff6] p-7" role="status">
         <CheckCircle2 size={32} className="text-[#13805c]" />
-        <h2 className="mt-3 font-display text-[26px] font-semibold">Verify your email to continue</h2>
-        <p className="mt-3 text-[14px] leading-relaxed text-[#42546d]">
-          If this account is eligible, a single-use verification link will arrive at <strong>{verificationEmail}</strong>.
-          {isPilot
-            ? " After verification, open your 14-day pilot workspace. No payment or credit card is needed."
-            : " After verification, you can set up your selected subscription. No payment was taken on this form."}
-        </p>
-        {!deliveryConfirmed && (
-          <p className="mt-4 rounded-xl border border-[#FFE2A3] bg-[#FFFBEB] p-3 text-[12px] text-[#765216]" role="alert">
-            Email delivery has not been confirmed. Check your spam folder or request a new verification link.
+        <h2 className="mt-3 font-display text-[26px] font-semibold">
+          {activated ? "Your private pilot account is ready" : "Verify your email to continue"}
+        </h2>
+        {activated ? (
+          <p className="mt-3 text-[14px] leading-relaxed text-[#42546d]">
+            Your 14-day Core development pilot is available for <strong>{verificationEmail}</strong>.
+            Sign in with the new password you entered. No email link or payment is required for this
+            invitation. Do not enter real employee, payroll or bank information.
           </p>
+        ) : (
+          <>
+            <p className="mt-3 text-[14px] leading-relaxed text-[#42546d]">
+              If this account is eligible, a single-use verification link will arrive at <strong>{verificationEmail}</strong>.
+              {isPilot
+                ? " After verification, open your 14-day pilot workspace. No payment or credit card is needed."
+                : " After verification, you can set up your selected subscription. No payment was taken on this form."}
+            </p>
+            {!deliveryConfirmed && (
+              <p className="mt-4 rounded-xl border border-[#FFE2A3] bg-[#FFFBEB] p-3 text-[12px] text-[#765216]" role="alert">
+                Email delivery has not been confirmed. Check your spam folder or request a new verification link.
+              </p>
+            )}
+            <button type="button" onClick={() => void resendVerification()} disabled={resendBusy}
+              className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#B8D3F8] px-4 text-[13px] font-semibold text-[#0868dc] disabled:opacity-50">
+              {resendBusy ? "Requesting…" : "Resend verification email"}
+            </button>
+            {resendMessage && <p className="mt-3 text-[12px] text-[#42546d]" role="status">{resendMessage}</p>}
+            {resendError && <p className="mt-3 text-[12px] text-[#9E2239]" role="alert">{resendError}</p>}
+            <p className="mt-3 text-xs text-[#6B718C]">Verification links expire after one hour. Already verified? Sign in below.</p>
+          </>
         )}
-        <button type="button" onClick={() => void resendVerification()} disabled={resendBusy}
-          className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#B8D3F8] px-4 text-[13px] font-semibold text-[#0868dc] disabled:opacity-50">
-          {resendBusy ? "Requesting…" : "Resend verification email"}
-        </button>
-        {resendMessage && <p className="mt-3 text-[12px] text-[#42546d]" role="status">{resendMessage}</p>}
-        {resendError && <p className="mt-3 text-[12px] text-[#9E2239]" role="alert">{resendError}</p>}
-        <p className="mt-3 text-xs text-[#6B718C]">Verification links expire after one hour. Already verified? Sign in below.</p>
-        <Link href="/login" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#0868dc]">Sign in <ArrowRight size={16} /></Link>
+        <Link href="/login" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#0868dc]">
+          {activated ? "Sign in to your pilot" : "Sign in"} <ArrowRight size={16} />
+        </Link>
       </section>
     );
   }
@@ -152,12 +177,16 @@ export function SelfServeSignupForm({ mode, plans, initialPlan }: {
       <span className="text-[11px] font-bold uppercase tracking-[.14em] text-[#0877ff]">One secure registration</span>
       <h2 className="font-display mt-2 text-[27px] font-semibold">Create your owner account</h2>
       <p className="mt-2 text-[13px] leading-relaxed text-[#5B6080]">
-        {isPilot ? "Register your company in one place. Your 14-day Core pilot starts after email verification." : "Choose a plan, enter your company details, and verify your work email."}
+        {isPilot
+          ? privateInviteEnabled && !emailDeliveryAvailable
+            ? "Use your private pilot invitation to create a 14-day Core test account. No email link or payment is needed."
+            : "Register your company in one place. Verify your email or use an authorized private pilot invitation."
+          : "Choose a plan, enter your company details, and verify your work email."}
       </p>
       <ol className="mt-5 grid grid-cols-3 gap-2 text-center text-[11px] font-semibold text-[#4B5670]" aria-label="Registration steps">
         <li className="rounded-lg bg-[#EDF5FF] px-2 py-2">1. Register</li>
-        <li className="rounded-lg bg-[#F3F5F9] px-2 py-2">2. Verify email</li>
-        <li className="rounded-lg bg-[#F3F5F9] px-2 py-2">{isPilot ? "3. Open workspace" : "3. Set up billing"}</li>
+        <li className="rounded-lg bg-[#F3F5F9] px-2 py-2">{isPilot && privateInviteEnabled && (!emailDeliveryAvailable || privatePilotInviteCode.trim()) ? "2. Invitation" : "2. Verify email"}</li>
+        <li className="rounded-lg bg-[#F3F5F9] px-2 py-2">{isPilot ? "3. Sign in" : "3. Set up billing"}</li>
       </ol>
       {isPilot ? (
         <div className="mt-5 rounded-2xl border border-[#BDD8FF] bg-[#EDF5FF] p-4">
@@ -200,6 +229,27 @@ export function SelfServeSignupForm({ mode, plans, initialPlan }: {
       <label className="mt-4 block text-[12px] font-semibold">Company name
         <input className={fieldClass} value={values.company} onChange={(event) => set("company", event.target.value)} autoComplete="organization" minLength={2} maxLength={160} required />
       </label>
+      {isPilot && privateInviteEnabled && (
+        <label className="mt-4 block text-[12px] font-semibold">
+          Private pilot invitation code
+          <input
+            className={fieldClass}
+            type="text"
+            autoComplete="off"
+            spellCheck={false}
+            value={privatePilotInviteCode}
+            onChange={(event) => setPrivatePilotInviteCode(event.target.value)}
+            minLength={40}
+            maxLength={256}
+            placeholder="Paste the code issued for your email"
+            required={!emailDeliveryAvailable}
+          />
+          <span className="mt-2 block text-[12px] font-normal leading-relaxed text-[#5B6080]">
+            This temporary code is tied to one invited email address. It permits fictional-data pilot access without email confirmation.
+            {emailDeliveryAvailable ? " Leave this blank to use ordinary email verification." : ""}
+          </span>
+        </label>
+      )}
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <label className="text-[12px] font-semibold">Create password
           <input className={fieldClass} type="password" value={values.password} onChange={(event) => set("password", event.target.value)} autoComplete="new-password" minLength={12} maxLength={256} required />
@@ -220,7 +270,7 @@ export function SelfServeSignupForm({ mode, plans, initialPlan }: {
       {issues.length > 0 && <ul className="mt-2 list-disc pl-5 text-[12px] text-[#a51b34]">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}
       <button type="submit" disabled={busy || (!isPilot && !quote) || !agreed}
         className="mt-5 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full bg-[#0877ff] px-5 py-3 font-semibold text-white disabled:opacity-50">
-        {busy ? "Creating account…" : "Create account & verify email"} <ArrowRight size={17} />
+        {busy ? "Creating account…" : isPilot && privateInviteEnabled && privatePilotInviteCode.trim() ? "Create private pilot account" : "Create account & verify email"} <ArrowRight size={17} />
       </button>
       <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-[#6B718C]">
         <ShieldCheck size={16} /> {isPilot ? "One company account. No payment required." : "Payment information is handled by hosted checkout."}
