@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Eye, Pencil, Plus, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
 
 type GroupField = {
@@ -93,13 +93,21 @@ function allowedOperators(kind: GroupField["kind"], operators: string[]) {
   return operators.filter((operator) => allowed.has(operator));
 }
 
-export function DynamicWorkerGroupsPanel({
-  organizationId,
-  setNotice,
-}: {
+type DynamicWorkerGroupsProps = {
   organizationId: number;
   setNotice: (message: string) => void;
-}) {
+};
+
+// Reset group catalog, member previews, and in-progress edits before another
+// employer's view renders; do not carry a prior company's worker attributes.
+export function DynamicWorkerGroupsPanel(props: DynamicWorkerGroupsProps) {
+  return <DynamicWorkerGroupsContent key={props.organizationId} {...props} />;
+}
+
+function DynamicWorkerGroupsContent({
+  organizationId,
+  setNotice,
+}: DynamicWorkerGroupsProps) {
   const [data, setData] = useState<GroupPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -112,25 +120,48 @@ export function DynamicWorkerGroupsPanel({
   const [conditions, setConditions] = useState<ConditionDraft[]>([]);
   const [previewingId, setPreviewingId] = useState<number | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const previewRevisionRef = useRef(0);
+  const previewControllerRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () => mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
     setLoading(true);
     try {
       const response = await fetch(
         `/api/dynamic-worker-groups?organizationId=${organizationId}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal: controller.signal },
       );
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not load Dynamic Groups.");
       setData(payload as GroupPayload);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not load Dynamic Groups.");
+      if (isCurrent()) setNotice(error instanceof Error ? error.message : "Could not load Dynamic Groups.");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [organizationId, setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+      previewRevisionRef.current += 1;
+      previewControllerRef.current?.abort();
+    };
+  }, [load]);
 
   const fieldByValue = useMemo(
     () => new Map((data?.catalogs.fields ?? []).map((field) => [field.value, field])),
@@ -176,6 +207,9 @@ export function DynamicWorkerGroupsPanel({
       value: valueText(row.value),
     })));
     setShowBuilder(true);
+    previewRevisionRef.current += 1;
+    previewControllerRef.current?.abort();
+    setPreviewingId(null);
     setPreview(null);
   }
 
@@ -228,16 +262,17 @@ export function DynamicWorkerGroupsPanel({
         }),
       });
       const payload = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not save dynamic group.");
       const group = payload.group as GroupRow;
       resetBuilder();
       setShowBuilder(false);
       await load();
-      setNotice(`${group.name} saved as Dynamic Group v${group.version}. Future worker events will resolve membership from this live definition.`);
+      if (mountedRef.current) setNotice(`${group.name} saved as Dynamic Group v${group.version}. Future worker events will resolve membership from this live definition.`);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not save dynamic group.");
+      if (mountedRef.current) setNotice(error instanceof Error ? error.message : "Could not save dynamic group.");
     } finally {
-      setSaving(false);
+      if (mountedRef.current) setSaving(false);
     }
   }
 
@@ -255,33 +290,42 @@ export function DynamicWorkerGroupsPanel({
         }),
       });
       const payload = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not update dynamic group.");
       await load();
+      if (!mountedRef.current) return;
       setPreview((current) => current?.group.id === group.id ? null : current);
       setNotice(`${group.name} ${active ? "enabled" : "disabled"} as version ${payload.group?.version ?? ""}.`);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not update dynamic group.");
+      if (mountedRef.current) setNotice(error instanceof Error ? error.message : "Could not update dynamic group.");
     } finally {
-      setSaving(false);
+      if (mountedRef.current) setSaving(false);
     }
   }
 
   async function previewGroup(group: GroupRow) {
+    previewControllerRef.current?.abort();
+    const controller = new AbortController();
+    previewControllerRef.current = controller;
+    const revision = ++previewRevisionRef.current;
+    const isCurrent = () => mountedRef.current && !controller.signal.aborted && revision === previewRevisionRef.current;
     setPreviewingId(group.id);
     try {
       const response = await fetch(
         `/api/dynamic-worker-groups?organizationId=${organizationId}&previewGroupId=${group.id}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal: controller.signal },
       );
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not preview dynamic group.");
       setPreview(payload as PreviewPayload);
       setNotice(`${group.name}: ${payload.preview?.memberCount ?? 0} live member(s) from ${payload.preview?.totalWorkersEvaluated ?? 0} worker(s) evaluated.`);
     } catch (error) {
+      if (!isCurrent()) return;
       setPreview(null);
       setNotice(error instanceof Error ? error.message : "Could not preview dynamic group.");
     } finally {
-      setPreviewingId(null);
+      if (isCurrent()) setPreviewingId(null);
     }
   }
 
