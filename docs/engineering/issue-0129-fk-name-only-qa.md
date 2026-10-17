@@ -137,3 +137,15 @@ invariants. Never interpret PG16 synthetic success or lint warning tally
 as any of those human approvals. PostgreSQL 18 is covered by the added full-train regression, but
 **must still be marked NOT_RUN until exact-head PG18 CI completes successfully**.
 The standalone fourth-database Atlas-style rehearsal remains PG16-only.
+
+## Additional executed contract rejection matrix
+
+The standalone PG16 checkpoint also recreates one fictional employee FK inside
+separate savepoints with each of: NOT VALID, DEFERRABLE INITIALLY IMMEDIATE,
+DEFERRABLE INITIALLY DEFERRED, ON UPDATE CASCADE, and MATCH FULL. Each case
+executes the unchanged 0129 SQL and requires the catalog-contract exception;
+rollback must restore the complete catalog, including original constraint OIDs.
+The JSON evidence names every rejected variant. These are database behavior
+checks, not source-text assertions. This matrix remains NOT_RUN until the new
+exact-head standalone PostgreSQL job passes. The numbered SQL bytes, production
+holds, receipt fields and all runtime flags are unchanged.

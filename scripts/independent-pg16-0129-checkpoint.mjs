@@ -236,6 +236,34 @@ try {
   assert.deepEqual(await snapshot(db),before,"Wrong-action rejection must roll back");
   await db.query("RELEASE SAVEPOINT fake_fk_semantics");
 
+  // Execute each remaining FK-status/action rejection against PostgreSQL.
+  // Recreating this one fictional FK is confined to a savepoint; compare
+  // the entire catalog after rollback, including the original constraint OID.
+  const contractMutations = [
+    ["unvalidated", "ON DELETE RESTRICT NOT VALID"],
+    ["deferrable_immediate", "ON DELETE RESTRICT DEFERRABLE INITIALLY IMMEDIATE"],
+    ["deferrable_deferred", "ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"],
+    ["update_cascade", "ON DELETE RESTRICT ON UPDATE CASCADE"],
+    ["match_full", "MATCH FULL ON DELETE RESTRICT"],
+  ];
+  for (const [probe, suffix] of contractMutations) {
+    await db.query("SAVEPOINT changed_fk_contract");
+    await db.query(
+      'ALTER TABLE public."employee_entity_assignments" DROP CONSTRAINT "'+first.oldName+'"'
+    );
+    await db.query(
+      'ALTER TABLE public."employee_entity_assignments" ADD CONSTRAINT "'+first.oldName+
+      '" FOREIGN KEY (employee_id) REFERENCES public.employees(id) '+suffix
+    );
+    await assert.rejects(()=>db.query(sql), error=>error.code==="P0001" &&
+      error.message.includes("ISSUE0129_FK_CATALOG_CONTRACT_MISMATCH"),
+    "0129 must reject changed FK contract: "+probe);
+    await db.query("ROLLBACK TO SAVEPOINT changed_fk_contract");
+    assert.deepEqual(await snapshot(db),before,
+      "Changed FK contract rejection must restore the entire catalog: "+probe);
+    await db.query("RELEASE SAVEPOINT changed_fk_contract");
+  }
+
   // Successful exact-source rehearsal MUST be wholly reversible.
   await db.query("SAVEPOINT intended_0129_rollback");
   await db.query(sql);
@@ -256,6 +284,7 @@ try {
     file:SOURCE,sha256:createHash("sha256").update(sql).digest("hex"),
     sameContractRenamed:changes.length,
     negativeTargetCollisionRejected:true,negativeNameSwapRejected:true,negativeDeleteActionRejected:true,
+    negativeContractMutationsRejected:contractMutations.map(([probe])=>probe),
     successfulRollbackVerified:true,wholeConstraintCatalogPreserved:true,
     nonConstraintCatalogPreserved:true,
     committedToDisposablePG16Only:true,productionContact:false,
