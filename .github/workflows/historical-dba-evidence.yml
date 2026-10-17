@@ -3,6 +3,9 @@ name: P0-4 Historical DBA Evidence (Read Only)
 on:
   pull_request:
     paths:
+      - "docs/engineering/issue-1198-migration-forensics-20261017.md"
+      - "docs/engineering/issue-1198-catalog-only-inspection.sql"
+      - "tests/issue-1198-migration-forensics.test.mjs"
       - "scripts/lib/historical-dba-evidence.mjs"
       - "scripts/audit-historical-dba-evidence.mjs"
       - "tests/historical-dba-evidence.test.mjs"
@@ -11,6 +14,9 @@ on:
   push:
     branches: [main]
     paths:
+      - "docs/engineering/issue-1198-migration-forensics-20261017.md"
+      - "docs/engineering/issue-1198-catalog-only-inspection.sql"
+      - "tests/issue-1198-migration-forensics.test.mjs"
       - "scripts/lib/historical-dba-evidence.mjs"
       - "scripts/audit-historical-dba-evidence.mjs"
       - "tests/historical-dba-evidence.test.mjs"
@@ -54,6 +60,7 @@ jobs:
           node --check scripts/lib/historical-dba-evidence.mjs
           node --check scripts/audit-historical-dba-evidence.mjs
           node --test tests/historical-dba-evidence.test.mjs
+          node --test tests/issue-1198-migration-forensics.test.mjs
           node scripts/audit-historical-dba-evidence.mjs --inventory
 
   synthetic-postgres-18:
