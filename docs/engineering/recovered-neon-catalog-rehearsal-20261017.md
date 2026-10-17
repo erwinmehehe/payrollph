@@ -1,5 +1,34 @@
 # PayrollPH recovered Neon: read-only catalog evidence and recovery controls
 
+## Historical source integration — immutability and explicit current comparison
+
+The original **October 17, 2026** Neon catalog observation is frozen in
+`qa/recovery/recovered-neon-20261017.catalog.json`, with original source
+Git blob `111085f3161ef0a0d401f960833a9c9f1736dd13`. The matching 271
+source-declared table names are also archived in
+`qa/recovery/recovered-neon-20261017.source-tables.json`. Neither captured
+snapshot is updated when the source schema subsequently changes; historical
+table-presence gaps remain 126 missing and 3 legacy extras.
+
+The planner now has two deliberately distinct modes:
+
+- `npx tsx scripts/qa/recovered-schema-plan.ts`: **captured-source-strict**;
+  still fails if checked-out source bytes differ from the pinned source blob.
+- `npx tsx scripts/qa/recovered-schema-plan.ts --compare-current-source`:
+  explicit **current-source-advisory** report with separate historical and
+  current table-presence counts, both exact Git blob IDs, drift flags and
+  tables added/removed since capture. It always blocks release approval.
+
+An index, column, foreign key, RLS, default or check can change the source
+blob **without changing table names**. This is a table-name comparison
+against the archived Neon observation, not a current full-DDL parity test.
+A historical SQL `CREATE TABLE` mention indicates a *candidate* scanned
+from the current checked-out migration folder, not a migration receipt.
+This process is neither a fresh Neon audit nor authorization to run DDL,
+payroll, payments or government filings. Any current-source drift requires
+independent review.
+
+
 Evidence date: 2026-10-17 (UTC). Source schema blob: 111085f3161ef0a0d401f960833a9c9f1736dd13. Target: Neon project calm-wave-70219564, recovery branch br-mute-mode-b740q5zx, neondb / PostgreSQL 18.
 
 **Status: BLOCKED.** This is a review-only catalog plan and synthetic test harness, not an approved recovery, restored snapshot, migration journal or production acceptance.

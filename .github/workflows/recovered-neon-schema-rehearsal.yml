@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - "qa/recovery/recovered-neon-20261017.catalog.json"
+      - "qa/recovery/recovered-neon-20261017.source-tables.json"
+      - "src/db/schema.ts"
+      - "scripts/lib/issue-1031-schema-manifest.ts"
+      - "drizzle/**"
       - "scripts/qa/recovered-schema-plan.ts"
       - "tests/recovered-schema-plan.test.ts"
       - ".github/workflows/recovered-neon-schema-rehearsal.yml"
@@ -12,6 +16,10 @@ on:
     branches: [main]
     paths:
       - "qa/recovery/recovered-neon-20261017.catalog.json"
+      - "qa/recovery/recovered-neon-20261017.source-tables.json"
+      - "src/db/schema.ts"
+      - "scripts/lib/issue-1031-schema-manifest.ts"
+      - "drizzle/**"
       - "scripts/qa/recovered-schema-plan.ts"
       - "tests/recovered-schema-plan.test.ts"
       - ".github/workflows/recovered-neon-schema-rehearsal.yml"
@@ -37,7 +45,7 @@ jobs:
       - name: Save structural-only plan
         run: |
           mkdir -p qa-artifacts/recovered-neon
-          ./node_modules/.bin/tsx scripts/qa/recovered-schema-plan.ts > qa-artifacts/recovered-neon/dependency-plan.json
+          ./node_modules/.bin/tsx scripts/qa/recovered-schema-plan.ts --compare-current-source > qa-artifacts/recovered-neon/dependency-plan.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
