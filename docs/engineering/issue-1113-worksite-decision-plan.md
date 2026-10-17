@@ -1,5 +1,20 @@
 # #1113 — Worksite decision column: source reconciliation and guarded candidate
 
+## Current follow-up — 2026-10-17
+
+The numbering hold described below is superseded: #1136 merged as
+`f49ea7a4a9c58cf88f437913f82aeb55f9d4fd47`. The exact candidate DO body is
+promoted into `drizzle/0130_worksite_assignment_decision_forward.sql` with
+updated header comments only. The PostgreSQL rehearsal now executes **0130**;
+the original unnumbered file remains a historical review artifact.
+`0131_separation_record_forward_repair.sql` separately addresses the 18
+separation-column omissions. See `issue-1113-separation-forward-plan.md` for
+the catalog inventory, route impact, defaults, maker/checker and rollback.
+Source merge can proceed after current-head checks. Production execution is
+still a separate protected action; #899/#907 and genuine target/receipt gates
+remain unverified. Statements below about draft #1136 and a reserved 0129
+describe the earlier candidate stage, not the current source merge status.
+
 **Status:** Source-only, unnumbered, NOT applied. The objective is to repair a reproducible PostgreSQL schema mismatch without weakening tenancy, replaying historical SQL or changing money records.
 
 ## Proven source-level root cause
