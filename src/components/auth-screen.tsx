@@ -21,10 +21,12 @@ const inputClass =
 export function AuthScreen({
   demoMode = false,
   setupAvailable = false,
+  registrationAvailable = false,
   initialError = "",
 }: {
   demoMode?: boolean;
   setupAvailable?: boolean;
+  registrationAvailable?: boolean;
   initialError?: string;
 }) {
   const [mode, setMode] = useState<Mode>("login");
@@ -32,6 +34,8 @@ export function AuthScreen({
   const [password, setPassword] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [requiresTotp, setRequiresTotp] = useState(false);
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  const [backupCode, setBackupCode] = useState("");
   const [message, setMessage] = useState("Use the account created for your workspace or the invitation you accepted.");
   const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState(false);
@@ -46,9 +50,9 @@ export function AuthScreen({
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, totpCode: totpCode || undefined }),
+        body: JSON.stringify({ email, password, totpCode: !useBackupCode ? (totpCode || undefined) : undefined, backupCode: useBackupCode ? (backupCode || undefined) : undefined }),
       });
-      const payload = await response.json();
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         setError(payload.error ?? "Sign-in failed");
         if (payload.requiresTotp) setRequiresTotp(true);
@@ -112,6 +116,8 @@ export function AuthScreen({
       setMessage(
         "If this email belongs to a Linaw account, the reset request has been recorded. Check your inbox for a link; if nothing arrives, contact your workspace administrator.",
       );
+    } catch {
+      setError("Could not reach the password reset service. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -184,7 +190,7 @@ export function AuthScreen({
             </div>
 
             {error && (
-              <div className="mt-5 rounded-xl border border-[#FFD5DC] bg-[#FFF6F7] px-3.5 py-3 text-[12.5px] font-medium text-[#9E2239]">
+              <div className="mt-5 rounded-xl border border-[#FFD5DC] bg-[#FFF6F7] px-3.5 py-3 text-[12.5px] font-medium text-[#9E2239]" role="alert">
                 {error}
               </div>
             )}
@@ -237,12 +243,19 @@ export function AuthScreen({
 
                 {requiresTotp && (
                   <label className="text-[12px] font-semibold text-[#30354A]">
-                    Authenticator code
+                    {useBackupCode ? "One-time recovery code" : "Authenticator code"}
                     <span className="relative mt-2 block">
                       <KeyRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9AA0B2]" aria-hidden />
-                      <input className={inputClass} value={totpCode} onChange={(e) => setTotpCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" />
+                      {useBackupCode ? (
+                        <input className={inputClass} value={backupCode} onChange={(e) => setBackupCode(e.target.value)} placeholder="Enter a saved recovery code" autoComplete="one-time-code" required />
+                      ) : (
+                        <input className={inputClass} value={totpCode} onChange={(e) => setTotpCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" autoComplete="one-time-code" required />
+                      )}
                     </span>
-                    <small className="mt-2 block text-[10.5px] font-normal leading-relaxed text-[#8B90AA]">Your password was accepted. The session is created only after TOTP verification.</small>
+                    <small className="mt-2 block text-[10.5px] font-normal leading-relaxed text-[#8B90AA]">Your password was accepted. A session is created only after the second factor is verified.</small>
+                    <button type="button" onClick={() => { setUseBackupCode((current) => !current); setError(""); }} className="mt-2 block text-[11.5px] font-semibold text-[#5A5AE0] hover:underline">
+                      {useBackupCode ? "Use an authenticator code instead" : "Use a saved recovery code instead"}
+                    </button>
                   </label>
                 )}
 
@@ -293,7 +306,10 @@ export function AuthScreen({
 
             <div className="mt-6 grid gap-3 border-t border-[#ECEEF4] pt-5">
               <p className="text-center text-[12px] text-[#777D93]">
-                New to Linaw? <Link href="/signup" className="font-semibold text-[#4A4AE0]">Request trial access</Link>
+                New to Linaw? <Link href="/signup" className="font-semibold text-[#4A4AE0]">{registrationAvailable ? "Create a company account" : "Request access to a company account"}</Link>
+              </p>
+              <p className="text-center text-[11px] leading-relaxed text-[#8B90AA]">
+                {registrationAvailable ? "Sign up, verify your email, then authorize your chosen subscription." : "New workspaces are invitation-based during the controlled rollout. Submitting a request does not create login credentials."}
               </p>
               <Link href="/demo" className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-[#E1E3EC] bg-[#FAFBFD] px-4 text-[12px] font-semibold text-[#4E546A] transition hover:border-[#D3D6E2] hover:bg-[#F4F5F9]">
                 Explore the role-based demo <ArrowRight size={13} aria-hidden />
