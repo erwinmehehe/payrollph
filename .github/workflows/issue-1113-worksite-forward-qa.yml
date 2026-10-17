@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "docs/sql/issue-1113-worksite-decision-forward-candidate.sql"
+      - "drizzle/0130_worksite_assignment_decision_forward.sql"
+      - "drizzle/0131_separation_record_forward_repair.sql"
+      - "tests/issue-1113-separation-forward-postgres.test.mjs"
       - "docs/engineering/issue-1113-worksite-decision-plan.md"
       - "tests/issue-1113-worksite-decision-postgres.test.mjs"
       - "tests/issue-1113-worksite-decision-contract.test.mjs"
@@ -12,6 +15,9 @@ on:
     branches: [main]
     paths:
       - "docs/sql/issue-1113-worksite-decision-forward-candidate.sql"
+      - "drizzle/0130_worksite_assignment_decision_forward.sql"
+      - "drizzle/0131_separation_record_forward_repair.sql"
+      - "tests/issue-1113-separation-forward-postgres.test.mjs"
       - "tests/issue-1113-worksite-decision-postgres.test.mjs"
       - "tests/issue-1113-worksite-decision-contract.test.mjs"
       - ".github/workflows/issue-1113-worksite-forward-qa.yml"
@@ -34,6 +40,7 @@ jobs:
       MIGRATION_REHEARSAL_MODE: isolated-ci-only
       ISSUE_1113_REHEARSAL: isolated-ci-only
       ISSUE_1113_PG_MAJOR: ${{ matrix.postgres }}
+      TZ: Asia/Manila
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
@@ -73,5 +80,6 @@ jobs:
         run: |
           set -euo pipefail
           node --test tests/issue-1113-worksite-decision-postgres.test.mjs
-          sha256sum docs/sql/issue-1113-worksite-decision-forward-candidate.sql
+          node --import tsx --test tests/issue-1113-separation-forward-postgres.test.mjs
+          sha256sum drizzle/0130_worksite_assignment_decision_forward.sql drizzle/0131_separation_record_forward_repair.sql
           printf '%s\n' 'SYNTHETIC ONLY - no production schema, receipts or applied SQL'

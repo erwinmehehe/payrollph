@@ -8,7 +8,7 @@ import { assertIsolatedMigrationTarget } from "../scripts/lib/isolated-migration
 // #1113: disposable, fresh-schema PostgreSQL 16/18 only. The source is an
 // unnumbered candidate; no historical ledger, Neon or production connection.
 const source = readFileSync(
-  new URL("../docs/sql/issue-1113-worksite-decision-forward-candidate.sql", import.meta.url),
+  new URL("../drizzle/0130_worksite_assignment_decision_forward.sql", import.meta.url),
   "utf8",
 );
 const sourceSha256 = createHash("sha256").update(source).digest("hex");

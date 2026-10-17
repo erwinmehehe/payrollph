@@ -2,6 +2,14 @@
 
 **Decision: NO-GO. SOURCE INVENTORY ONLY. No production or Neon SQL was executed. No receipt was collected or inferred.** This does not authorize schema repair, payroll processing, deployment, migration replay or release.
 
+## 0130/0131 source addendum — #1113 (2026-10-17)
+
+After merged #1136, source inventory includes 147 files: 145 numbered SQL,
+baseline.sql and README.md (146 SQL files total). 0130 promotes the worksite
+decision repair; 0131 adds the eighteen separation fields and existing
+maker/checker constraints/index. All receipt fields remain empty. The older
+0128/0129 counts below are historical, not the current inventory.
+
 ## Proposed 0128/0129 forward-source addendum — #1136 (2026-10-16)
 
 This paragraph updates the **current branch's source-only inventory**, not the
