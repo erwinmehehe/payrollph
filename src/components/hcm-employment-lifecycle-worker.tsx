@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarClock, CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
 import { HcmEmploymentDecisionEvidence } from "@/components/hcm-employment-decision-evidence";
 import { HcmProbationReviewPanel } from "@/components/hcm-probation-review-panel";
@@ -61,19 +61,26 @@ function readable(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function HcmEmploymentLifecycleWorker({
-  organizationId,
-  employeeId,
-  currentEmploymentType,
-  onChanged,
-  onOpenSeparation,
-}: {
+type HcmEmploymentLifecycleWorkerProps = {
   organizationId: number;
   employeeId: number;
   currentEmploymentType: string;
   onChanged?: () => Promise<unknown> | unknown;
   onOpenSeparation: () => void;
-}) {
+};
+
+// Governed employment/termination drafts must remount for each employee and employer.
+export function HcmEmploymentLifecycleWorker(props: HcmEmploymentLifecycleWorkerProps) {
+  return <ScopedHcmEmploymentLifecycleWorker key={`${props.organizationId}:${props.employeeId}`} {...props} />;
+}
+
+function ScopedHcmEmploymentLifecycleWorker({
+  organizationId,
+  employeeId,
+  currentEmploymentType,
+  onChanged,
+  onOpenSeparation,
+}: HcmEmploymentLifecycleWorkerProps) {
   const today = useMemo(() => manilaToday(), []);
   const [terms, setTerms] = useState<EmploymentTerm[]>([]);
   const [decisions, setDecisions] = useState<EmploymentDecision[]>([]);
@@ -81,6 +88,7 @@ export function HcmEmploymentLifecycleWorker({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [decisionWarning, setDecisionWarning] = useState("");
   const [showTermForm, setShowTermForm] = useState(false);
   const [showDecisionForm, setShowDecisionForm] = useState(false);
@@ -96,44 +104,59 @@ export function HcmEmploymentLifecycleWorker({
     reason: "Initial governed employment terms",
   });
 
-  const [decisionForm, setDecisionForm] = useState({
-    decisionKind: "continue_current",
-    effectiveDate: today,
-    reason: "",
-    nextEmploymentType: currentEmploymentType || "Regular",
-    nextTermKind: "regular",
-    nextEffectiveUntil: "",
-    nextProbationReviewDate: "",
-    nextContractEndDate: "",
-    nextProjectName: "",
-    proposedSeparationLastDay: "",
-    separationReason: "End of contract / non-renewal",
-  });
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
     setLoading(true);
     setError("");
+    setLoadError("");
+    // Never leave another employee's governed terms or separation decision visible
+    // while the selected employee's authorization is being revalidated.
+    setTerms([]);
+    setDecisions([]);
     try {
       const [termRes, decisionRes] = await Promise.all([
-        fetch(`/api/hcm/employment-terms?organizationId=${organizationId}&employeeId=${employeeId}`, { cache: "no-store" }),
-        fetch(`/api/hcm/employment-term-decisions?organizationId=${organizationId}&employeeId=${employeeId}`, { cache: "no-store" }),
+        fetch(`/api/hcm/employment-terms?organizationId=${organizationId}&employeeId=${employeeId}`, {
+          cache: "no-store", signal: controller.signal,
+        }),
+        fetch(`/api/hcm/employment-term-decisions?organizationId=${organizationId}&employeeId=${employeeId}`, {
+          cache: "no-store", signal: controller.signal,
+        }),
       ]);
       const termPayload = await termRes.json().catch(() => ({}));
       const decisionPayload = await decisionRes.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!termRes.ok) throw new Error(termPayload.error ?? "Could not load employment terms.");
       if (!decisionRes.ok) throw new Error(decisionPayload.error ?? "Could not load employment decisions.");
       setTerms(termPayload.terms ?? []);
       setDecisions(decisionPayload.decisions ?? []);
       if (termPayload.today) setServerToday(termPayload.today);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load employment lifecycle controls.");
+    } catch (loadFailure) {
+      if (isCurrent()) setLoadError(loadFailure instanceof Error ? loadFailure.message : "Could not load employment lifecycle controls.");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [employeeId, organizationId]);
 
   useEffect(() => {
-    void load();
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
   }, [load]);
 
   const activeTerm = terms.find((term) => term.status === "active") ?? null;
@@ -148,23 +171,47 @@ export function HcmEmploymentLifecycleWorker({
   ) ?? null;
   const activeLifecycle = activeTerm?.lifecycle ?? null;
 
-  useEffect(() => {
-    if (!activeTerm) return;
-    const dueDate = activeLifecycle?.dueDate ?? serverToday;
-    setDecisionForm((current) => ({
-      ...current,
-      effectiveDate: dueDate,
-      nextEmploymentType: activeTerm.employmentType,
-      nextTermKind: activeTerm.termKind,
-      nextEffectiveUntil: activeTerm.effectiveUntil ?? "",
-      nextProbationReviewDate: activeTerm.probationReviewDate ?? "",
-      nextContractEndDate: activeTerm.contractEndDate ?? "",
-      nextProjectName: activeTerm.projectName ?? "",
-      proposedSeparationLastDay: activeTerm.contractEndDate ?? activeTerm.effectiveUntil ?? dueDate,
-    }));
-  }, [activeTerm?.id, activeLifecycle?.dueDate, serverToday]);
+  // The governed successor-term form is derived from the latest active term.
+  // Keep only edited fields in state, keyed to the term they were entered for.
+  const decisionFormBase = {
+    decisionKind: "continue_current",
+    effectiveDate: activeLifecycle?.dueDate ?? serverToday,
+    reason: "",
+    nextEmploymentType: activeTerm?.employmentType || currentEmploymentType || "Regular",
+    nextTermKind: activeTerm?.termKind ?? "regular",
+    nextEffectiveUntil: activeTerm?.effectiveUntil ?? "",
+    nextProbationReviewDate: activeTerm?.probationReviewDate ?? "",
+    nextContractEndDate: activeTerm?.contractEndDate ?? "",
+    nextProjectName: activeTerm?.projectName ?? "",
+    proposedSeparationLastDay:
+      activeTerm?.contractEndDate ?? activeTerm?.effectiveUntil ?? activeLifecycle?.dueDate ?? serverToday,
+    separationReason: "End of contract / non-renewal",
+  };
+  const [decisionDraft, setDecisionDraft] = useState<{
+    sourceKey: string;
+    value: typeof decisionFormBase;
+  } | null>(null);
+  // An unchanged term ID may still have revised dates or successor details.
+  // Retire previous draft values when the governed term changes underneath it.
+  const termKey = [
+    activeTerm?.id ?? "none",
+    activeLifecycle?.dueDate ?? serverToday,
+    activeTerm?.effectiveUntil ?? "",
+    activeTerm?.contractEndDate ?? "",
+    activeTerm?.employmentType ?? "",
+    activeTerm?.termKind ?? "",
+  ].join(":");
+  const decisionForm = decisionDraft?.sourceKey === termKey ? decisionDraft.value : decisionFormBase;
+  const setDecisionForm: React.Dispatch<React.SetStateAction<typeof decisionFormBase>> = (next) => {
+    setDecisionDraft((current) => {
+      const previous = current?.sourceKey === termKey ? current.value : decisionFormBase;
+      return { sourceKey: termKey, value: typeof next === "function" ? next(previous) : next };
+    });
+  };
 
   async function mutate(url: string, method: "POST" | "PATCH", body: Record<string, unknown>) {
+    if (!mountedRef.current) return null;
+    const readRevision = loadRevisionRef.current;
     setBusy(true);
     setError("");
     setDecisionWarning("");
@@ -175,6 +222,7 @@ export function HcmEmploymentLifecycleWorker({
         body: JSON.stringify(body),
       });
       const payload = await response.json().catch(() => ({}));
+      if (!mountedRef.current || readRevision !== loadRevisionRef.current) return null;
       if (!response.ok) throw new Error(payload.error ?? "Could not update employment lifecycle.");
       if (typeof payload.warning === "string") {
         // A 202 response means the approval/retry committed but activation
@@ -183,13 +231,14 @@ export function HcmEmploymentLifecycleWorker({
           + (typeof payload.applicationError === "string" ? ` Details: ${payload.applicationError}` : ""));
       }
       await load();
+      if (!mountedRef.current) return null;
       await onChanged?.();
       return payload;
     } catch (mutationError) {
-      setError(mutationError instanceof Error ? mutationError.message : "Could not update employment lifecycle.");
+      if (mountedRef.current) setError(mutationError instanceof Error ? mutationError.message : "Could not update employment lifecycle.");
       return null;
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   }
 
@@ -207,7 +256,7 @@ export function HcmEmploymentLifecycleWorker({
       projectName: termForm.projectName || null,
       reason: termForm.reason,
     });
-    if (payload) setShowTermForm(false);
+    if (payload && mountedRef.current) setShowTermForm(false);
   }
 
   async function actOnTerm(id: number, action: "approve" | "cancel" | "retry") {
@@ -243,7 +292,7 @@ export function HcmEmploymentLifecycleWorker({
     }
 
     const payload = await mutate("/api/hcm/employment-term-decisions", "POST", body);
-    if (payload) setShowDecisionForm(false);
+    if (payload && mountedRef.current) setShowDecisionForm(false);
   }
 
   async function actOnDecision(id: number, action: "approve" | "cancel" | "retry") {
@@ -255,6 +304,24 @@ export function HcmEmploymentLifecycleWorker({
     : activeTerm
       ? ["renew_term", "extend_term", "convert_terms", "non_renew", "continue_current"]
       : [];
+
+  // A denied or incomplete governed read must never be mistaken for
+  // "No active governed employment terms" or enable a new term request.
+  if (loading || loadError) return (
+    <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+      <div className="card-body">
+        {loading ? (
+          <span>Loading governed employment lifecycle…</span>
+        ) : (
+          <div className="notice notice-red">
+            <AlertTriangle size={15} />
+            <span>{loadError}</span>
+            <button type="button" className="secondary-button" onClick={() => void load()}>Retry</button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
 
   return (
     <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
