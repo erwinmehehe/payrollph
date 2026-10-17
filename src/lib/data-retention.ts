@@ -137,7 +137,7 @@ export class RetentionPurgeIncompleteError extends Error {
   }
 }
 
-function describeFailure(step: string, error: unknown): RetentionStepFailure {
+export function describeFailure(step: string, error: unknown): RetentionStepFailure {
   const e = error as { code?: unknown; message?: unknown; cause?: { code?: unknown; message?: unknown } } | null;
   const code = typeof e?.code === "string" ? e.code : typeof e?.cause?.code === "string" ? e.cause.code : null;
   // Prefer the database error over Drizzle's wrapper, which echoes the SQL and its parameters.

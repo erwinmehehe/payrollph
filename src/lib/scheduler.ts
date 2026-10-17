@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
 import { drainOutboxRetries } from "@/lib/mailer";
-import { purgeExpiredOperationalData, RetentionPurgeIncompleteError } from "@/lib/data-retention";
+import { describeFailure, purgeExpiredOperationalData, RetentionPurgeIncompleteError } from "@/lib/data-retention";
 import { enhancedPunchEnabled, drainExpiredPunchPhotoBatches } from "@/lib/workforce-punch-evidence";
 import { purgeExpiredPunchPhotos } from "@/lib/workforce-punch-retention";
 import { drainMarketingLeadNotifications } from "@/lib/marketing-leads";
@@ -31,6 +31,25 @@ import { runDueApprovalChainEscalations } from "@/lib/approval-chain-escalation-
 import { runScheduledComplianceDeadlineAlerts } from "@/lib/compliance-deadline-alerts";
 
 const MIN_INTERVAL_MS = 30_000;
+
+export class SchedulerLeaseLostError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SchedulerLeaseLostError";
+  }
+}
+
+export type SchedulerJobFailure = { job: string; message: string };
+
+/** One or more scheduled jobs failed; every other job was still attempted. */
+export class SchedulerJobsIncompleteError extends Error {
+  readonly failures: SchedulerJobFailure[];
+  constructor(failures: SchedulerJobFailure[]) {
+    super("Scheduler tick incomplete; failed jobs: " + failures.map((f) => f.job).join(", "));
+    this.name = "SchedulerJobsIncompleteError";
+    this.failures = failures;
+  }
+}
 
 /**
  * Worker-triggered scheduler used by /api/jobs/tick and the dedicated worker.
@@ -71,7 +90,7 @@ export async function tickScheduler(force = false) {
       // Reconfirm ownership before starting each financial/HR side effect.
       if (leaseLost || !(await refreshSchedulerLease(ownerToken))) {
         leaseLost = true;
-        throw new Error("Central scheduler lease lost before scheduled side effect; review partial work.");
+        throw new SchedulerLeaseLostError("Central scheduler lease lost before scheduled side effect; review partial work.");
       }
     });
     if (leaseLost) {
@@ -97,6 +116,17 @@ async function runScheduledJobs(
   assertLeaseOwnership: () => Promise<void>,
 ) {
   const now = new Date();
+  // A job that throws must not stop the jobs after it (approval escalations,
+  // statutory sync, HCM and compliance work). Its failure is recorded and
+  // rethrown after every other job ran; a lost lease is never isolated.
+  const failures: SchedulerJobFailure[] = [];
+  const isolate = (job: string) => (error: unknown): null => {
+    if (error instanceof SchedulerLeaseLostError) throw error;
+    // Database errors surface the driver message and SQLSTATE, never the SQL text.
+    const { code, message } = describeFailure(job, error);
+    failures.push({ job, message: code ? code + ": " + message : message });
+    return null;
+  };
   const [row] = await db.select().from(schedulerState).where(eq(schedulerState.jobName, "delivery-drain")).limit(1);
 
   if (!force && row?.lastRunAt && now.getTime() - row.lastRunAt.getTime() < MIN_INTERVAL_MS) {
@@ -137,37 +167,43 @@ async function runScheduledJobs(
   // switching the feature flag OFF strands existing encrypted evidence.
   // Older databases without the optional migration should not fail cleanup.
   let punchPhotoPurge: { purged: number; batches: number } | null = null;
+  let punchPhotoFailed = false;
   if (retentionDue) {
     await assertLeaseOwnership();
-    const presence = await db.execute<{ photo_table_exists: boolean }>(
-      sql`SELECT to_regclass('public.workforce_punch_photo_evidence') IS NOT NULL AS photo_table_exists`,
-    );
-    const hasPhotoTable = presence.rows[0]?.photo_table_exists === true;
-    if (!hasPhotoTable && enhancedPunchEnabled()) {
-      throw Error("Enhanced punch collection enabled before punch evidence migration.");
-    }
-    if (hasPhotoTable) {
-      punchPhotoPurge = await drainExpiredPunchPhotoBatches(
-        () => purgeExpiredPunchPhotos(now, 250), assertLeaseOwnership,
+    try {
+      const presence = await db.execute<{ photo_table_exists: boolean }>(
+        sql`SELECT to_regclass('public.workforce_punch_photo_evidence') IS NOT NULL AS photo_table_exists`,
       );
+      const hasPhotoTable = presence.rows[0]?.photo_table_exists === true;
+      if (!hasPhotoTable && enhancedPunchEnabled()) {
+        throw Error("Enhanced punch collection enabled before punch evidence migration.");
+      }
+      if (hasPhotoTable) {
+        punchPhotoPurge = await drainExpiredPunchPhotoBatches(
+          () => purgeExpiredPunchPhotos(now, 250), assertLeaseOwnership,
+        );
+      }
+    } catch (error) {
+      isolate("punchPhotoPurge")(error);
+      punchPhotoFailed = true;
     }
   }
   await assertLeaseOwnership();
-  const approvalEscalations = await runDueApprovalChainEscalations(now);
+  const approvalEscalations = await runDueApprovalChainEscalations(now).catch(isolate("approvalEscalations"));
   await assertLeaseOwnership();
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
     actor: "System scheduler",
-  });
+  }).catch(isolate("statutoryRemittanceActions"));
   await assertLeaseOwnership();
   const contributionCaseEscalations = await runScheduledContributionCaseEscalations({
     actor: "System scheduler",
-  });
+  }).catch(isolate("contributionCaseEscalations"));
   await assertLeaseOwnership();
-  const hrCaseSlaEscalations = await runDueHrCaseSlaEscalations(now);
+  const hrCaseSlaEscalations = await runDueHrCaseSlaEscalations(now).catch(isolate("hrCaseSlaEscalations"));
   await assertLeaseOwnership();
-  const automationResumes = await resumeDueAutomationExecutions(now, 25);
+  const automationResumes = await resumeDueAutomationExecutions(now, 25).catch(isolate("automationResumes"));
   await assertLeaseOwnership();
-  const automationTemporalEvents = await runScheduledAutomationTemporalEvents({ now });
+  const automationTemporalEvents = await runScheduledAutomationTemporalEvents({ now }).catch(isolate("automationTemporalEvents"));
 
   const [hcmDocumentState] = await db.select().from(schedulerState)
     .where(eq(schedulerState.jobName, "hcm-document-expiry"))
@@ -177,7 +213,7 @@ async function runScheduledJobs(
     || now.getTime() - hcmDocumentState.lastRunAt.getTime() >= 6 * 60 * 60 * 1000;
   if (hcmDocumentDue) await assertLeaseOwnership();
   const hcmDocumentExpiry = hcmDocumentDue
-    ? await runScheduledHcmDocumentExpiry({ actor: "System scheduler", now })
+    ? await runScheduledHcmDocumentExpiry({ actor: "System scheduler", now }).catch(isolate("hcmDocumentExpiry"))
     : null;
 
   await assertLeaseOwnership();
@@ -189,28 +225,28 @@ async function runScheduledJobs(
         actor: "System scheduler",
         now,
         limit: 50,
-      });
+      }).catch(isolate("hcmEffectiveChanges"));
 
   await assertLeaseOwnership();
   const hcmEmploymentTerms = await runScheduledEmploymentTerms({
     actor: "System scheduler",
     now,
     limit: 100,
-  });
+  }).catch(isolate("hcmEmploymentTerms"));
 
   await assertLeaseOwnership();
   const hcmEmploymentTermDecisions = await runScheduledEmploymentTermDecisions({
     actor: "System scheduler",
     now,
     limit: 100,
-  });
+  }).catch(isolate("hcmEmploymentTermDecisions"));
 
   await assertLeaseOwnership();
   const hcmCompensation = await runScheduledCompensationGovernance({
     actor: "System scheduler",
     now,
     limit: 100,
-  });
+  }).catch(isolate("hcmCompensation"));
 
   // Secondary durable compensation delivery uses the same guarded scheduler
   // lease as the rest of the enabled queue and is never a payroll release.
@@ -266,7 +302,7 @@ async function runScheduledJobs(
     || now.getTime() - hcmLifecycleNotificationState.lastRunAt.getTime() >= 60 * 60 * 1000;
   if (hcmLifecycleNotificationsDue) await assertLeaseOwnership();
   const hcmLifecycleNotifications = hcmLifecycleNotificationsDue
-    ? await runScheduledHcmLifecycleNotifications({ actor: "System scheduler", now })
+    ? await runScheduledHcmLifecycleNotifications({ actor: "System scheduler", now }).catch(isolate("hcmLifecycleNotifications"))
     : null;
 
   const [performanceReminderState] = await db.select().from(schedulerState)
@@ -277,14 +313,15 @@ async function runScheduledJobs(
     || now.getTime() - performanceReminderState.lastRunAt.getTime() >= 60 * 60 * 1000;
   if (performanceRemindersDue) await assertLeaseOwnership();
   const performanceReminders = performanceRemindersDue
-    ? await runScheduledPerformanceReminders({ actor: "System scheduler", now })
+    ? await runScheduledPerformanceReminders({ actor: "System scheduler", now }).catch(isolate("performanceReminders"))
     : null;
   if (performanceRemindersDue) await assertLeaseOwnership();
   const performanceActionReminders = performanceRemindersDue
-    ? await runScheduledPerformanceActionReminders({ actor: "System scheduler", now })
+    ? await runScheduledPerformanceActionReminders({ actor: "System scheduler", now }).catch(isolate("performanceActionReminders"))
     : null;
 
-  if (performanceRemindersDue) {
+  // A due job that failed returns null: leave its marker alone so it is retried.
+  if (performanceRemindersDue && performanceReminders && performanceActionReminders) {
     await assertLeaseOwnership();
     const performanceReminderPayload = {
       at: now.toISOString(),
@@ -315,10 +352,10 @@ async function runScheduledJobs(
     || now.getTime() - performanceEvidenceState.lastRunAt.getTime() >= 6 * 60 * 60 * 1000;
   if (performanceEvidenceDue) await assertLeaseOwnership();
   const performanceEvidenceSealing = performanceEvidenceDue
-    ? await runScheduledPerformanceEvidenceSealing({ actor: "System scheduler", now })
+    ? await runScheduledPerformanceEvidenceSealing({ actor: "System scheduler", now }).catch(isolate("performanceEvidenceSealing"))
     : null;
 
-  if (performanceEvidenceDue) {
+  if (performanceEvidenceDue && performanceEvidenceSealing) {
     await assertLeaseOwnership();
     const performanceEvidencePayload = {
       at: now.toISOString(),
@@ -339,7 +376,7 @@ async function runScheduledJobs(
     }
   }
 
-  if (hcmLifecycleNotificationsDue) {
+  if (hcmLifecycleNotificationsDue && hcmLifecycleNotifications) {
     await assertLeaseOwnership();
     const lifecyclePayload = {
       at: now.toISOString(),
@@ -360,7 +397,7 @@ async function runScheduledJobs(
     }
   }
 
-  if (hcmDocumentDue) {
+  if (hcmDocumentDue && hcmDocumentExpiry) {
     await assertLeaseOwnership();
     const hcmDocumentPayload = {
       at: now.toISOString(),
@@ -381,7 +418,7 @@ async function runScheduledJobs(
     }
   }
 
-  if (retentionDue && !retentionFailure) {
+  if (retentionDue && !retentionFailure && !punchPhotoFailed) {
     await assertLeaseOwnership();
     const retentionPayload = { at: now.toISOString(), deleted: retention, punchPhotos: punchPhotoPurge };
     if (retentionState) {
@@ -433,6 +470,12 @@ async function runScheduledJobs(
 
   // Every other job has now run. Surface the retention failure instead of
   // recording a completion receipt for a tick that did not finish its work.
+  if (failures.length > 0) {
+    if (retentionFailure) {
+      for (const f of retentionFailure.failures) failures.push({ job: "retention." + f.step, message: f.code ?? f.message });
+    }
+    throw new SchedulerJobsIncompleteError(failures);
+  }
   if (retentionFailure) throw retentionFailure;
 
   await assertLeaseOwnership();
