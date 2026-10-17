@@ -83,13 +83,18 @@ jobs:
           PUBLIC_API_V1_EXTENDED_ENABLED: "true"
           API_V1_EXTENDED_READS_ENABLED: "true"
           PAYMONGO_WEBHOOK_SECRET: "ci-fake-paymongo-webhook-signing-secret"
-          RESEND_WEBHOOK_SECRET: "whsec_Y2ktZmFrZS1yZXNlbmQtc2lnbmVy"
           XENDIT_PAYOUT_CALLBACK_TOKEN: "ci-fake-xendit-payout-callback"
           XENDIT_CALLBACK_TOKEN: "ci-fake-xendit-subscription-callback"
           XENDIT_BUSINESS_ID: "ci-fictional-merchant"
           XENDIT_BILLING_ENABLED: "true"
         shell: bash
         run: |
+          set -euo pipefail
+          # Generate a fresh signing key only for this localhost CI server.
+          # A real-looking whsec value must never be committed as source text.
+          resend_webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$resend_webhook_secret"
+          export RESEND_WEBHOOK_SECRET="$resend_webhook_secret"
           nohup npm start -- -H 127.0.0.1 > /tmp/payrollph-security.log 2>&1 &
           echo $! > /tmp/payrollph-security.pid
           for attempt in {1..40}; do
