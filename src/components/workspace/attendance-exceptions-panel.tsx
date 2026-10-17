@@ -120,13 +120,21 @@ function readFailureMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-export function AttendanceExceptionsPanel({
-  organizationId,
-  notify,
-}: {
+type AttendanceExceptionsProps = {
   organizationId: number;
   notify: Notify;
-}) {
+};
+
+// Remount persisted exception evidence, owner selections and resolution drafts
+// whenever the selected legal employer changes.
+export function AttendanceExceptionsPanel(props: AttendanceExceptionsProps) {
+  return <ScopedAttendanceExceptionsPanel key={props.organizationId} {...props} />;
+}
+
+function ScopedAttendanceExceptionsPanel({
+  organizationId,
+  notify,
+}: AttendanceExceptionsProps) {
   const today = useMemo(() => localToday(), []);
   const [startDate, setStartDate] = useState(() => addDays(today, -13));
   const [endDate, setEndDate] = useState(today);
@@ -139,9 +147,19 @@ export function AttendanceExceptionsPanel({
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [operationsError, setOperationsError] = useState<string | null>(null);
   const activeRequest = useRef<AbortController | null>(null);
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const mutationRevisionRef = useRef(0);
 
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
     activeRequest.current?.abort();
+    const revision = ++loadRevisionRef.current;
+    activeRequest.current = null;
+    // A new date window can no longer use its previous exception owner
+    // selections or pending resolution notes.
+    setResolutionDrafts({});
+    setActionBusyId(null);
     if (!startDate || !endDate || endDate < startDate) {
       setPayload(null);
       setOperations(null);
@@ -153,6 +171,9 @@ export function AttendanceExceptionsPanel({
 
     const controller = new AbortController();
     activeRequest.current = controller;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted
+      && activeRequest.current === controller && revision === loadRevisionRef.current;
     // A new employer or date range must never display previously loaded results.
     setLoading(true);
     setPayload(null);
@@ -176,7 +197,7 @@ export function AttendanceExceptionsPanel({
           `/api/workforce/attendance-exception-events?${params.toString()}`, controller.signal,
         ),
       ]);
-      if (controller.signal.aborted || activeRequest.current !== controller) return;
+      if (!isCurrent()) return;
 
       if (analysis.status === "fulfilled") {
         setPayload(analysis.value);
@@ -195,7 +216,7 @@ export function AttendanceExceptionsPanel({
         ));
       }
     } finally {
-      if (activeRequest.current === controller) {
+      if (isCurrent()) {
         activeRequest.current = null;
         setLoading(false);
       }
@@ -203,8 +224,17 @@ export function AttendanceExceptionsPanel({
   }, [endDate, organizationId, startDate]);
 
   useEffect(() => {
-    void load();
-    return () => { activeRequest.current?.abort(); activeRequest.current = null; };
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      mutationRevisionRef.current += 1;
+      activeRequest.current?.abort();
+      activeRequest.current = null;
+    };
   }, [load]);
 
   const mutateOperationalException = useCallback(async (
@@ -212,6 +242,12 @@ export function AttendanceExceptionsPanel({
     action: "assign_owner" | "record_resolution",
     extra: Record<string, unknown>,
   ) => {
+    if (!mountedRef.current) return;
+    const mutationRevision = ++mutationRevisionRef.current;
+    const readRevision = loadRevisionRef.current;
+    const isCurrentMutation = () =>
+      mountedRef.current && mutationRevision === mutationRevisionRef.current
+      && readRevision === loadRevisionRef.current;
     setActionBusyId(eventId);
     try {
       const response = await fetch("/api/workforce/attendance-exception-events", {
@@ -220,6 +256,7 @@ export function AttendanceExceptionsPanel({
         body: JSON.stringify({ organizationId, eventId, action, ...extra }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!isCurrentMutation()) return;
       if (!response.ok) throw new Error(body.error ?? "Could not update attendance exception operations.");
       if (action === "record_resolution") {
         setResolutionDrafts((current) => {
@@ -236,9 +273,11 @@ export function AttendanceExceptionsPanel({
       );
       await load();
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not update attendance exception operations.", "err");
+      if (isCurrentMutation()) {
+        notify(error instanceof Error ? error.message : "Could not update attendance exception operations.", "err");
+      }
     } finally {
-      setActionBusyId(null);
+      if (mountedRef.current && mutationRevision === mutationRevisionRef.current) setActionBusyId(null);
     }
   }, [load, notify, organizationId]);
 
