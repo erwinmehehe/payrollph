@@ -92,7 +92,7 @@ try {
   // UNIQUE table constraint. Inspect pg_index instead of weakening the guard.
   const dedupe = await client.query(
     "SELECT i.indisunique AS is_unique, " +
-    "array_agg(a.attname ORDER BY k.ord) AS columns " +
+    "array_agg(a.attname::text ORDER BY k.ord) AS columns " +
     "FROM pg_catalog.pg_index i " +
     "JOIN pg_catalog.pg_class idx ON idx.oid=i.indexrelid " +
     "JOIN pg_catalog.pg_class tbl ON tbl.oid=i.indrelid " +
