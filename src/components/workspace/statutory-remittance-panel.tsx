@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner, Status, money } from "./ui";
@@ -57,21 +57,31 @@ type Member = {
   exceptionNote: string | null;
 };
 
-export function StatutoryRemittancePanel({
-  organizationId,
-  legalEntityId,
-  defaultMonth,
-  notify,
-}: {
+type StatutoryRemittanceProps = {
   organizationId: number;
   legalEntityId?: number | null;
   defaultMonth: string;
   notify: Notify;
-}) {
+};
+
+// Payment, agency posting and exception drafts belong to one legal-employer month.
+export function StatutoryRemittancePanel(props: StatutoryRemittanceProps) {
+  const scope = [props.organizationId, props.legalEntityId ?? "all", props.defaultMonth].join(":");
+  return <ScopedStatutoryRemittancePanel key={scope} {...props} />;
+}
+
+function ScopedStatutoryRemittancePanel({
+  organizationId,
+  legalEntityId,
+  defaultMonth,
+  notify,
+}: StatutoryRemittanceProps) {
   const [month, setMonth] = useState(defaultMonth);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [coverageGaps, setCoverageGaps] = useState<CoverageGap[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [paymentBatchId, setPaymentBatchId] = useState<number | null>(null);
   const [paymentReference, setPaymentReference] = useState("");
@@ -84,31 +94,78 @@ export function StatutoryRemittancePanel({
   const [postingAmount, setPostingAmount] = useState("");
   const [exceptionNote, setExceptionNote] = useState("");
 
-  const load = useCallback(async () => {
-    const response = await fetch(
-      `/api/compliance/statutory-remittances?organizationId=${organizationId}${legalEntityId ? `&legalEntityId=${legalEntityId}` : ""}`,
-      { cache: "no-store" },
-    );
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error ?? "Could not load statutory remittances.");
-    setBatches(Array.isArray(body.batches) ? body.batches : []);
-    setMembers(Array.isArray(body.members) ? body.members : []);
-    setCoverageGaps(Array.isArray(body.coverageGaps) ? body.coverageGaps : []);
-  }, [legalEntityId, organizationId]);
+  const mountedRef = useRef(false);
+  const loadRevisionRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+
+  const load = useCallback(async (): Promise<boolean> => {
+    if (!mountedRef.current) return false;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    const revision = ++loadRevisionRef.current;
+    const isCurrent = () =>
+      mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
+    setLoading(true);
+    setLoadError("");
+    // Do not keep another legal entity's contribution liability or posting details
+    // visible while new access/scope is being checked.
+    setBatches([]);
+    setMembers([]);
+    setCoverageGaps([]);
+    try {
+      const response = await fetch(
+        `/api/compliance/statutory-remittances?organizationId=${organizationId}${legalEntityId ? `&legalEntityId=${legalEntityId}` : ""}`,
+        { cache: "no-store", signal: controller.signal },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!isCurrent()) return false;
+      if (!response.ok) throw new Error(body.error ?? "Could not load statutory remittances.");
+      setBatches(Array.isArray(body.batches) ? body.batches : []);
+      setMembers(Array.isArray(body.members) ? body.members : []);
+      setCoverageGaps(Array.isArray(body.coverageGaps) ? body.coverageGaps : []);
+      return true;
+    } catch (error) {
+      if (isCurrent()) {
+        const message = error instanceof Error ? error.message : "Could not load statutory remittances.";
+        setLoadError(message);
+        notify(message, "err");
+      }
+      return false;
+    } finally {
+      if (isCurrent()) setLoading(false);
+    }
+  }, [legalEntityId, organizationId, notify]);
 
   useEffect(() => {
-    void load().catch((error) => notify(
-      error instanceof Error ? error.message : "Could not load statutory remittances.",
-      "err",
-    ));
-  }, [load, notify]);
+    mountedRef.current = true;
+    let retired = false;
+    queueMicrotask(() => { if (!retired) void load(); });
+    return () => {
+      retired = true;
+      mountedRef.current = false;
+      loadRevisionRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
+  }, [load]);
 
   const monthBatches = useMemo(
     () => batches.filter((batch) => batch.applicableMonth === month),
     [batches, month],
   );
 
+  // Do not enable financial reconciliation controls when the scoped GET failed.
+  if (loading) return <div className="empty-state"><Spinner label="Loading statutory remittances" /></div>;
+  if (loadError) return (
+    <div className="notice notice-red">
+      <AlertTriangle size={15} />
+      <span>{loadError}</span>
+      <button className="secondary-button" type="button" onClick={() => void load()}>Retry</button>
+    </div>
+  );
+
   async function mutate(action: string, payload: Record<string, unknown>, success: string) {
+    if (!mountedRef.current) return false;
     setBusy(action);
     try {
       const response = await fetch("/api/compliance/statutory-remittances", {
@@ -117,16 +174,18 @@ export function StatutoryRemittancePanel({
         body: JSON.stringify({ organizationId, legalEntityId: legalEntityId ?? undefined, action, ...payload }),
       });
       const body = await response.json().catch(() => ({}));
+      if (!mountedRef.current) return false;
       if (!response.ok) throw new Error(body.error ?? "Statutory remittance action failed.");
       notify(success, "ok");
-      await load();
+      const refreshed = await load();
+      if (!mountedRef.current || !refreshed) return false;
       window.dispatchEvent(new Event("statutory-remittance-changed"));
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Statutory remittance action failed.", "err");
+      if (mountedRef.current) notify(error instanceof Error ? error.message : "Statutory remittance action failed.", "err");
       return false;
     } finally {
-      setBusy(null);
+      if (mountedRef.current) setBusy(null);
     }
   }
 
@@ -323,7 +382,7 @@ export function StatutoryRemittancePanel({
                   agency={batch.agency}
                   applicableMonth={batch.applicableMonth}
                   notify={notify}
-                  onImported={load}
+                  onImported={async () => { await load(); }}
                 />
               )}
 
