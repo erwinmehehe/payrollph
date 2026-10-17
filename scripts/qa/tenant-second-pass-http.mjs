@@ -136,7 +136,7 @@ async function makeFixture() {
     orgUnitId: victimUnits[idx].id, employeeNo: "V-" + nonce + "-" + idx,
     firstName: "VictimExclusive" + idx, lastName: "Synthetic", title: "Victim confidential",
     avatarInitials: "VS", basicRate: "20000.00", startDate: "2026-10-01",
-  }))).returning({ id: employees.id, organizationId: employees.organizationId });
+  }))).returning({ id: employees.id, organizationId: employees.organizationId, employeeNo: employees.employeeNo });
   const ownedEmployees = await db.insert(employees).values([attackerA, attackerB].map((org, idx) => ({
     organizationId: org.id, legalEntityId: entities[idx + 1].id, orgUnitId: ownedUnits[idx + 1].id,
     employeeNo: "A-" + nonce + "-" + idx, firstName: "OwnEmployee" + idx,
@@ -307,6 +307,10 @@ async function verifyCrossTenant(f) {
     .where(and(eq(employees.id, checkVictimId),eq(employees.organizationId,victim.id))))[0];
   const victimScimBefore = (await db.select().from(scimIdentities)
     .where(eq(scimIdentities.id, f.victimIdentity.id)))[0];
+  const victimScimIdsBefore = (await db.select({ id: scimIdentities.id }).from(scimIdentities)
+    .where(eq(scimIdentities.organizationId, victim.id))).map((r) => r.id).sort((a,b) => a-b);
+  const victimEmployeeIdsBefore = (await db.select({ id: employees.id }).from(employees)
+    .where(eq(employees.organizationId, victim.id))).map((r) => r.id).sort((a,b) => a-b);
   const victimOwnerBefore = (await db.select().from(users).where(eq(users.id, f.owners[0].id)))[0];
   const eventIdsBefore = (await db.select().from(providerEvents)
     .where(eq(providerEvents.organizationId, victim.id))).map((e) => e.id).sort((a,b) => a-b);
@@ -390,6 +394,35 @@ async function verifyCrossTenant(f) {
     }), "Resources", "Attacker " + idx + " victim email SCIM filter");
     assert.equal(scimFilter.length, 0, "Victim email must never be resolved into attacker SCIM scope");
 
+    // A SCIM bearer must not be able to bind a victim-only employee via an
+    // enterprise extension, even if the body names the victim organization.
+    expectStatus(await request("/api/scim/v2/Users", {
+      method: "POST", scim: creds.scim,
+      body: {
+        userName: "foreign-scim-" + idx + "-" + owner.id + "@example.invalid",
+        displayName: "Cross-org binding rejected",
+        externalId: "foreign-test-" + owner.id,
+        organizationId: victim.id,
+        "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+          employeeNumber: f.victimEmployee.employeeNo,
+        },
+      },
+    }), 404, "Attacker " + idx + " SCIM POST cannot bind victim employeeNumber");
+
+    const ownScimCreate = expectStatus(await request("/api/scim/v2/Users", {
+      method: "POST", scim: creds.scim,
+      body: {
+        userName: "own-scim-" + idx + "-" + owner.id + "@example.invalid",
+        displayName: "Own fictional SCIM provisioning",
+        externalId: "own-test-" + owner.id,
+        organizationId: victim.id,
+      },
+    }), 201, "Attacker " + idx + " can provision only its own SCIM organization");
+    const [scimCreated] = await db.select().from(scimIdentities)
+      .where(eq(scimIdentities.id, Number(ownScimCreate.json.id)));
+    assert.equal(scimCreated.organizationId, attacker.id,
+      "SCIM caller's bearer, not attacker-supplied organizationId, must choose the target org");
+
     const ownSessions = list(await request("/api/account/sessions", {
       cookie: attackerCookie,
     }), "sessions", "Attacker " + idx + " account sessions");
@@ -461,6 +494,10 @@ async function verifyCrossTenant(f) {
     .where(eq(employees.id, checkVictimId)))[0];
   const victimScimAfter = (await db.select().from(scimIdentities)
     .where(eq(scimIdentities.id, f.victimIdentity.id)))[0];
+  const victimScimIdsAfter = (await db.select({ id: scimIdentities.id }).from(scimIdentities)
+    .where(eq(scimIdentities.organizationId, victim.id))).map((r) => r.id).sort((a,b) => a-b);
+  const victimEmployeeIdsAfter = (await db.select({ id: employees.id }).from(employees)
+    .where(eq(employees.organizationId, victim.id))).map((r) => r.id).sort((a,b) => a-b);
   const victimOwnerAfter = (await db.select().from(users)
     .where(eq(users.id, f.owners[0].id)))[0];
   const victimSessionsAfter = (await db.select().from(sessions)
@@ -472,6 +509,10 @@ async function verifyCrossTenant(f) {
     "Cross-tenant employee PATCH/DELETE must have no victim side effects");
   assert.deepEqual(victimScimAfter, victimScimBefore,
     "Cross-tenant SCIM PATCH/DELETE must not alter victim identity");
+  assert.deepEqual(victimScimIdsAfter, victimScimIdsBefore,
+    "Cross-tenant SCIM POST must not add a victim identity");
+  assert.deepEqual(victimEmployeeIdsAfter, victimEmployeeIdsBefore,
+    "Forged API employee POST must not add a victim employee");
   assert.deepEqual(victimOwnerAfter, victimOwnerBefore,
     "Account profile spoof must not modify victim user");
   assert.equal(victimSessionsAfter.revokedAt, null, "Victim-only session must remain active");
