@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS legal_entity_statutory_registrations (
   id serial PRIMARY KEY,
   organization_id integer NOT NULL CONSTRAINT "legal_entity_statutory_registrations_organization_id_organizati" REFERENCES "organizations"("id") ON DELETE CASCADE,
   legal_entity_id integer NOT NULL CONSTRAINT "legal_entity_statutory_registrations_legal_entity_id_legal_enti" REFERENCES "legal_entities"("id") ON DELETE RESTRICT,
-  revision integer NOT NULL CHECK (revision > 0),
+  revision integer NOT NULL,
   effective_date date NOT NULL,
   profile_envelope text NOT NULL,
   approved_by_user_id integer NOT NULL CONSTRAINT "legal_entity_statutory_registrations_approved_by_user_id_users_" REFERENCES "users"("id") ON DELETE RESTRICT,

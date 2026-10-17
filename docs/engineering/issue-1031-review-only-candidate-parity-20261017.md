@@ -90,6 +90,15 @@ not inferred from these documentation files.
   as proof of idempotence. This verifies the first pushed schema versus
   review-only proposals only.
 
+**Review-only discrepancy resolved:** the prior unnumbered multi-entity
+proposal included a `revision > 0` check on
+`legal_entity_statutory_registrations.revision`, while the current
+`src/db/schema.ts` defines `revision` as an integer NOT NULL with no
+database check. This source-only candidate removes the extra check for
+exact schema parity. Whether a positive-revision CHECK is desirable is a
+separate, explicitly reviewed application/schema-hardening decision; do
+not infer that an existing production constraint should be removed.
+
 **Evidence boundary:** passing in disposable PostgreSQL does not authorize
 numbered migration adoption, DBA source/SHA approval, protected backup/restore,
 actual schema deployment, finance/payroll release, any feature activation or
