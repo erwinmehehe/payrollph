@@ -152,4 +152,4 @@ jobs:
           echo 'SYNTHETIC_PG16_ONLY_NOT_PROD_SCHEMA_PARITY'
           echo 'No real employer or payroll rows, no Neon, no migration receipts.'
           echo 'Unresolved 0129 unrelated deltas and 115 Squawk warnings remain human-only.'
-          echo 'DO NOT MERGE OR RUN 0129 AGAINST PRODUCTION.'
+          echo 'Source merge does not authorize execution. DO NOT RUN 0129 AGAINST PRODUCTION.'

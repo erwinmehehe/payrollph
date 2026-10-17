@@ -1,6 +1,6 @@
 # Proposed 0129 — Non-recovery foreign-key name reconciliation
 
-**Status: unapproved engineering proposal; draft only; production NO-GO.**
+**Status: source-only reconciliation; production execution remains NO-GO.**
 This is a *separate logical change* following the schema-recovery work
 merged through #1120 and #1121. Diagnostic PR #1127 was **closed without
 merging** by the repository owner; its deliberately failing Atlas/Squawk
@@ -124,9 +124,34 @@ a real database before its protected migration cutover.
   127 EXTRA** rows. The model/deparser noise remains unwaived and must
   never be used to disguise forward-only discrepancies.
 
-## Human-only STOP gates
+## Source merge and production execution are separate decisions
 
-**Do not merge or apply to production.** Before any future protected release:
+Source review covers the exact 54 renames, catalog preconditions, deterministic
+locks, rejection probes, full-catalog preservation and transactional rollback.
+The previous exact-head evidence at `638186c8eadff449a0a194f162bb47bb822d8087`
+passed standalone PG16, integrated PG16/PG18 and the required regression gate
+(5,024 passed, 0 failed, 34 skipped). A synchronization requires fresh checks;
+those earlier results must not be represented as results for the new head.
+
+Merging this source does not execute it. `npm run build` runs `next build`;
+the application schema and runtime files are unchanged by this PR.
+`.github/workflows/production-reviewed-sql-migration.yml` has only an explicit
+`workflow_dispatch` trigger, not a push or pull-request trigger. Its runner
+requires the exact main SHA, target identity, SQL checksum, historical receipts
+and ordered predecessor journal. APPLY additionally requires
+`ORDERED_RELEASE_MIGRATIONS_ENABLED=true` (disabled unless explicitly enabled),
+an approval reference and an explicit apply confirmation. None is enabled or
+created by this source change. The synthetic workflows use disposable local
+databases and do not hold production credentials.
+
+The owner closed #1154 separately; this PR does not infer disposition of its
+51 records from that closure. #1166 supplies executed equivalence checks for
+the five payout positivity records only. All residual catalog differences
+remain visible and cannot authorize production deployment of this migration.
+Source merge may proceed after current-head checks and review; it is not an
+approval to activate flags, apply SQL, or certify live schema parity.
+
+**Do not apply to production.** Before any future protected release:
 verify actual target identity, privileges, historic migration 0127 and 0128
 provenance/receipts and byte-level SHA-256, review #899 unintended restore
 impact, satisfy #907 encrypted offsite backup and witnessed restore, obtain
