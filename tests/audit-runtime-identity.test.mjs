@@ -3,6 +3,12 @@ import { createDecipheriv, constants, generateKeyPairSync, privateDecrypt } from
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import test from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { decryptRuntimeIdentity } from '../scripts/qa/decrypt-runtime-identity.mjs';
 import { captureAuditRuntimeIdentity, encryptRuntimeIdentity, evidenceRecipient,
   RUNTIME_IDENTITY_URL, validateRuntimeIdentity } from '../scripts/qa/audit-runtime-identity.mjs';
 
@@ -99,4 +105,60 @@ test('executes a single credentialed GET and persists ciphertext; never follows 
     }
     assert.equal(requests.length,6,'no retry, second endpoint or redirected credential transmission');
   }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+});
+
+test('manual workflow uses the approved production recipient, never a dispatch-supplied key', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/audit-runtime-identity.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /^  workflow_dispatch:\s*$/m);
+  assert.match(workflow, /^    environment: production$/m);
+  assert.match(workflow, /^    if: github\.ref == 'refs\/heads\/main'$/m);
+  assert.match(workflow, /^  cancel-in-progress: false$/m);
+  assert.match(workflow, /AUDIT_EVIDENCE_PUBLIC_KEY_BASE64: \$\{\{ vars\.AUDIT_EVIDENCE_PUBLIC_KEY_BASE64 \}\}/);
+  assert.doesNotMatch(workflow, /recipient_public_key_base64|inputs\./);
+});
+
+test('offline decryption verifies the envelope and rejects tampering and wrong recipients', () => {
+  const identity = validateRuntimeIdentity(payload(), sha, now);
+  const encrypted = encryptRuntimeIdentity(identity, evidenceRecipient(recipient));
+  assert.deepEqual(decryptRuntimeIdentity(encrypted, pair.privateKey), identity);
+  assert.throws(() => decryptRuntimeIdentity({ ...encrypted, algorithm: 'none' }, pair.privateKey));
+  assert.throws(() => decryptRuntimeIdentity({ ...encrypted, unexpectedField: 'extension' }, pair.privateKey));
+  assert.throws(() => decryptRuntimeIdentity({ ...encrypted, tag: Buffer.alloc(16).toString('base64') }, pair.privateKey));
+  assert.throws(() => decryptRuntimeIdentity({ ...encrypted, iv: 'not-base64!' }, pair.privateKey));
+  const other = generateKeyPairSync('rsa', { modulusLength: 3072 });
+  assert.throws(() => decryptRuntimeIdentity(encrypted, other.privateKey));
+});
+
+test('operator CLI writes user-only local plaintext outside the repository; never exposes role in logs', () => {
+  const temp = mkdtempSync(join(tmpdir(), 'payrollph-908-decrypt-'));
+  const artifact = join(temp, 'identity.encrypted.json');
+  const privatePem = join(temp, 'recipient-private.pem');
+  const output = join(temp, 'identity.json');
+  const identity = validateRuntimeIdentity(payload(), sha, now);
+  const encrypted = encryptRuntimeIdentity(identity, evidenceRecipient(recipient));
+  const decryptScript = fileURLToPath(new URL('../scripts/qa/decrypt-runtime-identity.mjs', import.meta.url));
+  const run = (destination, envOverride = {}) => spawnSync(
+    process.execPath, [decryptScript, artifact, privatePem, destination],
+    { encoding: 'utf8', env: { ...process.env, CI: '', GITHUB_ACTIONS: '', ...envOverride } });
+  try {
+    writeFileSync(artifact, JSON.stringify(encrypted) + '\n', { mode: 0o600 });
+    writeFileSync(privatePem, pair.privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
+    const result = run(output);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(readFileSync(output, 'utf8')), identity);
+    assert.equal(statSync(output).mode & 0o777, 0o600);
+    assert.equal((result.stdout + result.stderr).includes('synthetic_fixture_role'), false);
+    assert.notEqual(run(output).status, 0, 'existing plaintext output cannot be overwritten');
+    assert.notEqual(run(join(temp, 'should-not-write.json'), { CI: 'true' }).status, 0);
+    const insideRepo = fileURLToPath(new URL('../plaintext-must-not-write.json', import.meta.url));
+    assert.notEqual(run(insideRepo).status, 0, 'repository destination rejected');
+    assert.equal(existsSync(insideRepo), false);
+    const invalidArtifact = { ...encrypted, tag: Buffer.alloc(16).toString('base64') };
+    writeFileSync(artifact, JSON.stringify(invalidArtifact), { mode: 0o600 });
+    const invalidOutput = join(temp, 'tampered-plaintext.json');
+    assert.notEqual(run(invalidOutput).status, 0);
+    assert.equal(existsSync(invalidOutput), false);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
 });

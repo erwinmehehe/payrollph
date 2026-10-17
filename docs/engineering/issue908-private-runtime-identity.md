@@ -1,54 +1,105 @@
 # #908: obtain the actual web runtime identity without retrieving credentials
 
-The remaining role cutover cannot safely infer the deployed application login
-from the Neon management connection. Existing `/api/readiness/database-target`
-already authenticates with the readiness token and performs catalog/session
-metadata SELECTs only. The broader live RBAC workflow also calls general
-readiness and later business/fixture endpoints, so it is not a narrow substitute.
+The restricted-role cutover must not infer deployed web credentials from a Neon
+management login. The existing token-protected /api/readiness/database-target
+endpoint reads PostgreSQL session/catalog metadata without accessing business
+rows. Its current_user identifies the *effective role*, not necessarily
+session_user. Other workers, schedulers and the sealer need separate inventory.
 
-## Read-only operator path
+## Mandatory authorization setup (before any dispatch)
 
-After source CI/review and merge, manually run **Audit Runtime Identity
-(Encrypted, Read Only)** on `main`, after Vercel is READY at that exact SHA.
-It uses the existing GitHub `PRODUCTION_READINESS_TOKEN`; no token, database
-URL or TOTP key is retrieved, generated, rotated or published by the workflow.
-Missing/wrong credentials fail closed. It never runs on PRs or feature branches.
+1. In GitHub Settings -> Environments, use the existing production environment.
+   **An environment name in YAML does not establish protection by itself.**
+   An administrator must confirm that production has required, independent
+   reviewers, prevents self-approval, and allows deployment from main only.
+   If any requirement is unavailable or absent, do not dispatch this workflow.
+2. Review who can edit environment variables, workflow files, branches and
+   PRODUCTION_READINESS_TOKEN. Restrict the roles allowed to administer these.
+   The new workflow requests read-only contents permissions and waits for
+   production environment approval. Other existing workflows using a repository-
+   scoped readiness token remain a separate access-control consideration.
+3. The designated evidence recipient creates a dedicated >=3072-bit RSA key
+   pair on a trusted local machine. Keep the private key outside any Git
+   working tree, with user-only permissions. Do not reuse bank, TOTP, DB or
+   backup keys. Example (on a trusted POSIX system):
 
-The operator generates a fresh RSA key pair of at least 3072 bits on their
-trusted machine, retains the private key outside the repository with user-only
-permissions, and supplies only the **DER SPKI public key encoded as base64**
-in `recipient_public_key_base64`. Do not reuse a database/TOTP/bank key or a
-cancelled backup key. This is diagnostic encryption, not a database backup or
-staging service. No cloud resources or recurring spend are provisioned.
+~~~bash
+umask 077
+mkdir -p "$HOME/payrollph-private/issue908"
+chmod 700 "$HOME/payrollph-private/issue908"
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
+  -out "$HOME/payrollph-private/issue908/runtime-identity-private.pem"
+chmod 600 "$HOME/payrollph-private/issue908/runtime-identity-private.pem"
+openssl pkey -in "$HOME/payrollph-private/issue908/runtime-identity-private.pem" \
+  -pubout -outform DER | openssl base64 -A
+~~~
 
-The probe makes exactly one HTTPS GET with redirects prohibited and a bounded
-response/time limit. Exact production SHA, project, branch, endpoint, database,
-primary state and response freshness are required. An allowlist retains only
-that private identity (including the actual session role), never arbitrary
-response extensions, headers, secrets or business records.
+4. A production-environment administrator stores ONLY the output public-key
+   base64 in the production **environment variable**
+   AUDIT_EVIDENCE_PUBLIC_KEY_BASE64 (Settings -> Environments -> production ->
+   Environment variables). This must be an administrator-approved, fixed
+   recipient: **no workflow-dispatch public-key input is accepted**. Keep the
+   private key on the designated recipient's machine. Record the approved
+   public-key fingerprint and authorized recipient in restricted evidence.
+5. Confirm the existing PRODUCTION_READINESS_TOKEN secret is configured and
+   usable by the production job; missing or incorrect credentials fail closed.
+   The workflow does not retrieve, rotate or print secrets.
 
-The result is encrypted with a random AES-256-GCM key, wrapped with the
-operator's RSA-OAEP-SHA256 public key. Only ciphertext is uploaded, retained
-for one day. Neither role names nor role fingerprints appear in logs, summaries
-or plaintext artifacts. Download and decrypt locally with the private key;
-keep the plaintext outside Git and public issue comments. Record source/run
-and deployment SHA with the restricted evidence. The artifact run binds the
-trusted probe source; an encrypted JSON file by itself is not a signed DBA proof.
+## Capture (read-only)
 
-## What this does and does not establish
+After an independent review and merge, confirm the exact main commit SHA is
+deployed and Vercel reports READY. Manually select **Audit Runtime Identity
+(Encrypted, Read Only)** on main, with no inputs. An independent production
+environment reviewer must approve it. If approval enforcement or the approved
+recipient variable is missing, STOP; do not weaken the workflow.
 
-This identifies the **web runtime session**. Use that exact identity to inspect
-effective grants, owner/membership escalation and DDL authority in the catalog,
-then prepare the concrete restricted-role/credential dependency diff. Do not
-assume separately deployed workers or sealers use the same login or are absent.
+The script makes exactly one fixed HTTPS GET and refuses redirects; it bounds
+the response and requires matching production SHA, pinned Neon project/branch/
+endpoint/database, primary state and freshness. Only allowlisted identity
+metadata is encrypted using AES-256-GCM with a random key wrapped by
+RSA-OAEP-SHA256. Only ciphertext is uploaded for one day; no plaintext role,
+fingerprint, token or DB URL is logged. There are no SQL clients, grants, DDL,
+business requests, staging, payments, backups or migrations.
 
-It does not install audit triggers, create roles, demote logins, change grants,
-seal historical rows, run retention, repair migration history, enable flags or
-establish payroll readiness. #908 remains open until actual role isolation,
-compound forward audit protection, restricted-login denial tests and controlled
-cutover are verified. Existing source-only PG16/18 acceptance remains valuable
-but does not replace this actual deployment identity or live privileges.
+## Offline operator decryption
 
-No application route or UI changes: flag-off/runtime behavior stays unchanged.
-The new operator workflow is manual-only and inactive by default. Desktop and
-390px screenshots are not applicable to this scripts/workflow-only change.
+The authorized recipient downloads the encrypted artifact from the approved
+GitHub Actions run, verifies the workflow/source/run SHA, and unpacks
+audit-runtime-identity.encrypted.json locally. On a trusted machine with the
+reviewed repo source and Node 22, run this command (replace the artifact path
+with the actual download location):
+
+~~~bash
+umask 077
+node scripts/qa/decrypt-runtime-identity.mjs \
+  "$HOME/Downloads/audit-runtime-identity.encrypted.json" \
+  "$HOME/payrollph-private/issue908/runtime-identity-private.pem" \
+  "$HOME/payrollph-private/issue908/runtime-identity.json"
+~~~
+
+The offline utility does not contact production or make network requests.
+It refuses GitHub Actions/CI execution, malformed/tampered artifacts, wrong
+keys, unsupported envelopes, pre-existing plaintext outputs, and output paths
+inside the repository (including symlinked destination directories). It writes
+the plaintext with user-only permissions and prints only a fixed success/failure
+code, never role metadata. Store the artifact and plaintext in approved
+restricted evidence, not Git, PR comments, issue comments or public logs.
+Record independently the reviewed commit, production SHA, artifact run,
+recipient, approval and evidence retention/deletion decision.
+
+## Scope and remaining #908 work
+
+The private result observes the deployed web runtime's PostgreSQL current_user,
+not necessarily session_user and not its grants, table ownership, membership,
+DDL authority, or rights to alter audit chain/retention. Follow up with a
+DBA-authorized catalog inspection of effective grants and potential escalation
+using actual production-relevant identities, and independently inventory
+workers, scheduler and audit sealer. Use a disposable PostgreSQL clone and
+restricted roles for rollback-only denial tests before reviewed canonical
+migrations, sign-offs or a controlled cutover.
+
+This is not a signed DBA proof, migration receipt, effective privilege proof,
+payroll release approval or evidence of successful cutover. Keep #908 OPEN
+and payment, banking and filing activation OFF pending independent gates.
+No UI/routes/runtime flags, SQL, grants, role changes, cloud spend or
+production payroll operations are introduced. Screenshots are not applicable.
