@@ -4,6 +4,7 @@ import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { jqSkip } from "./helpers/symlink-capability.mjs";
 
 const script = resolve("scripts/live-workforce-bi-rbac-smoke.sh");
 const commit = "a".repeat(40);
@@ -129,7 +130,7 @@ test("shell source is syntactically valid", () => {
   assert.equal(result.status, 0, result.stderr);
 });
 
-test("anonymous calls require real denial shape for all three routes", (t) => {
+test("anonymous calls require real denial shape for all three routes", { skip: jqSkip }, (t) => {
   const f = fixture(t, "anonymous");
   const result = spawnSync("bash", [script, "--anonymous"], {
     env: f.env, encoding: "utf8", timeout: 10_000,
@@ -139,7 +140,7 @@ test("anonymous calls require real denial shape for all three routes", (t) => {
 });
 
 for (const role of ["owner", "hr", "payroll", "checker", "bookkeeper", "employee"]) {
-  test("fictional " + role + " HTTP allow/deny matrix", (t) => {
+  test("fictional " + role + " HTTP allow/deny matrix", { skip: jqSkip }, (t) => {
     const result = run(t, role);
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.equal((result.stdout.match(/route=\/api\//g) || []).length, role === "owner" ? 6 : 3);
@@ -153,19 +154,19 @@ test("refuses non-main and non-approved deployment URLs", (t) => {
   assert.ok(!result.stdout.includes("http_status="), "must not issue any HTTP probe");
 });
 
-test("fails closed on unexpected authorized HTTP denial", (t) => {
+test("fails closed on unexpected authorized HTTP denial", { skip: jqSkip }, (t) => {
   const result = run(t, "owner", { MOCK_WRONG_STATUS: "1" });
   assert.equal(result.status, 1);
   assert.match(result.stdout, /HTTP status mismatch/);
 });
 
-test("fails closed when a successful 200 carries foreign organization rows", (t) => {
+test("fails closed when a successful 200 carries foreign organization rows", { skip: jqSkip }, (t) => {
   const result = run(t, "owner", { MOCK_WRONG_TENANT: "1" });
   assert.equal(result.status, 1);
   assert.match(result.stdout, /tenant-scoping check failed/);
 });
 
-test("fails closed when an unauthorized response includes planning records", (t) => {
+test("fails closed when an unauthorized response includes planning records", { skip: jqSkip }, (t) => {
   const result = run(t, "employee", { MOCK_DENIED_DATA: "1" });
   assert.equal(result.status, 1);
   assert.match(result.stdout, /denied response shape invalid/);
