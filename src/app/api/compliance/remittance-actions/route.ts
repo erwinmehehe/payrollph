@@ -72,6 +72,7 @@ async function listQueue(organizationId: number, currentUserId: number) {
 
   const now = new Date();
   return {
+    organizationId,
     currentUserId,
     tasks: tasks.map((task) => ({
       ...task,
