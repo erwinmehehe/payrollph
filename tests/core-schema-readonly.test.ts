@@ -96,6 +96,7 @@ test("only a disposable GitHub-hosted local PostgreSQL fixture may retain legacy
   const fixture: NodeJS.ProcessEnv = {
     NODE_ENV: "production", CI: "true", GITHUB_ACTIONS: "true",
     GITHUB_REPOSITORY: "erwinmehehe/payrollph", RUNNER_ENVIRONMENT: "github-hosted",
+    GITHUB_RUN_ID: "39089717368", GITHUB_EVENT_NAME: "pull_request",
     DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
   };
   assert.equal(coreSchemaCompatibilityMode(undefined, fixture), "legacy");
@@ -103,7 +104,12 @@ test("only a disposable GitHub-hosted local PostgreSQL fixture may retain legacy
   assert.equal(coreSchemaCompatibilityMode("read-only", fixture), "read-only");
   for (const change of [
     { CI: "false" }, { GITHUB_ACTIONS: "false" }, { RUNNER_ENVIRONMENT: "self-hosted" },
-    { GITHUB_REPOSITORY: "other/payrollph" }, { VERCEL: "1" }, { VERCEL_ENV: "production" },
+    { GITHUB_REPOSITORY: "other/payrollph" }, { GITHUB_RUN_ID: "" },
+    { GITHUB_RUN_ID: "unknown" }, { GITHUB_RUN_ID: "0" },
+    { GITHUB_EVENT_NAME: "" }, { VERCEL: "1" }, { VERCEL_ENV: "production" },
+    { VERCEL_URL: "payrollsoftware.ph" }, { VERCEL_TARGET_ENV: "production" },
+    { VERCEL_REGION: "iad1" },
+    { VERCEL_PROJECT_PRODUCTION_URL: "payrollsoftware.ph" },
     { DATABASE_URL: "postgresql://postgres:postgres@neon.example:5432/app_db" },
     { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:6543/app_db" },
     { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/neondb" },
