@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, KeyRound, LockKeyhole, RefreshCw, ShieldCheck, UserCog, Workflow, X } from "lucide-react";
 import { TreasuryControlsPanel } from "@/components/treasury-controls-panel";
 
@@ -81,7 +81,15 @@ type EnterpriseData = {
 
 const fmt = (value: string | null) => value ? new Date(value).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }) : "—";
 
-export function EnterpriseControlsPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (message: string) => void }) {
+type EnterpriseControlsPanelProps = { organizationId: number; setNotice: (message: string) => void };
+
+// Key tenant-scoped settings and one-time SCIM/SSO secrets. A -> B -> A must
+// never revive a previous organization's provider forms or pending secrets.
+export function EnterpriseControlsPanel(props: EnterpriseControlsPanelProps) {
+  return <EnterpriseControlsPanelForOrganization key={props.organizationId} {...props} />;
+}
+
+function EnterpriseControlsPanelForOrganization({ organizationId, setNotice }: EnterpriseControlsPanelProps) {
   const [data, setData] = useState<EnterpriseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showProvider, setShowProvider] = useState(false);
@@ -121,20 +129,45 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
     taskOwner: "People Ops",
   });
 
+  const activeRead = useRef<AbortController | null>(null);
+  const cancelRead = useCallback(() => { activeRead.current?.abort(); }, []);
+
   const load = useCallback(async () => {
-    setLoading(true);
+    // The mount effect triggers the network request, not a synchronous
+    // loading reset. A manual refresh starts its own explicit transition.
+    activeRead.current?.abort();
+    const controller = new AbortController();
+    activeRead.current = controller;
     try {
-      const response = await fetch(`/api/enterprise?organizationId=${organizationId}`, { cache: "no-store" });
+      const response = await fetch(`/api/enterprise?organizationId=${organizationId}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) return setNotice(payload.error ?? "Could not load enterprise controls.");
-      setData(payload);
+      if (controller.signal.aborted) return;
+      if (!response.ok) throw new Error(payload.error ?? "Could not load enterprise controls.");
+      if (!payload.securityPolicy || !Array.isArray(payload.identityProviders)) {
+        throw new Error("Enterprise security controls are incomplete.");
+      }
+      setData(payload as EnterpriseData);
       setPolicy(payload.securityPolicy);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setData(null);
+      setNotice(error instanceof Error ? error.message : "Could not load enterprise controls.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [organizationId, setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); return cancelRead; }, [load, cancelRead]);
+
+  const refresh = () => {
+    setOneTimeSecret(null);
+    setData(null);
+    setLoading(true);
+    void load();
+  };
 
   const providerById = useMemo(() => new Map((data?.identityProviders ?? []).map((row) => [row.id, row])), [data]);
   const permissionById = useMemo(() => new Map((data?.permissionSets ?? []).map((row) => [row.id, row])), [data]);
@@ -328,7 +361,7 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
           <h1>Enterprise controls</h1>
           <p>Configure verified company SSO and SCIM, treasury separation, deny-only permission sets, and governed lifecycle automation without bypassing authoritative payroll or HR transactions.</p>
         </div>
-        <div className="page-actions"><button className="secondary-button" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button></div>
+        <div className="page-actions"><button className="secondary-button" onClick={refresh} disabled={loading}><RefreshCw size={15} /> Refresh</button></div>
       </div>
 
       {oneTimeSecret && (
