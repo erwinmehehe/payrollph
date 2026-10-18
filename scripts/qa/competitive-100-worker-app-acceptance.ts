@@ -248,7 +248,7 @@ async function execute() {
       organizationId:orgId,employeeId:w.id,workDate:WORK,timeIn,timeOut,
       breakStart:brkStart,breakEnd:brkEnd,
       shiftStart:isNight?"22:00":"09:00",shiftEnd:isNight?"06:00":"18:00",
-      status:"Complete",source:"competitive-100-synthetic-history",
+      status:"Complete",source:"comp100-synth-history",
     };
   });
   for(const worker of staff.filter(w=>holidayIds.has(w.number))){
@@ -257,9 +257,10 @@ async function execute() {
       timeIn:ph(HOLIDAY,"09:00"),timeOut:ph(HOLIDAY,"18:00"),
       breakStart:ph(HOLIDAY,"12:00"),breakEnd:ph(HOLIDAY,"13:00"),
       shiftStart:"09:00",shiftEnd:"18:00",status:"Complete",
-      source:"competitive-100-synthetic-history",
+      source:"comp100-synth-history",
     });
   }
+  assert.ok(punches.every(p=>p.source.length<=32),"Synthetic source must fit the database varchar(32) constraint");
   const persistedPunches=await db.insert(timePunches).values(punches).returning({id:timePunches.id});
   assert.equal(persistedPunches.length,105);
   report.historicalSyntheticPunches=105;
@@ -441,8 +442,9 @@ async function execute() {
   const premature=await owner.json("/api/compliance/filing-validations","POST",{
     organizationId:orgId,runId,agency:"BIR",form:"1601-C",
   });
-  assert.ok(!premature.ok,"Unreleased payroll cannot be represented as filed");
-  mark("PF-20","Unreleased payroll rejects BIR draft-generation request; four actual generated drafts remain NOT_RUN","NEGATIVE_GATE_ONLY");
+  assert.equal(premature.status,422,"A midmonth payroll cutoff cannot produce the monthly 1601-C worksheet");
+  assert.match(String(premature.data.error??""),/final payroll cutoff/i);
+  mark("PF-20","Midmonth BIR 1601-C worksheet rejected until final cutoff; agency filing and acceptance NOT_RUN","NEGATIVE_GATE_ONLY");
   const [stored]=await db.select().from(payrollRuns)
     .where(and(eq(payrollRuns.id,runId),eq(payrollRuns.organizationId,orgId))).limit(1);
   assert.ok(stored&&stored.status!=="Released");
