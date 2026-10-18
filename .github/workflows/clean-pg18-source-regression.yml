@@ -161,6 +161,8 @@ jobs:
         shard: [0, 1, 2, 3]
     env:
       CI: "true"
+      # Same isolation authorization as ci.yml; scheduler rehearsal tests refuse to run without it.
+      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
       FRESH_PG18_DEV_REHEARSAL: disposable-ci-only
       NINE_STAGE_PG_MAJOR: "18"
       DEMO_MODE: "false"
