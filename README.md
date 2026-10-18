@@ -155,7 +155,7 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 
 ### Data Privacy Act data-subject requests
 - `data_requests` with access/correction/deletion/portability/objection types
-- Every request gets a 30-day statutory due date, overdue flagging, and audit coverage
+- Every request gets a 30-day **internal response target** (not a universal statutory deadline), overdue flagging, and audit coverage
 
 ### Dependency-free PDF payslips
 - `src/lib/payslip-pdf.ts` writes valid PDF 1.4 with a hand-built xref table, no PDF library
