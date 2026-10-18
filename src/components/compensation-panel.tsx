@@ -174,9 +174,11 @@ function ScopedCompensationPanel({
   const [loadedOrganizationId, setLoadedOrganizationId] = useState<number | null>(null);
   const [failedLoad, setFailedLoad] = useState<{ organizationId: number; message: string } | null>(null);
   const requestSequence = useRef(0);
-  // Stable cleanup callback invalidates only a superseded compensation read.
+  const readControllerRef = useRef<AbortController | null>(null);
+  // Invalidate and abort the exact request owner on remount or a new read.
   const invalidateInFlightLoad = useCallback(() => {
     requestSequence.current++;
+    readControllerRef.current?.abort();
   }, []);
 
   const [bandForm, setBandForm] = useState({
@@ -231,12 +233,19 @@ function ScopedCompensationPanel({
   // Late responses cannot replace a newer authorized employer response.
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
-    // Start the network read immediately; React state is updated only after
-    // its awaited response, not synchronously from the mount effect.
+    readControllerRef.current?.abort();
+    const controller = new AbortController();
+    readControllerRef.current = controller;
+    const isCurrent = () => !controller.signal.aborted && requestSequence.current === requestId;
+    // The effect only queues this request. It cannot synchronously reset
+    // payroll compensation state, and old organization reads cannot commit.
     try {
-      const response = await fetch("/api/compensation?organizationId=" + organizationId, { cache: "no-store" });
+      const response = await fetch("/api/compensation?organizationId=" + organizationId, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       const body = await response.json().catch(() => ({}));
-      if (requestSequence.current !== requestId) return;
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(body.error ?? "Could not load compensation.");
       if (!body.access || typeof body.access.companyWide !== "boolean" || !Array.isArray(body.employees)) {
         throw new Error("Authorized compensation data is incomplete. Refresh to retry.");
@@ -256,28 +265,36 @@ function ScopedCompensationPanel({
       setEvents(body.compensationEvents ?? []);
       setLoadedOrganizationId(organizationId);
     } catch (error) {
-      if (requestSequence.current !== requestId) return;
+      if (!isCurrent()) return;
       const message = error instanceof Error ? error.message : "Could not load compensation.";
       setFailedLoad({ organizationId, message });
       setLoadedOrganizationId(null);
       setNotice(message);
     } finally {
-      if (requestSequence.current === requestId) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [organizationId, setNotice]);
 
   useEffect(() => {
-    void load();
-    return invalidateInFlightLoad;
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load();
+    });
+    return () => {
+      controller.abort();
+      invalidateInFlightLoad();
+    };
   }, [load, invalidateInFlightLoad]);
 
-  // Only an explicit user action (or an awaited mutation) starts a manual
-  // loading transition. The mount effect is strictly asynchronous.
-  const refresh = () => {
+  // Explicit user actions and post-write reads block privileged controls until
+  // a fresh authorized employer snapshot has completed.
+  const reload = () => {
+    setLoadedOrganizationId(null);
     setLoading(true);
     setFailedLoad(null);
-    void load();
+    return load();
   };
+  const refresh = () => { void reload(); };
 
   async function post(entityType: string, payload: Record<string, unknown>) {
     const response = await fetch("/api/compensation", {
@@ -287,7 +304,7 @@ function ScopedCompensationPanel({
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error ?? "Could not save compensation data.");
-    await load();
+    await reload();
     return body;
   }
 
@@ -302,11 +319,11 @@ function ScopedCompensationPanel({
       setNotice(body.error ?? "Could not update compensation.");
       // Another checker may have consumed the cycle budget since this screen
       // loaded. Refresh authoritative proposal states before the next action.
-      if (response.status === 409) await load();
+      if (response.status === 409) await reload();
       return;
     }
     setNotice(body.automationWarning ? `${success} ${body.automationWarning}` : success);
-    await load();
+    await reload();
   }
 
   const activeCycle = cycles.find((cycle) => cycle.status === "active");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { newHireCalendarDay } from "@/lib/philippine-calendar-day";
 import {
@@ -93,17 +93,25 @@ function peso(value: number | string | null | undefined) {
   return `₱${Number(value).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
 }
 
-export function RecruitmentPanel({
-  organizationId,
-  setNotice,
-  onHired,
-  everydayHrHireEnabled = false,
-}: {
+type RecruitmentPanelProps = {
   organizationId: number;
   setNotice: (message: string) => void;
   onHired?: () => Promise<void>;
   everydayHrHireEnabled?: boolean;
-}) {
+};
+
+// Recruiter forms, candidate PII, salaries and pre-hire approvals belong to
+// exactly one employer; even A -> B -> A starts a new authorized view.
+export function RecruitmentPanel(props: RecruitmentPanelProps) {
+  return <RecruitmentPanelForOrganization key={props.organizationId} {...props} />;
+}
+
+function RecruitmentPanelForOrganization({
+  organizationId,
+  setNotice,
+  onHired,
+  everydayHrHireEnabled = false,
+}: RecruitmentPanelProps) {
   const careersEnabled = useWorkflowUi().recruitmentJourney;
   const [publishing, setPublishing] = useState(false);
   const [privacyConsentRequired, setPrivacyConsentRequired] = useState(false);
@@ -116,6 +124,9 @@ export function RecruitmentPanel({
   const [showAppModal, setShowAppModal] = useState(false);
   const [hiringApplicant, setHiringApplicant] = useState<Applicant | null>(null);
   const [savingHire, setSavingHire] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const requestRevisionRef = useRef(0);
 
   const [formApp, setFormApp] = useState({
     requisitionId: "",
@@ -140,31 +151,71 @@ export function RecruitmentPanel({
     region: "NCR",
   });
 
-  const load = useCallback(async (): Promise<boolean> => {
-    const response = await fetch(`/api/recruitment?organizationId=${organizationId}`, { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setNotice(payload.error ?? "Could not load recruitment.");
-      return false;
-    }
+  const load = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
+    const revision = ++requestRevisionRef.current;
+    const isCurrent = () => !signal?.aborted && revision === requestRevisionRef.current;
+    try {
+      const response = await fetch(`/api/recruitment?organizationId=${organizationId}`, {
+        cache: "no-store",
+        signal,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return false;
+      if (!response.ok) throw new Error(payload.error ?? "Could not load recruitment.");
+      if (!Array.isArray(payload.requisitions) || !Array.isArray(payload.applicants)
+        || typeof payload.access?.companyWide !== "boolean"
+        || typeof payload.access?.role !== "string") {
+        throw new Error("Authorized recruitment evidence is incomplete.");
+      }
 
-    const nextReqs = payload.requisitions ?? [];
-    setRequisitions(nextReqs);
-    setApplicants(payload.applicants ?? []);
-    setPrivacyConsentRequired(payload.privacyConsentRequired === true);
-    setCareersPublishingReady(payload.careersPublishingReady === true);
-    setCanPublishCareers(payload.careersPublishingReady === true &&
-      payload.access?.companyWide === true &&
-      ["owner", "admin", "hr"].includes(payload.access?.role));
-    setSelectedReqId((current) =>
-      current && nextReqs.some((req: Requisition) => req.id === current)
-        ? current
-        : nextReqs[0]?.id ?? null,
-    );
-    return true;
+      const nextReqs: Requisition[] = payload.requisitions;
+      setRequisitions(nextReqs);
+      setApplicants(payload.applicants);
+      setPrivacyConsentRequired(payload.privacyConsentRequired === true);
+      setCareersPublishingReady(payload.careersPublishingReady === true);
+      setCanPublishCareers(payload.careersPublishingReady === true &&
+        payload.access.companyWide === true &&
+        ["owner", "admin", "hr"].includes(payload.access.role));
+      setSelectedReqId((current) =>
+        current && nextReqs.some((req) => req.id === current)
+          ? current
+          : nextReqs[0]?.id ?? null,
+      );
+      setLoadError(null);
+      return true;
+    } catch (error) {
+      if (!isCurrent()) return false;
+      // A failed authorization read cannot be treated as an empty pipeline.
+      setRequisitions([]);
+      setApplicants([]);
+      setCanPublishCareers(false);
+      setCareersPublishingReady(false);
+      setSelectedReqId(null);
+      const message = error instanceof Error ? error.message : "Could not load recruitment.";
+      setLoadError(message);
+      setNotice(message);
+      return false;
+    } finally {
+      if (isCurrent()) setLoading(false);
+    }
   }, [organizationId, setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
+    return () => {
+      controller.abort();
+      requestRevisionRef.current += 1;
+    };
+  }, [load]);
+
+  const reload = () => {
+    setLoading(true);
+    setLoadError(null);
+    return load();
+  };
 
   async function createApplicant(event: React.FormEvent) {
     event.preventDefault();
@@ -197,7 +248,7 @@ export function RecruitmentPanel({
     setFormApp({ requisitionId: "", fullName: "", email: "", phone: "", notes: "",
       privacyNoticeVersion: "", privacyEvidenceReference: "" });
     setConsentEvidenceConfirmed(false);
-    await load();
+    await reload();
     setSelectedReqId(payload.requisitionId);
     setNotice("Candidate added to pipeline.");
   }
@@ -229,7 +280,7 @@ export function RecruitmentPanel({
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) return setNotice(payload.error ?? "Could not move candidate.");
 
-    await load();
+    await reload();
     setNotice(nextStage === "offer" ? "Candidate moved to Job Offer with the recorded offer amount." : `Candidate moved to ${nextStage}.`);
   }
 
@@ -286,7 +337,7 @@ export function RecruitmentPanel({
       setHiringApplicant(null);
       // Both data sources are refreshed independently, because a successful
       // hire must not be resubmitted just because a subsequent read failed.
-      const recruitmentReloaded = await load().catch(() => false);
+      const recruitmentReloaded = await reload().catch(() => false);
       // A successful hire must refresh the parent employee/provisioning snapshot.
       // An unsuccessful refresh never rolls back or resubmits the source hire.
       try {
@@ -326,7 +377,7 @@ export function RecruitmentPanel({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Publishing failed.");
-      await load();
+      await reload();
       setNotice(body.published ? "Vacancy published on the careers page." : "Vacancy unpublished.");
     } catch (e) { setNotice(e instanceof Error ? e.message : "Could not publish vacancy."); }
     finally { setPublishing(false); }
@@ -348,6 +399,23 @@ export function RecruitmentPanel({
     for (const applicant of reqApplicants) map.set(applicant.stage, (map.get(applicant.stage) ?? 0) + 1);
     return map;
   }, [reqApplicants]);
+
+  if (loading || loadError) {
+    return (
+      <section data-recruitment-source="unavailable" role={loadError ? "alert" : "status"}>
+        <div className="notice notice-slate" style={{ marginTop: 16 }}>
+          {loadError
+            ? loadError + " Candidate records and hiring controls remain unavailable until the authorized read succeeds."
+            : "Loading authorized recruitment data for the selected employer."}
+        </div>
+        {loadError && (
+          <button className="secondary-button" disabled={loading} onClick={() => void reload()}>
+            Retry recruitment data
+          </button>
+        )}
+      </section>
+    );
+  }
 
   return (
     <div>

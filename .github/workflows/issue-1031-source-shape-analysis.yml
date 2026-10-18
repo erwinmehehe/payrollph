@@ -1,0 +1,68 @@
+name: "Issue 1031 Source-Only SQL Shape Analysis"
+on:
+  pull_request:
+    paths:
+      - "scripts/lib/issue-1031-ddl-shape-parser.mjs"
+      - "scripts/issue-1031-source-shape-audit.mjs"
+      - "tests/issue-1031-ddl-shape-parser.test.mjs"
+      - "tests/issue-1031-source-shape-audit.test.mjs"
+      - "docs/engineering/issue-1031-20261017-named-shape-analysis-partial.csv"
+      - "docs/engineering/issue-1031-all-numbered-creator-shape-analysis.csv"
+      - "docs/engineering/issue-1031-113-table-parity-blocker-20261018.md"
+      - ".github/workflows/issue-1031-source-shape-analysis.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-only-shape:
+    name: "Offline SQL/Drizzle comparison (NO DB, NO release)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      DATABASE_URL: ""
+      PRODUCTION_DATABASE_URL: ""
+      PRODUCTION_MIGRATION_AUDIT_DATABASE_URL: ""
+    steps:
+      - name: "Exact PR checkout, no saved credentials"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: "Node 22"
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: "Install locked dependencies"
+        run: npm ci
+      - name: "Static syntax and source-only contract tests"
+        run: |
+          node --check scripts/lib/issue-1031-ddl-shape-parser.mjs
+          node --check scripts/issue-1031-source-shape-audit.mjs
+          node --test tests/issue-1031-ddl-shape-parser.test.mjs tests/issue-1031-source-shape-audit.test.mjs
+      - name: "Normal repository lint"
+        run: npm run lint
+      - name: "Generate ephemeral CSV and print classification"
+        run: |
+          node scripts/issue-1031-source-shape-audit.mjs --write
+          node scripts/issue-1031-source-shape-audit.mjs --summary
+      - name: "Source-only CSV snapshot chunks for reviewer (never receipt data)"
+        run: |
+          node scripts/issue-1031-source-shape-audit.mjs --base64 | fold -w 4000 | sed 's/^/ISSUE1031_CSV_PART:/'
+      - name: "Generate all numbered creators (source-only superset)"
+        run: |
+          node scripts/issue-1031-source-shape-audit.mjs --write-all
+          node scripts/issue-1031-source-shape-audit.mjs --summary-all
+      - name: "Print all-numbered CSV for catalog-only review"
+        run: |
+          node scripts/issue-1031-source-shape-audit.mjs --base64-all | fold -w 4000 | sed 's/^/ISSUE1031_ALL_CSV_PART:/'
+      - name: "Verify committed CSV exactly matches the audited source"
+        run: |
+          node scripts/issue-1031-source-shape-audit.mjs --check
+          git diff --exit-code -- docs/engineering/issue-1031-20261017-named-shape-analysis-partial.csv
+      - name: "Verify all-numbered source-only CSV is committed exactly"
+        run: |
+          git ls-files --error-unmatch -- docs/engineering/issue-1031-all-numbered-creator-shape-analysis.csv
+          node scripts/issue-1031-source-shape-audit.mjs --check-all
+          git diff --exit-code -- docs/engineering/issue-1031-all-numbered-creator-shape-analysis.csv
