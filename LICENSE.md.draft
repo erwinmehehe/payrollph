@@ -1,0 +1,10 @@
+# Owner licensing decision — draft only
+
+**This is not a license. It grants no permission to use, modify, copy, or distribute the code.** No `LICENSE` file is being added by this change.
+
+The repository owner must choose one of the following approaches:
+
+1. **Proprietary, all rights reserved.** After confirming ownership of the code and third-party obligations, the owner may add a separate `LICENSE` file with an explicit copyright and all-rights-reserved notice. Keeping the repository public does not itself grant an open-source license.
+2. **Make the repository private.** The owner may change repository visibility to private after considering existing forks, access permissions, integrations, and deployment workflows. Private visibility limits ordinary public access but does not itself create a license.
+
+**Decision: TODO-OWNER.** Do not select an option, create a `LICENSE`, alter repository visibility, or change GitHub settings as part of this draft.
