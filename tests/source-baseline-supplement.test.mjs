@@ -108,8 +108,8 @@ test("unnamed column CHECKs are detected, including ADD COLUMN, and the suppleme
 });
 
 test("the read-only schema checks accept the 0133 v2 append-only trigger", () => {
-  for (const path of ["src/lib/core-schema-readonly.ts", "scripts/check-production-schema-preflight.ts"]) {
-    const source = read(path);
-    assert.match(source, /tgfoid IN \(to_regprocedure\('public\.audit_events_protect\(\)'\), to_regprocedure\('public\.audit_events_protect_v2\(\)'\)\)/, path);
-  }
+  // core-schema-readonly accepts the complete v1 or canonical v2 guard set (#1210).
+  assert.match(read("src/lib/core-schema-readonly.ts"), /audit_events_protect_v2\(\)/);
+  assert.match(read("scripts/check-production-schema-preflight.ts"),
+    /tgfoid IN \(to_regprocedure\('public\.audit_events_protect\(\)'\), to_regprocedure\('public\.audit_events_protect_v2\(\)'\)\)/);
 });

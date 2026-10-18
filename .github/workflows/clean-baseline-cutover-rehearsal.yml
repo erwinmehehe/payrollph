@@ -117,7 +117,10 @@ jobs:
             })().catch((e) => { console.error(e.message); process.exit(1); });'
       - name: Rehearse roles, ledgers, cutover, v2 audit guards, runner plan + apply, sealing
         run: npx tsx scripts/qa/rehearse-clean-baseline-cutover.mjs
-      - name: Request-time schema checks pass as the DML-only runtime role (read-only mode)
+      - name: Request-time schema checks pass as the DML-only runtime role (cutover configuration)
         env:
+          # The cutover configuration: the rollout flag forces read-only mode and the
+          # canonical (numbered-SQL) schema shapes that the clean baseline has.
+          REQUEST_SCHEMA_READONLY_ENABLED: "true"
           CORE_SCHEMA_COMPATIBILITY_MODE: read-only
         run: npx tsx scripts/qa/probe-runtime-ddl-as-app-role.ts --fail-on-error

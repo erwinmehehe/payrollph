@@ -57,9 +57,9 @@ A production database rebuilt from source alone would run, but without several t
 ### What the rehearsal found (fixed here)
 
 - **25 unnamed column CHECKs** (`status IN (...)`, rating ranges, billing amounts) were missing from the baseline. The name-based scan could not see them. The scanner now matches them by meaning, including one combined named CHECK covering several columns, and the supplement restores them under PostgreSQL's generated names.
-- **The read-only schema checks rejected the v2 audit trigger.** `core-schema-readonly.ts` and `check-production-schema-preflight.ts` required `audit_events_protect_mutation` to call `audit_events_protect()`; 0133 repoints it at `audit_events_protect_v2()`. Both now accept either.
+- **The production preflight rejected the v2 audit trigger.** `scripts/check-production-schema-preflight.ts` required `audit_events_protect_mutation` to call `audit_events_protect()`; 0133 repoints it at `audit_events_protect_v2()`. It now accepts either. (`core-schema-readonly.ts` was fixed separately in #1210, which accepts the complete v1 or canonical v2 guard set.)
 
 ### What it shows for the switch-over
 
 - In the default (legacy) compatibility mode, 12 of 13 request-time schema functions fail as a DML-only role ("permission denied"): the app still writes schema at request time.
-- With `CORE_SCHEMA_COMPATIBILITY_MODE=read-only`, all 13 pass on the rehearsed baseline. So the app can run as a least-privilege role on the new database in read-only mode, which remains a structural subset check rather than full schema proof.
+- With `REQUEST_SCHEMA_READONLY_ENABLED=true` (which forces read-only mode and the canonical schema shapes from #1210), all 13 pass on the rehearsed baseline. Without the flag, the marketing-leads check expects the legacy runtime index shape (`DESC NULLS LAST`) and fails. So the app can run as a least-privilege role on the new database in read-only mode, which remains a structural subset check rather than full schema proof.
