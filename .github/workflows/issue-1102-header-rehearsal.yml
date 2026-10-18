@@ -1,8 +1,10 @@
 name: Legacy Fictional Demo Header Repair Rehearsal (Disposable Only)
 
-# Issue #1102. Exercises UPDATE + adversarial preflights + ROLLBACK
-# ONLY against session-local pg_temp tables on disposable loopback PG.
-# No Neon, customer records, cloud credentials, bank, or filing access.
+# Issue #1102. Exercises TEMP-table, real public-schema and review-only SQL
+# correction/guard rehearsals on disposable loopback PG16/18 ONLY.
+# Full reviewed operator SQL is tested unmodified for wrong-target refusal;
+# a fixture-witness-adapted copy runs a default-ROLLBACK dry run in CI.
+# No Neon, customer records, cloud credentials, bank or filing access.
 on:
   pull_request:
     branches: [main]
