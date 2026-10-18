@@ -152,10 +152,18 @@ function sourceLine(s,name) {
 function namedIn(s,n) {
   return new RegExp("(^|[^a-zA-Z0-9_])"+n+"([^a-zA-Z0-9_]|$)","i").test(s);
 }
+// Immutable October 18 analysis of exact pinned commit 0921b02a. That
+// snapshot ended at numbered migration 0132. Later forward migrations
+// (0133+) are excluded, never silently mixed into historical results.
+// In-scope prefix additions still fail the exact 146-source count check.
+export const HISTORICAL_SOURCE_MAX_PREFIX = 132;
 function parseFiles() {
-  const files=readdirSync(resolve(ROOT,"drizzle")).filter(x=>/^[0-9]{4}_.+\.sql$/.test(x)).sort();
+  const files=readdirSync(resolve(ROOT,"drizzle"))
+    .filter(x=>/^[0-9]{4}_.+\.sql$/.test(x))
+    .filter(x=>Number(x.slice(0,4))<=HISTORICAL_SOURCE_MAX_PREFIX)
+    .sort();
   if(files.length!==146)throw Error("NUMBERED_SOURCE_FILE_COUNT_CHANGED_"+files.length);
-  return files.map(filename=>{
+    return files.map(filename=>{
     const file="drizzle/"+filename,content=read(file);
     try {return{file,prefix:Number(filename.slice(0,4)),content,statements:structuralStatements(content),fatal:""};}
     catch(e){return{file,prefix:Number(filename.slice(0,4)),content,statements:[],fatal:String(e.message)};}
