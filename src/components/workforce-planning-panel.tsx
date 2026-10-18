@@ -287,7 +287,19 @@ const signedNumber = (value: number, digits = 0) =>
 const signedPeso = (value: number | null | undefined) =>
   value == null ? "Restricted" : `${Number(value) > 0 ? "+" : ""}${peso(value)}`;
 
-export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { organizationId: number; setNotice: (message: string) => void; onPage: (page: string) => void }) {
+type WorkforcePlanningPanelProps = {
+  organizationId: number;
+  setNotice: (message: string) => void;
+  onPage: (page: string) => void;
+};
+
+// Tenant-key the full planning editor: no old employer's budgets, positions,
+// access state or unsaved scenarios may resurface on A -> B -> A navigation.
+export function WorkforcePlanningPanel(props: WorkforcePlanningPanelProps) {
+  return <WorkforcePlanningPanelForOrganization key={props.organizationId} {...props} />;
+}
+
+function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPage }: WorkforcePlanningPanelProps) {
   const [profiles, setProfiles] = useState<JobProfile[]>([]);
   const [jobFamilies, setJobFamilies] = useState<JobFamily[]>([]);
   const [jobLevels, setJobLevels] = useState<JobLevel[]>([]);
@@ -358,8 +370,8 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
 
   const load = useCallback(async () => {
     const revision = ++loadRevisionRef.current;
-    setLoading(true);
-    setLoadError(null);
+    // Mount begins in loading state. Only an explicit Retry/Refresh action may
+    // synchronously reset the loading/error state before a network request.
     try {
       const response = await fetch(`/api/workforce-planning?organizationId=${organizationId}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
@@ -404,6 +416,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         setPositionExecutions(executionPayload.executions ?? []);
         setPositionExecutionCanApply(Boolean(executionPayload.access?.canApply));
       }
+      setLoadError(null);
       setLoadedOrganizationId(organizationId);
     } catch {
       if (revision === loadRevisionRef.current) {
@@ -415,7 +428,15 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     }
   }, [organizationId]);
 
-  useEffect(() => { void load(); }, [load]);
+  const invalidateInFlightLoad = useCallback(() => { loadRevisionRef.current += 1; }, []);
+  useEffect(() => { void load(); return invalidateInFlightLoad; }, [load, invalidateInFlightLoad]);
+
+  const refresh = () => {
+    setLoadedOrganizationId(null);
+    setLoadError(null);
+    setLoading(true);
+    void load();
+  };
 
   const activeAssignments = assignments.filter((assignment) => !assignment.effectiveUntil);
   const activeAssignmentByPosition = useMemo(() => new Map(activeAssignments.map((assignment) => [assignment.positionId, assignment])), [activeAssignments]);
@@ -867,7 +888,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         </div>
         <div className="notice notice-amber" role="alert" style={{ marginBottom: 16 }}>
           <span><strong>Workforce planning is unavailable.</strong> {loadError} No planning records or totals are displayed until the request succeeds.</span>
-          <button className="secondary-button" type="button" onClick={() => void load()} disabled={loading}>Retry</button>
+          <button className="secondary-button" type="button" onClick={refresh} disabled={loading}>Retry</button>
         </div>
       </div>
     );
@@ -882,7 +903,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           <p>Keep one governed model for organization hierarchy, job architecture, positions, budgets, supervisory ownership, and effective-dated incumbents.</p>
         </div>
         <div className="page-actions">
-          <button className="secondary-button" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button>
+          <button className="secondary-button" onClick={refresh} disabled={loading}><RefreshCw size={15} /> Refresh</button>
           <button className="secondary-button" onClick={() => setShowArchitecture(!showArchitecture)}><Building2 size={15} /> Architecture</button>
           <button className="secondary-button" onClick={() => setShowProfile(!showProfile)} disabled={!jobFamilies.length || !jobLevels.length}><BriefcaseBusiness size={15} /> Job profile</button>
           <button className="secondary-button" onClick={() => setShowPlan(!showPlan)}><CircleDollarSign size={15} /> Plan</button>
