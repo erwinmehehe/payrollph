@@ -43,6 +43,7 @@ export default function SecurityPage() {
         { label: "Capability scorecard", href: "/scorecard", description: "Inspect evidence attached to product and security claims." },
         { label: "Implementation", href: "/implementation", description: "See the rollout gates around production payroll." },
         { label: "Compliance", href: "/compliance", description: "Review privacy and statutory workflow controls." },
+        { label: "Vulnerability disclosure", href: "https://github.com/erwinmehehe/payrollph/blob/main/docs/legal/VULN_DISCLOSURE.md", description: "Read the draft reporting guide and the unassigned private contact status." },
       ]}
     />
   );
