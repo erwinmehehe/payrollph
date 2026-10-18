@@ -383,8 +383,9 @@ async function execute() {
   mark("PF-08","Three night-shift payroll segments retain original source traces");
   mark("PF-09","Five June 12 holiday-work payroll segments retain source dates; statutory amounts NOT independently certified");
 
-  const assurance=await buildPayrollAssurance(runId);
-  assert.ok(assurance);
+  const assuranceResult=await buildPayrollAssurance(runId);
+  assert.ok(assuranceResult);
+  const assurance=assuranceResult.assurance;
   const missingBanks=new Set((assurance.findings??[])
     .filter((x:any)=>x.code==="MISSING_BANK_DETAILS"&&x.blocking)
     .map((x:any)=>Number(x.employeeId)));
