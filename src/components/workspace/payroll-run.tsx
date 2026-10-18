@@ -168,8 +168,7 @@ export function PayrollRunView({
   // Never display a checklist captured for a different run, employer, or
   // dashboard approval snapshot while the current read is in flight.
   const releaseChecklist = visiblePayrollReleaseChecklist(checklistScope, checklistObservation);
-  // Confirmation is invalidated immediately when employer, run or approval snapshot changes.
-  const confirmRelease = confirmReleaseForScope === checklistScope && releaseChecklist !== null;
+  // A verified release checklist is not a substitute for a verified register.
 
   useEffect(() => {
     if (!runId) return;
@@ -206,6 +205,8 @@ export function PayrollRunView({
     [entriesVerified, fetched],
   );
   const entriesLoading = !entriesVerified && !entriesFailed;
+  const confirmRelease =
+    entriesVerified && confirmReleaseForScope === checklistScope && releaseChecklist !== null;
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -456,7 +457,7 @@ export function PayrollRunView({
         <PayrollConnectedImpactPanel runId={run.id} onPage={onPage} allowedPages={availablePages} />
       )}
 
-      {!payrollOfficerMode && !ownerMode && (
+      {!payrollOfficerMode && !ownerMode && entriesVerified && (
         <PayrollHandoff
           stages={handoffStages}
           period={run.periodLabel}
@@ -467,7 +468,7 @@ export function PayrollRunView({
         />
       )}
 
-      {payrollOfficerMode && (
+      {payrollOfficerMode && entriesVerified && (
         <div id="phase-two-role-workflow" className="p2-role-controls">
         <PayrollOfficerWorkspace
           data={data}
@@ -537,7 +538,7 @@ export function PayrollRunView({
         />
       )}
 
-      {ownerMode && (
+      {ownerMode && entriesVerified && (
         <div id="phase-two-role-workflow" className="p2-role-controls">
         <OwnerPayrollRelease
           data={data}
