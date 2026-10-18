@@ -8,6 +8,10 @@ on:
       - '.github/workflows/issue-1198-wfm-demand-forward-recovery.yml'
       - 'scripts/lib/reviewed-migration-runner.mjs'
       - 'scripts/lib/isolated-migration-target.mjs'
+      - 'scripts/qa/issue-1198-wfm-demand-application-recovery.mjs'
+      - 'tests/workforce-operational-demand-db.test.ts'
+      - 'tests/workforce-issued-demand-db.test.ts'
+      - 'tests/workforce-demand-staffing-policy-db.test.ts'
   workflow_dispatch:
 
 permissions:
@@ -17,7 +21,7 @@ jobs:
   sql-recovery-rollback-only:
     name: PG${{ matrix.pg }} 0134 rollback + tenant denial (NO Neon)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -53,3 +57,9 @@ jobs:
         run: node --test tests/issue-1198-wfm-demand-forward-source.test.mjs
       - name: Execute 0134 only on disposable PostgreSQL and ROLLBACK all schema/data
         run: node --test tests/issue-1198-wfm-demand-forward-postgres.test.mjs
+      - name: Prepare complete disposable app schema (localhost only)
+        run: npm run db:push
+      - name: Simulate incomplete historical WFM demand catalog and apply 0134 (disposable only)
+        run: node scripts/qa/issue-1198-wfm-demand-application-recovery.mjs
+      - name: Exercise real demand import, issued forecast and staffing approval services after 0134
+        run: npx tsx --test --test-concurrency=1 tests/workforce-operational-demand-db.test.ts tests/workforce-issued-demand-db.test.ts tests/workforce-demand-staffing-policy-db.test.ts
