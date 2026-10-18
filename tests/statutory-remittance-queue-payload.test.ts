@@ -55,4 +55,9 @@ test("API returns current employer, and GET/sync and retry block false green suc
   assert.match(ui, /if \(readOnlyOnOpen\) read\(\);\s*else void sync\(true\)/);
   assert.match(ui, /setReadError\(message\)/);
   assert.match(ui, /No unresolved statutory remittance actions/);
+  const browser = readFileSync("scripts/qa/first-payroll-connected-browser.mjs", "utf8");
+  assert.ok(browser.includes("json:{organizationId,currentUserId:1"));
+  assert.ok(browser.includes("{id:organizationId,organizationId,sourceKey:"));
+  assert.ok(browser.includes("json:{organizationId:1,currentUserId:1"));
+  assert.ok(browser.includes("Loading or verifying statutory compliance actions…"));
 });
