@@ -1,6 +1,6 @@
 # #1102 final operator handoff — fictional demo run header correction
 
-**Status:** MANUAL REVIEW ONLY / ORIGINAL NEON ROWS NOT YET CORRECTED / NO DATABASE WRITE FROM THIS PULL REQUEST.
+**Status:** MANUAL REVIEW ONLY / ORIGINAL NEON ROWS NOT YET CORRECTED / NO LIVE NEON WRITE FROM THIS PULL REQUEST.
 
 ## Work completed and verified
 
@@ -23,7 +23,7 @@
 
 ## Safeguarded operator procedure
 
-This handoff adds a review-only SQL file (`docs/sql/issue-1102-legacy-fictitious-header-REVIEW-ONLY.sql`) and this companion runbook. It is not connected to CI, Drizzle migration sources, a scheduled job, production deployment, Neon tools or app startup.
+This handoff adds a review-only SQL file (`docs/sql/issue-1102-legacy-fictitious-header-REVIEW-ONLY.sql`) and this companion runbook. It is connected **only** to a disposable PostgreSQL 16/18 GitHub Actions rehearsal, which also tests the unchanged original SQL's wrong-target refusal. It is **not** wired to Drizzle migration sources, a scheduled production job, a live Neon database connection, app startup, or production deployment.
 
 1. **Verify identity and quiescence:** Log in through the appropriate authorized database-administration channel using a direct, unpooled PostgreSQL session (transaction-level session settings and temporary tables are required). Confirm the exact project, branch, read/write endpoint, database and role. Check the selected production service database route independently. Confirm this is still **only fictional pre-customer data**, and check that no payment, payout intent, approval, provider webhook, underpayment request, attendance correction, bank upload or agency filing has occurred for these three rows. Coordinate a temporary hold on demo writes while operating: the SQL refuses existing dependencies, but no code-only guard substitutes for controlling simultaneous application writes.
 2. **Preserve before-state:** Retain the owner’s original six amounts, row MD5 fingerprints and non-header table fingerprints in [#1102 pre-commit receipt](https://github.com/erwinmehehe/payrollph/issues/1102#issuecomment-6251233021). Because the retained Neon snapshot is from October 12 and a prior snapshot restore unintentionally reassigned the production endpoint (#899), do not assume a snapshot restore is an acceptable undo. Take a suitable owner-controlled extra recovery copy if available. A paid AWS system is **not required for fictional development**.
