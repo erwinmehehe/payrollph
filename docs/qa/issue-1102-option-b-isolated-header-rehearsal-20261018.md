@@ -35,6 +35,30 @@ All three had six detail entries matching the employee count in a read-only quer
 
 **Source-only test execution:** open a draft PR changing the runner, this workflow and this runbook. GitHub Actions runs the disposable PG16/PG18 job at the *exact PR SHA*. Do not report a passed test until its logs are actually inspected. Failing or pending CI means rehearsal is NOT confirmed.
 
+## Second gate: real source-schema tables, durable (disposable) reversal
+
+After the original temporary-table adversarial test, the updated PG16/PG18 workflow runs npm run db:push **only** against its fresh 127.0.0.1:5432/app_db PostgreSQL service and invokes scripts/qa/rehearse-1102-real-schema-guarded-reversal.mjs.
+
+This is a materially stronger source-shape rehearsal, but **not a clone of the deployed Neon's historic data or all its schema drift**. In particular, the repository's current Drizzle source schema cannot prove every live Neon catalog constraint, runtime DB role, cache or integration. A later permissioned detached backup and restore would be required for a true exact-target replay.
+
+The new executable runner, limited to GitHub Actions with its own synthetic connection, performs:
+
+1. Verify required CI, repo, test environment, **no production DB connection variable**, exact loopback username/password/host/database, payout flags disabled, and zero business rows before fixture seed.
+2. Use the real public-demo source seeder against the actual repository-defined public organizations, employees, payroll_runs and payroll_entries tables; check **one fictional organization, eight workers, three historical run IDs and eighteen details**.
+3. Verify newly seeded correct headers, then intentionally place the **three captured historical bad header pairs** into this disposable database *only*, without changing any details.
+4. Record a private in-process SHA256 fingerprint for existing synthetic employee, detail, audit, approvals, bank and filing tables. No values, secrets or employee identities leave the CI runner.
+5. Test five negative preflight mutations (stale header, different run status, broken employee net maths, missing detail, wrong organization) inside transactions that roll back. Enforce fixed date/period, organization, status (including the Released mock), unique six workers, cents sums and **absence of linked approval/payment/filing/payroll-job evidence**.
+6. Within SERIALIZABLE transactions, demonstrate all three header-only UPDATEs with exact source-value compare-and-swap and an in-session temporary before/after receipt. Prove both the ordinary **ROLLBACK** and, separately, a **COMMIT on disposable PostgreSQL** followed by a **committed reverse three-header update** with matching guard conditions.
+7. Refuse replay in either direction. Assert that the original mock headers and all synthetic non-header rows/fingerprints were restored exactly. The workflow destroys its PostgreSQL service and ephemeral receipts afterward.
+
+**Approval boundary:** This procedure contains no command path capable of applying against Neon: only runner-owned loopback Postgres with a hard-coded CI credential and empty DB check is allowed. The existence of a tested reversal proves nothing about undoing external payouts, agency filings or immutable history: those remain forbidden and outside scope.
+
+**CI evidence:** Record the PG16 and PG18 job receipts against the most recent exact reviewed PR SHA after execution. At the time of writing, the new stronger jobs have **not** yet been independently verified. Do not update the existing 11/11/12/12 earlier summary to claim the **new** rehearsal has passed without checking this SHA.
+
+**No additional cloud budget required:** #907 owner scope confirmed **fictional pre-customer development**. The documented zero-subscription local encrypted backup and offline restore remains an available operator choice if and only if the actual source is independently confirmed fictional. Do not use paid AWS or a Neon restore that might promote the default endpoint.
+
+**Original-DB approval remains separate:** A reviewed before/after receipt and a committed reversal in disposable CI **never constitute** permission to modify the current Neon default or deployed web application's data. An operator must approve the exact original branch/host/role/rows, record appropriate recoverability and audit decisions, and verify the UI independently before that narrow historical correction can be executed.
+
 ## Operator decision before later actual Neon correction (separate authorization)
 
 The owner's “B” selection authorizes **isolated rehearsal only**. Do not run the rehearsal script against Neon: it refuses to operate outside disposable CI and uses pg_temp deliberately. If later instructed to repair the original Neon fictional rows, it **needs a new specific review and execution plan**, not repurposing this rehearsal as a production migration.
