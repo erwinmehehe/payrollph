@@ -15,9 +15,9 @@ type StaffHrCase = {
   id: number;
   organizationId: number;
   employeeId: number;
-  employeeName?: string;
-  employeeTitle?: string;
-  employeeStartDate?: string;
+  employeeName?: string | null;
+  employeeTitle?: string | null;
+  employeeStartDate?: string | null;
   caseType: HrCaseType;
   assignedRole: string;
   subject: string;
