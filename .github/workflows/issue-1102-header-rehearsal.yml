@@ -9,12 +9,14 @@ on:
     paths:
       - ".github/workflows/issue-1102-header-rehearsal.yml"
       - "scripts/qa/rehearse-1102-legacy-demo-headers.mjs"
+      - "scripts/qa/rehearse-1102-real-schema-guarded-reversal.mjs"
       - "src/lib/public-demo-payroll-fixture.ts"
   push:
     branches: [main]
     paths:
       - ".github/workflows/issue-1102-header-rehearsal.yml"
       - "scripts/qa/rehearse-1102-legacy-demo-headers.mjs"
+      - "scripts/qa/rehearse-1102-real-schema-guarded-reversal.mjs"
       - "src/lib/public-demo-payroll-fixture.ts"
   workflow_dispatch:
 
@@ -29,7 +31,7 @@ jobs:
   isolated-rollback:
     name: Fictional six-worker demo correction/rollback on PostgreSQL ${{ matrix.pg }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -69,3 +71,8 @@ jobs:
       - run: npm ci
       - name: Rehearse exact legacy demo headers, guard denials, change and full rollback
         run: npx tsx scripts/qa/rehearse-1102-legacy-demo-headers.mjs
+
+      - name: Build real source schema on disposable PostgreSQL only
+        run: npm run db:push
+      - name: Rehearse guarded correction and committed reversal on real public tables
+        run: npx tsx scripts/qa/rehearse-1102-real-schema-guarded-reversal.mjs
