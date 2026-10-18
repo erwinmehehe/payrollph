@@ -104,6 +104,9 @@ async function latestPassedXenditPreflight(run: PayrollRun) {
 async function assertNoPriorPayrollDisbursement(run: PayrollRun) {
   const disbursementActions = [
     "Payroll payout completed manually",
+    "Payroll payout submission initiated via PayMongo",
+    "Payroll payout retry submission initiated via PayMongo",
+    "Payroll payout retry outcome unknown",
     "Payroll payout submitted via PayMongo",
     "Payroll payout retry submitted via PayMongo",
     "Payroll payout completed via PayMongo",
