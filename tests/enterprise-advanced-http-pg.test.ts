@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../src/db";
-import { organizations, subscriptions, userOrganizations, users } from "../src/db/schema";
+import { employees, organizations, subscriptions, userOrganizations, users } from "../src/db/schema";
 import { getAccess } from "../src/lib/access";
 
 const require = createRequire(import.meta.url);
@@ -36,6 +36,17 @@ test("opted-in Enterprise HTTP planning/compensation checks protect direct API a
     await db.insert(userOrganizations).values([
       { userId: hrA.id, organizationId: alpha.id, role: "hr", orgUnitId: null },
       { userId: hrB.id, organizationId: beta.id, role: "hr", orgUnitId: null },
+    ]);
+    // Two employers deliberately share the same fictional employee number.
+    // A paid plan or response from A must never authorize or expose B's worker.
+    const sameEmployeeNumber = "E-" + suffix;
+    await db.insert(employees).values([
+      { organizationId: alpha.id, employeeNo: sameEmployeeNumber,
+        firstName: "PLAN_ALPHA_ONLY", lastName: "Worker", title: "Staff",
+        avatarInitials: "PA", basicRate: "24500.00", startDate: "2026-01-01" },
+      { organizationId: beta.id, employeeNo: sameEmployeeNumber,
+        firstName: "PLAN_BETA_ONLY", lastName: "Worker", title: "Staff",
+        avatarInitials: "PB", basicRate: "74500.00", startDate: "2026-01-01" },
     ]);
     process.env.HCM_ENTERPRISE_PLAN_GATE_ENABLED = "true";
     process.env.HCM_ENTERPRISE_PLAN_GATE_ORG_IDS = [alpha.id, beta.id].join(",");
@@ -95,13 +106,19 @@ test("opted-in Enterprise HTTP planning/compensation checks protect direct API a
     ]);
     const allowed = await planning.GET(get("workforce-planning", alpha.id));
     assert.equal(allowed.status, 200);
-    assert.ok(Array.isArray((await allowed.json()).plans));
+    const allowedPayload = await allowed.json();
+    assert.ok(Array.isArray(allowedPayload.plans));
+    assert.deepEqual(allowedPayload.employees.map((worker: { firstName: string }) => worker.firstName), ["PLAN_ALPHA_ONLY"]);
+    assert.ok(!JSON.stringify(allowedPayload).includes("PLAN_BETA_ONLY"));
     assert.equal((await planning.POST(post("workforce-planning", {
       organizationId: alpha.id, entityType: "plan",
     }))).status, 400);
     const paidPayRead = await compensation.GET(get("compensation", alpha.id));
     assert.equal(paidPayRead.status, 200);
-    assert.equal((await paidPayRead.json()).advancedConfigurationAllowed, true);
+    const allowedPayPayload = await paidPayRead.json();
+    assert.equal(allowedPayPayload.advancedConfigurationAllowed, true);
+    assert.deepEqual(allowedPayPayload.employees.map((worker: { firstName: string }) => worker.firstName), ["PLAN_ALPHA_ONLY"]);
+    assert.ok(!JSON.stringify(allowedPayPayload).includes("PLAN_BETA_ONLY"));
     assert.equal((await compensation.POST(post("compensation", {
       organizationId: alpha.id, entityType: "cycle",
     }))).status, 400);
@@ -112,10 +129,15 @@ test("opted-in Enterprise HTTP planning/compensation checks protect direct API a
     assert.equal((await planning.GET(get("workforce-planning", beta.id))).status, 402);
     const betaPay = await compensation.GET(get("compensation", beta.id));
     assert.equal(betaPay.status, 200);
-    assert.equal((await betaPay.json()).advancedConfigurationAllowed, false);
+    const betaPayload = await betaPay.json();
+    assert.equal(betaPayload.advancedConfigurationAllowed, false);
+    assert.deepEqual(betaPayload.employees.map((worker: { firstName: string }) => worker.firstName), ["PLAN_BETA_ONLY"]);
+    assert.ok(!JSON.stringify(betaPayload).includes("PLAN_ALPHA_ONLY"));
     process.env.HCM_ENTERPRISE_PLAN_GATE_ORG_IDS = String(alpha.id);
-    assert.equal((await planning.GET(get("workforce-planning", beta.id))).status, 200,
-      "Non-opted employers have no new Enterprise paywall");
+    const betaCore = await planning.GET(get("workforce-planning", beta.id));
+    assert.equal(betaCore.status, 200, "Non-opted employers have no new Enterprise paywall");
+    const betaCorePayload = await betaCore.json();
+    assert.deepEqual(betaCorePayload.employees.map((worker: { firstName: string }) => worker.firstName), ["PLAN_BETA_ONLY"]);
 
     // A downgraded role cannot rely on a paid Enterprise subscription.
     caller = { id: hrA.id, name: "Fictional HR A", email: email("a") };
