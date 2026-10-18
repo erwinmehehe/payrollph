@@ -53,6 +53,7 @@ on:
       - "src/lib/dashboard-data.ts"
       - "src/lib/critical-release-flags.ts"
       - "tests/compact-mobile-header.test.ts"
+      - "tests/private-parallel-operator-contract.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
       - "scripts/qa/governed-hire-853-bridge.ts"
       - "scripts/qa/connected-governed-hire.ts"
@@ -136,6 +137,7 @@ on:
       - "src/lib/dashboard-data.ts"
       - "src/lib/critical-release-flags.ts"
       - "tests/compact-mobile-header.test.ts"
+      - "tests/private-parallel-operator-contract.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
       - "scripts/qa/governed-hire-853-bridge.ts"
       - "scripts/qa/connected-governed-hire.ts"
@@ -318,6 +320,8 @@ jobs:
             tests/workforce-attendance-locks.test.ts \
             tests/workforce-timesheet.test.ts \
             tests/filing-remittance-crosscheck.test.ts
+      - name: Verify synthetic 10-worker two-month private parallel reconciliation contract
+        run: npx tsx --test tests/private-parallel-operator-contract.test.ts
       - name: Generate byte-bound fictional official-validator handoff (not certification)
         run: |
           npx tsx --test tests/bir-validation-corpus.test.ts tests/bir-1604c-dat-candidate.test.ts tests/bir-1604c-pre-export.test.ts
