@@ -105,3 +105,45 @@ export async function recordSchedulerCompletion(
   `);
   return result.rows.length === 1;
 }
+
+
+/**
+ * Preserve the last incomplete tick independently of the successful receipt.
+ * Store only bounded job identifiers and SQLSTATE/known error codes; never
+ * persist exception messages, SQL text, employee data or dispatch payloads.
+ * The same row-locked lease fence as successful receipts prevents stale
+ * workers from replacing another worker's evidence.
+ */
+export async function recordSchedulerFailure(
+  ownerToken: string,
+  failures: ReadonlyArray<{ job: string; message: string }>,
+  receiptJobName = "central-scheduler-failure",
+  leaseJobName = CENTRAL_SCHEDULER_LEASE,
+): Promise<boolean> {
+  if (failures.length === 0) throw new Error("A failed scheduler receipt requires a failing job.");
+  // Exception text is untrusted and can begin with customer-defined labels.
+  // Allow only official PostgreSQL SQLSTATE classes and an explicit internal
+  // dispatch code; all other prefixes are deliberately reduced to JOB_FAILED.
+  const sqlStateClasses = new Set([
+    "00", "01", "02", "03", "08", "09", "0A", "0B", "0F", "0L", "0P", "0Z",
+    "20", "21", "22", "23", "24", "25", "26", "27", "28", "2B", "2D", "2F",
+    "34", "38", "39", "3B", "3D", "3F", "40", "42", "44", "53", "54", "55",
+    "57", "58", "F0", "HV", "P0", "XX",
+  ]);
+  const jobs = failures.slice(0, 64).map(({ job, message }) => {
+    const candidate = /^([A-Z0-9_]{4,32})(?::|$)/.exec(message)?.[1];
+    const knownCode = candidate === "DISPATCH_UNCONFIRMED"
+      || (candidate !== undefined && /^[A-Z0-9]{5}$/.test(candidate)
+        && sqlStateClasses.has(candidate.slice(0, 2)));
+    return {
+      job: /^[A-Za-z][A-Za-z0-9._-]{0,79}$/.test(job) ? job : "unclassified",
+      code: knownCode ? candidate : "JOB_FAILED",
+    };
+  });
+  return recordSchedulerCompletion(
+    ownerToken,
+    { status: "failed", failureCount: failures.length, truncated: failures.length > 64, jobs },
+    receiptJobName,
+    leaseJobName,
+  );
+}
