@@ -1,31 +1,30 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import test from "node:test";
-import { generateShapeAudit, HEADERS, normalizeDefault } from "../scripts/issue-1031-source-shape-audit.mjs";
+import { generateShapeAudit, HEADERS, normalizeDefault, reconstructPinnedSchemaText, HISTORICAL_SCHEMA_SHA256 } from "../scripts/issue-1031-source-shape-audit.mjs";
 
-// The pinned October 17 CSVs are historical evidence and must NEVER be
-// rewritten to fit a later main. Merged #1210 changed the schema.ts file
-// checksum without changing this historical <=0132 parsed table cohort.
-// Permit only the two explicitly reviewed digest values, while preserving an
-// exact byte-for-byte comparison of every other CSV field and row. A later
-// schema change must fail until independently re-attested.
-const PINNED_HISTORICAL_SCHEMA_SHA = "72c465c62e99aa9ce0271d700cc526f408216b068c6d8b0fd1864c84201bd3cf";
-const REVIEWED_MAIN_1210_SCHEMA_SHA = "83a6ea5ac2e8ac401ab1cda2f25b3c8d06fb35a54eb731d7fdd8c54684013f5c";
-function assertCurrentShapeEqualsPinnedHistoricalExceptReviewedSchemaHash(report, snapshotPath) {
+// This is a source-only snapshot comparison. A later main index change
+// must not rewrite the Oct 17/18 evidence or invent migration receipts.
+function assertHistoricalShapeMatchesPinnedEvidence(report, snapshotPath) {
   const frozen = readFileSync(new URL(snapshotPath, import.meta.url), "utf8");
-  assert.ok(frozen.includes('"' + PINNED_HISTORICAL_SCHEMA_SHA + '"'),
-    "historical artifact must retain its original schema checksum");
   assert.ok(report.rows.length > 0);
-  assert.ok(report.rows.every(row => row.source_schema_sha256 === REVIEWED_MAIN_1210_SCHEMA_SHA),
-    "new schema.ts content requires fresh independent source-shape attestation");
-  assert.equal(
-    report.csv.replaceAll('"' + REVIEWED_MAIN_1210_SCHEMA_SHA + '"',
-      '"' + PINNED_HISTORICAL_SCHEMA_SHA + '"'),
-    frozen,
-    "only the explicitly pinned #1210 whole-file schema digest may differ from frozen historical evidence",
-  );
+  assert.ok(report.rows.every(row => row.source_schema_sha256 === HISTORICAL_SCHEMA_SHA256));
+  assert.equal(report.csv, frozen, "historical CSV must be byte-for-byte immutable");
 }
 
+test("only two reviewed marketing index edits can be projected to pinned schema bytes", () => {
+  const current = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
+  const historical = reconstructPinnedSchemaText(current);
+  assert.equal(createHash("sha256").update(historical.text).digest("hex"), HISTORICAL_SCHEMA_SHA256);
+  assert.equal(historical.projected, true);
+  assert.equal(reconstructPinnedSchemaText(historical.text).projected, false);
+  assert.throws(() => reconstructPinnedSchemaText(current + "\\n// unexpected source drift"),
+    /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
+  assert.throws(() => reconstructPinnedSchemaText(current.replace(
+    "table.createdAt.desc().nullsFirst()", "table.createdAt.desc().nullsLast()")),
+    /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
+});
 
 test("source-only 100-row evidence is reproducible and receipts stay completely blank", () => {
   const report = generateShapeAudit();
@@ -46,7 +45,7 @@ test("source-only 100-row evidence is reproducible and receipts stay completely 
   assert.equal(report.csv.split("\n").length, 102);
   // A later forward-only repair MUST NOT rewrite the pinned 0132-era
   // evidence simply because the live source worksheet grows to 0134.
-  assertCurrentShapeEqualsPinnedHistoricalExceptReviewedSchemaHash(
+  assertHistoricalShapeMatchesPinnedEvidence(
     report, "../docs/engineering/issue-1031-20261017-named-shape-analysis-partial.csv",
   );
   assert.deepEqual(HEADERS.slice(-6), [
@@ -78,7 +77,7 @@ test("new 0134 recovery candidates never pollute the pinned historical 0132 anal
       "historical creator metadata cannot inherit later forward-repair SQL");
   }
   const all = generateShapeAudit("all_numbered");
-  assertCurrentShapeEqualsPinnedHistoricalExceptReviewedSchemaHash(
+  assertHistoricalShapeMatchesPinnedEvidence(
     all, "../docs/engineering/issue-1031-all-numbered-creator-shape-analysis.csv",
   );
 });

@@ -13,6 +13,35 @@ import { generateSourceWorksheet, RECEIPT_FIELDS } from "./generate-issue-1031-s
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const read = path => readFileSync(resolve(ROOT, path), "utf8");
 const PINNED_MAIN = "0921b02ad73475e4eaf76ea6b45f65efc046ce5d";
+// Actual SHA-256 of src/db/schema.ts at the pinned 0921b02a commit.
+export const HISTORICAL_SCHEMA_SHA256 = "72c465c62e99aa9ce0271d700cc526f408216b068c6d8b0fd1864c84201bd3cf";
+
+/**
+ * Keep the historical 0132-era SQL shape analysis immutable across #1210.
+ * The only reviewed schema changes since the pinned commit are explicit
+ * NULLS FIRST on two marketing_leads indexes. Reconstruct the EXACT
+ * historical source bytes, or stop instead of falsely updating evidence.
+ */
+export function reconstructPinnedSchemaText(currentSource) {
+  const hash = text => createHash("sha256").update(text).digest("hex");
+  if (hash(currentSource) === HISTORICAL_SCHEMA_SHA256)
+    return { text: currentSource, projected: false };
+  const reviewed = [
+    ['index("marketing_leads_status_created_idx").on(table.status, table.createdAt.desc().nullsFirst())',
+     'index("marketing_leads_status_created_idx").on(table.status, table.createdAt.desc())'],
+    ['index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt.desc().nullsFirst())',
+     'index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt.desc())'],
+  ];
+  let historical = currentSource;
+  for (const [newer, historicalText] of reviewed) {
+    if (historical.split(newer).length !== 2)
+      throw Error("HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE");
+    historical = historical.replace(newer, historicalText);
+  }
+  if (hash(historical) !== HISTORICAL_SCHEMA_SHA256)
+    throw Error("HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE");
+  return { text: historical, projected: true };
+}
 const OUTPUT = "docs/engineering/issue-1031-20261017-named-shape-analysis-partial.csv";
 const ALL_OUTPUT = "docs/engineering/issue-1031-all-numbered-creator-shape-analysis.csv";
 const sort = array => [...array].sort((a,b) => a.localeCompare(b,"en"));
@@ -123,7 +152,7 @@ function compare(schema, sql) {
   }
   return {drift,unknown};
 }
-function getManifest() {
+function getManifest(projectHistoricalMarketingIndexes = false) {
   const runner=resolve(ROOT,"node_modules/.bin/tsx");
   const stdout=execFileSync(runner,["scripts/issue-1031-print-schema-manifest.ts"],{
     cwd:ROOT,encoding:"utf8",timeout:60000,maxBuffer:16*1024*1024,
@@ -133,6 +162,24 @@ function getManifest() {
   const value=JSON.parse(stdout);
   if(value.evidenceScope!==SOURCE_EVIDENCE_TAG||value.tables.length<271)
     throw Error("SCHEMA_AST_MANIFEST_UNTRUSTED");
+  // Drizzle's runtime manifest is still on current main. Project ONLY the
+  // two proven #1210 differences back to their 0921b02a index semantics,
+  // after exact source-byte verification by reconstructPinnedSchemaText().
+  if (projectHistoricalMarketingIndexes) {
+    const marketing = value.tables.find(x => x.name === "marketing_leads");
+    if (!marketing) throw Error("HISTORICAL_1031_MARKETING_MODEL_MISSING");
+    for (const [name, firstKey] of [
+      ["marketing_leads_status_created_idx", "status"],
+      ["marketing_leads_kind_created_idx", "kind"],
+    ]) {
+      const matches = marketing.indexes.filter(x => x.name === name);
+      const index = matches[0];
+      if (matches.length !== 1 || !index || index.keys.length !== 2 ||
+          index.keys[0] !== firstKey || index.keys[1] !== "created_at DESC NULLS FIRST")
+        throw Error("HISTORICAL_1031_MARKETING_INDEX_MODEL_DRIFT_" + name);
+      index.keys[1] = "created_at DESC";
+    }
+  }
   return new Map(value.tables.map(x=>[x.name,x]));
 }
 function namedCatalog() {
@@ -180,7 +227,9 @@ export const HEADERS=[
 ];
 export function generateShapeAudit(cohort = "dated_named") {
   if(!["dated_named","all_numbered"].includes(cohort))throw Error("UNKNOWN_SOURCE_COHORT");
-  const schemaText=read("src/db/schema.ts"),model=getManifest(),worksheet=generateSourceWorksheet();
+  const pinnedSchema = reconstructPinnedSchemaText(read("src/db/schema.ts"));
+  const schemaText = pinnedSchema.text;
+  const model = getManifest(pinnedSchema.projected), worksheet = generateSourceWorksheet();
   // The active worksheet tracks new forward candidates (0133, 0134, ...),
   // but this historical shape report is locked to the <=0132 source cohort.
   // Never compare later repair creators against a truncated parseFiles()
