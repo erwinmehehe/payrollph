@@ -67,6 +67,7 @@ test("bookkeeper UI binds close consent to a snapshot and cancels obsolete GETs"
   assert.match(source, /runId: run\.id/);
   assert.match(source, /auditEventCount: data\.auditEvents\.length/);
   assert.match(source, /useMemo<BookkeeperCloseScope>/);
+  assert.match(source, /auditEvents: data\.auditEvents, runStatus: run\.status/);
   assert.match(source, /\[requestKey, data\.auditEvents, run\.status\]/);
   assert.match(source, /visibleBookkeeperCloseRead\(requestScope, observedClose\)/);
   assert.match(source, /confirmCloseForScope === requestScope/);
