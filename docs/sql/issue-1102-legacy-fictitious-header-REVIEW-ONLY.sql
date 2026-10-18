@@ -11,6 +11,9 @@
 -- If any assertion fails, PostgreSQL aborts the transaction; issue ROLLBACK.
 -- Do not restore or promote a Neon snapshot (prior #899 endpoint incident).
 -- No provider, bank, filing, payroll calculation or worker row is modified.
+-- Refuse linked payroll/bank/provider/approval/adjustment/attendance evidence,
+-- including prepared payouts and underpayment requests. The operator must
+-- also stop concurrent demo writes and independently verify runtime identity.
 --
 -- Before-values stored in #1102:
 -- run 1 gross 176300.00/net 145645.00 -> 181300.00/147400.00
@@ -80,7 +83,24 @@ BEGIN
      WHERE source_payroll_run_id IN(1,2,3) OR settled_payroll_run_id IN(1,2,3))
    OR EXISTS(SELECT 1 FROM public.payslips
      WHERE payroll_entry_id IN (SELECT id FROM public.payroll_entries WHERE payroll_run_id IN(1,2,3)))
- THEN RAISE EXCEPTION 'ISSUE1102_RUN_HAS_CONNECTED_FINANCIAL_OR_APPROVAL_EVIDENCE'; END IF;
+   -- Refuse any linked payout, provider, compensation, workforce or adjustment history.
+   -- Even a PREPARED transfer is a dependency: never change its source run headers.
+   OR EXISTS(SELECT 1 FROM public.payout_batches WHERE payroll_run_id IN(1,2,3))
+   OR EXISTS(SELECT 1 FROM public.payout_transfers WHERE payroll_run_id IN(1,2,3))
+   OR EXISTS(SELECT 1 FROM public.provider_events WHERE payroll_run_id IN(1,2,3))
+   OR EXISTS(SELECT 1 FROM public.payroll_underpayment_requests WHERE source_payroll_run_id IN(1,2,3))
+   OR EXISTS(SELECT 1 FROM public.year_end_adjustments WHERE payroll_run_id IN(1,2,3))
+   OR EXISTS(SELECT 1 FROM public.supplementary_earnings WHERE payroll_run_id IN(1,2,3))
+   OR EXISTS(SELECT 1 FROM public.expense_claims WHERE payroll_run_id IN(1,2,3))
+   OR EXISTS(SELECT 1 FROM public.earned_wage_requests WHERE payroll_run_id IN(1,2,3))
+   OR EXISTS(SELECT 1 FROM public.loan_payments WHERE payroll_run_id IN(1,2,3))
+   OR EXISTS(SELECT 1 FROM public.leave_conversions WHERE payroll_run_id IN(1,2,3))
+   OR EXISTS(SELECT 1 FROM public.workforce_timesheet_expectations WHERE payroll_run_id IN(1,2,3))
+   OR EXISTS(SELECT 1 FROM public.attendance_correction_requests
+     WHERE invalidated_payroll_run_ids @> '[1]'::jsonb
+        OR invalidated_payroll_run_ids @> '[2]'::jsonb
+        OR invalidated_payroll_run_ids @> '[3]'::jsonb)
+ THEN RAISE EXCEPTION 'ISSUE1102_RUN_HAS_CONNECTED_PAYROLL_OR_FINANCIAL_EVIDENCE'; END IF;
 
  -- Immutable non-header before-image witnesses (change detection, not secrecy).
  IF (SELECT md5(coalesce(string_agg(row_to_json(e)::text,'|' ORDER BY e.id),''))
