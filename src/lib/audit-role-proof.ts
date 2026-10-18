@@ -14,7 +14,21 @@ export const AUDIT_CHAIN_PROOF_KEYS = [
   "runtimeNoDdlPrivileges",
 ] as const;
 export const STRICT_AUDIT_CHAIN_PROOF_KEYS = [...AUDIT_CHAIN_PROOF_KEYS,
-  "runtimeNoMembership", "runtimeSessionMatches", "runtimeNoDefinerAccess", "chainInsertProtected", "truncateProtected"] as const;
+  "runtimeNoMembership", "runtimeSessionMatches", "runtimeNoDefinerAccess", "chainInsertProtected", "truncateProtected", "auditFunctionBodiesTrusted"] as const;
+
+// Exact pg_proc.prosrc bodies from immutable 0109 and reviewed forward 0133.
+// A same-OID CREATE OR REPLACE FUNCTION must not appear audit-ready.
+// Two vetted legacy/forward hashes are retained for the disposable PG16/18 matrix;
+// unknown bodies or function metadata always fail closed in strict mode.
+export const AUDIT_ALLOWED_FUNCTION_BODY_SHA256 = {
+  mutationGuard: "0aa3f9e7c61a2cf2fb6b5f9baff3ddecfc36b90c4b67f0cc0a92ef5843e7792d",
+  insertGuard: "3e691148ddc849d33e88196509cbd6cdef68765c228918d51c08dba02562f79b",
+  truncateGuard: "018e7b61b38e18b20f035a3b3b4e6d13d2c9b304a80506130a8d5e6386f6f2ee",
+  sealerForward: "dd45de4468bc03feb6b783e0149a2cbc00502e7b8c010b3ab492f1e08b413dbb",
+  sealerLegacy: "a3fdfe906078dbeca40ff222098fcf4dce58091f45a313c2c88968edda22244f",
+  rowHashForward: "e2fe56f51f4bc5b1496dc98f922808bcf822e260b5c3406fc341168e97b93e73",
+  rowHashLegacy: "c68b878d2e33b2f297c337940ca52798b5eeb24bbfce6f29e81c5aed72b2cadc",
+} as const;
 
 export const LEGACY_AUDIT_ROLE_PROOF_SQL = `
       SELECT
@@ -115,7 +129,27 @@ SELECT
   AND tgenabled IN ('O','A') AND NOT tgisinternal AND tgqual IS NULL AND tgnargs=0) AS "chainInsertProtected",
  EXISTS(SELECT 1 FROM pg_catalog.pg_trigger WHERE tgrelid=o.audit
   AND tgname='audit_events_reject_truncate_v2' AND tgfoid=to_regprocedure('public.audit_events_reject_truncate_v2()') AND tgtype=34
-  AND tgenabled IN ('O','A') AND NOT tgisinternal AND tgqual IS NULL AND tgnargs=0) AS "truncateProtected"
+  AND tgenabled IN ('O','A') AND NOT tgisinternal AND tgqual IS NULL AND tgnargs=0) AS "truncateProtected",
+ -- Check original function bodies, not just OIDs: CREATE OR REPLACE keeps the OID.
+ -- prosrc is the original SQL/PLpgSQL source (stable across supported PG16/18).
+ -- A benign formatting edit also fails closed until separately reviewed/pinned.
+ (SELECT count(DISTINCT pinned.signature)=5
+  FROM (VALUES
+   ('public.audit_events_protect_v2()', '${AUDIT_ALLOWED_FUNCTION_BODY_SHA256.mutationGuard}', 'plpgsql', 'v', 'trigger', ARRAY['search_path=pg_catalog']::text[]),
+   ('public.audit_events_insert_guard_v2()', '${AUDIT_ALLOWED_FUNCTION_BODY_SHA256.insertGuard}', 'plpgsql', 'v', 'trigger', ARRAY['search_path=pg_catalog']::text[]),
+   ('public.audit_events_reject_truncate_v2()', '${AUDIT_ALLOWED_FUNCTION_BODY_SHA256.truncateGuard}', 'plpgsql', 'v', 'trigger', ARRAY['search_path=pg_catalog']::text[]),
+   ('public.seal_audit_events(integer)', '${AUDIT_ALLOWED_FUNCTION_BODY_SHA256.sealerForward}', 'plpgsql', 'v', 'integer', ARRAY['search_path=pg_catalog']::text[]),
+   ('public.seal_audit_events(integer)', '${AUDIT_ALLOWED_FUNCTION_BODY_SHA256.sealerLegacy}', 'plpgsql', 'v', 'integer', NULL::text[]),
+   ('public.audit_event_row_hash(text,bigint,integer,integer,text,text,text,jsonb,timestamptz)', '${AUDIT_ALLOWED_FUNCTION_BODY_SHA256.rowHashForward}', 'sql', 's', 'text', ARRAY['search_path=pg_catalog']::text[]),
+   ('public.audit_event_row_hash(text,bigint,integer,integer,text,text,text,jsonb,timestamptz)', '${AUDIT_ALLOWED_FUNCTION_BODY_SHA256.rowHashLegacy}', 'sql', 's', 'text', NULL::text[])
+  ) AS pinned(signature, body_sha256, language_name, volatility, result_type, config)
+  JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(pinned.signature)
+  JOIN pg_catalog.pg_language l ON l.oid=p.prolang
+  WHERE l.lanname=pinned.language_name AND p.prokind='f' AND NOT p.prosecdef
+   AND p.provolatile::text=pinned.volatility AND p.prorettype=pg_catalog.to_regtype(pinned.result_type)
+   AND p.proconfig IS NOT DISTINCT FROM pinned.config
+   AND pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(p.prosrc,'UTF8')),'hex')=pinned.body_sha256
+ ) AS "auditFunctionBodiesTrusted"
 FROM objects o`;
 
 export function auditRoleProofQuery(env: Readonly<Record<string,string|undefined>> = process.env) {
