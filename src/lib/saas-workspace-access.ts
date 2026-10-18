@@ -3,6 +3,8 @@ import { db, pool } from "@/db";
 import { saasSignupVerifications } from "@/lib/saas-billing-schema";
 import { getEntitlements } from "@/lib/billing";
 import { publicSignupReady } from "@/lib/saas-launch-config";
+import { subscriptions } from "@/db/schema";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 
 /**
  * Only newly self-registered SaaS organizations have a payment gate.
@@ -23,7 +25,10 @@ export function legacySignupTableFallback(signupEnabled: boolean): false {
   return false;
 }
 
-export async function isSelfServeOrganization(organizationId: number): Promise<boolean> {
+export async function isSelfServeOrganization(
+  organizationId: number,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): Promise<boolean> {
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0) {
     throw new Error("Valid organization context is required for the subscription gate.");
   }
@@ -39,7 +44,14 @@ export async function isSelfServeOrganization(organizationId: number): Promise<b
     .from(saasSignupVerifications)
     .where(eq(saasSignupVerifications.organizationId, organizationId))
     .limit(1);
-  return Boolean(row);
+  if (row) return true;
+  // Private invitation signup deliberately creates no email-verification row.
+  // Its explicit pilot subscription still identifies a newly registered company:
+  // use the same onboarding and expiry gates without inventing email ownership.
+  if (!criticalReleaseFlagEnabled("firstPayrollConnected", env)) return false;
+  const [subscription] = await db.select({ provider: subscriptions.provider })
+    .from(subscriptions).where(eq(subscriptions.organizationId, organizationId)).limit(1);
+  return subscription?.provider === "pilot";
 }
 
 export async function requireSaasPaidWrites(organizationId: number): Promise<Response | null> {

@@ -346,6 +346,7 @@ export type FreelancerProfile = {
 } | null;
 
 export type DashboardData = {
+  firstPayrollConnectedEnabled?: boolean;
   coreModuleNavigationEnabled?: boolean;
   employeeImportPreviewEnabled?: boolean;
   xenditPayoutsEnabled?: boolean;

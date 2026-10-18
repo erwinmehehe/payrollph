@@ -6,6 +6,7 @@ import { buildFirstPayrollJourney, FIRST_PAYROLL_STEPS, type FirstPayrollKey } f
 import { FirstPayrollInlinePanel } from "./first-payroll-inline-panel";
 import { useEffect, useState } from "react";
 import type { DashboardData, Notify } from "./types";
+import { firstPayrollRunHref } from "@/lib/first-payroll-run-navigation";
 
 export function FirstPayrollReadinessCard({
   readiness,
@@ -66,6 +67,10 @@ export function FirstPayrollReadinessCard({
     return {...step,state};
   });
   const ownerFor = (key:FirstPayrollKey) => FIRST_PAYROLL_STEPS.find(item=>item.key===key)?.owner ?? "owner";
+  const resumeRun = data?.payrollRuns[0];
+  const resumeHref = guided && inlineEnabled && data?.firstPayrollConnectedEnabled &&
+    data.access?.companyWide && allowedPages.includes("Payroll") && resumeRun
+      ? firstPayrollRunHref(data.selectedOrganization.id, resumeRun.id) : null;
 
   return (
     <section className="first-payroll-card" aria-label="First payroll setup readiness">
@@ -101,7 +106,11 @@ export function FirstPayrollReadinessCard({
             </div>
             <p style={{ fontSize: 12, margin: "8px 0" }}>{step.detail}</p>
             <p className="text-xs" style={{color:"var(--muted)"}}>Responsible: {progress?.stepOwners?.[step.key]??ownerFor(step.key)}</p>
-            {inlineEnabled && data && onRefresh ? (
+            {step.key === "payroll" && resumeHref ? (
+              <a className="first-payroll-link" href={resumeHref}>
+                Open payroll run #{resumeRun!.id} <ArrowRight size={13} />
+              </a>
+            ) : inlineEnabled && data && onRefresh ? (
               <button type="button" className="first-payroll-link" aria-expanded={opened===step.key} onClick={() => setOpened(current=>current===step.key?null:step.key)}>
                 {opened===step.key?"Close panel":step.actionLabel} <ArrowRight size={13} />
               </button>
@@ -154,7 +163,9 @@ export function FirstPayrollReadinessCard({
                 : "Finish the five setup checks before starting a payroll calculation."}
           </span>
         </div>
-        {readiness.ready && allowedPages.includes(readiness.firstPayrollReleased ? "Exports" : "Payroll") && (
+        {readiness.ready && !readiness.firstPayrollReleased && resumeHref ? (
+          <a className="primary-button" href={resumeHref}>Open payroll <ArrowRight size={15} /></a>
+        ) : readiness.ready && allowedPages.includes(readiness.firstPayrollReleased ? "Exports" : "Payroll") && (
           <button
             className="primary-button"
             onClick={guided && inlineEnabled ? () => setOpened(readiness.firstPayrollReleased ? "exports" : "payroll") : readiness.firstPayrollReleased

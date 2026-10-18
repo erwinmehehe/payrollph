@@ -79,6 +79,7 @@ export function PayrollRunView({
   onRefresh,
   notify,
   availablePages = [],
+  initialRunId,
 }: {
   data: DashboardData;
   busy: boolean;
@@ -90,8 +91,11 @@ export function PayrollRunView({
   onRefresh: () => Promise<void>;
   notify: Notify;
   availablePages?: readonly string[];
+  initialRunId?: number;
 }) {
-  const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
+  const [selectedId, setSelectedId] = useState<number | undefined>(
+    data.payrollRuns.find(run => run.id === initialRunId)?.id ?? data.payrollRuns[0]?.id,
+  );
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [explainEmployeeId, setExplainEmployeeId] = useState<number | null>(null);
@@ -511,6 +515,7 @@ export function PayrollRunView({
 
       {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
         <StatutoryRemittanceActionQueue
+          readOnlyOnOpen={data.firstPayrollConnectedEnabled === true}
           organizationId={data.selectedOrganization.id}
           notify={notify}
         />

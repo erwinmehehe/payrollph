@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  firstPayrollConnected: {
+    env: "FIRST_PAYROLL_CONNECTED_ENABLED",
+    owner: "Payroll / Onboarding",
+    risk: "Recognize invitation-created pilot workspaces and resume authorized saved payroll runs",
+    approval: "Executed invited-pilot expiry and tenant/run navigation tests, flag-off parity, desktop/390px connected payroll evidence; no payment activation",
+  },
   requestSchemaReadonly: {
     env: "REQUEST_SCHEMA_READONLY_ENABLED",
     owner: "Database Operations / Release",
