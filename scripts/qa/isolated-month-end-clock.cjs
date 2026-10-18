@@ -13,7 +13,9 @@ if (
   env.CI !== "true" || env.GITHUB_ACTIONS !== "true"
   || env.NINE_STAGE_SYNTHETIC_CLOCK !== qaCutoff(env.NINE_STAGE_CUTOFF_MODE, RealDate.now())
   || env.QA_URL !== "http://127.0.0.1:3000"
-  || env.APP_BASE_URL !== "http://127.0.0.1:3000"
+  // Only the canonical scheme may differ for production signup validation.
+  // All actual network clients remain pinned to the HTTP loopback QA_URL.
+  || !["http://127.0.0.1:3000", "https://127.0.0.1:3000"].includes(env.APP_BASE_URL)
   || env.DEMO_MODE !== "false"
   || db.protocol !== "postgresql:"
   || db.hostname !== "127.0.0.1"

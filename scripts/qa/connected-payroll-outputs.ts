@@ -35,7 +35,11 @@ export async function proveConnectedPayrollOutputs(input:{organizationId:number;
   const journalPath=`/api/payroll-runs/${run.id}/exports?kind=journal`;
   assert.equal((await input.foreignOwner.request(journalPath)).status,403);
   const journal=await input.owner.request(journalPath);assert.equal(journal.status,200);
-  assert.equal(journal.headers.get("cache-control"),"private, no-store");
+  const cacheControl=journal.headers.get("cache-control")??"";
+  // Next development mode may normalize the route's private/no-store header.
+  // Require the actual privacy guarantee rather than one serialized spelling.
+  assert.match(cacheControl,/(?:^|,)\s*no-store\s*(?:,|$)/i);
+  assert.doesNotMatch(cacheControl,/\bpublic\b|s-maxage\s*=\s*[1-9]/i);
   const [header,...rows]=parseCsv(await journal.text());
   assert.equal(header[9],"Debit");assert.equal(header[10],"Credit");assert.ok(rows.length>0);
   assert.equal(rows.reduce((sum,row)=>sum+cents(row[9]||"0"),BigInt(0)),

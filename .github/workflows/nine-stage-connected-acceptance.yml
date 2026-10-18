@@ -272,7 +272,9 @@ jobs:
             echo "PRIVATE_PILOT_INVITE_ENABLED=true" >> "$GITHUB_ENV"
             echo "PRIVATE_PILOT_INVITE_EXPIRES_AT=2030-01-01T00:00:00Z" >> "$GITHUB_ENV"
             echo "PUBLIC_SIGNUP_MODE=pilot" >> "$GITHUB_ENV"
-            echo "APP_BASE_URL=https://fictional-signup.example.test" >> "$GITHUB_ENV"
+            # Production signup requires an HTTPS canonical URL. The actual
+            # test server and every HTTP client remain on the same loopback port.
+            echo "APP_BASE_URL=https://127.0.0.1:3000" >> "$GITHUB_ENV"
           fi
           # Pick the current Manila month-end once for this disposable run so
           # authenticated browser cookies are not expired in real wall time.
