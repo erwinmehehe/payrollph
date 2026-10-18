@@ -290,3 +290,31 @@ export function buildHrPayrollReadiness(input: {
     issueTotal: rows.reduce((sum, row) => sum + row.issues.length, 0),
   };
 }
+
+/**
+ * Presentation state only; payroll and HR authorization remain server-owned.
+ * An empty eligible roster is unassessed, never a 100%-ready payroll.
+ */
+export function hrPayrollReadinessPresentation(model: {
+  ready: number;
+  total: number;
+  blocked: number;
+}) {
+  if (model.total === 0) {
+    return {
+      hasEligibleEmployees: false,
+      percentage: null,
+      heading: "No eligible employees to assess",
+      statusLabel: "Not assessed",
+    };
+  }
+
+  return {
+    hasEligibleEmployees: true,
+    percentage: Math.round((model.ready / model.total) * 100),
+    heading: `${model.ready} of ${model.total} employees ready`,
+    statusLabel: model.blocked > 0
+      ? model.blocked === 1 ? "1 needs attention" : `${model.blocked} need attention`
+      : "All assessed employees ready",
+  };
+}

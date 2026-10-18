@@ -42,11 +42,11 @@ try{for(const width of [1280,390]){
    if(new URL(page.url()).searchParams.get('queue')==='legacy'){
      const organizationId=req.postDataJSON()?.organizationId??Number(url.searchParams.get('organizationId'));
      if(organizationId===2)await employerBReady;
-     return route.fulfill({json:{currentUserId:1,assignees:[],sync:{created:0},tasks:[{id:organizationId,sourceKey:'fictional',agency:null,applicableMonth:null,severity:'info',title:'Private employer '+organizationId,detail:'Fictional saved action',dueDate:null,status:'open',assignedToUserId:null,assignedToName:null,acknowledgedByName:null,acknowledgedAt:null,resolvedAt:null,ageHours:0,severityAgeHours:0,escalationStage:0}]}});
+     return route.fulfill({json:{organizationId,currentUserId:1,assignees:[],sync:{created:0},tasks:[{id:organizationId,organizationId,sourceKey:'fictional',agency:null,applicableMonth:null,severity:'info',title:'Private employer '+organizationId,detail:'Fictional saved action',dueDate:null,status:'open',assignedToUserId:null,assignedToName:null,acknowledgedByName:null,acknowledgedAt:null,resolvedAt:null,ageHours:0,severityAgeHours:0,escalationStage:0}]}});
    }
    if(url.pathname.endsWith('/connected-impact'))return route.fulfill({status:204});
    if(url.pathname==='/api/compliance/remittance-actions'){
-     if(req.method()==='POST')return route.fulfill({json:{currentUserId:1,assignees:[],tasks:[],sync:{created:0}}});
+     if(req.method()==='POST')return route.fulfill({json:{organizationId:1,currentUserId:1,assignees:[],tasks:[],sync:{created:0}}});
      await new Promise(resolve=>setTimeout(resolve,300));
      return route.fulfill({status:403,json:{error:'Unavailable in isolated component fixture'}});
    }
@@ -76,7 +76,7 @@ try{for(const width of [1280,390]){
  await queue.getByRole('alert').waitFor();
  assert.equal(await queue.getByText('No unresolved statutory remittance actions.',{exact:true}).count(),0);
  await queue.getByRole('button',{name:'Retry reading actions',exact:true}).click();
- await queue.getByText('Loading saved compliance actions…',{exact:true}).waitFor();
+ await queue.getByText('Loading or verifying statutory compliance actions…',{exact:true}).waitFor();
  assert.equal(await queue.getByText('No unresolved statutory remittance actions.',{exact:true}).count(),0);
  await queue.getByRole('alert').waitFor();
  assert.deepEqual(writes,[],'Opening, reloading and retrying must remain read-only');
