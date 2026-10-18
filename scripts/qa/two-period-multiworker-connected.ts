@@ -308,10 +308,10 @@ async function main(){
     }
     assert.equal((await db.select().from(governmentFilingValidations)
       .where(eq(governmentFilingValidations.payrollRunId,runId))).length,4);
-    for(const table of [payoutBatches,payoutTransfers]){
-      assert.equal((await db.select({id:table.id}).from(table)
-        .where(eq(table.organizationId,org.id))).length,0,"No payout intents or transfers");
-    }
+    assert.equal((await db.select({id:payoutBatches.id}).from(payoutBatches)
+      .where(eq(payoutBatches.organizationId,org.id))).length,0,"No payout batches");
+    assert.equal((await db.select({id:payoutTransfers.id}).from(payoutTransfers)
+      .where(eq(payoutTransfers.organizationId,org.id))).length,0,"No payout transfers");
     report.periods.push({periodStart:period.start,periodEnd:period.end,
       syntheticRunId:runId,workerCount:COUNT,approvedTimesheets:cards.length,
       entries:entries.length,storedPayslips:forRun.length,
