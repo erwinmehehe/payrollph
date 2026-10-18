@@ -113,6 +113,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Guard client read fail-closed regressions (no database)
+        run: npx tsx --test tests/fail-closed-client-read-guard.test.ts
       - name: Lint with the pinned compatible ESLint toolchain
         run: npm run lint
       # The app now fails closed on every nonempty bank write without a key.
