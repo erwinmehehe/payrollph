@@ -1,5 +1,5 @@
 import { coreSchemaCompatibilityMode } from "@/lib/core-schema-readonly";
-import { marketingLeadSchemaSpec, verifyRequestSchemaReadOnlyFromPool } from "@/lib/request-schema-readonly";
+import { marketingLeadSchemaForRuntime, verifyRequestSchemaReadOnlyFromPool } from "@/lib/request-schema-readonly";
 import { pool } from "@/db";
 import { deliveryCapable } from "@/lib/mail-provider";
 import { queueMessage, retryOutboxMessage } from "@/lib/mailer";
@@ -31,7 +31,7 @@ export async function ensureMarketingLeadSchema() {
   const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
   if (mode === "read-only") {
     if (schemaInFlight) throw new Error("MARKETING_LEGACY_SCHEMA_WRITE_IN_PROGRESS");
-    await verifyRequestSchemaReadOnlyFromPool(pool, marketingLeadSchemaSpec);
+    await verifyRequestSchemaReadOnlyFromPool(pool, marketingLeadSchemaForRuntime());
     return;
   }
   if (schemaReady) return;
