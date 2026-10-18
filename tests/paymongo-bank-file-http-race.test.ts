@@ -305,6 +305,114 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
     assert.equal(count(uncertain.id, "Payroll payout submission initiated via PayMongo"), 1);
     assert.equal(count(bankFirst.id, "bank export generated"), 1);
     assert.equal(count(bankFirst.id, "Payroll payout submission initiated via PayMongo"), 0);
+
+    // The retry HTTP endpoint uses the real PostgreSQL per-run AND wallet
+    // advisory locks, genuine durable audit storage, and stubbed provider HTTP.
+    // An ambiguous retry must never become a second provider request.
+    await db.insert(auditEvents).values({
+      organizationId: org.id, actor: operator.name,
+      action: "Payroll payout submitted via PayMongo",
+      resource: retryCandidate.periodLabel,
+      metadata: {
+        runId: retryCandidate.id, batchId: "batch_tr_synthetic_failed",
+        provider: "instapay", transferCount: 1,
+        transfers: [{ id: "tr_failed_synthetic",
+          referenceNumber: "PAY-" + retryCandidate.id + "-" + worker.employeeNo,
+          status: "failed", amountCents: 1500000 }],
+      },
+    });
+    const { POST: retryPOST } = await import("../src/app/api/payroll-runs/[id]/payout-reconciliation/route");
+    const retryFailed = (id: number) => retryPOST(
+      new Request("http://127.0.0.1:3000/api/payroll-runs/" + id + "/payout-reconciliation", {
+        method: "POST",
+        headers: { origin: "http://127.0.0.1:3000",
+          "sec-fetch-site": "same-origin", "content-type": "application/json" },
+        body: JSON.stringify({ action: "retry-failed", confirm: true }),
+      }),
+      { params: Promise.resolve({ id: String(id) }) },
+    );
+    let markRetryProviderStarted!: () => void;
+    const retryReached = new Promise<void>((resolve) => { markRetryProviderStarted = resolve; });
+    retryProviderStarted = markRetryProviderStarted;
+    let releaseRetryProvider!: () => void;
+    retryProviderGate = new Promise<void>((resolve) => { releaseRetryProvider = resolve; });
+    const beforeRetryPosts = providerPostCount;
+    const firstRetry = retryFailed(retryCandidate.id);
+    await retryReached;
+    try {
+      const intentEvents = await db.select().from(auditEvents)
+        .where(eq(auditEvents.organizationId, org.id));
+      assert.equal(intentEvents.filter((event) =>
+        event.action === "Payroll payout retry submission initiated via PayMongo"
+        && Number((event.metadata as Record<string, unknown>).runId) === retryCandidate.id
+      ).length, 1, "the retry intent must commit before provider HTTP");
+      assert.equal((await retryFailed(retryCandidate.id)).status, 409,
+        "two failed-transfer retries cannot contact PayMongo concurrently");
+      const bankBefore = bankGenerations;
+      assert.equal((await getBank(retryCandidate.id)).status, 409);
+      assert.equal(bankGenerations, bankBefore, "no bank file during ambiguous retry");
+      assert.equal(providerPostCount, beforeRetryPosts + 1);
+    } finally {
+      releaseRetryProvider();
+    }
+    assert.equal((await firstRetry).status, 502,
+      "the simulated provider timeout has an UNKNOWN outcome");
+    assert.equal((await retryFailed(retryCandidate.id)).status, 409,
+      "a lost retry acknowledgement cannot permit another provider POST");
+    assert.equal(providerPostCount, beforeRetryPosts + 1);
+    const afterRetry = await db.select().from(auditEvents)
+      .where(eq(auditEvents.organizationId, org.id));
+    const unknownRetryAudit = afterRetry.find((event) =>
+      event.action === "Payroll payout retry outcome unknown"
+      && Number((event.metadata as Record<string, unknown>).runId) === retryCandidate.id
+    );
+    assert.ok(unknownRetryAudit, "an ambiguous retry needs a durable unknown-outcome receipt");
+    const unknownMeta = unknownRetryAudit.metadata as Record<string, unknown>;
+    assert.equal(unknownMeta.providerOutcomeUnknown, true);
+    assert.equal(unknownMeta.moneyMovedByLinaw, null,
+      "a provider timeout does not prove that money did not move");
+    const { derivePayrollPayoutState } = await import("../src/lib/payroll-payout-state");
+    const view = derivePayrollPayoutState(afterRetry, retryCandidate.id);
+    assert.equal(view.reconciliation.status, "attention");
+    assert.equal(view.reconciliation.canRetryFailed, false);
+    assert.match(view.payout.label, /failed-transfer retry may have moved salaries/);
+
+    // A durable PayMongo initiation ALONE (with no batch ID) must prohibit
+    // staging Xendit and issuing the final bank file for this same payroll.
+    await db.insert(auditEvents).values({
+      organizationId: org.id, actor: operator.name,
+      action: "Payroll payout submission initiated via PayMongo",
+      resource: crossRail.periodLabel,
+      metadata: {
+        runId: crossRail.id, provider: "PayMongo",
+        idempotencyKey: "payroll-run-" + crossRail.id,
+        providerOutcomeVerified: false,
+      },
+    });
+    const { preflightXenditPayroll, submitXenditPayroll } =
+      await import("../src/lib/xendit-payroll-operations");
+    await assert.rejects(
+      () => preflightXenditPayroll(crossRail, operator.name),
+      /XENDIT_PREVIOUS_PAYOUT_OR_BANK_FILE_UNCERTAIN/,
+    );
+    await assert.rejects(
+      () => submitXenditPayroll(crossRail, operator.name),
+      /XENDIT_PREVIOUS_PAYOUT_OR_BANK_FILE_UNCERTAIN/,
+    );
+    const [crossEntry] = await db.select({ id: payrollEntries.id })
+      .from(payrollEntries).where(eq(payrollEntries.payrollRunId, crossRail.id));
+    const { prepareInitialPayoutBatch } = await import("../src/lib/payout-ledger");
+    await assert.rejects(
+      () => prepareInitialPayoutBatch({
+        organizationId: org.id, payrollRunId: crossRail.id, provider: "xendit",
+        intents: [{ employeeId: worker.id, payrollEntryId: crossEntry.id,
+          referenceNumber: "PAY-" + crossRail.id + "-" + worker.employeeNo,
+          amountCents: 1500000 }],
+      }),
+      /PAYOUT_EXISTING_LEGACY_PAYMENT_REQUIRES_RECONCILIATION/,
+    );
+    assert.equal((await getBank(crossRail.id)).status, 409);
+    assert.equal(providerPostCount, beforeRetryPosts + 1);
   } finally {
     globalThis.fetch = previousFetch;
     for (const restore of restores.reverse()) restore();
