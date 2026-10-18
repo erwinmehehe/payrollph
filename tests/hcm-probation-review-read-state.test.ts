@@ -82,7 +82,7 @@ test("probation review panel binds buttons and read states to verified source", 
   assert.match(source, /probationReviewReadActions\(readPhase, payload\)/);
   assert.match(source, /\{controls\.canOpen && \(/);
   assert.match(source, /\{controls\.canEdit && \(/);
-  assert.match(source, /\{controls\.showSubmitted && \(/);
+  assert.match(source, /\{controls\.showSubmitted && review && \(/);
   assert.match(source, /readPhase === "loading"/);
   assert.match(source, /readPhase === "unavailable"/);
   assert.match(source, /signal\?\.aborted/);
