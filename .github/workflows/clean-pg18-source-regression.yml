@@ -152,6 +152,9 @@ jobs:
     env:
       CI: "true"
       FRESH_PG18_DEV_REHEARSAL: disposable-ci-only
+      # Fault injection is restricted to the disposable, locally hosted PG18 CI service.
+      # The scheduler guard independently checks CI, credentials, and database identity.
+      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
       NINE_STAGE_PG_MAJOR: "18"
       DEMO_MODE: "false"
       WFM_GEOFENCE_PILOT_ENABLED: "false"

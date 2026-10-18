@@ -83,9 +83,14 @@ test("the parent compensation screen masks stale employer data and stale respons
   // Loading state is initially true and is restarted only by user interaction,
   // not synchronously as a side effect of mounting.
   assert.match(source, /const \[loading, setLoading\] = useState\(true\)/);
-  assert.match(source, /const refresh = \(\) => \{\s*setLoading\(true\)/);
-  assert.match(source, /useEffect\(\(\) => \{\s*void load\(\);\s*return invalidateInFlightLoad/);
-  assert.ok(source.includes("requestSequence.current !== requestId"));
+  assert.match(source, /const reload = \(\) => \{\s*setLoadedOrganizationId\(null\);\s*setLoading\(true\);\s*setFailedLoad\(null\);\s*return load\(\)/);
+  assert.match(source, /const refresh = \(\) => \{ void reload\(\); \}/);
+  assert.match(source, /useEffect\(\(\) => \{\s*const controller = new AbortController\(\)/);
+  assert.match(source, /queueMicrotask\(\(\) => \{\s*if \(!controller\.signal\.aborted\) void load\(\)/);
+  assert.match(source, /invalidateInFlightLoad\(\)/);
+  assert.ok(source.includes("signal: controller.signal"));
+  assert.ok(source.includes("readControllerRef.current?.abort();"));
+  assert.ok(source.includes("requestSequence.current === requestId"));
   assert.ok(source.includes("requestSequence.current++"));
   assert.ok(source.includes("setLoadedOrganizationId(organizationId)"));
   assert.ok(source.includes("setFailedLoad("));

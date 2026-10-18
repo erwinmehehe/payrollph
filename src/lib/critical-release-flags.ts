@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  requestSchemaReadonly: {
+    env: "REQUEST_SCHEMA_READONLY_ENABLED",
+    owner: "Database Operations / Release",
+    risk: "Replace request-time compatibility DDL/backfills with catalog-only checks",
+    approval: "Flag-off mode parity, executed PG16/18 migration-to-preflight and guard-drift tests, approved schema and restricted-role cutover; no automatic production activation",
+  },
   auditRoleIsolationProof: {
     env: "AUDIT_ROLE_ISOLATION_PROOF_ENABLED",
     owner: "Security / Database Operations",
