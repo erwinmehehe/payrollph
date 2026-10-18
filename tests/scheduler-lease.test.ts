@@ -192,18 +192,20 @@ test("failed scheduler receipt is sanitized, durable and protected from stale ow
       { job: "auditChainSeal", message: "42P01: SELECT secret FROM sensitive_table" },
       { job: "compensationAutomationDelivery", message: "DISPATCH_UNCONFIRMED: employer confidential data" },
       { job: "dangerous/invalid", message: "SQL secret" },
+      { job: "customerData", message: "PRIVATE_CUSTOMER_LEDGER: employee secret" },
     ], receiptName, leaseName), true);
     const prior = await db.execute<{ evidence: { status: string; failureCount: number; jobs: Array<{ job: string; code: string }> } }>(sql`
       SELECT last_result AS evidence FROM scheduler_state WHERE job_name = ${receiptName}
     `);
     assert.equal(prior.rows[0].evidence.status, "failed");
-    assert.equal(prior.rows[0].evidence.failureCount, 3);
+    assert.equal(prior.rows[0].evidence.failureCount, 4);
     assert.deepEqual(prior.rows[0].evidence.jobs, [
       { job: "auditChainSeal", code: "42P01" },
       { job: "compensationAutomationDelivery", code: "DISPATCH_UNCONFIRMED" },
       { job: "unclassified", code: "JOB_FAILED" },
+      { job: "customerData", code: "JOB_FAILED" },
     ]);
-    assert.doesNotMatch(JSON.stringify(prior.rows[0].evidence), /SELECT|secret|employer confidential|sensitive_table/);
+    assert.doesNotMatch(JSON.stringify(prior.rows[0].evidence), /SELECT|secret|employer confidential|sensitive_table|PRIVATE_CUSTOMER_LEDGER/);
     await db.execute(sql`
       UPDATE scheduler_state SET last_run_at = NOW() - INTERVAL '16 minutes'
        WHERE job_name = ${leaseName}
