@@ -161,8 +161,6 @@ jobs:
         shard: [0, 1, 2, 3]
     env:
       CI: "true"
-      # Required by isolated fault-injection tests; the exact local CI URL is enforced separately.
-      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
       # Same isolation authorization as ci.yml; scheduler rehearsal tests refuse to run without it.
       SCHEDULER_REHEARSAL_MODE: isolated-ci-only
       FRESH_PG18_DEV_REHEARSAL: disposable-ci-only
