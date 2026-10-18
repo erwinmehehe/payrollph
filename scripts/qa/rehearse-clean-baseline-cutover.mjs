@@ -49,11 +49,11 @@ const throughPrefix = Math.max(...inventory.files.map((f) => Number(f.prefix)));
 
 try {
   await step("precondition: disposable, empty, push + 0109 + supplement", async () => {
-    const { rows: [s] } = await q(`SELECT current_database() db, inet_server_addr()::text addr,
+    const { rows: [s] } = await q(`SELECT current_database() db,
       (SELECT count(*)::int FROM organizations) orgs, (SELECT count(*)::int FROM audit_events) audits,
       (SELECT count(*)::int FROM pg_roles WHERE rolname LIKE 'payrollph\\_%') roles`);
     assert.equal(s.db, DB);
-    assert.ok(s.addr === null || s.addr === "127.0.0.1/32" || s.addr === "127.0.0.1", "localhost only");
+    // ADMIN_URL is fixed to 127.0.0.1; in CI the server sees its container IP, so do not check inet_server_addr().
     assert.equal(s.orgs, 0); assert.equal(s.audits, 0);
     assert.equal(s.roles, 0, "rehearsal roles must not exist yet (fresh server or cleaned up)");
     const { missing } = await missingMigrationObjects(admin);
@@ -77,6 +77,8 @@ try {
     await q(`CREATE ROLE payrollph_app LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${passwords.get("payrollph_app")}'`);
     await q(`CREATE ROLE payrollph_sealer_login LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${passwords.get("payrollph_sealer_login")}'`);
     await q("GRANT payrollph_schema_owner TO payrollph_migrator");
+    // Migrator sessions run as the schema owner, so new objects belong to that role.
+    await q("ALTER ROLE payrollph_migrator SET role = 'payrollph_schema_owner'");
     await q(`REVOKE CREATE ON SCHEMA public FROM PUBLIC;
       GRANT USAGE, CREATE ON SCHEMA public TO payrollph_schema_owner;
       GRANT USAGE ON SCHEMA public TO payrollph_migration_planner, payrollph_app, payrollph_audit_sealing, payrollph_audit_maintenance;
@@ -114,9 +116,9 @@ try {
     for (const t of ["payrollph_release_migration_receipts", "payrollph_migration_cutover", "payrollph_schema_migrations"]) {
       await q(`ALTER TABLE public.${t} OWNER TO payrollph_ledger_owner`);
       await q(`REVOKE ALL ON public.${t} FROM PUBLIC`);
-      await q(`GRANT SELECT ON public.${t} TO payrollph_migration_planner, payrollph_migrator`);
+      await q(`GRANT SELECT ON public.${t} TO payrollph_migration_planner, payrollph_schema_owner`);
     }
-    await q("GRANT INSERT ON public.payrollph_schema_migrations TO payrollph_migrator");
+    await q("GRANT INSERT ON public.payrollph_schema_migrations TO payrollph_schema_owner");
     await q("REVOKE ALL ON public.payrollph_release_migration_receipts, public.payrollph_migration_cutover, public.payrollph_schema_migrations FROM payrollph_app");
     const manifest = cutoverSourceManifest(inventory, throughPrefix);
     for (const file of manifest.files) {
