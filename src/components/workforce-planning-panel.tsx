@@ -431,12 +431,15 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
   const invalidateInFlightLoad = useCallback(() => { loadRevisionRef.current += 1; }, []);
   useEffect(() => { void load(); return invalidateInFlightLoad; }, [load, invalidateInFlightLoad]);
 
-  const refresh = () => {
+  // Explicit user/mutation reloads retain the original fail-closed loading
+  // gate; only the mount effect calls the network-only load function.
+  const reload = () => {
     setLoadedOrganizationId(null);
     setLoadError(null);
     setLoading(true);
-    void load();
+    return load();
   };
+  const refresh = () => { void reload(); };
 
   const activeAssignments = assignments.filter((assignment) => !assignment.effectiveUntil);
   const activeAssignmentByPosition = useMemo(() => new Map(activeAssignments.map((assignment) => [assignment.positionId, assignment])), [activeAssignments]);
@@ -525,7 +528,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
         return;
       }
       setScenarioName("");
-      await load();
+      await reload();
       setNotice(`Staffing scenario ${payload.scenario?.name ?? ""} v${payload.scenario?.version ?? ""} saved as draft.`);
     } catch {
       setNotice("Could not reach staffing scenario management.");
@@ -545,7 +548,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
       setNotice(payload.error ?? "Could not submit staffing scenario.");
       return;
     }
-    await load();
+    await reload();
     const currentStep = payload.approvalProcess?.currentStep;
     setNotice(currentStep
       ? `Staffing scenario submitted to ${currentStep.label} (${currentStep.approver}).`
@@ -565,7 +568,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
         setNotice(payload.error ?? "Could not publish the headcount baseline.");
         return;
       }
-      await load();
+      await reload();
       setNotice(`Published workforce-plan baseline v${payload.baseline?.version ?? ""}. Live headcount is now reconciled against this locked version.`);
     } catch {
       setNotice("Could not reach published headcount plan management.");
@@ -592,7 +595,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
         setNotice(payload.error ?? "Could not create a forecast revision from the published baseline.");
         return;
       }
-      await load();
+      await reload();
       setScenarioPlanId(String(baseline.planId));
       setNotice(
         `Created ${payload.scenario?.name ?? "forecast revision"} v${payload.scenario?.version ?? ""} from published baseline v${payload.seed?.baselineVersion ?? baseline.version} plus live workforce actuals. Review the draft, then submit it through Approvals.`,
@@ -617,7 +620,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
         setNotice(payload.error ?? "Could not create a position execution preview.");
         return;
       }
-      await load();
+      await reload();
       const summary = payload.execution?.executionPlan?.preview?.summary;
       setNotice(
         summary
@@ -644,7 +647,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
         setNotice(payload.error ?? `Could not ${action} the position execution.`);
         return;
       }
-      await load();
+      await reload();
       if (action === "apply") {
         const result = payload.execution?.result;
         setNotice(
@@ -677,7 +680,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
     try {
       await post({ entityType: "job_family", ...familyForm });
       setFamilyForm({ code: "", name: "" });
-      await load();
+      await reload();
       setNotice("Job family created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job family."); }
   }
@@ -687,7 +690,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
     try {
       await post({ entityType: "job_level", ...levelForm, sequence: Number(levelForm.sequence) });
       setLevelForm({ code: "", name: "", sequence: "0" });
-      await load();
+      await reload();
       setNotice("Job level created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job level."); }
   }
@@ -697,7 +700,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
     try {
       await post({ entityType: "job_grade", ...gradeForm, sequence: Number(gradeForm.sequence) });
       setGradeForm({ code: "", name: "", sequence: "0" });
-      await load();
+      await reload();
       setNotice("Job grade created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job grade."); }
   }
@@ -714,7 +717,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
         managerEmployeeId: orgUnitForm.managerEmployeeId ? Number(orgUnitForm.managerEmployeeId) : null,
       });
       setOrgUnitForm({ code: "", name: "", type: "department", parentId: "", legalEntityId: "", costCenterId: "", managerEmployeeId: "", effectiveFrom: "" });
-      await load();
+      await reload();
       setNotice("Organization unit created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create organization unit."); }
   }
@@ -731,7 +734,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
       });
       setShowProfile(false);
       setProfileForm({ title: "", familyId: "", levelId: "", gradeId: "" });
-      await load();
+      await reload();
       setNotice("Job profile created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job profile."); }
   }
@@ -742,7 +745,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
       await post({ entityType: "plan", ...planForm, budget: Number(planForm.budget) });
       setShowPlan(false);
       setPlanForm({ name: "", startDate: "", endDate: "", budget: "" });
-      await load();
+      await reload();
       setNotice("Workforce plan created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create workforce plan."); }
   }
@@ -764,7 +767,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
       });
       setShowPosition(false);
       setPositionForm({ code: "", jobProfileId: "", orgUnitId: "", supervisoryOrgUnitId: "", legalEntityId: "", costCenterId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
-      await load();
+      await reload();
       setNotice(savedPosition.approvalRequired
         ? `Position ${savedPosition.code} saved as planned. Business-process approval #${savedPosition.businessProcess?.id ?? "pending"} is required before recruitment.`
         : "Position added to the headcount plan.");
@@ -782,7 +785,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
       });
       setShowAssignment(false);
       setAssignmentForm({ positionId: "", employeeId: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
-      await load();
+      await reload();
       setNotice("Employee assigned to position.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not assign position."); }
   }
@@ -831,7 +834,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) return setNotice(payload.error ?? "Could not update position.");
-    await load();
+    await reload();
     if (payload.approvalRequired) {
       setNotice(`Position ${position.code} remains ${position.status}. Requested ${status} through HCM approval #${payload.businessProcess?.id ?? "pending"}; complete the independent review in People → HCM Inbox.`);
       return;
@@ -854,7 +857,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
       setNotice(payload.error ?? "Could not open this position for recruitment.");
       return;
     }
-    await load();
+    await reload();
     setNotice(payload.planHandoffEvidence
       ? `Requisition #${payload.id} opened from position ${position.code} with verified plan #${payload.planHandoffEvidence.planId}, baseline v${payload.planHandoffEvidence.baselineVersion}, execution #${payload.planHandoffEvidence.executionId}.`
       : `Requisition #${payload.id} opened from approved standalone position ${position.code}.`);
