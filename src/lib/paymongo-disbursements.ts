@@ -556,6 +556,7 @@ export async function createPaymongoPayrollRetry(input: {
   runId: number;
   referenceNumbers: string[];
   sourceBatchIds: string[];
+  beforeProviderPost?: () => Promise<void>;
 }): Promise<BatchDisbursementResult> {
   const requested = new Set(input.referenceNumbers);
   if (requested.size === 0) throw new Error("There are no failed transfers to retry.");
@@ -578,5 +579,6 @@ export async function createPaymongoPayrollRetry(input: {
   return createPaymongoBatchDisbursement(
     retryRows,
     buildPayrollRetryIdempotencyKey(input.runId, input.sourceBatchIds, input.referenceNumbers),
+    input.beforeProviderPost,
   );
 }
