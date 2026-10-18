@@ -1,0 +1,114 @@
+name: Competitive 100-Worker Payroll Preflight (Synthetic, No Money)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/qa/competitive-100-worker-app-acceptance.ts"
+      - ".github/workflows/competitive-100-worker-app-acceptance.yml"
+      - "docs/qa/competitive-100-worker-app-results.md"
+
+permissions:
+  contents: read
+
+jobs:
+  hundred-worker-connected:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      QA_EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      QA_URL: http://127.0.0.1:3000
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      AUTOMATION_LANGUAGE_STUDIO_ENABLED: "false"
+      OPENAI_AUTOMATION_DRAFT_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      RESEND_API_KEY: ""
+      POSTMARK_SERVER_TOKEN: ""
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      WFM_ROSTER_SCALE_RULES_ENABLED: "false"
+      REQUIRE_PRIVILEGED_MFA: "false"
+      SETUP_TOKEN: comp100-only-fixture-setup-token-0000000000000000000000
+      READINESS_TOKEN: comp100-only-readiness-token-00000000000000000
+      WORKER_TOKEN: comp100-only-worker-token-000000000000000000000
+      TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Create temporary synthetic-only encryption secrets
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - name: Apply guarded schema to disposable local PostgreSQL only
+        run: npm run db:push
+      - name: Apply existing audit-chain controls to isolated test schema
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Typecheck and build exact PR commit
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Start only local test server
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/comp100-app.log 2>&1 &
+          echo $! > /tmp/comp100-app.pid
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 5 http://127.0.0.1:3000/login > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Synthetic localhost server did not start"
+          exit 1
+      - name: Execute 100-worker attendance, approvals, payroll and preflight
+        run: npx tsx scripts/qa/competitive-100-worker-app-acceptance.ts
+      - name: Show capped localhost server failure log
+        if: failure()
+        run: tail -n 90 /tmp/comp100-app.log || true
+      - name: Upload sanitized synthetic result (never real payroll)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: competitive-100-worker-synthetic-preflight
+          path: qa-artifacts/competitive-100-worker-app-report.json
+          if-no-files-found: warn
+          retention-days: 14
