@@ -275,8 +275,13 @@ test("actual restricted logins: audit grants, GUC spoofing and forward guards",{
    ["seal_audit_events(integer)", "CREATE OR REPLACE FUNCTION public.seal_audit_events(max_rows integer DEFAULT 500) RETURNS integer LANGUAGE plpgsql SET search_path=pg_catalog AS $qa908$BEGIN RETURN 0; END$qa908$"],
    ["audit_event_row_hash(text,bigint,integer,integer,text,text,text,jsonb,timestamptz)", "CREATE OR REPLACE FUNCTION public.audit_event_row_hash(prev text,seq bigint,event_id integer,org integer,actor text,action text,resource text,metadata jsonb,created timestamptz) RETURNS text LANGUAGE sql STABLE AS $qa908$SELECT repeat('0',64)$qa908$"],
    ["audit_events_protect_v2()", "ALTER FUNCTION public.audit_events_protect_v2() SET search_path=public"],
+   ["audit_events_protect_v2()", "ALTER FUNCTION public.audit_events_protect_v2() RESET search_path"],
+   ["audit_events_protect_v2()", "ALTER FUNCTION public.audit_events_protect_v2() SECURITY DEFINER"],
+   ["seal_audit_events(integer)", "ALTER FUNCTION public.seal_audit_events(integer) STABLE"],
+   ["seal_audit_events(integer)", "ALTER FUNCTION public.seal_audit_events(integer) SET work_mem='8MB'"],
+   ["audit_event_row_hash(text,bigint,integer,integer,text,text,text,jsonb,timestamptz)", "ALTER FUNCTION public.audit_event_row_hash(text,bigint,integer,integer,text,text,text,jsonb,timestamptz) VOLATILE"],
    ["audit_events_reject_truncate_v2()", "CREATE OR REPLACE FUNCTION public.audit_events_reject_truncate_v2() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $qa908$\nBEGIN\n RAISE EXCEPTION 'audit history cannot be truncated' USING ERRCODE='insufficient_privilege';\nEND\n\n$qa908$"],
-  ])await t.test("same-OID changed body/metadata fails strict definition proof: "+signature+" / "+(replacement.startsWith("ALTER")?"config":"source"),async()=>{
+  ])await t.test("same-OID changed body/metadata fails strict definition proof: "+signature+" / "+replacement,async()=>{
    const sig="public."+signature;
    const {rows:[{oid:beforeOid}]}=await admin.query("SELECT pg_catalog.to_regprocedure($1)::oid AS oid",[sig]);
    assert.ok(beforeOid);
