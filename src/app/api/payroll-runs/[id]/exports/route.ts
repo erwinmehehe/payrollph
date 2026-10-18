@@ -41,6 +41,9 @@ const PAYMONGO_OUTBOUND_EVIDENCE_ACTIONS = [
   "Payroll payout submission initiated via PayMongo",
   "Payroll payout submitted via PayMongo",
   "Payroll payout completed via PayMongo",
+  "Payroll payout retry submission initiated via PayMongo",
+  "Payroll payout retry submitted via PayMongo",
+  "Payroll payout retry outcome unknown",
 ] as const;
 
 export const dynamic = "force-dynamic";
