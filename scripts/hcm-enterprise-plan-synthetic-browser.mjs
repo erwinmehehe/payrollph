@@ -101,6 +101,54 @@ try {
 
   receipts.push("Active Enterprise HR sees advanced navigation; Core HR does not");
 
+  // #850 real localhost server/browser assertions: two actual paid plans,
+  // one HR operator who belongs to both fictional employers, no mutations.
+  for (const endpoint of [
+    "/api/workforce-planning",
+    "/api/workforce-planning/allocations",
+    "/api/workforce-planning/baselines",
+    "/api/workforce-planning/scenarios",
+    "/api/workforce-planning/position-executions",
+  ]) {
+    const enterprise = await read(page, endpoint + "?organizationId=1");
+    assert.equal(enterprise.status, 200, "Enterprise HR must read " + endpoint);
+    const core = await read(page, endpoint + "?organizationId=2");
+    assert.equal(core.status, 402, "Core HR direct API bypass must be denied " + endpoint);
+    assert.equal(core.body?.code, "ENTERPRISE_ADVANCED_PLAN_REQUIRED");
+    assert.ok(core.headers?.includes("no-store"), "Private denial required for " + endpoint);
+  }
+  const advancedPlanning = await write(page, "/api/workforce-planning",
+    { organizationId: 1, entityType: "plan" });
+  assert.equal(advancedPlanning.status, 400, "Paid planning must reach ordinary input validation");
+  const corePlanning = await write(page, "/api/workforce-planning",
+    { organizationId: 2, entityType: "plan" });
+  assert.equal(corePlanning.status, 402, "Core planning cannot bypass subscription with a POST");
+  const baselineCore = await write(page, "/api/workforce-planning/position-executions",
+    { organizationId: 2, planId: 1 });
+  assert.equal(baselineCore.status, 402,
+    "Published plan execution preview is not an Enterprise-free direct POST");
+
+  const compEnterprise = await read(page, "/api/compensation?organizationId=1");
+  assert.equal(compEnterprise.status, 200);
+  assert.equal(compEnterprise.body?.advancedConfigurationAllowed, true);
+  const compCore = await read(page, "/api/compensation?organizationId=2");
+  assert.equal(compCore.status, 200,
+    "Core must retain authorized worker pay/proposal evidence");
+  assert.equal(compCore.body?.advancedConfigurationAllowed, false);
+  const compNewBand = await write(page, "/api/compensation",
+    { organizationId: 2, entityType: "band" });
+  assert.equal(compNewBand.status, 402, "Core cannot create salary bands from direct API");
+  const compPaidCycle = await write(page, "/api/compensation",
+    { organizationId: 1, entityType: "cycle" });
+  assert.equal(compPaidCycle.status, 400,
+    "Enterprise can reach salary cycle validation without creating bad records");
+  const coreExistingPay = await write(page, "/api/compensation",
+    { organizationId: 2, entityType: "component_assignment" });
+  assert.equal(coreExistingPay.status, 400,
+    "Subscription cannot block already-governed worker compensation validation");
+  receipts.push("Advanced Planning/Compensation direct APIs enforce Enterprise; Core assigned pay intact");
+
+
   // These are advanced READ surfaces, not the employee's everyday ESS view.
   assert.equal(await open(page, "/hcm/action-center?organizationId=1"), 200,
     "Company-wide Enterprise HR can open advanced HCM Action Center");
