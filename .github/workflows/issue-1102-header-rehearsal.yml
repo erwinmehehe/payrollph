@@ -1,8 +1,10 @@
 name: Legacy Fictional Demo Header Repair Rehearsal (Disposable Only)
 
-# Issue #1102. Exercises UPDATE + adversarial preflights + ROLLBACK
-# ONLY against session-local pg_temp tables on disposable loopback PG.
-# No Neon, customer records, cloud credentials, bank, or filing access.
+# Issue #1102. Exercises TEMP-table, real public-schema and review-only SQL
+# correction/guard rehearsals on disposable loopback PG16/18 ONLY.
+# Full reviewed operator SQL is tested unmodified for wrong-target refusal;
+# a fixture-witness-adapted copy runs a default-ROLLBACK dry run in CI.
+# No Neon, customer records, cloud credentials, bank or filing access.
 on:
   pull_request:
     branches: [main]
@@ -11,6 +13,8 @@ on:
       - "scripts/qa/rehearse-1102-legacy-demo-headers.mjs"
       - "scripts/qa/rehearse-1102-real-schema-guarded-reversal.mjs"
       - "src/lib/public-demo-payroll-fixture.ts"
+      - "docs/sql/issue-1102-legacy-fictitious-header-REVIEW-ONLY.sql"
+      - "scripts/qa/rehearse-1102-review-only-sql.mjs"
   push:
     branches: [main]
     paths:
@@ -18,6 +22,8 @@ on:
       - "scripts/qa/rehearse-1102-legacy-demo-headers.mjs"
       - "scripts/qa/rehearse-1102-real-schema-guarded-reversal.mjs"
       - "src/lib/public-demo-payroll-fixture.ts"
+      - "docs/sql/issue-1102-legacy-fictitious-header-REVIEW-ONLY.sql"
+      - "scripts/qa/rehearse-1102-review-only-sql.mjs"
   workflow_dispatch:
 
 permissions:
@@ -76,3 +82,5 @@ jobs:
         run: npm run db:push
       - name: Rehearse guarded correction and committed reversal on real public tables
         run: npx tsx scripts/qa/rehearse-1102-real-schema-guarded-reversal.mjs
+      - name: Validate committed operator SQL and new fail-closed dependency guards
+        run: npx tsx scripts/qa/rehearse-1102-review-only-sql.mjs

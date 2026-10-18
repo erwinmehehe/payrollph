@@ -16,6 +16,7 @@ on:
       - "scripts/verify-clean-baseline-cutover.mjs"
       - "scripts/lib/clean-baseline-cutover.mjs"
       - "scripts/qa/provision-cutover-test-target.mjs"
+      - "tests/clean-baseline-cutover-database-guard.test.mjs"
       - ".github/workflows/clean-baseline-cutover.yml"
       - "scripts/qa/probe-runtime-ddl-as-app-role.ts"
       - "scripts/qa/apply-source-baseline-supplement.mjs"

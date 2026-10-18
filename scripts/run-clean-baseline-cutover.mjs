@@ -108,8 +108,7 @@ async function main() {
       return { tables: n.tables, artifactSha256 };
     });
     await step("v2 audit guards", async () => installV2AuditGuards(q, {
-      branchId: target.branchId, databaseName: target.databaseName,
-      isolatedTestIdentity: target.isolated ? { projectId: target.projectId } : null,
+      branchId: target.branchId, databaseName: target.databaseName, isolatedTestIdentity: target.isolated ? { projectId: target.projectId } : null,
     }));
     await step("ownership and least-privilege grants", async () => applyOwnershipAndGrants(q, { databaseName: target.databaseName, bootstrapOwner }));
     await step("ledgers, receipts and cutover row", async () => {

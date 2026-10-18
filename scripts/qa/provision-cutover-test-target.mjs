@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // CI ONLY. Simulates Neon for the production cutover runner: a non-superuser
-// CREATEDB/CREATEROLE owner of an empty "neondb", and the payrollph_* roles created
+// CREATEDB/CREATEROLE owner of an empty allowlisted test database, and the payrollph_* roles created
 // by that owner with SQL (the operator's step). Random passwords are masked and
 // written to $GITHUB_ENV as connection URLs for later steps; never printed.
 import { randomBytes } from "node:crypto";
