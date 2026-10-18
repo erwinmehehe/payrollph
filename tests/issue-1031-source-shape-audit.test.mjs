@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { generateShapeAudit, HEADERS, normalizeDefault } from "../scripts/issue-1031-source-shape-audit.mjs";
 
@@ -19,6 +20,12 @@ test("source-only 100-row evidence is reproducible and receipts stay completely 
     "checksum_matches_receipt","disposition",
   ].every(k => r[k] === "")));
   assert.equal(report.csv.split("\n").length, 102);
+  // A later forward-only repair MUST NOT rewrite the pinned 0132-era
+  // evidence simply because the live source worksheet grows to 0134.
+  assert.equal(report.csv, readFileSync(
+    new URL("../docs/engineering/issue-1031-20261017-named-shape-analysis-partial.csv", import.meta.url),
+    "utf8",
+  ));
   assert.deepEqual(HEADERS.slice(-6), [
     "receipt_found","receipt_source","applied_at","applied_by",
     "checksum_matches_receipt","disposition",
@@ -33,6 +40,25 @@ test("source-only 100-row evidence is reproducible and receipts stay completely 
   }));
   const examples=report.rows.filter(r=>r.classification==="MATCH").slice(0,12).map(r=>r.table_name);
   console.log("ISSUE1031_MATCH_CANDIDATES "+JSON.stringify(examples));
+});
+
+test("new 0134 recovery candidates never pollute the pinned historical 0132 analysis", () => {
+  const report = generateShapeAudit("dated_named");
+  for (const name of [
+    "workforce_demand_import_batches", "workforce_demand_observation_revisions",
+    "workforce_demand_forecast_issues", "workforce_demand_forecast_scores",
+    "workforce_demand_staffing_policies", "workforce_demand_staffing_policy_events",
+  ]) {
+    const row = report.rows.find(x => x.table_name === name);
+    assert.ok(row, "the dated October 17 absence set must still contain " + name);
+    assert.doesNotMatch(row.migration_file_paths, /drizzle\/013[34]_/,
+      "historical creator metadata cannot inherit later forward-repair SQL");
+  }
+  const all = generateShapeAudit("all_numbered");
+  assert.equal(all.csv, readFileSync(
+    new URL("../docs/engineering/issue-1031-all-numbered-creator-shape-analysis.csv", import.meta.url),
+    "utf8",
+  ));
 });
 
 test("ten manually reviewed static creators retain exact requested functional shape", () => {
