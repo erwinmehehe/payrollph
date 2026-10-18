@@ -4,6 +4,7 @@
  * It may run only in a GitHub Actions job with an empty disposable loopback PG16.
  */
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
@@ -33,7 +34,9 @@ const cases = Object.fromEntries(
 );
 const report: Record<string, any> = {
   benchmark: "competitive-100-worker-app-acceptance",
-  sourceSha: process.env.GITHUB_SHA ?? "unknown",
+  sourceSha: "NOT_RUN",
+  workflowEventSha: process.env.GITHUB_SHA ?? "unknown",
+  checkoutRef: "pull_request.head.sha",
   result: "NOT_RUN",
   fixtureOnly: true,
   period: {start: START, end: END, payDate: PAY_DATE},
@@ -59,6 +62,11 @@ function guard() {
   assert.equal(process.env.CI, "true");
   assert.equal(process.env.GITHUB_EVENT_NAME, "pull_request");
   assert.ok(process.env.GITHUB_RUN_ID);
+  const headSha = process.env.QA_EXPECTED_HEAD_SHA ?? "";
+  assert.match(headSha, /^[0-9a-f]{40}$/, "PR head SHA must be provided by GitHub");
+  const checkoutSha = execFileSync("git", ["rev-parse", "HEAD"], {encoding:"utf8"}).trim();
+  assert.equal(checkoutSha, headSha, "QA must execute the standalone PR head, not the synthetic merge ref");
+  report.sourceSha = checkoutSha;
   assert.equal(process.env.QA_URL, BASE);
   assert.equal(process.env.DEMO_MODE, "false");
   assert.equal(process.env.REQUIRE_PRIVILEGED_MFA, "false");
