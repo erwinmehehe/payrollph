@@ -22,10 +22,16 @@ export type CatalogQuery = (
  * The injectable env is for pure regression tests; app callers use process.env.
  */
 function isolatedGithubCiSchemaFixture(env: NodeJS.ProcessEnv): boolean {
+  // This is a narrowly scoped synthetic fixture switch, NOT a trustworthy
+  // security attestation. Deployed database roles must independently lack DDL.
   if (env.CI !== "true" || env.GITHUB_ACTIONS !== "true" ||
       env.GITHUB_REPOSITORY !== "erwinmehehe/payrollph" ||
       env.RUNNER_ENVIRONMENT !== "github-hosted" ||
-      env.VERCEL || env.VERCEL_ENV) return false;
+      !/^[1-9][0-9]*$/.test(env.GITHUB_RUN_ID ?? "") ||
+      !env.GITHUB_EVENT_NAME ||
+      env.VERCEL || env.VERCEL_ENV || env.VERCEL_URL ||
+      env.VERCEL_TARGET_ENV || env.VERCEL_REGION ||
+      env.VERCEL_PROJECT_PRODUCTION_URL) return false;
   try {
     const url = new URL(env.DATABASE_URL ?? "");
     return url.protocol === "postgresql:"
