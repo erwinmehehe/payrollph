@@ -80,3 +80,23 @@ test("the runner installs btree_gist itself, before the schema dump (pg_dump --s
   const workflow = readFileSync(".github/workflows/clean-baseline-cutover.yml", "utf8");
   assert.match(workflow, /--no-security-labels/);
 });
+
+test("the v2 audit guard companion is bound to the verified target database name, not the pinned 'neondb'", async () => {
+  const { installV2AuditGuards } = await import("../scripts/lib/clean-baseline-cutover.mjs");
+  const source = readFileSync("docs/sql/issue908-audit-trigger-boundary-REVIEW_ONLY.sql", "utf8");
+  assert.equal(source.split("current_database() IS DISTINCT FROM 'neondb'").length, 2, "the reviewed file stays unchanged and pins one name");
+  const sent = [];
+  await installV2AuditGuards(async (sql) => { sent.push(sql); return { rows: [] }; }, { branchId: "br-young-leaf-b7ae1g8v", databaseName: "payrollph_clean_baseline" });
+  assert.equal(sent.length, 1);
+  assert.match(sent[0], /current_database\(\) IS DISTINCT FROM 'payrollph_clean_baseline'/);
+  assert.doesNotMatch(sent[0], /DISTINCT FROM 'neondb'/);
+  assert.match(sent[0], /neon\.branch_id',true\) IS DISTINCT FROM 'br-young-leaf-b7ae1g8v'/);
+  assert.match(sent[0], /IN \('br-lucky-sound-b79i56jw','br-green-hat-b77qj8fs'\)/, "the forbidden-branch guard is kept");
+  await assert.rejects(installV2AuditGuards(async () => ({ rows: [] }), { branchId: "br-young-leaf-b7ae1g8v", databaseName: "x'; DROP" }), /CUTOVER_DATABASE_NAME_INVALID/);
+});
+
+test("CI exercises the runner under the real target database name, not neondb", () => {
+  const workflow = readFileSync(".github/workflows/clean-baseline-cutover-rehearsal.yml", "utf8");
+  assert.match(workflow, /EXPECTED_DATABASE_NAME: payrollph_clean_baseline/);
+  assert.match(readFileSync("scripts/qa/provision-cutover-test-target.mjs", "utf8"), /CREATE DATABASE payrollph_clean_baseline OWNER/);
+});

@@ -8,7 +8,7 @@ The runner refuses: a target that is not empty, the original production branch (
 
 ## 1. Prepare (owner, in the Neon and GitHub consoles)
 
-1. **New empty target.** In project `calm-wave-70219564`, create a new branch for the clean baseline. Its `neondb` must have an empty `public` schema (no tables, sequences or functions). Record the branch ID (`br-…`) and endpoint ID (`ep-…`). Do not touch the existing `neondb` on the current branches; it stays as the fallback.
+1. **New empty target.** In project `calm-wave-70219564`, create a new branch for the clean baseline. Its database (here `payrollph_clean_baseline`) must have an empty `public` schema (no tables, sequences or functions). Record the branch ID (`br-…`) and endpoint ID (`ep-…`). Do not touch the existing `neondb` on the current branches; it stays as the fallback.
 2. **Roles, with SQL, as the database owner** (Neon SQL editor, connected to the NEW branch). Roles created in the Neon Console belong to `neon_superuser`, which the runner refuses for these roles. Run the statements below, then add a password to each LOGIN role yourself (`ALTER ROLE … PASSWORD '…'`, from a password manager):
 
    ```sql
@@ -25,7 +25,7 @@ The runner refuses: a target that is not empty, the original production branch (
    Do not grant anything else; the cutover does the grants.
 3. **GitHub environment `production`.** Add yourself as a required reviewer and restrict it to `main`. Set:
    - variables `PRODUCTION_NEON_PROJECT_ID` (`calm-wave-70219564`), `PRODUCTION_NEON_BRANCH_ID` and `PRODUCTION_NEON_ENDPOINT_ID` (the NEW branch). The existing reviewed-migration workflow uses the same variables, so after the cutover it targets the new database too.
-   - secrets, all for the NEW branch's `neondb`:
+   - secrets, all for the NEW branch's `payrollph_clean_baseline` database:
      - `PRODUCTION_CUTOVER_OWNER_DATABASE_URL`: the database owner (for example `neondb_owner`)
      - `PRODUCTION_MIGRATION_AUDIT_DATABASE_URL`: `payrollph_migration_planner`
      - `PRODUCTION_MIGRATION_WRITER_DATABASE_URL`: `payrollph_migrator` (used by later reviewed migrations)
@@ -44,7 +44,7 @@ Run **Clean Baseline Cutover (Manual, Protected)** from `main`:
 |---|---|---|
 | `mode` | `dry-run` | `apply` |
 | `reviewed_sha` | the current `main` commit SHA | same |
-| `expected_database_name` | `neondb` | same |
+| `expected_database_name` | `payrollph_clean_baseline` | same |
 | `approval_ref` | empty | an owner approval reference, e.g. `owner-cutover-2026-10-18` |
 | `apply_confirmation` | `NO` | `APPLY_CLEAN_BASELINE_CUTOVER` |
 
@@ -52,8 +52,8 @@ The dry-run log shows each step, the artifact SHA-256, 280 tables, 147 receipts,
 
 ## 4. Switch the app (owner, Vercel settings; Preview first)
 
-- `DATABASE_URL` → the new `neondb` as `payrollph_app`
-- `AUDIT_SEALER_DATABASE_URL` → the new `neondb` as `payrollph_sealer_login` (same host, port and database, different user)
+- `DATABASE_URL` → the new `payrollph_clean_baseline` as `payrollph_app`
+- `AUDIT_SEALER_DATABASE_URL` → the new `payrollph_clean_baseline` as `payrollph_sealer_login` (same host, port and database, different user)
 - `REQUEST_SCHEMA_READONLY_ENABLED=true`, `CORE_SCHEMA_COMPATIBILITY_MODE=read-only`, `AUDIT_ROLE_ISOLATION_PROOF_ENABLED=true`
 
 Leave payment flags unchanged. Redeploy, then check signup through a payroll run with fictional data. The new database starts empty.
