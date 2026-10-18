@@ -173,6 +173,8 @@ async function execute() {
   }).returning();
   const spec = [
     {key:"manager",role:"manager"},{key:"hr",role:"hr"},
+    // Multiple authorized fictional HR reviewers, not a rate-limit bypass.
+    {key:"scheduler2",role:"hr"},{key:"scheduler3",role:"hr"},
     {key:"payroll",role:"payroll"},{key:"checker",role:"checker"},
     {key:"tenantb",role:"owner"},
   ];
@@ -181,7 +183,7 @@ async function execute() {
     passwordHash:hashPassword(PASSWORD),role:x.role,totpEnabled:false,backupCodes:[],
   }))).returning();
   await db.insert(userOrganizations).values(userRows.map((u,i)=>({
-    userId:u.id,organizationId:i===4?tenantB.id:orgId,
+    userId:u.id,organizationId:spec[i].key==="tenantb"?tenantB.id:orgId,
     role:spec[i].role,orgUnitId:i===0?unit.id:null,
   })));
   const actors = Object.fromEntries(await Promise.all(spec.map(async x=>[
@@ -213,8 +215,10 @@ async function execute() {
   };
   const dayPattern=await pattern("COMP100-DAY-PATTERN",day);
   const nightPattern=await pattern("COMP100-NIGHT-PATTERN",night);
+  const scheduleActors=[owner,actors.hr,actors.scheduler2,actors.scheduler3];
   const assignments=await batches(staff,5,async worker=>{
-    const schedule=await owner.ok("/api/workforce/schedules","POST",{
+    const authorizedScheduler=scheduleActors[Math.floor((worker.number-1)/25)];
+    const schedule=await authorizedScheduler.ok("/api/workforce/schedules","POST",{
       organizationId:orgId,action:"assign_schedule",employeeId:worker.id,
       patternId:overnightIds.has(worker.number)?nightPattern:dayPattern,
       effectiveFrom:START,effectiveUntil:END,anchorDate:START,
@@ -224,8 +228,14 @@ async function execute() {
     return Number(schedule.assignment.id);
   });
   assert.equal(assignments.length,100);
-  const roster=await owner.ok("/api/workforce/team-roster?organizationId="+orgId+"&startDate=2026-06-08&page=1");
-  assert.equal(Number(roster.totalEmployees),100,"WFM roster must cover all 100");
+  const rosterPages=await batches([1,2,3,4,5],2,async page=>
+    owner.ok("/api/workforce/team-roster?organizationId="+orgId+"&startDate=2026-06-08&page="+page));
+  assert.ok(rosterPages.every(r=>Number(r.totalEmployees)===100));
+  const rosterIds=rosterPages.flatMap(r=>(r.rows??[]).map((row:any)=>Number(row.employee?.id)));
+  assert.equal(rosterIds.length,100,"Five roster pages must contain all 100 workers");
+  assert.deepEqual(new Set(rosterIds),new Set(staff.map(w=>w.id)),
+    "Roster pagination must neither duplicate nor omit employees");
+  report.rosterPageCount=rosterPages.length;
   report.scheduleAssignments=100;
 
   const punches=staff.map(w=>{
@@ -286,7 +296,8 @@ async function execute() {
       organizationId:orgId,employeeId:w.id,periodStart:START,periodEnd:END,
     });
     assert.equal(snapshot.blockerCount,0,w.code+" has unexpected WFM snapshot blockers");
-    const response=await actors.manager.ok("/api/workforce/timesheets","POST",{
+    const submitter=w.number<=50?actors.manager:owner;
+    const response=await submitter.ok("/api/workforce/timesheets","POST",{
       organizationId:orgId,action:"submit",employeeId:w.id,
       periodStart:START,periodEnd:END,
     });
@@ -296,12 +307,14 @@ async function execute() {
   assert.equal(submitted.length,94);
   const representative=submitted.find(x=>x.worker.number===69);
   assert.ok(representative);
-  const sameApprover=await actors.manager.json("/api/workforce/timesheets","POST",{
+  // F069 was submitted by owner, so use the original maker for a true self-approval denial.
+  const sameApprover=await owner.json("/api/workforce/timesheets","POST",{
     organizationId:orgId,action:"decide",timesheetId:representative.id,decision:"approved",
   });
   assert.equal(sameApprover.status,409,"No maker self-approval");
   const approved=await batches(submitted.filter(x=>!pendingTimesheetIds.has(x.worker.number)),4,async x=>{
-    const res=await actors.hr.ok("/api/workforce/timesheets","POST",{
+    const reviewer=x.worker.number<=50?actors.hr:actors.scheduler2;
+    const res=await reviewer.ok("/api/workforce/timesheets","POST",{
       organizationId:orgId,action:"decide",timesheetId:x.id,decision:"approved",
       decisionNote:"Fictional independent HR role, no human UAT",
     });
@@ -320,21 +333,24 @@ async function execute() {
   // Resolve ALL nine outstanding timesheet states using explicit independent synthetic actors.
   const leftovers=submitted.filter(x=>pendingTimesheetIds.has(x.worker.number));
   await batches(leftovers,3,async x=>{
-    const res=await actors.hr.ok("/api/workforce/timesheets","POST",{
+    const reviewer=x.worker.number<=50?actors.hr:actors.scheduler2;
+    const res=await reviewer.ok("/api/workforce/timesheets","POST",{
       organizationId:orgId,action:"decide",timesheetId:x.id,decision:"approved",
       decisionNote:"Synthetic post-block approval",
     });assert.equal(res.timesheet?.status,"approved");return true;
   });
   const absent=staff.filter(w=>missingTimesheetIds.has(w.number));
   const nowSubmitted=await batches(absent,3,async w=>{
-    const x=await actors.manager.ok("/api/workforce/timesheets","POST",{
+    const submitter=w.number<=50?actors.manager:owner;
+    const x=await submitter.ok("/api/workforce/timesheets","POST",{
       organizationId:orgId,action:"submit",employeeId:w.id,periodStart:START,periodEnd:END,
     });
-    return Number(x.timesheet?.id);
+    return {id:Number(x.timesheet?.id),worker:w};
   });
-  await batches(nowSubmitted,3,async id=>{
-    const x=await actors.hr.ok("/api/workforce/timesheets","POST",{
-      organizationId:orgId,action:"decide",timesheetId:id,decision:"approved",
+  await batches(nowSubmitted,3,async item=>{
+    const reviewer=item.worker.number<=50?actors.hr:actors.scheduler2;
+    const x=await reviewer.ok("/api/workforce/timesheets","POST",{
+      organizationId:orgId,action:"decide",timesheetId:item.id,decision:"approved",
       decisionNote:"Synthetic missing timecard resolved by distinct reviewer",
     });assert.equal(x.timesheet?.status,"approved");return true;
   });
