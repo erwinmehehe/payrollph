@@ -60,6 +60,22 @@ test("the applier only runs on the empty disposable CI database, after 0109, and
   assert.match(workflow, /- "drizzle\/\*\*"/, "a new migration re-runs the coverage proof");
 });
 
+test("the clean source baseline includes the five 0134 indexes and nine tenant FKs verbatim", () => {
+  const source = read("drizzle/0134_wfm_demand_missing_foundation_forward.sql");
+  const indexStart = source.indexOf("-- Ensure the real worksite/job-profile parent pairs");
+  const indexEnd = source.indexOf("-- Forward source section 1", indexStart);
+  const tenantStart = source.indexOf("-- Additional tenant-integrity FKs");
+  const tenantEnd = source.indexOf("-- No synthetic observation/forecast/policy", tenantStart);
+  assert.ok(indexStart >= 0 && indexEnd > indexStart && tenantStart > indexEnd && tenantEnd > tenantStart);
+  const parents = source.slice(indexStart, indexEnd).trim();
+  const tenant = source.slice(tenantStart, tenantEnd).trim();
+  assert.equal(((parents + tenant).match(/CREATE UNIQUE INDEX/g) ?? []).length, 5);
+  assert.equal((tenant.match(/ADD CONSTRAINT /g) ?? []).length, 9);
+  const baseline = read(SUPPLEMENT);
+  assert.ok(baseline.includes(parents), "0134 parent unique indexes must exist in source-first baseline");
+  assert.ok(baseline.includes(tenant), "0134 nine composite tenant FKs must exist in source-first baseline");
+});
+
 test("the scanner ignores objects that a later migration drops or renames", () => {
   const dir = mkdtempSync(join(tmpdir(), "migration-only-objects-"));
   try {
