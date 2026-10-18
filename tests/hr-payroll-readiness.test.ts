@@ -133,7 +133,7 @@ test("assessed workers preserve authentic readiness percentages and issue labels
     hasEligibleEmployees: true,
     percentage: 50,
     heading: "1 of 2 employees ready",
-    statusLabel: "1 need attention",
+    statusLabel: "1 needs attention",
   });
   const complete = buildHrPayrollReadiness({
     employees: [baseEmployee],
