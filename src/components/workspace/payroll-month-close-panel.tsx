@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { visibleMonthCloseRead, type MonthCloseObserved, type MonthCloseScope } from "@/lib/payroll-month-close-read";
 import {
   BadgeCheck,
   CalendarCheck2,
@@ -91,31 +92,48 @@ export function PayrollMonthClosePanel({
 }) {
   const maxMonth = useMemo(() => previousManilaMonth(), []);
   const [month, setMonth] = useState(maxMonth);
-  const [state, setState] = useState<State | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [observed, setObserved] = useState<MonthCloseObserved<State> | null>(null);
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const [certifying, setCertifying] = useState(false);
-  const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const response = await fetch(
-        `/api/compliance/payroll-month-close?organizationId=${organizationId}&applicableMonth=${month}`,
-        { cache: "no-store" },
-      );
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "Payroll month close could not be loaded.");
-      setState(body);
-    } catch (loadError) {
-      setState(null);
-      setError(loadError instanceof Error ? loadError.message : "Payroll month close could not be loaded.");
-    } finally {
-      setLoading(false);
-    }
-  }, [month, organizationId]);
+  // Memo identity changes on employer, month and manual refresh transitions.
+  // Returning A -> B -> A cannot reuse the first A certificate/permission.
+  const requestScope = useMemo<MonthCloseScope>(
+    () => ({ organizationId, month, revision: refreshRevision }),
+    [organizationId, month, refreshRevision],
+  );
+  const { state, loading, error } = visibleMonthCloseRead(requestScope, observed);
+  const refresh = () => setRefreshRevision((current) => current + 1);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/compliance/payroll-month-close?organizationId=${organizationId}&applicableMonth=${month}`,
+          { cache: "no-store", signal: controller.signal },
+        );
+        const body = await response.json().catch(() => ({}));
+        if (!active) return;
+        if (!response.ok) throw new Error(body.error ?? "Payroll month close could not be loaded.");
+        if (!body.evaluation || !Array.isArray(body.evaluation.evidence?.runs)
+          || typeof body.certificationValid !== "boolean"
+          || typeof body.canCertifyRole !== "boolean") {
+          throw new Error("Payroll month close evidence response is incomplete.");
+        }
+        setObserved({ scope: requestScope, payload: body as State, error: "" });
+      } catch (loadError) {
+        if (!active) return;
+        setObserved({
+          scope: requestScope,
+          payload: null,
+          error: loadError instanceof Error ? loadError.message : "Payroll month close could not be loaded.",
+        });
+      }
+    })();
+    return () => { active = false; controller.abort(); };
+  }, [requestScope, organizationId, month]);
 
   async function certify() {
     setCertifying(true);
@@ -131,7 +149,7 @@ export function PayrollMonthClosePanel({
         throw new Error([body.error, blockers].filter(Boolean).join(" "));
       }
       notify(`${month} payroll month independently certified.`, "ok");
-      await load();
+      refresh();
     } catch (certifyError) {
       notify(
         certifyError instanceof Error ? certifyError.message : "Payroll month certification failed.",
@@ -163,7 +181,7 @@ export function PayrollMonthClosePanel({
             onChange={(event) => setMonth(event.target.value)}
             aria-label="Payroll month"
           />
-          <button className="secondary-button" onClick={() => void load()} disabled={loading}>
+          <button className="secondary-button" onClick={refresh} disabled={loading}>
             <RefreshCcw size={14} /> {loading ? "Checking…" : "Refresh"}
           </button>
         </div>
