@@ -1,11 +1,12 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, payrollRuns } from "@/db/schema";
+import { auditEvents, payoutBatches, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { assertOrganizationUnitAccess } from "@/lib/access";
 import {
+  buildPayrollRetryIdempotencyKey,
   createPaymongoPayrollRetry,
   getPaymongoBatchDisbursement,
   loadPayrollPayoutRows,
@@ -23,6 +24,11 @@ import {
 } from "@/lib/security-request";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
+import { withPayrollRunPayoutLock } from "@/lib/payroll-run-payout-lock";
+import {
+  hasUnacknowledgedPaymongoRetry, PAYMONGO_RETRY_INTENT_ACTION,
+  PAYMONGO_RETRY_SUBMITTED_ACTION, wasPaymongoRetryKeyAttempted,
+} from "@/lib/payroll-payout-retry-evidence";
 import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasury-controls";
 import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
 
