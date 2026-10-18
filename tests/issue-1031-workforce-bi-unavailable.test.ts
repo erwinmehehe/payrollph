@@ -9,12 +9,27 @@ const preflight = readFileSync("docs/sql/issue-1031-workforce-bi-read-only-prefl
 
 test("workforce planning preserves an honest unavailable state when its authoritative GET fails", () => {
   assert.match(planning, /const \[loadError, setLoadError\] = useState<string \| null>\(null\)/);
-  const firstRead = planning.slice(planning.indexOf("  const load = useCallback("), planning.indexOf("  useEffect(() => { void load(); }, [load]);"));
-  const deniedRead = firstRead.slice(firstRead.indexOf("if (!response.ok) {"), firstRead.indexOf("setProfiles("));
+  const loadStart = planning.indexOf("  const load = useCallback(async () => {");
+  const effectStart = planning.indexOf(
+    "  useEffect(() => {",
+    loadStart,
+  );
+  assert.ok(loadStart >= 0 && effectStart > loadStart, "tenant-scoped loader must precede its cleanup effect");
+  const effectCleanup = planning.slice(effectStart, planning.indexOf("  // Explicit user/mutation reloads", effectStart));
+  assert.match(effectCleanup, /queueMicrotask/);
+  assert.match(effectCleanup, /controller\.abort\(\)/);
+  assert.match(effectCleanup, /invalidateInFlightLoad\(\)/);
+  const firstRead = planning.slice(loadStart, effectStart);
+  assert.match(firstRead, /const revision = \+\+loadRevisionRef\.current/);
+  assert.match(firstRead, /revision !== loadRevisionRef\.current/);
+  const deniedStart = firstRead.indexOf("if (!response.ok) {");
+  const firstAuthorizedRow = firstRead.indexOf("setProfiles(", deniedStart);
+  assert.ok(deniedStart >= 0 && firstAuthorizedRow > deniedStart, "failure must revoke access before showing workforce rows");
+  const deniedRead = firstRead.slice(deniedStart, firstAuthorizedRow);
   assert.match(deniedRead, /setLoadedOrganizationId\(null\)/);
   assert.match(deniedRead, /setLoadError\(/);
   assert.match(planning, /if \(loadError\) \{[\s\S]*?role="alert"[\s\S]*?Retry[\s\S]*?return \(/);
-  const loadRead = planning.slice(planning.indexOf("  const load = useCallback("), planning.indexOf("  useEffect(() => { void load(); }, [load]);"));
+  const loadRead = firstRead;
   assert.doesNotMatch(loadRead, /setNotice\(/, "initial workforce load must not emit a success-style toast");
   assert.match(planning, /if \(loading \|\| \(!loadError && loadedOrganizationId !== organizationId\)\) \{[\s\S]*?role="status" aria-busy="true"/, "withhold stale organization data while loading or switching tenants");
   assert.match(planning, /revision !== loadRevisionRef\.current/);

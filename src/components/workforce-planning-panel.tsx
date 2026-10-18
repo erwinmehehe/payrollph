@@ -287,7 +287,19 @@ const signedNumber = (value: number, digits = 0) =>
 const signedPeso = (value: number | null | undefined) =>
   value == null ? "Restricted" : `${Number(value) > 0 ? "+" : ""}${peso(value)}`;
 
-export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { organizationId: number; setNotice: (message: string) => void; onPage: (page: string) => void }) {
+type WorkforcePlanningPanelProps = {
+  organizationId: number;
+  setNotice: (message: string) => void;
+  onPage: (page: string) => void;
+};
+
+// Tenant-key the full planning editor: no old employer's budgets, positions,
+// access state or unsaved scenarios may resurface on A -> B -> A navigation.
+export function WorkforcePlanningPanel(props: WorkforcePlanningPanelProps) {
+  return <WorkforcePlanningPanelForOrganization key={props.organizationId} {...props} />;
+}
+
+function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPage }: WorkforcePlanningPanelProps) {
   const [profiles, setProfiles] = useState<JobProfile[]>([]);
   const [jobFamilies, setJobFamilies] = useState<JobFamily[]>([]);
   const [jobLevels, setJobLevels] = useState<JobLevel[]>([]);
@@ -358,8 +370,8 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
 
   const load = useCallback(async () => {
     const revision = ++loadRevisionRef.current;
-    setLoading(true);
-    setLoadError(null);
+    // Mount begins in loading state. Only an explicit Retry/Refresh action may
+    // synchronously reset the loading/error state before a network request.
     try {
       const response = await fetch(`/api/workforce-planning?organizationId=${organizationId}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
@@ -404,6 +416,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         setPositionExecutions(executionPayload.executions ?? []);
         setPositionExecutionCanApply(Boolean(executionPayload.access?.canApply));
       }
+      setLoadError(null);
       setLoadedOrganizationId(organizationId);
     } catch {
       if (revision === loadRevisionRef.current) {
@@ -415,7 +428,27 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     }
   }, [organizationId]);
 
-  useEffect(() => { void load(); }, [load]);
+  const invalidateInFlightLoad = useCallback(() => { loadRevisionRef.current += 1; }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load();
+    });
+    return () => {
+      controller.abort();
+      invalidateInFlightLoad();
+    };
+  }, [load, invalidateInFlightLoad]);
+
+  // Explicit user/mutation reloads retain the original fail-closed loading
+  // gate; only the mount effect calls the network-only load function.
+  const reload = () => {
+    setLoadedOrganizationId(null);
+    setLoadError(null);
+    setLoading(true);
+    return load();
+  };
+  const refresh = () => { void reload(); };
 
   const activeAssignments = assignments.filter((assignment) => !assignment.effectiveUntil);
   const activeAssignmentByPosition = useMemo(() => new Map(activeAssignments.map((assignment) => [assignment.positionId, assignment])), [activeAssignments]);
@@ -504,7 +537,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         return;
       }
       setScenarioName("");
-      await load();
+      await reload();
       setNotice(`Staffing scenario ${payload.scenario?.name ?? ""} v${payload.scenario?.version ?? ""} saved as draft.`);
     } catch {
       setNotice("Could not reach staffing scenario management.");
@@ -524,7 +557,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       setNotice(payload.error ?? "Could not submit staffing scenario.");
       return;
     }
-    await load();
+    await reload();
     const currentStep = payload.approvalProcess?.currentStep;
     setNotice(currentStep
       ? `Staffing scenario submitted to ${currentStep.label} (${currentStep.approver}).`
@@ -544,7 +577,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         setNotice(payload.error ?? "Could not publish the headcount baseline.");
         return;
       }
-      await load();
+      await reload();
       setNotice(`Published workforce-plan baseline v${payload.baseline?.version ?? ""}. Live headcount is now reconciled against this locked version.`);
     } catch {
       setNotice("Could not reach published headcount plan management.");
@@ -571,7 +604,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         setNotice(payload.error ?? "Could not create a forecast revision from the published baseline.");
         return;
       }
-      await load();
+      await reload();
       setScenarioPlanId(String(baseline.planId));
       setNotice(
         `Created ${payload.scenario?.name ?? "forecast revision"} v${payload.scenario?.version ?? ""} from published baseline v${payload.seed?.baselineVersion ?? baseline.version} plus live workforce actuals. Review the draft, then submit it through Approvals.`,
@@ -596,7 +629,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         setNotice(payload.error ?? "Could not create a position execution preview.");
         return;
       }
-      await load();
+      await reload();
       const summary = payload.execution?.executionPlan?.preview?.summary;
       setNotice(
         summary
@@ -623,7 +656,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         setNotice(payload.error ?? `Could not ${action} the position execution.`);
         return;
       }
-      await load();
+      await reload();
       if (action === "apply") {
         const result = payload.execution?.result;
         setNotice(
@@ -656,7 +689,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     try {
       await post({ entityType: "job_family", ...familyForm });
       setFamilyForm({ code: "", name: "" });
-      await load();
+      await reload();
       setNotice("Job family created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job family."); }
   }
@@ -666,7 +699,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     try {
       await post({ entityType: "job_level", ...levelForm, sequence: Number(levelForm.sequence) });
       setLevelForm({ code: "", name: "", sequence: "0" });
-      await load();
+      await reload();
       setNotice("Job level created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job level."); }
   }
@@ -676,7 +709,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     try {
       await post({ entityType: "job_grade", ...gradeForm, sequence: Number(gradeForm.sequence) });
       setGradeForm({ code: "", name: "", sequence: "0" });
-      await load();
+      await reload();
       setNotice("Job grade created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job grade."); }
   }
@@ -693,7 +726,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         managerEmployeeId: orgUnitForm.managerEmployeeId ? Number(orgUnitForm.managerEmployeeId) : null,
       });
       setOrgUnitForm({ code: "", name: "", type: "department", parentId: "", legalEntityId: "", costCenterId: "", managerEmployeeId: "", effectiveFrom: "" });
-      await load();
+      await reload();
       setNotice("Organization unit created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create organization unit."); }
   }
@@ -710,7 +743,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       });
       setShowProfile(false);
       setProfileForm({ title: "", familyId: "", levelId: "", gradeId: "" });
-      await load();
+      await reload();
       setNotice("Job profile created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job profile."); }
   }
@@ -721,7 +754,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       await post({ entityType: "plan", ...planForm, budget: Number(planForm.budget) });
       setShowPlan(false);
       setPlanForm({ name: "", startDate: "", endDate: "", budget: "" });
-      await load();
+      await reload();
       setNotice("Workforce plan created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create workforce plan."); }
   }
@@ -743,7 +776,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       });
       setShowPosition(false);
       setPositionForm({ code: "", jobProfileId: "", orgUnitId: "", supervisoryOrgUnitId: "", legalEntityId: "", costCenterId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
-      await load();
+      await reload();
       setNotice(savedPosition.approvalRequired
         ? `Position ${savedPosition.code} saved as planned. Business-process approval #${savedPosition.businessProcess?.id ?? "pending"} is required before recruitment.`
         : "Position added to the headcount plan.");
@@ -761,7 +794,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       });
       setShowAssignment(false);
       setAssignmentForm({ positionId: "", employeeId: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
-      await load();
+      await reload();
       setNotice("Employee assigned to position.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not assign position."); }
   }
@@ -810,7 +843,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) return setNotice(payload.error ?? "Could not update position.");
-    await load();
+    await reload();
     if (payload.approvalRequired) {
       setNotice(`Position ${position.code} remains ${position.status}. Requested ${status} through HCM approval #${payload.businessProcess?.id ?? "pending"}; complete the independent review in People → HCM Inbox.`);
       return;
@@ -833,7 +866,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       setNotice(payload.error ?? "Could not open this position for recruitment.");
       return;
     }
-    await load();
+    await reload();
     setNotice(payload.planHandoffEvidence
       ? `Requisition #${payload.id} opened from position ${position.code} with verified plan #${payload.planHandoffEvidence.planId}, baseline v${payload.planHandoffEvidence.baselineVersion}, execution #${payload.planHandoffEvidence.executionId}.`
       : `Requisition #${payload.id} opened from approved standalone position ${position.code}.`);
@@ -867,7 +900,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         </div>
         <div className="notice notice-amber" role="alert" style={{ marginBottom: 16 }}>
           <span><strong>Workforce planning is unavailable.</strong> {loadError} No planning records or totals are displayed until the request succeeds.</span>
-          <button className="secondary-button" type="button" onClick={() => void load()} disabled={loading}>Retry</button>
+          <button className="secondary-button" type="button" onClick={refresh} disabled={loading}>Retry</button>
         </div>
       </div>
     );
@@ -882,7 +915,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           <p>Keep one governed model for organization hierarchy, job architecture, positions, budgets, supervisory ownership, and effective-dated incumbents.</p>
         </div>
         <div className="page-actions">
-          <button className="secondary-button" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button>
+          <button className="secondary-button" onClick={refresh} disabled={loading}><RefreshCw size={15} /> Refresh</button>
           <button className="secondary-button" onClick={() => setShowArchitecture(!showArchitecture)}><Building2 size={15} /> Architecture</button>
           <button className="secondary-button" onClick={() => setShowProfile(!showProfile)} disabled={!jobFamilies.length || !jobLevels.length}><BriefcaseBusiness size={15} /> Job profile</button>
           <button className="secondary-button" onClick={() => setShowPlan(!showPlan)}><CircleDollarSign size={15} /> Plan</button>
