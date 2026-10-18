@@ -41,6 +41,7 @@ export default function TrustPage() {
         { label: "Capability scorecard", href: "/scorecard", description: "Inspect verified, partial and absent capabilities." },
         { label: "Security", href: "/security", description: "Review request-path access and authentication controls." },
         { label: "System status", href: "/status", description: "See the public operational status surface." },
+        { label: "Vulnerability disclosure", href: "https://github.com/erwinmehehe/payrollph/blob/main/docs/legal/VULN_DISCLOSURE.md", description: "Read reporting guidance and the private-contact setup blocker." },
       ]}
     />
   );
