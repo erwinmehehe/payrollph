@@ -1,3 +1,7 @@
+import {
+  hasUnacknowledgedPaymongoRetry, wasPaymongoRetryKeyAttempted,
+  PAYMONGO_RETRY_INTENT_ACTION, PAYMONGO_RETRY_SUBMITTED_ACTION,
+} from "../src/lib/payroll-payout-retry-evidence";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -28,6 +32,19 @@ import {
 } from "../src/lib/paymongo-transfer-webhook";
 
 const SOURCE = { number: "0000000001", name: "Acme Inc.", bic: "PAEYPHM2XXX" };
+
+test("a PayMongo retry attempt needs a matching durable acknowledgement to clear the no-resend blocker", () => {
+  const pending = { action: PAYMONGO_RETRY_INTENT_ACTION, metadata: { idempotencyKey: "retry-key-1" } };
+  const wrongAck = { action: PAYMONGO_RETRY_SUBMITTED_ACTION, metadata: { idempotencyKey: "another-key" } };
+  const matchingAck = { action: PAYMONGO_RETRY_SUBMITTED_ACTION, metadata: { idempotencyKey: "retry-key-1" } };
+  assert.equal(hasUnacknowledgedPaymongoRetry([pending]), true);
+  assert.equal(hasUnacknowledgedPaymongoRetry([pending, wrongAck]), true);
+  assert.equal(hasUnacknowledgedPaymongoRetry([pending, matchingAck]), false);
+  assert.equal(hasUnacknowledgedPaymongoRetry([{ action: PAYMONGO_RETRY_INTENT_ACTION, metadata: {} }]), true);
+  assert.equal(wasPaymongoRetryKeyAttempted([pending, matchingAck], "retry-key-1"), true);
+  assert.equal(wasPaymongoRetryKeyAttempted([pending, matchingAck], "unused-key"), false);
+});
+
 
 function row(overrides: Partial<PayrollPayoutRow> = {}): PayrollPayoutRow {
   return {
