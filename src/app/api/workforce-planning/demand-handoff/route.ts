@@ -16,6 +16,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseAdvancedPlan } from "@/lib/enterprise-advanced-plan-server";
 import {
   demandDates,
   summarizePlanRoleDemand,
@@ -68,6 +69,9 @@ export async function POST(request: Request) {
 
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
 
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
