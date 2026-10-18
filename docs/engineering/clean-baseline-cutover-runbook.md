@@ -4,6 +4,8 @@ Moves PayrollPH from the drifted development `neondb` (fictional data only) to a
 
 Workflow: **Clean Baseline Cutover (Manual, Protected)** (`.github/workflows/clean-baseline-cutover.yml`). It builds the schema artifact on a throwaway server inside the job, then runs `scripts/run-clean-baseline-cutover.mjs` against the target in one transaction. `dry-run` rolls back; `apply` commits, then verifies read-only as the planner and the app role. The same code path is exercised on every relevant PR by `clean-baseline-cutover-rehearsal.yml` (job "Production cutover runner against a simulated Neon owner").
 
+The database name is explicit: set `expected_database_name` to the actual empty target (for example `payrollph_clean_baseline`) and point all four protected URL secrets at that same database. The audit companion is bound in memory to this verified name; its historical review artifact is unchanged. Disposable CI exercises both `neondb` and `payrollph_clean_baseline`, including wrong database/project/branch rejection, rollback, apply and restricted-role verification.
+
 The runner refuses: a target that is not empty, the original production branch (`br-lucky-sound-b79i56jw`) or QA branch (`br-green-hat-b77qj8fs`), a Neon identity that does not match the pinned variables, missing or elevated roles, and any run that is not the exact reviewed commit on `main`. It never creates or prints passwords.
 
 ## 1. Prepare (owner, in the Neon and GitHub consoles)
