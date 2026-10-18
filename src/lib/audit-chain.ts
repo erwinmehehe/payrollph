@@ -48,7 +48,7 @@ export function evaluateAuditChain(
   let previousHash = AUDIT_CHAIN_GENESIS_HASH;
   let expectedSeq = 1;
   for (const row of chained) {
-    if (!Number.isSafeInteger(row.chainSeq) || row.chainSeq! < 1 || row.chainSeq !== expectedSeq) {
+    if (!Number.isSafeInteger(row.chainSeq) || (row.chainSeq ?? 0) < 1 || row.chainSeq !== expectedSeq) {
       breaks.push({ eventId: row.id, chainSeq: row.chainSeq, reason: "sequence_gap" });
     }
     if (row.prevHash !== previousHash) {

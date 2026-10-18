@@ -1,11 +1,12 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, payrollRuns } from "@/db/schema";
+import { auditEvents, payoutBatches, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { assertOrganizationUnitAccess } from "@/lib/access";
 import {
+  buildPayrollRetryIdempotencyKey,
   createPaymongoPayrollRetry,
   getPaymongoBatchDisbursement,
   loadPayrollPayoutRows,
@@ -23,6 +24,11 @@ import {
 } from "@/lib/security-request";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
+import { withPayrollRunPayoutLock } from "@/lib/payroll-run-payout-lock";
+import {
+  hasUnacknowledgedPaymongoRetry, PAYMONGO_RETRY_INTENT_ACTION,
+  PAYMONGO_RETRY_SUBMITTED_ACTION, wasPaymongoRetryKeyAttempted,
+} from "@/lib/payroll-payout-retry-evidence";
 import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasury-controls";
 import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
 
@@ -352,56 +358,137 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
-  try {
-    const retry = await withPayrollPayoutSubmissionLock(
-      () => createPaymongoPayrollRetry({
-        runId: run.id,
-        referenceNumbers: reconciliation.retryableReferences,
-        sourceBatchIds: reconciliation.batchIds,
-      }),
-    );
+  // No provider acknowledgement means UNKNOWN, never permission to resend.
+  let retryIntentRecorded = false;
+  let attemptedKey: string | null = null;
+  let attemptedReferences = reconciliation.retryableReferences;
+  let attemptedBatchIds = reconciliation.batchIds;
 
-    await recordAuditEvent({
-      organizationId: run.organizationId,
-      actor: user.name,
-      action: "Payroll payout retry submitted via PayMongo",
-      resource: run.periodLabel,
-      metadata: {
-        runId: run.id,
-        batchId: retry.batchId,
-        provider: retry.provider,
-        retryOfBatchIds: reconciliation.batchIds,
-        retryReferences: reconciliation.retryableReferences,
-        transferCount: retry.transfers.length,
-        transfers: retry.transfers,
-        moneyMovedByLinaw: true,
-        treasury: treasury.evidence,
-      },
+  try {
+    const result = await withPayrollRunPayoutLock(run.organizationId, run.id, async () => {
+      // This lock is shared with first payout submission, Xendit staging
+      // and final bank-file issuance. Recheck durable evidence INSIDE it.
+      const runEvents = (await db.select().from(auditEvents)
+        .where(eq(auditEvents.organizationId, run.organizationId))
+        .orderBy(asc(auditEvents.createdAt), asc(auditEvents.id)))
+        .filter((event) => belongsToRun(event, run.id));
+
+      if (hasUnacknowledgedPaymongoRetry(runEvents)) {
+        throw new Error("PAYROLL_PAYMONGO_RETRY_OUTCOME_UNVERIFIED: A previous retry may have moved salaries. Reconcile the provider outcome manually before resubmitting.");
+      }
+      if (runEvents.some((event) =>
+        event.action === "Payroll payout completed manually"
+        || (event.action === "bank export generated"
+          && metadata(event).kind === "bank" && metadata(event).dryRun !== true)
+      )) {
+        throw new Error("PAYROLL_PREVIOUS_FINAL_BANK_FILE_OR_MANUAL_PAYMENT: Reconcile earlier bank payment evidence before retrying PayMongo.");
+      }
+      const [existingLedger] = await db.select({ provider: payoutBatches.provider })
+        .from(payoutBatches).where(and(
+          eq(payoutBatches.organizationId, run.organizationId),
+          eq(payoutBatches.payrollRunId, run.id),
+        )).limit(1);
+      if (existingLedger) {
+        throw new Error("PAYROLL_PAYOUT_LEDGER_ALREADY_CLAIMED: Reconcile the existing payment ledger before retrying PayMongo.");
+      }
+
+      // An overlapping request may already have retried the same employees.
+      // Refresh provider status under the lock, not from the stale pre-lock read.
+      const fresh = await reconcileProvider(run.id, runEvents);
+      if (fresh.failed === 0 || fresh.retryableReferences.length === 0) {
+        throw new Error("PAYROLL_PAYMONGO_RETRY_NO_FAILED_TRANSFERS: No provider-confirmed failed transfer remains eligible for retry.");
+      }
+      const retryKey = buildPayrollRetryIdempotencyKey(
+        run.id, fresh.batchIds, fresh.retryableReferences,
+      );
+      if (wasPaymongoRetryKeyAttempted(runEvents, retryKey)) {
+        throw new Error("PAYROLL_PAYMONGO_RETRY_ALREADY_ATTEMPTED: This retry key was already used. Reconcile its provider outcome before trying again.");
+      }
+
+      attemptedKey = retryKey;
+      attemptedReferences = fresh.retryableReferences;
+      attemptedBatchIds = fresh.batchIds;
+      const retry = await withPayrollPayoutSubmissionLock(
+        () => createPaymongoPayrollRetry({
+          runId: run.id,
+          referenceNumbers: fresh.retryableReferences,
+          sourceBatchIds: fresh.batchIds,
+          beforeProviderPost: async () => {
+            // This must commit after local recipient/bank/wallet validation
+            // and before any money-moving HTTP request.
+            await recordAuditEvent({
+              organizationId: run.organizationId,
+              actor: user.name,
+              action: PAYMONGO_RETRY_INTENT_ACTION,
+              resource: run.periodLabel,
+              metadata: {
+                runId: run.id, provider: "PayMongo", idempotencyKey: retryKey,
+                retryOfBatchIds: fresh.batchIds,
+                retryReferences: fresh.retryableReferences,
+                providerOutcomeVerified: false,
+                moneyMovedByLinaw: null,
+                treasury: treasury.evidence,
+              },
+            });
+            retryIntentRecorded = true;
+          },
+        }),
+      );
+
+      await recordAuditEvent({
+        organizationId: run.organizationId,
+        actor: user.name,
+        action: PAYMONGO_RETRY_SUBMITTED_ACTION,
+        resource: run.periodLabel,
+        metadata: {
+          runId: run.id,
+          batchId: retry.batchId,
+          idempotencyKey: retryKey,
+          provider: retry.provider,
+          retryOfBatchIds: fresh.batchIds,
+          retryReferences: fresh.retryableReferences,
+          transferCount: retry.transfers.length,
+          transfers: retry.transfers,
+          moneyMovedByLinaw: true,
+          treasury: treasury.evidence,
+        },
+      });
+      return { retry, fresh };
     });
 
     return Response.json({
       retried: true,
       failedOnly: true,
-      retry,
-      reconciliation,
-      message: `${retry.transfers.length} failed transfer(s) were resubmitted. Pending and succeeded transfers were not resent.`,
+      retry: result.retry,
+      reconciliation: result.fresh,
+      message: result.retry.transfers.length
+        + " failed transfer(s) were resubmitted. Pending and succeeded transfers were not resent.",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed-transfer retry could not be submitted.";
     await recordAuditEvent({
       organizationId: run.organizationId,
       actor: user.name,
-      action: "Payroll payout retry failed",
+      action: retryIntentRecorded ? "Payroll payout retry outcome unknown" : "Payroll payout retry failed",
       resource: run.periodLabel,
       metadata: {
         runId: run.id,
-        sourceBatchIds: reconciliation.batchIds,
-        retryReferences: reconciliation.retryableReferences,
+        sourceBatchIds: attemptedBatchIds,
+        retryReferences: attemptedReferences,
+        idempotencyKey: attemptedKey,
         error: message,
-        moneyMovedByLinaw: false,
+        providerOutcomeUnknown: retryIntentRecorded,
+        moneyMovedByLinaw: retryIntentRecorded ? null : false,
         treasury: treasury.evidence,
       },
     });
-    return Response.json({ error: message, reconciliation }, { status: 502 });
+    const conflict = !retryIntentRecorded && (
+      message.startsWith("PAYROLL_") || message.startsWith("PAYOUT_")
+      || message.startsWith("Another payroll payout is already being submitted")
+    );
+    return Response.json({
+      error: message, reconciliation,
+      code: conflict ? "PAYROLL_PAYOUT_CLAIM_CONFLICT" : undefined,
+    }, { status: conflict ? 409 : 502 });
   }
 }

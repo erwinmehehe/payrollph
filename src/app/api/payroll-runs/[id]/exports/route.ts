@@ -35,6 +35,17 @@ import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasur
 import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
 import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 
+// An initiation receipt is durable before the external PayMongo HTTP request.
+// A provider timeout or process crash is UNKNOWN, not proof that no salaries were sent.
+const PAYMONGO_OUTBOUND_EVIDENCE_ACTIONS = [
+  "Payroll payout submission initiated via PayMongo",
+  "Payroll payout submitted via PayMongo",
+  "Payroll payout completed via PayMongo",
+  "Payroll payout retry submission initiated via PayMongo",
+  "Payroll payout retry submitted via PayMongo",
+  "Payroll payout retry outcome unknown",
+] as const;
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -129,6 +140,20 @@ async function readPayrollExport(
       return Response.json({
         error: "An employee payout ledger already owns this payroll run. Generating another final bank file could pay the same salaries twice. Reconcile the original provider instead.",
         code: "PAYROLL_PAYOUT_LEDGER_ALREADY_CLAIMED",
+      }, { status: 409 });
+    }
+    // Checked *inside* the same run lock as PayMongo submission. A wallet
+    // transfer may have been accepted even if the provider response was lost.
+    const [paymongoOutboundEvidence] = await db.select({ id: auditEvents.id })
+      .from(auditEvents).where(and(
+        eq(auditEvents.organizationId, run.organizationId),
+        inArray(auditEvents.action, [...PAYMONGO_OUTBOUND_EVIDENCE_ACTIONS]),
+        sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`,
+      )).limit(1);
+    if (paymongoOutboundEvidence) {
+      return Response.json({
+        error: "A PayMongo payout submission may already have moved salaries for this run. Reconcile its provider outcome before issuing any bank file.",
+        code: "PAYMONGO_PAYOUT_ALREADY_ATTEMPTED",
       }, { status: 409 });
     }
     const [previousFinalFile] = await db.select({ id: auditEvents.id })
@@ -674,8 +699,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (claim && claim.provider !== "paymongo") {
         throw new Error("PAYROLL_PAYOUT_CLAIMED_BY_XENDIT: Reconcile existing provider payments; never switch money-out rails.");
       }
+      // Both provider POST and bank GET hold the same per-run lock.
+      const [previousPaymongoAttempt] = await db.select({ id: auditEvents.id })
+        .from(auditEvents).where(and(
+          eq(auditEvents.organizationId, run.organizationId),
+          inArray(auditEvents.action, [...PAYMONGO_OUTBOUND_EVIDENCE_ACTIONS]),
+          sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`,
+        )).limit(1);
+      if (previousPaymongoAttempt) {
+        throw new Error("PAYROLL_PAYMONGO_SUBMISSION_ALREADY_RECORDED: Reconcile the prior PayMongo attempt before retrying; its provider outcome may be unknown.");
+      }
+      // Hold both locks across the outbound submission. The intent callback
+      // runs after all local preflight, mapping and wallet funding checks but
+      // before PayMongo HTTP POST. An ambiguous outcome cannot be retried.
       const result = await withPayrollPayoutSubmissionLock(
-        () => createPaymongoPayrollDisbursement(runId),
+        () => createPaymongoPayrollDisbursement(runId, async () => {
+          await recordAuditEvent({
+            organizationId: run.organizationId,
+            actor: user.name,
+            action: "Payroll payout submission initiated via PayMongo",
+            resource: run.periodLabel,
+            metadata: {
+              runId: run.id,
+              provider: "PayMongo",
+              idempotencyKey: `payroll-run-${run.id}`,
+              providerOutcomeVerified: false,
+              treasury: treasuryEvidence,
+            },
+          });
+        }),
       );
     const everyTransferCompleted =
       result.transfers.length > 0 &&
@@ -711,6 +763,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       resource: run.periodLabel,
       metadata: { runId: run.id, error: message, treasury: treasuryEvidence },
     });
-    return Response.json({ error: message }, { status: 502 });
+    const conflict = /^(PAYROLL_(?:PREVIOUS_|PAYOUT_|PAYMONGO_)|PAYOUT_RUN_)/.test(message);
+    return Response.json({ error: message, code: conflict ? "PAYROLL_PAYOUT_CLAIM_CONFLICT" : undefined }, {
+      status: conflict ? 409 : 502,
+    });
   }
 }
