@@ -1096,6 +1096,10 @@ function PersonDrawer({
   }
 
   async function savePayoutDetails() {
+    if (payoutReadState !== "ready") {
+      setPayoutError("Reload the employee's authorized payout approval evidence before changing a destination.");
+      return;
+    }
     setSavingPayout(true);
     setPayoutError("");
     setPayoutNotice("");
@@ -1122,7 +1126,7 @@ function PersonDrawer({
       if (payload.pendingApproval) {
         setPayoutNotice(`Payout destination change request #${payload.payoutChangeRequest?.id ?? ""} is pending treasury approval. The employee record has not changed yet.`);
         setEditingPayout(false);
-        await refreshPayoutChanges();
+        await reloadPayoutChanges();
         return;
       }
       await onRefresh();
@@ -1133,6 +1137,13 @@ function PersonDrawer({
   }
 
   async function decidePayoutChange(requestId: number, decision: "approve" | "reject") {
+    const requested = payoutChangeRequests.find((row) => row.id === requestId && row.status === "pending");
+    if (payoutReadState !== "ready" || !requested || !data.user || !data.access?.companyWide
+      || !["owner", "admin", "bookkeeper"].includes(data.access.role)
+      || requested.requestedByUserId === data.user.id) {
+      setPayoutError("Load current approval evidence and use an authorized independent approver.");
+      return;
+    }
     setPayoutDecisionBusy(true);
     setPayoutError("");
     setPayoutNotice("");
@@ -1149,14 +1160,14 @@ function PersonDrawer({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         setPayoutError(payload.error ?? "Could not decide payout destination change.");
-        await refreshPayoutChanges();
+        await reloadPayoutChanges();
         return;
       }
       setPayoutDecisionNote("");
       setPayoutNotice(decision === "approve"
         ? "Payout destination change approved and applied. Any earlier PayMongo preflight for an affected payroll must be rerun."
         : "Payout destination change rejected.");
-      await refreshPayoutChanges();
+      await reloadPayoutChanges();
       await onRefresh();
     } finally {
       setPayoutDecisionBusy(false);
@@ -2002,6 +2013,18 @@ function PersonDrawer({
               </button>
             )}
           </div>
+          {canManage && payoutReadState === "loading" && (
+            <div className="notice notice-slate" role="status" style={{ margin: "0 16px 12px" }}>
+              <span>Loading this employee's authorized payout-change approvals…</span>
+            </div>
+          )}
+          {canManage && payoutReadState === "error" && (
+            <div className="notice notice-amber" role="alert" style={{ margin: "0 16px 12px" }}>
+              <span>{payoutReadError} Payout approvals remain unavailable until this read succeeds.</span>
+              <button className="secondary-button" disabled={savingPayout || payoutDecisionBusy}
+                onClick={() => void reloadPayoutChanges()}>Retry payout approvals</button>
+            </div>
+          )}
           {editingPayout ? (
             <>
               <div className="setting-form">
@@ -2029,7 +2052,7 @@ function PersonDrawer({
               {payoutError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payoutError}</span></div>}
               {payoutNotice && <div className="notice notice-slate" style={{ margin: "0 16px 10px" }}><span>{payoutNotice}</span></div>}
               <div className="run-actions">
-                <button className="primary-button" disabled={savingPayout || !bankCode.trim()} onClick={() => void savePayoutDetails()}>
+                <button className="primary-button" disabled={savingPayout || payoutReadState !== "ready" || !bankCode.trim()} onClick={() => void savePayoutDetails()}>
                   <Check size={14} /> {savingPayout ? "Submitting…" : "Submit payout change"}
                 </button>
               </div>
@@ -2043,9 +2066,10 @@ function PersonDrawer({
               </div>
               {payoutNotice && <div className="notice notice-slate" style={{ marginTop: 12 }}><span>{payoutNotice}</span></div>}
               {payoutError && <div className="notice notice-amber" style={{ marginTop: 12 }}><span>{payoutError}</span></div>}
-              {payoutChangeRequests.filter((row) => row.status === "pending").map((row) => {
+              {(payoutReadState === "ready" ? payoutChangeRequests : []).filter((row) => row.status === "pending").map((row) => {
                 const canAttemptDecision = Boolean(
-                  data.user
+                  payoutReadState === "ready"
+                  && data.user
                   && data.access?.companyWide
                   && ["owner", "admin", "bookkeeper"].includes(data.access.role)
                   && row.requestedByUserId !== data.user.id,
