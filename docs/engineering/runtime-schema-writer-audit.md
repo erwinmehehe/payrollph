@@ -1,5 +1,10 @@
 # P0-4 — Runtime schema writer source inventory
 
+Flag-off also preserves the historical NULLS LAST marketing index contract for
+explicit read-only callers. Only flag-on adopts canonical DESC/NULLS FIRST
+acceptance. The runtime selects the appropriate contract without changing
+indexes; synthetic PostgreSQL tests exercise both definitions and both modes.
+
 ## October 18, 2026: default-off read-only rollout
 
 PR #1210 adds the registered REQUEST_SCHEMA_READONLY_ENABLED gate. An unset

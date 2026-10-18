@@ -13,6 +13,11 @@ The owner has confirmed only Vercel is running (no separate worker). The #1222
 private capture identified an elevated web runtime role; it did not fix that
 role. Therefore restricted-role remediation remains required before activation.
 
+Flag-off also preserves the historical NULLS LAST marketing index contract for
+explicit read-only callers. Only flag-on adopts canonical DESC/NULLS FIRST
+acceptance. The runtime selects the appropriate contract without changing
+indexes; synthetic PostgreSQL tests exercise both definitions and both modes.
+
 ## Historical unconditional-cutover review
 
 This is an evidence record and operator handoff, **not** approval to merge, deploy,

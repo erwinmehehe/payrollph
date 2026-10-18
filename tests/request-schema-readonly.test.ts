@@ -5,7 +5,7 @@ import type { Pool } from "pg";
 import {
   leaveSchemaSpec, payBasisSchemaSpec,
   payrollMonthCloseSchemaSpec, doleReportingSchemaSpec, separationSchemaSpec,
-  marketingLeadSchemaSpec, workforceAttendanceSchemaSpec,
+  marketingLeadSchemaSpec, marketingLeadSchemaForRuntime, workforceAttendanceSchemaSpec,
   migrationSchemaSpec, outboxDeliverySchemaSpec, statutoryCorrectionSchemaSpec,
   statutoryMonthCloseSchemaSpec, verifyRequestSchemaReadOnlyFromPool,
   verifyRequestSchemaReadOnly,
@@ -311,6 +311,20 @@ const newlyGuardedSpecs: RequestSchemaSpec[] = [
   marketingLeadSchemaSpec, workforceAttendanceSchemaSpec, migrationSchemaSpec,
   outboxDeliverySchemaSpec, statutoryCorrectionSchemaSpec, statutoryMonthCloseSchemaSpec,
 ];
+
+test("marketing read-only rollout preserves old index acceptance with flag off", async () => {
+  const canonical = marketingLeadSchemaForRuntime({ REQUEST_SCHEMA_READONLY_ENABLED: "true" });
+  for (const flag of [undefined, "false", "", "TRUE"]) {
+    const legacy = marketingLeadSchemaForRuntime({ REQUEST_SCHEMA_READONLY_ENABLED: flag });
+    await verifyRequestSchemaReadOnly(simulate(legacy).query, legacy);
+    await assert.rejects(() => verifyRequestSchemaReadOnly(simulate(legacy).query, canonical),
+      /REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
+    await assert.rejects(() => verifyRequestSchemaReadOnly(simulate(canonical).query, legacy),
+      /REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
+  }
+  await verifyRequestSchemaReadOnly(simulate(canonical).query, canonical);
+  assert.equal(canonical, marketingLeadSchemaSpec, "flag-off calls cannot mutate the canonical contract");
+});
 
 test("marketing index preflight matches schema.ts and numbered SQL, not legacy NULLS LAST DDL", async () => {
   const canonical = readFileSync("src/db/schema.ts", "utf8");

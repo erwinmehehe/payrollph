@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 
 /**
  * Catalog-only preflight for request-path legacy schema creators. This never
@@ -433,6 +434,23 @@ export const marketingLeadSchemaSpec: RequestSchemaSpec = {
       tokens: ["notification_status", "not-configured", "queued", "sent", "failed"] },
   ],
 };
+
+/** Explicit read-only callers keep main's index contract with the rollout off.
+ * Canonical numbered-SQL ordering is adopted only with the reviewed cutover.
+ * Clone the two static tokens; never mutate the shared canonical specification.
+ */
+export function marketingLeadSchemaForRuntime(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): RequestSchemaSpec {
+  if (criticalReleaseFlagEnabled("requestSchemaReadonly", env)) return marketingLeadSchemaSpec;
+  return {
+    ...marketingLeadSchemaSpec,
+    indexes: marketingLeadSchemaSpec.indexes.map(index => ({
+      ...index,
+      definitionTokens: index.definitionTokens?.map(token => token.replace(" DESC)", " DESC NULLS LAST)")),
+    })),
+  };
+}
 
 export const workforceAttendanceSchemaSpec: RequestSchemaSpec = {
   label: "workforce-attendance",
