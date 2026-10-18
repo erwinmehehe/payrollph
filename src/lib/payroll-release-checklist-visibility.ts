@@ -20,11 +20,7 @@ export function visiblePayrollReleaseChecklist<T>(
 ): T | null {
   if (current.runId == null || !observed) return null;
 
-  const prior = observed.scope;
-  return prior.organizationId === current.organizationId
-    && prior.runId === current.runId
-    && prior.payrollRuns === current.payrollRuns
-    && prior.tasks === current.tasks
-    ? observed.checklist
-    : null;
+  // Scope identity changes on every employer/run/approval snapshot transition.
+  // A -> B -> A must not resurrect the first A request while a fresh GET runs.
+  return observed.scope === current ? observed.checklist : null;
 }
