@@ -96,7 +96,9 @@ test("hire remains maker-checker-governed and refreshes onboarding after creatio
   assert.ok(hiring.indexOf("if (payload.approvalRequired)") < hiring.indexOf("await onHired?.()"));
   assert.ok(hiring.includes("Do not resubmit the hire."));
   assert.ok(hiring.includes("onHired?: () => Promise<void>"));
-  assert.ok(hiring.includes("const recruitmentReloaded = await load().catch(() => false)"));
+  assert.ok(hiring.includes("const recruitmentReloaded = await reload().catch(() => false)"));
+  assert.ok(hiring.includes("setLoading(true);"), "source data must be withheld after an already-completed hire");
+  assert.ok(hiring.includes('data-recruitment-source="unavailable"'));
   assert.ok(hiring.includes("The hire request could not be confirmed."));
   assert.ok(hiring.includes('fetch("/api/recruitment/hire"'));
   assert.ok(route.includes("db.transaction"));

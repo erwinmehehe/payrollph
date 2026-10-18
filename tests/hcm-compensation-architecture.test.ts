@@ -164,7 +164,8 @@ test("compensation budget UI uses only the selected cycle and refreshes concurre
   assert.ok(panel.includes("summarizeCompensationCycleBudget(activeCycle ?? null, proposals)"));
   assert.ok(panel.includes("[access?.companyWide, activeCycle, proposals]"));
   assert.ok(budgetHelper.includes("if (proposal.cycleId !== cycle.id) continue;"));
-  assert.ok(panel.includes("response.status === 409) await load()"));
+  assert.ok(panel.includes("response.status === 409) await reload()"));
+  assert.ok(panel.includes("setLoadedOrganizationId(null);"), "conflict reread must hide stale salary controls");
   assert.ok(panel.includes("Only committed proposals in your assigned scope; organization budget is restricted"));
   assert.ok(panel.includes("remaining of"));
 });
