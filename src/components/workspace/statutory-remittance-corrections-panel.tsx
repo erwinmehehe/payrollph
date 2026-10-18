@@ -213,9 +213,11 @@ function StatutoryRemittanceCorrectionsPanelForOrganization({
   const selectedBatch = batches.find((batch) => batch.id === Number(batchId)) ?? null;
   const selectedMember = members.find((member) => member.id === Number(memberId)) ?? null;
 
-  const paymentForm = paymentEdit?.id === selectedBatch?.id
+  // When selection is empty, neither an undefined ID nor an old draft may
+  // authorize a payment/posting value (undefined === undefined is true).
+  const paymentForm = paymentEdit && selectedBatch && paymentEdit.id === selectedBatch.id
     ? paymentEdit.values : paymentDefaults(selectedBatch);
-  const postingForm = postingEdit?.id === selectedMember?.id
+  const postingForm = postingEdit && selectedMember && postingEdit.id === selectedMember.id
     ? postingEdit.values : postingDefaults(selectedMember);
   const editPayment = (key: keyof BatchPaymentDraft, value: string) => {
     if (!selectedBatch) return;
