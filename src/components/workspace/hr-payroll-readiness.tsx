@@ -179,7 +179,7 @@ export function HrPayrollReadinessCenter({
       <div className="hr-readiness-list">
         {visible.length === 0 ? (
           <div className="hr-readiness-empty">
-            <BadgeCheck size={18} />
+            {readiness.hasEligibleEmployees ? <BadgeCheck size={18} /> : <UsersRound size={18} />}
             <div>
               <strong>{!readiness.hasEligibleEmployees
                 ? "No employees to assess."
