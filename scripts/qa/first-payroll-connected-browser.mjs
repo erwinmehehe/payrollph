@@ -22,7 +22,12 @@ function LegacyQueue(){const [org,setOrg]=useState(1);return <><button onClick={
 createRoot(document.getElementById('root')).render(<main>{params.get('queue')==='legacy'?<LegacyQueue/>:focus!==null?<PayrollRunView data={data} initialRunId={focus} busy={false} onNewRun={()=>{}} onProcess={async()=>{}} onRelease={async()=>({})} onDecide={async()=>{}} onPage={()=>{}} onRefresh={async()=>{}} notify={()=>{}} availablePages={['Payroll','People','Exports']}/>:<FirstPayrollReadinessCard readiness={readiness} guided inlineEnabled data={data} onRefresh={async()=>{}} allowedPages={['Payroll','Settings','People','Exports']} onNewRun={()=>{}} onPage={()=>{}}/>}</main>);`,resolveDir:process.cwd(),sourcefile:'first-payroll-connected.tsx',loader:'tsx'},bundle:true,platform:'browser',jsx:'automatic',define:{'process.env.NODE_ENV':'"development"','process.env':'{}'},outfile:output+'/bundle.js'});
 const bundle=await readFile(output+'/bundle.js');
 const postcss=require('postcss'),tailwind=require('@tailwindcss/postcss');
-const css=(await postcss([tailwind()]).process(await readFile('src/app/globals.css','utf8'),{from:'src/app/globals.css'})).css;
+const cssFiles=['globals.css','workspace-theme.css','dashboard-design.css','workspace-panels.css',
+ 'ess-mobile.css','premium-dashboard.css','phase-two.css','experience-refresh.css'];
+const css=(await Promise.all(cssFiles.map(async file=>{
+ const path='src/app/'+file,source=await readFile(path,'utf8');
+ return (await postcss([tailwind()]).process(source,{from:path})).css;
+}))).join('\n');
 const server=createServer((req,res)=>{res.setHeader('Content-Type',req.url==='/bundle.js'?'text/javascript':'text/html');res.end(req.url==='/bundle.js'?bundle:`<meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}\n:root{--line:#dce5ed;--muted:#536983;--canvas-subtle:#f8fafc;}body{margin:0;font-family:Arial;color:#10213d}main{max-width:1120px;margin:24px auto;padding:16px}a,button{min-height:44px}a:focus-visible,button:focus-visible{outline:3px solid #0877ff;outline-offset:3px}</style><div id="root"></div><script src="/bundle.js"></script>`);});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({headless:true,...(process.env.QA_CHROMIUM_EXECUTABLE?{executablePath:process.env.QA_CHROMIUM_EXECUTABLE}:{})});
@@ -57,6 +62,7 @@ try{for(const width of [1280,390]){
  await page.screenshot({path:output+'/flag-off-'+width+'.png',fullPage:true});
  await page.goto(base+'/');const resume=page.getByRole('link',{name:'Open payroll',exact:true});
  assert.equal(await resume.getAttribute('href'),'/app?organizationId=1&workspacePage=Payroll&focusPayrollRunId=43');
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'Readiness must fit the viewport');
  await resume.focus();assert.equal(await resume.evaluate(e=>e===document.activeElement),true);
  await page.screenshot({path:output+'/resume-'+width+'.png',fullPage:true});
  await resume.press('Enter');await page.waitForURL('**/app?**');
@@ -78,6 +84,7 @@ try{for(const width of [1280,390]){
  await page.waitForFunction(()=>!document.querySelector('[data-remittance-action-queue] button[disabled]'));
  await queue.getByText('No unresolved statutory remittance actions.',{exact:true}).waitFor();
  assert.equal(await queue.getByRole('alert').count(),0,'Successful explicit Sync must clear the earlier read error');
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'Saved payroll must fit the viewport');
  assert.deepEqual(writes,['POST /api/compliance/remittance-actions'],'Only explicit Sync can mutate the action queue');
  writes.length=0;
  await page.screenshot({path:output+'/saved-'+width+'.png',fullPage:true});
