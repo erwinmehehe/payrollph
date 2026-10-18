@@ -80,6 +80,8 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
     const walletParallel = await newRun("Different payroll shares wallet");
     const underfunded = await newRun("Balance insufficient after preflight");
     const uncertain = await newRun("Provider acknowledgement lost");
+    const retryCandidate = await newRun("Failed transfer retry timeout");
+    const crossRail = await newRun("Unknown PayMongo versus Xendit");
     Object.assign(process.env, {
       PAYMONGO_SECRET_KEY: "sk_test_synthetic_http_only",
       PAYMONGO_WALLET_ID: "wallet_synthetic",
@@ -125,6 +127,8 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
     let blockedProviderRun = 0;
     let walletBalanceCents = 200000000;
     let providerPostCount = 0;
+    let retryProviderStarted: (() => void) | null = null;
+    let retryProviderGate: Promise<void> | null = null;
     const postKeys: string[] = [];
     globalThis.fetch = async (input, init) => {
       const url = String(input);
@@ -138,6 +142,16 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
             account: { account_number: "0000000001", account_name: "Fictional Wallet" } },
         } });
       }
+      if (url === "https://api.paymongo.com/v2/batch_transfers/batch_tr_synthetic_failed") {
+        return Response.json({ data: {
+          id: "batch_tr_synthetic_failed",
+          transfers: [{
+            id: "tr_failed_synthetic",
+            reference_number: "PAY-" + retryCandidate.id + "-" + worker.employeeNo,
+            status: "failed", amount: 1500000, provider: "instapay",
+          }],
+        } });
+      }
       if (url === "https://api.paymongo.com/v2/batch_transfers" && init?.method === "POST") {
         providerPostCount += 1;
         const idempotencyKey = new Headers(init.headers).get("Idempotency-Key") ?? "";
@@ -148,6 +162,11 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
         }
         if (idempotencyKey === "payroll-run-" + uncertain.id) {
           throw new Error("Synthetic network timeout after possible PayMongo acceptance");
+        }
+        if (idempotencyKey.startsWith("payroll-run-" + retryCandidate.id + "-retry-")) {
+          retryProviderStarted?.();
+          await retryProviderGate;
+          throw new Error("Synthetic failed-transfer retry timeout after possible acceptance");
         }
         return Response.json({ data: { id: "batch_synthetic_" + providerPostCount,
           transfers: [{ id: "transfer_synthetic_" + providerPostCount,
@@ -183,6 +202,7 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
     await preflight(walletParallel.id);
     await preflight(underfunded.id);
     await preflight(uncertain.id);
+    await preflight(retryCandidate.id);
 
     // Provider wins. Hold the real PayMongo HTTP POST while GET attempts to
     // acquire the same per-run advisory lock; no final file may be generated.
