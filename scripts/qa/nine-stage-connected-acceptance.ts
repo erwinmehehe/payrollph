@@ -209,7 +209,7 @@ async function main() {
       assert.equal(hireMode,"direct");
       assert.match(process.env.PRIVATE_PILOT_QA_INVITE_CODE ?? "",/^[a-f0-9]{64}$/);
       const registered=await init.ok("/api/signup","POST",{
-        name:"Fictional Owner A",company:"Fictional Connected Employer A Inc.",
+        name:"Fictional Owner A",company:"Fictional Connected Employer A",
         email:"owner.nine@linaw.test",password,acceptTerms:true,
         privatePilotInviteCode:process.env.PRIVATE_PILOT_QA_INVITE_CODE,
       });
