@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isCentralSchedulerEnabled } from "@/lib/scheduler-activation";
 import { eq, sql } from "drizzle-orm";
-import { acquireSchedulerLease, refreshSchedulerLease, releaseSchedulerLease, recordSchedulerCompletion } from "@/lib/scheduler-lease";
+import { acquireSchedulerLease, refreshSchedulerLease, releaseSchedulerLease, recordSchedulerCompletion, recordSchedulerFailure } from "@/lib/scheduler-lease";
 import { db } from "@/db";
 import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
@@ -254,7 +254,17 @@ async function runScheduledJobs(
   let compensationAutomationDelivery: Awaited<ReturnType<typeof drainCompensationAutomationIntents>> | { error: string };
   try {
     compensationAutomationDelivery = await drainCompensationAutomationIntents(new Date(), 25);
-  } catch {
+    // The drain deliberately returns an unconfirmed status for individual
+    // dispatch exceptions, preserving the durable intent for investigation.
+    // That is a partial scheduler failure, not a successfully delivered batch.
+    if (compensationAutomationDelivery.results.some((intent) => intent.reason === "dispatch_error_unconfirmed")) {
+      failures.push({
+        job: "compensationAutomationDelivery",
+        message: "DISPATCH_UNCONFIRMED: One or more compensation dispatches are unconfirmed; inspect the durable intent ledger.",
+      });
+    }
+  } catch (error) {
+    isolate("compensationAutomationDelivery")(error);
     compensationAutomationDelivery = { error: "Compensation automation delivery queue unavailable; inspect the durable intent ledger." };
   }
   await assertLeaseOwnership();
@@ -262,8 +272,9 @@ async function runScheduledJobs(
   let auditChainSeal: { sealed: number } | { error: string };
   try {
     auditChainSeal = { sealed: await sealAuditEvents(1000) };
-  } catch {
-    auditChainSeal = { error: "Audit chain sealing unavailable; apply drizzle/0109_tamper_evident_audit_chain.sql." };
+  } catch (error) {
+    isolate("auditChainSeal")(error);
+    auditChainSeal = { error: "Audit chain sealing unavailable; inspect the audit sealer and schema readiness." };
   }
   await assertLeaseOwnership();
 
@@ -275,22 +286,29 @@ async function runScheduledJobs(
     || now.getTime() - complianceAlertState.lastRunAt.getTime() >= 60 * 60 * 1000;
   let complianceDeadlineAlerts: Awaited<ReturnType<typeof runScheduledComplianceDeadlineAlerts>> | { error: string } | null = null;
   if (complianceAlertsDue) {
+    await assertLeaseOwnership();
     try {
       complianceDeadlineAlerts = await runScheduledComplianceDeadlineAlerts({ now });
-    } catch {
+    } catch (error) {
+      isolate("complianceDeadlineAlerts")(error);
       complianceDeadlineAlerts = { error: "Compliance deadline alerts failed; the calendar remains available in the Compliance Center." };
     }
-    await assertLeaseOwnership();
-    const complianceAlertPayload = { at: now.toISOString(), results: complianceDeadlineAlerts };
-    if (complianceAlertState) {
-      await db.update(schedulerState).set({ lastRunAt: now, lastResult: complianceAlertPayload })
-        .where(eq(schedulerState.id, complianceAlertState.id));
-    } else {
-      await db.insert(schedulerState).values({
-        jobName: "compliance-deadline-alerts",
-        lastRunAt: now,
-        lastResult: complianceAlertPayload,
-      });
+    // On partial delivery, retry next tick. The outbox uses a durable
+    // per-recipient stage dedupe key, so an already queued digest is not
+    // delivered again merely because a later recipient or employer failed.
+    if (Array.isArray(complianceDeadlineAlerts)) {
+      await assertLeaseOwnership();
+      const complianceAlertPayload = { at: now.toISOString(), results: complianceDeadlineAlerts };
+      if (complianceAlertState) {
+        await db.update(schedulerState).set({ lastRunAt: now, lastResult: complianceAlertPayload })
+          .where(eq(schedulerState.id, complianceAlertState.id));
+      } else {
+        await db.insert(schedulerState).values({
+          jobName: "compliance-deadline-alerts",
+          lastRunAt: now,
+          lastResult: complianceAlertPayload,
+        });
+      }
     }
   }
 
@@ -468,12 +486,17 @@ async function runScheduledJobs(
     },
   };
 
-  // Every other job has now run. Surface the retention failure instead of
-  // recording a completion receipt for a tick that did not finish its work.
+  // Every other job has now run. Surface retention, direct and previously
+  // swallowed failures before recording any successful completion receipt.
   if (failures.length > 0) {
     if (retentionFailure) {
       for (const f of retentionFailure.failures) failures.push({ job: "retention." + f.step, message: f.code ?? f.message });
     }
+    // Retain a bounded, sanitized failure receipt under the same live lease.
+    // The previous successful delivery-drain receipt must remain unchanged.
+    await assertLeaseOwnership();
+    const recorded = await recordSchedulerFailure(ownerToken, failures);
+    if (!recorded) throw new SchedulerLeaseLostError("Scheduler lease lost before saving failed job evidence.");
     throw new SchedulerJobsIncompleteError(failures);
   }
   if (retentionFailure) throw retentionFailure;

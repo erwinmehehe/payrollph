@@ -225,3 +225,19 @@ test("an undelivered DOWN incident survives probe recovery until receipt is deli
   assert.match(JSON.parse(h.posts[1].body).text, /DOWN/);
   assert.match(JSON.parse(h.posts[2].body).text, /RECOVERED/);
 });
+
+test("failed audit-chain sealing produces an independent DOWN webhook despite a recent success", async () => {
+  const failedSeal = response(healthy({
+    ok: false, state: "last-run-failed", lastLeaseStatus: "failed",
+  }), 503);
+  const h = harness([response(healthy()), failedSeal, failedSeal]);
+  const monitor = createSchedulerWatchdog(config, { fetcher: h.fetcher, now: () => fixedNow });
+  assert.equal((await monitor.poll()).healthy, true, "previous good tick is healthy");
+  assert.equal((await monitor.poll()).notification, "none", "one failure is not yet a notification");
+  assert.equal((await monitor.poll()).notification, "down-delivered");
+  assert.equal(h.posts.length, 1);
+  const payload = JSON.parse(h.posts[0].body);
+  assert.match(payload.text, /DOWN/);
+  assert.doesNotMatch(payload.text, /auditChainSeal|42P01|employer|secret/i,
+    "the independent alert must contain no financial or diagnostic details");
+});
