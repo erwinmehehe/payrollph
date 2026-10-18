@@ -11,6 +11,7 @@ import { db, pool } from "../../src/db";
 import { createConnectedGovernedWorker } from "./connected-governed-hire";
 import { completeYearEndIdentity, bindConnectedYearEnd, generateConnected2316 } from "./connected-year-end-journey";
 import { hashPassword } from "../../src/lib/crypto";
+import { proveConnectedPayrollOutputs } from "./connected-payroll-outputs";
 import {
   auditEvents, employees, governmentFilingValidations, orgUnits, organizations, payrollEntries,
   payrollRuns, timePunches, userOrganizations, users, workforceTimesheets,
@@ -204,12 +205,30 @@ async function main() {
   let patternId = 0, assignmentId = 0, currentTimesheetId = 0;
   await stage(0, async evidence => {
     const init = new Client();
-    const setup = await init.ok("/api/setup", "POST", {
+    if (process.env.FIRST_PAYROLL_CONNECTED_ENABLED === "true") {
+      assert.equal(hireMode,"direct");
+      assert.match(process.env.PRIVATE_PILOT_QA_INVITE_CODE ?? "",/^[a-f0-9]{64}$/);
+      const registered=await init.ok("/api/signup","POST",{
+        name:"Fictional Owner A",company:"Fictional Connected Employer A",
+        email:"owner.nine@linaw.test",password,acceptTerms:true,
+        privatePilotInviteCode:process.env.PRIVATE_PILOT_QA_INVITE_CODE,
+      });
+      assert.equal(registered.activated,true);
+      const [identity]=await db.select({organizationId:userOrganizations.organizationId})
+        .from(userOrganizations).innerJoin(users,eq(users.id,userOrganizations.userId))
+        .where(eq(users.email,"owner.nine@linaw.test"));
+      assert.ok(identity);orgA=identity.organizationId;
+      assert.equal((await db.select().from(employees).where(eq(employees.organizationId,orgA))).length,0);
+      assert.equal((await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId,orgA))).length,0);
+      evidence.push("Actual private-invite signup created an active owner and empty company; no setup endpoint or sample payroll");
+    } else {
+      const setup = await init.ok("/api/setup", "POST", {
       companyName: "Fictional Connected Employer A",
       legalName: "Fictional Connected Employer A Inc.",
       name: "Fictional Owner A", email: "owner.nine@linaw.test", password,
     });
-    orgA = Number(setup.organizationId);
+      orgA = Number(setup.organizationId);
+    }
     assert.ok(orgA > 0);
     owner = await login("owner.nine@linaw.test");
     if (hireMode === "governed") {
@@ -541,6 +560,11 @@ async function main() {
         .where(eq(users.email, "checker.nine@linaw.test")))[0].id,
     });
     assert.ok(review.task?.id);
+    const [privateEntry]=await db.select({id:payrollEntries.id}).from(payrollEntries)
+      .where(and(eq(payrollEntries.payrollRunId,runId),eq(payrollEntries.employeeId,worker)));
+    assert.ok(privateEntry);
+    denied(404,(await employee.request("/api/self/payslips/"+privateEntry.id)).status,
+      "own unreleased payroll cannot be downloaded as a payslip");
     const selfCheck = await payroll.json("/api/approvals/" + review.task.id, "PATCH", {
       status: "Approved",
     });
@@ -576,6 +600,9 @@ async function main() {
     assert.ok(events.some(event => event.action === "Payroll released"),
       "Release must leave auditable evidence in the original employer");
     evidence.push("owner released records once; payment export remains waiting, with tenant denial and audit event");
+    await proveConnectedPayrollOutputs({organizationId:orgA,runId,employeeId:worker,
+      owner,employee,foreignOwner:tenantB});
+    evidence.push("Stored run, entries and employee payslip reconcile in centavos; actual PDF and balanced journal downloaded without payment");
   });
   await stage(8, async evidence => {
     if (annualJourney) {
@@ -889,6 +916,9 @@ async function main() {
       .where(eq(auditEvents.organizationId, orgB));
     assert.ok(events.some(item => item.action === "Payroll released"));
     evidence.push("B owner released payroll RECORDS once; bank export waiting and A payroll denied");
+    await proveConnectedPayrollOutputs({organizationId:orgB,runId:bRunId,employeeId:bWorker,
+      owner:tenantB,employee:bEmployee,foreignOwner:payroll,foreignEmployee:employee});
+    evidence.push("B entries, header, employee payslip and journal reconcile; A employee cannot download B payslip");
   });
   await stageB(8, async evidence => {
     const forms = [

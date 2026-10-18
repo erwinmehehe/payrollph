@@ -46,6 +46,7 @@ function severityLabel(value: ActionTask["severity"]) {
 export function StatutoryRemittanceActionQueue(props: {
   organizationId: number;
   notify: Notify;
+  readOnlyOnOpen?: boolean;
 }) {
   // Employer scope is tenant-private. Remount on a new organizationId so no
   // task or assignee state from the previous employer can render.
@@ -55,21 +56,32 @@ export function StatutoryRemittanceActionQueue(props: {
 function StatutoryRemittanceActionQueueContent({
   organizationId,
   notify,
+  readOnlyOnOpen = false,
 }: {
   organizationId: number;
   notify: Notify;
+  readOnlyOnOpen?: boolean;
 }) {
   const [payload, setPayload] = useState<QueuePayload | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [readError, setReadError] = useState("");
+  const [reading, setReading] = useState(false);
 
-  const load = useCallback(async () => {
-    const response = await fetch(
-      `/api/compliance/remittance-actions?organizationId=${organizationId}`,
-      { cache: "no-store" },
-    );
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error ?? "Could not load compliance actions.");
-    setPayload(body as QueuePayload);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    setReading(true);
+    try {
+      const response = await fetch(
+        `/api/compliance/remittance-actions?organizationId=${organizationId}`,
+        { cache: "no-store", signal },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Could not load compliance actions.");
+      if (signal?.aborted) return;
+      setPayload(body as QueuePayload);
+      setReadError("");
+    } finally {
+      if (!signal?.aborted) setReading(false);
+    }
   }, [organizationId]);
 
   const sync = useCallback(async (quiet = false) => {
@@ -83,6 +95,7 @@ function StatutoryRemittanceActionQueueContent({
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Could not synchronize compliance actions.");
       setPayload(body as QueuePayload);
+      setReadError("");
       if (!quiet && body.sync) {
         const changed = Number(body.sync.created ?? 0) + Number(body.sync.reopened ?? 0) + Number(body.sync.resolved ?? 0);
         notify(changed ? "Compliance action queue synchronized." : "Compliance action queue is already current.", "ok");
@@ -96,18 +109,26 @@ function StatutoryRemittanceActionQueueContent({
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
+    const read = () => void load(controller.signal).catch(error => {
+      if (active && !controller.signal.aborted) setReadError(error instanceof Error ? error.message : "Could not load compliance actions.");
+    });
     // The initial sync runs after effect setup, never in its synchronous phase.
     // Strict Mode cleanup can cancel this scheduled sync before it starts.
     queueMicrotask(() => {
-      if (active) void sync(true);
+      if (active) {
+        if (readOnlyOnOpen) read();
+        else void sync(true);
+      }
     });
-    const onChanged = () => void sync(true);
+    const onChanged = () => { if (readOnlyOnOpen) read(); else void sync(true); };
     window.addEventListener("statutory-remittance-changed", onChanged);
     return () => {
       active = false;
+      controller.abort();
       window.removeEventListener("statutory-remittance-changed", onChanged);
     };
-  }, [sync]);
+  }, [sync, load, readOnlyOnOpen]);
 
   async function mutate(
     action: "assign" | "acknowledge",
@@ -158,7 +179,14 @@ function StatutoryRemittanceActionQueueContent({
       </div>
 
       <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 14 }}>
-        {active.length === 0 ? (
+        {readOnlyOnOpen && (reading || payload === null || readError) ? (
+          <div>
+            {readError ? <>
+              <p role="alert">Could not load saved compliance actions: {readError}</p>
+              <button className="secondary-button" onClick={() => {setReadError("");void load().catch(error => setReadError(error instanceof Error ? error.message : "Read failed."));}}>Retry reading actions</button>
+            </> : <p role="status">Loading saved compliance actions…</p>}
+          </div>
+        ) : active.length === 0 ? (
           <div className="notice notice-green" style={{ margin: 0 }}>
             <CheckCircle2 size={15} />
             <span><strong>No unresolved statutory remittance actions.</strong> The tracked queue is clear.</span>
