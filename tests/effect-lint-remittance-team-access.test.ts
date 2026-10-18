@@ -45,7 +45,7 @@ test("team access effects defer GET, abort obsolete reads and cannot publish emp
 
 test("remittance correction editor owns drafts by record, not by resetting state in an effect", () => {
   assert.ok(correction.includes("<StatutoryRemittanceCorrectionsPanelForOrganization key={props.organizationId}"));
-  assert.equal((correction.match(/\\buseEffect\\(/g) ?? []).length, 1);
+  assert.equal(correction.split("useEffect(").length - 1, 1);
   assert.ok(correction.includes("paymentEdit?.id === selectedBatch?.id"));
   assert.ok(correction.includes("postingEdit?.id === selectedMember?.id"));
   assert.ok(correction.includes("paymentDefaults(selectedBatch)"));
