@@ -28,10 +28,5 @@
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
-  },
-  "src/components/workspace/people.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 2
-    }
   }
 }
