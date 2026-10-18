@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, RefreshCcw, UserCheck } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner, Status } from "./ui";
+import { isValidRemittanceQueuePayload } from "@/lib/statutory-remittance-queue-payload";
 
 type ActionTask = {
   id: number;
@@ -32,6 +33,7 @@ type Assignee = {
 };
 
 type QueuePayload = {
+  organizationId: number;
   currentUserId: number;
   tasks: ActionTask[];
   assignees: Assignee[];
@@ -75,10 +77,16 @@ function StatutoryRemittanceActionQueueContent({
         { cache: "no-store", signal },
       );
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "Could not load compliance actions.");
+      if (!response.ok) throw new Error(body?.error ?? "Could not load compliance actions.");
+      if (!isValidRemittanceQueuePayload(body, organizationId)) {
+        throw new Error("The compliance queue response could not be verified.");
+      }
       if (signal?.aborted) return;
       setPayload(body as QueuePayload);
       setReadError("");
+    } catch (error) {
+      if (!signal?.aborted) setReadError(error instanceof Error ? error.message : "Read failed.");
+      throw error;
     } finally {
       if (!signal?.aborted) setReading(false);
     }
@@ -93,7 +101,10 @@ function StatutoryRemittanceActionQueueContent({
         body: JSON.stringify({ organizationId, action: "sync" }),
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "Could not synchronize compliance actions.");
+      if (!response.ok) throw new Error(body?.error ?? "Could not synchronize compliance actions.");
+      if (!isValidRemittanceQueuePayload(body, organizationId)) {
+        throw new Error("The synchronized compliance queue could not be verified.");
+      }
       setPayload(body as QueuePayload);
       setReadError("");
       if (!quiet && body.sync) {
@@ -101,7 +112,9 @@ function StatutoryRemittanceActionQueueContent({
         notify(changed ? "Compliance action queue synchronized." : "Compliance action queue is already current.", "ok");
       }
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not synchronize compliance actions.", "err");
+      const message = error instanceof Error ? error.message : "Could not synchronize compliance actions.";
+      setReadError(message);
+      notify(message, "err");
     } finally {
       setBusy(null);
     }
@@ -179,12 +192,22 @@ function StatutoryRemittanceActionQueueContent({
       </div>
 
       <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 14 }}>
-        {readOnlyOnOpen && (reading || payload === null || readError) ? (
+        {(reading || payload === null || readError) ? (
           <div>
             {readError ? <>
-              <p role="alert">Could not load saved compliance actions: {readError}</p>
-              <button className="secondary-button" onClick={() => {setReadError("");void load().catch(error => setReadError(error instanceof Error ? error.message : "Read failed."));}}>Retry reading actions</button>
-            </> : <p role="status">Loading saved compliance actions…</p>}
+              <p role="alert">Could not verify statutory compliance actions: {readError}</p>
+              {readOnlyOnOpen ? (
+                <button type="button" className="secondary-button"
+                  onClick={() => { setReadError(""); void load().catch(() => {}); }}>
+                  Retry reading actions
+                </button>
+              ) : (
+                <button type="button" className="secondary-button" disabled={busy !== null}
+                  onClick={() => { setReadError(""); void sync(false); }}>
+                  Retry synchronizing actions
+                </button>
+              )}
+            </> : <p role="status">Loading or verifying statutory compliance actions…</p>}
           </div>
         ) : active.length === 0 ? (
           <div className="notice notice-green" style={{ margin: 0 }}>
