@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BadgeCheck,
   CalendarClock,
@@ -53,45 +53,80 @@ type ManagedPayload = {
   currentUserIsApprover?: boolean;
 };
 
-export function ManagedPayrollControlRoom({
-  data,
-  run,
-  notify,
-}: {
+type ManagedPayrollControlRoomProps = {
   data: DashboardData;
   run: PayrollRun | undefined;
   notify: Notify;
-}) {
+};
+
+// Key the read-only control room and its evidence inputs to the legal employer.
+// Switching A -> B -> A remounts instead of reviving a previous approval snapshot.
+export function ManagedPayrollControlRoom(props: ManagedPayrollControlRoomProps) {
+  return <ManagedPayrollControlRoomForEmployer
+    key={props.data.selectedOrganization.id}
+    {...props}
+  />;
+}
+
+function ManagedPayrollControlRoomForEmployer({
+  data,
+  run,
+  notify,
+}: ManagedPayrollControlRoomProps) {
   const organizationId = data.selectedOrganization.id;
   const [payload, setPayload] = useState<ManagedPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [evidence, setEvidence] = useState<Record<number, string>>({});
+  const activeRead = useRef<AbortController | null>(null);
+  const cancelRead = useCallback(() => { activeRead.current?.abort(); }, []);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    // Initial mount is already loading. The effect launches only an async GET;
+    // user-initiated Refresh owns the synchronous loading transition.
+    activeRead.current?.abort();
+    const controller = new AbortController();
+    activeRead.current = controller;
     try {
-      const response = await fetch(`/api/managed-payroll?organizationId=${organizationId}`, { cache: "no-store" });
+      const response = await fetch(`/api/managed-payroll?organizationId=${organizationId}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       const body = await response.json().catch(() => ({}));
+      if (controller.signal.aborted) return;
       if (!response.ok) throw new Error(body.error ?? "Managed payroll controls could not be loaded.");
+      if (!Object.hasOwn(body, "engagement") || !Array.isArray(body.gates) || !Array.isArray(body.runs)) {
+        throw new Error("Managed payroll returned incomplete approval controls.");
+      }
       setPayload(body as ManagedPayload);
+      setLoadError(null);
       setEvidence((current) => {
         const next = { ...current };
-        for (const gate of (body.gates ?? []) as ManagedGate[]) {
+        for (const gate of body.gates as ManagedGate[]) {
           if (!(gate.id in next)) next[gate.id] = gate.evidenceRef ?? "";
         }
         return next;
       });
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Managed payroll controls could not be loaded.", "err");
+      if (controller.signal.aborted) return;
+      const message = error instanceof Error ? error.message : "Managed payroll controls could not be loaded.";
+      setPayload(null);
+      setLoadError(message);
+      notify(message, "err");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [organizationId, notify]);
 
-  useEffect(() => {
+  useEffect(() => { void load(); return cancelRead; }, [load, cancelRead]);
+
+  const refresh = () => {
+    setPayload(null);
+    setLoading(true);
+    setLoadError(null);
     void load();
-  }, [load]);
+  };
 
   async function enableManagedPayroll() {
     setBusy(true);
@@ -176,6 +211,17 @@ export function ManagedPayrollControlRoom({
     );
   }
 
+  if (loadError) {
+    return (
+      <section className="card" data-managed-payroll style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <div><div className="card-kicker">MANAGED PAYROLL</div><h2>Controls unavailable</h2><p>{loadError}</p></div>
+          <button className="secondary-button" disabled={busy} onClick={refresh}><RefreshCcw size={14} /> Retry</button>
+        </div>
+      </section>
+    );
+  }
+
   if (!payload?.engagement) {
     const owner = data.access?.role === "owner";
     return (
@@ -223,7 +269,7 @@ export function ManagedPayrollControlRoom({
         </div>
         <div className="heading-actions">
           <Status value={payload.engagement.status} />
-          <button className="secondary-button" disabled={busy} onClick={() => void load()}><RefreshCcw size={14} /> Refresh</button>
+          <button className="secondary-button" disabled={busy} onClick={refresh}><RefreshCcw size={14} /> Refresh</button>
         </div>
       </div>
 
