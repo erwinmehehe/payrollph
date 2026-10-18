@@ -130,12 +130,8 @@ export function PayrollRunView({
   // run) the first run takes over without an effect round-trip.
   const run = data.payrollRuns.find((item) => item.id === selectedId) ?? data.payrollRuns[0];
 
-  // The dashboard ships entries for one run only, which is rarely the run you
-  // are looking at. The register therefore loads the selected run's own entries
-  // through the membership-gated endpoint, falling back to the dashboard's set
-  // while that request is in flight.
-  const serverEntryRun = data.payrollRuns.find((item) => item.status !== "Released") ?? data.payrollRuns[0];
-  const seeded = run && serverEntryRun && run.id === serverEntryRun.id ? data.payrollEntries : [];
+  // The selected register only renders a tenant-verified API response.
+  // Cached dashboard entries are not a substitute for an authoritative run read.
   const [fetched, setFetched] = useState<{ organizationId: number; runId: number; entries: PayrollEntry[] } | null>(null);
   const [registerRevision, setRegisterRevision] = useState(0);
   const [failedRunId, setFailedRunId] = useState<number | null>(null);
