@@ -12,10 +12,10 @@
 -- Corrections relative to the source migrations:
 --   * drizzle/0093 closes "DO $$" with "END $;", which cannot execute; the
 --     block below uses "END $$;".
--- Excluded, pending an owner decision:
+-- Deferred to the restricted-role cutover (see docs/engineering/source-baseline-supplement.md):
 --   * drizzle/0133 v2 audit guards (audit_events_protect_v2,
 --     audit_events_insert_guard_v2, audit_events_reject_truncate_v2 and their
---     triggers). 0133 is pinned to one Neon branch and assumes 0109 is absent.
+--     triggers). They require the payrollph_audit_sealing role and sealer login.
 --
 -- Production remains DBA-gated: use the reviewed migration runner and cutover
 -- process. This file is for building and rehearsing a clean baseline.

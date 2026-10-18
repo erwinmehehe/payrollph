@@ -37,7 +37,7 @@ test("the 0093 block is corrected from its unrunnable END $; terminator", () => 
   assert.match(sql.slice(at, at + 600), /END \$\$;/);
 });
 
-test("drizzle/0133 v2 audit guards stay excluded until an owner decides, and the applier says so", () => {
+test("drizzle/0133 v2 audit guards stay deferred to the role cutover, and the applier says so", () => {
   const sql = read(SUPPLEMENT);
   assert.doesNotMatch(sql.replace(/--[^\n]*/g, ""), /audit_events_insert_guard_v2|ISSUE908_FORWARD_TARGET_MISMATCH/);
   const applier = read(APPLIER);

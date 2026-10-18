@@ -13,8 +13,9 @@ assert.equal(process.env.GITHUB_ACTIONS, "true", "GitHub Actions isolation is re
 assert.equal(process.env.CI, "true", "CI isolation is required");
 assert.equal(process.env.DATABASE_URL, expectedUrl, "Only the disposable CI database is permitted");
 
-// drizzle/0133 is pinned to one Neon branch and assumes 0109 is absent; its v2
-// audit guards need an owner decision before a clean baseline includes them.
+// drizzle/0133 v2 audit guards are deferred to the restricted-role cutover: they
+// only let payrollph_audit_sealing members fill chain fields, and the default
+// sealer runs as the app login, so adding them without those roles breaks sealing.
 export const EXCLUDED = new Set([
   "function:audit_events_protect_v2",
   "function:audit_events_insert_guard_v2",
