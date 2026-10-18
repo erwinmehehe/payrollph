@@ -3,8 +3,10 @@
  * A previous payroll's close eligibility and filing evidence must never remain
  * visible while another run or employer is loading.
  */
+export type BookkeeperCloseScope = Readonly<{ requestKey: string }>;
+
 export type BookkeeperCloseRead<T> = Readonly<{
-  requestKey: string;
+  requestScope: BookkeeperCloseScope;
   payload: T | null;
   loadError: string;
 }>;
@@ -24,10 +26,11 @@ export function bookkeeperCloseRequestKey(input: {
 }
 
 export function visibleBookkeeperCloseRead<T>(
-  requestKey: string,
+  requestScope: BookkeeperCloseScope,
   observed: BookkeeperCloseRead<T> | null,
 ): { loading: boolean; payload: T | null; loadError: string } {
-  if (!observed || observed.requestKey !== requestKey) {
+  // A -> B -> A creates a new scope object; never reuse the first A response.
+  if (!observed || observed.requestScope !== requestScope) {
     return { loading: true, payload: null, loadError: "" };
   }
   return { loading: false, payload: observed.payload, loadError: observed.loadError };
