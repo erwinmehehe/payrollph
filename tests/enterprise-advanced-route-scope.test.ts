@@ -65,6 +65,20 @@ test("compensation separates premium band/cycle creation from Core pay proposals
     "Existing proposal source/actions remain visible when new config is restricted");
 });
 
+test("authenticated workspace navigation hides paid Planning without blocking Core People and Payroll", () => {
+  const source = src("src/lib/dashboard-data.ts");
+  const workspace = src("src/components/linaw-workspace.tsx");
+  const types = src("src/components/workspace/types.ts");
+  assert.ok(source.indexOf("resolveAdvancedHcmPlan(") > source.indexOf("const access = await getAccess("));
+  assert.ok(source.includes("advancedPlanningAllowed,"));
+  assert.ok(workspace.includes("if (data.advancedPlanningAllowed === false)"));
+  assert.ok(workspace.includes('pages.indexOf("Planning")'));
+  assert.ok(workspace.includes("data.advancedPlanningAllowed]"));
+  assert.ok(!workspace.includes('pages.indexOf("People")'));
+  assert.ok(!workspace.includes('pages.indexOf("Payroll")'));
+  assert.ok(types.includes("advancedPlanningAllowed?: boolean"));
+});
+
 test("opt-in features preserve the default-off exact employer control and support a safe rollback", () => {
   const policy = src("src/lib/enterprise-advanced-plan-policy.ts");
   const server = src("src/lib/enterprise-advanced-plan-server.ts");
