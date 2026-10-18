@@ -11,6 +11,7 @@ import {
   workforcePlans,
 } from "@/db/schema";
 import {
+  assertOrganizationRole,
   getAccess,
   PEOPLE_PAYROLL_ROLES,
   WORKFORCE_MANAGER_ROLES,
@@ -18,6 +19,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { approvalStepsForAmount, freezeDynamicGroupApprovalSteps, validateApprovalChainSteps } from "@/lib/approval-chains";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseAdvancedPlan } from "@/lib/enterprise-advanced-plan-server";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   loadScopedWorkforceForecast,
@@ -99,6 +101,10 @@ export async function GET(request: Request) {
   if (!access) {
     return Response.json({ error: "Workforce-manager access is required." }, { status: 403 });
   }
+  const permissionDenied = await assertOrganizationRole(user.id, organizationId, WORKFORCE_MANAGER_ROLES);
+  if (permissionDenied) return permissionDenied;
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
   const canViewCost = roleAllowed(access.role, PEOPLE_PAYROLL_ROLES as readonly string[]);
 
   const [rows, instances, policies] = await Promise.all([
@@ -231,6 +237,11 @@ export async function POST(request: Request) {
   if (!access) {
     return Response.json({ error: "Workforce-manager access is required." }, { status: 403 });
   }
+
+  const permissionDenied = await assertOrganizationRole(user.id, organizationId, WORKFORCE_MANAGER_ROLES);
+  if (permissionDenied) return permissionDenied;
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
 
   let linkedPlan = null;
   if (planId != null) {
@@ -369,6 +380,10 @@ export async function PATCH(request: Request) {
   if (!access || !scenarioVisibleToAccess(scenario, access)) {
     return Response.json({ error: "This staffing scenario is outside your workforce scope." }, { status: 403 });
   }
+  const permissionDenied = await assertOrganizationRole(user.id, scenario.organizationId, WORKFORCE_MANAGER_ROLES);
+  if (permissionDenied) return permissionDenied;
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(scenario.organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
   if (scenario.status !== "draft") {
     return Response.json({ error: "Only draft scenarios can be submitted." }, { status: 409 });
   }

@@ -11,6 +11,8 @@ export const PLAN_FEATURES: Record<PlanId, string[]> = {
     "audit-export", "bi-exports", "priority-sla",
     // Discovery-only: underlying HCM routes keep their independent security gates.
     "advanced-hcm-discovery",
+    // Paid administration (separate from ordinary pay changes and employee HR).
+    "advanced-workforce-planning", "advanced-compensation-configuration",
   ],
 };
 

@@ -17,6 +17,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseAdvancedPlan } from "@/lib/enterprise-advanced-plan-server";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   enforceSameOriginMutation,
@@ -163,6 +164,9 @@ export async function GET(request: Request) {
     return Response.json({ error: "Position execution evidence requires company-wide People access." }, { status: 403 });
   }
 
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
+
   const rows = await db.select().from(workforcePlanPositionExecutions)
     .where(eq(workforcePlanPositionExecutions.organizationId, organizationId))
     .orderBy(desc(workforcePlanPositionExecutions.createdAt), desc(workforcePlanPositionExecutions.id));
@@ -195,6 +199,8 @@ export async function POST(request: Request) {
 
   const admin = await companyWidePeopleAdmin(user.id, organizationId);
   if ("denied" in admin) return admin.denied;
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
 
   const [[plan], [baseline]] = await Promise.all([
     db.select().from(workforcePlans).where(and(
@@ -332,6 +338,8 @@ export async function PATCH(request: Request) {
 
   const admin = await companyWidePeopleAdmin(user.id, execution.organizationId);
   if ("denied" in admin) return admin.denied;
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(execution.organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
 
   if (execution.status !== "preview") {
     return Response.json({ error: "Only a preview execution can be applied or cancelled." }, { status: 409 });
