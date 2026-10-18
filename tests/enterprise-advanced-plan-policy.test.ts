@@ -22,17 +22,17 @@ test("only exact-opted-in employers can trigger advanced billing checks", async 
 });
 
 test("two advanced products require their own active Enterprise entitlement", () => {
-  for (const module of ["planning", "compensation"] as const) {
-    assert.equal(evaluateAdvancedHcmPlan(17, module, active, env), "allowed");
-    assert.equal(evaluateAdvancedHcmPlan(17, module, null, env), "entitlements-unavailable");
-    assert.equal(evaluateAdvancedHcmPlan(17, module, { ...active, status: "none" }, env), "missing-subscription");
-    assert.equal(evaluateAdvancedHcmPlan(17, module, { ...active, active: false }, env), "inactive-subscription");
-    assert.equal(evaluateAdvancedHcmPlan(17, module, { ...active, status: "trialing", active: false }, env), "inactive-subscription");
+  for (const featureKind of ["planning", "compensation"] as const) {
+    assert.equal(evaluateAdvancedHcmPlan(17, featureKind, active, env), "allowed");
+    assert.equal(evaluateAdvancedHcmPlan(17, featureKind, null, env), "entitlements-unavailable");
+    assert.equal(evaluateAdvancedHcmPlan(17, featureKind, { ...active, status: "none" }, env), "missing-subscription");
+    assert.equal(evaluateAdvancedHcmPlan(17, featureKind, { ...active, active: false }, env), "inactive-subscription");
+    assert.equal(evaluateAdvancedHcmPlan(17, featureKind, { ...active, status: "trialing", active: false }, env), "inactive-subscription");
     for (const plan of ["Core", "Scale", "Solo", "enterprise", "unknown"]) {
-      assert.equal(evaluateAdvancedHcmPlan(17, module, { ...active, plan }, env), "enterprise-required");
+      assert.equal(evaluateAdvancedHcmPlan(17, featureKind, { ...active, plan }, env), "enterprise-required");
     }
-    assert.equal(evaluateAdvancedHcmPlan(17, module, { ...active, features: [] }, env), "enterprise-required");
-    assert.equal(evaluateAdvancedHcmPlan(18, module, { ...active, plan: "Core" }, env), "not-enforced");
+    assert.equal(evaluateAdvancedHcmPlan(17, featureKind, { ...active, features: [] }, env), "enterprise-required");
+    assert.equal(evaluateAdvancedHcmPlan(18, featureKind, { ...active, plan: "Core" }, env), "not-enforced");
   }
 });
 
