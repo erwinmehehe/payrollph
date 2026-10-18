@@ -364,9 +364,6 @@ jobs:
         run: |
           node --test tests/issue-853-evidence-ledger.test.mjs tests/issue-853-synthetic-coverage.test.mjs
           node scripts/qa/issue-853-synthetic-coverage.mjs
-      - name: Rehearse ten fictional workers through two real HTTP payroll cutoffs (PG16 direct only)
-        if: ${{ success() && matrix.postgres == '16' && matrix.hire-mode == 'direct' && matrix.cutoff != 'year-end' }}
-        run: NODE_OPTIONS="--require=$(pwd)/scripts/qa/isolated-month-end-clock.cjs" npx tsx scripts/qa/two-period-multiworker-connected.ts
       - name: Exercise governed candidate-to-worker Hire BP (separate no-money sidecar)
         if: always()
         run: NODE_OPTIONS="--require=$(pwd)/scripts/qa/isolated-month-end-clock.cjs" npx tsx scripts/qa/governed-hire-853-bridge.ts
@@ -380,6 +377,9 @@ jobs:
         env:
           NINE_STAGE_EVIDENCE_REQUIRED: "true"
         run: node --test tests/nine-stage-connected-evidence.test.mjs
+      - name: Rehearse ten fictional workers through two real HTTP payroll cutoffs (PG16 direct only)
+        if: ${{ success() && matrix.postgres == '16' && matrix.hire-mode == 'direct' && matrix.cutoff != 'year-end' }}
+        run: NODE_OPTIONS="--require=$(pwd)/scripts/qa/isolated-month-end-clock.cjs" npx tsx scripts/qa/two-period-multiworker-connected.ts
       - name: Show bounded server errors on failure
         if: failure()
         shell: bash
