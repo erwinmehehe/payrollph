@@ -28,7 +28,7 @@ const report:{schemaVersion:number;sourceSha:string;status:string;scope:string;
 function cents(v:unknown):bigint{
   const s=String(v);assert.match(s,/^-?\d+(?:\.\d{1,2})?$/,"Not exact centavo money");
   const [whole,fraction=""]=s.replace(/^-/,"").split(".");
-  const n=BigInt(whole)*100n+BigInt(fraction.padEnd(2,"0"));
+  const n=BigInt(whole)*BigInt(100)+BigInt(fraction.padEnd(2,"0"));
   return s.startsWith("-")?-n:n;
 }
 function iso(d:Date){return d.toISOString().slice(0,10);}
@@ -243,10 +243,10 @@ async function main(){
     const entries=await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId,runId));
     assert.equal(entries.length,COUNT);assert.deepEqual(new Set(entries.map(x=>x.employeeId)),new Set(people));
     assert.ok(entries.every(x=>x.status==="Ready"));
-    const centsTotal=(field:"grossPay"|"netPay")=>entries.reduce((n,x)=>n+cents(x[field]),0n);
+    const centsTotal=(field:"grossPay"|"netPay")=>entries.reduce((n,x)=>n+cents(x[field]),BigInt(0));
     for(const entry of entries){
       assert.equal(cents(entry.grossPay)-cents(entry.deductions),cents(entry.netPay));
-      assert.ok(cents(entry.grossPay)>0n&&cents(entry.netPay)>0n);
+      assert.ok(cents(entry.grossPay)>BigInt(0)&&cents(entry.netPay)>BigInt(0));
       const trace=entry.trace as any;
       assert.equal(trace?.payableTime?.mode,"calendar-segmented");
       const own=new Set(sources.filter(s=>s.employeeId===entry.employeeId&&
@@ -286,10 +286,10 @@ async function main(){
     assert.equal(journal.status,200);assert.match(journal.headers.get("cache-control")??"",/\bno-store\b/);
     const [header,...rows]=parseCsv(await journal.text());
     assert.equal(header[9],"Debit");assert.equal(header[10],"Credit");
-    const total=(col:number)=>rows.reduce((n,row)=>n+cents(row[col]||"0"),0n);
+    const total=(col:number)=>rows.reduce((n,row)=>n+cents(row[col]||"0"),BigInt(0));
     assert.equal(total(9),total(10),"GL debits and credits do not balance");
     assert.equal(rows.filter(row=>row[8]==="Cash/Bank")
-      .reduce((n,row)=>n+cents(row[10]||"0")-cents(row[9]||"0"),0n),centsTotal("netPay"));
+      .reduce((n,row)=>n+cents(row[10]||"0")-cents(row[9]||"0"),BigInt(0)),centsTotal("netPay"));
     const hashes:Record<string,string>={};
     for(const form of [{agency:"BIR",form:"1601-C"},{agency:"SSS",form:"R-3"},
       {agency:"PhilHealth",form:"RF-1"},{agency:"Pag-IBIG",form:"MCRF"}]){
