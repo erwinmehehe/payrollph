@@ -3,6 +3,30 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { generateShapeAudit, HEADERS, normalizeDefault } from "../scripts/issue-1031-source-shape-audit.mjs";
 
+// The pinned October 17 CSVs are historical evidence and must NEVER be
+// rewritten to fit a later main. Merged #1210 changed the schema.ts file
+// checksum without changing this historical <=0132 parsed table cohort.
+// Permit only the two explicitly reviewed digest values, while preserving an
+// exact byte-for-byte comparison of every other CSV field and row. A later
+// schema change must fail until independently re-attested.
+const PINNED_HISTORICAL_SCHEMA_SHA = "72c465c62e99aa9ce0271d700cc526f408216b068c6d8b0fd1864c84201bd3cf";
+const REVIEWED_MAIN_1210_SCHEMA_SHA = "83a6ea5ac2e8ac401ab1cda2f25b3c8d06fb35a54eb731d7fdd8c54684013f5c";
+function assertCurrentShapeEqualsPinnedHistoricalExceptReviewedSchemaHash(report, snapshotPath) {
+  const frozen = readFileSync(new URL(snapshotPath, import.meta.url), "utf8");
+  assert.ok(frozen.includes('"' + PINNED_HISTORICAL_SCHEMA_SHA + '"'),
+    "historical artifact must retain its original schema checksum");
+  assert.ok(report.rows.length > 0);
+  assert.ok(report.rows.every(row => row.source_schema_sha256 === REVIEWED_MAIN_1210_SCHEMA_SHA),
+    "new schema.ts content requires fresh independent source-shape attestation");
+  assert.equal(
+    report.csv.replaceAll('"' + REVIEWED_MAIN_1210_SCHEMA_SHA + '"',
+      '"' + PINNED_HISTORICAL_SCHEMA_SHA + '"'),
+    frozen,
+    "only the explicitly pinned #1210 whole-file schema digest may differ from frozen historical evidence",
+  );
+}
+
+
 test("source-only 100-row evidence is reproducible and receipts stay completely blank", () => {
   const report = generateShapeAudit();
   assert.equal(report.sourceOnly, true);
@@ -22,10 +46,9 @@ test("source-only 100-row evidence is reproducible and receipts stay completely 
   assert.equal(report.csv.split("\n").length, 102);
   // A later forward-only repair MUST NOT rewrite the pinned 0132-era
   // evidence simply because the live source worksheet grows to 0134.
-  assert.equal(report.csv, readFileSync(
-    new URL("../docs/engineering/issue-1031-20261017-named-shape-analysis-partial.csv", import.meta.url),
-    "utf8",
-  ));
+  assertCurrentShapeEqualsPinnedHistoricalExceptReviewedSchemaHash(
+    report, "../docs/engineering/issue-1031-20261017-named-shape-analysis-partial.csv",
+  );
   assert.deepEqual(HEADERS.slice(-6), [
     "receipt_found","receipt_source","applied_at","applied_by",
     "checksum_matches_receipt","disposition",
@@ -55,10 +78,9 @@ test("new 0134 recovery candidates never pollute the pinned historical 0132 anal
       "historical creator metadata cannot inherit later forward-repair SQL");
   }
   const all = generateShapeAudit("all_numbered");
-  assert.equal(all.csv, readFileSync(
-    new URL("../docs/engineering/issue-1031-all-numbered-creator-shape-analysis.csv", import.meta.url),
-    "utf8",
-  ));
+  assertCurrentShapeEqualsPinnedHistoricalExceptReviewedSchemaHash(
+    all, "../docs/engineering/issue-1031-all-numbered-creator-shape-analysis.csv",
+  );
 });
 
 test("ten manually reviewed static creators retain exact requested functional shape", () => {
