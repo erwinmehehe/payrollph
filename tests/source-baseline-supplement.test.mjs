@@ -81,3 +81,35 @@ test("the scanner ignores objects that a later migration drops or renames", () =
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("unnamed column CHECKs are detected, including ADD COLUMN, and the supplement restores them", async () => {
+  const { unnamedColumnChecks } = await import("../scripts/lib/migration-only-objects.mjs");
+  const dir = mkdtempSync(join(tmpdir(), "unnamed-checks-"));
+  try {
+    writeFileSync(join(dir, "0001_a.sql"), [
+      "CREATE TABLE t (",
+      "  id serial PRIMARY KEY,",
+      "  status varchar(16) NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed')),",
+      "  named integer CONSTRAINT t_named_check CHECK (named > 0),",
+      "  CONSTRAINT t_table_check CHECK (id > 0)",
+      ");",
+      "ALTER TABLE t ADD COLUMN IF NOT EXISTS rating integer CHECK (rating BETWEEN 1 AND 5);",
+    ].join("\n"));
+    const found = unnamedColumnChecks(dir).map((c) => `${c.table}.${c.name}`).sort();
+    assert.deepEqual(found, ["t.rating", "t.status"], "named constraints are left to the named-object scan");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  const sql = read(SUPPLEMENT);
+  for (const name of ["leave_request_interval_sets_status_check", "hcm_employment_terms_status_check",
+    "saas_billing_checkouts_amount_cents_check", "first_payroll_journey_progress_step_check"]) {
+    assert.ok(sql.includes(`"${name}"`), name);
+  }
+});
+
+test("the read-only schema checks accept the 0133 v2 append-only trigger", () => {
+  // core-schema-readonly accepts the complete v1 or canonical v2 guard set (#1210).
+  assert.match(read("src/lib/core-schema-readonly.ts"), /audit_events_protect_v2\(\)/);
+  assert.match(read("scripts/check-production-schema-preflight.ts"),
+    /tgfoid IN \(to_regprocedure\('public\.audit_events_protect\(\)'\), to_regprocedure\('public\.audit_events_protect_v2\(\)'\)\)/);
+});
