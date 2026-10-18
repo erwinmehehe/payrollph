@@ -21,7 +21,7 @@ import {
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { denyOptInEnterpriseAdvancedPlan } from "@/lib/enterprise-advanced-plan-server";
-import { assertOrganizationRole, assertScope, getAccess, PAYROLL_RELEASE_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertScope, COMPENSATION_MANAGER_ROLES, getAccess, PAYROLL_RELEASE_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { runAutomationEventSafely } from "@/lib/automation";
 import {
@@ -49,7 +49,6 @@ import { compensationEvidenceFromDefinition, compensationReviewFingerprint, free
 
 export const dynamic = "force-dynamic";
 
-const COMPENSATION_MANAGER_ROLES = ["owner", "admin", "hr"] as const;
 const COMPONENT_KINDS = ["allowance", "stipend", "recurring_bonus", "other_cash"] as const;
 const COMPONENT_FREQUENCIES = ["monthly", "per_cutoff"] as const;
 
@@ -384,7 +383,7 @@ export async function GET(request: Request) {
 
   return Response.json({
     access,
-    advancedConfigurationAllowed: advancedConfigurationDenied === null,
+    advancedConfigurationAllowed: access.companyWide && advancedConfigurationDenied === null,
     currentUserId: user.id,
     today,
     employees: enrichedEmployees.map((employee) => ({
