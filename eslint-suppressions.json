@@ -19,17 +19,7 @@
       "count": 1
     }
   },
-  "src/components/self-service-portal.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/workforce-planning-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/workspace/bookkeeper-payroll-close.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
@@ -40,16 +30,6 @@
     }
   },
   "src/components/workspace/panels.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/workspace/payroll-month-close-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/workspace/payroll-run.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }

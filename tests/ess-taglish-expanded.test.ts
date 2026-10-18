@@ -74,7 +74,15 @@ test("Web Bundy remains English by default, keeps clock API actions and Philippi
 
 test("every expanded ESS screen receives the chosen language through props without API changes", () => {
   const source = readFileSync("src/components/self-service-portal.tsx", "utf8");
-  assert.match(source, /useState<EssLanguage>\("en"\)/);
+  // Language state is no longer copied from localStorage in an effect.
+  // The SSR snapshot remains English, and the selected language still
+  // flows to every existing nested screen without changing API values.
+  assert.match(source, /useSyncExternalStore\(subscribeEssLanguage, getEssLanguageSnapshot, getEssLanguageServerSnapshot\)/);
+  assert.match(source, /const language = sessionLanguage \?\? storedLanguage;/);
+  const preferences = readFileSync("src/lib/ess-language-preference-store.ts", "utf8");
+  assert.match(preferences, /export function getEssLanguageServerSnapshot\(\): EssLanguage/);
+  assert.match(preferences, /return "en";/);
+  assert.match(source, /setSessionLanguage\(persistEssLanguage\(next\) \? null : next\)/);
   assert.match(source, /<option value="en">English<\/option>/);
   assert.match(source, /<option value="fil">Taglish<\/option>/);
   assert.match(source, /<EmployeeTakeHomeEstimator language=\{language\} \/>/);

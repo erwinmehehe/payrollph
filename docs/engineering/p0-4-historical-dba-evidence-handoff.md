@@ -118,3 +118,7 @@ tracked in #907; incident availability review remains #899.
 
 **Do not run `db:push` or historical numbered files against
 production. No bank account modification or payout is authorized.**
+
+## Issue #1198 repository-owned migration forensics
+
+The dated read-only findings, evidence classification and next authorized DBA steps live in [issue-1198-migration-forensics-20261017.md](issue-1198-migration-forensics-20261017.md). The matching [catalog-only SQL worksheet](issue-1198-catalog-only-inspection.sql) is **review-only** and never runs in CI or against production by default; the offline source guard is `tests/issue-1198-migration-forensics.test.mjs` in the existing historical DBA evidence PR workflow. Use the existing protected role/target verification workflows instead of executing the worksheet with `neondb_owner` or the overprivileged `payrollph_schema_auditor`. Historical migrations remain **UNPROVEN** until authentic target-specific execution receipts are recovered; no journal backfill or production SQL is authorized by this documentation.

@@ -61,6 +61,9 @@ export async function prepareInitialPayoutBatch(input: {
       .where(and(
         eq(auditEvents.organizationId, input.organizationId),
         inArray(auditEvents.action, [
+          "Payroll payout submission initiated via PayMongo",
+          "Payroll payout retry submission initiated via PayMongo",
+          "Payroll payout retry outcome unknown",
           "Payroll payout submitted via PayMongo",
           "Payroll payout retry submitted via PayMongo",
           "Payroll payout completed via PayMongo",
