@@ -181,11 +181,20 @@ export const HEADERS=[
 export function generateShapeAudit(cohort = "dated_named") {
   if(!["dated_named","all_numbered"].includes(cohort))throw Error("UNKNOWN_SOURCE_COHORT");
   const schemaText=read("src/db/schema.ts"),model=getManifest(),worksheet=generateSourceWorksheet();
-  const cross=new Map(worksheet.tableRows.map(x=>[x.schema_table,x]));
+  // The active worksheet tracks new forward candidates (0133, 0134, ...),
+  // but this historical shape report is locked to the <=0132 source cohort.
+  // Never compare later repair creators against a truncated parseFiles()
+  // inventory: doing so produces false partial-state/creator mismatches.
+  const pinnedCreators = value => String(value ?? "").split(" | ")
+    .filter(path => /^drizzle\/[0-9]{4}_[a-z0-9_-]+\.sql$/.test(path))
+    .filter(path => Number(path.slice(8, 12)) <= HISTORICAL_SOURCE_MAX_PREFIX);
+  const cross=new Map(worksheet.tableRows.map(row => [row.schema_table, {
+    ...row, numbered_files_creating_table:pinnedCreators(row.numbered_files_creating_table).join(" | "),
+  }]));
   const files=parseFiles();
   const scope=cohort==="dated_named"
     ? namedCatalog().filter(n=>cross.get(n)?.numbered_files_creating_table)
-    : worksheet.tableRows.filter(r=>r.numbered_files_creating_table).map(r=>r.schema_table);
+    : [...cross.values()].filter(r=>r.numbered_files_creating_table).map(r=>r.schema_table);
   if(cohort==="dated_named" && scope.length!==100)
     throw Error("EXPECTED_DATED_100_TABLE_SCOPE_"+scope.length);
   if(cohort==="all_numbered" && (scope.length<187||scope.length>271))
