@@ -93,7 +93,10 @@ test("workforce planning isolates employer-scoped budgets and retries without ef
   assert.ok(loader.includes("if (revision !== loadRevisionRef.current) return;"));
   assert.ok(source.includes("loadRevisionRef.current += 1;"), "unmount must invalidate unfinished reads");
   assert.ok(source.includes("setLoadedOrganizationId(null);"));
-  assert.ok(source.includes("const refresh = () => {"));
+  assert.ok(source.includes("const reload = () => {"));
+  assert.ok(source.includes("const refresh = () => { void reload(); };"));
+  assert.ok(source.includes("await reload();"), "writes must re-enter the blocking loader");
+  assert.ok(!source.includes("await load();"), "mutations must not bypass explicit loading");
   assert.ok(source.includes("onClick={refresh} disabled={loading}>Retry"));
   assert.ok(source.includes("onClick={refresh} disabled={loading}><RefreshCw"));
   assert.ok(source.includes("setLoadError(null);\n      setLoadedOrganizationId(organizationId);"),
