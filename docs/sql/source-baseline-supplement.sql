@@ -859,3 +859,64 @@ ALTER TABLE "first_payroll_journey_progress" ADD CONSTRAINT "first_payroll_journ
 
 -- 0120_wfm_punch_evidence.sql: constraint:workforce_punch_submissions_flags_check (unnamed column CHECK in the source; PostgreSQL-generated name)
 ALTER TABLE "workforce_punch_submissions" ADD CONSTRAINT "workforce_punch_submissions_flags_check" CHECK (jsonb_typeof(flags) = 'array');
+
+-- 0134_wfm_demand_missing_foundation_forward.sql: source-first baseline parity.
+-- The six demand tables are created by Drizzle schema push, but these five
+-- composite UNIQUE indexes and nine employer-bound FKs are migration-only.
+-- Exactly copy the 0134 definitions into an isolated, empty source baseline.
+-- Not permission to apply SQL on Neon or a serving application database.
+-- Ensure the real worksite/job-profile parent pairs are FK-eligible. PK
+-- identity alone is not a sufficient UNIQUE reference for a composite FK.
+-- These indexes may lock existing parents; the 3s timeout fails closed.
+CREATE UNIQUE INDEX wfm_demand_worksites_org_id_fk_unique
+  ON public.worksites(organization_id, id);
+CREATE UNIQUE INDEX wfm_demand_job_profiles_org_id_fk_unique
+  ON public.job_profiles(organization_id, id);
+
+-- Additional tenant-integrity FKs, intentionally stricter than the
+-- historical single-column ID references above. No server-side permission
+-- is broadened; reject cross-organization reference IDs at the DB layer.
+CREATE UNIQUE INDEX wfm_demand_import_org_worksite_id_fk_unique
+  ON public.workforce_demand_import_batches(organization_id,worksite_id,id);
+CREATE UNIQUE INDEX wfm_demand_issued_org_id_fk_unique
+  ON public.workforce_demand_forecast_issues(organization_id,id);
+CREATE UNIQUE INDEX wfm_demand_policy_org_id_fk_unique
+  ON public.workforce_demand_staffing_policies(organization_id,id);
+
+ALTER TABLE public.workforce_demand_import_batches
+  ADD CONSTRAINT wfm_demand_import_worksite_tenant_fk
+  FOREIGN KEY(organization_id,worksite_id)
+  REFERENCES public.worksites(organization_id,id) ON DELETE CASCADE;
+ALTER TABLE public.workforce_demand_observation_revisions
+  ADD CONSTRAINT wfm_demand_revision_worksite_tenant_fk
+  FOREIGN KEY(organization_id,worksite_id)
+  REFERENCES public.worksites(organization_id,id) ON DELETE CASCADE,
+  ADD CONSTRAINT wfm_demand_revision_batch_tenant_fk
+  FOREIGN KEY(organization_id,worksite_id,import_batch_id)
+  REFERENCES public.workforce_demand_import_batches(organization_id,worksite_id,id)
+  ON DELETE RESTRICT;
+ALTER TABLE public.workforce_demand_forecast_issues
+  ADD CONSTRAINT wfm_demand_issued_worksite_tenant_fk
+  FOREIGN KEY(organization_id,worksite_id)
+  REFERENCES public.worksites(organization_id,id) ON DELETE CASCADE;
+ALTER TABLE public.workforce_demand_forecast_scores
+  ADD CONSTRAINT wfm_demand_score_issue_tenant_fk
+  FOREIGN KEY(organization_id,issue_id)
+  REFERENCES public.workforce_demand_forecast_issues(organization_id,id)
+  ON DELETE RESTRICT;
+ALTER TABLE public.workforce_demand_staffing_policies
+  ADD CONSTRAINT wfm_demand_policy_worksite_tenant_fk
+  FOREIGN KEY(organization_id,worksite_id)
+  REFERENCES public.worksites(organization_id,id) ON DELETE RESTRICT,
+  ADD CONSTRAINT wfm_demand_policy_job_tenant_fk
+  FOREIGN KEY(organization_id,job_profile_id)
+  REFERENCES public.job_profiles(organization_id,id) ON DELETE RESTRICT;
+ALTER TABLE public.workforce_demand_staffing_policy_events
+  ADD CONSTRAINT wfm_demand_event_policy_tenant_fk
+  FOREIGN KEY(organization_id,policy_id)
+  REFERENCES public.workforce_demand_staffing_policies(organization_id,id)
+  ON DELETE RESTRICT,
+  ADD CONSTRAINT wfm_demand_event_prior_policy_tenant_fk
+  FOREIGN KEY(organization_id,prior_policy_id)
+  REFERENCES public.workforce_demand_staffing_policies(organization_id,id)
+  ON DELETE RESTRICT;
