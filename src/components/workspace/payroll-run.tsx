@@ -23,7 +23,7 @@ import { EntityBadge } from "./multi-entity-ui";
 import { PayrollConnectedImpactPanel } from "./payroll-connected-impact-panel";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
-import { visiblePayrollReleaseChecklist, type ObservedPayrollReleaseChecklist } from "@/lib/payroll-release-checklist-visibility";
+import { visiblePayrollReleaseChecklist, type ObservedPayrollReleaseChecklist, type PayrollReleaseChecklistScope } from "@/lib/payroll-release-checklist-visibility";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
@@ -96,7 +96,7 @@ export function PayrollRunView({
   const [expanded, setExpanded] = useState<number | null>(null);
   const [explainEmployeeId, setExplainEmployeeId] = useState<number | null>(null);
   const [onlyExceptions, setOnlyExceptions] = useState(false);
-  const [confirmRelease, setConfirmRelease] = useState(false);
+  const [confirmReleaseForScope, setConfirmReleaseForScope] = useState<PayrollReleaseChecklistScope | null>(null);
   const [exportsOpen, setExportsOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewApprovers, setReviewApprovers] = useState<Array<{ id: number; name: string; email: string; role: string }>>([]);
@@ -170,6 +170,8 @@ export function PayrollRunView({
   // Never display a checklist captured for a different run, employer, or
   // dashboard approval snapshot while the current read is in flight.
   const releaseChecklist = visiblePayrollReleaseChecklist(checklistScope, checklistObservation);
+  // Confirmation is invalidated immediately when employer, run or approval snapshot changes.
+  const confirmRelease = confirmReleaseForScope === checklistScope && releaseChecklist !== null;
 
   useEffect(() => {
     if (!runId) return;
@@ -319,9 +321,10 @@ export function PayrollRunView({
       ? 100
       : 0;
   const stage = currentStage(run, relatedTask);
-  const hardChecklistBlocked = releaseChecklist?.items.some(
+  // An absent/in-flight checklist is not permission to open a release dialog.
+  const hardChecklistBlocked = !releaseChecklist || releaseChecklist.items.some(
     (item) => item.blocking && !item.passed && !item.acknowledgeable,
-  ) ?? false;
+  );
   const checklistAcknowledgementNeeded = releaseChecklist?.items.some(
     (item) => item.blocking && !item.passed && item.acknowledgeable,
   ) ?? false;
@@ -546,7 +549,7 @@ export function PayrollRunView({
           checklist={releaseChecklist?.items ?? null}
           relatedTask={relatedTask}
           busy={busy}
-          onRelease={() => setConfirmRelease(true)}
+          onRelease={() => setConfirmReleaseForScope(checklistScope)}
           onPage={onPage}
           onInspectPayroll={() => {
             document.getElementById("payroll-assurance")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -905,7 +908,7 @@ export function PayrollRunView({
                       Released
                     </span>
                   ) : (
-                    <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || hardChecklistBlocked} onClick={() => setConfirmRelease(true)}>
+                    <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || hardChecklistBlocked} onClick={() => setConfirmReleaseForScope(checklistScope)}>
                       <Send size={14} className="i-pink" /> Release
                     </button>
                   )
@@ -1114,18 +1117,18 @@ export function PayrollRunView({
           exceptions={exceptionRows.length || run.exceptions}
           checklist={releaseChecklist?.items ?? []}
           busy={busy}
-          onClose={() => setConfirmRelease(false)}
+          onClose={() => setConfirmReleaseForScope(null)}
           onConfirm={async (acknowledge) => {
             const result = await onRelease(run.id, acknowledge);
             if (result.receipt) {
               setReleaseReceipt(result.receipt);
               setReleaseFailure(null);
-              setConfirmRelease(false);
+              setConfirmReleaseForScope(null);
               return;
             }
             if (result.error) {
               setReleaseFailure({ runId: run.id, error: result.error });
-              setConfirmRelease(false);
+              setConfirmReleaseForScope(null);
             }
           }}
         />
