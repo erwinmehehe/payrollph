@@ -19,7 +19,7 @@ test("overlapping employment-term activations apply the change exactly once", as
       avatarInitials: "OW", basicRate: "30000.00", startDate: "2025-01-01", employmentType: "probationary",
     }).returning();
     const [prior] = await db.insert(hcmEmploymentTerms).values({
-      organizationId: org.id, employeeId: employee.id, employmentType: "probationary", termKind: "probation",
+      organizationId: org.id, employeeId: employee.id, employmentType: "probationary", termKind: "probationary",
       effectiveFrom: "2025-01-01", status: "active", reason: "Initial probation", requestedBy: "CI",
     }).returning();
     const [next] = await db.insert(hcmEmploymentTerms).values({
@@ -46,7 +46,13 @@ test("overlapping employment-term activations apply the change exactly once", as
     const settled = await workers;
     assert.ok(settled.some((r) => r.status === "fulfilled"), "one worker activates the term");
     // Losers may fail, but only with a clean rejection (their whole transaction rolls back).
-    for (const r of settled) if (r.status === "rejected") assert.match(String(r.reason), /changed before activation|Only scheduled/);
+    // With hcm_employment_terms_valid_range installed, a stale loser trips the CHECK
+    // when it tries to end the just-activated term before it starts (SQLSTATE 23514).
+    for (const r of settled) {
+      if (r.status !== "rejected") continue;
+      const cause = (r.reason as { cause?: { code?: string } })?.cause?.code;
+      assert.ok(cause === "23514" || /changed before activation|Only scheduled/.test(String(r.reason)), String(r.reason));
+    }
     // The scheduler job itself must also be a harmless no-op afterwards.
     assert.deepEqual(await runScheduledEmploymentTerms({ actor: "CI overlap", now: new Date() }), []);
 
