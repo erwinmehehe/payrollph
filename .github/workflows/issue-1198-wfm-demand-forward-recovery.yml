@@ -1,0 +1,65 @@
+name: Issue 1198 WFM Demand Recovery (Disposable PG Only)
+
+on:
+  pull_request:
+    paths:
+      - 'drizzle/0134_wfm_demand_missing_foundation_forward.sql'
+      - 'tests/issue-1198-wfm-demand-forward-*.test.mjs'
+      - '.github/workflows/issue-1198-wfm-demand-forward-recovery.yml'
+      - 'scripts/lib/reviewed-migration-runner.mjs'
+      - 'scripts/lib/isolated-migration-target.mjs'
+      - 'scripts/qa/issue-1198-wfm-demand-application-recovery.mjs'
+      - 'tests/workforce-operational-demand-db.test.ts'
+      - 'tests/workforce-issued-demand-db.test.ts'
+      - 'tests/workforce-demand-staffing-policy-db.test.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sql-recovery-rollback-only:
+    name: PG${{ matrix.pg }} 0134 rollback + tenant denial (NO Neon)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: ['16', '18']
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd=pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      CI: 'true'
+      MIGRATION_REHEARSAL_MODE: isolated-ci-only
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/app_db
+      PRODUCTION_DATABASE_URL: ''
+      PRODUCTION_MIGRATION_AUDIT_DATABASE_URL: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Check SHA-pinned reviewed runner and strict migration preflight (source only)
+        run: node --test tests/issue-1198-wfm-demand-forward-source.test.mjs
+      - name: Execute 0134 only on disposable PostgreSQL and ROLLBACK all schema/data
+        run: node --test tests/issue-1198-wfm-demand-forward-postgres.test.mjs
+      - name: Prepare complete disposable app schema (localhost only)
+        run: npm run db:push
+      - name: Simulate incomplete historical WFM demand catalog and apply 0134 (disposable only)
+        run: node scripts/qa/issue-1198-wfm-demand-application-recovery.mjs
+      - name: Exercise real demand import, issued forecast and staffing approval services after 0134
+        run: npx tsx --test --test-concurrency=1 tests/workforce-operational-demand-db.test.ts tests/workforce-issued-demand-db.test.ts tests/workforce-demand-staffing-policy-db.test.ts

@@ -79,6 +79,8 @@ on:
       - "tests/verified-pg18-bootstrap.test.mjs"
       - "drizzle.config.ts"
       - "src/db/schema.ts"
+      # Migration recovery PRs must re-prove the complete two-employer no-money journey.
+      - "drizzle/0134_wfm_demand_missing_foundation_forward.sql"
       - "src/lib/ess-profile-schema.ts"
       - "src/lib/saas-billing-schema.ts"
       - "src/lib/workforce-schedule-receipt-schema.ts"
