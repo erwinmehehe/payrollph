@@ -1,0 +1,144 @@
+# Audit-chain role-isolation verification (#908)
+
+**Status: verification runbook, not a production approval.** Source baseline reviewed: `main@424bde1517e086f7519ba7e401a2312d6228c62c` (2026-10-18). This document performs **no** production query, DDL, GRANT/REVOKE, secret rotation, role switch, feature-flag activation, payroll operation, or migration apply. A synthetic PASS is not a production PASS.
+
+## Source of truth and release boundary
+
+- [#908](https://github.com/erwinmehehe/payrollph/issues/908) is **OPEN / production isolation BLOCKED**. [#1149](https://github.com/erwinmehehe/payrollph/pull/1149) **already merged** the default-off source proof, dedicated sealer dispatcher, restricted-login tests, plan, and review-only trigger candidate. Do not reimplement it.
+- [#1223](https://github.com/erwinmehehe/payrollph/pull/1223) **merged** the numbered, forward-only `drizzle/0133_audit_missing_foundation_forward.sql` source. It was **not applied to production** by its merge. It requires real prerequisite groups, authenticated historical receipts, target checks, and a separate approved operator-run rollout.
+- [#1224](https://github.com/erwinmehehe/payrollph/pull/1224) **merged** the persisted-chain-head verifier: an authenticated check reads a tenant's rows **and** persisted head in one statement snapshot to detect removed sealed tails. It supplies neither missing live objects nor immutable external anchoring.
+- The #908 catalog-only checkpoint on 2026-10-18 reported missing live heads, sealer, v2 triggers, trusted groups, and migration journals on the inspected default `neondb`. It did **not** establish actual active web/worker credentials. A historical encrypted web-identity capture succeeded, but still needs authorized offline decryption, independent review, and freshness/current-deployment reconciliation. Never publish decrypted identities, URLs, grants, private keys, or customer evidence.
+- `docs/engineering/issue908-audit-role-isolation-plan.md` defines the existing operational plan; `docs/sql/issue908-audit-trigger-boundary-REVIEW_ONLY.sql` and `docs/sql/issue908-missing-foundation-REVIEW_ONLY.sql` are **isolated, review-only historical candidates**, **not** permission to execute their SQL on the production target. Do not replay or edit `drizzle/0109_tamper_evident_audit_chain.sql`.
+- This runbook does not close #908 or override #1198/#899 recovery and genuine-migration-receipt blockers, independently accepted restore evidence, employer retention policy, or separate pilot/payout/filing gates.
+
+## What the actual readiness probe proves
+
+`src/lib/audit-chain-protection-readiness.ts` delegates to `executeAuditRoleProof` in `src/lib/audit-role-proof.ts`. A proof passes only when exactly **one** result row is returned and **every selected property is the boolean `true`**; a missing key, string `"true"`, SQL error, zero rows, or multiple rows means **false**. There is no manual readiness override. The query is catalog metadata only, but the surrounding `GET /api/readiness` handler is **not guaranteed read-only**; see the preflight warning below.
+
+`AUDIT_ROLE_ISOLATION_PROOF_ENABLED` is a registered **default-off** critical release flag. Only the literal string `true` selects `STRICT_AUDIT_ROLE_PROOF_SQL`. With the flag unset/false, the original, SHA-256-pinned **eleven-field** `LEGACY_AUDIT_ROLE_PROOF_SQL` remains in effect; passing that weaker proof is **not** strict role isolation acceptance. The strict query retains the eleven result keys below with stronger meanings and adds five more.
+
+### Required strict predicates — exact field names
+
+| Boolean from `STRICT_AUDIT_ROLE_PROOF_SQL` | Testable requirement (strict mode) | If false / missing |
+| --- | --- | --- |
+| `auditTablePresent` | `public.audit_events` exists as an ordinary table (`relkind='r'`). | Foundation missing or wrong object kind; BLOCKED. |
+| `chainHeadsPresent` | `public.audit_chain_heads` exists as an ordinary table. | No authoritative persisted head relation; BLOCKED. |
+| `protectFunctionPresent` | `public.audit_events_protect_v2()` exists and returns `trigger`. | The reviewed v2 mutation guard is not installed; BLOCKED. |
+| `sealerFunctionPresent` | `public.seal_audit_events(integer)` resolves. | No expected sealer entry point; BLOCKED. Existence alone does not prove correct body or privileges. |
+| `hashFunctionPresent` | Exact `public.audit_event_row_hash(text,bigint,integer,integer,text,text,text,jsonb,timestamptz)` signature resolves. | Hash-chain foundation is incomplete; BLOCKED. |
+| `protectionTriggerEnabled` | Non-internal `audit_events_protect_mutation` on audit table invokes the exact v2 function OID, `tgtype=27` (BEFORE UPDATE OR DELETE, ROW), enabled `O`/`A`, no WHEN clause/arguments. | Missing, disabled, mistyped, or spoofed-name trigger; BLOCKED. |
+| `runtimeNotElevated` | Connected `current_user` is `LOGIN`, `NOINHERIT`, and lacks SUPERUSER, CREATEDB, CREATEROLE, REPLICATION, BYPASSRLS. | Unsafe runtime authority/identity; BLOCKED. |
+| `runtimeNotObjectOwner` | Catalog ownership dependencies (`pg_shdepend`, `deptype='o'`) show the runtime role owns no objects. | Owner can restore grants/disable guards even if DML ACLs were revoked; BLOCKED. |
+| `runtimeAuditMutationDenied` | No effective table UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER, no **column** UPDATE/REFERENCES on audit events, and no MAINTAIN on PG17+. Accounts for effective/PUBLIC privileges. | Mutation or integrity-affecting authority, including a column-only grant; BLOCKED. |
+| `runtimeHeadMutationDenied` | No effective head INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER, no column INSERT/UPDATE/REFERENCES, and no MAINTAIN on PG17+. | Caller could forge or rewrite authoritative head evidence; BLOCKED. |
+| `runtimeNoDdlPrivileges` | No database CREATE; no CREATE on any non-system schema; no SET on `session_replication_role`. | New objects, guard replacement, or replication-role bypass remain possible; BLOCKED. |
+| `runtimeNoMembership` (**strict-only**) | `pg_auth_members` has **no** memberships for the runtime role, even NOINHERIT memberships. | Runtime can potentially obtain trusted authority with SET ROLE; BLOCKED. |
+| `runtimeSessionMatches` (**strict-only**) | `current_user = session_user` during proof. | A SET ROLE proof could hide an elevated original login; BLOCKED. |
+| `runtimeNoDefinerAccess` (**strict-only**) | Runtime cannot EXECUTE any accessible non-system SECURITY DEFINER function, including through PUBLIC. | Callable privilege-escalation path exists; BLOCKED. |
+| `chainInsertProtected` (**strict-only**) | `audit_events_insert_guard_v2` trigger uses exact v2 insert-guard function OID, `tgtype=7` (BEFORE INSERT, ROW), enabled `O`/`A`, with no WHEN/args. | An ordinary append could prefill forged `chain_seq`, `prev_hash`, or `row_hash`; BLOCKED. |
+| `truncateProtected` (**strict-only**) | `audit_events_reject_truncate_v2` trigger uses exact truncate-guard function OID, `tgtype=34` (BEFORE TRUNCATE, STATEMENT), enabled `O`/`A`, with no WHEN/args. | TRUNCATE backstop absent or disabled; BLOCKED. |
+
+`tests/audit-role-proof.test.ts` proves flag-off SQL stays byte-for-byte fixed, the strict query is selected only by the exact flag, and **each** predicate fails closed on false/null/missing/nonboolean values. In PG16, MAINTAIN does not exist and the query omits it; PG18 must also reject MAINTAIN.
+
+### Separate credentials and behavioral checks (not reducible to the 16 booleans)
+
+- **App, payroll worker, ordinary scheduler:** actual independent LOGIN sessions must append normal unsealed `audit_events` using Drizzle, but be unable to UPDATE/DELETE/TRUNCATE audit rows, manipulate heads, forge a sealed insert, change triggers, create objects, assume sealer/maintenance roles, alter `session_replication_role`, or delete organizations through an unapproved audit cascade. User-settable `linaw.audit_maintenance=on` or `linaw.audit_sealing=on` **alone never authorizes writes**. Test denial by SQLSTATE `42501` inside rollback-only fixtures.
+- **Dedicated sealer:** `src/lib/audit-sealer-connection.ts` requires a distinct `AUDIT_SEALER_DATABASE_URL` (no fallback to `DATABASE_URL`), same host/port/database as app, different username, no URL startup overrides, and production TLS pinned to verified mode. Check pooled/direct endpoint aliases before rollout. The actual login must be non-elevated, non-owner, NOINHERIT, with exactly one non-admin membership in restricted NOLOGIN/NOINHERIT `payrollph_audit_sealing`, no direct audit DML/head writes, no definer/DDL access. After `BEGIN`, `SET LOCAL ROLE payrollph_audit_sealing` must pass its **own** restricted-group proof: chain-column UPDATE only on audit events, permitted head SELECT/INSERT/UPDATE, no business-column UPDATE, DELETE/TRUNCATE, DDL, privilege escalation, or SECURITY DEFINER access. Successful `seal_audit_events($1)` returns one bounded integer (1–10,000 input max); unexpected result or DB error rolls back, closes connection, and emits only `AUDIT_SEALER_BOUNDARY_NOT_READY`.
+- **Approved maintenance:** a trusted separate non-login `payrollph_audit_maintenance` membership **and** explicit transaction-local `linaw.audit_maintenance` hint are required together. Neither must be inherited by app/worker/sealer. Authorized retention must be separately policy-reviewed and receipted; even maintenance cannot TRUNCATE. A permission hint is **not** a security principal.
+- **DBA and auditor:** catalog-only auditors must have restricted genuine read permissions, **not** application/payroll SELECT, ownership, membership, DDL, or elevated attributes. The separate `catalog-auditor-privilege-acceptance.yml` checks this on disposable PG16/18; an existing elevated production auditor remains a blocker. Migration writers operate only in the protected reviewed release path, not as deployed request/worker credentials.
+
+`tests/audit-role-isolation-postgres.test.mjs` covers real app/worker/sealer/maintenance logins, strict PASS for both app and worker, real Drizzle append, old column-grant/GUC false PASS reproduction under legacy 0109, alternate object-owner escalation, PUBLIC/column grants, SET ROLE/membership, RLS/DDL/replication settings, SECURITY DEFINER, exact trigger function substitution, missing insert/truncate guards, failed sealer rollback, and organization cascade denial. `tests/helpers/audit-forward-migration.mjs` exercises the merged 0133 candidate on **disposable** PG only with atomic rollback, source target/partial-shape refusal, preserved synthetic data, separate-role sealing and forged-hint denial. These tests **cannot** attest production role mappings.
+
+## Reproduce the existing acceptance locally — disposable PostgreSQL 16/18 only
+
+**Never point any of these commands at Neon, Vercel, a shared dev DB, an existing application DB, or real employer data.** Use an independently created, throwaway PostgreSQL service bound to loopback, with no production secrets, and discard the service after each matrix cell. The real-login test **refuses** if `neondb` has any public app objects or any pre-existing `qa908_*` / trusted group roles. It does create fictional roles/rows **in the isolated container**. Do not bypass those preflights. Node 22 and `npm ci` are used in the checked-in workflow.
+
+### Source-only/unit acceptance, no PostgreSQL
+
+```bash
+npm ci
+npx tsx --test tests/audit-role-proof.test.ts tests/audit-sealer-connection.test.ts
+node --test tests/audit-runtime-identity.test.mjs
+node scripts/audit-runtime-schema-writers.mjs src
+```
+
+The last command is a **static TS/JS source inventory**, not a role/protection test: `scripts/audit-runtime-schema-writers.mjs` identifies runtime DDL, opportunistic backfills, and visibly early read-only exits. Its `--strict` form exits nonzero for unguarded findings but **does not certify** that all request/runtime writers are retired or that production grants are safe. Triage findings separately; do not declare audit isolation PASS from the source scan.
+
+### Real-login PG16 and PG18: four fresh, fictional service runs
+
+Start a **fresh** container for *each* of the four cells below, on a workstation where loopback TCP 5432 is free. The following is POSIX-shell/Docker syntax (for Docker Desktop use a POSIX shell). Never reuse the container between cells: the suite creates non-temporary fictional objects and role identities.
+
+```bash
+docker run --rm --name payrollph-issue908-only \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=neondb \
+  -p 127.0.0.1:5432:5432 postgres:16
+```
+
+In a **second** terminal, when that newly created service is healthy, run:
+
+```bash
+env CI=true GITHUB_ACTIONS=true TZ=Asia/Manila \
+  ISSUE908_ACCEPTANCE_MODE=isolated-ci-only \
+  ISSUE908_FOUNDATION_CANDIDATE=false \
+  DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/neondb \
+  PAYMONGO_DISBURSEMENTS_ENABLED=false XENDIT_PAYOUTS_ENABLED=false \
+  node --import tsx --test tests/audit-role-isolation-postgres.test.mjs
+```
+
+Then **stop and discard** that container. Repeat on a **new** empty container with `ISSUE908_FOUNDATION_CANDIDATE=true` (legacy-0109 versus forward-candidate foundation), and repeat both modes with the Docker image `postgres:18`. The CI-emulation variables here satisfy the suite's guard **only for an owned disposable container**; they are not proof of GitHub hosting, production identity, or production safety. If the process sees an unexpected target, PG version, existing objects, fixture role, or enabled payout setting, stop; do **not** weaken the test.
+
+The checked-in `isolated-local-only` branch is **Windows-specific**, uses loopback port pattern `54xxx` (default 54908), requires a canonical dedicated `../../../outputs/issue908-*/data` PostgreSQL data directory, its exact `ISSUE908_SYNTHETIC_ONLY` marker, and an actual matching `data_directory`. Do not claim it works on Linux/macOS or improvise a production connection; the container/CI-equivalent path above is the portable reproduction.
+
+**Expected behavior:** the suite rejects the old maintenance GUC/column-grant bypass under strict mode, still permits normal unsealed app/worker append, refuses direct audit/head mutations and forged inserts with `42501`, refuses tampered grants/roles/trigger state, proves separated sealer operation, and rolls back the deliberately failing transaction with the original fictional row intact. Any unexpected success, skip, missing matrix cell, or errored test is **FAIL/BLOCKED**. Synthetic approval is **never** a live privilege attestation.
+
+### Workflow mapping and what each adds
+
+| Workflow / script | Verified execution and failure interpretation |
+| --- | --- |
+| [`audit-role-isolation-acceptance.yml`](../../.github/workflows/audit-role-isolation-acceptance.yml) | Four GitHub matrix cells: PG16/18 × `legacy-0109`/`forward-candidate`, local-only `127.0.0.1:5432/neondb`, flag `ISSUE908_ACCEPTANCE_MODE=isolated-ci-only`, no payouts. Runs the two pure TS suites and real-login `tests/audit-role-isolation-postgres.test.mjs`. Any failed cell/no fresh evidence blocks release; source-only success is not live proof. |
+| [`audit-runtime-identity.yml`](../../.github/workflows/audit-runtime-identity.yml) | **Manual main-only, production-environment-protected** metadata GET to existing private `/api/readiness/database-target`; returns **ciphertext only** (one-day artifact), with pinned deployment SHA/target and authenticated token. Independently approved recipient decrypts offline to the restricted vault. Identifies **one historical web DB session**, not worker/sealer role grants. Run only under approved human controls; do not re-dispatch merely to obtain a green badge. |
+| [`catalog-auditor-privilege-acceptance.yml`](../../.github/workflows/catalog-auditor-privilege-acceptance.yml) | Separate synthetic PG16/18 restricted-login check using `CATALOG_AUDITOR_ACCEPTANCE_MODE=isolated-postgres-only` at fictional loopback `neondb` plus source contract tests. Tests journal SELECT requirements and denies column/PUBLIC/owned/inherited/unwanted data access; **not** runtime app/sealer proof. |
+| [`audit-0109-pg16-acceptance.yml`](../../.github/workflows/audit-0109-pg16-acceptance.yml) | **Different disposable** PostgreSQL 16 `127.0.0.1:5432/app_db`: synthetic `npm run db:push`, isolated legacy 0109 apply, audit/WFM regression, 4 shards, golden suites. This is compatibility/legacy behavior evidence only. **Never** run `db:push` on a real, shared, Neon, or production database. |
+| `scripts/audit-runtime-schema-writers.mjs` | Read-only source AST scan only; marks literal runtime DDL, backfill, dynamic-query candidates and guarded early exits. An early exit is **not** migration execution evidence, true DB privilege restriction, or proof of GET safety. |
+
+## Remediation authority: reviewed, ordered migrations only
+
+**No ad-hoc production SQL.** Do not run manual `GRANT`, `REVOKE`, `ALTER ROLE`, `CREATE ROLE`, trigger modifications, `db:push`, historical 0109 replay, journal backfills, or bare `psql -f` against the deployed target. A catalog inspection result is not a migration receipt. The source-merged 0133 SQL has a strict target and precondition guard; an absent trusted group is **not** permission to remove that guard.
+
+1. An independent DBA/security owner confirms true deployment/worker/sealer/DBA identities, active secret scopes, actual privilege inheritance/ownership/DDL, backup/restore ability, real employer retention/cascade policy, and genuine migration history/recovery (#1198/#899). Maintain detailed mappings and approval refs **privately**.
+2. Provisioning of trusted `payrollph_audit_sealing` and `payrollph_audit_maintenance` **NOLOGIN/NOINHERIT** groups, dedicated restricted logins, and the **role-specific** permission delta requires its **own separately reviewed, uniquely numbered, forward-only SQL package** and independent authorization; #1149 and 0133 do not create/provision them. Follow the existing plan, not blanket revokes.
+3. Preserve exact hashes, target identity, prerequisite role/grant results, historical cutover receipts, and SQL ordering in an independently reviewed release proposal. `node scripts/run-reviewed-migration.mjs --manifest --through 0132` can inventory **source only**, with no DB connection or applied-status claim.
+4. Use **`scripts/run-reviewed-migration.mjs --plan --file <reviewed-numbered-sql> --sha256 <approved-hash>`** only through a protected, exact-`main` GitHub release job with a pinned target and restricted DBA access. Its `--plan` runs in a PostgreSQL **READ ONLY** transaction. It refuses missing journals, unapproved historical cutover, source/hash mismatch or unsafe order.
+5. Only after distinct DBA/security/release-manager approval of the **exact** current SHA, plan result, migration/role changes, backup and rollback controls may an authorized human submit a separate protected `--apply` through that **same runner**. `--apply` is **write-capable** and is **not authorized by this runbook or documentation PR**. A failed apply rolls back; do not fabricate receipts or weaken the guard to force it green.
+6. Credential cutover is a **separate approved operational change**, with paused jobs/drained pools, verified replacement restricted sessions, and a rollback plan. Never restore privileged app-owner credentials as a short-cut. Keep payments, filing, and pilot activation OFF.
+
+## Human-performed production verification sequence (future, not executed here)
+
+Record a private dated evidence bundle with exact deployed code and SQL SHA, approved SQL receipts, reviewer IDs, environment/endpoint identity, test results, and final PASS/BLOCKED/FAIL. Publish only redacted disposition and issue references. **Do not** proceed on an unapproved/currently drifted target.
+
+1. **Operator controls:** confirm independent protected GitHub production-environment approval, authorized evidence key holder, restricted DBA role, verified deploy SHA, explicit prod/preview/worker/sealer secret mapping, and provenance of the exact pinned DB branch/endpoint/database. Recover/decrypt **existing** encrypted identity evidence offline if valid; do not leak names or assume a past capture proves today's serving deployment. Independently attest live worker and sealer connections.
+2. **Pre-repair catalog evidence:** use read-only catalog/permission queries under the actual restricted identities with `BEGIN READ ONLY`, rollback, no customer rows, and sanitization. Privately verify the **sixteen strict predicates** for every ordinary app/worker/scheduler session, actual trusted group properties, and the dedicated sealer's login/group proof. Existing missing objects/grants/migration journals mean **BLOCKED**, not an invitation to improvise repairs.
+3. **Provenance and acceptance:** reconcile signed source/checksums with authentic journal receipts, #899/#1198 recovery and accepted backup, forward-only 0133 and separately reviewed role SQL. Execute PG16/18 four-cell synthetic matrix and independent production-equivalent restricted-login **negative tests on protected disposable staging** (including spoofed GUCs, accidental grants, owner/DDL attempts, insert/truncate guards, cascading deletes, head integrity, failed sealing rollback). Check persisted head/tail verification added by #1224. Retain before/after synthetic row hashes; no real employer mutation.
+4. **Approved cutover only:** authorized owners, **not this doc**, may use the protected exact-main reviewed PLAN then separately approved APPLY/role/grant/credential workflow described above, with real receipts and rollback readiness. Verify audit append is still possible via the actual restricted app/worker sessions; dedicated sealer may seal but not rewrite business fields. Check independently that a failed seal rolls back and that both the runtime and auditor cannot acquire DDL/maintenance privileges. No live tampering or artificial production audit-row edits are needed: use staging negative tests and live metadata-only checks.
+5. **Explicit strict mode:** after approvals and checked deployment configuration, an authorized operator may enable `AUDIT_ROLE_ISOLATION_PROOF_ENABLED=true` for the serving deployment and verify the exact deployed SHA, actual app/worker/session role bindings, same target for dedicated sealer, verified TLS, and no app-login fallback. Re-run strict metadata probes on the **real** connections. If any boolean is false, flag is off, or role mapping is uncertain: **BLOCKED**, no waiver.
+6. **Critical GET-side-effect preflight:** `src/app/api/readiness/route.ts` calls `buildReadinessPayload()`, which **first** calls `ensureCoreCompatibilitySchema()`. At this audited main SHA, `CORE_SCHEMA_COMPATIBILITY_MODE` defaults to `legacy` and may attempt request-time DDL/backfills; the audit probe itself is read-only but **the GET handler is not unconditionally read-only**. **Do not invoke production GET** until the deployed cutover is independently confirmed **read-only/no runtime DDL**, the core catalog preflight's approved structure exists, and ordinary app/worker credentials lack DDL. See separately scoped [#1210](https://github.com/erwinmehehe/payrollph/pull/1210); its source PR is **not** a license to deploy or bypass #1198. A 5xx/core preflight failure is **BLOCKED**.
+7. **Final independent witness:** once steps 1–6 are complete and the GET is proven non-mutating, a human authorized for the private operational endpoint performs **`GET /api/readiness`** against the verified deployed HTTPS origin with the existing protected `x-readiness-token` header (or approved `x-worker-token` fallback), never sharing the token/response publicly. HTTP 404 means unavailable secret, 401 means wrong secret, and 5xx means blocked/error. Confirm HTTP 200 and the exact entry in `gates`:
+   ```json
+   {"key":"audit-chain-protection","ready":true,"blocks":"none"}
+   ```
+   Confirm that the response belongs to the verified deployment/role and was independently witnessed. This is **only this gate**: `status: "launch-ready"` and closure of #908 require **all other independent** launch/DBA controls; a single gate `ready:true` is not an employer-pilot authorization.
+
+**#908 closure decision:** It **could not have closed merely on #1149**, or before the required #1223 forward-source and #1224 persisted-head controls. **Both #1223 and #1224 are now merged, but source merge is not deployment.** As of this review, actual production role separation, trusted groups, accepted migration receipts/0133 APPLY, fresh worker/sealer binding and operator-witnessed strict readiness are **not demonstrated**. Therefore **#908 must remain OPEN** until the independent human-run proof and evidence above exist. Even then, closure does **not** activate payroll, payouts, agency filings, or other separate readiness gates.
+
+## Residual probe gap — propose a *separate*, small code PR (not part of this doc)
+
+The strict metadata probe verifies **trigger function OIDs, trigger types, enablement, and names**, but does **not** pin or attest the **body/semantics** of `audit_events_protect_v2()`, `audit_events_insert_guard_v2()`, `audit_events_reject_truncate_v2()`, or `seal_audit_events(integer)`. A privileged actor could `CREATE OR REPLACE FUNCTION` a no-op retaining the same function OID; the catalog booleans could still appear true. Existing PG16/18 real-login tests exercise behavior and a *different-function-OID* spoof, but are not a checksum of the deployed function definitions. The persisted-head verifier likewise cannot defeat a high-privilege actor rewriting **both** rows and head.
+
+**Separate follow-up proposal:** a tightly scoped `test/security` PR that (1) demonstrates same-OID, replaced-function-body false PASS on a disposable, rollback-only PG16/18 fixture; (2) adds a reviewed, versioned `pg_get_functiondef`/definition-semantic attestation to the strict proof or independent production DBA contract without weakening existing booleans, preserving legacy flag-off hash and no production SQL changes; (3) tests benign formatting/PG version variation; and (4) keeps release fail-closed on unknown definitions. Obtain DBA/security review before deciding whether catalog hashing or separately attested behavior is the supported control. **Do not bundle that source change into this documentation PR.**
+
+## Evidence/reference index
+
+- Code: `src/lib/audit-role-proof.ts`; `src/lib/audit-sealer-connection.ts`; `src/lib/audit-chain-protection-readiness.ts`; `src/lib/critical-release-flags.ts`; `src/lib/operational-readiness.ts`; `src/app/api/readiness/route.ts`; `src/lib/core-schema-readonly.ts`.
+- Source tests: `tests/audit-role-proof.test.ts`; `tests/audit-sealer-connection.test.ts`; `tests/audit-role-isolation-postgres.test.mjs`; `tests/helpers/audit-forward-migration.mjs`; `tests/audit-chain.test.ts`; `tests/audit-chain-protection-readiness.test.ts`; `tests/audit-runtime-identity.test.mjs`.
+- Workflows: `.github/workflows/audit-role-isolation-acceptance.yml`; `.github/workflows/audit-runtime-identity.yml`; `.github/workflows/catalog-auditor-privilege-acceptance.yml`; `.github/workflows/audit-0109-pg16-acceptance.yml`.
+- Provenance: `docs/engineering/issue908-audit-role-isolation-plan.md`; `docs/sql/issue908-audit-trigger-boundary-REVIEW_ONLY.sql`; `docs/sql/issue908-missing-foundation-REVIEW_ONLY.sql`; `drizzle/0133_audit_missing_foundation_forward.sql`; `scripts/run-reviewed-migration.mjs`; `scripts/audit-runtime-schema-writers.mjs`.
