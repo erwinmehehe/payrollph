@@ -51,6 +51,8 @@ The following is the source-enforced contract from `scripts/backup-neon-offsite-
 
 These checks are necessary, not a complete proof of account security, access logs, lifecycle alerts or legal compliance; obtain those independently.
 
+**Version-binding limitation in current source:** `scripts/backup-neon-offsite-encrypted.sh` discards the S3 PUT response and performs its follow-up `head-object` checks **by key, without `--version-id`**. The reported `s3VersionId` is therefore the version visible to HEAD, not an independently checked PUT response version; a competing write between those operations is not ruled out solely by the script. Before approving a real archive, the operator and independent witness must compare a **version-pinned** S3 HEAD (`--version-id` using the separately retained receipt) with the independent ciphertext digest/size ledger, lock retention and SSE-KMS key, and review write restrictions/audit evidence. The protected restore script checks the pinned version's SHA metadata and Object Lock **mode**, but does **not** itself recheck its retain-until date or SSE-KMS key. Capture/checking the PUT response `VersionId` directly would require a separate, reviewed **code** change; this documentation PR does not implement it.
+
 ## 3. Protected encrypted backup — conditional manual dispatch
 
 **HUMAN CONFIRMS BEFORE PROCEEDING.** Backup export reads potentially sensitive records. Proceed **only after** the owner reverses/updates the no-AWS restriction *if AWS is selected*, verifies the distinct external storage and cost/privacy policy, supplies the backup reader and protected environment/roles, and records the separately approved `P0-4-...` change ticket. No actual dispatch is part of this runbook-writing task.
@@ -84,6 +86,8 @@ Use the **separate** Actions workflow `.github/workflows/protected-neon-offsite-
 | `confirmation` | Literal **`RESTORE_IN_DISPOSABLE_POSTGRES_ONLY`** from the restore workflow |
 
 The unmodified `scripts/validate-protected-offsite-restore.mjs`/policy refuse unapproved sources, actor, archive path, SHA, S3 version or configuration. The unmodified `scripts/verify-protected-offsite-restore.sh` **rejects `DATABASE_URL`, `PGHOST` and `MIGRATION_TARGET_DATABASE_URL`**, checks S3 `VersionId`/source metadata/Object Lock and locally recomputes ciphertext SHA-256 before decryption. Only ciphertext is stored in its temp directory. Decryption is streamed **`age -d | docker exec ... pg_restore`** into a new `postgres:18` container with `--network none` and **`--single-transaction --exit-on-error`**. No plaintext archive is created, no Neon restore API is called, and no production endpoint is touched.
+
+**Ephemeral key custody limitation:** `scripts/verify-protected-offsite-restore.sh` temporarily writes `RESTORE_AGE_PRIVATE_KEY` to a mode-0600 **plaintext private-key file** on the protected runner and deletes its temporary directory on exit. That is **not** a plaintext payroll backup archive, but it is a sensitive on-runner secret, and file deletion is not a claim of independently attested secure erasure. The owner/security reviewer must approve the ephemeral runner, workflow logs/artifact restrictions, key exposure window, separation of backup/restore environments and post-run credential custody before any real-data drill.
 
 **Minimum script proof, not full parity:** the script currently requires **at least 100 restored public relations** and emits `restoredPublicTables`, `restoreSeconds`, `encryptedSha256`, `archiveSourceSha` and `s3VersionId` with `restoredToNeon=false`, `providerTransfersEnabled=false` and `recoveryCertified=false`. The container is **destroyed on exit**. It does **not** prove source-versus-restored row/sequence hashes, application boot, or overall RPO/RTO. Keep those gates **UNVERIFIED** until completed by an independently approved *additional* isolated harness.
 
@@ -139,7 +143,7 @@ This command **contacts production** (deployment/readiness and public HTTP GET p
 | Source database project / branch ID / endpoint ID / DB name / effective SELECT-only role | TODO — private identity attestation, **no** URL |
 | UTC backup start/end and last consistent source-data timestamp | TODO — don't invent from archive upload time |
 | Protected backup GitHub run ID and approved actor | TODO |
-| Encrypted S3 `objectKey` / immutable `s3VersionId` / retention expiry / SSE-KMS ID attestation | TODO |
+| Encrypted S3 `objectKey` / immutable `s3VersionId` / retention expiry / SSE-KMS ID attestation | TODO — include independent `head-object --version-id` check against protected receipt; script's unpinned post-PUT HEAD is not complete version-binding proof |
 | **Backup SHA-256 (`encryptedSha256`)** / encrypted byte count / independent SHA witness | TODO — 64-hex ciphertext digest, never a plaintext hash file |
 | Restore workflow run ID / `archiveSourceSha` / `encryptedSha256` comparison | TODO |
 | Source and restored **public-table counts**, sequence counts, aggregate row counts | TODO — retain sanitized parity summary; script alone records public tables only |
@@ -155,7 +159,7 @@ This command **contacts production** (deployment/readiness and public HTTP GET p
 | **SECOND HUMAN independent witness full name, role, UTC time and signature** | **MANDATORY FOR REAL RECOVERY ACCEPTANCE — TODO** |
 | Final acceptance and caveats | `SOURCE_ONLY` / `SYNTHETIC_ONLY` / `BACKUP_ENCRYPTED_NOT_RESTORED` / `ISOLATED_RESTORE_VERIFIED_APP_PENDING` / `WITNESSED_RECOVERY_VERIFIED` / `NO_GO` — choose only with actual receipts |
 
-**STOP conditions:** No approved data classification/storage/media/key custody, dormant no-AWS budget not revised where needed, missing protected environments, privileged backup reader, missing ciphertext digest or immutable VersionId, wrong SHA/source/role/region, bad tamper proof, source/restore count or digest mismatch, inability to boot against isolated DB, missing golden certification, missing RPO/RTO metrics, missing **SECOND HUMAN witness**, or any #899 default/endpoint deviation. Mark NO-GO; never bypass a guard or fabricate a receipt.
+**STOP conditions:** No approved data classification/storage/media/key custody, dormant no-AWS budget not revised where needed, missing protected environments, privileged backup reader, missing ciphertext digest or immutable VersionId, missing independently attested **version-pinned** HEAD/lock/KMS proof, wrong SHA/source/role/region, bad tamper proof, source/restore count or digest mismatch, inability to boot against isolated DB, missing golden certification, missing RPO/RTO metrics, missing **SECOND HUMAN witness**, or any #899 default/endpoint deviation. Mark NO-GO; never bypass a guard or fabricate a receipt.
 
 ## 8. Cadence recommendation (NOT enabled)
 
