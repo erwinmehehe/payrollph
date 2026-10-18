@@ -7,7 +7,7 @@ import {
   RefreshCcw, ShieldCheck, UsersRound,
 } from "lucide-react";
 import {
-  activeLeaveRequestSpans, monthShift, teamLeaveMonthCells,
+  activeLeaveRequestSpans, hasConsistentTeamLeaveSummary, monthShift, teamLeaveMonthCells,
   teamLeaveMonthWindow, TEAM_LEAVE_MONTHS_AHEAD,
   type TeamLeaveCase, type TeamLeaveMonthResponse,
 } from "@/lib/hcm-team-leave-calendar-contract";
@@ -85,7 +85,8 @@ export function HcmTeamLeaveCalendar({
             !["Approved", "Pending"].includes(entry.status) ||
             entry.startDate > entry.endDate ||
             entry.startDate > expectedDates.end ||
-            entry.endDate < expectedDates.start)) {
+            entry.endDate < expectedDates.start) ||
+           !hasConsistentTeamLeaveSummary(result.summary, result.cases)) {
         throw new Error("The leave response did not match the selected employer or month.");
       }
       setLoaded({ requestKey, status: "ready", payload: result });
@@ -204,8 +205,12 @@ export function HcmTeamLeaveCalendar({
           )}
           {active?.status === "unavailable" && (
             <div role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
-              Leave records are unavailable, your scope changed, or the supported month size was exceeded.
-              Previously loaded records were cleared. No missing results are treated as staff availability.
+              <p>Leave records are unavailable, your scope changed, or the supported month size was exceeded.
+                Previously loaded records were cleared. No missing results are treated as staff availability.</p>
+              <button type="button" onClick={() => setRevision((number) => number + 1)}
+                className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-amber-500 bg-white px-4 py-2 font-semibold text-amber-950 hover:bg-amber-100">
+                <RefreshCcw size={16} aria-hidden="true" /> Try again
+              </button>
             </div>
           )}
 
