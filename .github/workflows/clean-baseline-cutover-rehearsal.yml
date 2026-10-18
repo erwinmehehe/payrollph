@@ -184,13 +184,13 @@ jobs:
           docker exec "$PG_CONTAINER" pg_dump -U postgres -d app_db --schema-only --schema=public \
             --no-owner --no-privileges --no-tablespaces --no-security-labels > cutover-artifact/schema-only.sql
           test -s cutover-artifact/schema-only.sql
-      - name: Simulate Neon (non-superuser owner, empty neondb, roles created by SQL)
+      - name: Simulate Neon (non-superuser owner, empty payrollph_clean_baseline, roles created by SQL)
         run: node scripts/qa/provision-cutover-test-target.mjs
       - name: Dry-run commits nothing; apply commits; a second apply is refused
         shell: bash
         env:
           CUTOVER_ISOLATED_TEST: "true"
-          EXPECTED_DATABASE_NAME: neondb
+          EXPECTED_DATABASE_NAME: payrollph_clean_baseline
         run: |
           set -euo pipefail
           export CUTOVER_TARGET_DATABASE_URL="$SIM_OWNER_URL"

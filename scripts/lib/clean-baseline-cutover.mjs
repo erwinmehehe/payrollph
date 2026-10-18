@@ -90,9 +90,16 @@ export function prepareSchemaDump(sql) {
 }
 
 /** Install the 0133-equivalent v2 audit guards via the reviewed companion. */
-export async function installV2AuditGuards(q, { branchId, isolatedTestIdentity = null }) {
+export async function installV2AuditGuards(q, { branchId, databaseName, isolatedTestIdentity = null }) {
   if (!/^br-[a-z0-9-]{6,60}$/.test(branchId ?? "")) throw new Error("CUTOVER_BRANCH_ID_INVALID");
-  const companion = readFileSync("docs/sql/issue908-audit-trigger-boundary-REVIEW_ONLY.sql", "utf8")
+  if (!/^[A-Za-z0-9_]{1,63}$/.test(databaseName ?? "")) throw new Error("CUTOVER_DATABASE_NAME_INVALID");
+  // The reviewed companion pins one database name ('neondb'); like the branch, bind the
+  // verified target's name in memory. The file itself stays unchanged.
+  const pinned = "current_database() IS DISTINCT FROM 'neondb'";
+  const source = readFileSync("docs/sql/issue908-audit-trigger-boundary-REVIEW_ONLY.sql", "utf8");
+  if (source.split(pinned).length !== 2) throw new Error("CUTOVER_COMPANION_DATABASE_PIN_NOT_FOUND");
+  const companion = source
+    .replace(pinned, `current_database() IS DISTINCT FROM '${databaseName}'`)
     .replaceAll("__ISSUE908_ISOLATED_BRANCH__", branchId);
   if (isolatedTestIdentity) {
     // Disposable test databases have no Neon settings; emulate them for this transaction only.
