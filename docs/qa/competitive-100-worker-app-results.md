@@ -35,7 +35,7 @@ Separate nine-stage fictional tests can generate four draft filing worksheets af
 Real employer reconciliation #579, independent WFM UAT #691, employer journey #853 and production/government/bank acceptance remain independent gates. A passing synthetic CI job does not authorize money movement, production activation or independent human sign-off.
 
 ## Running and reading results
-A pull request against main triggers the isolated workflow. Inspect its exact-commit status and uploaded sanitized competitive-100-worker-synthetic-preflight artifact.
+A pull request against main triggers the isolated workflow. `actions/checkout` now pins `github.event.pull_request.head.sha`; the runner independently checks `git rev-parse HEAD` against `QA_EXPECTED_HEAD_SHA` and records that verified checkout SHA in `sourceSha`. The GitHub event `GITHUB_SHA` can instead represent a temporary PR merge ref, so it is recorded separately as `workflowEventSha`. Inspect the new standalone-head CI result and sanitized `competitive-100-worker-synthetic-preflight` artifact. A new merge of `main` requires a fresh run.
 
 PASS_SYNTHETIC_PREVIEW_ONLY means the evidenced checks passed without payroll release, money or government filing.
 FAIL_SYNTHETIC_BENCHMARK means reproduce and repair the failure; do not weaken policies to make it pass.
@@ -43,14 +43,16 @@ Absent report or aborted workflow means NOT_RUN.
 
 Vendor results remain NOT_RUN until independently observed in an authorized PH-relevant sandbox or witnessed product demonstration. No invented vendor ratings.
 
-## Verified original exact-head run — 2026-10-18
+## Historical runs before the direct-head checkout fix — 2026-10-18
 
-- Original passing application/CI commit: `c2949615235e8d5dc67fe376454ca8eb598d38fc`.
+- Original PR commit associated with passing application/CI checks: `c2949615235e8d5dc67fe376454ca8eb598d38fc`. **This was a historical PR check association, not independently established standalone-head checkout evidence.**
 - [GitHub Actions application run 39135328799](https://github.com/erwinmehehe/payrollph/actions/runs/39135328799): **completed / success**; job `hundred-worker-connected` completed successfully; sanitized report artifact `competitive-100-worker-synthetic-preflight`, artifact ID `12140130447`.
 - The runner printed: "BENCH100 synthetic cohort PASS: 100 calculated entries, payroll NOT released; no money or filing."
-- At that **original** commit, 19 of 19 reported check runs had `success`, including full CI, the 100-worker application job, security-http-smoke, payout isolation, CodeQL and payroll change-review automation. This is an exact-head historical result, NOT transferable to later commits without rerunning.
+- At that original PR revision, 19/19 reported check runs had `success`, including full CI, the 100-worker application job, security-http-smoke, payout isolation, CodeQL and payroll change-review automation. These are **associated check statuses**, not proof that each workflow checked out the standalone head; they cannot be transferred to later commits.
 - The test's 22 case labels produce **8 app-observed synthetic**, **1 synthetic pure-function comparison**, **1 negative monthly-filing cutoff**, and **12 NOT_RUN**. This is not 22/22 coverage.
 - Application evidence includes 100 invented employees, 100 WFM schedule assignments, five 20-worker roster pages, 105 fictional attendance records, 100 approved timesheets, 100 generated and source-traced payroll entries, two missing bank/payout blockers, and cross-tenant access denials.
 - No released payroll record, agency acceptance, money movement, real-device attendance attestation, independent human UAT or vendor hands-on test occurred.
 
-Any refresh/merge from `main` must obtain new **exact-head** CI and must not copy the original pass status into the new commit's outcome.
+The synchronized PR head `194f402710e6b310aac59e8ede011c47f8d60b7d` also had a successful [100-worker workflow run 39137421081](https://github.com/erwinmehehe/payrollph/actions/runs/39137421081), but its actual checked-out Git commit was the GitHub-generated temporary merge `a2263ed2480b6ce78b994bda4746c3c94869bd6e` (verified in job logs), not that standalone head. This is valid merge-integration evidence, but it must not be mislabeled as an exact-head checkout.
+
+**New validation gate:** After this correction and an updated `main` merge, require a green run whose artifact `sourceSha` equals the current PR head, with a matching verified `git rev-parse HEAD`. Never transplant a historical green status into a new revision.
