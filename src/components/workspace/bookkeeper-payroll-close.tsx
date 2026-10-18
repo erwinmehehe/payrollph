@@ -108,7 +108,7 @@ export function BookkeeperPayrollClose({
   // Snapshot identity prevents A -> B -> A from reviving earlier eligibility
   // or checked evidence acknowledgements before the new request completes.
   const requestScope = useMemo<BookkeeperCloseScope>(
-    () => ({ requestKey }),
+    () => ({ requestKey, auditEvents: data.auditEvents, runStatus: run.status }),
     [requestKey, data.auditEvents, run.status],
   );
   const { loading, payload, loadError } = visibleBookkeeperCloseRead(requestScope, observedClose);
