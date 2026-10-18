@@ -9,6 +9,8 @@ on:
       - "src/lib/audit-sealer-connection.ts"
       - "src/lib/audit-chain-protection-readiness.ts"
       - "src/lib/critical-release-flags.ts"
+      - "src/lib/core-schema-readonly.ts"
+      - "tests/core-schema-forward-postgres.test.mjs"
       - "tests/audit-role-proof.test.ts"
       - "tests/audit-sealer-connection.test.ts"
       - "tests/audit-role-isolation-postgres.test.mjs"
@@ -63,3 +65,43 @@ jobs:
       - run: npm ci
       - run: npx tsx --test tests/audit-role-proof.test.ts tests/audit-sealer-connection.test.ts
       - run: node --import tsx --test tests/audit-role-isolation-postgres.test.mjs
+
+  core-forward:
+    name: core-readonly-after-0133 (PG${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: [16, 18]
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      ISSUE908_ACCEPTANCE_MODE: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/neondb
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: neondb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d neondb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node --import tsx --test tests/core-schema-forward-postgres.test.mjs

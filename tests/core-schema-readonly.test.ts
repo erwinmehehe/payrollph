@@ -66,10 +66,10 @@ function fixture(overrides: {
     if (sql.includes("pg_catalog.pg_index")) {
       return { rows: (overrides.indexes ?? indexRows()) as unknown as Record<string, unknown>[] };
     }
-    if (sql.includes("pg_catalog.pg_proc")) return { rows: [{ present: true }] };
     if (sql.includes("pg_catalog.pg_trigger")) {
       return { rows: [{ name: "audit_events.audit_events_protect_mutation" }] };
     }
+    if (sql.includes("pg_catalog.pg_proc")) return { rows: [{ present: true }] };
     if (sql.includes("pg_catalog.pg_class")) {
       return { rows: (overrides.tables ?? requiredReleaseTables).map(name => ({ name })) };
     }
@@ -78,48 +78,31 @@ function fixture(overrides: {
   return { query, calls };
 }
 
-test("normal runtime defaults to read-only and rejects legacy regardless of env override", () => {
-  const deployed: NodeJS.ProcessEnv = {
-    NODE_ENV: "production",
-    DATABASE_URL: "postgresql://app@remote.example:5432/payroll",
-    VERCEL: "1",
-  };
-  assert.equal(coreSchemaCompatibilityMode(undefined, deployed), "read-only");
-  assert.equal(coreSchemaCompatibilityMode("read-only", deployed), "read-only");
-  for (const value of ["legacy", "", "readOnly", "READ-ONLY", "apply", "repair", "off", " true "]) {
-    assert.throws(() => coreSchemaCompatibilityMode(value, deployed),
-      /CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN/);
+test("flag-off mode selection preserves the existing production and developer contract", () => {
+  for (const flag of [undefined, "", "false", "TRUE", "1"]) {
+    for (const runtime of [{ NODE_ENV: "production", VERCEL: "1" }, { NODE_ENV: "development" }]) {
+      const env = { ...runtime, REQUEST_SCHEMA_READONLY_ENABLED: flag };
+      assert.deepEqual([undefined, "legacy", "read-only"].map(value => coreSchemaCompatibilityMode(value, env)),
+        ["legacy", "legacy", "read-only"]);
+      for (const value of ["", "readOnly", "READ-ONLY", "apply", "repair", "off", " true "])
+        assert.throws(() => coreSchemaCompatibilityMode(value, env),
+          /Invalid CORE_SCHEMA_COMPATIBILITY_MODE; refusing runtime schema writes/);
+    }
   }
 });
 
-test("only a disposable GitHub-hosted local PostgreSQL fixture may retain legacy setup", () => {
-  const fixture: NodeJS.ProcessEnv = {
-    NODE_ENV: "production", CI: "true", GITHUB_ACTIONS: "true",
-    GITHUB_REPOSITORY: "erwinmehehe/payrollph", RUNNER_ENVIRONMENT: "github-hosted",
-    GITHUB_RUN_ID: "39089717368", GITHUB_EVENT_NAME: "pull_request",
-    DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
-  };
-  assert.equal(coreSchemaCompatibilityMode(undefined, fixture), "legacy");
-  assert.equal(coreSchemaCompatibilityMode("legacy", fixture), "legacy");
-  assert.equal(coreSchemaCompatibilityMode("read-only", fixture), "read-only");
-  for (const change of [
-    { CI: "false" }, { GITHUB_ACTIONS: "false" }, { RUNNER_ENVIRONMENT: "self-hosted" },
-    { GITHUB_REPOSITORY: "other/payrollph" }, { GITHUB_RUN_ID: "" },
-    { GITHUB_RUN_ID: "unknown" }, { GITHUB_RUN_ID: "0" },
-    { GITHUB_EVENT_NAME: "" }, { VERCEL: "1" }, { VERCEL_ENV: "production" },
-    { VERCEL_URL: "payrollsoftware.ph" }, { VERCEL_TARGET_ENV: "production" },
-    { VERCEL_REGION: "iad1" },
-    { VERCEL_PROJECT_PRODUCTION_URL: "payrollsoftware.ph" },
-    { DATABASE_URL: "postgresql://postgres:postgres@neon.example:5432/app_db" },
-    { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:6543/app_db" },
-    { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/neondb" },
-    { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db?sslmode=disable" },
-    { DATABASE_URL: "" },
-  ]) {
-    const env = { ...fixture, ...change };
-    assert.equal(coreSchemaCompatibilityMode(undefined, env), "read-only", JSON.stringify(change));
-    assert.throws(() => coreSchemaCompatibilityMode("legacy", env),
-      /CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN/, JSON.stringify(change));
+test("flag-on read-only cutover rejects legacy even in a spoofed GitHub fixture environment", () => {
+  for (const runtime of [{ NODE_ENV: "production", VERCEL: "1" }, {
+    CI: "true", GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: "erwinmehehe/payrollph",
+    RUNNER_ENVIRONMENT: "github-hosted", GITHUB_RUN_ID: "39089717368",
+    GITHUB_EVENT_NAME: "pull_request", DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+  }]) {
+    const env = { ...runtime, REQUEST_SCHEMA_READONLY_ENABLED: "true" };
+    assert.equal(coreSchemaCompatibilityMode(undefined, env), "read-only");
+    assert.equal(coreSchemaCompatibilityMode("read-only", env), "read-only");
+    for (const value of ["legacy", "", "readOnly", "READ-ONLY", "apply", "repair", "off", " true "])
+      assert.throws(() => coreSchemaCompatibilityMode(value, env),
+        /CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN/);
   }
 });
 

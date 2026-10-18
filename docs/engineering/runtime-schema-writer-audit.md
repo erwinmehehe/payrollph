@@ -1,32 +1,32 @@
 # P0-4 — Runtime schema writer source inventory
 
-## October 17, 2026 source hardening (DRAFT; not a database migration)
+## October 18, 2026: default-off read-only rollout
 
-Normal requests use read-only catalog verification. Explicit `legacy`,
-typos and empty values cannot re-enable runtime schema creation. The **only
-temporary exception** is a GitHub-hosted Actions fixture in this exact repo,
-with `CI=true`, a valid GitHub run ID/event, PostgreSQL
-`127.0.0.1:5432/app_db` as `postgres`, and no recognized Vercel runtime
-indicators or URL parameters. This exception retains synthetic HTTP testing
-against a disposable database, not deployed request-time DDL. These
-environment variables are defense-in-depth **and can be spoofed**; they
-do not prove the identity of a database. Production web and worker roles
-must independently be denied DDL privileges.
-It should eventually be replaced by a separate offline fixture bootstrap
-step and lower-privileged test application credentials.
+PR #1210 adds the registered REQUEST_SCHEMA_READONLY_ENABLED gate. An unset
+flag, false, empty or invalid value preserves main's existing mode contract:
+unset or legacy selects the historical compatibility path; explicit read-only
+selects catalog verification; invalid modes are refused. This source merge does
+not activate the cutover or repair the production database.
 
-The historical core and other legacy DDL text remains in the repository for
-review. The strict source scan and parser regressions run in CI; source-level
-early exits do not substitute for production role and catalog validation.
+Only the exact flag value true enables the new default: unset mode becomes
+read-only and explicit legacy is refused before request DDL/backfills. There is
+no CI/environment-based exception once enabled. Disposable fixture setup remains
+on the historical path with the flag off until it moves to an offline runner.
+The source audit detects early catalog exits, not actual database permissions.
 
-**Do not merge or deploy solely because these source tests pass.** The
-application must have its reviewed schema installed first. On an incomplete
-target (see #1198), the preflight will reject a request instead of creating
-missing objects. Development repair of fictional/test data may follow the
-separate approved disposable-DB or reviewed migration workflow; this PR
-does not connect to Neon, execute SQL, grant roles or apply any migrations.
-The serving database identity, authentic migration receipts, restoration and
-least-privilege roles remain independent operator verification tasks.
+The core preflight accepts the legacy guard only when no v2 artifacts exist.
+For 0133 it requires all three exact, enabled, unconditional, zero-argument v2
+triggers with the expected timing/events and invoker functions pinned to
+pg_catalog. Partial v2 installation cannot fall back to the legacy trigger.
+This is structural subset evidence, not function-body attestation, applied
+migration receipts, a least-privilege proof or payroll release approval.
+
+Enable the flag only after approved schema remediation, actual runtime/sealer
+role checks, and rollout acceptance. The owner has authorized source-only work;
+no additional independent source approval is requested. Production SQL, role,
+credential and flag changes remain separate operations. No live changes occur
+in this PR. With the default-off flag, the former merge-before-migration outage
+risk no longer requires holding the source merge itself.
 
 ### Source-only table and lock review
 
@@ -108,8 +108,8 @@ the guards or the underlying database satisfy release requirements.
 Work through the strict findings by introducing an independently verified,
 fail-closed catalog or data-read preflight **before** each legacy schema writer.
 Historical policy (superseded by the October 17 source-only change):
-the legacy creator used to run by default. Current behavior is read-only and
-fails on missing structure; an approved migration must precede its deployment.
+the legacy creator used to run by default. The registered flag is default-off; when enabled, requests use read-only
+checks and fail on missing structure. An approved migration precedes activation.
 Do not silently auto-repair the missing database structure.
 
 ## Limitations and production gates

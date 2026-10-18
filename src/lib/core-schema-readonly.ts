@@ -1,3 +1,4 @@
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import {
   evaluateReleaseSchemaInventory,
   releaseIndexCatalogSql,
@@ -13,45 +14,19 @@ export type CatalogQuery = (
   sql: string, parameters?: unknown[],
 ) => Promise<{ rows: CatalogRow[] }>;
 
-/**
- * Deployed code must not create/alter schema or backfill during requests.
- * The ONLY temporary compatibility exception is a disposable, GitHub-hosted
- * CI fixture on the literal local PostgreSQL app_db. This preserves existing
- * synthetic HTTP acceptance until setup can move to an offline migration step.
- *
- * The injectable env is for pure regression tests; app callers use process.env.
+/** Default-off rollout: preserve main's mode selection until cutover approval.
+ * An explicit read-only mode remains available as it was before this change.
+ * Once the flag is on, no caller (including CI) can select legacy DDL.
  */
-function isolatedGithubCiSchemaFixture(env: NodeJS.ProcessEnv): boolean {
-  // This is a narrowly scoped synthetic fixture switch, NOT a trustworthy
-  // security attestation. Deployed database roles must independently lack DDL.
-  if (env.CI !== "true" || env.GITHUB_ACTIONS !== "true" ||
-      env.GITHUB_REPOSITORY !== "erwinmehehe/payrollph" ||
-      env.RUNNER_ENVIRONMENT !== "github-hosted" ||
-      !/^[1-9][0-9]*$/.test(env.GITHUB_RUN_ID ?? "") ||
-      !env.GITHUB_EVENT_NAME ||
-      env.VERCEL || env.VERCEL_ENV || env.VERCEL_URL ||
-      env.VERCEL_TARGET_ENV || env.VERCEL_REGION ||
-      env.VERCEL_PROJECT_PRODUCTION_URL) return false;
-  try {
-    const url = new URL(env.DATABASE_URL ?? "");
-    return url.protocol === "postgresql:"
-      && url.hostname === "127.0.0.1"
-      && url.port === "5432"
-      && url.pathname === "/app_db"
-      && url.username === "postgres"
-      && !url.search && !url.hash;
-  } catch {
-    return false;
-  }
-}
-
 export function coreSchemaCompatibilityMode(
-  value: string | undefined, env: NodeJS.ProcessEnv = process.env,
+  value: string | undefined, env: Readonly<Record<string, string | undefined>> = process.env,
 ): "legacy" | "read-only" {
-  if (value === "read-only") return "read-only";
-  if ((value === undefined || value === "legacy") &&
-      isolatedGithubCiSchemaFixture(env)) return "legacy";
-  if (value === undefined) return "read-only";
+  if (!criticalReleaseFlagEnabled("requestSchemaReadonly", env)) {
+    if (value === undefined || value === "legacy") return "legacy";
+    if (value === "read-only") return "read-only";
+    throw new Error("Invalid CORE_SCHEMA_COMPATIBILITY_MODE; refusing runtime schema writes.");
+  }
+  if (value === undefined || value === "read-only") return "read-only";
   throw new Error("CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN");
 }
 
@@ -100,14 +75,41 @@ export async function verifyCoreSchemaReadOnly(query: CatalogQuery): Promise<voi
       "AND p.oid = to_regprocedure('public.seal_audit_events(integer)')) AS present",
     );
     const triggers = await query(
-      "SELECT c.relname || '.' || t.tgname AS name FROM pg_catalog.pg_trigger t " +
-      "JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid " +
-      "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace " +
-      "WHERE n.nspname = 'public' AND c.relname = 'audit_events' " +
-      "AND NOT t.tgisinternal AND t.tgenabled IN ('O','A') " +
-      "AND (t.tgtype & 27) = 27 " +
-      "AND t.tgfoid = to_regprocedure('public.audit_events_protect()') " +
-      "AND t.tgname = 'audit_events_protect_mutation'",
+      `WITH boundary AS (
+        SELECT
+          EXISTS (SELECT 1 FROM pg_catalog.pg_proc p
+            JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+            WHERE n.nspname='public' AND p.proname IN
+              ('audit_events_protect_v2','audit_events_insert_guard_v2','audit_events_reject_truncate_v2'))
+          OR EXISTS (SELECT 1 FROM pg_catalog.pg_trigger t
+            WHERE t.tgrelid=to_regclass('public.audit_events') AND t.tgname IN
+              ('audit_events_insert_guard_v2','audit_events_reject_truncate_v2')) AS v2_present
+      ), valid AS (
+        SELECT t.tgname, t.tgfoid, t.tgtype
+        FROM pg_catalog.pg_trigger t
+        WHERE t.tgrelid=to_regclass('public.audit_events')
+          AND NOT t.tgisinternal AND t.tgenabled IN ('O','A')
+          AND t.tgqual IS NULL AND t.tgnargs=0
+      )
+      SELECT 'audit_events.audit_events_protect_mutation' AS name
+      FROM boundary b
+      WHERE (
+        NOT b.v2_present AND EXISTS (SELECT 1 FROM valid t
+          WHERE t.tgname='audit_events_protect_mutation' AND t.tgtype=27
+            AND t.tgfoid=to_regprocedure('public.audit_events_protect()'))
+      ) OR (
+        (SELECT count(*) FROM valid t JOIN pg_catalog.pg_proc p ON p.oid=t.tgfoid
+          WHERE NOT p.prosecdef AND p.prorettype='pg_catalog.trigger'::regtype
+            AND p.proconfig @> ARRAY['search_path=pg_catalog']::text[]
+            AND (
+              (t.tgname='audit_events_protect_mutation' AND t.tgtype=27
+                AND t.tgfoid=to_regprocedure('public.audit_events_protect_v2()'))
+              OR (t.tgname='audit_events_insert_guard_v2' AND t.tgtype=7
+                AND t.tgfoid=to_regprocedure('public.audit_events_insert_guard_v2()'))
+              OR (t.tgname='audit_events_reject_truncate_v2' AND t.tgtype=34
+                AND t.tgfoid=to_regprocedure('public.audit_events_reject_truncate_v2()'))
+            ))=3
+      )`,
     );
     const result = evaluateReleaseSchemaInventory({
       tables: tables.rows.map(row => String(row.name ?? "")),

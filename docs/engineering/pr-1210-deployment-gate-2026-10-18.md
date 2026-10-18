@@ -1,6 +1,19 @@
 # PR #1210 — read-only deployment cutover: evidence and hold (2026-10-18)
 
-**Disposition: deployment NO-GO. Keep PR draft and unmerged.**
+**Updated disposition: source merge eligible with the new flag OFF after CI.
+Live read-only activation remains NO-GO until its operational checks pass.**
+
+The historical hold below described the former unconditional default flip.
+The current source adds REQUEST_SCHEMA_READONLY_ENABLED, default OFF, preserving
+main's mode selection. Its ON path accepts the complete 0133 v2 guard boundary,
+with executed PG16/18 migration-to-preflight and drift tests. This supersedes the
+old draft/source-merge hold, not the live database/credential/activation boundary.
+No new independent source approval, backup destination or staging is requested.
+The owner has confirmed only Vercel is running (no separate worker). The #1222
+private capture identified an elevated web runtime role; it did not fix that
+role. Therefore restricted-role remediation remains required before activation.
+
+## Historical unconditional-cutover review
 
 This is an evidence record and operator handoff, **not** approval to merge, deploy,
 change Vercel environment values, grant database roles, migrate a database, or
