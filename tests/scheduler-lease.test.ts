@@ -8,6 +8,7 @@ import {
   refreshSchedulerLease,
   releaseSchedulerLease,
   recordSchedulerCompletion,
+  recordSchedulerFailure,
 } from "../src/lib/scheduler-lease";
 
 test("a scheduler lease serializes workers and fences stale owners", async () => {
@@ -176,6 +177,49 @@ test("PostgreSQL completion receipt cannot be overwritten by a stale worker afte
   } finally {
     await releaseSchedulerLease(oldOwner, "failed", leaseName);
     await releaseSchedulerLease(newOwner, "failed", leaseName);
+    await db.execute(sql`DELETE FROM scheduler_state WHERE job_name IN (${receiptName}, ${leaseName})`);
+  }
+});
+
+test("failed scheduler receipt is sanitized, durable and protected from stale owners", async () => {
+  const leaseName = "scheduler-failure-lease-" + randomUUID().slice(0, 14);
+  const receiptName = "scheduler-failure-receipt-" + randomUUID().slice(0, 14);
+  const first = randomUUID();
+  const second = randomUUID();
+  try {
+    assert.equal(await acquireSchedulerLease(first, leaseName), true);
+    assert.equal(await recordSchedulerFailure(first, [
+      { job: "auditChainSeal", message: "42P01: SELECT secret FROM sensitive_table" },
+      { job: "compensationAutomationDelivery", message: "DISPATCH_UNCONFIRMED: employer confidential data" },
+      { job: "dangerous/invalid", message: "SQL secret" },
+    ], receiptName, leaseName), true);
+    const prior = await db.execute<{ evidence: { status: string; failureCount: number; jobs: Array<{ job: string; code: string }> } }>(sql`
+      SELECT last_result AS evidence FROM scheduler_state WHERE job_name = ${receiptName}
+    `);
+    assert.equal(prior.rows[0].evidence.status, "failed");
+    assert.equal(prior.rows[0].evidence.failureCount, 3);
+    assert.deepEqual(prior.rows[0].evidence.jobs, [
+      { job: "auditChainSeal", code: "42P01" },
+      { job: "compensationAutomationDelivery", code: "DISPATCH_UNCONFIRMED" },
+      { job: "unclassified", code: "JOB_FAILED" },
+    ]);
+    assert.doesNotMatch(JSON.stringify(prior.rows[0].evidence), /SELECT|secret|employer confidential|sensitive_table/);
+    await db.execute(sql`
+      UPDATE scheduler_state SET last_run_at = NOW() - INTERVAL '16 minutes'
+       WHERE job_name = ${leaseName}
+    `);
+    assert.equal(await acquireSchedulerLease(second, leaseName), true);
+    assert.equal(await recordSchedulerFailure(first, [
+      { job: "auditChainSeal", message: "42P01: stale worker" },
+    ], receiptName, leaseName), false);
+    const after = await db.execute<{ evidence: unknown }>(sql`
+      SELECT last_result AS evidence FROM scheduler_state WHERE job_name = ${receiptName}
+    `);
+    assert.deepEqual(after.rows[0].evidence, prior.rows[0].evidence,
+      "stale worker must not overwrite durable last-failure evidence");
+  } finally {
+    await releaseSchedulerLease(first, "failed", leaseName);
+    await releaseSchedulerLease(second, "failed", leaseName);
     await db.execute(sql`DELETE FROM scheduler_state WHERE job_name IN (${receiptName}, ${leaseName})`);
   }
 });

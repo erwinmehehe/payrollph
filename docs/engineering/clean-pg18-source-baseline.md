@@ -2,7 +2,7 @@
 
 ## Status and isolation
 
-**Clean empty Neon development target created, not yet bootstrapped at publication.**
+**Historical initial state:** The isolated app_db was created empty on October 17, 2026. **Subsequent verified outcome:** The same development database was then bootstrapped from a checksum-verified PG18 schema-only artifact. See [actual Neon bootstrap receipts](clean-pg18-neon-app-db-bootstrap-20261017.md) for the 15 recorded transactions, observed catalog parity, and remaining production blockers.
 Project: `calm-wave-70219564`; separate rehearsal branch:
 `br-twilight-shape-b70olxgv`; **new database: `app_db`**;
 PostgreSQL 18.6. Direct catalog query recorded **zero application tables,

@@ -105,3 +105,30 @@ export async function recordSchedulerCompletion(
   `);
   return result.rows.length === 1;
 }
+
+
+/**
+ * Preserve the last incomplete tick independently of the successful receipt.
+ * Store only bounded job identifiers and SQLSTATE/known error codes; never
+ * persist exception messages, SQL text, employee data or dispatch payloads.
+ * The same row-locked lease fence as successful receipts prevents stale
+ * workers from replacing another worker's evidence.
+ */
+export async function recordSchedulerFailure(
+  ownerToken: string,
+  failures: ReadonlyArray<{ job: string; message: string }>,
+  receiptJobName = "central-scheduler-failure",
+  leaseJobName = CENTRAL_SCHEDULER_LEASE,
+): Promise<boolean> {
+  if (failures.length === 0) throw new Error("A failed scheduler receipt requires a failing job.");
+  const jobs = failures.slice(0, 64).map(({ job, message }) => ({
+    job: /^[A-Za-z][A-Za-z0-9._-]{0,79}$/.test(job) ? job : "unclassified",
+    code: /^([A-Z0-9_]{4,32})(?::|$)/.exec(message)?.[1] ?? "JOB_FAILED",
+  }));
+  return recordSchedulerCompletion(
+    ownerToken,
+    { status: "failed", failureCount: failures.length, truncated: failures.length > 64, jobs },
+    receiptJobName,
+    leaseJobName,
+  );
+}

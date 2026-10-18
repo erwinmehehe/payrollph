@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isCentralSchedulerEnabled } from "@/lib/scheduler-activation";
 import { eq, sql } from "drizzle-orm";
-import { acquireSchedulerLease, refreshSchedulerLease, releaseSchedulerLease, recordSchedulerCompletion } from "@/lib/scheduler-lease";
+import { acquireSchedulerLease, refreshSchedulerLease, releaseSchedulerLease, recordSchedulerCompletion, recordSchedulerFailure } from "@/lib/scheduler-lease";
 import { db } from "@/db";
 import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
@@ -260,7 +260,7 @@ async function runScheduledJobs(
     if (compensationAutomationDelivery.results.some((intent) => intent.reason === "dispatch_error_unconfirmed")) {
       failures.push({
         job: "compensationAutomationDelivery",
-        message: "One or more compensation dispatches are unconfirmed; inspect the durable intent ledger.",
+        message: "DISPATCH_UNCONFIRMED: One or more compensation dispatches are unconfirmed; inspect the durable intent ledger.",
       });
     }
   } catch (error) {
@@ -492,6 +492,11 @@ async function runScheduledJobs(
     if (retentionFailure) {
       for (const f of retentionFailure.failures) failures.push({ job: "retention." + f.step, message: f.code ?? f.message });
     }
+    // Retain a bounded, sanitized failure receipt under the same live lease.
+    // The previous successful delivery-drain receipt must remain unchanged.
+    await assertLeaseOwnership();
+    const recorded = await recordSchedulerFailure(ownerToken, failures);
+    if (!recorded) throw new SchedulerLeaseLostError("Scheduler lease lost before saving failed job evidence.");
     throw new SchedulerJobsIncompleteError(failures);
   }
   if (retentionFailure) throw retentionFailure;

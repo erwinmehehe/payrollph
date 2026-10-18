@@ -50,6 +50,20 @@ async function expectFailedTick(job: string) {
       FROM scheduler_state WHERE job_name = 'central-scheduler-lease'
   `);
   assert.equal(lease.rows[0]?.status, "failed", "watchdog must see a failed lease");
+  const failureReceipt = await db.execute<{ status: string; failure_count: number; jobs: unknown }>(sql`
+    SELECT last_result->>'status' AS status,
+           (last_result->>'failureCount')::integer AS failure_count,
+           last_result->'jobs' AS jobs
+      FROM scheduler_state WHERE job_name = 'central-scheduler-failure'
+  `);
+  assert.equal(failureReceipt.rows[0]?.status, "failed", "a failure must leave a durable operational receipt");
+  assert.ok(failureReceipt.rows[0]?.failure_count >= 1);
+  const evidence = failureReceipt.rows[0]?.jobs;
+  assert.ok(Array.isArray(evidence) && evidence.some((entry: { job?: string }) => entry.job === job),
+    "the receipt must identify the failed job");
+  assert.ok(evidence.every((entry: { job?: string; code?: string }) =>
+    /^[A-Za-z][A-Za-z0-9._-]{0,79}$/.test(entry.job ?? "") &&
+    /^[A-Z0-9_]{4,32}$/.test(entry.code ?? "")), "store codes only, never SQL or tenant details");
 }
 
 test("failed audit sealing is reported, while later compliance work is still attempted", isolatedCiOnly, async () => {
