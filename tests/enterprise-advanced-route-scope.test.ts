@@ -54,7 +54,12 @@ test("compensation separates premium band/cycle creation from Core pay proposals
   const post = api.slice(api.indexOf("export async function POST"), api.indexOf("export async function PATCH"));
   const patch = api.slice(api.indexOf("export async function PATCH"));
   assert.ok(get.indexOf(planGate) > get.indexOf("getAccess(user.id, organizationId)"));
-  assert.ok(get.includes("advancedConfigurationAllowed: advancedConfigurationDenied === null"));
+  const access = src("src/lib/access.ts");
+  assert.ok(access.includes('if (allowedRoles === COMPENSATION_MANAGER_ROLES) return "people.admin"'),
+    "Compensation must honor custom deny-only People permissions before billing");
+  assert.ok(api.includes("assertScope, COMPENSATION_MANAGER_ROLES, getAccess"),
+    "Compensation routes must use the canonical identity-mapped role list");
+  assert.ok(get.includes("advancedConfigurationAllowed: access.companyWide && advancedConfigurationDenied === null"));
   assert.ok(post.includes('entityType === "band" || entityType === "cycle"'));
   assert.ok(post.indexOf(planGate) > post.indexOf("getAccess(user.id, organizationId)"));
   assert.ok(!patch.includes(planGate), "Salary/recurring component checker decisions must not be paywalled");
