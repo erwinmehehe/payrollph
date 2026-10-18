@@ -11,9 +11,9 @@ const read = file => readFileSync(resolve(root, file), "utf8");
 
 test("source-only worksheet covers every drizzle file with current byte SHA and no populated receipts", () => {
   const result = generateSourceWorksheet();
-  assert.equal(result.summary.totalDrizzleFiles, 149);
-  assert.equal(result.summary.numberedSqlFiles, 147);
-  assert.equal(result.summary.sqlFiles, 148);
+  assert.equal(result.summary.totalDrizzleFiles, 150);
+  assert.equal(result.summary.numberedSqlFiles, 148);
+  assert.equal(result.summary.sqlFiles, 149);
   assert.equal(result.summary.sourceSchemaTables, 271);
   assert.equal(result.summary.duplicatePrefixGroups, 13);
   assert.ok(result.migrationRows.some(row => row.file_path === "drizzle/0127_year_end_prior_evidence.sql" && row.creates_objects.includes("year_end_prior_evidence")));
@@ -56,6 +56,18 @@ test("source-only worksheet covers every drizzle file with current byte SHA and 
   assert.match(auditFoundation.manual_review_flags, /DOLLAR_BODY_MANUAL_REVIEW/);
   assert.match(auditFoundation.hazards, /BACKFILL/);
   for (const field of RECEIPT_FIELDS) assert.equal(auditFoundation[field], "");
+
+  const recoveredCandidate = result.migrationRows.find(row =>
+    row.file_path === "drizzle/0134_wfm_demand_missing_foundation_forward.sql");
+  assert.ok(recoveredCandidate, "0134 must be inventoried as source, never as live proof");
+  assert.match(recoveredCandidate.sha256_exact_committed_bytes, /^[a-f0-9]{64}$/);
+  for (const name of [
+    "workforce_demand_import_batches", "workforce_demand_observation_revisions",
+    "workforce_demand_forecast_issues", "workforce_demand_forecast_scores",
+    "workforce_demand_staffing_policies", "workforce_demand_staffing_policy_events",
+  ]) assert.ok(recoveredCandidate.creates_objects.includes(name), name);
+  for (const field of RECEIPT_FIELDS) assert.equal(recoveredCandidate[field], "");
+  assert.equal(recoveredCandidate.numeric_prefix, "0134");
 
   const paths = readdirSync(resolve(root, "drizzle")).map(name => "drizzle/" + name).sort();
   assert.deepEqual(result.migrationRows.map(row => row.file_path).sort(), paths);
