@@ -314,7 +314,7 @@ export function hrPayrollReadinessPresentation(model: {
     percentage: Math.round((model.ready / model.total) * 100),
     heading: `${model.ready} of ${model.total} employees ready`,
     statusLabel: model.blocked > 0
-      ? `${model.blocked} need attention`
+      ? model.blocked === 1 ? "1 needs attention" : `${model.blocked} need attention`
       : "All assessed employees ready",
   };
 }
