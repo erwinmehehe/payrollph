@@ -69,3 +69,14 @@ test("the protected workflow wires the runner, the verifier and the no-write pro
     .map((s) => workflow.indexOf(s));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "guard, install, artifact, cutover, then verification");
 });
+
+test("the runner installs btree_gist itself, before the schema dump (pg_dump --schema=public carries no CREATE EXTENSION)", async () => {
+  const { REQUIRED_EXTENSIONS } = await import("../scripts/lib/clean-baseline-cutover.mjs");
+  assert.deepEqual([...REQUIRED_EXTENSIONS], ["btree_gist"]);
+  const runner = readFileSync("scripts/run-clean-baseline-cutover.mjs", "utf8");
+  const extensions = runner.indexOf('step("required extensions"');
+  const schema = runner.indexOf('step("source schema (push + 0109 + supplement)"');
+  assert.ok(extensions > 0 && extensions < schema, "extensions come before the schema statements that need them");
+  const workflow = readFileSync(".github/workflows/clean-baseline-cutover.yml", "utf8");
+  assert.match(workflow, /--no-security-labels/);
+});

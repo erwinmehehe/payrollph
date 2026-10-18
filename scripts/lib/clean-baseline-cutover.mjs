@@ -65,6 +65,19 @@ export async function assertPublicSchemaEmpty(q) {
   }
 }
 
+// The schema-only artifact (pg_dump --schema=public) carries no CREATE EXTENSION, but
+// payroll_runs_no_overlapping_release and the MWE overlap constraint are gist
+// exclusion constraints over integers and dates. btree_gist is a trusted
+// extension, so a database owner can install it without superuser.
+export const REQUIRED_EXTENSIONS = Object.freeze(["btree_gist"]);
+
+export async function installRequiredExtensions(q) {
+  for (const name of REQUIRED_EXTENSIONS) await q(`CREATE EXTENSION IF NOT EXISTS ${name} WITH SCHEMA public`);
+  const { rows } = await q("SELECT extname FROM pg_catalog.pg_extension WHERE extname = ANY($1::text[])", [[...REQUIRED_EXTENSIONS]]);
+  const missing = REQUIRED_EXTENSIONS.filter((name) => !rows.some((row) => row.extname === name));
+  if (missing.length) throw new Error("CUTOVER_EXTENSION_MISSING: " + missing.join(", "));
+}
+
 /**
  * Strip statements a non-superuser database owner (Neon's neondb_owner) cannot
  * run or does not need: psql-only \restrict lines, comments on the public

@@ -18,8 +18,8 @@ import { readFileSync } from "node:fs";
 import pg from "pg";
 import { missingMigrationObjects, objectKey } from "./lib/migration-only-objects.mjs";
 import {
-  FORBIDDEN_TARGET_BRANCHES, applyOwnershipAndGrants, assertCutoverRolesProvisioned, assertPublicSchemaEmpty,
-  createLedgersAndCutover, grantSealerMembership, installV2AuditGuards, prepareSchemaDump,
+  FORBIDDEN_TARGET_BRANCHES, REQUIRED_EXTENSIONS, applyOwnershipAndGrants, assertCutoverRolesProvisioned, assertPublicSchemaEmpty,
+  createLedgersAndCutover, grantSealerMembership, installRequiredExtensions, installV2AuditGuards, prepareSchemaDump,
 } from "./lib/clean-baseline-cutover.mjs";
 
 function refuse(code) { throw new Error("CLEAN_BASELINE_CUTOVER_" + code); }
@@ -100,6 +100,7 @@ async function main() {
     open = true;
     await q("SET LOCAL lock_timeout = '10s'");
     await q("SET LOCAL statement_timeout = '300s'");
+    await step("required extensions", async () => { await installRequiredExtensions(q); return { extensions: [...REQUIRED_EXTENSIONS] }; });
     await step("source schema (push + 0109 + supplement)", async () => {
       await q(dump);
       await q("SET LOCAL search_path = public");
