@@ -52,7 +52,7 @@ const hostile = {
   headers: sensitive,
   user: { email: "synthetic-employee@example.invalid", sssNo: sensitive.sssNo },
   extra: { bank: sensitive.bank_account, governmentIdentifiers: sensitive },
-} as never;
+};
 
 function expectNoSensitiveData(serialized: string) {
   for (const marker of markers) {
@@ -77,7 +77,7 @@ test("default-OFF error exporter cannot contact any provider even with hostile r
     return { ok: true, status: 200 };
   };
   for (const flag of [undefined, "false", "TRUE", "1", ""]) {
-    const outcome = await emitSafeOtelError(hostile, {
+    const outcome = await emitSafeOtelError(hostile as never, {
       SAFE_OTEL_ERRORS_ENABLED: flag,
       OTLP_LOGS_ENDPOINT: "https://collector.example/v1/logs",
       OTLP_LOGS_BEARER_TOKEN: token,
@@ -88,13 +88,13 @@ test("default-OFF error exporter cannot contact any provider even with hostile r
 });
 
 test("allowlisted error record and OTLP envelope drop every bank, PH government ID, session, auth and body field", () => {
-  const record = safeOtelRecord(hostile, Date.parse("2026-10-18T00:00:00Z"));
+  const record = safeOtelRecord(hostile as never, Date.parse("2026-10-18T00:00:00Z"));
   assert.deepEqual(Object.keys(record).sort(), ["event", "requestId", "subsystem", "code", "timestamp"].sort());
   assert.equal(record.subsystem, "web");
   assert.equal(record.code, "UNHANDLED_SERVER_ERROR");
   assert.match(record.requestId, /^[0-9a-f]{8}-[0-9a-f]{4}-4/);
   expectNoSensitiveData(JSON.stringify(record));
-  const envelope = otlpErrorEnvelope(hostile);
+  const envelope = otlpErrorEnvelope(hostile as never);
   const log = envelope.resourceLogs[0].scopeLogs[0].logRecords[0];
   assert.deepEqual(log.attributes.map(attribute => attribute.key), [
     "request.id", "error.subsystem", "error.code",
@@ -104,21 +104,21 @@ test("allowlisted error record and OTLP envelope drop every bank, PH government 
 
 test("opted-in HTTPS transport carries only sanitized fixed-schema body and its own collector bearer", async () => {
   const collectorToken = "synthetic-collector-only-token-minimum-32-characters";
-  let captured: { body: string; headers: Record<string, string> } | null = null;
+  const captured: Array<{ body: string; headers: Record<string, string> }> = [];
   const result = await emitSafeOtelError({
     ...hostile,
     requestId: newOperationalRequestId(),
-  }, {
+  } as never, {
     SAFE_OTEL_ERRORS_ENABLED: "true",
     OTLP_LOGS_ENDPOINT: "https://collector.example/v1/logs",
     OTLP_LOGS_BEARER_TOKEN: collectorToken,
   }, async request => {
-    captured = { body: request.body, headers: request.headers };
+    captured.push({ body: request.body, headers: request.headers });
     return { ok: true, status: 200 };
   });
   assert.equal(result, "delivered");
-  assert.ok(captured);
-  const delivery = captured as { body: string; headers: Record<string, string> };
+  assert.equal(captured.length, 1);
+  const delivery = captured[0];
   assert.equal(delivery.headers.Authorization, "Bearer " + collectorToken);
   assert.deepEqual(Object.keys(delivery.headers).sort(), ["Authorization", "Content-Type"].sort());
   assert.ok(!delivery.body.includes(collectorToken), "Collector secret never becomes log content");
