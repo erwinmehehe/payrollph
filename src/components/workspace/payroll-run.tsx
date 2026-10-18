@@ -153,6 +153,8 @@ export function PayrollRunView({
         if (!alive) return;
         setFetched(null);
         setFailedRunId(runId);
+        setConfirmReleaseForScope(null);
+        setReviewOpen(false);
       });
     return () => { alive = false; };
   }, [runId, data.selectedOrganization.id, data.payrollRuns, registerRevision]);
@@ -999,7 +1001,11 @@ export function PayrollRunView({
                 detail="The register was not verified for the selected employer and run. Review and release actions are unavailable."
               />
               <button className="secondary-button" type="button"
-                onClick={() => setRegisterRevision((value) => value + 1)}>
+                onClick={() => {
+                  setConfirmReleaseForScope(null);
+                  setReviewOpen(false);
+                  setRegisterRevision((value) => value + 1);
+                }}>
                 <RefreshCw size={14} /> Retry register
               </button>
             </div>
