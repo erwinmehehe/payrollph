@@ -13,11 +13,12 @@ const scope = (organizationId: number, runId: number | null, payrollRuns: unknow
   PayrollReleaseChecklistScope => ({ organizationId, runId, payrollRuns, tasks: approvals });
 
 test("a release checklist is only visible for the exact employer, run, and approval inputs", () => {
+  const current = scope(10, 42);
   const approved: ObservedPayrollReleaseChecklist<{ ready: boolean }> = {
-    scope: scope(10, 42),
+    scope: current,
     checklist: { ready: true },
   };
-  assert.deepEqual(visiblePayrollReleaseChecklist(scope(10, 42), approved), { ready: true });
+  assert.deepEqual(visiblePayrollReleaseChecklist(current, approved), { ready: true });
 
   for (const mismatched of [
     scope(11, 42),
@@ -25,6 +26,7 @@ test("a release checklist is only visible for the exact employer, run, and appro
     scope(10, null),
     scope(10, 42, [{ id: 42 }], tasks),
     scope(10, 42, runs, [{ id: 5, status: "Pending" }]),
+    scope(10, 42), // A -> B -> A must not show the first A response again.
   ]) {
     assert.equal(visiblePayrollReleaseChecklist(mismatched, approved), null,
       "old readiness must not be used to release a different snapshot");
@@ -33,12 +35,13 @@ test("a release checklist is only visible for the exact employer, run, and appro
 });
 
 test("server denial or load failure never grants readiness for a matching run", () => {
-  assert.equal(visiblePayrollReleaseChecklist(scope(10, 42), {
-    scope: scope(10, 42),
+  const current = scope(10, 42);
+  assert.equal(visiblePayrollReleaseChecklist(current, {
+    scope: current,
     checklist: null,
   }), null);
-  assert.deepEqual(visiblePayrollReleaseChecklist(scope(10, 42), {
-    scope: scope(10, 42),
+  assert.deepEqual(visiblePayrollReleaseChecklist(current, {
+    scope: current,
     checklist: { ready: false, blocking: true },
   }), { ready: false, blocking: true });
 });
@@ -46,6 +49,8 @@ test("server denial or load failure never grants readiness for a matching run", 
 test("payroll run explicitly aborts obsolete reads and removes synchronous effect clearing", () => {
   const source = readFileSync("src/components/workspace/payroll-run.tsx", "utf8");
   assert.match(source, /visiblePayrollReleaseChecklist\(checklistScope, checklistObservation\)/);
+  assert.match(source, /const checklistScope = useMemo\(\(\) => \(\{/);
+  assert.match(source, /const requestScope = checklistScope/);
   assert.match(source, /organizationId: data\.selectedOrganization\.id/);
   assert.match(source, /payrollRuns: data\.payrollRuns/);
   assert.match(source, /tasks: data\.tasks/);
