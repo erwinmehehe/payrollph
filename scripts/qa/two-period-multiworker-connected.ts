@@ -211,7 +211,7 @@ async function main(){
     organizationId:org.id,action:"update_policy",active:true,enforcementMode:"block",
   });
   const [checker]=await db.select({id:users.id}).from(users)
-    .where(eq(users.email,"checker.nine@linaw.test"));assert.ok(checker?.id);
+    .where(eq(users.email,"checker.twoperiod@linaw.test"));assert.ok(checker?.id);
   const hashesSeen=new Set<string>();
   for(const period of periods){
     const ids:number[]=[];
