@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, FilePenLine, RefreshCcw, XCircle } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner, Status, money } from "./ui";
@@ -84,59 +84,123 @@ function summarize(snapshot: Record<string, unknown>) {
     .join(" · ");
 }
 
-export function StatutoryRemittanceCorrectionsPanel({
-  organizationId,
-  notify,
-}: {
+type StatutoryRemittanceCorrectionsPanelProps = {
   organizationId: number;
   notify: Notify;
-}) {
+};
+
+type BatchPaymentDraft = {
+  amountPaid: string;
+  paymentReference: string;
+  agencyReceiptReference: string;
+  paymentChannel: string;
+  paymentVarianceNote: string;
+  paidAt: string;
+};
+type MemberPostingDraft = { postingReference: string; postedAmount: string; postedAt: string };
+
+function paymentDefaults(batch: Batch | null): BatchPaymentDraft {
+  return {
+    amountPaid: batch?.amountPaid ?? "",
+    paymentReference: batch?.paymentReference ?? "",
+    agencyReceiptReference: batch?.agencyReceiptReference ?? "",
+    paymentChannel: batch?.paymentChannel ?? "",
+    paymentVarianceNote: batch?.paymentVarianceNote ?? "",
+    paidAt: formatDateTimeLocal(batch?.paidAt),
+  };
+}
+function postingDefaults(member: Member | null): MemberPostingDraft {
+  return {
+    postingReference: member?.postingReference ?? "",
+    postedAmount: member?.postedAmount ?? member?.totalContribution ?? "",
+    postedAt: formatDateTimeLocal(member?.postedAt),
+  };
+}
+
+// Corrections, free-form evidence drafts and independent-approval decisions
+// are employer-local. Changing A -> B -> A mounts a new empty state.
+export function StatutoryRemittanceCorrectionsPanel(props: StatutoryRemittanceCorrectionsPanelProps) {
+  return <StatutoryRemittanceCorrectionsPanelForOrganization key={props.organizationId} {...props} />;
+}
+
+function StatutoryRemittanceCorrectionsPanelForOrganization({
+  organizationId,
+  notify,
+}: StatutoryRemittanceCorrectionsPanelProps) {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [correctionData, setCorrectionData] = useState<CorrectionPayload | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [readState, setReadState] = useState<"loading" | "ready" | "error">("loading");
+  const [readError, setReadError] = useState("");
+  const readRevisionRef = useRef(0);
 
   const [targetType, setTargetType] = useState<"batch_payment" | "member_posting">("batch_payment");
   const [batchId, setBatchId] = useState("");
   const [memberId, setMemberId] = useState("");
   const [reason, setReason] = useState("");
-  const [amountPaid, setAmountPaid] = useState("");
-  const [paymentReference, setPaymentReference] = useState("");
-  const [agencyReceiptReference, setAgencyReceiptReference] = useState("");
-  const [paymentChannel, setPaymentChannel] = useState("");
-  const [paymentVarianceNote, setPaymentVarianceNote] = useState("");
-  const [paidAt, setPaidAt] = useState("");
-  const [postingReference, setPostingReference] = useState("");
-  const [postedAmount, setPostedAmount] = useState("");
-  const [postedAt, setPostedAt] = useState("");
+  // Draft edits are owned by an evidence record. Untouched fields derive from
+  // the freshest authorized read, not from state copied by an effect.
+  const [paymentEdit, setPaymentEdit] = useState<{ id: number; values: BatchPaymentDraft } | null>(null);
+  const [postingEdit, setPostingEdit] = useState<{ id: number; values: MemberPostingDraft } | null>(null);
   const [decisionNotes, setDecisionNotes] = useState<Record<number, string>>({});
 
-  const load = useCallback(async () => {
-    const [remittanceResponse, correctionResponse] = await Promise.all([
-      fetch(`/api/compliance/statutory-remittances?organizationId=${organizationId}`, { cache: "no-store" }),
-      fetch(`/api/compliance/statutory-remittance-corrections?organizationId=${organizationId}`, { cache: "no-store" }),
-    ]);
-    const [remittanceBody, correctionBody] = await Promise.all([
-      remittanceResponse.json().catch(() => ({})),
-      correctionResponse.json().catch(() => ({})),
-    ]);
-    if (!remittanceResponse.ok) {
-      throw new Error(remittanceBody.error ?? "Could not load remittance evidence.");
+  const load = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
+    const revision = ++readRevisionRef.current;
+    const isCurrent = () => !signal?.aborted && revision === readRevisionRef.current;
+    try {
+      const [remittanceResponse, correctionResponse] = await Promise.all([
+        fetch(`/api/compliance/statutory-remittances?organizationId=${organizationId}`, { cache: "no-store", signal }),
+        fetch(`/api/compliance/statutory-remittance-corrections?organizationId=${organizationId}`, { cache: "no-store", signal }),
+      ]);
+      const [remittanceBody, correctionBody] = await Promise.all([
+        remittanceResponse.json().catch(() => ({})),
+        correctionResponse.json().catch(() => ({})),
+      ]);
+      if (!isCurrent()) return false;
+      if (!remittanceResponse.ok) throw new Error(remittanceBody.error ?? "Could not load remittance evidence.");
+      if (!correctionResponse.ok) throw new Error(correctionBody.error ?? "Could not load remittance corrections.");
+      if (!Array.isArray(remittanceBody.batches) || !Array.isArray(remittanceBody.members)
+        || !Array.isArray(correctionBody.corrections)
+        || typeof correctionBody.canRequest !== "boolean" || typeof correctionBody.canApprove !== "boolean"
+        || !Number.isInteger(correctionBody.currentUserId)) {
+        throw new Error("Authorized remittance correction evidence is incomplete.");
+      }
+      setBatches(remittanceBody.batches);
+      setMembers(remittanceBody.members);
+      setCorrectionData(correctionBody as CorrectionPayload);
+      setReadError("");
+      setReadState("ready");
+      return true;
+    } catch (error) {
+      if (!isCurrent()) return false;
+      // A failed or partial read must never impersonate "no pending approvals".
+      setBatches([]);
+      setMembers([]);
+      setCorrectionData(null);
+      const message = error instanceof Error ? error.message : "Could not load remittance corrections.";
+      setReadError(message);
+      setReadState("error");
+      notify(message, "err");
+      return false;
     }
-    if (!correctionResponse.ok) {
-      throw new Error(correctionBody.error ?? "Could not load remittance corrections.");
-    }
-    setBatches(Array.isArray(remittanceBody.batches) ? remittanceBody.batches : []);
-    setMembers(Array.isArray(remittanceBody.members) ? remittanceBody.members : []);
-    setCorrectionData(correctionBody as CorrectionPayload);
-  }, [organizationId]);
+  }, [organizationId, notify]);
 
   useEffect(() => {
-    void load().catch((error) => notify(
-      error instanceof Error ? error.message : "Could not load remittance corrections.",
-      "err",
-    ));
-  }, [load, notify]);
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load(controller.signal);
+    });
+    return () => {
+      controller.abort();
+      readRevisionRef.current += 1;
+    };
+  }, [load]);
+
+  const refresh = () => {
+    setReadState("loading");
+    void load();
+  };
 
   const recordedBatches = useMemo(
     () => batches.filter((batch) => batch.status !== "open" && batch.amountPaid != null && batch.paidAt),
@@ -149,22 +213,20 @@ export function StatutoryRemittanceCorrectionsPanel({
   const selectedBatch = batches.find((batch) => batch.id === Number(batchId)) ?? null;
   const selectedMember = members.find((member) => member.id === Number(memberId)) ?? null;
 
-  useEffect(() => {
-    if (!selectedBatch || targetType !== "batch_payment") return;
-    setAmountPaid(selectedBatch.amountPaid ?? "");
-    setPaymentReference(selectedBatch.paymentReference ?? "");
-    setAgencyReceiptReference(selectedBatch.agencyReceiptReference ?? "");
-    setPaymentChannel(selectedBatch.paymentChannel ?? "");
-    setPaymentVarianceNote(selectedBatch.paymentVarianceNote ?? "");
-    setPaidAt(formatDateTimeLocal(selectedBatch.paidAt));
-  }, [selectedBatch, targetType]);
-
-  useEffect(() => {
-    if (!selectedMember || targetType !== "member_posting") return;
-    setPostingReference(selectedMember.postingReference ?? "");
-    setPostedAmount(selectedMember.postedAmount ?? selectedMember.totalContribution);
-    setPostedAt(formatDateTimeLocal(selectedMember.postedAt));
-  }, [selectedMember, targetType]);
+  // When selection is empty, neither an undefined ID nor an old draft may
+  // authorize a payment/posting value (undefined === undefined is true).
+  const paymentForm = paymentEdit && selectedBatch && paymentEdit.id === selectedBatch.id
+    ? paymentEdit.values : paymentDefaults(selectedBatch);
+  const postingForm = postingEdit && selectedMember && postingEdit.id === selectedMember.id
+    ? postingEdit.values : postingDefaults(selectedMember);
+  const editPayment = (key: keyof BatchPaymentDraft, value: string) => {
+    if (!selectedBatch) return;
+    setPaymentEdit({ id: selectedBatch.id, values: { ...paymentForm, [key]: value } });
+  };
+  const editPosting = (key: keyof MemberPostingDraft, value: string) => {
+    if (!selectedMember) return;
+    setPostingEdit({ id: selectedMember.id, values: { ...postingForm, [key]: value } });
+  };
 
   async function mutate(action: string, payload: Record<string, unknown>, success: string) {
     setBusy(action);
@@ -189,6 +251,13 @@ export function StatutoryRemittanceCorrectionsPanel({
   }
 
   async function requestCorrection() {
+    if (!correctionData?.canRequest
+      || (targetType === "batch_payment"
+        ? !selectedBatch || !recordedBatches.some((item) => item.id === selectedBatch.id)
+        : !selectedMember || !confirmedMembers.some((item) => item.id === selectedMember.id))) {
+      notify("Select an authorized, recorded remittance item before requesting a correction.", "err");
+      return;
+    }
     if (reason.trim().length < 8) {
       notify("Explain why this evidence needs correction.", "err");
       return;
@@ -197,23 +266,29 @@ export function StatutoryRemittanceCorrectionsPanel({
     const ok = targetType === "batch_payment"
       ? await mutate("request_payment_correction", {
           batchId: Number(batchId),
-          amountPaid: Number(amountPaid),
-          paymentReference,
-          agencyReceiptReference,
-          paymentChannel,
-          paymentVarianceNote,
-          paidAt: paidAt ? new Date(paidAt).toISOString() : "",
+          amountPaid: Number(paymentForm.amountPaid),
+          paymentReference: paymentForm.paymentReference,
+          agencyReceiptReference: paymentForm.agencyReceiptReference,
+          paymentChannel: paymentForm.paymentChannel,
+          paymentVarianceNote: paymentForm.paymentVarianceNote,
+          paidAt: paymentForm.paidAt ? new Date(paymentForm.paidAt).toISOString() : "",
           reason,
         }, "Payment evidence correction sent for independent approval.")
       : await mutate("request_posting_correction", {
           memberId: Number(memberId),
-          postingReference,
-          postedAmount: Number(postedAmount),
-          postedAt: postedAt ? new Date(postedAt).toISOString() : "",
+          postingReference: postingForm.postingReference,
+          postedAmount: Number(postingForm.postedAmount),
+          postedAt: postingForm.postedAt ? new Date(postingForm.postedAt).toISOString() : "",
           reason,
         }, "Employee posting correction sent for independent approval.");
 
-    if (ok) setReason("");
+    if (ok) {
+      setReason("");
+      setBatchId("");
+      setMemberId("");
+      setPaymentEdit(null);
+      setPostingEdit(null);
+    }
   }
 
   async function decide(correction: Correction, action: "approve" | "reject") {
@@ -228,6 +303,29 @@ export function StatutoryRemittanceCorrectionsPanel({
   const pending = (correctionData?.corrections ?? []).filter((item) => item.status === "pending");
   const history = (correctionData?.corrections ?? []).filter((item) => item.status !== "pending").slice(-10).reverse();
 
+  if (readState !== "ready") {
+    return (
+      <article className="card" style={{ marginBottom: 16 }} data-remittance-corrections>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">AUDITED EVIDENCE CORRECTIONS</div>
+            <h2>{readState === "loading" ? "Loading remittance evidence…" : "Remittance corrections unavailable"}</h2>
+            <p role={readState === "error" ? "alert" : "status"}>
+              {readState === "error"
+                ? readError + " No correction requests or approvals are shown without authorized evidence."
+                : "Fetching the current employer's recorded payments, agency postings, and approval permissions."}
+            </p>
+          </div>
+          {readState === "error" && (
+            <button className="secondary-button" disabled={busy !== null} onClick={refresh}>
+              <RefreshCcw size={14} /> Retry
+            </button>
+          )}
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article className="card" style={{ marginBottom: 16 }} data-remittance-corrections>
       <div className="card-header">
@@ -238,7 +336,7 @@ export function StatutoryRemittanceCorrectionsPanel({
             A payroll operator proposes the correction. A different Owner, Admin, or Checker must approve it before the recorded evidence changes.
           </p>
         </div>
-        <button className="secondary-button" onClick={() => void load()} disabled={busy !== null}>
+        <button className="secondary-button" onClick={refresh} disabled={busy !== null}>
           <RefreshCcw size={14} /> Refresh
         </button>
       </div>
@@ -273,12 +371,12 @@ export function StatutoryRemittanceCorrectionsPanel({
                       ))}
                     </select>
                   </label>
-                  <label>Amount paid<input type="number" min="0" step="0.01" value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} /></label>
-                  <label>Payment reference<input value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} /></label>
-                  <label>Agency receipt<input value={agencyReceiptReference} onChange={(event) => setAgencyReceiptReference(event.target.value)} /></label>
-                  <label>Payment channel<input value={paymentChannel} onChange={(event) => setPaymentChannel(event.target.value)} /></label>
-                  <label>Penalty / variance note<input value={paymentVarianceNote} onChange={(event) => setPaymentVarianceNote(event.target.value)} /></label>
-                  <label>Paid at<input type="datetime-local" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} /></label>
+                  <label>Amount paid<input type="number" min="0" step="0.01" value={paymentForm.amountPaid} onChange={(event) => editPayment("amountPaid", event.target.value)} /></label>
+                  <label>Payment reference<input value={paymentForm.paymentReference} onChange={(event) => editPayment("paymentReference", event.target.value)} /></label>
+                  <label>Agency receipt<input value={paymentForm.agencyReceiptReference} onChange={(event) => editPayment("agencyReceiptReference", event.target.value)} /></label>
+                  <label>Payment channel<input value={paymentForm.paymentChannel} onChange={(event) => editPayment("paymentChannel", event.target.value)} /></label>
+                  <label>Penalty / variance note<input value={paymentForm.paymentVarianceNote} onChange={(event) => editPayment("paymentVarianceNote", event.target.value)} /></label>
+                  <label>Paid at<input type="datetime-local" value={paymentForm.paidAt} onChange={(event) => editPayment("paidAt", event.target.value)} /></label>
                 </>
               ) : (
                 <>
@@ -296,9 +394,9 @@ export function StatutoryRemittanceCorrectionsPanel({
                       })}
                     </select>
                   </label>
-                  <label>Posted amount<input type="number" min="0" step="0.01" value={postedAmount} onChange={(event) => setPostedAmount(event.target.value)} /></label>
-                  <label>Posting reference<input value={postingReference} onChange={(event) => setPostingReference(event.target.value)} /></label>
-                  <label>Posted at<input type="datetime-local" value={postedAt} onChange={(event) => setPostedAt(event.target.value)} /></label>
+                  <label>Posted amount<input type="number" min="0" step="0.01" value={postingForm.postedAmount} onChange={(event) => editPosting("postedAmount", event.target.value)} /></label>
+                  <label>Posting reference<input value={postingForm.postingReference} onChange={(event) => editPosting("postingReference", event.target.value)} /></label>
+                  <label>Posted at<input type="datetime-local" value={postingForm.postedAt} onChange={(event) => editPosting("postedAt", event.target.value)} /></label>
                 </>
               )}
               <label>
@@ -312,7 +410,7 @@ export function StatutoryRemittanceCorrectionsPanel({
                 disabled={
                   busy !== null
                   || reason.trim().length < 8
-                  || (targetType === "batch_payment" ? !batchId : !memberId)
+                  || (targetType === "batch_payment" ? !selectedBatch : !selectedMember)
                 }
                 onClick={() => void requestCorrection()}
               >
