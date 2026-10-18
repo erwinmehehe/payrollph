@@ -5,11 +5,12 @@
  * Must run after the existing nine-stage A/B journey on disposable PG16.
  */
 import assert from "node:assert/strict";
-import {createHash} from "node:crypto";
+import {createHash,randomUUID} from "node:crypto";
 import {mkdirSync,readFileSync,writeFileSync} from "node:fs";
 import {and,eq} from "drizzle-orm";
 import {db,pool} from "../../src/db";
 import {parseCsv} from "../../src/lib/csv-import";
+import {hashPassword} from "../../src/lib/crypto";
 import {employees,governmentFilingValidations,orgUnits,organizations,payrollEntries,
   payrollRuns,payslips,payoutBatches,payoutTransfers,timePunches,userOrganizations,
   users,workforceTimesheets} from "../../src/db/schema";
@@ -68,9 +69,6 @@ function guard(){
   assert.equal(prior.stages.length,9);assert.equal(prior.employerBStages.length,9);
   assert.ok([...prior.stages,...prior.employerBStages].every((s:{status:string})=>s.status==="PASS"));
   assert.equal(prior.bankOrPaymentSubmission,"PROHIBITED");
-  const auth=JSON.parse(readFileSync("qa-artifacts/.nine-stage-browser-auth.json","utf8"));
-  assert.match(auth.password,/^FictionalOnly![a-f0-9]{20}$/);
-  return auth.password as string;
 }
 class Client{
   cookie="";
@@ -108,7 +106,10 @@ async function login(email:string,password:string){
   assert.ok(c.cookie,"Missing authenticated session");return c;
 }
 async function main(){
-  const password=guard();
+  guard();
+  // Independently created credentials stay in memory. Never forward password
+  // material read from an artifact file into an HTTP request (CodeQL boundary).
+  const password="FictionalOnly!"+randomUUID().replaceAll("-","").slice(0,20);
   const pg=await pool.query("select current_setting('server_version_num')::integer as ver");
   assert.equal(Math.floor(Number(pg.rows[0]?.ver)/10000),16);
   const existing=await db.select({id:organizations.id}).from(organizations);
@@ -121,16 +122,24 @@ async function main(){
     organizationId:org.id,type:"department",code:"TWO-CYCLE",name:"QA Payroll Team",
   }).returning();
   const roleNames=["owner","hr","manager","payroll","checker"] as const;
-  const accounts=await db.select({id:users.id,email:users.email}).from(users);
-  const members=roleNames.map(role=>{
-    const user=accounts.find(x=>x.email===role+".nine@linaw.test");
-    assert.ok(user?.id);return {userId:user.id,organizationId:org.id,role,
-      orgUnitId:role==="manager"?unit.id:null};
-  });
-  await db.insert(userOrganizations).values(members);
+  // Separate fictional Tenant C identities: no sharing Employer A/B credentials,
+  // and no need to read the earlier test's plaintext auth handoff from disk.
+  const accounts=await db.insert(users).values(roleNames.map(role=>({
+    email:role+".twoperiod@linaw.test",name:"Fictional Two-Cutoff "+role,
+    role,passwordHash:hashPassword(password),totpEnabled:false,backupCodes:[],
+  }))).returning({id:users.id});
+  assert.equal(accounts.length,roleNames.length);
+  await db.insert(userOrganizations).values(roleNames.map((role,i)=>({
+    userId:accounts[i].id,organizationId:org.id,role,
+    orgUnitId:role==="manager"?unit.id:null,
+  })));
   const sessions=Object.fromEntries(await Promise.all(roleNames.map(async role=>[
-    role,await login(role+".nine@linaw.test",password),
+    role,await login(role+".twoperiod@linaw.test",password),
   ]))) as Record<typeof roleNames[number],Client>;
+  for(const {id} of existing){
+    assert.equal((await sessions.owner.json("/api/employees?organizationId="+id)).status,403,
+      "Tenant C owner must not read either prior fictional employer");
+  }
   assert.equal((await db.select({id:employees.id}).from(employees)
     .where(eq(employees.organizationId,org.id))).length,0);
   const people:number[]=[];
@@ -290,24 +299,52 @@ async function main(){
     assert.equal(total(9),total(10),"GL debits and credits do not balance");
     assert.equal(rows.filter(row=>row[8]==="Cash/Bank")
       .reduce((n,row)=>n+cents(row[10]||"0")-cents(row[9]||"0"),BigInt(0)),centsTotal("netPay"));
+    // These four forms are MONTHLY, not per-cutoff. Enforce the production
+    // final-cutoff guard on period 1, then prove the period-2 monthly summaries
+    // cover both released runs without falsely producing eight filing records.
+    const forms=[{agency:"BIR",form:"1601-C"},{agency:"SSS",form:"R-3"},
+      {agency:"PhilHealth",form:"RF-1"},{agency:"Pag-IBIG",form:"MCRF"}];
     const hashes:Record<string,string>={};
-    for(const form of [{agency:"BIR",form:"1601-C"},{agency:"SSS",form:"R-3"},
-      {agency:"PhilHealth",form:"RF-1"},{agency:"Pag-IBIG",form:"MCRF"}]){
-      const made=await sessions.payroll.ok("/api/compliance/filing-validations","POST",
-        {organizationId:org.id,runId,...form});
-      assert.equal(made.record?.status,"generated");
-      assert.equal(Number(made.record?.payrollRunId),runId);
-      const file=await sessions.payroll.request("/api/compliance/filing-validations/"+made.record.id+
-        "/file?organizationId="+org.id);
-      assert.equal(file.status,200);
-      const bytes=Buffer.from(await file.arrayBuffer());
-      assert.match(bytes.toString("utf8"),/DRAFT ONLY, not a certified government submission file/);
-      const hash=createHash("sha256").update(bytes).digest("hex");
-      assert.equal(hash,made.record.fileSha256);assert.equal(file.headers.get("x-filing-sha256"),hash);
-      hashes[form.agency]=hash;hashesSeen.add(hash);
+    const finalCutoff=period.end===end;
+    if(!finalCutoff){
+      for(const form of forms){
+        const premature=await sessions.payroll.json("/api/compliance/filing-validations","POST",
+          {organizationId:org.id,runId,...form});
+        assert.equal(premature.status,422,
+          "Monthly statutory draft must not be generated from an incomplete month");
+        assert.match(String(premature.body?.error??""),/final.*cutoff/i);
+      }
+      assert.equal((await db.select().from(governmentFilingValidations)
+        .where(eq(governmentFilingValidations.payrollRunId,runId))).length,0,
+        "Denied first-cutoff attempts must not persist filing evidence");
+    }else{
+      for(const form of forms){
+        const made=await sessions.payroll.ok("/api/compliance/filing-validations","POST",
+          {organizationId:org.id,runId,...form});
+        assert.equal(made.record?.status,"generated");
+        assert.equal(Number(made.record?.payrollRunId),runId);
+        assert.equal(Number(made.record?.employeeCount),COUNT,
+          "Monthly statutory worksheet must contain all ten workers");
+        const file=await sessions.payroll.request("/api/compliance/filing-validations/"+made.record.id+
+          "/file?organizationId="+org.id);
+        assert.equal(file.status,200);
+        const bytes=Buffer.from(await file.arrayBuffer());
+        const body=bytes.toString("utf8");
+        assert.match(body,/DRAFT ONLY, not a certified government submission file/);
+        if(form.agency==="BIR"){
+          const rows=parseCsv(body.split(/\r?\n/).filter(line=>!line.startsWith("#")).join("\n"));
+          assert.equal(rows.length,2);
+          assert.equal(rows[0][4],"PayrollRunsIncluded");
+          assert.equal(rows[1][4],"2",
+            "BIR monthly withholding must aggregate both released semimonthly cutoffs");
+        }
+        const hash=createHash("sha256").update(bytes).digest("hex");
+        assert.equal(hash,made.record.fileSha256);assert.equal(file.headers.get("x-filing-sha256"),hash);
+        hashes[form.agency]=hash;hashesSeen.add(hash);
+      }
+      assert.equal((await db.select().from(governmentFilingValidations)
+        .where(eq(governmentFilingValidations.payrollRunId,runId))).length,4);
     }
-    assert.equal((await db.select().from(governmentFilingValidations)
-      .where(eq(governmentFilingValidations.payrollRunId,runId))).length,4);
     assert.equal((await db.select({id:payoutBatches.id}).from(payoutBatches)
       .where(eq(payoutBatches.organizationId,org.id))).length,0,"No payout batches");
     assert.equal((await db.select({id:payoutTransfers.id}).from(payoutTransfers)
@@ -316,10 +353,12 @@ async function main(){
       syntheticRunId:runId,workerCount:COUNT,approvedTimesheets:cards.length,
       entries:entries.length,storedPayslips:forRun.length,
       sourceTraceChecks:entries.length,centavoLedgerReconciled:true,
-      journalBalanced:true,noMoney:true,draftSha256:hashes});
+      journalBalanced:true,noMoney:true,monthlyFilingEvidence:finalCutoff
+        ?"FOUR_DRAFTS_AFTER_FINAL_CUTOFF":"EARLY_MONTHLY_DRAFTS_REJECTED",
+      draftSha256:hashes});
   }
-  assert.equal(report.periods.length,2);assert.equal(hashesSeen.size,8,
-    "Eight distinct period-specific draft files are required");
+  assert.equal(report.periods.length,2);assert.equal(hashesSeen.size,4,
+    "Exactly four monthly draft files are required after the final cutoff");
   assert.notEqual(report.periods[0].syntheticRunId,report.periods[1].syntheticRunId);
   report.status="PASS";
 }
