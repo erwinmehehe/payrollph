@@ -39,11 +39,6 @@
       "count": 1
     }
   },
-  "src/components/workspace/payroll-month-close-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/workspace/payroll-run.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
