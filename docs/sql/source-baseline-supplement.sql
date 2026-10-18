@@ -780,3 +780,82 @@ BEGIN
     FOREIGN KEY (payroll_run_id,legal_entity_id) REFERENCES payroll_runs(id,legal_entity_id)  NOT VALID;
  END IF;
 END $issue910_scope$;
+
+-- Unnamed column-level CHECK constraints. Migrations declared these inline
+-- without a name, so a source-first baseline lacks them. Each uses the name
+-- PostgreSQL generates for an unnamed CHECK on that table and column.
+
+-- 0053_hcm_capability_wfm_eligibility.sql: constraint:hcm_job_profile_skill_requirements_minimum_proficiency_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_job_profile_skill_requirements" ADD CONSTRAINT "hcm_job_profile_skill_requirements_minimum_proficiency_check" CHECK ("minimum_proficiency" BETWEEN 1 AND 5);
+
+-- 0053_hcm_capability_wfm_eligibility.sql: constraint:hcm_employee_skills_proficiency_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_employee_skills" ADD CONSTRAINT "hcm_employee_skills_proficiency_check" CHECK ("proficiency" BETWEEN 1 AND 5);
+
+-- 0053_hcm_capability_wfm_eligibility.sql: constraint:hcm_employee_skills_status_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_employee_skills" ADD CONSTRAINT "hcm_employee_skills_status_check" CHECK ("status" IN ('declared','verified','revoked'));
+
+-- 0055_hcm_worksite_arrangements.sql: constraint:hcm_work_arrangements_mode_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_work_arrangements" ADD CONSTRAINT "hcm_work_arrangements_mode_check" CHECK ("mode" IN ('onsite','hybrid','remote','field'));
+
+-- 0056_hcm_employment_terms.sql: constraint:hcm_employment_terms_term_kind_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_employment_terms" ADD CONSTRAINT "hcm_employment_terms_term_kind_check" CHECK ("term_kind" IN ('regular','probationary','fixed_term','project','seasonal','casual','other'));
+
+-- 0056_hcm_employment_terms.sql: constraint:hcm_employment_terms_status_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_employment_terms" ADD CONSTRAINT "hcm_employment_terms_status_check" CHECK ("status" IN ('pending_approval','scheduled','active','superseded','cancelled','failed'));
+
+-- 0057_hcm_employment_term_decisions.sql: constraint:hcm_employment_term_decisions_decision_kind_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_employment_term_decisions" ADD CONSTRAINT "hcm_employment_term_decisions_decision_kind_check" CHECK ("decision_kind" IN ('confirm_regular','renew_term','extend_term','convert_terms','non_renew','continue_current'));
+
+-- 0057_hcm_employment_term_decisions.sql: constraint:hcm_employment_term_decisions_status_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_employment_term_decisions" ADD CONSTRAINT "hcm_employment_term_decisions_status_check" CHECK ("status" IN ('pending_approval','scheduled','applied','cancelled','failed'));
+
+-- 0057_hcm_employment_term_decisions.sql: constraint:hcm_employment_term_decisions_separation_handoff_status_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_employment_term_decisions" ADD CONSTRAINT "hcm_employment_term_decisions_separation_handoff_status_check" CHECK ("separation_handoff_status" IN ('none','ready','started','completed'));
+
+-- 0060_hcm_lifecycle_notifications.sql: constraint:hcm_lifecycle_notification_tasks_status_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_lifecycle_notification_tasks" ADD CONSTRAINT "hcm_lifecycle_notification_tasks_status_check" CHECK ("status" IN ('open','acknowledged','snoozed','resolved'));
+
+-- 0061_hcm_precise_leave_intervals.sql: constraint:leave_request_interval_sets_status_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "leave_request_interval_sets" ADD CONSTRAINT "leave_request_interval_sets_status_check" CHECK ("status" IN ('current','superseded'));
+
+-- 0061_hcm_precise_leave_intervals.sql: constraint:leave_request_intervals_kind_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "leave_request_intervals" ADD CONSTRAINT "leave_request_intervals_kind_check" CHECK ("kind" IN ('full_day','first_half','second_half','timed'));
+
+-- 0062_hcm_employment_decision_evidence.sql: constraint:hcm_employment_decision_notes_note_kind_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_employment_decision_notes" ADD CONSTRAINT "hcm_employment_decision_notes_note_kind_check" CHECK ("note_kind" IN ('manager_review','hr_review','decision_rationale','other'));
+
+-- 0062_hcm_employment_decision_evidence.sql: constraint:hcm_employment_decision_documents_evidence_kind_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_employment_decision_documents" ADD CONSTRAINT "hcm_employment_decision_documents_evidence_kind_check" CHECK ("evidence_kind" IN ('probation_evaluation','performance_review','contract','manager_recommendation','other'));
+
+-- 0063_hcm_lifecycle_policy.sql: constraint:hcm_lifecycle_policies_version_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_lifecycle_policies" ADD CONSTRAINT "hcm_lifecycle_policies_version_check" CHECK ("version" >= 1);
+
+-- 0063_hcm_lifecycle_policy.sql: constraint:hcm_lifecycle_policies_action_window_days_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_lifecycle_policies" ADD CONSTRAINT "hcm_lifecycle_policies_action_window_days_check" CHECK ("action_window_days" BETWEEN 7 AND 90);
+
+-- 0063_hcm_lifecycle_policy.sql: constraint:hcm_lifecycle_policies_reminder_days_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_lifecycle_policies" ADD CONSTRAINT "hcm_lifecycle_policies_reminder_days_check" CHECK (jsonb_typeof("reminder_days") = 'array');
+
+-- 0063_hcm_lifecycle_policy.sql: constraint:hcm_lifecycle_policies_overdue_escalation_days_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_lifecycle_policies" ADD CONSTRAINT "hcm_lifecycle_policies_overdue_escalation_days_check" CHECK (jsonb_typeof("overdue_escalation_days") = 'array');
+
+-- 0065_hcm_manager_attestation.sql: constraint:hcm_employment_decision_manager_attestatio_recommendation_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "hcm_employment_decision_manager_attestations" ADD CONSTRAINT "hcm_employment_decision_manager_attestatio_recommendation_check" CHECK ("recommendation" IN ('support','do_not_support','needs_more_review'));
+
+-- 0106_saas_selfserve_recurring_billing.sql: constraint:saas_billing_checkouts_seats_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "saas_billing_checkouts" ADD CONSTRAINT "saas_billing_checkouts_seats_check" CHECK (seats BETWEEN 1 AND 2000);
+
+-- 0106_saas_selfserve_recurring_billing.sql: constraint:saas_billing_checkouts_amount_cents_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "saas_billing_checkouts" ADD CONSTRAINT "saas_billing_checkouts_amount_cents_check" CHECK (amount_cents > 0);
+
+-- 0106_saas_selfserve_recurring_billing.sql: constraint:saas_billing_checkouts_currency_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "saas_billing_checkouts" ADD CONSTRAINT "saas_billing_checkouts_currency_check" CHECK (currency='PHP');
+
+-- 0117_inline_first_payroll_journey.sql: constraint:first_payroll_journey_progress_step_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "first_payroll_journey_progress" ADD CONSTRAINT "first_payroll_journey_progress_step_check" CHECK (step IN ('company','people','time','reviewers','payroll','approval','exports'));
+
+-- 0117_inline_first_payroll_journey.sql: constraint:first_payroll_journey_progress_owner_role_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "first_payroll_journey_progress" ADD CONSTRAINT "first_payroll_journey_progress_owner_role_check" CHECK (owner_role IN ('owner','hr','payroll','checker','bookkeeper'));
+
+-- 0120_wfm_punch_evidence.sql: constraint:workforce_punch_submissions_flags_check (unnamed column CHECK in the source; PostgreSQL-generated name)
+ALTER TABLE "workforce_punch_submissions" ADD CONSTRAINT "workforce_punch_submissions_flags_check" CHECK (jsonb_typeof(flags) = 'array');

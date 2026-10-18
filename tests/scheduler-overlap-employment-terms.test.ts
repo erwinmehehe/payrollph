@@ -19,7 +19,7 @@ test("overlapping employment-term activations apply the change exactly once", as
       avatarInitials: "OW", basicRate: "30000.00", startDate: "2025-01-01", employmentType: "probationary",
     }).returning();
     const [prior] = await db.insert(hcmEmploymentTerms).values({
-      organizationId: org.id, employeeId: employee.id, employmentType: "probationary", termKind: "probation",
+      organizationId: org.id, employeeId: employee.id, employmentType: "probationary", termKind: "probationary",
       effectiveFrom: "2025-01-01", status: "active", reason: "Initial probation", requestedBy: "CI",
     }).returning();
     const [next] = await db.insert(hcmEmploymentTerms).values({
