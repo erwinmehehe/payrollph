@@ -16,6 +16,14 @@ import {
 } from "../scripts/lib/reviewed-migration-runner.mjs";
 import { noFollowSkip, symlinkSkip } from "./helpers/symlink-capability.mjs";
 
+test("0133 compound audit repair is accepted by the canonical SQL loader",{skip:noFollowSkip},()=>{
+ const inventory=inventoryMigrationSources();
+ const target=inventory.files.find(file=>file.path==="drizzle/0133_audit_missing_foundation_forward.sql");
+ assert.ok(target);
+ assert.ok(loadReviewedSql("drizzle",target).length>0);
+ assert.throws(()=>loadReviewedSql("drizzle",{...target,sha256:"0".repeat(64)}),/SQL_CHANGED_AFTER_PLAN/);
+});
+
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "payrollph-forward-migration-"));
   writeFileSync(join(directory, "0021_legacy_a.sql"), "CREATE TABLE historical_a(id int);\n");

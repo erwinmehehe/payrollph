@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApprovalChainAdmin } from "@/components/approval-chain-admin";
 import { SlackConnectorAdmin } from "@/components/slack-connector-admin";
 import { DynamicWorkerGroupsPanel } from "@/components/dynamic-worker-groups-panel";
@@ -403,13 +403,21 @@ function actionAllowed(trigger: TriggerCatalog | undefined, type: string) {
   return true;
 }
 
-export function AutomationStudioPanel({
-  organizationId,
-  setNotice,
-}: {
+type AutomationStudioPanelProps = {
   organizationId: number;
   setNotice: (message: string) => void;
-}) {
+};
+
+// Key the entire editor to the active tenant so old workflow drafts,
+// permissions and cached reads never surface when switching A -> B -> A.
+export function AutomationStudioPanel(props: AutomationStudioPanelProps) {
+  return <AutomationStudioPanelForOrganization key={props.organizationId} {...props} />;
+}
+
+function AutomationStudioPanelForOrganization({
+  organizationId,
+  setNotice,
+}: AutomationStudioPanelProps) {
   const [data, setData] = useState<StudioData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -429,24 +437,52 @@ export function AutomationStudioPanel({
   const [conditions, setConditions] = useState<ConditionDraft[]>([]);
   const [actions, setActions] = useState<ActionDraft[]>([defaultAction("a1")]);
 
+  const activeRead = useRef<AbortController | null>(null);
+  const cancelRead = useCallback(() => { activeRead.current?.abort(); }, []);
+
   const load = useCallback(async () => {
-    setLoading(true);
+    // Loading starts true on mount or from an explicit Refresh action.
+    // The mount effect cannot synchronously update React state.
+    activeRead.current?.abort();
+    const controller = new AbortController();
+    activeRead.current = controller;
     try {
       const response = await fetch(
         `/api/automation-studio?organizationId=${organizationId}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal: controller.signal },
       );
       const payload = await response.json().catch(() => ({}));
+      if (controller.signal.aborted) return;
       if (!response.ok) throw new Error(payload.error ?? "Could not load Automation Studio.");
+      if (!payload.catalogs || !Array.isArray(payload.rules) || !payload.analytics) {
+        throw new Error("Automation Studio returned incomplete controls.");
+      }
       setData(payload as StudioData);
     } catch (error) {
+      if (controller.signal.aborted) return;
+      setData(null);
       setNotice(error instanceof Error ? error.message : "Could not load Automation Studio.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [organizationId, setNotice]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load();
+    });
+    return () => {
+      controller.abort();
+      cancelRead();
+    };
+  }, [load, cancelRead]);
+
+  const refresh = () => {
+    setData(null);
+    setLoading(true);
+    void load();
+  };
 
   const selectedTrigger = useMemo(
     () => data?.catalogs.triggers.find((item) => item.value === trigger),
@@ -1000,7 +1036,7 @@ export function AutomationStudioPanel({
           </p>
         </div>
         <div className="page-actions">
-          <button className="secondary-button" onClick={() => void load()} disabled={loading}>
+          <button className="secondary-button" onClick={refresh} disabled={loading}>
             <RefreshCw size={15} /> Refresh
           </button>
           <button className="primary-button" onClick={() => setShowBuilder((value) => !value)}>
