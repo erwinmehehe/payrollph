@@ -10,7 +10,7 @@
  * success confirmation it did not earn.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   BookOpen,
@@ -1187,7 +1187,15 @@ type TeamInvitation = {
   createdAt: string;
 };
 
-function TeamAccessSettings({ data, setNotice }: { data: DashboardData; setNotice: (message: string) => void }) {
+type TeamAccessSettingsProps = { data: DashboardData; setNotice: (message: string) => void };
+
+// Team email, invitation role and authorized membership lists must not
+// survive an employer switch, including A -> B -> A navigation.
+function TeamAccessSettings(props: TeamAccessSettingsProps) {
+  return <TeamAccessSettingsForOrganization key={props.data.selectedOrganization.id} {...props} />;
+}
+
+function TeamAccessSettingsForOrganization({ data, setNotice }: TeamAccessSettingsProps) {
   const organizationId = data.selectedOrganization.id;
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
@@ -1196,31 +1204,56 @@ function TeamAccessSettings({ data, setNotice }: { data: DashboardData; setNotic
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const activeRead = useRef<AbortController | null>(null);
 
-  async function loadTeam() {
-    setLoading(true);
-    setError("");
+  const loadTeam = useCallback(async (): Promise<boolean> => {
+    activeRead.current?.abort();
+    const controller = new AbortController();
+    activeRead.current = controller;
     try {
-      const response = await fetch(`/api/invitations?organizationId=${organizationId}`, { cache: "no-store" });
+      const response = await fetch(`/api/invitations?organizationId=${organizationId}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setError(payload.error ?? "Could not load workspace access.");
-        return;
+      if (controller.signal.aborted) return false;
+      if (!response.ok) throw new Error(payload.error ?? "Could not load workspace access.");
+      if (!Array.isArray(payload.members) || !Array.isArray(payload.invitations)) {
+        throw new Error("Authorized workspace access evidence is incomplete.");
       }
-      setMembers(Array.isArray(payload.members) ? payload.members : []);
-      setInvitations(Array.isArray(payload.invitations) ? payload.invitations : []);
-    } catch {
-      setError("Could not reach the workspace access service.");
+      setMembers(payload.members);
+      setInvitations(payload.invitations);
+      setLoadError("");
+      return true;
+    } catch (err) {
+      if (controller.signal.aborted) return false;
+      // A failed authorization read is not proof that no users exist.
+      setMembers([]);
+      setInvitations([]);
+      setLoadError(err instanceof Error ? err.message : "Could not reach the workspace access service.");
+      return false;
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }
+  }, [organizationId]);
 
   useEffect(() => {
-    void loadTeam();
-    // The organization id is the only external input for this panel.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId]);
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void loadTeam();
+    });
+    return () => {
+      controller.abort();
+      activeRead.current?.abort();
+    };
+  }, [loadTeam]);
+
+  const reloadTeam = () => {
+    setLoading(true);
+    setLoadError("");
+    return loadTeam();
+  };
 
   async function invite() {
     const cleanEmail = email.trim().toLowerCase();
@@ -1242,7 +1275,7 @@ function TeamAccessSettings({ data, setNotice }: { data: DashboardData; setNotic
         return;
       }
       setEmail("");
-      await loadTeam();
+      await reloadTeam();
       setNotice(`Invitation created for ${cleanEmail} as ${invitableRoleLabel(role)}.`);
     } catch {
       setError("Could not reach the invitation service.");
@@ -1279,8 +1312,14 @@ function TeamAccessSettings({ data, setNotice }: { data: DashboardData; setNotic
         Payroll Officer prepares and submits payroll. Checker independently reviews it. Owner or Administrator releases it. Production invitations require transactional email and never expose raw invite tokens.
       </div>
       {error && <div className="notice notice-amber" style={{ margin: "0 16px 12px" }}><span>{error}</span></div>}
+      {loadError && (
+        <div className="notice notice-amber" role="alert" style={{ margin: "0 16px 12px" }}>
+          <span>{loadError} Workspace roles are unavailable until an authorized reload succeeds.</span>
+          <button className="secondary-button" disabled={loading || busy} onClick={() => void reloadTeam()}>Retry access</button>
+        </div>
+      )}
       <div className="run-actions">
-        <button className="primary-button" disabled={busy || loading || !email.trim()} onClick={() => void invite()}>
+        <button className="primary-button" disabled={busy || loading || Boolean(loadError) || !email.trim()} onClick={() => void invite()}>
           <Send size={15} /> {busy ? "Inviting…" : "Invite teammate"}
         </button>
       </div>
@@ -1291,6 +1330,8 @@ function TeamAccessSettings({ data, setNotice }: { data: DashboardData; setNotic
       <div className="worksheet-list">
         {loading ? (
           <div><CloudCog size={16} className="i-blue" /><span>Loading workspace access…</span></div>
+        ) : loadError ? (
+          <div><UsersRound size={16} className="i-purple" /><span>Workspace members unavailable until access reload succeeds.</span></div>
         ) : members.length === 0 ? (
           <div><UsersRound size={16} className="i-purple" /><span>No workspace members found.</span></div>
         ) : members.map((member) => (
@@ -1306,7 +1347,11 @@ function TeamAccessSettings({ data, setNotice }: { data: DashboardData; setNotic
         <div><div className="card-kicker">PENDING</div><h2>Open invitations</h2></div>
       </div>
       <div className="worksheet-list">
-        {openInvitations.length === 0 ? (
+        {loading ? (
+          <div><CloudCog size={16} className="i-blue" /><span>Loading invitations…</span></div>
+        ) : loadError ? (
+          <div><Mail size={16} className="i-slate" /><span>Invitations unavailable until access reload succeeds.</span></div>
+        ) : openInvitations.length === 0 ? (
           <div><Mail size={16} className="i-slate" /><span>No open invitations.</span></div>
         ) : openInvitations.map((invitation) => (
           <div key={invitation.id}>
