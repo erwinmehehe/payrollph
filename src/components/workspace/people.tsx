@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUpDown,
@@ -727,7 +727,7 @@ export function PeopleView({
 
       {selected && (
         <PersonDrawer
-          key={data.selectedOrganization.id + ":" + selected.id}
+          key={data.selectedOrganization.id + ":" + selected.id + ":" + String(canManage)}
           data={data}
           employee={selected}
           canManage={canManage}
@@ -806,11 +806,17 @@ function PersonDrawer({
   const [payoutError, setPayoutError] = useState("");
   const [payoutNotice, setPayoutNotice] = useState("");
   const [payoutChangeRequests, setPayoutChangeRequests] = useState<PayoutDestinationChangeRequest[]>([]);
+  const [payoutReadState, setPayoutReadState] = useState<"loading" | "ready" | "error" | "unavailable">(
+    canManage ? "loading" : "unavailable",
+  );
+  const [payoutReadError, setPayoutReadError] = useState("");
+  const payoutReadRevisionRef = useRef(0);
   const [payoutDecisionBusy, setPayoutDecisionBusy] = useState(false);
   const [payoutDecisionNote, setPayoutDecisionNote] = useState("");
   const [connectedProfile, setConnectedProfile] = useState<ConnectedWorkerProfile | null>(null);
-  const [connectedLoading, setConnectedLoading] = useState(false);
+  const [connectedLoading, setConnectedLoading] = useState(canManage);
   const [connectedError, setConnectedError] = useState("");
+  const connectedReadRevisionRef = useRef(0);
   const [showEffectiveChange, setShowEffectiveChange] = useState(false);
   const [effectiveChangeBusy, setEffectiveChangeBusy] = useState(false);
   const [effectiveChangeError, setEffectiveChangeError] = useState("");
@@ -830,70 +836,96 @@ function PersonDrawer({
   const [changeEmployeeStatus, setChangeEmployeeStatus] = useState("");
   const [changeReason, setChangeReason] = useState("");
 
-  async function refreshPayoutChanges() {
-    if (!canManage) {
-      setPayoutChangeRequests([]);
-      return;
-    }
+  const refreshPayoutChanges = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
+    const revision = ++payoutReadRevisionRef.current;
+    const isCurrent = () => !signal?.aborted && revision === payoutReadRevisionRef.current;
+    if (!canManage) return false;
     try {
       const response = await fetch(
         `/api/payout-destination-changes?organizationId=${data.selectedOrganization.id}&employeeId=${employee.id}`,
-        { cache: "no-store" },
+        { cache: "no-store", signal },
       );
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) return false;
       if (!response.ok) throw new Error(payload.error ?? "Could not load payout destination changes.");
-      setPayoutChangeRequests(Array.isArray(payload.requests) ? payload.requests : []);
+      if (!Array.isArray(payload.requests)) throw new Error("Authorized payout approval evidence is incomplete.");
+      setPayoutChangeRequests(payload.requests);
+      setPayoutReadError("");
+      setPayoutReadState("ready");
+      return true;
     } catch (error) {
-      setPayoutError(error instanceof Error ? error.message : "Could not load payout destination changes.");
+      if (!isCurrent()) return false;
+      // A failed read cannot be presented as zero pending treasury approvals.
+      setPayoutChangeRequests([]);
+      setPayoutReadError(error instanceof Error ? error.message : "Could not load payout destination changes.");
+      setPayoutReadState("error");
+      return false;
     }
-  }
-
-  useEffect(() => {
-    void refreshPayoutChanges();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.selectedOrganization.id, employee.id, canManage]);
-
-  useEffect(() => {
-    if (!canManage) {
-      setConnectedProfile(null);
-      setConnectedError("");
-      return;
-    }
-
-    let cancelled = false;
-    async function loadConnectedProfile() {
-      setConnectedLoading(true);
-      setConnectedError("");
-      try {
-        const response = await fetch(
-          `/api/hcm/worker-profile?organizationId=${data.selectedOrganization.id}&employeeId=${employee.id}`,
-          { cache: "no-store" },
-        );
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error ?? "Could not load the connected worker profile.");
-        if (!cancelled) setConnectedProfile(payload as ConnectedWorkerProfile);
-      } catch (error) {
-        if (!cancelled) {
-          setConnectedProfile(null);
-          setConnectedError(error instanceof Error ? error.message : "Could not load the connected worker profile.");
-        }
-      } finally {
-        if (!cancelled) setConnectedLoading(false);
-      }
-    }
-    void loadConnectedProfile();
-    return () => { cancelled = true; };
   }, [canManage, data.selectedOrganization.id, employee.id]);
 
+  useEffect(() => {
+    if (!canManage) return;
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void refreshPayoutChanges(controller.signal);
+    });
+    return () => {
+      controller.abort();
+      payoutReadRevisionRef.current += 1;
+    };
+  }, [canManage, refreshPayoutChanges]);
+
+  const reloadPayoutChanges = () => {
+    setPayoutReadState("loading");
+    return refreshPayoutChanges();
+  };
+
+  const loadConnectedProfile = useCallback(async (signal?: AbortSignal): Promise<ConnectedWorkerProfile> => {
+    const revision = ++connectedReadRevisionRef.current;
+    const isCurrent = () => !signal?.aborted && revision === connectedReadRevisionRef.current;
+    if (!canManage) throw new Error("Connected worker access is unavailable.");
+    try {
+      const response = await fetch(
+        `/api/hcm/worker-profile?organizationId=${data.selectedOrganization.id}&employeeId=${employee.id}`,
+        { cache: "no-store", signal },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!isCurrent()) throw new Error("Superseded connected worker read.");
+      if (!response.ok) throw new Error(payload.error ?? "Could not load the connected worker profile.");
+      if (payload.employee?.id !== employee.id
+        || payload.employee?.organizationId !== data.selectedOrganization.id
+        || !payload.journey || typeof payload.journey !== "object") {
+        throw new Error("Authorized connected worker profile is incomplete or belongs to another employee.");
+      }
+      setConnectedProfile(payload as ConnectedWorkerProfile);
+      setConnectedError("");
+      return payload as ConnectedWorkerProfile;
+    } catch (error) {
+      if (isCurrent()) {
+        setConnectedProfile(null);
+        setConnectedError(error instanceof Error ? error.message : "Could not load the connected worker profile.");
+      }
+      throw error;
+    } finally {
+      if (isCurrent()) setConnectedLoading(false);
+    }
+  }, [canManage, data.selectedOrganization.id, employee.id]);
+
+  useEffect(() => {
+    if (!canManage) return;
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void loadConnectedProfile(controller.signal).catch(() => undefined);
+    });
+    return () => {
+      controller.abort();
+      connectedReadRevisionRef.current += 1;
+    };
+  }, [canManage, loadConnectedProfile]);
+
   async function refreshConnectedProfile() {
-    const response = await fetch(
-      `/api/hcm/worker-profile?organizationId=${data.selectedOrganization.id}&employeeId=${employee.id}`,
-      { cache: "no-store" },
-    );
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error ?? "Could not reload the connected worker profile.");
-    setConnectedProfile(payload as ConnectedWorkerProfile);
-    return payload as ConnectedWorkerProfile;
+    setConnectedLoading(true);
+    return loadConnectedProfile();
   }
 
   async function submitEffectiveChange(event: React.FormEvent) {
