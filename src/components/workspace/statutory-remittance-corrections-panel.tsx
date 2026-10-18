@@ -249,6 +249,13 @@ function StatutoryRemittanceCorrectionsPanelForOrganization({
   }
 
   async function requestCorrection() {
+    if (!correctionData?.canRequest
+      || (targetType === "batch_payment"
+        ? !selectedBatch || !recordedBatches.some((item) => item.id === selectedBatch.id)
+        : !selectedMember || !confirmedMembers.some((item) => item.id === selectedMember.id))) {
+      notify("Select an authorized, recorded remittance item before requesting a correction.", "err");
+      return;
+    }
     if (reason.trim().length < 8) {
       notify("Explain why this evidence needs correction.", "err");
       return;
@@ -257,23 +264,29 @@ function StatutoryRemittanceCorrectionsPanelForOrganization({
     const ok = targetType === "batch_payment"
       ? await mutate("request_payment_correction", {
           batchId: Number(batchId),
-          amountPaid: Number(amountPaid),
-          paymentReference,
-          agencyReceiptReference,
-          paymentChannel,
-          paymentVarianceNote,
-          paidAt: paidAt ? new Date(paidAt).toISOString() : "",
+          amountPaid: Number(paymentForm.amountPaid),
+          paymentReference: paymentForm.paymentReference,
+          agencyReceiptReference: paymentForm.agencyReceiptReference,
+          paymentChannel: paymentForm.paymentChannel,
+          paymentVarianceNote: paymentForm.paymentVarianceNote,
+          paidAt: paymentForm.paidAt ? new Date(paymentForm.paidAt).toISOString() : "",
           reason,
         }, "Payment evidence correction sent for independent approval.")
       : await mutate("request_posting_correction", {
           memberId: Number(memberId),
-          postingReference,
-          postedAmount: Number(postedAmount),
-          postedAt: postedAt ? new Date(postedAt).toISOString() : "",
+          postingReference: postingForm.postingReference,
+          postedAmount: Number(postingForm.postedAmount),
+          postedAt: postingForm.postedAt ? new Date(postingForm.postedAt).toISOString() : "",
           reason,
         }, "Employee posting correction sent for independent approval.");
 
-    if (ok) setReason("");
+    if (ok) {
+      setReason("");
+      setBatchId("");
+      setMemberId("");
+      setPaymentEdit(null);
+      setPostingEdit(null);
+    }
   }
 
   async function decide(correction: Correction, action: "approve" | "reject") {
@@ -288,6 +301,29 @@ function StatutoryRemittanceCorrectionsPanelForOrganization({
   const pending = (correctionData?.corrections ?? []).filter((item) => item.status === "pending");
   const history = (correctionData?.corrections ?? []).filter((item) => item.status !== "pending").slice(-10).reverse();
 
+  if (readState !== "ready") {
+    return (
+      <article className="card" style={{ marginBottom: 16 }} data-remittance-corrections>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">AUDITED EVIDENCE CORRECTIONS</div>
+            <h2>{readState === "loading" ? "Loading remittance evidence…" : "Remittance corrections unavailable"}</h2>
+            <p role={readState === "error" ? "alert" : "status"}>
+              {readState === "error"
+                ? readError + " No correction requests or approvals are shown without authorized evidence."
+                : "Fetching the current employer's recorded payments, agency postings, and approval permissions."}
+            </p>
+          </div>
+          {readState === "error" && (
+            <button className="secondary-button" disabled={busy !== null} onClick={refresh}>
+              <RefreshCcw size={14} /> Retry
+            </button>
+          )}
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article className="card" style={{ marginBottom: 16 }} data-remittance-corrections>
       <div className="card-header">
@@ -298,7 +334,7 @@ function StatutoryRemittanceCorrectionsPanelForOrganization({
             A payroll operator proposes the correction. A different Owner, Admin, or Checker must approve it before the recorded evidence changes.
           </p>
         </div>
-        <button className="secondary-button" onClick={() => void load()} disabled={busy !== null}>
+        <button className="secondary-button" onClick={refresh} disabled={busy !== null}>
           <RefreshCcw size={14} /> Refresh
         </button>
       </div>
@@ -333,12 +369,12 @@ function StatutoryRemittanceCorrectionsPanelForOrganization({
                       ))}
                     </select>
                   </label>
-                  <label>Amount paid<input type="number" min="0" step="0.01" value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} /></label>
-                  <label>Payment reference<input value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} /></label>
-                  <label>Agency receipt<input value={agencyReceiptReference} onChange={(event) => setAgencyReceiptReference(event.target.value)} /></label>
-                  <label>Payment channel<input value={paymentChannel} onChange={(event) => setPaymentChannel(event.target.value)} /></label>
-                  <label>Penalty / variance note<input value={paymentVarianceNote} onChange={(event) => setPaymentVarianceNote(event.target.value)} /></label>
-                  <label>Paid at<input type="datetime-local" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} /></label>
+                  <label>Amount paid<input type="number" min="0" step="0.01" value={paymentForm.amountPaid} onChange={(event) => editPayment("amountPaid", event.target.value)} /></label>
+                  <label>Payment reference<input value={paymentForm.paymentReference} onChange={(event) => editPayment("paymentReference", event.target.value)} /></label>
+                  <label>Agency receipt<input value={paymentForm.agencyReceiptReference} onChange={(event) => editPayment("agencyReceiptReference", event.target.value)} /></label>
+                  <label>Payment channel<input value={paymentForm.paymentChannel} onChange={(event) => editPayment("paymentChannel", event.target.value)} /></label>
+                  <label>Penalty / variance note<input value={paymentForm.paymentVarianceNote} onChange={(event) => editPayment("paymentVarianceNote", event.target.value)} /></label>
+                  <label>Paid at<input type="datetime-local" value={paymentForm.paidAt} onChange={(event) => editPayment("paidAt", event.target.value)} /></label>
                 </>
               ) : (
                 <>
@@ -356,9 +392,9 @@ function StatutoryRemittanceCorrectionsPanelForOrganization({
                       })}
                     </select>
                   </label>
-                  <label>Posted amount<input type="number" min="0" step="0.01" value={postedAmount} onChange={(event) => setPostedAmount(event.target.value)} /></label>
-                  <label>Posting reference<input value={postingReference} onChange={(event) => setPostingReference(event.target.value)} /></label>
-                  <label>Posted at<input type="datetime-local" value={postedAt} onChange={(event) => setPostedAt(event.target.value)} /></label>
+                  <label>Posted amount<input type="number" min="0" step="0.01" value={postingForm.postedAmount} onChange={(event) => editPosting("postedAmount", event.target.value)} /></label>
+                  <label>Posting reference<input value={postingForm.postingReference} onChange={(event) => editPosting("postingReference", event.target.value)} /></label>
+                  <label>Posted at<input type="datetime-local" value={postingForm.postedAt} onChange={(event) => editPosting("postedAt", event.target.value)} /></label>
                 </>
               )}
               <label>
@@ -372,7 +408,7 @@ function StatutoryRemittanceCorrectionsPanelForOrganization({
                 disabled={
                   busy !== null
                   || reason.trim().length < 8
-                  || (targetType === "batch_payment" ? !batchId : !memberId)
+                  || (targetType === "batch_payment" ? !selectedBatch : !selectedMember)
                 }
                 onClick={() => void requestCorrection()}
               >
