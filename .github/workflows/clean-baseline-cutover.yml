@@ -30,7 +30,7 @@ on:
       expected_database_name:
         description: Target database name (not a URL)
         required: true
-        default: neondb
+        default: payrollph_clean_baseline
         type: string
       approval_ref:
         description: Owner approval reference (apply only)

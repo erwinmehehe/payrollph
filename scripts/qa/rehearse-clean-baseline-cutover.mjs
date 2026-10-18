@@ -77,7 +77,7 @@ try {
   await step("2. v2 audit guards (0133-equivalent companion, bound in memory)", async () => {
     await q("BEGIN");
     try {
-      await installV2AuditGuards(q, { branchId: FICTIONAL_BRANCH, isolatedTestIdentity: { projectId: PROJECT } });
+      await installV2AuditGuards(q, { branchId: FICTIONAL_BRANCH, databaseName: DB, isolatedTestIdentity: { projectId: PROJECT } });
       await q("COMMIT");
     } catch (error) { await q("ROLLBACK"); throw error; }
   });
