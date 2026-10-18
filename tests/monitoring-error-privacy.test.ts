@@ -143,3 +143,19 @@ test("existing hooks have no raw Error/request forwarding and example keeps remo
   assert.ok(!("@sentry/nextjs" in pkg.dependencies));
   assert.ok(!("@sentry/nextjs" in (pkg.devDependencies ?? {})));
 });
+
+test("UUIDv4 is a shape check, not origin proof; runtime instrumentation generates IDs itself", () => {
+  const generatedByServer = newOperationalRequestId();
+  const valid = safeOtelRecord({
+    requestId: generatedByServer, subsystem: "web", code: "UNHANDLED_SERVER_ERROR",
+  });
+  assert.equal(valid.requestId, generatedByServer,
+    "Existing safe exporter preserves UUIDv4 values; it does not establish their provenance");
+  const rejected = safeOtelRecord(hostile as never);
+  assert.match(rejected.requestId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  assert.notEqual(rejected.requestId, sensitive.sessionToken);
+  expectNoSensitiveData(JSON.stringify(rejected));
+  const instrumentation = readFileSync("src/instrumentation.ts", "utf8");
+  assert.match(instrumentation, /requestId:\s*newOperationalRequestId\(\)/,
+    "The current unhandled web error hook must generate its own request ID");
+});
