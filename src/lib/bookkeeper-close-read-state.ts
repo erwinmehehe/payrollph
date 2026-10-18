@@ -3,7 +3,11 @@
  * A previous payroll's close eligibility and filing evidence must never remain
  * visible while another run or employer is loading.
  */
-export type BookkeeperCloseScope = Readonly<{ requestKey: string }>;
+export type BookkeeperCloseScope = Readonly<{
+  requestKey: string;
+  auditEvents?: unknown;
+  runStatus?: string;
+}>;
 
 export type BookkeeperCloseRead<T> = Readonly<{
   requestScope: BookkeeperCloseScope;
