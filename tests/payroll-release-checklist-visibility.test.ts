@@ -59,3 +59,17 @@ test("payroll run explicitly aborts obsolete reads and removes synchronous effec
   assert.match(source, /if \(active\) setChecklistObservation\(\{ scope: requestScope, checklist \}\)/);
   assert.doesNotMatch(source, /setReleaseChecklist\(null\)/);
 });
+
+test("payroll release stays blocked until its exact checklist loads and confirmation matches its scope", () => {
+  const source = readFileSync("src/components/workspace/payroll-run.tsx", "utf8");
+  assert.match(source, /const hardChecklistBlocked = !releaseChecklist \\|\\| releaseChecklist\\.items\\.some\\(/,
+    "an absent or loading checklist must block release controls");
+  assert.match(source, /const confirmRelease = confirmReleaseForScope === checklistScope && releaseChecklist !== null/,
+    "dialog visibility must be scoped to the loaded employer/run/approval snapshot");
+  assert.match(source, /setConfirmReleaseForScope\\(checklistScope\\)/,
+    "the dialog must capture the scope the user actually confirmed");
+  assert.match(source, /setConfirmReleaseForScope\\(null\\)/,
+    "closing the dialog must clear the saved scope");
+  assert.doesNotMatch(source, /\\[confirmRelease, setConfirmRelease\\] = useState\\(false\\)/,
+    "a global boolean must never carry release confirmation across payroll runs");
+});
