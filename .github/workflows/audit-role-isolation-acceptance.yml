@@ -12,6 +12,8 @@ on:
       - "tests/audit-role-proof.test.ts"
       - "tests/audit-sealer-connection.test.ts"
       - "tests/audit-role-isolation-postgres.test.mjs"
+      - "tests/helpers/audit-forward-migration.mjs"
+      - "drizzle/0133_audit_missing_foundation_forward.sql"
       - ".github/workflows/audit-role-isolation-acceptance.yml"
 permissions:
   contents: read

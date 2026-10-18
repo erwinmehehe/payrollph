@@ -5,6 +5,7 @@ import {basename,dirname,resolve} from "node:path";
 import test from "node:test";
 import pg from "pg";
 import {drizzle} from "drizzle-orm/node-postgres";
+import {exerciseAuditForwardMigration} from "./helpers/audit-forward-migration.mjs";
 
 const mode=process.env.ISSUE908_ACCEPTANCE_MODE;
 const local=mode==="isolated-local-only";
@@ -52,6 +53,7 @@ test("actual restricted logins: audit grants, GUC spoofing and forward guards",{
     actor varchar(120) NOT NULL,action varchar(160) NOT NULL,resource varchar(160) NOT NULL,metadata jsonb NOT NULL DEFAULT '{}',created_at timestamptz NOT NULL DEFAULT now());
    INSERT INTO public.organizations VALUES(1),(2);
    INSERT INTO public.audit_events(organization_id,actor,action,resource) VALUES(1,'fictional-original','fixture','qa908')`);
+  await exerciseAuditForwardMigration(t,admin);
   if(foundationMode){
    await admin.query("ALTER TABLE public.audit_events ADD COLUMN chain_seq bigint,ADD COLUMN prev_hash varchar(64),ADD COLUMN row_hash varchar(64)");
    const raw=readFileSync(new URL("../docs/sql/issue908-missing-foundation-REVIEW_ONLY.sql",import.meta.url),"utf8");
