@@ -65,17 +65,23 @@ function StatutoryRemittanceActionQueueContent({
   const [payload, setPayload] = useState<QueuePayload | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [readError, setReadError] = useState("");
+  const [reading, setReading] = useState(false);
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    const response = await fetch(
-      `/api/compliance/remittance-actions?organizationId=${organizationId}`,
-      { cache: "no-store", signal },
-    );
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error ?? "Could not load compliance actions.");
-    if (signal?.aborted) return;
-    setPayload(body as QueuePayload);
-    setReadError("");
+    setReading(true);
+    try {
+      const response = await fetch(
+        `/api/compliance/remittance-actions?organizationId=${organizationId}`,
+        { cache: "no-store", signal },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Could not load compliance actions.");
+      if (signal?.aborted) return;
+      setPayload(body as QueuePayload);
+      setReadError("");
+    } finally {
+      if (!signal?.aborted) setReading(false);
+    }
   }, [organizationId]);
 
   const sync = useCallback(async (quiet = false) => {
@@ -89,6 +95,7 @@ function StatutoryRemittanceActionQueueContent({
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Could not synchronize compliance actions.");
       setPayload(body as QueuePayload);
+      setReadError("");
       if (!quiet && body.sync) {
         const changed = Number(body.sync.created ?? 0) + Number(body.sync.reopened ?? 0) + Number(body.sync.resolved ?? 0);
         notify(changed ? "Compliance action queue synchronized." : "Compliance action queue is already current.", "ok");
@@ -172,7 +179,7 @@ function StatutoryRemittanceActionQueueContent({
       </div>
 
       <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 14 }}>
-        {readOnlyOnOpen && (payload === null || readError) ? (
+        {readOnlyOnOpen && (reading || payload === null || readError) ? (
           <div>
             {readError ? <>
               <p role="alert">Could not load saved compliance actions: {readError}</p>

@@ -40,6 +40,11 @@ try{for(const width of [1280,390]){
      return route.fulfill({json:{currentUserId:1,assignees:[],sync:{created:0},tasks:[{id:organizationId,sourceKey:'fictional',agency:null,applicableMonth:null,severity:'info',title:'Private employer '+organizationId,detail:'Fictional saved action',dueDate:null,status:'open',assignedToUserId:null,assignedToName:null,acknowledgedByName:null,acknowledgedAt:null,resolvedAt:null,ageHours:0,severityAgeHours:0,escalationStage:0}]}});
    }
    if(url.pathname.endsWith('/connected-impact'))return route.fulfill({status:204});
+   if(url.pathname==='/api/compliance/remittance-actions'){
+     if(req.method()==='POST')return route.fulfill({json:{currentUserId:1,assignees:[],tasks:[],sync:{created:0}}});
+     await new Promise(resolve=>setTimeout(resolve,300));
+     return route.fulfill({status:403,json:{error:'Unavailable in isolated component fixture'}});
+   }
    if(url.pathname==='/api/first-payroll/progress')return route.fulfill({json:{progress:null}});
    if(url.pathname==='/api/payroll-runs')return route.fulfill({json:{entries:[]}});
    if(url.pathname.endsWith('/release-checklist'))return route.fulfill({json:{ready:false,items:[]}});
@@ -65,10 +70,14 @@ try{for(const width of [1280,390]){
  await queue.getByRole('alert').waitFor();
  assert.equal(await queue.getByText('No unresolved statutory remittance actions.',{exact:true}).count(),0);
  await queue.getByRole('button',{name:'Retry reading actions',exact:true}).click();
+ await queue.getByText('Loading saved compliance actions…',{exact:true}).waitFor();
+ assert.equal(await queue.getByText('No unresolved statutory remittance actions.',{exact:true}).count(),0);
  await queue.getByRole('alert').waitFor();
  assert.deepEqual(writes,[],'Opening, reloading and retrying must remain read-only');
  await queue.getByRole('button',{name:'Sync',exact:true}).click();
  await page.waitForFunction(()=>!document.querySelector('[data-remittance-action-queue] button[disabled]'));
+ await queue.getByText('No unresolved statutory remittance actions.',{exact:true}).waitFor();
+ assert.equal(await queue.getByRole('alert').count(),0,'Successful explicit Sync must clear the earlier read error');
  assert.deepEqual(writes,['POST /api/compliance/remittance-actions'],'Only explicit Sync can mutate the action queue');
  writes.length=0;
  await page.screenshot({path:output+'/saved-'+width+'.png',fullPage:true});
