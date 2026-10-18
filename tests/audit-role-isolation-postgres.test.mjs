@@ -269,11 +269,11 @@ test("actual restricted logins: audit grants, GUC spoofing and forward guards",{
   // within the same transaction, so the uncommitted replacement is visible.
   // The surrounding transaction rolls back all fictional DDL.
   for(const [signature,replacement] of [
-   ["audit_events_protect_v2()", "CREATE OR REPLACE FUNCTION public.audit_events_protect_v2() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $BEGIN RETURN NEW; END$"],
-   ["audit_events_insert_guard_v2()", "CREATE OR REPLACE FUNCTION public.audit_events_insert_guard_v2() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $BEGIN RETURN NEW; END$"],
-   ["audit_events_reject_truncate_v2()", "CREATE OR REPLACE FUNCTION public.audit_events_reject_truncate_v2() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $BEGIN RETURN NULL; END$"],
-   ["seal_audit_events(integer)", "CREATE OR REPLACE FUNCTION public.seal_audit_events(max_rows integer DEFAULT 500) RETURNS integer LANGUAGE plpgsql SET search_path=pg_catalog AS $BEGIN RETURN 0; END$"],
-   ["audit_event_row_hash(text,bigint,integer,integer,text,text,text,jsonb,timestamptz)", "CREATE OR REPLACE FUNCTION public.audit_event_row_hash(prev text,seq bigint,event_id integer,org integer,actor text,action text,resource text,metadata jsonb,created timestamptz) RETURNS text LANGUAGE sql STABLE AS $SELECT repeat('0',64)$"],
+   ["audit_events_protect_v2()", "CREATE OR REPLACE FUNCTION public.audit_events_protect_v2() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $qa908$BEGIN RETURN NEW; END$qa908$"],
+   ["audit_events_insert_guard_v2()", "CREATE OR REPLACE FUNCTION public.audit_events_insert_guard_v2() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $qa908$BEGIN RETURN NEW; END$qa908$"],
+   ["audit_events_reject_truncate_v2()", "CREATE OR REPLACE FUNCTION public.audit_events_reject_truncate_v2() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $qa908$BEGIN RETURN NULL; END$qa908$"],
+   ["seal_audit_events(integer)", "CREATE OR REPLACE FUNCTION public.seal_audit_events(max_rows integer DEFAULT 500) RETURNS integer LANGUAGE plpgsql SET search_path=pg_catalog AS $qa908$BEGIN RETURN 0; END$qa908$"],
+   ["audit_event_row_hash(text,bigint,integer,integer,text,text,text,jsonb,timestamptz)", "CREATE OR REPLACE FUNCTION public.audit_event_row_hash(prev text,seq bigint,event_id integer,org integer,actor text,action text,resource text,metadata jsonb,created timestamptz) RETURNS text LANGUAGE sql STABLE AS $qa908$SELECT repeat('0',64)$qa908$"],
   ])await t.test("same-OID rewritten function fails strict definition proof: "+signature,async()=>{
    const sig="public."+signature;
    const {rows:[{oid:beforeOid}]}=await admin.query("SELECT pg_catalog.to_regprocedure($1)::oid AS oid",[sig]);
