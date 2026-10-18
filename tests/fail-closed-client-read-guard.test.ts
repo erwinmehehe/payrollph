@@ -19,6 +19,8 @@ const allowlist: Allow[] = [
     reason: "Existing HIGH: offline claim queue needs complete tenant and source verification." },
   { file: "src/components/workspace/punch-evidence-review-panel.tsx", source: "setRows(body.submissions??[])",
     reason: "Existing HIGH: enhanced punch review approval queue awaits its source contract fix." },
+  { file: "src/components/workspace/payroll-run.tsx", source: "setFetched({ runId, entries: payload.entries ?? [] })",
+    reason: "Existing HIGH on main: isolated payroll PR #1257 validates the register; merge-order must remove this allowance." },
 ];
 
 function filesUnder(dir: string): string[] {
