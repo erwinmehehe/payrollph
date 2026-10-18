@@ -2015,7 +2015,7 @@ function PersonDrawer({
           </div>
           {canManage && payoutReadState === "loading" && (
             <div className="notice notice-slate" role="status" style={{ margin: "0 16px 12px" }}>
-              <span>Loading this employee's authorized payout-change approvals…</span>
+              <span>Loading this employee&apos;s authorized payout-change approvals…</span>
             </div>
           )}
           {canManage && payoutReadState === "error" && (
