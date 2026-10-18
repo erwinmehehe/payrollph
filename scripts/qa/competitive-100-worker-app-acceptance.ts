@@ -204,12 +204,10 @@ async function execute() {
   const night=await shift("COMP100-NIGHT","22:00","06:00");
   const pattern=async(code:string,shiftId:number)=>{
     const x=await owner.ok("/api/workforce/schedules","POST",{
-      organizationId:orgId,action:"create_pattern",code,name:code,cycleDays:3,
-      days:[
-        {isRestDay:false,label:"Work",segments:[{shiftDefinitionId:shiftId}]},
-        {isRestDay:true,label:"Rest"},
-        {isRestDay:true,label:"Rest"},
-      ],
+      organizationId:orgId,action:"create_pattern",code,name:code,cycleDays:15,
+      days:Array.from({length:15},(_,i)=>i===9
+        ? {isRestDay:false,label:"Only historical scheduled workday",segments:[{shiftDefinitionId:shiftId}]}
+        : {isRestDay:true,label:"No required shift during synthetic payroll period"}),
     });
     const id=Number(x.pattern?.id);assert.ok(id>0);return id;
   };
@@ -219,7 +217,7 @@ async function execute() {
     const schedule=await owner.ok("/api/workforce/schedules","POST",{
       organizationId:orgId,action:"assign_schedule",employeeId:worker.id,
       patternId:overnightIds.has(worker.number)?nightPattern:dayPattern,
-      effectiveFrom:START,effectiveUntil:END,anchorDate:WORK,
+      effectiveFrom:START,effectiveUntil:END,anchorDate:START,
       reason:"Historical fictional comparison, not real scheduling",
     });
     assert.ok(Number(schedule.assignment?.id)>0);
