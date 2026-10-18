@@ -1,6 +1,6 @@
 # Production environment checklist — PayrollPH
 
-**SOURCE-ONLY / RELEASE NO-GO.** This file is a preparation and verification guide, NOT approval to deploy, rotate a key, run a migration, launch, enable money movement, or connect to Neon. Inspected source: verified GitHub main SHA **de52b3aea0332754a138c8bf8df96e9ff0375b5d** on 2026-10-18. The required initial `git fetch origin main` was attempted twice in the provided checkout: both returned **exit 128** (first no repository, then GitHub DNS unresolved). Source was fetched by connected GitHub commit SHA instead of trusting an empty/stale checkout.
+**SOURCE-ONLY / RELEASE NO-GO.** This file is a preparation and verification guide, NOT approval to deploy, rotate a key, run a migration, launch, enable money movement, or connect to Neon. Inspected source: verified GitHub main SHA **de52b3aea0332754a138c8bf8df96e9ff0375b5d** originally; all 50 code-reference rows reverified against **main@4d5b4c1756bfe480ded4c2eb03709ead4fe4e320** on 2026-10-18. The required initial `git fetch origin main` was attempted twice in the provided checkout: both returned **exit 128** (first no repository, then GitHub DNS unresolved). Source was fetched by connected GitHub commit SHA instead of trusting an empty/stale checkout.
 
 ## Gate semantics, in code rather than assumptions
 
@@ -37,7 +37,7 @@ switch (kind) {
     try {
       const u = new URL(value);
       ok = u.protocol === "https:" && !u.username && !u.password &&
-        !u.hash && (kind === "https-url" ||
+        !u.hash && !u.search && (kind === "https-url" ||
           (u.origin === value.replace(/\/$/, "") &&
            u.pathname === "/" && !u.search));
     } catch { ok = false; }
@@ -79,16 +79,16 @@ Optional/provider entries use their exact `check_env NAME present` command **onl
 | `REQUIRE_PRIVILEGED_MFA` | Set literal true (preflight otherwise only rejects literal false). | Set true; no secret. | `check_env REQUIRE_PRIVILEGED_MFA true` | [`scripts/security-preflight.ts:84`](../scripts/security-preflight.ts#L84) |
 | `MALWARE_SCAN_URL` | HTTPS malware scanner; preflight requires even if uploads disabled. | Approved scanner HTTPS origin; no fake URL. | `check_env MALWARE_SCAN_URL https-url` | [`scripts/security-preflight.ts:51`](../scripts/security-preflight.ts#L51) |
 | `MALWARE_SCAN_TOKEN` | Separate minimum-32-byte scanner secret required by preflight. | openssl rand -hex 32 | `check_env MALWARE_SCAN_TOKEN min32` | [`scripts/security-preflight.ts:71`](../scripts/security-preflight.ts#L71) |
-| `DOCUMENT_UPLOADS_ENABLED` | Keep false until separately approved scanning/storage/privacy. | Set false; no activation. | `check_env DOCUMENT_UPLOADS_ENABLED false` | [`src/lib/critical-release-flags.ts:228`](../src/lib/critical-release-flags.ts#L228) |
+| `DOCUMENT_UPLOADS_ENABLED` | Keep false until separately approved scanning/storage/privacy. | Set false; no activation. | `check_env DOCUMENT_UPLOADS_ENABLED false` | [`src/lib/critical-release-flags.ts:234`](../src/lib/critical-release-flags.ts#L234) |
 | `WORKER_ENABLED` | KEEP FALSE until explicit worker activation decision. | Set false; no activation. | `check_env WORKER_ENABLED false` | [`src/lib/operational-readiness.ts:401`](../src/lib/operational-readiness.ts#L401) |
-| `CENTRAL_SCHEDULER_ENABLED` | KEEP FALSE until explicit scheduler decision. | Set false; no activation. | `check_env CENTRAL_SCHEDULER_ENABLED false` | [`src/lib/critical-release-flags.ts:199`](../src/lib/critical-release-flags.ts#L199) |
+| `CENTRAL_SCHEDULER_ENABLED` | KEEP FALSE until explicit scheduler decision. | Set false; no activation. | `check_env CENTRAL_SCHEDULER_ENABLED false` | [`src/lib/critical-release-flags.ts:205`](../src/lib/critical-release-flags.ts#L205) |
 | `PAYMONGO_DISBURSEMENTS_ENABLED` | KEEP FALSE until approved money movement. | Set false; no activation. | `check_env PAYMONGO_DISBURSEMENTS_ENABLED false` | [`src/lib/operational-readiness.ts:126`](../src/lib/operational-readiness.ts#L126) |
 | `BANK_DATA_ENCRYPTION_KEY` | Dedicated 32-byte bank encryption key preferred over TOTP-derived fallback. | openssl rand -hex 32 | `check_env BANK_DATA_ENCRYPTION_KEY key32` | [`src/lib/bank-account-crypto.ts:18`](../src/lib/bank-account-crypto.ts#L18) |
 | `PII_ENCRYPTION_KEY` | Dedicated 32-byte government-ID key; code has NO TOTP fallback. | openssl rand -hex 32 | `check_env PII_ENCRYPTION_KEY key32` | [`src/lib/government-id-crypto.ts:6`](../src/lib/government-id-crypto.ts#L6) |
 | `BANK_DATA_ENCRYPTION_KEY_PREVIOUS` | Leave empty until rotating under a reviewed plan. | No generation now. | `check_env BANK_DATA_ENCRYPTION_KEY_PREVIOUS empty` | [`src/lib/bank-account-crypto.ts:27`](../src/lib/bank-account-crypto.ts#L27) |
 | `TOTP_ENCRYPTION_KEY_PREVIOUS` | Leave empty until rotating under a reviewed plan. | No generation now. | `check_env TOTP_ENCRYPTION_KEY_PREVIOUS empty` | [`src/lib/bank-account-crypto.ts:27`](../src/lib/bank-account-crypto.ts#L27) |
 | `PII_ENCRYPTION_KEY_PREVIOUS` | Leave empty until rotating under a reviewed plan. | No generation now. | `check_env PII_ENCRYPTION_KEY_PREVIOUS empty` | [`src/lib/government-id-crypto.ts:7`](../src/lib/government-id-crypto.ts#L7) |
-| `PII_LEGACY_READ_ENABLED` | Keep false: legacy government-ID reads are separate approved compatibility work. | Set false. | `check_env PII_LEGACY_READ_ENABLED false` | [`src/lib/critical-release-flags.ts:172`](../src/lib/critical-release-flags.ts#L172) |
+| `PII_LEGACY_READ_ENABLED` | Keep false: legacy government-ID reads are separate approved compatibility work. | Set false. | `check_env PII_LEGACY_READ_ENABLED false` | [`src/lib/critical-release-flags.ts:178`](../src/lib/critical-release-flags.ts#L178) |
 | `PII_LEGACY_GOVERNMENT_ID_KEY` | Keep empty; only used behind explicit legacy compatibility flag. | No generation now. | `check_env PII_LEGACY_GOVERNMENT_ID_KEY empty` | [`src/lib/government-id-crypto.ts:88`](../src/lib/government-id-crypto.ts#L88) |
 
 ## Conditional provider / monitoring / informational variables
@@ -134,7 +134,7 @@ Optional/provider entries use their exact `check_env NAME present` command **onl
 
 1. Privately attest the **actual** web and worker database host/branch/database/role; prove app credentials have no CREATE/ALTER/DROP or audit bypass powers and do not share the demo database. Independently check source SQL vs the real target and authentic migration receipts. Readiness config cannot clear #899, #908 or #1198.
 2. Configure approved production environment variables in a protected manager; run the value-free checks above. Confirm DEMO_MODE=false, REQUIRE_PRIVILEGED_MFA=true, the three activation toggles false, APP_BASE_URL HTTPS, and a valid 32-byte TOTP key. **Do not** apply migrations or backfills from this checklist.
-3. Run this existing preflight in the **authorized deployment environment** and retain sanitized output plus actual exit code; a nonzero code stays **BLOCKED**:
+3. **Preflight output disclosure HOLD.** The existing `security-preflight.ts` prints accepted **complete** `APP_BASE_URL` and `MALWARE_SCAN_URL` strings (`httpsUrl()` returns `detail: ok ? raw : ...`), and may print an unexpected `REQUIRE_PRIVILEGED_MFA` value. `https:` alone does not reject URL-embedded credentials or query tokens. **Do not run this preflight in shared CI, a recorded shell, or an auto-captured terminal; do not pipe, upload, paste, or retain raw stdout/stderr.** A later independently reviewed source fix must suppress URL and arbitrary environment-value output before shared logs or reproducible production evidence are allowed. Until then, a separately authorized security operator may run it only in a tightly restricted, non-recording environment with explicit output-handling approval; retain at most independently sanitized per-check PASS/FAIL status and actual exit code in a restricted vault. A nonzero code stays **BLOCKED**. **Neither the command nor any live preflight was executed in this PR**:
 
 ```sh
 npm run security:preflight
@@ -203,6 +203,7 @@ Do **not** reproduce the publicly known demo login or password in documentation,
 | Development example enables demo | .env.local.example uses **DEMO_MODE=true** for development; preflight demands exactly **false** for production; runtime gate tests only literal true. | DEMO_MODE=false; rotate public credential and prove isolation. |
 | TOTP validity disparity | Production gate checks only configured(TOTP_ENCRYPTION_KEY); security preflight validates 32 decoded bytes (64 hex/base64). | Require strict 64-hex key in protected production secret manager; do not claim green from mere presence. |
 | Scanner conditionality differs | Operational malware gate is ready when uploads are disabled; preflight unconditionally requires HTTPS MALWARE_SCAN_URL and 32+ byte MALWARE_SCAN_TOKEN, even if DOCUMENT_UPLOADS_ENABLED=false. | Report preflight **FAIL** unless a real approved scanner is configured; no dummy scanner URL or skip. |
+| Preflight raw URL / MFA-value disclosure | `security-preflight.ts` currently prints the complete accepted APP_BASE_URL and MALWARE_SCAN_URL, and can echo an unexpected REQUIRE_PRIVILEGED_MFA value. An HTTPS scheme check alone accepts userinfo and query-string credentials. | **HOLD shared/CI execution and prohibit capturing raw output**, including internal scanner addresses. Follow the restricted-operator-only warning above until separately reviewed code redacts values at their source. This checklist does not cure the script. |
 | Diagnostic token fallback differs | Security preflight uses operationalSecretSource, which accepts TOTP-derived worker/readiness tokens; readiness-diagnostics-token and remote-scheduler-token gates check **dedicated variable presence**. | Prefer dedicated WORKER_TOKEN and READINESS_TOKEN of 32+ bytes; PRODUCTION_READINESS_TOKEN must match deployed readiness secret. |
 | Government-ID fallback is incorrectly described | `operational-readiness.ts:293` says a domain-separated fallback may exist, but `government-id-crypto.ts:9–18` requires dedicated PII_ENCRYPTION_KEY; .env.local.example explicitly says **no fallback**. | Provision dedicated 32-byte PII key. Keep inaccurate runtime wording on review list; do not claim fallback works. |
 | MFA preflight under-validates | Security preflight accepts unset or malformed REQUIRE_PRIVILEGED_MFA as long as it is not exact false; the example uses a boolean. | Require exact true by operator check; no change to authorization gate in this PR. |
@@ -210,7 +211,7 @@ Do **not** reproduce the publicly known demo login or password in documentation,
 | Live probe env is not in example | PRODUCTION_BASE_URL, PRODUCTION_READINESS_TOKEN, ROLLOUT_MODE, EXPECTED_COMMIT_SHA are read by live-production-readiness.ts, not documented in .env.local.example. | Supply only in protected operator/Actions context, not as publicly embedded values. |
 | Workflow UI label differs | Actual workflow UI name is **Production Readiness Report** (.github/workflows/production-rollout-readiness.yml), not the colloquial “Production Rollout Readiness”. | Select actual workflow name; rollout_mode=pilot only after authorization, never now. |
 | Billing/bank readiness can reflect credentials | Configured provider/bank endpoint keys influence descriptive readiness while real paid ledger, preflight and acceptance evidence remain separate. | Do not substitute credentials or JSON for actual settlement, filings, encrypted data proof or approved migration. |
-| Production evidence remains outstanding | Open issues #112, #735, #899, #907, #908, #1043–#1045, #1198 and source PR pointers #1223–#1224 were read from GitHub; they are not evidence of acceptance. | Human operator independently reconciles missing migrations/roles, bank data, government filing, demos and tenant isolation; release NO-GO. |
+| Production evidence remains outstanding | Operational issue pointers #112, #735, #899, #907, #908, #1043–#1045, #1198 and source PR pointers #1223–#1224 were read from GitHub; #908 was closed as completed on 2026-10-18 but closure alone does not demonstrate production role-isolation acceptance; they are not evidence of acceptance. | Human operator independently reconciles missing migrations/roles, bank data, government filing, demos and tenant isolation; release NO-GO. |
 
 ## Verification status
 
