@@ -20,6 +20,7 @@ import {
   workerEffectiveChanges,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseAdvancedPlan } from "@/lib/enterprise-advanced-plan-server";
 import { assertOrganizationRole, assertScope, getAccess, PAYROLL_RELEASE_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { runAutomationEventSafely } from "@/lib/automation";
@@ -268,6 +269,10 @@ export async function GET(request: Request) {
     }
   }
 
+  // Preserve authorized existing pay proposals, payroll evidence and approvals.
+  // Only creation of new Enterprise band/cycle configuration is paywalled.
+  const advancedConfigurationDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "compensation");
+
   const [
     staff,
     payProfiles,
@@ -379,6 +384,7 @@ export async function GET(request: Request) {
 
   return Response.json({
     access,
+    advancedConfigurationAllowed: advancedConfigurationDenied === null,
     currentUserId: user.id,
     today,
     employees: enrichedEmployees.map((employee) => ({
@@ -478,6 +484,12 @@ export async function POST(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  // Do not add a paywall to governed proposals, recurring wage components
+  // or independent financial decisions. Only advanced catalog configuration.
+  if (access.companyWide && (entityType === "band" || entityType === "cycle")) {
+    const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "compensation");
+    if (advancedDenied) return advancedDenied;
+  }
 
   if (entityType === "band") {
     if (!access.companyWide) return Response.json({ error: "Salary bands require company-wide People access." }, { status: 403 });

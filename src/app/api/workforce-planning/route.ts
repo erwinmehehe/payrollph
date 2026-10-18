@@ -27,6 +27,7 @@ import {
   workerEmploymentEvents,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseAdvancedPlan } from "@/lib/enterprise-advanced-plan-server";
 import {
   assertOrganizationRole,
   assertScope,
@@ -87,6 +88,8 @@ export async function GET(request: Request) {
 
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
 
   const [profiles, families, levels, grades, plans, allPositions, assignments, units, entityRows, costCenterRows, staff, requisitions, siteRows, shiftRows] = await Promise.all([
     db.select().from(jobProfiles).where(eq(jobProfiles.organizationId, organizationId)).orderBy(jobProfiles.title),
@@ -194,6 +197,12 @@ export async function POST(request: Request) {
     const access = await getAccess(user.id, organizationId);
     if (!access?.companyWide) {
       return Response.json({ error: "Organization and job architecture require company-wide People access." }, { status: 403 });
+    }
+    // Ordinary org-unit management remains Core People. Advanced architecture
+    // configuration is opt-in Enterprise, even through the direct POST API.
+    if (entityType !== "org_unit") {
+      const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+      if (advancedDenied) return advancedDenied;
     }
 
     if (entityType === "job_family") {
@@ -315,6 +324,8 @@ export async function POST(request: Request) {
     if (adminDenied) return adminDenied;
     const access = await getAccess(user.id, organizationId);
     if (!access?.companyWide) return Response.json({ error: "Job architecture requires company-wide access." }, { status: 403 });
+    const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+    if (advancedDenied) return advancedDenied;
 
     const title = String(body.title ?? "").trim();
     const familyId = Number(body.familyId);
@@ -366,6 +377,8 @@ export async function POST(request: Request) {
     if (adminDenied) return adminDenied;
     const access = await getAccess(user.id, organizationId);
     if (!access?.companyWide) return Response.json({ error: "Workforce plans require company-wide access." }, { status: 403 });
+    const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+    if (advancedDenied) return advancedDenied;
 
     const name = String(body.name ?? "").trim();
     const startDate = String(body.startDate ?? "");
@@ -424,6 +437,12 @@ export async function POST(request: Request) {
     if (peopleDenied) return peopleDenied;
     if (!unitScope.access.companyWide) {
       return Response.json({ error: "Creating governed positions requires company-wide People access." }, { status: 403 });
+    }
+    // Ordinary governed position initiation is not a premium paywall. Only
+    // linking a new position to an advanced workforce plan needs the plan gate.
+    if (planId !== null) {
+      const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+      if (advancedDenied) return advancedDenied;
     }
 
     const [profile] = await db.select({ id: jobProfiles.id }).from(jobProfiles)
