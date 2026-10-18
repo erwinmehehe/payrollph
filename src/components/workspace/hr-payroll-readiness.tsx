@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import {
   buildHrPayrollReadiness,
+  hrPayrollReadinessPresentation,
   type HrReadinessAction,
   type HrReadinessIssueKey,
 } from "@/lib/hr-payroll-readiness";
@@ -100,7 +101,8 @@ export function HrPayrollReadinessCenter({
     });
   }, [model.rows, filter]);
 
-  const percentage = model.total ? Math.round((model.ready / model.total) * 100) : 100;
+  const readiness = hrPayrollReadinessPresentation(model);
+  const percentage = readiness.percentage;
 
   function toggle(employeeId: number) {
     setExpanded((current) => {
@@ -133,21 +135,27 @@ export function HrPayrollReadinessCenter({
       <div className="hr-readiness-heading">
         <div>
           <div className="card-kicker">PAYROLL READINESS</div>
-          <h2>{model.ready} of {model.total} employees ready</h2>
+          <h2>{readiness.heading}</h2>
           <p>
-            {period
-              ? `Inputs for ${period.periodLabel}. An employee becomes Ready only when the visible payroll blockers below are clear.`
-              : "No active payroll period is visible to HR. Readiness is based on current employee records and open people issues."}
+            {!readiness.hasEligibleEmployees
+              ? period
+                ? `No eligible employees are in ${period.periodLabel ?? "the selected payroll period"}. Readiness has not been assessed.`
+                : "No active employee records are available to assess. Readiness has not been assessed."
+              : period
+                ? `Inputs for ${period.periodLabel}. An employee becomes Ready only when the visible payroll blockers below are clear.`
+                : "No active payroll period is visible to HR. Readiness is based on current employee records and open people issues."}
           </p>
         </div>
         <div className="hr-readiness-score">
-          <strong>{percentage}%</strong>
-          <span>{model.blocked ? `${model.blocked} need attention` : "All ready"}</span>
+          <strong>{percentage === null ? "—" : `${percentage}%`}</strong>
+          <span>{readiness.statusLabel}</span>
         </div>
       </div>
 
-      <div className="hr-readiness-progress" aria-label={`${percentage}% payroll ready`}>
-        <span style={{ width: `${percentage}%` }} />
+      <div className="hr-readiness-progress" aria-label={percentage === null
+        ? "Payroll readiness not assessed: no eligible employees"
+        : `${percentage}% of assessed employees ready`}>
+        <span style={{ width: `${percentage ?? 0}%` }} />
       </div>
 
       <div className="hr-readiness-summary">
@@ -171,10 +179,14 @@ export function HrPayrollReadinessCenter({
       <div className="hr-readiness-list">
         {visible.length === 0 ? (
           <div className="hr-readiness-empty">
-            <BadgeCheck size={18} />
+            {readiness.hasEligibleEmployees ? <BadgeCheck size={18} /> : <UsersRound size={18} />}
             <div>
-              <strong>{filter === "attention" ? "No payroll blockers in this queue." : "No employees match this filter."}</strong>
-              <span>{filter === "attention" ? "The current readiness checks are clear." : "Choose another readiness filter."}</span>
+              <strong>{!readiness.hasEligibleEmployees
+                ? "No employees to assess."
+                : filter === "attention" ? "No payroll blockers in this queue." : "No employees match this filter."}</strong>
+              <span>{!readiness.hasEligibleEmployees
+                ? "An empty payroll scope is not evidence of readiness or approval."
+                : filter === "attention" ? "The current readiness checks are clear." : "Choose another readiness filter."}</span>
             </div>
           </div>
         ) : visible.map((row) => {
@@ -241,8 +253,17 @@ export function HrPayrollReadinessCenter({
       <div className="hr-readiness-footer">
         <UsersRound size={14} />
         <span>
-          <strong>{model.issueTotal} open readiness issue{model.issueTotal === 1 ? "" : "s"}.</strong>{" "}
-          Fixing employee records refreshes this queue from the server; readiness is not manually overridden.
+          {readiness.hasEligibleEmployees ? (
+            <>
+              <strong>{model.issueTotal} open readiness issue{model.issueTotal === 1 ? "" : "s"}.</strong>{" "}
+              Fixing employee records refreshes this queue from the server; readiness is not manually overridden.
+            </>
+          ) : (
+            <>
+              <strong>Readiness not assessed.</strong>{" "}
+              No eligible employees are in this view; this is not a payroll approval or release.
+            </>
+          )}
         </span>
       </div>
     </section>
