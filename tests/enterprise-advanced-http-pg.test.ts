@@ -81,10 +81,10 @@ test("opted-in Enterprise HTTP planning/compensation checks protect direct API a
     assert.equal(missing.headers.get("cache-control"), "private, no-store");
     assert.equal((await planning.POST(post("workforce-planning", {
       organizationId: alpha.id, entityType: "plan",
-    }))).status, 402);
+    })))?.status, 402);
     assert.equal((await compensation.POST(post("compensation", {
       organizationId: alpha.id, entityType: "band",
-    }))).status, 402);
+    })))?.status, 402);
     const corePayRead = await compensation.GET(get("compensation", alpha.id));
     assert.equal(corePayRead.status, 200);
     assert.equal((await corePayRead.json()).advancedConfigurationAllowed, false);
@@ -92,13 +92,13 @@ test("opted-in Enterprise HTTP planning/compensation checks protect direct API a
     // Previously governed ordinary HR and pay components retain validation.
     assert.equal((await planning.POST(post("workforce-planning", {
       organizationId: alpha.id, entityType: "org_unit",
-    }))).status, 400);
+    })))?.status, 400);
     assert.equal((await planning.POST(post("workforce-planning", {
       organizationId: alpha.id, entityType: "assignment",
-    }))).status, 400);
+    })))?.status, 400);
     assert.equal((await compensation.POST(post("compensation", {
       organizationId: alpha.id, entityType: "component_assignment",
-    }))).status, 400);
+    })))?.status, 400);
 
     await db.insert(subscriptions).values([
       { organizationId: alpha.id, plan: "Enterprise", status: "active" },
@@ -112,7 +112,7 @@ test("opted-in Enterprise HTTP planning/compensation checks protect direct API a
     assert.ok(!JSON.stringify(allowedPayload).includes("PLAN_BETA_ONLY"));
     assert.equal((await planning.POST(post("workforce-planning", {
       organizationId: alpha.id, entityType: "plan",
-    }))).status, 400);
+    })))?.status, 400);
     const paidPayRead = await compensation.GET(get("compensation", alpha.id));
     assert.equal(paidPayRead.status, 200);
     const allowedPayPayload = await paidPayRead.json();
@@ -121,7 +121,7 @@ test("opted-in Enterprise HTTP planning/compensation checks protect direct API a
     assert.ok(!JSON.stringify(allowedPayPayload).includes("PLAN_BETA_ONLY"));
     assert.equal((await compensation.POST(post("compensation", {
       organizationId: alpha.id, entityType: "cycle",
-    }))).status, 400);
+    })))?.status, 400);
 
     // Distinct subscriptions remain isolated even with a matching HR role.
     caller = { id: hrB.id, name: "Fictional HR B", email: email("b") };
