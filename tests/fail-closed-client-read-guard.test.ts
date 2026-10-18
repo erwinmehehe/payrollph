@@ -19,8 +19,6 @@ const allowlist: Allow[] = [
     reason: "Existing HIGH: offline claim queue needs complete tenant and source verification." },
   { file: "src/components/workspace/punch-evidence-review-panel.tsx", source: "setRows(body.submissions??[])",
     reason: "Existing HIGH: enhanced punch review approval queue awaits its source contract fix." },
-  { file: "src/components/hcm-governance-readiness-panel.tsx", source: "setReport(payload as HcmGovernanceReport)",
-    reason: "Existing MEDIUM: HCM governance aggregate contract needs organization echo and a validator." },
 ];
 
 function filesUnder(dir: string): string[] {
