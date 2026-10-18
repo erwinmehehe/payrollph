@@ -11,9 +11,9 @@ const read = file => readFileSync(resolve(root, file), "utf8");
 
 test("source-only worksheet covers every drizzle file with current byte SHA and no populated receipts", () => {
   const result = generateSourceWorksheet();
-  assert.equal(result.summary.totalDrizzleFiles, 148);
-  assert.equal(result.summary.numberedSqlFiles, 146);
-  assert.equal(result.summary.sqlFiles, 147);
+  assert.equal(result.summary.totalDrizzleFiles, 149);
+  assert.equal(result.summary.numberedSqlFiles, 147);
+  assert.equal(result.summary.sqlFiles, 148);
   assert.equal(result.summary.sourceSchemaTables, 271);
   assert.equal(result.summary.duplicatePrefixGroups, 13);
   assert.ok(result.migrationRows.some(row => row.file_path === "drizzle/0127_year_end_prior_evidence.sql" && row.creates_objects.includes("year_end_prior_evidence")));
@@ -43,6 +43,20 @@ test("source-only worksheet covers every drizzle file with current byte SHA and 
     }
     for (const field of RECEIPT_FIELDS) assert.equal(matches[0][field],"",path+" "+field);
   }
+  // The new 0133 foundation/guard source is not proof of a live apply.
+  // Keep its exact-byte checksum and its hazardous procedural/DML source flags.
+  const auditFoundation = result.migrationRows.find(row =>
+    row.file_path === "drizzle/0133_audit_missing_foundation_forward.sql");
+  assert.ok(auditFoundation, "0133 must be inventoried as a source-only migration");
+  assert.match(auditFoundation.sha256_exact_committed_bytes, /^[a-f0-9]{64}$/);
+  assert.equal(auditFoundation.statement_count, 19);
+  assert.equal(auditFoundation.creates_objects, "audit_chain_heads");
+  assert.equal(auditFoundation.source_schema_objects, "audit_events");
+  assert.equal(auditFoundation.objects_not_in_source_schema, "audit_chain_heads");
+  assert.match(auditFoundation.manual_review_flags, /DOLLAR_BODY_MANUAL_REVIEW/);
+  assert.match(auditFoundation.hazards, /BACKFILL/);
+  for (const field of RECEIPT_FIELDS) assert.equal(auditFoundation[field], "");
+
   const paths = readdirSync(resolve(root, "drizzle")).map(name => "drizzle/" + name).sort();
   assert.deepEqual(result.migrationRows.map(row => row.file_path).sort(), paths);
   assert.equal(new Set(result.migrationRows.map(row => row.file_path)).size, paths.length);
