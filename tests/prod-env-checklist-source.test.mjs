@@ -80,3 +80,23 @@ test("no secrets, false activation toggles, empty rotation keys, and operator in
   }
   assert.doesNotMatch(read("src/lib/production-certification-gates.ts"), /process\.env/);
 });
+
+test("preflight logging hazard is documented and safe operator URL checks reject query tokens", () => {
+  const preflight = read("scripts/security-preflight.ts");
+  // The live preflight currently echoes accepted URL values and can echo a
+  // malformed MFA flag. Do not let a future checklist silently present its
+  // output as sanitized while this source behavior remains.
+  const echoesUrl = /detail:\s*ok\s*\?\s*raw\s*:/.test(preflight);
+  const echoesMfa = /env\.REQUIRE_PRIVILEGED_MFA\s*\?\?\s*["\x27]defaults secure["\x27]/.test(preflight);
+  if (echoesUrl || echoesMfa) {
+    assert.match(text, /Preflight output disclosure HOLD/i);
+    assert.match(text, /Do not run this preflight in shared CI/i);
+    assert.match(text, /do not pipe, upload, paste, or retain raw stdout\/stderr/i);
+    assert.match(text, /separately reviewed source fix/i);
+    assert.doesNotMatch(text, /retain sanitized output plus actual exit code/i);
+  }
+  const helpers = text.slice(text.indexOf("## Value-free verification helpers"),
+    text.indexOf("## Server / preflight / activation variables"));
+  assert.match(helpers, /!u\.username\s*&&\s*!u\.password/);
+  assert.match(helpers, /!u\.hash\s*&&\s*!u\.search/);
+});
