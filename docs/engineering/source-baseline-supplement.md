@@ -41,3 +41,25 @@ A production database rebuilt from source alone would run, but without several t
 - The scanner matches names, not definitions. A same-named object with a different definition would not be flagged.
 - Objects created through `EXECUTE` or `format()` strings are not seen. Only the first `ADD COLUMN` of a multi-column `ALTER TABLE` is listed, although the supplement applies the whole statement.
 - This prepares the baseline for the Path A recovery (a fresh database built from source, then the reviewed migration runner for every later change). Creating the Neon database, the cutover row, roles and the protected environment stay with the DBA.
+
+## Cutover rehearsal (follow-up)
+
+`scripts/qa/rehearse-clean-baseline-cutover.mjs`, run by `clean-baseline-cutover-rehearsal.yml` on disposable PG16 and PG18, rehearses the whole recovery after the baseline is built:
+
+1. Role layout: `payrollph_schema_owner` owns application objects; `payrollph_ledger_owner` owns the three migration-control ledgers; `payrollph_migrator` runs reviewed DDL through inherited schema-owner membership and has only SELECT on the ledgers plus INSERT on the forward journal; `payrollph_migration_planner` reads the ledgers only; `payrollph_app` has DML only (append-only on `audit_events`); the audit sealing and maintenance groups plus a dedicated sealer login.
+2. Ledgers from the two DBA templates, a `baseline-included` receipt for every numbered file through the latest prefix (147 files, 13 duplicate-prefix groups), and the single cutover row with the runner's manifest digest.
+3. The v2 audit guards via the review-only companion bound in memory, after which the scanner reports no migration-created object missing.
+4. Every reviewed-runner gate as the planner (lineage, historical catalog, ledger privileges, decision), then plan and apply of a probe migration as the migrator; a second apply is a no-op, and the new table belongs to the schema owner.
+5. Audit sealing through the dedicated sealer; sealing as the app login, tampering and TRUNCATE are refused.
+
+`scripts/qa/probe-runtime-ddl-as-app-role.ts` then calls all 13 request-time schema functions as the DML-only runtime role.
+
+### What the rehearsal found (fixed here)
+
+- **25 unnamed column CHECKs** (`status IN (...)`, rating ranges, billing amounts) were missing from the baseline. The name-based scan could not see them. The scanner now matches them by meaning, including one combined named CHECK covering several columns, and the supplement restores them under PostgreSQL's generated names.
+- **The read-only schema checks rejected the v2 audit trigger.** `core-schema-readonly.ts` and `check-production-schema-preflight.ts` required `audit_events_protect_mutation` to call `audit_events_protect()`; 0133 repoints it at `audit_events_protect_v2()`. Both now accept either.
+
+### What it shows for the switch-over
+
+- In the default (legacy) compatibility mode, 12 of 13 request-time schema functions fail as a DML-only role ("permission denied"): the app still writes schema at request time.
+- With `CORE_SCHEMA_COMPATIBILITY_MODE=read-only`, all 13 pass on the rehearsed baseline. So the app can run as a least-privilege role on the new database in read-only mode, which remains a structural subset check rather than full schema proof.
