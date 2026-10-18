@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {randomBytes} from "node:crypto";
-import {readFileSync} from "node:fs";
-import {resolve} from "node:path";
+import {readFileSync,realpathSync} from "node:fs";
+import {basename,dirname,resolve} from "node:path";
 import test from "node:test";
 import pg from "pg";
 import {drizzle} from "drizzle-orm/node-postgres";
@@ -14,13 +14,20 @@ if(mode&&!ready) throw Error("ISSUE908_UNKNOWN_ACCEPTANCE_MODE");
 
 test("actual restricted logins: audit grants, GUC spoofing and forward guards",{skip:!ready,timeout:120000},async t=>{
  if(!local){assert.equal(process.env.CI,"true");assert.equal(process.env.GITHUB_ACTIONS,"true");}
- const fixtureDir=resolve(import.meta.dirname,"../../../outputs/issue908-isolated-postgres/data");
+ const outputRoot=resolve(import.meta.dirname,"../../../outputs");
+ const fixtureDir=resolve(process.env.ISSUE908_LOCAL_FIXTURE_DIR??resolve(outputRoot,"issue908-isolated-postgres/data"));
+ const localPort=process.env.ISSUE908_LOCAL_PORT??"54908";
  if(local){
   assert.equal(process.platform,"win32");
+  assert.match(localPort,/^54[0-9]{3}$/);
+  assert.equal(dirname(dirname(fixtureDir)),outputRoot);
+  assert.match(basename(dirname(fixtureDir)),/^issue908-[A-Za-z0-9-]+$/);
+  assert.equal(basename(fixtureDir),"data");
+  assert.equal(realpathSync(fixtureDir).toLowerCase(),fixtureDir.toLowerCase());
   assert.equal(resolve(process.env.ISSUE908_LOCAL_FIXTURE_DIR??""),fixtureDir);
   assert.equal(readFileSync(resolve(fixtureDir,"ISSUE908_SYNTHETIC_ONLY"),"utf8"),"empty-fictional-fixture\n");
  }
- const url=local?"postgresql://postgres:postgres@127.0.0.1:54908/neondb":"postgresql://postgres:postgres@127.0.0.1:5432/neondb";
+ const url=local?`postgresql://postgres:postgres@127.0.0.1:${localPort}/neondb`:"postgresql://postgres:postgres@127.0.0.1:5432/neondb";
  assert.equal(process.env.DATABASE_URL,url);
  for(const key of ["PAYMONGO_DISBURSEMENTS_ENABLED","XENDIT_PAYOUTS_ENABLED"])assert.equal(process.env[key],"false");
  const {LEGACY_AUDIT_ROLE_PROOF_SQL,STRICT_AUDIT_ROLE_PROOF_SQL,auditChainProtectionProven}=await import("../src/lib/audit-role-proof.ts");
@@ -120,6 +127,36 @@ test("actual restricted logins: audit grants, GUC spoofing and forward guards",{
   async function proof(c,strict=true){return auditChainProtectionProven((await c.query(strict?STRICT_AUDIT_ROLE_PROOF_SQL:LEGACY_AUDIT_ROLE_PROOF_SQL)).rows[0],strict);}
   async function transaction(c,fn){await c.query("BEGIN");try{return await fn();}finally{await c.query("ROLLBACK");}}
   const denied=(c,sql)=>transaction(c,()=>assert.rejects(()=>c.query(sql),e=>e.code==="42501"));
+  await t.test("owner runtime cannot be repaired by revoking its audit DML grants",async()=>{
+   // Reproduce the observed privilege class with a fictional real LOGIN, never
+   // production credentials. Ownership can restore ACLs and disable triggers.
+   const ownerPassword=randomBytes(24).toString("hex");
+   await admin.query(`CREATE ROLE qa908_owner_runtime LOGIN PASSWORD '${ownerPassword}'
+    NOINHERIT NOSUPERUSER CREATEDB CREATEROLE NOREPLICATION NOBYPASSRLS;
+    GRANT USAGE,CREATE ON SCHEMA public TO qa908_owner_runtime;
+    ALTER TABLE public.audit_events OWNER TO qa908_owner_runtime;
+    REVOKE UPDATE,DELETE,TRUNCATE ON public.audit_events FROM qa908_owner_runtime`);
+   const ownerUrl=new URL(url);ownerUrl.username="qa908_owner_runtime";ownerUrl.password=ownerPassword;
+   const owner=new pg.Client({connectionString:ownerUrl.href});
+   try{
+    await owner.connect();
+    assert.equal(await proof(owner),false);
+    await transaction(owner,async()=>{
+     await owner.query(`GRANT UPDATE ON public.audit_events TO CURRENT_USER;
+      ALTER TABLE public.audit_events DISABLE TRIGGER audit_events_protect_mutation`);
+     assert.equal((await owner.query("UPDATE public.audit_events SET actor='fictional-owner-tamper' WHERE id=1")).rowCount,1);
+    });
+    const {rows:[preserved]}=await admin.query(`SELECT actor,
+     (SELECT tgenabled='O' FROM pg_catalog.pg_trigger WHERE tgrelid='public.audit_events'::regclass
+      AND tgname='audit_events_protect_mutation') AS guard_enabled FROM public.audit_events WHERE id=1`);
+    assert.deepEqual(preserved,{actor:"fictional-original",guard_enabled:true});
+   }finally{
+    await owner.end();
+    await admin.query(`ALTER TABLE public.audit_events OWNER TO postgres;
+     REVOKE ALL ON SCHEMA public FROM qa908_owner_runtime;
+     DROP ROLE qa908_owner_runtime`);
+   }
+  });
   if(!foundationMode)await t.test("reproduce old metadata false-PASS and caller-controlled maintenance bypass",async()=>{
    await admin.query("GRANT UPDATE(actor) ON public.audit_events TO qa908_app");
    try{
