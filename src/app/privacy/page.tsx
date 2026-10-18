@@ -36,15 +36,6 @@ export default function PrivacyNoticePage() {
         <section><h2 className="text-[22px] font-semibold">Your rights and requests</h2>
           <p>You can ask about access, correction, objection, portability, deletion or withdrawal of consent as applicable. Identity verification, the employer&#39;s role and legal retention requirements can affect how requests are handled. Submit a privacy enquiry via the <Link href="/contact" className="text-[#0868dc] underline">contact page</Link>.</p>
         </section>
-        <section aria-labelledby="legal-governance-review">
-          <h2 id="legal-governance-review" className="text-[22px] font-semibold">Governance review (TODO-LEGAL)</h2>
-          <p>TODO-LEGAL: Confirm the legal operator, DPO contact, employer/controller roles, applicable NPC registration and Privacy Impact Assessment questions, and final privacy-notice wording before real-customer use.</p>
-        </section>
-        <section aria-labelledby="legal-processing-review">
-          <h2 id="legal-processing-review" className="text-[22px] font-semibold">Processing review (TODO-LEGAL)</h2>
-          <p>TODO-LEGAL: Verify active service providers, international transfers, contracts, retention and data-subject request handling, and any required breach-notification arrangements. All existing notice claims remain subject to counsel verification.</p>
-        </section>
-        {/* TODO-LEGAL: Preserve the publication caveat. Only documented DPO/counsel sign-off may authorize removing it in a separate reviewed change. */}
         <p className="border-t border-[#E2E4F0] pt-5 text-[12px] text-[#68708C]">This notice requires DPO/legal verification of operator identity, provider contracts and actual deployment practices before real-customer publication.</p>
       </main>
       <SiteFooter />
