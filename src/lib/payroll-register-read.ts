@@ -12,7 +12,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 const id = (v: unknown): v is number =>
   typeof v === "number" && Number.isSafeInteger(v) && v > 0;
 const amount = (v: unknown): v is string =>
-  typeof v === "string" && /^-?[0-9]+(?:\.[0-9]{1,2})?$/.test(v) &&
+  typeof v === "string" && /^-?[0-9]+(?:\.[0-9]+)?$/.test(v) &&
   Number.isFinite(Number(v));
 
 const validLine = (v: unknown) => isRecord(v) &&
