@@ -25,6 +25,7 @@ import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { visiblePayrollReleaseChecklist, type ObservedPayrollReleaseChecklist, type PayrollReleaseChecklistScope } from "@/lib/payroll-release-checklist-visibility";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
+import { readVerifiedPayrollRegister } from "@/lib/payroll-register-read";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
 import { StatutoryRemittancePanel } from "./statutory-remittance-panel";
@@ -135,33 +136,30 @@ export function PayrollRunView({
   // while that request is in flight.
   const serverEntryRun = data.payrollRuns.find((item) => item.status !== "Released") ?? data.payrollRuns[0];
   const seeded = run && serverEntryRun && run.id === serverEntryRun.id ? data.payrollEntries : [];
-  const [fetched, setFetched] = useState<{ runId: number; entries: PayrollEntry[] } | null>(null);
+  const [fetched, setFetched] = useState<{ organizationId: number; runId: number; entries: PayrollEntry[] } | null>(null);
+  const [registerRevision, setRegisterRevision] = useState(0);
   const [failedRunId, setFailedRunId] = useState<number | null>(null);
   const runId = run?.id;
 
   useEffect(() => {
     if (!runId) return;
     let alive = true;
-    (async () => {
-      try {
-        const response = await fetch(`/api/payroll-runs?runId=${runId}&include=entries`, { cache: "no-store" });
+    // Old amounts may never reappear as verified while a retry is pending.
+    setFetched(null);
+    setFailedRunId(null);
+    void readVerifiedPayrollRegister(data.selectedOrganization.id, runId)
+      .then((entries) => {
         if (!alive) return;
-        if (!response.ok) {
-          setFailedRunId(runId);
-          return;
-        }
-        const payload = (await response.json()) as { entries?: PayrollEntry[] };
+        setFetched({ organizationId: data.selectedOrganization.id, runId, entries });
+        setFailedRunId(null);
+      })
+      .catch(() => {
         if (!alive) return;
-        setFetched({ runId, entries: payload.entries ?? [] });
-        setFailedRunId((current) => (current === runId ? null : current));
-      } catch {
-        if (alive) setFailedRunId(runId);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [runId, data.payrollRuns]);
+        setFetched(null);
+        setFailedRunId(runId);
+      });
+    return () => { alive = false; };
+  }, [runId, data.selectedOrganization.id, data.payrollRuns, registerRevision]);
 
   // A new snapshot has a new identity even after switching A -> B -> A.
   // This invalidates old readiness synchronously during render, before effects.
@@ -202,18 +200,16 @@ export function PayrollRunView({
     return () => { active = false; controller.abort(); };
   }, [runId, checklistScope]);
 
-  const loadedForSelection = Boolean(fetched && fetched.runId === runId);
-  const entries = useMemo(
-    () => (fetched && fetched.runId === runId ? fetched.entries : seeded),
-    // `seeded` is recomputed from props on every render, so this depends on the
-    // props it is derived from rather than on the array identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fetched, runId, data.payrollEntries, serverEntryRun?.id],
-  );
-  // Derived, not stored: the register is loading until this run's own entries
-  // have come back, unless the request already failed.
   const entriesFailed = failedRunId === runId;
-  const entriesLoading = !loadedForSelection && !entriesFailed;
+  const entriesVerified = Boolean(
+    fetched && fetched.organizationId === data.selectedOrganization.id &&
+    fetched.runId === runId && !entriesFailed,
+  );
+  const entries = useMemo(
+    () => entriesVerified ? fetched!.entries : [],
+    [entriesVerified, fetched],
+  );
+  const entriesLoading = !entriesVerified && !entriesFailed;
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -237,7 +233,7 @@ export function PayrollRunView({
   const payrollOfficerMode = data.access?.role === "payroll";
   const ownerMode = data.access?.role === "owner";
   async function openReviewSubmission() {
-    if (!run) return;
+    if (!run || !entriesVerified) return;
     setReviewLoading(true);
     try {
       const response = await fetch(
@@ -261,7 +257,7 @@ export function PayrollRunView({
   }
 
   async function submitForReview() {
-    if (!run || !reviewApproverId) {
+    if (!run || !entriesVerified || !reviewApproverId) {
       notify("Choose a checker before submitting payroll for review.", "err");
       return;
     }
@@ -485,7 +481,7 @@ export function PayrollRunView({
           assuranceFindings={releaseChecklist?.assuranceFindings ?? []}
           relatedTask={relatedTask}
           calculated={calculated}
-          busy={busy}
+          busy={busy || !entriesVerified}
           onCalculate={() => void onProcess(run.id)}
           onSubmit={() => void openReviewSubmission()}
           onOpenApproval={() => onPage("Approvals")}
@@ -553,8 +549,8 @@ export function PayrollRunView({
           entries={entries}
           checklist={releaseChecklist?.items ?? null}
           relatedTask={relatedTask}
-          busy={busy}
-          onRelease={() => setConfirmReleaseForScope(checklistScope)}
+          busy={busy || !entriesVerified}
+          onRelease={() => { if (entriesVerified) setConfirmReleaseForScope(checklistScope); }}
           onPage={onPage}
           onInspectPayroll={() => {
             document.getElementById("payroll-assurance")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -913,7 +909,7 @@ export function PayrollRunView({
                       Released
                     </span>
                   ) : (
-                    <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || hardChecklistBlocked} onClick={() => setConfirmReleaseForScope(checklistScope)}>
+                    <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || !entriesVerified || hardChecklistBlocked} onClick={() => setConfirmReleaseForScope(checklistScope)}>
                       <Send size={14} className="i-pink" /> Release
                     </button>
                   )
@@ -1003,8 +999,12 @@ export function PayrollRunView({
             <div style={{ padding: "0 18px 18px" }}>
               <ErrorState
                 title="The register could not be loaded"
-                detail="The server refused or could not return this run's entries. Your figures above still come from the stored run record."
+                detail="The register was not verified for the selected employer and run. Review and release actions are unavailable."
               />
+              <button className="secondary-button" type="button"
+                onClick={() => setRegisterRevision((value) => value + 1)}>
+                <RefreshCw size={14} /> Retry register
+              </button>
             </div>
           ) : entries.length === 0 ? (
             <div style={{ padding: "0 18px 18px" }}>
