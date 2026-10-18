@@ -5,9 +5,13 @@
 Normal requests use read-only catalog verification. Explicit `legacy`,
 typos and empty values cannot re-enable runtime schema creation. The **only
 temporary exception** is a GitHub-hosted Actions fixture in this exact repo,
-with `CI=true`, PostgreSQL `127.0.0.1:5432/app_db` as `postgres`,
-and no Vercel indicators or URL parameters. This exception retains synthetic
-HTTP testing against a disposable database, not deployed request-time DDL.
+with `CI=true`, a valid GitHub run ID/event, PostgreSQL
+`127.0.0.1:5432/app_db` as `postgres`, and no recognized Vercel runtime
+indicators or URL parameters. This exception retains synthetic HTTP testing
+against a disposable database, not deployed request-time DDL. These
+environment variables are defense-in-depth **and can be spoofed**; they
+do not prove the identity of a database. Production web and worker roles
+must independently be denied DDL privileges.
 It should eventually be replaced by a separate offline fixture bootstrap
 step and lower-privileged test application credentials.
 
