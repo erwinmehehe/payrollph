@@ -321,6 +321,7 @@ export async function preflightPaymongoPayrollDisbursement(runId: number): Promi
 export async function createPaymongoBatchDisbursement(
   rows: PayrollPayoutRow[],
   idempotencyKey: string,
+  beforeProviderPost?: () => Promise<void>,
 ): Promise<BatchDisbursementResult> {
   if (rows.length === 0) throw new Error("No payout rows to disburse.");
   if (rows.length > 1000) throw new Error("PayMongo batch disbursements are capped at 1,000 transfers. Split this run into multiple batches.");
@@ -338,6 +339,12 @@ export async function createPaymongoBatchDisbursement(
   // as it can be and a shortfall stops the run before any transfer exists.
   const wallet = await getPaymongoWallet();
   assertWalletFunded(wallet, rows.reduce((sum, row) => sum + row.amountCents, 0));
+
+  // The HTTP route uses this callback to durably record a provider-submission
+  // intent while holding the per-run and wallet locks. It runs AFTER local
+  // account, institution and funding checks, but BEFORE money can move.
+  // Fail closed if the receipt cannot be committed.
+  if (beforeProviderPost) await beforeProviderPost();
 
   const response = await fetch("https://api.paymongo.com/v2/batch_transfers", {
     method: "POST",
@@ -432,7 +439,10 @@ export async function loadPayrollPayoutRows(runId: number): Promise<PayrollPayou
   return rows;
 }
 
-export async function createPaymongoPayrollDisbursement(runId: number): Promise<BatchDisbursementResult> {
+export async function createPaymongoPayrollDisbursement(
+  runId: number,
+  beforeProviderPost?: () => Promise<void>,
+): Promise<BatchDisbursementResult> {
   const rows = await loadPayrollPayoutRows(runId);
   const missingAccounts = rows.filter((row) => !row.accountNumber || !row.bankName);
   if (missingAccounts.length > 0) {
@@ -440,7 +450,7 @@ export async function createPaymongoPayrollDisbursement(runId: number): Promise<
       `${missingAccounts.length} employee(s) are missing a bank account or bank name, fix these before disbursing: ${missingAccounts.map((r) => r.employeeNo).join(", ")}.`,
     );
   }
-  return createPaymongoBatchDisbursement(rows, `payroll-run-${runId}`);
+  return createPaymongoBatchDisbursement(rows, `payroll-run-${runId}`, beforeProviderPost);
 }
 
 
@@ -546,6 +556,7 @@ export async function createPaymongoPayrollRetry(input: {
   runId: number;
   referenceNumbers: string[];
   sourceBatchIds: string[];
+  beforeProviderPost?: () => Promise<void>;
 }): Promise<BatchDisbursementResult> {
   const requested = new Set(input.referenceNumbers);
   if (requested.size === 0) throw new Error("There are no failed transfers to retry.");
@@ -568,5 +579,6 @@ export async function createPaymongoPayrollRetry(input: {
   return createPaymongoBatchDisbursement(
     retryRows,
     buildPayrollRetryIdempotencyKey(input.runId, input.sourceBatchIds, input.referenceNumbers),
+    input.beforeProviderPost,
   );
 }

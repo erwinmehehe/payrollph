@@ -1,3 +1,4 @@
+import { hasUnacknowledgedPaymongoRetry, PAYMONGO_RETRY_INTENT_ACTION } from "@/lib/payroll-payout-retry-evidence";
 import type { AuditEvent } from "@/components/workspace/types";
 
 export type PayrollPayoutTransferState = {
@@ -133,6 +134,9 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
     event.action === "Payroll payout completed via PayMongo"
     || event.action === "Payroll payout reconciled via PayMongo"
   );
+  const providerInitiated = relevant.some((event) =>
+    event.action === "Payroll payout submission initiated via PayMongo"
+  );
   const providerSubmissions = relevant.filter((event) =>
     event.action === "Payroll payout submitted via PayMongo"
     || event.action === "Payroll payout retry submitted via PayMongo"
@@ -142,7 +146,10 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
     .filter((event) => event.action === "PayMongo transfer webhook received")
     .sort((a, b) => eventTime(a) - eventTime(b));
 
-  const providerStarted = providerSubmissions.length > 0 || Boolean(providerSnapshot) || webhookEvents.length > 0;
+  const providerAcknowledged = providerSubmissions.length > 0 || Boolean(providerSnapshot) || webhookEvents.length > 0;
+  const retryOutcomeUnverified = hasUnacknowledgedPaymongoRetry(relevant);
+  const providerOutcomeUnverified = (providerInitiated && !providerAcknowledged) || retryOutcomeUnverified;
+  const providerStarted = providerInitiated || providerAcknowledged || retryOutcomeUnverified;
   const bankMeta = bankFile ? metadata(bankFile) : {};
   const snapshotMeta = providerSnapshot ? metadata(providerSnapshot) : {};
 
@@ -214,6 +221,8 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
     || event.action === "Payroll payout reconciled via PayMongo"
     || event.action === "Payroll payout retry submitted via PayMongo"
     || event.action === "Payroll payout submitted via PayMongo"
+    || event.action === "Payroll payout submission initiated via PayMongo"
+    || event.action === PAYMONGO_RETRY_INTENT_ACTION
     || event.action === "PayMongo transfer webhook received"
   );
   const latestMeta = latestProviderLifecycle ? metadata(latestProviderLifecycle) : {};
@@ -227,7 +236,9 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
   const reconciliationStatus: PayrollPayoutState["reconciliation"]["status"] =
     !providerStarted
       ? "not-applicable"
-      : total > 0 && succeeded === total && failed === 0 && unknown === 0
+      : providerOutcomeUnverified
+        ? "attention"
+        : total > 0 && succeeded === total && failed === 0 && unknown === 0
         ? "settled"
         : failed > 0 || unknown > 0
           ? "attention"
@@ -236,7 +247,11 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
             : "awaiting-check";
 
   const providerLabel =
-    settlementRegressed
+    providerOutcomeUnverified
+      ? retryOutcomeUnverified
+        ? "A PayMongo failed-transfer retry may have moved salaries; provider acceptance is unverified. Reconcile with PayMongo before any further retry or bank-file payout."
+        : "PayMongo submission was initiated, but provider acceptance is unverified. Reconcile with PayMongo before any retry or bank-file payout."
+      : settlementRegressed
       ? `Settlement changed after completion; ${failed} transfer(s) now report failed. Review as a returned or reversed payout before retrying.`
       : reconciliationStatus === "settled"
         ? `All ${total || transfers.length} PayMongo transfer(s) settled`
@@ -340,7 +355,7 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
       failed,
       unknown,
       checkedAt: latestCheckedAt,
-      canRetryFailed: failed > 0,
+      canRetryFailed: failed > 0 && !providerOutcomeUnverified,
       settlementRegressed,
       transfers,
     },
