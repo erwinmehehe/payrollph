@@ -72,6 +72,7 @@ export async function GET(request: Request) {
   )).orderBy(employeeHrCaseMessages.createdAt).limit(500) : [];
   const peopleById = new Map(staff.map(item => [item.id, item]));
   return Response.json({
+    organizationId,
     cases: cases.filter(row => isEmployee || hrCaseRoleCanWork(access!.role, row.assignedRole))
       .map(row => {
         const person = peopleById.get(row.employeeId);
