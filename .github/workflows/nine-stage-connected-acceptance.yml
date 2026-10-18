@@ -398,7 +398,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nine-stage-role-layout-screenshots-pg${{ matrix.postgres }}-${{ matrix.hire-mode }}${{ matrix.cutoff == 'year-end' && '-year-end' || '' }}
-          path: qa-artifacts/nine-stage-layout-*.png
+          path: |
+            qa-artifacts/nine-stage-layout-*.png
+            qa-artifacts/first-payroll-authenticated-resume-*.png
           if-no-files-found: warn
           retention-days: 14
 

@@ -36,7 +36,7 @@ export async function proveConnectedPayrollOutputs(input:{organizationId:number;
   assert.equal((await input.foreignOwner.request(journalPath)).status,403);
   const journal=await input.owner.request(journalPath);assert.equal(journal.status,200);
   const cacheControl=journal.headers.get("cache-control")??"";
-  // Next development mode may normalize the route's private/no-store header.
+  // The framework/proxy may normalize the route's private/no-store header.
   // Require the actual privacy guarantee rather than one serialized spelling.
   assert.match(cacheControl,/(?:^|,)\s*no-store\s*(?:,|$)/i);
   assert.doesNotMatch(cacheControl,/\bpublic\b|s-maxage\s*=\s*[1-9]/i);
