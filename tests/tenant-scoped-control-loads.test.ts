@@ -71,9 +71,31 @@ test("enterprise secrets never outlive the current tenant or an explicit refresh
   assert.ok(source.includes("setPolicy(payload.securityPolicy);"));
 });
 
-test("issue 774 manifest retires only these three newly scoped effect suppressions", () => {
+test("issue 774 manifest retires only these four newly scoped effect suppressions", () => {
   const manifest = JSON.parse(readFileSync("eslint-suppressions.json", "utf8")) as Record<string, unknown>;
-  for (const panel of panels) {
-    assert.equal(Object.hasOwn(manifest, panel.file), false, panel.file + " should not require an effect suppression");
+  for (const file of [...panels.map((panel) => panel.file), "src/components/workforce-planning-panel.tsx"]) {
+    assert.equal(Object.hasOwn(manifest, file), false, file + " should not require an effect suppression");
   }
+});
+
+test("workforce planning isolates employer-scoped budgets and retries without effect resets", () => {
+  const source = readFileSync("src/components/workforce-planning-panel.tsx", "utf8");
+  assert.ok(source.includes("<WorkforcePlanningPanelForOrganization key={props.organizationId}"));
+  const loadStart = source.indexOf("  const load = useCallback(async () => {");
+  const effectStart = source.indexOf("  useEffect(() => { void load(); return invalidateInFlightLoad; }, [load, invalidateInFlightLoad]);");
+  assert.ok(loadStart > 0 && effectStart > loadStart);
+  const loader = source.slice(loadStart, effectStart);
+  const firstRead = loader.indexOf("await fetch(");
+  assert.ok(firstRead > 0);
+  assert.ok(!loader.slice(0, firstRead).includes("setLoading(true)"));
+  assert.ok(!loader.slice(0, firstRead).includes("setLoadError(null)"));
+  assert.ok(loader.includes("const revision = ++loadRevisionRef.current"));
+  assert.ok(loader.includes("if (revision !== loadRevisionRef.current) return;"));
+  assert.ok(source.includes("loadRevisionRef.current += 1;"), "unmount must invalidate unfinished reads");
+  assert.ok(source.includes("setLoadedOrganizationId(null);"));
+  assert.ok(source.includes("const refresh = () => {"));
+  assert.ok(source.includes("onClick={refresh} disabled={loading}>Retry"));
+  assert.ok(source.includes("onClick={refresh} disabled={loading}><RefreshCw"));
+  assert.ok(source.includes("setLoadError(null);\n      setLoadedOrganizationId(organizationId);"),
+    "a successful authorized reload must clear the previous error");
 });
