@@ -42,4 +42,3 @@ export async function proveConnectedPayrollOutputs(input:{organizationId:number;
     rows.reduce((sum,row)=>sum+cents(row[10]||"0"),BigInt(0)),"Journal debit and credit must balance exactly");
   assert.equal(rows.filter(row=>row[8]==="Cash/Bank").reduce((sum,row)=>sum+cents(row[10]||"0")-cents(row[9]||"0"),BigInt(0)),cents(run.netPay));
 }
-

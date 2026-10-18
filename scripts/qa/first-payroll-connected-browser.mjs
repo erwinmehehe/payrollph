@@ -89,6 +89,3 @@ try{for(const width of [1280,390]){
 }await writeFile(output+'/results.json',JSON.stringify({result:'PASS',sourceHead:process.env.PR_HEAD_SHA??'local',results,
  boundary:'Actual UI components and navigation resolver with fictional authorized snapshot and stubbed GETs; not authenticated API, financial calculation, physical-device or live deployment proof.'},null,2));console.log('PASS first-payroll connected components: desktop + 390px, flag-off and negative navigation cases');}
 finally{await browser.close();await new Promise(r=>server.close(r));}
-
-
-
