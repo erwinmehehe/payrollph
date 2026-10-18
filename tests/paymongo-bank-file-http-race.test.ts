@@ -216,10 +216,14 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
     assert.equal((await post(walletParallel.id, { confirm: true })).status, 200,
       "a denied wallet contender may submit after the first sender completes");
     assert.equal(providerPostCount, 2);
+    // Two distinct payroll runs have legitimately submitted one batch each.
+    // A retry of the first run must not issue a third provider POST.
+    const postCountBeforeRetry = providerPostCount;
     const providerRetry = await post(providerFirst.id, { confirm: true });
     assert.equal(providerRetry.status, 409, "a completed HTTP request must not send salaries twice");
     assert.equal((await getBank(providerFirst.id)).status, 409);
-    assert.equal(providerPostCount, 1);
+    assert.equal(providerPostCount, postCountBeforeRetry,
+      "retries and fallback bank GET must not contact PayMongo again");
 
     // Bank wins. Hold real GET after the payout run lock is acquired while a
     // PayMongo POST tries to claim it. The GET writes its final audit receipt
