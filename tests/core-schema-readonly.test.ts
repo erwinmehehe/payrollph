@@ -66,10 +66,10 @@ function fixture(overrides: {
     if (sql.includes("pg_catalog.pg_index")) {
       return { rows: (overrides.indexes ?? indexRows()) as unknown as Record<string, unknown>[] };
     }
-    if (sql.includes("pg_catalog.pg_proc")) return { rows: [{ present: true }] };
     if (sql.includes("pg_catalog.pg_trigger")) {
       return { rows: [{ name: "audit_events.audit_events_protect_mutation" }] };
     }
+    if (sql.includes("pg_catalog.pg_proc")) return { rows: [{ present: true }] };
     if (sql.includes("pg_catalog.pg_class")) {
       return { rows: (overrides.tables ?? requiredReleaseTables).map(name => ({ name })) };
     }
@@ -78,14 +78,46 @@ function fixture(overrides: {
   return { query, calls };
 }
 
-test("default legacy behavior remains until DBA-approved read-only switch", () => {
-  assert.equal(coreSchemaCompatibilityMode(undefined), "legacy");
-  assert.equal(coreSchemaCompatibilityMode("legacy"), "legacy");
-  assert.equal(coreSchemaCompatibilityMode("read-only"), "read-only");
-  for (const value of ["", "readOnly", "READ-ONLY", "apply", "repair", "off", " true "]) {
-    assert.throws(() => coreSchemaCompatibilityMode(value),
-      /Invalid CORE_SCHEMA_COMPATIBILITY_MODE/);
+test("flag-off mode selection preserves the existing production and developer contract", () => {
+  for (const flag of [undefined, "", "false", "TRUE", "1"]) {
+    for (const runtime of [{ NODE_ENV: "production", VERCEL: "1" }, { NODE_ENV: "development" }]) {
+      const env = { ...runtime, REQUEST_SCHEMA_READONLY_ENABLED: flag };
+      assert.deepEqual([undefined, "legacy", "read-only"].map(value => coreSchemaCompatibilityMode(value, env)),
+        ["legacy", "legacy", "read-only"]);
+      for (const value of ["", "readOnly", "READ-ONLY", "apply", "repair", "off", " true "])
+        assert.throws(() => coreSchemaCompatibilityMode(value, env),
+          /Invalid CORE_SCHEMA_COMPATIBILITY_MODE; refusing runtime schema writes/);
+    }
   }
+});
+
+test("flag-on read-only cutover rejects legacy even in a spoofed GitHub fixture environment", () => {
+  for (const runtime of [{ NODE_ENV: "production", VERCEL: "1" }, {
+    CI: "true", GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: "erwinmehehe/payrollph",
+    RUNNER_ENVIRONMENT: "github-hosted", GITHUB_RUN_ID: "39089717368",
+    GITHUB_EVENT_NAME: "pull_request", DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+  }]) {
+    const env = { ...runtime, REQUEST_SCHEMA_READONLY_ENABLED: "true" };
+    assert.equal(coreSchemaCompatibilityMode(undefined, env), "read-only");
+    assert.equal(coreSchemaCompatibilityMode("read-only", env), "read-only");
+    for (const value of ["legacy", "", "readOnly", "READ-ONLY", "apply", "repair", "off", " true "])
+      assert.throws(() => coreSchemaCompatibilityMode(value, env),
+        /CORE_SCHEMA_COMPATIBILITY_MODE_LEGACY_RUNTIME_DDL_FORBIDDEN/);
+  }
+});
+
+test("all retained core CREATE TABLE targets have canonical Drizzle declarations", () => {
+  // Name-level guard only: catalog/index/FK parity and deployment receipts
+  // remain separate DBA checks. Legacy SQL must not be run by requests.
+  const legacy = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  const created = [...legacy.matchAll(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+"?([a-z_][a-z0-9_]*)"?\s*\(/gi)]
+    .map(match => match[1]);
+  const declared = new Set([...schema.matchAll(/pgTable\(\s*"([a-z_][a-z0-9_]*)"/gi)]
+    .map(match => match[1]));
+  assert.ok(created.length >= 50, "must inspect the whole historical core creator");
+  assert.deepEqual(created.filter(name => !declared.has(name)), [],
+    "historical core table identifiers cannot drift beyond src/db/schema.ts");
 });
 
 test("read-only catalog preconditions pass with all required release structures, never mutate", async () => {
