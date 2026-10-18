@@ -159,12 +159,14 @@ export function PayrollRunView({
     };
   }, [runId, data.payrollRuns]);
 
-  const checklistScope = {
+  // A new snapshot has a new identity even after switching A -> B -> A.
+  // This invalidates old readiness synchronously during render, before effects.
+  const checklistScope = useMemo(() => ({
     organizationId: data.selectedOrganization.id,
     runId: runId ?? null,
     payrollRuns: data.payrollRuns,
     tasks: data.tasks,
-  };
+  }), [data.selectedOrganization.id, runId, data.payrollRuns, data.tasks]);
   // Never display a checklist captured for a different run, employer, or
   // dashboard approval snapshot while the current read is in flight.
   const releaseChecklist = visiblePayrollReleaseChecklist(checklistScope, checklistObservation);
@@ -173,12 +175,7 @@ export function PayrollRunView({
     if (!runId) return;
     let active = true;
     const controller = new AbortController();
-    const requestScope = {
-      organizationId: data.selectedOrganization.id,
-      runId,
-      payrollRuns: data.payrollRuns,
-      tasks: data.tasks,
-    };
+    const requestScope = checklistScope;
     (async () => {
       try {
         const response = await fetch(`/api/payroll-runs/${runId}/release-checklist`, {
@@ -197,7 +194,7 @@ export function PayrollRunView({
       }
     })();
     return () => { active = false; controller.abort(); };
-  }, [runId, data.selectedOrganization.id, data.payrollRuns, data.tasks]);
+  }, [runId, checklistScope]);
 
   const loadedForSelection = Boolean(fetched && fetched.runId === runId);
   const entries = useMemo(
