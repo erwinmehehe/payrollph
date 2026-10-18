@@ -8,7 +8,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, st
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decryptRuntimeIdentity } from '../scripts/qa/decrypt-runtime-identity.mjs';
+import { decryptRuntimeIdentity, decryptRuntimeIdentityToFile } from '../scripts/qa/decrypt-runtime-identity.mjs';
 import { captureAuditRuntimeIdentity, encryptRuntimeIdentity, evidenceRecipient,
   RUNTIME_IDENTITY_URL, validateRuntimeIdentity } from '../scripts/qa/audit-runtime-identity.mjs';
 
@@ -129,7 +129,33 @@ test('offline decryption verifies the envelope and rejects tampering and wrong r
   assert.throws(() => decryptRuntimeIdentity(encrypted, other.privateKey));
 });
 
-test('operator CLI writes user-only local plaintext outside the repository; never exposes role in logs', () => {
+test('native Windows refuses private file decryption before reading inputs or creating output', {
+  skip: process.platform !== 'win32' && 'Native Windows refusal is executed on Windows',
+}, () => {
+  const temp = mkdtempSync(join(tmpdir(), 'payrollph-908-windows-refusal-'));
+  const output = join(temp, 'must-not-write.json');
+  const script = fileURLToPath(new URL('../scripts/qa/decrypt-runtime-identity.mjs', import.meta.url));
+  try {
+    // Missing input paths prove the platform check runs before any key/file read.
+    const artifact = join(temp, 'missing-artifact.json');
+    const key = join(temp, 'missing-private-key.pem');
+    assert.throws(() => decryptRuntimeIdentityToFile(artifact, key, output, {}),
+      /^Error: AUDIT_RUNTIME_POSIX_OPERATOR_REQUIRED$/);
+    const result = spawnSync(process.execPath, [script, artifact, key, output], {
+      encoding: 'utf8', env: { ...process.env, CI: '', GITHUB_ACTIONS: '' },
+    });
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, '');
+    assert.equal(result.stderr.trim(), 'AUDIT_RUNTIME_POSIX_OPERATOR_REQUIRED');
+    assert.equal(existsSync(output), false);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('operator CLI writes user-only local plaintext outside the repository; never exposes role in logs', {
+  skip: process.platform === 'win32' && 'POSIX file guarantees required; native Windows refusal tested separately',
+}, () => {
   const temp = mkdtempSync(join(tmpdir(), 'payrollph-908-decrypt-'));
   const artifact = join(temp, 'identity.encrypted.json');
   const privatePem = join(temp, 'recipient-private.pem');

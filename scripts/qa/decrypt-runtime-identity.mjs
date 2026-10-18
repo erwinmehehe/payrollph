@@ -110,6 +110,12 @@ function boundedFile(path, maxBytes) {
 
 export function decryptRuntimeIdentityToFile(artifactPath, privateKeyPath, outputPath, env = process.env) {
   if (env.CI === 'true' || env.GITHUB_ACTIONS === 'true') fail('OFFLINE_ONLY');
+  // Native Windows mode bits do not establish private NTFS permissions, and
+  // Node does not expose its POSIX no-follow open guarantee there. Refuse
+  // before reading a private key or plaintext identity; use a trusted POSIX
+  // filesystem (including the Linux home directory inside WSL) instead.
+  if (process.platform === 'win32' || !Number.isInteger(fsConstants.O_NOFOLLOW)
+    || fsConstants.O_NOFOLLOW === 0) fail('POSIX_OPERATOR_REQUIRED');
   // Canonicalize the destination parent so a symlinked directory cannot bypass this guard.
   const requestedOutput = resolve(outputPath);
   const directory = realpathSync(dirname(requestedOutput));

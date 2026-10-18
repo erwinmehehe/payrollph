@@ -78,6 +78,14 @@ node scripts/qa/decrypt-runtime-identity.mjs \
 ~~~
 
 The offline utility does not contact production or make network requests.
+Native Windows intentionally fails with `AUDIT_RUNTIME_POSIX_OPERATOR_REQUIRED`
+before reading any private key or artifact. Windows mode bits do not prove
+private NTFS access, and Node's POSIX no-follow guarantee is unavailable there.
+On this Windows computer, use a trusted WSL Linux environment with Node 22 and
+keep the private key, downloaded artifact and plaintext under the Linux home
+directory with the permissions shown above. Do not use a Windows-mounted
+`/mnt/c` directory for private operator files, and do not relax the checks to
+make native Windows succeed. The repository itself can remain on `/mnt/c`.
 It refuses GitHub Actions/CI execution, malformed/tampered artifacts, wrong
 keys, unsupported envelopes, pre-existing plaintext outputs, and output paths
 inside the repository (including symlinked destination directories). It writes
