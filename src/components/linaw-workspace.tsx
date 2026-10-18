@@ -73,6 +73,7 @@ import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 import { useDashboardReadRecovery } from "@/lib/use-dashboard-read-recovery";
+import { resolveFirstPayrollRunFocus } from "@/lib/first-payroll-run-navigation";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null, optionalUiCapabilities = { overpaymentPreview: false, overpaymentInvestigation: false, tenantReportBuilder: false } }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null; optionalUiCapabilities?: { overpaymentPreview: boolean; overpaymentInvestigation: boolean; tenantReportBuilder: boolean } }) {
   const searchParams = useSearchParams();
@@ -86,6 +87,14 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
       : null;
   const demoInfo = demoRoleInfo(demoRole);
   const requestedWorkspacePage = searchParams.get("workspacePage");
+  const focusedPayrollRunId = resolveFirstPayrollRunFocus({
+    enabled: initialData.firstPayrollConnectedEnabled === true,
+    demoMode: Boolean(demoRole), requestedPage: requestedWorkspacePage,
+    requestedOrganizationId: searchParams.get("organizationId"),
+    requestedRunId: searchParams.get("focusPayrollRunId"),
+    organizationId: initialData.selectedOrganization.id,
+    access: initialData.access, authorizedRuns: initialData.payrollRuns,
+  });
   const linkedTeamWorkflowPage = requestedMyTeamWorkspacePage({
     requestedPage: requestedWorkspacePage,
     role: initialData.access?.role ?? initialData.user?.role,
@@ -111,7 +120,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
     (searchParams.get("workspacePage") === "People" &&
       canOpenPeopleHome(initialData.access) &&
       roleHasPeopleWorkspace(initialData.access?.role)
-      ? "People" : linkedTeamWorkflowPage ?? linkedHirePayrollPage ?? "Overview");
+      ? "People" : focusedPayrollRunId !== null ? "Payroll" : linkedTeamWorkflowPage ?? linkedHirePayrollPage ?? "Overview");
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
@@ -568,6 +577,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           organizationId={data.selectedOrganization.id} title="Payroll by entity" />}
         {page === "Payroll" && (
           <PayrollRunView
+            key={data.firstPayrollConnectedEnabled ? `${data.selectedOrganization.id}:${focusedPayrollRunId ?? "default"}` : undefined}
+            initialRunId={focusedPayrollRunId ?? undefined}
             data={data}
             availablePages={availablePages}
             busy={busy}

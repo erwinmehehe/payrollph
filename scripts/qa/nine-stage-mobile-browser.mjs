@@ -143,6 +143,49 @@ try {
     assert.equal(backToA.body.length,1);
     assert.equal(backToA.body[0].id,a.body[0].id,
       "Returning to employer A must restore the original worker");
+    if (process.env.FIRST_PAYROLL_CONNECTED_ENABLED === 'true') {
+      const connected = JSON.parse(readFileSync('qa-artifacts/nine-stage-connected-report.json','utf8'));
+      const runId = connected.lineage.payrollRunId;
+      assert.ok(Number.isSafeInteger(runId) && runId > 0);
+      const href = `/app?organizationId=${auth.organizationId}&workspacePage=Payroll&focusPayrollRunId=${runId}`;
+      const resume = page.locator(`a[href="${href}"]`).first();
+      await resume.waitFor();
+      await resume.focus();
+      assert.equal(await resume.evaluate(el => el === document.activeElement),true);
+      const navigationWrites = [];
+      const trackWrite = request => {
+        if (new URL(request.url()).pathname.startsWith('/api/') && !['GET','HEAD'].includes(request.method())) {
+          navigationWrites.push(request.method() + ' ' + new URL(request.url()).pathname);
+        }
+      };
+      page.on('request',trackWrite);
+      const readSavedRun = action => {
+        const observed = page.waitForResponse(response => {
+          const url = new URL(response.url());
+          return url.pathname === '/api/payroll-runs' && url.searchParams.get('runId') === String(runId)
+            && url.searchParams.get('include') === 'entries' && response.request().method() === 'GET';
+        });
+        return (async () => {
+          await action();
+          const response = await observed;
+          assert.equal(response.status(),200);
+          const body = await response.json();
+          assert.equal(body.runId,runId);
+          assert.equal(body.entries.length,1);
+          assert.equal(body.entries[0].employeeId,connected.lineage.employeeId);
+          await page.getByRole('heading',{name:'Review and release payroll.',exact:true}).waitFor();
+        })();
+      };
+      await readSavedRun(() => resume.press('Enter'));
+      assert.equal(new URL(page.url()).searchParams.get('focusPayrollRunId'),String(runId));
+      await readSavedRun(() => page.reload({waitUntil:'domcontentloaded'}));
+      await page.screenshot({path:`qa-artifacts/first-payroll-authenticated-resume-${width}.png`,fullPage:false});
+      await page.goto(base + '/app?organizationId=' + auth.organizationId,{waitUntil:'domcontentloaded'});
+      await page.locator('.company-switcher').waitFor();
+      page.off('request',trackWrite);
+      assert.deepEqual(navigationWrites,[], 'Authenticated resume and reload must not mutate payroll or compliance');
+      report.checks.push(width + 'px actual invited owner keyboard resume, authenticated saved-register read, reload and zero navigation writes');
+    }
     const widthAudit = await page.evaluate(() => {
       const width = window.innerWidth;
       const offenders = [...document.querySelectorAll("body *")].flatMap(el => {

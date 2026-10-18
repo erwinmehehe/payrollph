@@ -200,6 +200,8 @@ jobs:
       NINE_STAGE_HIRE_MODE: ${{ matrix.hire-mode }}
       NINE_STAGE_PG_MAJOR: ${{ matrix.postgres }}
       NINE_STAGE_CUTOFF_MODE: ${{ matrix.cutoff || 'month' }}
+      FIRST_PAYROLL_CONNECTED_ENABLED: ${{ matrix.hire-mode == 'direct' && 'true' || 'false' }}
+      FIRST_PAYROLL_INLINE_ENABLED: ${{ matrix.hire-mode == 'direct' && 'true' || 'false' }}
       YEAR_END_PRIOR_EVIDENCE_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
       EXACT_THIRTEENTH_CENTAVOS_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
       FINAL_PAY_SIGNED_REVIEW_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
@@ -263,6 +265,19 @@ jobs:
           echo "::add-mask::$pii_key"
           echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+          if [ "${{ matrix.hire-mode }}" = direct ]; then
+            invite=$(openssl rand -hex 32)
+            echo "::add-mask::$invite"
+            echo "PRIVATE_PILOT_QA_INVITE_CODE=$invite" >> "$GITHUB_ENV"
+            echo "PRIVATE_PILOT_INVITE_CODE_SHA256=$(printf %s "$invite" | sha256sum | cut -d' ' -f1)" >> "$GITHUB_ENV"
+            echo "PRIVATE_PILOT_INVITE_EMAIL_SHA256=$(printf %s owner.nine@linaw.test | sha256sum | cut -d' ' -f1)" >> "$GITHUB_ENV"
+            echo "PRIVATE_PILOT_INVITE_ENABLED=true" >> "$GITHUB_ENV"
+            echo "PRIVATE_PILOT_INVITE_EXPIRES_AT=2030-01-01T00:00:00Z" >> "$GITHUB_ENV"
+            echo "PUBLIC_SIGNUP_MODE=pilot" >> "$GITHUB_ENV"
+            # Production signup requires an HTTPS canonical URL. The actual
+            # test server and every HTTP client remain on the same loopback port.
+            echo "APP_BASE_URL=https://127.0.0.1:3000" >> "$GITHUB_ENV"
+          fi
           # Pick the current Manila month-end once for this disposable run so
           # authenticated browser cookies are not expired in real wall time.
           echo "NINE_STAGE_SYNTHETIC_CLOCK=$(node scripts/qa/synthetic-month-end.cjs)" >> "$GITHUB_ENV"
@@ -385,7 +400,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nine-stage-role-layout-screenshots-pg${{ matrix.postgres }}-${{ matrix.hire-mode }}${{ matrix.cutoff == 'year-end' && '-year-end' || '' }}
-          path: qa-artifacts/nine-stage-layout-*.png
+          path: |
+            qa-artifacts/nine-stage-layout-*.png
+            qa-artifacts/first-payroll-authenticated-resume-*.png
           if-no-files-found: warn
           retention-days: 14
 

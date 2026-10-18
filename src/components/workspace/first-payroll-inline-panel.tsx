@@ -8,6 +8,7 @@ import { INVITABLE_ROLES } from "@/lib/roles";
 import { ApprovalsView } from "./approvals";
 import { ExportsView } from "./exports";
 import type { DashboardData, Notify } from "./types";
+import { firstPayrollRunHref } from "@/lib/first-payroll-run-navigation";
 
 function firstPayrollStep(key: FirstPayrollKey) {
   const found = FIRST_PAYROLL_STEPS.find(item => item.key === key);
@@ -237,6 +238,13 @@ export function FirstPayrollInlinePanel({
      <p>Active payroll officers: {data.firstPayrollReadiness?.payrollOfficerCount??0}; independent checkers: {data.firstPayrollReadiness?.checkerCount??0}.</p>
    </div>}
    {step==="payroll"&&<div className="grid gap-3">
+     {data.firstPayrollConnectedEnabled && canPreviewPayroll && data.payrollRuns.length > 0 && <section aria-label="Saved payroll runs" className="grid gap-3 rounded-lg border p-3">
+       <h3 className="font-semibold">Continue a saved payroll</h3>
+       <p className="text-sm">Open the existing run to calculate, resolve exceptions and submit it to a separate checker. Refreshing this page does not require another draft.</p>
+       {data.payrollRuns.map(run => <a key={run.id} className="first-payroll-link flex flex-wrap gap-2" href={firstPayrollRunHref(organizationId, run.id)}>
+         <span>Open payroll run #{run.id}</span><span>{run.periodLabel} · {run.status}</span>
+       </a>)}
+     </section>}
      <p>First payroll preview reads actual employer records and reuses the payroll calculator. It never creates a run or a ledger entry. Creating a draft is a separate, explicit action.</p>
      <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period start</span><input className="block min-w-0 w-full" type="date" value={start} onChange={e=>{setStart(e.target.value);setPreview(null);setDraftId(null);}}/></label>
      <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period end</span><input className="block min-w-0 w-full" type="date" value={end} onChange={e=>{setEnd(e.target.value);setPreview(null);setDraftId(null);}}/></label>
