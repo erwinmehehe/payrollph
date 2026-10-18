@@ -33,11 +33,13 @@ switch (kind) {
     ok = value === kind; break;
   case "sha40": ok = /^[a-f0-9]{40}$/i.test(value); break;
   case "https":
+  case "https-url":
     try {
       const u = new URL(value);
-      ok = u.protocol === "https:" && u.origin === value.replace(/\/$/, "") &&
-        u.pathname === "/" && !u.username && !u.password &&
-        !u.search && !u.hash;
+      ok = u.protocol === "https:" && !u.username && !u.password &&
+        !u.hash && (kind === "https-url" ||
+          (u.origin === value.replace(/\/$/, "") &&
+           u.pathname === "/" && !u.search));
     } catch { ok = false; }
     break;
   default: throw Error("Unsupported verification kind");
@@ -75,7 +77,7 @@ Optional/provider entries use their exact `check_env NAME present` command **onl
 | `SETUP_TOKEN` | Independent 32+ byte setup token; no sample credentials. | openssl rand -hex 32 | `check_env SETUP_TOKEN min32` | [`scripts/security-preflight.ts:70`](../scripts/security-preflight.ts#L70) |
 | `DEMO_MODE` | Must be literal false in customer production. | Set false; no secret. | `check_env DEMO_MODE false` | [`scripts/security-preflight.ts:79`](../scripts/security-preflight.ts#L79) |
 | `REQUIRE_PRIVILEGED_MFA` | Set literal true (preflight otherwise only rejects literal false). | Set true; no secret. | `check_env REQUIRE_PRIVILEGED_MFA true` | [`scripts/security-preflight.ts:84`](../scripts/security-preflight.ts#L84) |
-| `MALWARE_SCAN_URL` | HTTPS malware scanner; preflight requires even if uploads disabled. | Approved scanner HTTPS origin; no fake URL. | `check_env MALWARE_SCAN_URL https` | [`scripts/security-preflight.ts:51`](../scripts/security-preflight.ts#L51) |
+| `MALWARE_SCAN_URL` | HTTPS malware scanner; preflight requires even if uploads disabled. | Approved scanner HTTPS origin; no fake URL. | `check_env MALWARE_SCAN_URL https-url` | [`scripts/security-preflight.ts:51`](../scripts/security-preflight.ts#L51) |
 | `MALWARE_SCAN_TOKEN` | Separate minimum-32-byte scanner secret required by preflight. | openssl rand -hex 32 | `check_env MALWARE_SCAN_TOKEN min32` | [`scripts/security-preflight.ts:71`](../scripts/security-preflight.ts#L71) |
 | `DOCUMENT_UPLOADS_ENABLED` | Keep false until separately approved scanning/storage/privacy. | Set false; no activation. | `check_env DOCUMENT_UPLOADS_ENABLED false` | [`src/lib/critical-release-flags.ts:228`](../src/lib/critical-release-flags.ts#L228) |
 | `WORKER_ENABLED` | KEEP FALSE until explicit worker activation decision. | Set false; no activation. | `check_env WORKER_ENABLED false` | [`src/lib/operational-readiness.ts:401`](../src/lib/operational-readiness.ts#L401) |
@@ -98,7 +100,7 @@ Optional/provider entries use their exact `check_env NAME present` command **onl
 | `PAYMONGO_WALLET_ID` | Conditional payout source-account identifier; not acceptance evidence. | Provider-issued, only if approved. | `check_env PAYMONGO_WALLET_ID present` | [`src/lib/operational-readiness.ts:130`](../src/lib/operational-readiness.ts#L130) |
 | `MAYA_SECRET_KEY` | Conditional billing indicator; not proof of paid invoices. | Provider-issued, only if approved. | `check_env MAYA_SECRET_KEY present` | [`src/lib/operational-readiness.ts:122`](../src/lib/operational-readiness.ts#L122) |
 | `STRIPE_SECRET_KEY` | Conditional billing indicator; not proof of paid invoices. | Provider-issued, only if approved. | `check_env STRIPE_SECRET_KEY present` | [`src/lib/operational-readiness.ts:122`](../src/lib/operational-readiness.ts#L122) |
-| `BANK_HOST_TO_HOST_URL` | Conditional direct-bank indicator; mere presence can affect readiness. | Approved bank endpoint only. | `check_env BANK_HOST_TO_HOST_URL https` | [`src/lib/operational-readiness.ts:125`](../src/lib/operational-readiness.ts#L125) |
+| `BANK_HOST_TO_HOST_URL` | Conditional direct-bank indicator; mere presence can affect readiness. | Approved bank endpoint only. | `check_env BANK_HOST_TO_HOST_URL https-url` | [`src/lib/operational-readiness.ts:125`](../src/lib/operational-readiness.ts#L125) |
 | `INSTAPAY_API_KEY` | Conditional direct-bank indicator; not transfer evidence. | Provider-issued, only if approved. | `check_env INSTAPAY_API_KEY present` | [`src/lib/operational-readiness.ts:125`](../src/lib/operational-readiness.ts#L125) |
 | `RESEND_API_KEY` | Conditional transactional mail provider. | Provider-issued, only if selected. | `check_env RESEND_API_KEY present` | [`src/lib/mail-provider.ts:4`](../src/lib/mail-provider.ts#L4) |
 | `POSTMARK_SERVER_TOKEN` | Alternative transactional mail provider. | Provider-issued, only if selected. | `check_env POSTMARK_SERVER_TOKEN present` | [`src/lib/mail-provider.ts:5`](../src/lib/mail-provider.ts#L5) |
@@ -200,7 +202,7 @@ Do **not** reproduce the publicly known demo login or password in documentation,
 | APP_BASE_URL absent in example | `scripts/security-preflight.ts:50` requires explicit APP_BASE_URL, while `operational-readiness.ts:168` accepts a Vercel fallback; .env.local.example has no APP_BASE_URL. | Configure the actual HTTPS APP_BASE_URL; do not treat fallback as preflight. |
 | Development example enables demo | .env.local.example uses **DEMO_MODE=true** for development; preflight demands exactly **false** for production; runtime gate tests only literal true. | DEMO_MODE=false; rotate public credential and prove isolation. |
 | TOTP validity disparity | Production gate checks only configured(TOTP_ENCRYPTION_KEY); security preflight validates 32 decoded bytes (64 hex/base64). | Require strict 64-hex key in protected production secret manager; do not claim green from mere presence. |
-| Scanner conditionality differs | Operational malaria/malware gate is ready when uploads are disabled; preflight unconditionally requires HTTPS MALWARE_SCAN_URL and 32+ byte MALWARE_SCAN_TOKEN, even if DOCUMENT_UPLOADS_ENABLED=false. | Report preflight **FAIL** unless a real approved scanner is configured; no dummy scanner URL or skip. |
+| Scanner conditionality differs | Operational malware gate is ready when uploads are disabled; preflight unconditionally requires HTTPS MALWARE_SCAN_URL and 32+ byte MALWARE_SCAN_TOKEN, even if DOCUMENT_UPLOADS_ENABLED=false. | Report preflight **FAIL** unless a real approved scanner is configured; no dummy scanner URL or skip. |
 | Diagnostic token fallback differs | Security preflight uses operationalSecretSource, which accepts TOTP-derived worker/readiness tokens; readiness-diagnostics-token and remote-scheduler-token gates check **dedicated variable presence**. | Prefer dedicated WORKER_TOKEN and READINESS_TOKEN of 32+ bytes; PRODUCTION_READINESS_TOKEN must match deployed readiness secret. |
 | Government-ID fallback is incorrectly described | `operational-readiness.ts:293` says a domain-separated fallback may exist, but `government-id-crypto.ts:9–18` requires dedicated PII_ENCRYPTION_KEY; .env.local.example explicitly says **no fallback**. | Provision dedicated 32-byte PII key. Keep inaccurate runtime wording on review list; do not claim fallback works. |
 | MFA preflight under-validates | Security preflight accepts unset or malformed REQUIRE_PRIVILEGED_MFA as long as it is not exact false; the example uses a boolean. | Require exact true by operator check; no change to authorization gate in this PR. |
