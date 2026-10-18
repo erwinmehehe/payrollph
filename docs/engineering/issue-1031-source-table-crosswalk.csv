@@ -141,7 +141,7 @@
 "managed_payroll_engagements","drizzle/0039_managed_payroll_operations.sql","yes - source snapshot only","src/lib/core-schema-compat.ts","","numbered source definition(s) only - application unproven",""
 "managed_payroll_gates","drizzle/0039_managed_payroll_operations.sql","yes - source snapshot only","src/lib/core-schema-compat.ts","","numbered source definition(s) only - application unproven",""
 "managed_payroll_run_approvals","drizzle/0039_managed_payroll_operations.sql","yes - source snapshot only","src/lib/core-schema-compat.ts","","numbered source definition(s) only - application unproven",""
-"marketing_leads","drizzle/0024_marketing_leads.sql","yes - source snapshot only","","","numbered source definition(s) only - application unproven",""
+"marketing_leads","drizzle/0024_marketing_leads.sql","yes - source snapshot only","src/lib/marketing-leads.ts","","numbered source definition(s) only - application unproven",""
 "min_wage_orders","","yes - source snapshot only","","","defined only in schema.ts / no migration creates it",""
 "offline_punch_claims","","no","","","defined only in schema.ts / no migration creates it",""
 "oidc_login_states","drizzle/0044_enterprise_identity_automation.sql","yes - source snapshot only","","","numbered source definition(s) only - application unproven",""

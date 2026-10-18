@@ -6,6 +6,8 @@ on:
       - "src/**"
       - "scripts/audit-runtime-schema-writers.mjs"
       - "tests/runtime-schema-audit.test.mjs"
+      - "tests/core-schema-readonly.test.ts"
+      - "tests/request-schema-readonly.test.ts"
       - ".github/workflows/runtime-schema-writer-audit.yml"
   workflow_dispatch:
 
@@ -34,6 +36,8 @@ jobs:
       - run: npm ci
       - name: Exercise static parser, early guard and strict rejection cases
         run: node --test tests/runtime-schema-audit.test.mjs
+      - name: Prove flag-off parity and flag-on legacy rejection
+        run: npx tsx --test tests/core-schema-readonly.test.ts tests/request-schema-readonly.test.ts
       - name: Inspect all runtime sources and reject unguarded schema writes
         shell: bash
         run: |
