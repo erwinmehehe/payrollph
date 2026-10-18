@@ -1,0 +1,17 @@
+# Source ownership for payroll, statutory, database, deployment and security-sensitive paths.
+# @erwinmehehe is currently the sole listed owner. Add a SECOND independent reviewer
+# to CODEOWNERS before enabling branch protection's "Require review from Code Owners"
+# (or equivalent "require review" rule). Otherwise the sole owner cannot approve
+# their own pull requests and may be unable to merge them.
+#
+# This file defines CODEOWNERS only; it does not change GitHub branch protection.
+
+/src/lib/payroll-*.ts @erwinmehehe
+/src/lib/ph-statutory-rule-packs.ts @erwinmehehe
+/src/lib/wage-orders.ts @erwinmehehe
+/src/lib/bir-*.ts @erwinmehehe
+/drizzle/** @erwinmehehe
+/.github/workflows/** @erwinmehehe
+/src/lib/operational-readiness.ts @erwinmehehe
+/next.config.ts @erwinmehehe
+/src/proxy.ts @erwinmehehe
