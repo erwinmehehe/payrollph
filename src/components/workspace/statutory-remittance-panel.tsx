@@ -119,9 +119,9 @@ function ScopedStatutoryRemittancePanel({
         organizationId, legalEntityId ?? null, fetch, controller.signal,
       );
       if (!isCurrent()) return false;
-      setBatches(body.batches as Batch[]);
-      setMembers(body.members as Member[]);
-      setCoverageGaps(body.coverageGaps as CoverageGap[]);
+      setBatches(body.batches as unknown as Batch[]);
+      setMembers(body.members as unknown as Member[]);
+      setCoverageGaps(body.coverageGaps as unknown as CoverageGap[]);
       return true;
     } catch (error) {
       if (isCurrent()) {
