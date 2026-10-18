@@ -429,7 +429,16 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
   }, [organizationId]);
 
   const invalidateInFlightLoad = useCallback(() => { loadRevisionRef.current += 1; }, []);
-  useEffect(() => { void load(); return invalidateInFlightLoad; }, [load, invalidateInFlightLoad]);
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load();
+    });
+    return () => {
+      controller.abort();
+      invalidateInFlightLoad();
+    };
+  }, [load, invalidateInFlightLoad]);
 
   // Explicit user/mutation reloads retain the original fail-closed loading
   // gate; only the mount effect calls the network-only load function.

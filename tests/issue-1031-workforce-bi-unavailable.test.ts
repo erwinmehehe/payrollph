@@ -11,10 +11,14 @@ test("workforce planning preserves an honest unavailable state when its authorit
   assert.match(planning, /const \[loadError, setLoadError\] = useState<string \| null>\(null\)/);
   const loadStart = planning.indexOf("  const load = useCallback(async () => {");
   const effectStart = planning.indexOf(
-    "  useEffect(() => { void load(); return invalidateInFlightLoad; }, [load, invalidateInFlightLoad]);",
+    "  useEffect(() => {",
     loadStart,
   );
   assert.ok(loadStart >= 0 && effectStart > loadStart, "tenant-scoped loader must precede its cleanup effect");
+  const effectCleanup = planning.slice(effectStart, planning.indexOf("  // Explicit user/mutation reloads", effectStart));
+  assert.match(effectCleanup, /queueMicrotask/);
+  assert.match(effectCleanup, /controller\.abort\(\)/);
+  assert.match(effectCleanup, /invalidateInFlightLoad\(\)/);
   const firstRead = planning.slice(loadStart, effectStart);
   assert.match(firstRead, /const revision = \+\+loadRevisionRef\.current/);
   assert.match(firstRead, /revision !== loadRevisionRef\.current/);

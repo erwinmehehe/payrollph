@@ -467,7 +467,16 @@ function AutomationStudioPanelForOrganization({
     }
   }, [organizationId, setNotice]);
 
-  useEffect(() => { void load(); return cancelRead; }, [load, cancelRead]);
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void load();
+    });
+    return () => {
+      controller.abort();
+      cancelRead();
+    };
+  }, [load, cancelRead]);
 
   const refresh = () => {
     setData(null);

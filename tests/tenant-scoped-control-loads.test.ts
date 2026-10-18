@@ -34,12 +34,17 @@ for (const panel of panels) {
   test(panel.file + " isolates tenant state and retires synchronous effect loading", () => {
     const source = readFileSync(panel.file, "utf8");
     const loadStart = source.indexOf("  const load = useCallback(async () => {");
-    const effectStart = source.indexOf(
-      "  useEffect(() => { void load(); return cancelRead; }, [load, cancelRead]);",
-      loadStart,
-    );
+    const effectStart = source.indexOf("  useEffect(() => {", loadStart);
     assert.ok(loadStart > 0 && effectStart > loadStart, "load must be async with stable cancellation cleanup");
     const loader = source.slice(loadStart, effectStart);
+    const effectEnd = source.indexOf("  const refresh = () => {", effectStart);
+    assert.ok(effectEnd > effectStart, "mount effect must precede manual refresh");
+    const mountEffect = source.slice(effectStart, effectEnd);
+    assert.ok(mountEffect.includes("queueMicrotask(() => {"), "mount effect must defer the GET");
+    assert.ok(mountEffect.includes("if (!controller.signal.aborted) void load();"));
+    assert.ok(mountEffect.includes("controller.abort();"), "unmount cancels queued GET");
+    assert.ok(mountEffect.includes("cancelRead();"), "unmount cancels in-flight GET");
+    assert.ok(!mountEffect.includes("setLoading("), "effect cannot synchronously reset state");
     assert.ok(source.includes(panel.keyedInstance), "changing tenant must remount the panel");
     assert.ok(source.includes(panel.requiredStateReset), "scope-local private drafts must be cleared on reset");
     assert.ok(!loader.includes("setLoading(true)"), "the mount effect cannot synchronously start loading");
@@ -82,9 +87,17 @@ test("workforce planning isolates employer-scoped budgets and retries without ef
   const source = readFileSync("src/components/workforce-planning-panel.tsx", "utf8");
   assert.ok(source.includes("<WorkforcePlanningPanelForOrganization key={props.organizationId}"));
   const loadStart = source.indexOf("  const load = useCallback(async () => {");
-  const effectStart = source.indexOf("  useEffect(() => { void load(); return invalidateInFlightLoad; }, [load, invalidateInFlightLoad]);");
+  const effectStart = source.indexOf("  useEffect(() => {", loadStart);
   assert.ok(loadStart > 0 && effectStart > loadStart);
   const loader = source.slice(loadStart, effectStart);
+  const effectEnd = source.indexOf("  // Explicit user/mutation reloads", effectStart);
+  assert.ok(effectEnd > effectStart);
+  const mountEffect = source.slice(effectStart, effectEnd);
+  assert.ok(mountEffect.includes("queueMicrotask(() => {"), "mount effect must defer GET");
+  assert.ok(mountEffect.includes("if (!controller.signal.aborted) void load();"));
+  assert.ok(mountEffect.includes("controller.abort();"), "unmount must cancel queued GET");
+  assert.ok(mountEffect.includes("invalidateInFlightLoad();"), "unmount must revoke old results");
+  assert.ok(!mountEffect.includes("setLoading("), "mount effect cannot synchronously update state");
   const firstRead = loader.indexOf("await fetch(");
   assert.ok(firstRead > 0);
   assert.ok(!loader.slice(0, firstRead).includes("setLoading(true)"));
