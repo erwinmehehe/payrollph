@@ -85,7 +85,8 @@ function validEvaluation(value: unknown): value is VerifiedRemittanceMonthClose[
     record(evidence) && positive(evidence.id) &&
     positive(evidence.batchId) && validBatchIds.has(evidence.batchId) &&
     text(evidence.fileName) && sha256(evidence.fileSha256) &&
-    nonnegative(evidence.byteSize) && text(evidence.status))) return false;
+    positive(evidence.byteSize) && text(evidence.uploadedByName) &&
+    timestamp(evidence.uploadedAt))) return false;
   if (!value.corrections.every((item: unknown) =>
     record(item) && positive(item.id) && positive(item.batchId) &&
     validBatchIds.has(item.batchId))) return false;
