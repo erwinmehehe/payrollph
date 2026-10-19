@@ -4,8 +4,9 @@ import { readFileSync } from "node:fs";
 import { isVerifiedPeopleSummary, isVerifiedReportPayload, readVerifiedReportPayload } from "../src/lib/report-read-payload";
 const query = new URLSearchParams({ organizationId: "16", key: "cost" });
 const fixture = () => ({
-  organizationId: 16, legalEntityId: null, key: "cost", columns: ["Period", "Gross", "Net"],
-  rows: [["Fictional period", "100.00", "85.00"]], generatedAt: "2026-10-18T00:00:00.000Z",
+  organizationId: 16, legalEntityId: null, key: "cost",
+  columns: ["Period", "Scope", "Employees", "Gross", "Deductions", "Net"],
+  rows: [["Fictional period", "All", "1", "100.00", "15.00", "85.00"]], generatedAt: "2026-10-18T00:00:00.000Z",
 });
 const fake = (r: Response): typeof fetch => (async () => r) as typeof fetch;
 test("valid empty reports do not become errors", async () => {
@@ -22,7 +23,8 @@ test("non-OK, malformed JSON, missing result, foreign employer, wrong report, wr
     Response.json({...fixture(), legalEntityId:19}),
     Response.json({...fixture(), key:"compliance"}),
     Response.json({...fixture(), rows:[["bad width"]]}),
-    Response.json({...fixture(), rows:[[null, "10.00", "9.00"]]}),
+    Response.json({...fixture(), rows:[["Oct", null, "1", "100.00", "15.00", "85.00"]]}),
+    Response.json({...fixture(), columns:["Unapproved", "Other", "Employees", "Gross", "Deductions", "Net"]}),
     Response.json({...fixture(), generatedAt:"not a date"}),
   ];
   for (const item of invalid) await assert.rejects(() => readVerifiedReportPayload(16, "cost", query, fake(item)));
@@ -63,10 +65,13 @@ const peopleSummary = () => ({
   trends:[],units:null,warnings:[],
 });
 test("people reporting never accepts a missing or truncated verification summary", () => {
-  const valid = {...fixture(), key:"people",peopleIntelligence:peopleSummary()};
+  const valid = {...fixture(), key:"people",
+    columns:["Area","Metric","Value","Evidence / definition"], rows:[],
+    peopleIntelligence:peopleSummary()};
   assert.equal(isVerifiedPeopleSummary(peopleSummary()), true);
   assert.equal(isVerifiedReportPayload(valid, 16, "people"), true);
   assert.equal(isVerifiedReportPayload({...valid,peopleIntelligence:{}},16,"people"),false);
+  assert.equal(isVerifiedReportPayload({...valid,columns:fixture().columns},16,"people"),false);
   assert.equal(isVerifiedReportPayload({...valid,peopleIntelligence:{...peopleSummary(),coverage:null}},16,"people"),false);
   assert.equal(isVerifiedReportPayload({...valid,peopleIntelligence:{...peopleSummary(),warnings:[null]}},16,"people"),false);
   assert.equal(isVerifiedReportPayload({...valid,peopleIntelligence:{...peopleSummary(),trends:[{date:"bad",headcount:1,verified:1,eligible:2}]}},16,"people"),false);
