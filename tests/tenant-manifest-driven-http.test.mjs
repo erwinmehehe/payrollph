@@ -1,0 +1,48 @@
+/**
+ * Method-adapter integrity: any "covered" assertion must be based on a
+ * current manifest GAP plus exact seeded own success, existing victim ID,
+ * exact denied status and identical victim DB snapshot. Actual HTTP is
+ * exercised by the production-mode isolated PostgreSQL workflow.
+ */
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
+const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
+
+test("single table-driven test reads ALL 489 methods and only registers true GAPs", () => {
+  assert.equal(manifest.metrics.methods, 489);
+  assert.equal(manifest.metrics.gap, 447);
+  assert.equal(manifest.sourceTraceCandidates.length, 34);
+  assert.equal(manifest.scopedPages.length, 20);
+  const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
+    info.methods.map((m) => [m.name + " " + info.route, { path, ...m }])));
+  assert.equal(specs.length, 6);
+  assert.equal(new Set(specs).size, specs.length);
+  for (const spec of specs) {
+    const method = registry.get(spec);
+    assert.ok(method && method.status === "GAP",
+      spec + " must map to the exact unverified handler, never an invented case");
+  }
+  assert.match(src, /const gaps = methodGaps\(\);/);
+  assert.match(src, /for \(const item of gaps\)/);
+  assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);
+  assert.match(src, /unadaptedGapMethodsStillOpen: gaps.length - FIRST_ADAPTED_METHODS.length/);
+});
+
+test("real-HTTP and disposable DB proof requirements cannot be weakened", () => {
+  assert.match(harness, /import \{ verifyManifestDrivenStatutoryBatch \} from "\.\/tenant-manifest-driven-http\.mjs";/);
+  assert.match(harness, /await verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus \}\);/);
+  assert.match(src, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+  assert.match(src, /const owned? = expectStatus\(await request\(urls\.own, \{ cookie \}\), 200/);
+  assert.match(src, /const foreign = expectStatus\(await request\(urls\.foreign, \{ cookie \}\), adapter\.denial/);
+  assert.match(src, /assert\.deepEqual\(after, before,/);
+  assert.match(src, /evidence\[7\]\.id > 6/);
+  assert.match(src, /tasks\[7\]\.id > 6/);
+  assert.match(src, /victimDatabaseUnchanged: true, productionTested: false, certified: false/);
+  assert.match(src, /sha256\(bytes\[i\]\)/);
+  assert.match(src, /assert\.equal\(account\.json\?\.profile\?\.id, f\.owners\[idx\]\.id\)/);
+});
