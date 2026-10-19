@@ -10,14 +10,26 @@ const paths = [
   "src/components/performance-development-self-panel.tsx",
 ];
 
-test("changing payroll run remounts assurance and its local CSV evidence state before painting", () => {
+test("changing employer, legal entity, or payroll run remounts assurance and its local CSV evidence before painting", () => {
   const source = read(paths[0]);
-  assert.match(source, /PayrollAssurancePanelContent key=\{props\.runId\}/);
+  assert.match(source, /PayrollAssurancePanelContent key=\{\[props\.organizationId, props\.legalEntityId, props\.runId\]\.join\(":"\)\}/,
+    "the remount key must include employer and legal entity, not just run ID");
   assert.match(source, /const \[loading, setLoading\] = useState\(true\)/);
   assert.match(source, /const \[parallelRows, setParallelRows\] = useState<ParallelPayrollRow\[]>\(\[\]\)/);
-  assert.doesNotMatch(source, /\n    setLoading\(true\);\n    setFailed\(false\);/);
+  assert.match(source, /const \[payload, setPayload\] = useState<AssurancePayload \| null>\(null\)/);
+  assert.doesNotMatch(source, /\n    setLoading\(true\);\n    setFailed\(false\);/,
+    "effects must not synchronously reset state after a tenant/run switch");
+  assert.match(source, /isVerifiedAssuranceRead\(body, \{ organizationId, legalEntityId, runId \}\)/,
+    "HTTP success alone must not authorize a green assurance state");
+  assert.match(source, /signal: controller\.signal/);
   assert.match(source, /if \(!alive\) return;\s*setPayload\(data\)/);
-  assert.match(source, /return \(\) => \{\s*alive = false;/);
+  assert.match(source, /return \(\) => \{\s*alive = false;\s*controller\.abort\(\);/,
+    "old tenant/run requests must be cancelled and must not repaint the panel");
+  assert.match(source, /setPayload\(null\);\s*setFailed\(true\)/,
+    "incomplete or denied assurance reads must fail closed");
+  assert.match(source, /Do not treat this as zero blockers\./);
+  assert.match(source, /setRetryRevision\(\(revision\) => revision \+ 1\)/,
+    "a user retry must trigger a new validation without preserving a stale success");
 });
 
 test("changing payroll run remounts default-off connected impact; manual refresh owns reset", () => {
