@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-19",
-  "acceptanceStatus": "NOT ACCEPTED: 440 API methods and 20 scoped pages/actions remain GAP; seven added method proofs are provisional until exact-head real HTTP CI passes.",
+  "acceptanceStatus": "NOT ACCEPTED: 436 API method and 20 page/action gaps remain. New payroll/Separation proofs require dedicated exact-head real HTTP/PG CI.",
   "metrics": {
     "routeFiles": 288,
     "methods": 489,
     "coveredBefore": 20,
-    "coveredAfter": 43,
+    "coveredAfter": 47,
     "publicByDesign": 6,
-    "gap": 440,
+    "gap": 436,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -19942,12 +19942,12 @@
       ]
     },
     "src/app/api/payroll-runs/route.ts": {
-      "gitBlobSha": "03b10b462cb2b7fb41a411094b756baab19f2e55",
+      "gitBlobSha": "ce8f506ced06056a59295810438c9fdf005d74b2",
       "route": "payroll-runs",
       "methods": [
         {
           "name": "GET",
-          "line": 26,
+          "line": 27,
           "status": "COVERED",
           "reason": "Own payroll runs 200 and victim-organization 403 plus direct foreign register denial",
           "testedBy": {
@@ -19960,10 +19960,17 @@
         },
         {
           "name": "POST",
-          "line": 98,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 99,
+          "status": "COVERED",
+          "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
+          "testedBy": {
+            "file": "scripts/qa/payroll-approved-exit-http.mjs",
+            "line": 87,
+            "ownPositiveLine": 87,
+            "foreignDenialLine": 82,
+            "unchangedDbLine": 84,
+            "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
+          }
         }
       ],
       "employerSources": {
@@ -25209,29 +25216,50 @@
       ]
     },
     "src/app/api/separation/route.ts": {
-      "gitBlobSha": "bffa51d1f2de90b2a03307af608b8298fa93b0d1",
+      "gitBlobSha": "3cc5c7408d52dd0a0fe2c784d95466650acf9f8a",
       "route": "separation",
       "methods": [
         {
           "name": "GET",
-          "line": 278,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 291,
+          "status": "COVERED",
+          "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
+          "testedBy": {
+            "file": "scripts/qa/payroll-approved-exit-http.mjs",
+            "line": 71,
+            "ownPositiveLine": 71,
+            "foreignDenialLine": 74,
+            "unchangedDbLine": 78,
+            "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
+          }
         },
         {
           "name": "POST",
-          "line": 342,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 355,
+          "status": "COVERED",
+          "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
+          "testedBy": {
+            "file": "scripts/qa/payroll-approved-exit-http.mjs",
+            "line": 65,
+            "ownPositiveLine": 65,
+            "foreignDenialLine": 75,
+            "unchangedDbLine": 78,
+            "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
+          }
         },
         {
           "name": "PATCH",
-          "line": 1015,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 1031,
+          "status": "COVERED",
+          "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
+          "testedBy": {
+            "file": "scripts/qa/payroll-approved-exit-http.mjs",
+            "line": 97,
+            "ownPositiveLine": 97,
+            "foreignDenialLine": 76,
+            "unchangedDbLine": 78,
+            "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
+          }
         }
       ],
       "employerSources": {
