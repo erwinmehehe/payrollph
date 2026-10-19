@@ -96,16 +96,19 @@ export function AnalyticsView({ data, notify, tenantReportBuilderEnabled = false
           if (peopleAsOf) query.set("asOf", peopleAsOf);
           query.set("windowDays", String(peopleWindowDays));
         }
-        const payload = await readVerifiedReportPayload(organizationId, safeActive, query);
+        const payload = await readVerifiedReportPayload(
+          organizationId, safeActive, query, fetch,
+          data.multiEntity?.enabled ? data.multiEntity.legalEntityId : null,
+        );
         if (!alive) return;
-        setResult(payload as ReportResult);
+        setResult(payload);
         setError("");
         setState("ready");
         setResolvedScopeKey(requestScopeKey);
-      } catch {
+      } catch (cause) {
         if (!alive) return;
         setResult(null);
-        setError("Could not reach the report service.");
+        setError(cause instanceof Error ? cause.message : "Report source or scope could not be verified.");
         setState("error");
         setResolvedScopeKey(requestScopeKey);
       }
