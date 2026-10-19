@@ -6,6 +6,7 @@ import {
   hcmReadScopeKey, hcmReadScopeParams, hcmReadScopeValid,
   hcmResponseMatchesReadScope, type HcmReadScope,
 } from "@/lib/hcm-client-employer-scope";
+import { isVerifiedPeopleOperationsPayload } from "@/lib/hcm-people-operations-response";
 import {
   PEOPLE_OPS_TEAMS,
   type PeopleOpsCategory,
@@ -131,6 +132,9 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
         if (!hcmResponseMatchesReadScope(body, scope)) {
           throw new Error("The People Operations Inbox returned an unexpected tenant or legal-employer scope.");
         }
+        if (!isVerifiedPeopleOperationsPayload(body, filters.page)) {
+          throw new Error("HR follow-up data was incomplete or invalid. Retry to load a verified snapshot.");
+        }
         setResponse({ key: requestKey, data: body as PeopleOpsPayload, error: "" });
       } catch (loadError) {
         if (controller.signal.aborted) return;
@@ -170,7 +174,7 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
           disabled={loading}
           onClick={() => setRefreshVersion((value) => value + 1)}
         >
-          <RefreshCw size={14} /> Refresh
+          <RefreshCw size={14} /> {error ? "Retry inbox" : "Refresh"}
         </button>
       </div>
 
