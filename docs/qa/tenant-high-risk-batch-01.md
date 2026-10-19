@@ -31,6 +31,10 @@
 | GET `/api/self/documents` | Linked employee role; forged selectors and revoked membership | Same self employee ID before revocation, 403 after |
 | GET `/api/self/payslips/[id]/explain` | Real Released own pay ID vs victim pay ID and revoked membership | Own pay 200; victim 404; formerly own pay 403 after revoked grant |
 
+## Observed first CI attempt (synthetic fixture correction)
+
+Exact first-head GitHub Security HTTP Smoke executed all 16 methods for both attacker employers. **15/16 passed for both**. Journal export correctly returned **HTTP 422** for the original second-pass fixture because gross ₱5,000, net ₱4,500 and ₱500 unclassified deductions cannot form a balanced export (₱5,340 debit vs ₱4,840 credit). This is a **fixture accounting defect**, not proof of a tenant leak. The exporter fail-closed guard was **not** changed. The batch now seeds an additional standalone fictional Released journal run with ₱5,000 gross, ₱0 deductions and ₱5,000 net for a proper positive control. The original auth fixture remains untouched. **Fresh exact-head CI must pass; do not count any of these methods as covered yet.**
+
 ## Evidence collection and failure policy
 
 The `scripts/qa/tenant-high-risk-01-http.mjs` module is called from **the existing** `scripts/qa/tenant-second-pass-http.mjs` second-pass smoke with its existing `request`, `expectStatus`, and `makeSession`. No stubbed HTTP or fabricated foreign identifiers. `tests/tenant-high-risk-batch-01.test.mjs` asserts all 16 production route handlers still exist, proves the live harness actually invokes the module, and pins the expected own/denial/DB invariants. A failing request prints its endpoint label and results in a **failed workflow**, never provisional `COVERED`. This document does not claim an observed pass before the exact-head GitHub Actions run.
