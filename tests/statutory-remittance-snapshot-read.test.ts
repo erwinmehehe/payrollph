@@ -45,6 +45,21 @@ test("non-OK, malformed JSON, missing fields, foreign employer and invalid monet
     Response.json({ ...snapshot(), batches: [{...batch(), dueDate: "2026-02-31"}] }),
   ]) await assert.rejects(() => readVerifiedRemittanceSnapshot(14, 77, fake(response)));
 });
+test("accepted filing cannot masquerade as matched with missing financial evidence", () => {
+  const matched = { ...batch(), filingCheck: {
+    status: "matched", filingRecordId: 9, filingEmployeeCount: 1,
+    remittanceEmployeeCount: 1, filingTotal: 220, remittanceTotal: 220,
+    employeeCountDifference: 0, totalDifference: 0,
+  } };
+  assert.equal(isVerifiedRemittanceSnapshot({ ...empty(), batches: [matched] }, 14, 77), true);
+  for (const field of ["filingRecordId", "filingEmployeeCount", "filingTotal", "employeeCountDifference", "totalDifference"] as const) {
+    const filingCheck = { ...matched.filingCheck, [field]: null };
+    assert.equal(isVerifiedRemittanceSnapshot({ ...empty(), batches: [{ ...matched, filingCheck }] }, 14, 77), false, field);
+  }
+  assert.equal(isVerifiedRemittanceSnapshot({
+    ...empty(), batches: [{ ...matched, filingCheck: { ...matched.filingCheck, status: "mismatch", filingTotal: null } }],
+  }, 14, 77), false);
+});
 test("explicit retry permits a truly empty but verified remittance list", async () => {
   let tries=0;
   const fetcher=(async () => {
