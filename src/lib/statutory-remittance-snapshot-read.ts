@@ -14,7 +14,13 @@ const id = (v: unknown): v is number =>
   typeof v === "number" && Number.isSafeInteger(v) && v > 0;
 const number = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v);
-const month = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}$/.test(v);
+const month = (v: unknown) => typeof v === "string" && /^\\d{4}-(0[1-9]|1[0-2])$/.test(v);
+const date = (v: unknown) => typeof v === "string" &&
+  /^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$/.test(v) &&
+  Number.isFinite(Date.parse(v + "T00:00:00Z")) &&
+  new Date(v + "T00:00:00Z").toISOString().slice(0, 10) === v;
+const count = (v: unknown) => typeof v === "number" &&
+  Number.isSafeInteger(v) && v >= 0;
 const money = (v: unknown) =>
   typeof v === "string" && /^-?\d+(?:\.\d+)?$/.test(v) && Number.isFinite(Number(v));
 const optional = (v: unknown, fn: (v: unknown) => boolean) => v === null || fn(v);
@@ -24,24 +30,27 @@ function validBatch(v: unknown, organizationId: number, legalEntityId: number): 
   return record(v) && id(v.id) && v.organizationId === organizationId &&
     v.legalEntityId === legalEntityId &&
     agency(v.agency) && month(v.applicableMonth) &&
-    typeof v.dueDate === "string" && typeof v.status === "string" &&
-    typeof v.displayStatus === "string" && number(v.employeeCount) &&
+    date(v.dueDate) && typeof v.status === "string" &&
+    typeof v.displayStatus === "string" && count(v.employeeCount) &&
     money(v.expectedEmployeeShare) && money(v.expectedEmployerShare) &&
     money(v.expectedTotal) && optional(v.amountPaid, money) &&
     optional(v.paymentReference, (x) => typeof x === "string") &&
     optional(v.agencyReceiptReference, (x) => typeof x === "string") &&
     optional(v.paidAt, (x) => typeof x === "string") &&
-    number(v.pendingPostingCount) && number(v.exceptionCount) &&
-    (v.filingCheck === undefined ||
-      (record(v.filingCheck) &&
-        ["matched", "mismatch", "unverified"].includes(String(v.filingCheck.status)) &&
-        number(v.filingCheck.remittanceEmployeeCount) &&
-        number(v.filingCheck.remittanceTotal) &&
-        optional(v.filingCheck.filingRecordId, id) &&
-        optional(v.filingCheck.filingEmployeeCount, number) &&
-        optional(v.filingCheck.filingTotal, number) &&
-        optional(v.filingCheck.employeeCountDifference, number) &&
-        optional(v.filingCheck.totalDifference, number)));
+    count(v.pendingPostingCount) && count(v.exceptionCount) &&
+    number(v.paymentShortfall) && v.paymentShortfall >= 0 &&
+    typeof v.hasActivePaymentProof === "boolean" &&
+    // State construction always provides a complete matched/mismatch/unverified
+    // filing snapshot. Its omission must not hide an accepted-filing mismatch.
+    record(v.filingCheck) &&
+    ["matched", "mismatch", "unverified"].includes(String(v.filingCheck.status)) &&
+    count(v.filingCheck.remittanceEmployeeCount) &&
+    number(v.filingCheck.remittanceTotal) &&
+    optional(v.filingCheck.filingRecordId, id) &&
+    optional(v.filingCheck.filingEmployeeCount, count) &&
+    optional(v.filingCheck.filingTotal, number) &&
+    optional(v.filingCheck.employeeCountDifference, number) &&
+    optional(v.filingCheck.totalDifference, number);
 }
 
 function validMember(v: unknown, organizationId: number, validBatches: Set<number>): v is Record<string, unknown> {
@@ -63,8 +72,12 @@ function validMember(v: unknown, organizationId: number, validBatches: Set<numbe
 export function isVerifiedRemittanceSnapshot(
   value: unknown, organizationId: number, legalEntityId: number | null,
 ): value is VerifiedRemittanceSnapshot {
-  if (!id(organizationId) || !record(value) || value.organizationId !== organizationId ||
+  if (!id(organizationId) || (legalEntityId !== null && !id(legalEntityId)) ||
+      !record(value) || value.organizationId !== organizationId ||
+      !date(value.today) ||
       !record(value.legalEntity) || !id(value.legalEntity.id) ||
+      typeof value.legalEntity.code !== "string" ||
+      typeof value.legalEntity.displayName !== "string" ||
       (legalEntityId !== null && value.legalEntity.id !== legalEntityId) ||
       !Array.isArray(value.batches) || !Array.isArray(value.members) ||
       !Array.isArray(value.coverageGaps) || !Array.isArray(value.alerts)) return false;
@@ -77,7 +90,7 @@ export function isVerifiedRemittanceSnapshot(
   if (memberIds.size !== value.members.length) return false;
   return value.coverageGaps.every((v: unknown) =>
     record(v) && agency(v.agency) && month(v.applicableMonth) &&
-    optional(v.dueDate, (x) => typeof x === "string"));
+    optional(v.dueDate, date));
 }
 
 export async function readVerifiedRemittanceSnapshot(
