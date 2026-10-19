@@ -44,7 +44,7 @@ test("explicit retry permits a truly empty but verified remittance list", async 
 });
 test("component blocks payment/posting actions when read is unavailable", () => {
   const code=readFileSync("src/components/workspace/statutory-remittance-panel.tsx","utf8");
-  assert.match(code,/readVerifiedRemittanceSnapshot\(organizationId, legalEntityId \?\? null, fetch, controller\.signal\)/);
+  assert.match(code,/readVerifiedRemittanceSnapshot\(\s*organizationId, legalEntityId \?\? null, fetch, controller\.signal,?\s*\)/);
   assert.match(code,/if \(loadError\) return \(/);
   assert.match(code,/>Retry<\/button>/);
 });
