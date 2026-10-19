@@ -1,0 +1,974 @@
+{
+  "base": "d94c1f3e0e1a8b1de0d15186923f3ed641314214",
+  "part": 0,
+  "kind": "api",
+  "files": [
+    {
+      "path": "src/app/api/account/email/route.ts",
+      "route": "account/email",
+      "gitBlobSha": "0bb833a3219e5f4b136276b6327b2b1a69563bb9",
+      "methods": [
+        {
+          "name": "POST",
+          "line": 22,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        }
+      ],
+      "employerSources": [
+        "SESSION",
+        "BODY_CANDIDATE"
+      ],
+      "guards": [
+        {
+          "line": 5,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 29,
+          "text": "getSessionUser"
+        }
+      ],
+      "callerIds": [],
+      "businessIdentifiers": [
+        {
+          "line": 88,
+          "text": "organizationId"
+        },
+        {
+          "line": 103,
+          "text": "organizationId"
+        }
+      ],
+      "unverifiedInputWarning": false
+    },
+    {
+      "path": "src/app/api/account/email/verify/route.ts",
+      "route": "account/email/verify",
+      "gitBlobSha": "45617099f90ae486824f3de34cd769c34b229596",
+      "methods": [
+        {
+          "name": "POST",
+          "line": 13,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        }
+      ],
+      "employerSources": [
+        "BODY_CANDIDATE"
+      ],
+      "guards": [],
+      "callerIds": [],
+      "businessIdentifiers": [
+        {
+          "line": 49,
+          "text": "employeeId"
+        },
+        {
+          "line": 50,
+          "text": "employeeId"
+        },
+        {
+          "line": 65,
+          "text": "organizationId"
+        }
+      ],
+      "unverifiedInputWarning": false
+    },
+    {
+      "path": "src/app/api/account/password/route.ts",
+      "route": "account/password",
+      "gitBlobSha": "73a7d44673f567bd53c03df02a58d40e0059fb13",
+      "methods": [
+        {
+          "name": "POST",
+          "line": 29,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        }
+      ],
+      "employerSources": [
+        "SESSION",
+        "BODY_CANDIDATE"
+      ],
+      "guards": [
+        {
+          "line": 9,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 39,
+          "text": "getSessionUser"
+        }
+      ],
+      "callerIds": [],
+      "businessIdentifiers": [
+        {
+          "line": 91,
+          "text": "organizationId"
+        }
+      ],
+      "unverifiedInputWarning": false
+    },
+    {
+      "path": "src/app/api/account/profile/route.ts",
+      "route": "account/profile",
+      "gitBlobSha": "7083249e2a72226bcd907c29083e750821e255f0",
+      "methods": [
+        {
+          "name": "POST",
+          "line": 13,
+          "status": "COVERED",
+          "reason": null,
+          "test": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 265,
+            "scope": "Real three-tenant positive and negative with DB invariants; verify per-method path"
+          }
+        }
+      ],
+      "employerSources": [
+        "SESSION",
+        "BODY_CANDIDATE"
+      ],
+      "guards": [
+        {
+          "line": 6,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 17,
+          "text": "getSessionUser"
+        }
+      ],
+      "callerIds": [],
+      "businessIdentifiers": [
+        {
+          "line": 31,
+          "text": "organizationId"
+        }
+      ],
+      "unverifiedInputWarning": false
+    },
+    {
+      "path": "src/app/api/account/route.ts",
+      "route": "account",
+      "gitBlobSha": "89295536ca92a0bd1fceaec183343264b9a0e6e4",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 14,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        }
+      ],
+      "employerSources": [
+        "SESSION"
+      ],
+      "guards": [
+        {
+          "line": 4,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 15,
+          "text": "getSessionUser"
+        }
+      ],
+      "callerIds": [],
+      "businessIdentifiers": [],
+      "unverifiedInputWarning": false
+    },
+    {
+      "path": "src/app/api/account/sessions/route.ts",
+      "route": "account/sessions",
+      "gitBlobSha": "00abcd125ef2a04102dbaf37b9738afb0dbf8df0",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 14,
+          "status": "COVERED",
+          "reason": null,
+          "test": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 265,
+            "scope": "Real three-tenant positive and negative with DB invariants; verify per-method path"
+          }
+        },
+        {
+          "name": "DELETE",
+          "line": 28,
+          "status": "COVERED",
+          "reason": null,
+          "test": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 265,
+            "scope": "Real three-tenant positive and negative with DB invariants; verify per-method path"
+          }
+        }
+      ],
+      "employerSources": [
+        "SESSION",
+        "BODY_CANDIDATE"
+      ],
+      "guards": [
+        {
+          "line": 6,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 15,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 32,
+          "text": "getSessionUser"
+        }
+      ],
+      "callerIds": [],
+      "businessIdentifiers": [
+        {
+          "line": 50,
+          "text": "organizationId"
+        },
+        {
+          "line": 68,
+          "text": "organizationId"
+        }
+      ],
+      "unverifiedInputWarning": false
+    },
+    {
+      "path": "src/app/api/approval-chains/route.ts",
+      "route": "approval-chains",
+      "gitBlobSha": "17c01676f8e10d8f63b39d13a10b8b1d950b53cb",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 18,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        },
+        {
+          "name": "POST",
+          "line": 72,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        }
+      ],
+      "employerSources": [
+        "SESSION",
+        "URL_QUERY",
+        "BODY_CANDIDATE"
+      ],
+      "guards": [
+        {
+          "line": 4,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 5,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 5,
+          "text": "getAccess"
+        },
+        {
+          "line": 19,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 25,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 32,
+          "text": "getAccess"
+        },
+        {
+          "line": 76,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 89,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 96,
+          "text": "getAccess"
+        }
+      ],
+      "callerIds": [
+        {
+          "line": 21,
+          "text": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 83,
+          "text": "body.organizationId"
+        }
+      ],
+      "businessIdentifiers": [
+        {
+          "line": 21,
+          "text": "organizationId"
+        },
+        {
+          "line": 21,
+          "text": "organizationId"
+        },
+        {
+          "line": 22,
+          "text": "organizationId"
+        },
+        {
+          "line": 23,
+          "text": "organizationId"
+        },
+        {
+          "line": 27,
+          "text": "organizationId"
+        },
+        {
+          "line": 32,
+          "text": "organizationId"
+        },
+        {
+          "line": 39,
+          "text": "organizationId"
+        },
+        {
+          "line": 39,
+          "text": "organizationId"
+        },
+        {
+          "line": 47,
+          "text": "organizationId"
+        },
+        {
+          "line": 47,
+          "text": "organizationId"
+        },
+        {
+          "line": 56,
+          "text": "organizationId"
+        },
+        {
+          "line": 56,
+          "text": "organizationId"
+        },
+        {
+          "line": 83,
+          "text": "organizationId"
+        },
+        {
+          "line": 83,
+          "text": "organizationId"
+        }
+      ],
+      "unverifiedInputWarning": false
+    },
+    {
+      "path": "src/app/api/approvals/[id]/route.ts",
+      "route": "approvals/[id]",
+      "gitBlobSha": "4dacb9acf4d49030f0bfe9c89700769d0dbb42a1",
+      "methods": [
+        {
+          "name": "PATCH",
+          "line": 33,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        }
+      ],
+      "employerSources": [
+        "SESSION",
+        "BODY_CANDIDATE"
+      ],
+      "guards": [
+        {
+          "line": 5,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 16,
+          "text": "assertOrganizationUnitAccess"
+        },
+        {
+          "line": 46,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 120,
+          "text": "assertOrganizationUnitAccess"
+        },
+        {
+          "line": 126,
+          "text": "assertOrganizationUnitAccess"
+        },
+        {
+          "line": 229,
+          "text": "assertOrganizationUnitAccess"
+        }
+      ],
+      "callerIds": [
+        {
+          "line": 270,
+          "text": "data.runId"
+        }
+      ],
+      "businessIdentifiers": [
+        {
+          "line": 54,
+          "text": "organizationId"
+        },
+        {
+          "line": 54,
+          "text": "organizationId"
+        },
+        {
+          "line": 60,
+          "text": "organizationId"
+        },
+        {
+          "line": 72,
+          "text": "organizationId"
+        },
+        {
+          "line": 72,
+          "text": "organizationId"
+        },
+        {
+          "line": 87,
+          "text": "employeeId"
+        },
+        {
+          "line": 87,
+          "text": "employeeId"
+        },
+        {
+          "line": 96,
+          "text": "organizationId"
+        },
+        {
+          "line": 96,
+          "text": "organizationId"
+        },
+        {
+          "line": 97,
+          "text": "organizationId"
+        },
+        {
+          "line": 97,
+          "text": "organizationId"
+        },
+        {
+          "line": 106,
+          "text": "employeeId"
+        },
+        {
+          "line": 108,
+          "text": "orgUnitId"
+        },
+        {
+          "line": 108,
+          "text": "orgUnitId"
+        }
+      ],
+      "unverifiedInputWarning": true
+    },
+    {
+      "path": "src/app/api/assets/route.ts",
+      "route": "assets",
+      "gitBlobSha": "adfea71f5668526ce9d3c7d8dde70ab82cc8799b",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 8,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        },
+        {
+          "name": "POST",
+          "line": 38,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        },
+        {
+          "name": "PATCH",
+          "line": 104,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        },
+        {
+          "name": "DELETE",
+          "line": 188,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        }
+      ],
+      "employerSources": [
+        "SESSION",
+        "URL_QUERY",
+        "BODY_CANDIDATE"
+      ],
+      "guards": [
+        {
+          "line": 5,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 5,
+          "text": "assertScope"
+        },
+        {
+          "line": 5,
+          "text": "getAccess"
+        },
+        {
+          "line": 6,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 9,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 16,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 23,
+          "text": "getAccess"
+        },
+        {
+          "line": 42,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 50,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 57,
+          "text": "getAccess"
+        },
+        {
+          "line": 72,
+          "text": "assertScope"
+        },
+        {
+          "line": 108,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 118,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 125,
+          "text": "getAccess"
+        },
+        {
+          "line": 132,
+          "text": "assertScope"
+        },
+        {
+          "line": 161,
+          "text": "assertScope"
+        },
+        {
+          "line": 192,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 201,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 208,
+          "text": "getAccess"
+        },
+        {
+          "line": 215,
+          "text": "assertScope"
+        }
+      ],
+      "callerIds": [
+        {
+          "line": 12,
+          "text": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 46,
+          "text": "body.organizationId"
+        },
+        {
+          "line": 61,
+          "text": "body.employeeId"
+        },
+        {
+          "line": 61,
+          "text": "body.employeeId"
+        },
+        {
+          "line": 61,
+          "text": "body.employeeId"
+        },
+        {
+          "line": 62,
+          "text": "body.employeeId"
+        },
+        {
+          "line": 146,
+          "text": "body.employeeId"
+        },
+        {
+          "line": 147,
+          "text": "body.employeeId"
+        },
+        {
+          "line": 147,
+          "text": "body.employeeId"
+        },
+        {
+          "line": 151,
+          "text": "body.employeeId"
+        },
+        {
+          "line": 195,
+          "text": "searchParams.get(\"id\")"
+        }
+      ],
+      "businessIdentifiers": [
+        {
+          "line": 12,
+          "text": "organizationId"
+        },
+        {
+          "line": 12,
+          "text": "organizationId"
+        },
+        {
+          "line": 13,
+          "text": "organizationId"
+        },
+        {
+          "line": 14,
+          "text": "organizationId"
+        },
+        {
+          "line": 18,
+          "text": "organizationId"
+        },
+        {
+          "line": 23,
+          "text": "organizationId"
+        },
+        {
+          "line": 27,
+          "text": "organizationId"
+        },
+        {
+          "line": 27,
+          "text": "organizationId"
+        },
+        {
+          "line": 31,
+          "text": "orgUnitId"
+        },
+        {
+          "line": 31,
+          "text": "orgUnitId"
+        },
+        {
+          "line": 33,
+          "text": "organizationId"
+        },
+        {
+          "line": 33,
+          "text": "organizationId"
+        },
+        {
+          "line": 34,
+          "text": "orgUnitId"
+        },
+        {
+          "line": 34,
+          "text": "orgUnitId"
+        }
+      ],
+      "unverifiedInputWarning": false
+    },
+    {
+      "path": "src/app/api/attendance/offline-claims/route.ts",
+      "route": "attendance/offline-claims",
+      "gitBlobSha": "247704a9b2a601f627a8c895daf47d6fc1694ee2",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 22,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        },
+        {
+          "name": "POST",
+          "line": 65,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        },
+        {
+          "name": "PATCH",
+          "line": 138,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        }
+      ],
+      "employerSources": [
+        "SESSION",
+        "URL_QUERY",
+        "BODY_CANDIDATE"
+      ],
+      "guards": [
+        {
+          "line": 4,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 5,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 5,
+          "text": "getAccess"
+        },
+        {
+          "line": 25,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 30,
+          "text": "getAccess"
+        },
+        {
+          "line": 43,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 45,
+          "text": "getAccess"
+        },
+        {
+          "line": 69,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 77,
+          "text": "getAccess"
+        },
+        {
+          "line": 142,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 154,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 156,
+          "text": "getAccess"
+        }
+      ],
+      "callerIds": [
+        {
+          "line": 27,
+          "text": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 75,
+          "text": "body.organizationId"
+        },
+        {
+          "line": 81,
+          "text": "body.employeeId"
+        },
+        {
+          "line": 148,
+          "text": "body.organizationId"
+        }
+      ],
+      "businessIdentifiers": [
+        {
+          "line": 17,
+          "text": "organizationId"
+        },
+        {
+          "line": 18,
+          "text": "organizationId"
+        },
+        {
+          "line": 18,
+          "text": "organizationId"
+        },
+        {
+          "line": 20,
+          "text": "organizationId"
+        },
+        {
+          "line": 27,
+          "text": "organizationId"
+        },
+        {
+          "line": 27,
+          "text": "organizationId"
+        },
+        {
+          "line": 28,
+          "text": "organizationId"
+        },
+        {
+          "line": 30,
+          "text": "organizationId"
+        },
+        {
+          "line": 32,
+          "text": "employeeId"
+        },
+        {
+          "line": 38,
+          "text": "organizationId"
+        },
+        {
+          "line": 38,
+          "text": "organizationId"
+        },
+        {
+          "line": 39,
+          "text": "employeeId"
+        },
+        {
+          "line": 39,
+          "text": "employeeId"
+        },
+        {
+          "line": 43,
+          "text": "organizationId"
+        }
+      ],
+      "unverifiedInputWarning": false
+    },
+    {
+      "path": "src/app/api/auth/demo-switch/route.ts",
+      "route": "auth/demo-switch",
+      "gitBlobSha": "31d24ba9862b9d9ea121731c2ea9a18074442ad3",
+      "methods": [
+        {
+          "name": "POST",
+          "line": 179,
+          "status": "GAP",
+          "reason": null,
+          "test": null
+        }
+      ],
+      "employerSources": [
+        "BODY_CANDIDATE"
+      ],
+      "guards": [],
+      "callerIds": [],
+      "businessIdentifiers": [
+        {
+          "line": 86,
+          "text": "organizationId"
+        },
+        {
+          "line": 99,
+          "text": "employeeId"
+        },
+        {
+          "line": 104,
+          "text": "organizationId"
+        },
+        {
+          "line": 104,
+          "text": "organizationId"
+        },
+        {
+          "line": 106,
+          "text": "employeeId"
+        },
+        {
+          "line": 107,
+          "text": "employeeId"
+        },
+        {
+          "line": 123,
+          "text": "employeeId"
+        },
+        {
+          "line": 132,
+          "text": "employeeId"
+        },
+        {
+          "line": 143,
+          "text": "organizationId"
+        },
+        {
+          "line": 145,
+          "text": "orgUnitId"
+        },
+        {
+          "line": 148,
+          "text": "organizationId"
+        },
+        {
+          "line": 151,
+          "text": "orgUnitId"
+        },
+        {
+          "line": 160,
+          "text": "organizationId"
+        },
+        {
+          "line": 160,
+          "text": "organizationId"
+        }
+      ],
+      "unverifiedInputWarning": false
+    },
+    {
+      "path": "src/app/api/auth/forgot-password/route.ts",
+      "route": "auth/forgot-password",
+      "gitBlobSha": "ad44408bf3ffce388047ebee270e6701d5b9a7b8",
+      "methods": [
+        {
+          "name": "POST",
+          "line": 13,
+          "status": "PUBLIC-BY-DESIGN",
+          "reason": "Public generic-response account recovery",
+          "test": null
+        }
+      ],
+      "employerSources": [
+        "NONE_FOUND"
+      ],
+      "guards": [],
+      "callerIds": [],
+      "businessIdentifiers": [],
+      "unverifiedInputWarning": false
+    }
+  ]
+}

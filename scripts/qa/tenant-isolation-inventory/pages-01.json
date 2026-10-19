@@ -1,0 +1,242 @@
+{
+  "base": "d94c1f3e0e1a8b1de0d15186923f3ed641314214",
+  "part": 1,
+  "kind": "app",
+  "files": [
+    {
+      "path": "src/app/compliance/page.tsx",
+      "blob": "d9fdbbbb83facb3961c2fe4c97a8bd3e82cefed3",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/contact/page.tsx",
+      "blob": "bb1e48396fc8d61371f3761542f5f800e9184086",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/customer-stories-sitemap.xml/route.ts",
+      "blob": "fc61bb6282c737537b71a4aacf4e75367147d914",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/customers/[slug]/page.tsx",
+      "blob": "567ad746a6fcff08db815552bf1c17b6465acbed",
+      "ids": [],
+      "actions": [
+        {
+          "line": 13,
+          "token": "export async function generateMetadata"
+        }
+      ],
+      "guards": []
+    },
+    {
+      "path": "src/app/customers/page.tsx",
+      "blob": "3320a6c6128ce9b74241c7e286bce1d64455bce1",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/demo/page.tsx",
+      "blob": "6b681a5f6603c56f6a1dd89532fcdaec2871dbbc",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/developers-sitemap.xml/route.ts",
+      "blob": "7a2da55317aef0dd8340f1045aa544bd110a8e77",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/developers/[slug]/page.tsx",
+      "blob": "01dae484da156536e37f0760145613b39ba66425",
+      "ids": [],
+      "actions": [
+        {
+          "line": 13,
+          "token": "export async function generateMetadata"
+        }
+      ],
+      "guards": []
+    },
+    {
+      "path": "src/app/developers/page.tsx",
+      "blob": "4797dffc31f2d35cc39a388069bf6d5244f18390",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/employee-self-service/page.tsx",
+      "blob": "d8b1ba85573a612338be0d55a9d5903f94ec9d5c",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/glossary-sitemap.xml/route.ts",
+      "blob": "c8a64f2fb5bb9166345545e9885441caafc84451",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/glossary/[slug]/page.tsx",
+      "blob": "25a2a8c598b1e369664c7243c3c4af778c6dfc0a",
+      "ids": [],
+      "actions": [
+        {
+          "line": 13,
+          "token": "export async function generateMetadata"
+        }
+      ],
+      "guards": []
+    },
+    {
+      "path": "src/app/glossary/page.tsx",
+      "blob": "b1c929d7b06099320a18e133a64d66d1c06a48f6",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/hcm/action-center/page.tsx",
+      "blob": "5d593fd3c4c28d99792c3ac2450e2616c5cd6f9e",
+      "ids": [
+        {
+          "line": 23,
+          "token": "searchParams"
+        },
+        {
+          "line": 25,
+          "token": "searchParams"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "searchParams"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 45,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 134,
+          "token": "organizationId"
+        },
+        {
+          "line": 134,
+          "token": "organizationId"
+        },
+        {
+          "line": 134,
+          "token": "organizationId"
+        },
+        {
+          "line": 137,
+          "token": "organizationId"
+        },
+        {
+          "line": 137,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 8,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 8,
+          "token": "getAccess"
+        },
+        {
+          "line": 9,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 27,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 34,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 35,
+          "token": "getAccess"
+        }
+      ]
+    }
+  ]
+}
