@@ -32,6 +32,10 @@ test("PATCH does not fetch unscoped case IDs or distinguish inaccessible case ro
   assert.match(patch, /if \(!existing\) return hrCaseNotFound\(\)/);
   assert.match(patch, /if \(denied\) return hrCaseNotFound\(\)/);
   assert.match(patch, /if \(!scope\.ok\) return hrCaseNotFound\(\)/);
+  // The transaction locks the tenant-scoped row; every status write must still
+  // carry that same employer identity in its SQL predicate.
+  assert.equal((patch.match(/eq\(employeeHrCases\.organizationId, row\.organizationId\)/g) ?? []).length, 2);
+  assert.doesNotMatch(patch, /\.where\(eq\(employeeHrCases\.id, caseId\)\)\.returning\(\)/);
   const beforeDecision = patch.split('const action = String(body.action ?? "");')[0];
   assert.doesNotMatch(beforeDecision, /return Response\.json\(\{ error: scope\.error \}/);
 });

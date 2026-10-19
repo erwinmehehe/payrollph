@@ -334,7 +334,9 @@ export async function PATCH(request: Request) {
       )) throw new Error("INVALID_CASE_TRANSITION");
       [result] = await tx.update(employeeHrCases).set({
         status: next, updatedAt: new Date(),
-      }).where(eq(employeeHrCases.id, caseId)).returning();
+      }).where(and(
+          eq(employeeHrCases.id, caseId), eq(employeeHrCases.organizationId, row.organizationId),
+        )).returning();
     } else {
       await tx.insert(employeeHrCaseMessages).values({
         organizationId: row.organizationId, caseId, actorUserId: user.id,
@@ -343,7 +345,9 @@ export async function PATCH(request: Request) {
       if (isEmployee && row.status === "waiting_employee") {
         [result] = await tx.update(employeeHrCases).set({
           status: "in_progress", updatedAt: new Date(),
-        }).where(eq(employeeHrCases.id, caseId)).returning();
+        }).where(and(
+          eq(employeeHrCases.id, caseId), eq(employeeHrCases.organizationId, row.organizationId),
+        )).returning();
       }
     }
     await tx.insert(auditEvents).values({
