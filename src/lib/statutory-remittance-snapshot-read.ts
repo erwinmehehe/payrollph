@@ -70,10 +70,10 @@ export function isVerifiedRemittanceSnapshot(
       !Array.isArray(value.coverageGaps) || !Array.isArray(value.alerts)) return false;
   const entityId = value.legalEntity.id as number;
   if (!value.batches.every((v: unknown) => validBatch(v, organizationId, entityId))) return false;
-  const batchIds = new Set<number>(value.batches.map((v: { id: number }) => v.id));
+  const batchIds = new Set<number>(value.batches.map((v) => v.id as number));
   if (batchIds.size !== value.batches.length) return false;
   if (!value.members.every((v: unknown) => validMember(v, organizationId, batchIds))) return false;
-  const memberIds = new Set<number>(value.members.map((v: { id: number }) => v.id));
+  const memberIds = new Set<number>(value.members.map((v) => v.id as number));
   if (memberIds.size !== value.members.length) return false;
   return value.coverageGaps.every((v: unknown) =>
     record(v) && agency(v.agency) && month(v.applicableMonth) &&
