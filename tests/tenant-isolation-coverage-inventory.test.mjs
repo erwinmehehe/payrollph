@@ -17,7 +17,7 @@ import test from "node:test";
 
 const ROOT = "src/app";
 const API = "src/app/api";
-const BASE = "3a622cbde8508271e9ecb05099729aee15f07ba0";
+const BASE = "608d51a741c881b8f21b20660fa62bbf02a7f606";
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const baseline = JSON.parse(readFileSync("scripts/qa/tenant-isolation-inventory/baseline.json", "utf8"));
 
@@ -157,7 +157,7 @@ test("reconciled main hashes retain documented GAPs without inventing authorizat
   // Main updated HR Inbox metadata and Payroll Register response metadata after
   // the original inventory. Those pre-existing changes require re-inventory,
   // not new COVERED claims or broad exemptions from the source fingerprint.
-  for (const route of ["hr-cases", "payroll-runs", "attendance/offline-claims"]) {
+  for (const route of ["hr-cases", "payroll-runs", "attendance/offline-claims", "web-bundy/review"]) {
     const path = "src/app/api/" + route + "/route.ts";
     assert.equal(manifest.allApiRouteFiles[path].gitBlobSha, baseline.api[path],
       path + ": the reviewed main source and active inventory SHA must match");
@@ -170,6 +170,9 @@ test("reconciled main hashes retain documented GAPs without inventing authorizat
     "Payroll run creation still needs independent own/victim/mutation proof");
   assert.equal(payroll.methods.find((method) => method.name === "GET")?.status, "COVERED",
     "Retain the real three-employer HTTP GET proof, subject to current-head CI");
+  const bundy = manifest.allApiRouteFiles["src/app/api/web-bundy/review/route.ts"];
+  assert.ok(bundy.methods.length === 2 && bundy.methods.every((method) => method.status === "GAP"),
+    "Web Bundy photo/review response-scoping changes do not prove authorization for GET or POST");
   const offline = manifest.allApiRouteFiles["src/app/api/attendance/offline-claims/route.ts"];
   assert.ok(offline.methods.every((method) => method.status === "GAP"),
     "Newly merged offline-attendance scope metadata does not replace own/victim/role HTTP proof");

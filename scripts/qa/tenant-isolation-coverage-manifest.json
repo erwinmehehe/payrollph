@@ -1,6 +1,6 @@
 {
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
-  "baseCommit": "3a622cbde8508271e9ecb05099729aee15f07ba0",
+  "baseCommit": "608d51a741c881b8f21b20660fa62bbf02a7f606",
   "generated": "2026-10-19",
   "acceptanceStatus": "NOT ACCEPTED: missing per-method cross-tenant HTTP/DB proof",
   "metrics": {
@@ -27030,7 +27030,7 @@
       ]
     },
     "src/app/api/web-bundy/review/route.ts": {
-      "gitBlobSha": "b837a68032e3a31a497d8a72c10825fc10f318da",
+      "gitBlobSha": "75b15ba9b8d66663709e044ed4ed25b172bd8f01",
       "route": "web-bundy/review",
       "methods": [
         {

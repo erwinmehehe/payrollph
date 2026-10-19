@@ -18,7 +18,7 @@
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
 
-Live audited source snapshot: [`main@3a622cbde8508271e9ecb05099729aee15f07ba0`](https://github.com/erwinmehehe/payrollph/commit/3a622cbde8508271e9ecb05099729aee15f07ba0). The archived partition JSON files preserve the earlier `main@d94c1f3e0e1a8b1de0d15186923f3ed641314214` snapshot and do not substitute for current-head HTTP acceptance. HTTP-method classification is per exported handler, not per file. `COVERED` is only credited where the existing `scripts/qa/tenant-second-pass-http.mjs` proves a real own-tenant positive control followed by a victim-only denial. `PUBLIC-BY-DESIGN` has method-level public-resource rationale. Others remain **GAP** regardless of helper names or anonymous responses.
+Live audited source snapshot: [`main@608d51a741c881b8f21b20660fa62bbf02a7f606`](https://github.com/erwinmehehe/payrollph/commit/3a622cbde8508271e9ecb05099729aee15f07ba0). The archived partition JSON files preserve the earlier `main@d94c1f3e0e1a8b1de0d15186923f3ed641314214` snapshot and do not substitute for current-head HTTP acceptance. HTTP-method classification is per exported handler, not per file. `COVERED` is only credited where the existing `scripts/qa/tenant-second-pass-http.mjs` proves a real own-tenant positive control followed by a victim-only denial. `PUBLIC-BY-DESIGN` has method-level public-resource rationale. Others remain **GAP** regardless of helper names or anonymous responses.
 
 The original `.github/workflows/security-http-smoke.yml`, 42-file `scripts/qa/tenant-second-pass-manifest.mjs`, and the non-waivable `requireDisposable` guard in `scripts/qa/tenant-second-pass-http.mjs` are preserved.
 
@@ -61,6 +61,10 @@ No direct exploit has been demonstrated. Review exact source lines, delegated au
 - [`src/app/api/workforce/demand-observations/outlook/route.ts#L20`](../../src/app/api/workforce/demand-observations/outlook/route.ts#L20) — client-supplied identifier reference at L20. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
 - [`src/app/api/workforce/demand-outlook/route.ts#L23`](../../src/app/api/workforce/demand-outlook/route.ts#L23) — client-supplied identifier reference at L23. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
 
+## Web Bundy source drift reconciliation (current main; pending exact-head CI)
+
+Source change: `src/app/api/web-bundy/review/route.ts` now includes authenticated `organizationId` in GET review responses and successful POST review results. Its existing reviewer role, record-owner, organization and unit-scope gates remain in place. The source SHA changed to `75b15ba9b8d66663709e044ed4ed25b172bd8f01`; the active manifest and baseline are re-pinned to `main@608d51a741c881b8f21b20660fa62bbf02a7f606`. Neither handler is credited as COVERED: photo bytes, role/MFA, direct object IDs and POST mutations still require real, seeded own/victim cross-employer HTTP and unchanged-DB proof. **GET and POST remain GAP.** All 452 API gaps and 20 page gaps stay open; the archived original per-part inventory remains historical.
+
 ## Re-inventory of source changes already merged into main
 
 Reconciled the active manifest, source line metadata, and pinned baseline against `main@c638d136f3b3d90078d8942693858ddc8d3cae27` after checking the changes merged since the original inventory. **Only two API routes changed**: `hr-cases` adds `organizationId` to its verified GET response (GET, POST and PATCH still remain **GAP**) and `payroll-runs` adds `organizationId` and `legalEntityId` to its run-register GET response (GET retains the new real-HTTP proof; POST remains **GAP**). Neither route was relabeled safe based on a source hash alone. The original source-partition files remain archival evidence; the active consolidated manifest now records both new blob SHAs and updated HR source lines. Future unreviewed drift still fails CI.
@@ -81,7 +85,7 @@ Added **successful own-tenant mutation evidence** for account session DELETE, SC
 
 ## Source baseline refresh after merged offline-attendance update
 
-The latest `main@3a622cbde8508271e9ecb05099729aee15f07ba0` added explicit organization identity to employee/HR offline-attendance responses. `src/app/api/attendance/offline-claims/route.ts` was re-inspected, source fingerprint updated, three handler line references refreshed and all source-signal metadata re-based. **GET, POST and PATCH remain GAP**: stronger response scoping does not replace authenticated own-positive/foreign-victim/role and unchanged-DB tests. No other API route source was changed by the intervening `main` commits; archived original source partitions remain historical, not active acceptance.
+The latest `main@608d51a741c881b8f21b20660fa62bbf02a7f606` added explicit organization identity to employee/HR offline-attendance responses. `src/app/api/attendance/offline-claims/route.ts` was re-inspected, source fingerprint updated, three handler line references refreshed and all source-signal metadata re-based. **GET, POST and PATCH remain GAP**: stronger response scoping does not replace authenticated own-positive/foreign-victim/role and unchanged-DB tests. No other API route source was changed by the intervening `main` commits; archived original source partitions remain historical, not active acceptance.
 
 ## Evidence requirements not yet satisfied
 
