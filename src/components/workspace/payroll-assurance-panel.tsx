@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import type { Employee } from "@/components/workspace/types";
-import type { AssuranceFinding, EmployeeVariance } from "@/lib/payroll-assurance";
+import { isVerifiedAssuranceRead, type VerifiedAssuranceRead } from "@/lib/payroll-read-contracts";
 import {
   buildParallelPayrollComparison,
   parallelComponentLabel,
@@ -21,46 +21,32 @@ import {
 } from "@/lib/parallel-payroll";
 import { money } from "@/components/workspace/ui";
 
-type AssurancePayload = {
-  runId: number;
-  previousRun: {
-    id: number;
-    periodLabel: string;
-    payDate: string;
-    netPay: string;
-    grossPay: string;
-  } | null;
-  findings: AssuranceFinding[];
-  comparisons: EmployeeVariance[];
-  summary: {
-    high: number;
-    medium: number;
-    info: number;
-    blocking: number;
-    materialChanges: number;
-    comparedEmployees: number;
-  };
-};
+type AssurancePayload = VerifiedAssuranceRead;
 
 type PayrollAssurancePanelProps = {
   runId: number;
+  organizationId: number;
+  legalEntityId: number | null;
   employees: Employee[];
   onExplainEmployee?: (employeeId: number) => void;
 };
 
 export function PayrollAssurancePanel(props: PayrollAssurancePanelProps) {
   // Payroll run changes must remount every local CSV/expanded-row state.
-  return <PayrollAssurancePanelContent key={props.runId} {...props} />;
+  return <PayrollAssurancePanelContent key={[props.organizationId, props.legalEntityId, props.runId].join(":")} {...props} />;
 }
 
 function PayrollAssurancePanelContent({
   runId,
+  organizationId,
+  legalEntityId,
   employees,
   onExplainEmployee,
 }: PayrollAssurancePanelProps) {
   const [payload, setPayload] = useState<AssurancePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [retryRevision, setRetryRevision] = useState(0);
   const [expandedEmployee, setExpandedEmployee] = useState<number | null>(null);
   const [parallelOpen, setParallelOpen] = useState(false);
   const [parallelRows, setParallelRows] = useState<ParallelPayrollRow[]>([]);
@@ -72,19 +58,31 @@ function PayrollAssurancePanelContent({
 
   useEffect(() => {
     let alive = true;
-    // The keyed child starts with the empty/loading defaults and remounts on
-    // runId changes. No post-paint reset or prior-run comparison can persist.
-    void fetch(`/api/payroll-runs/${runId}/assurance`, { cache: "no-store" })
+    const controller = new AbortController();
+    // Tenant/run changes remount all local evidence; retry rechecks the same
+    // scoped snapshot without ever reusing the previous success response.
+    void fetch(`/api/payroll-runs/${runId}/assurance`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
       .then(async (response) => {
         if (!response.ok) throw new Error("assurance failed");
-        return response.json() as Promise<AssurancePayload>;
+        const body: unknown = await response.json();
+        if (!isVerifiedAssuranceRead(body, { organizationId, legalEntityId, runId })) {
+          throw new Error("Assurance evidence was incomplete or belonged to another employer.");
+        }
+        return body;
       })
       .then((data) => {
         if (!alive) return;
         setPayload(data);
+        setFailed(false);
       })
       .catch(() => {
-        if (alive) setFailed(true);
+        if (alive) {
+          setPayload(null);
+          setFailed(true);
+        }
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -92,8 +90,9 @@ function PayrollAssurancePanelContent({
 
     return () => {
       alive = false;
+      controller.abort();
     };
-  }, [runId]);
+  }, [runId, organizationId, legalEntityId, retryRevision]);
 
   const employeeById = useMemo(() => new Map(employees.map((employee) => [employee.id, employee])), [employees]);
   const material = payload?.comparisons.filter((comparison) => comparison.hasMaterialChange) ?? [];
@@ -156,7 +155,12 @@ function PayrollAssurancePanelContent({
       <div className="card-body" style={{ borderTop: "1px solid var(--line-faint)" }}>
         <div className="notice notice-amber" style={{ margin: 0 }}>
           <AlertTriangle size={15} className="i-amber" />
-          <span>Payroll assurance could not be loaded. The payroll register remains available.</span>
+          <span>Payroll assurance evidence is unavailable or could not be verified. Do not treat this as zero blockers.</span>
+          <button className="secondary-button" onClick={() => {
+            setLoading(true);
+            setFailed(false);
+            setRetryRevision((revision) => revision + 1);
+          }}>Retry</button>
         </div>
       </div>
     );
