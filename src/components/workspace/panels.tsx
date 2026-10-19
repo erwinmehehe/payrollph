@@ -53,13 +53,73 @@ import { DoleThirteenthMonthReportPanel } from "@/components/workspace/dole-thir
 import { CompliancePolicyReviewPanel } from "@/components/workspace/compliance-policy-review-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import { manilaCalendarDate } from "@/lib/payroll-period-ui";
+import { hasVerifiedLeaveCollections, type VerifiedLeaveData } from "@/lib/leave-read-contract";
 import { readPayrollEmployerOptions } from "@/lib/payroll-employer-options";
 import { EmployerSetupHelp } from "./employer-setup-help";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money, moneyExact } from "./ui";
-export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData; setNotice: (message: string) => void; onRefresh: () => Promise<void> }) {
-  const requests = data.leaveRequests ?? [];
-  const policies = data.leavePolicies ?? [];
+type LeavePageProps = {
+  data: DashboardData;
+  setNotice: (message: string) => void;
+  onRefresh: () => Promise<void>;
+  readFailed?: boolean;
+  readLoading?: boolean;
+};
+
+/** Leave data must be verified independently of the rest of the dashboard.
+ * A missing source list or failed refresh is not a verified empty register.
+ */
+export function LeavePage({
+  data, setNotice, onRefresh, readFailed = false, readLoading = false,
+}: LeavePageProps) {
+  const [retrying, setRetrying] = useState(false);
+  const loading = readLoading || retrying;
+  if (loading || readFailed || !hasVerifiedLeaveCollections(data)) {
+    return (
+      <>
+        <PageHeading
+          eyebrow="LEAVE MANAGEMENT"
+          title="Leave"
+          copy="Leave requests and payroll policies are shown only after their source records are verified."
+        />
+        {loading ? (
+          <div role="status" aria-live="polite" className="notice notice-amber">
+            Refreshing leave records for the selected employer. Previous totals are hidden until verification finishes.
+          </div>
+        ) : (
+          <section role="alert" aria-label="Leave records unavailable" className="card">
+            <h2>Leave records could not be verified</h2>
+            <p>
+              The source read failed or the leave requests and policy records were incomplete.
+              An unavailable register is not an empty register, and no payroll treatment is confirmed.
+            </p>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                setRetrying(true);
+                void onRefresh().catch(() => undefined).finally(() => setRetrying(false));
+              }}
+            >
+              Retry read-only leave refresh
+            </button>
+          </section>
+        )}
+      </>
+    );
+  }
+  // Remount source-bound forms when the selected employer changes.
+  return <VerifiedLeavePage key={data.selectedOrganization.id}
+    data={data} setNotice={setNotice} onRefresh={onRefresh}/>;
+}
+
+function VerifiedLeavePage({ data, setNotice, onRefresh }: {
+  data: VerifiedLeaveData;
+  setNotice: (message: string) => void;
+  onRefresh: () => Promise<void>;
+}) {
+  const requests = data.leaveRequests;
+  const policies = data.leavePolicies;
   const configuredPolicies = policies.filter(
     (policy) => policy.active && ["paid", "unpaid", "partial"].includes(policy.payTreatment),
   );
