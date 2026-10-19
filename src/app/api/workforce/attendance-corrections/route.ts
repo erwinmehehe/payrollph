@@ -123,13 +123,14 @@ export async function GET(request: Request) {
     .orderBy(asc(attendanceCorrectionRequests.createdAt), asc(attendanceCorrectionRequests.id));
 
   return Response.json({
+    organizationId,
     requests: requests.filter((row) =>
       visibleEmployeeIds.has(row.employeeId)
       && (!status || row.status === status)
       && (!startDate || String(row.workDate) >= startDate)
       && (!endDate || String(row.workDate) <= endDate)
     ),
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
