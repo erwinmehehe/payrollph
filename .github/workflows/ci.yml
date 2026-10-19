@@ -78,12 +78,76 @@ jobs:
       - name: Execute complete regression inventory shard
         run: node scripts/run-sharded-tests.mjs ${{ matrix.shard }} 4
 
+  # Real LOGIN credentials on disposable PostgreSQL ONLY, never production.
+  audit-chain-real-logins:
+    name: audit-chain-real-logins (PG${{ matrix.postgres }}, ${{ matrix.foundation }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: [16, 18]
+        foundation: [legacy-0109, forward-candidate]
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      ISSUE908_ACCEPTANCE_MODE: isolated-ci-only
+      ISSUE908_FOUNDATION_CANDIDATE: ${{ matrix.foundation == 'forward-candidate' && 'true' || 'false' }}
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/neondb
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: neondb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d neondb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Test restricted logins, GUC spoofing, ownership and audit tamper denial
+        run: node --import tsx --test tests/audit-role-isolation-postgres.test.mjs
+
+  # A matrix failure, skip or cancellation is never a passing gate.
+  audit-chain-protection:
+    name: audit-chain-protection
+    if: ${{ always() }}
+    needs: audit-chain-real-logins
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all four disposable real-login acceptance cases
+        env:
+          MATRIX_RESULT: ${{ needs.audit-chain-real-logins.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$MATRIX_RESULT" != "success" ]; then
+            echo "::error::PG16/PG18 restricted-login acceptance failed, skipped or cancelled."
+            exit 1
+          fi
+          echo "PASS: PG16 and PG18, legacy 0109 and forward candidate, synthetic only."
+          echo "Production roles, grants and DBA cutover remain separately BLOCKED."
+
   check:
     # A skipped required check is treated as acceptable by GitHub rulesets.
     # Always materialize this required job, even when a matrix shard fails,
     # and make the outcome explicitly red before running any later checks.
     if: ${{ always() }}
-    needs: test-shard
+    needs: [test-shard, audit-chain-protection]
     runs-on: ubuntu-latest
     env:
       TZ: Asia/Manila
@@ -106,10 +170,10 @@ jobs:
     steps:
       # A dependency failure makes GitHub implicitly add success() to step ifs
       # unless this guard explicitly includes a status-check function.
-      - name: Required CI cannot pass unless every regression shard succeeded
-        if: ${{ always() && needs.test-shard.result != 'success' }}
+      - name: Required CI needs both regression shards and audit-chain-protection
+        if: ${{ always() && (needs.test-shard.result != 'success' || needs.audit-chain-protection.result != 'success') }}
         run: |
-          echo "::error::One or more regression shards failed, were cancelled, or were skipped."
+          echo "::error::Regression shards or audit-chain-protection failed, were cancelled, or were skipped."
           exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Fetch exact comparison base for fail-closed client-read scanner
