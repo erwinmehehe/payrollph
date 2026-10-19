@@ -401,23 +401,22 @@ test("seeded property matrix: 192 fictional employee combinations are determinis
   assert.ok(exceptions >= 1, "The seed must exercise exceptions as well as standard pay");
 });
 
-test("journal negative deduction control: a year-end refund increases net and must balance without negative credits", () => {
-  // Independent accounting: DR wage expense 11000 + DR signed deduction control 575
-  // = CR net payable 11575 (925 contributions less 1500 tax refund).
+test("journal refund control is an OPEN integration gap: preserve original fail-closed export until reviewed evidence", () => {
+  // Independent arithmetic: PHP11,000 gross + PHP575 debit to deductions control
+  // = PHP11,575 credit to net-pay payable after a PHP1,500 tax refund offsets
+  // PHP925 in worker deductions. Current run-header-only export CANNOT prove
+  // where net > gross came from, so do not bypass the existing guard.
   const input = fixture("monthly", 22000);
   input.yearEndTaxAdjustment = { id: 19, taxYear: 2026, adjustment: -1500, outcome: "refund" };
   const result = run(input);
   assert.equal(cents(result.gross), 1100000);
+  assert.equal(cents(result.deductions), -57500);
   assert.equal(cents(result.net), 1157500, "Net = 11000 - 925 statutory + 1500 refund");
-  const lines = buildReleasedPayrollJournal([{
+  const accountingDebit = 1100000 + 57500; // worked independently in the matrix
+  assert.equal(accountingDebit, 1157500);
+  assert.throws(() => buildReleasedPayrollJournal([{
     id: 201, organizationId: 9000, legalEntityId: 100,
     status: "Released", periodLabel: "Fictional refund", payDate: "2026-10-15",
     grossPay: result.gross.toFixed(2), netPay: result.net.toFixed(2),
-  }]);
-  assert.deepEqual(lines.map((line) =>
-    [line.accountCode, line.debitCentavos, line.creditCentavos]), [
-      ["6000", 1100000, 0], ["2100", 57500, 0], ["2200", 0, 1157500],
-    ]);
-  assert.equal(lines.reduce((sum, line) => sum + line.debitCentavos, 0),
-    lines.reduce((sum, line) => sum + line.creditCentavos, 0));
+  }]), /gross\/net/, "Unverified refund provenance must NOT weaken original journal export protection");
 });
