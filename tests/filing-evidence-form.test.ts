@@ -107,7 +107,8 @@ test("user-facing copy has no em-dashes", () => {
 
 test("retired per-run 1604-C evidence card cannot create or accept source-only filings", () => {
   assert.ok(panel.includes("retiredBirAlphalistSource"));
-  assert.ok(panel.includes("disabled={creating || records === null || !isFinalCutoff || retiredBirAlphalistSource}"));
+  assert.ok(panel.includes("disabled={creating || !verifiedRead || !isFinalCutoff || retiredBirAlphalistSource}"),
+    "legacy 1604-C stays disabled, and incomplete/foreign filing evidence cannot enable Create");
   const store = readFileSync("src/lib/filing-evidence-store.ts", "utf8");
   assert.ok(store.includes("BIR 1604-C per-run filing evidence is retired."));
   const resolve = readFileSync("src/app/api/compliance/filing-validations/[id]/route.ts", "utf8");
