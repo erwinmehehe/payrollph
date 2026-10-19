@@ -154,7 +154,7 @@ test("S08: approved unpaid day and late/undertime are deducted exactly once", ()
     startDate: "2026-10-08", endDate: "2026-10-08", overlapDays: 1,
     paidPercentage: 0, paidDays: 0, unpaidDays: 1,
   }] as Input["approvedLeave"];
-  input.punches = [punch(3, "2026-10-09", "10:00", "17:30")];
+  input.punches = [punch(3, "2026-10-09", "10:05", "17:30")];
   const result = run(input);
   assert.equal(amountOf(result, "BASIC"), 1760000);
   assert.equal(amountOf(result, "LEAVE-1"), -160000);
