@@ -126,6 +126,33 @@ test("whole API manifest inventories exactly every route, exported method, and o
     "existing uncovered methods must not be described as accepted");
 });
 
+test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
+  // Tests are actually run in disposable PG16 by Security HTTP Smoke; this
+  // inventory assertion stops a future manifest edit from substituting an
+  // anonymous probe or a line that does not exercise the claimed route.
+  for (const [route, ownToken, denialToken] of [
+    ["dashboard", "const ownDashboard = expectStatus", "expectStatus(await request"],
+    ["employees", "const ownDirectory = expectStatus", "expectStatus(await request"],
+    ["payroll-runs", "const ownRunList = expectStatus", "expectStatus(await request"],
+  ]) {
+    const key = "src/app/api/" + route + "/route.ts";
+    const method = manifest.allApiRouteFiles[key]?.methods.find((item) => item.name === "GET");
+    assert.equal(method?.status, "COVERED", key + ": proof must remain classified");
+    const proof = method.testedBy;
+    assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs", key + ": not a real HTTP harness");
+    const positive = evidenceLine(proof.file, proof.ownPositiveLine, key + " own-positive");
+    const negative = evidenceLine(proof.file, proof.foreignDenialLine, key + " foreign-denial");
+    assert.ok(positive.includes(ownToken) && positive.includes('"/api/' + route + '?') &&
+      positive.includes(", 200,"), key + ": missing own-tenant HTTP 200 control");
+    assert.ok(negative.includes(denialToken) && negative.includes('"/api/' + route + '?') &&
+      negative.includes("victim.id") && negative.includes(", 403,"),
+      key + ": missing actual victim-tenant denied HTTP request");
+  }
+  const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+  assert.match(source, /f\.victimRun\.id \+ "&include=entries".*\{ cookie: attackerCookie \}\), 403/,
+    "The payroll run read must also deny a direct victim-only register ID");
+});
+
 test("page and server-action inventory cannot silently omit new or changed business-ID entrypoints", () => {
   const files = appFiles();
   const scoped = new Map(manifest.scopedPages.map((entry) => [entry.path, entry]));

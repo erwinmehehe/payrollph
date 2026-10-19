@@ -345,6 +345,44 @@ async function verifyCrossTenant(f) {
     expectStatus(await request("/api/v1/payslips/" + ownSlip, { bearer: creds.bearer }), 200,
       "Attacker " + idx + " payslip own control");
 
+    // Three-tenant real-HTTP read proof, against two independent attacker sessions.
+    // Each successful request must resolve seeded own records BEFORE the denial
+    // assertions; an empty/unauthenticated response cannot count as isolation.
+    const ownDashboard = expectStatus(await request("/api/dashboard?organizationId=" + attacker.id, { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " owns the requested dashboard");
+    assert.equal(ownDashboard.json?.selectedOrganization?.id, attacker.id,
+      "Dashboard must not silently switch to another employer");
+    assert.ok(Array.isArray(ownDashboard.json?.employees) &&
+      ownDashboard.json.employees.some((row) => row.id === ownEmployee),
+      "Dashboard must expose the seeded own employee as positive proof");
+    assert.ok(!ownDashboard.json.employees.some((row) => f.victimEmployees.some((v) => v.id === row.id)),
+      "Dashboard leaked a victim-only employee");
+    expectStatus(await request("/api/dashboard?organizationId=" + victim.id, { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not read the victim dashboard");
+
+    const ownDirectory = expectStatus(await request("/api/employees?organizationId=" + attacker.id, { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " owns employee directory");
+    assert.ok(Array.isArray(ownDirectory.json), "Employee directory positive must return real rows");
+    ownOnly(ownDirectory.json, ownEmployee, f.victimEmployees.map((v) => v.id),
+      "Attacker " + idx + " employee directory must exclude every victim-only worker");
+    assert.ok(ownDirectory.json.every((row) => row.organizationId === attacker.id),
+      "Employee directory must not return another organization's staff");
+    expectStatus(await request("/api/employees?organizationId=" + victim.id, { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not list the victim directory");
+
+    const ownRunList = expectStatus(await request("/api/payroll-runs?organizationId=" + attacker.id, { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " owns payroll run list");
+    assert.ok(Array.isArray(ownRunList.json?.runs), "Payroll run list positive must return a real array");
+    ownOnly(ownRunList.json.runs, ownRun, f.victimRuns.map((r) => r.id),
+      "Attacker " + idx + " payroll runs must exclude victim-only runs");
+    assert.ok(ownRunList.json.runs.every((run) => run.organizationId === attacker.id),
+      "Payroll run list leaked a foreign-employer payroll record");
+    expectStatus(await request("/api/payroll-runs?organizationId=" + victim.id, { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not list victim payroll runs");
+    expectStatus(await request("/api/payroll-runs?organizationId=" + attacker.id +
+      "&runId=" + f.victimRun.id + "&include=entries", { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not read a victim-only run register through a forged employer ID");
+
     expectStatus(await request("/api/v1/employees/" + checkVictimId, { bearer: creds.bearer }), 404,
       "Attacker " + idx + " must not GET victim employee");
     expectStatus(await request("/api/v1/employees/" + checkVictimId, {

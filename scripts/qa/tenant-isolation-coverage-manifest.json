@@ -7,9 +7,9 @@
     "routeFiles": 288,
     "methods": 489,
     "coveredBefore": 20,
-    "coveredAfter": 20,
+    "coveredAfter": 23,
     "publicByDesign": 6,
-    "gap": 463,
+    "gap": 460,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -7154,9 +7154,15 @@
         {
           "name": "GET",
           "line": 8,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Disposable PostgreSQL three-employer HTTP: seeded attacker-own positive, victim-only forged organizationId denied; payroll also rejects direct foreign run register",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 360,
+            "ownPositiveLine": 351,
+            "foreignDenialLine": 360,
+            "scope": "Two attacker organizations, seeded own object, real victim-only org denial, source-scoped list exclusion"
+          }
         }
       ],
       "employerSources": {
@@ -9298,9 +9304,15 @@
         {
           "name": "GET",
           "line": 60,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Disposable PostgreSQL three-employer HTTP: seeded attacker-own positive, victim-only forged organizationId denied; payroll also rejects direct foreign run register",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 370,
+            "ownPositiveLine": 363,
+            "foreignDenialLine": 370,
+            "scope": "Two attacker organizations, seeded own object, real victim-only org denial, source-scoped list exclusion"
+          }
         },
         {
           "name": "POST",
@@ -19781,9 +19793,15 @@
         {
           "name": "GET",
           "line": 26,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Disposable PostgreSQL three-employer HTTP: seeded attacker-own positive, victim-only forged organizationId denied; payroll also rejects direct foreign run register",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 380,
+            "ownPositiveLine": 373,
+            "foreignDenialLine": 380,
+            "scope": "Two attacker organizations, seeded own object, real victim-only org denial, source-scoped list exclusion"
+          }
         },
         {
           "name": "POST",
