@@ -23,11 +23,12 @@ function validDate(value: unknown): value is string {
 }
 
 /**
- * Never treat an HTTP 200, a missing field or an unrelated employer's payload
- * as evidence of completed payroll setup or an authorized role handoff.
+ * A successful HTTP response without valid progress evidence is not an
+ * empty, completed or authorized payroll setup. Employer isolation is owned
+ * by the authenticated endpoint and the consuming view's request scope.
  */
-export function parseFirstPayrollProgressRead(value: unknown, organizationId: number): SavedFirstPayrollProgress | null {
-  if (!isRecord(value) || value.organizationId !== organizationId || !Object.hasOwn(value, "progress")) {
+export function parseFirstPayrollProgressRead(value: unknown): SavedFirstPayrollProgress | null {
+  if (!isRecord(value) || !Object.hasOwn(value, "progress")) {
     throw readError();
   }
   if (value.progress === null) return null;
