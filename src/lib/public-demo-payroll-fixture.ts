@@ -15,6 +15,11 @@ export function fictionalPublicDemoPayroll(runIndex: number) {
   const entries = BASE_GROSS_PESOS.map((baseGross, index) => {
     const gross = baseGross + runIndex * 250;
     const deductions = BASE_DEDUCTION_PESOS[index] + runIndex * 50;
+    // Guard future edits to illustrative inputs before a new demo run is persisted.
+    if (!Number.isSafeInteger(gross) || !Number.isSafeInteger(deductions) ||
+        gross < 0 || deductions < 0 || deductions > gross) {
+      throw new Error("Fictional demo payroll rows must contain valid nonnegative integer-peso amounts.");
+    }
     return { gross, deductions, net: gross - deductions };
   });
   if (entries.length !== PUBLIC_DEMO_PAYROLL_WORKERS || BASE_DEDUCTION_PESOS.length !== entries.length) {
