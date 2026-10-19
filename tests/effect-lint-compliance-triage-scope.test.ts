@@ -44,13 +44,20 @@ test("all three GETs hide stale private data, cancel prior requests, and accept 
     assert.match(source, /loadControllerRef\.current\?\.abort\(\)/);
     assert.match(source, /const revision = \+\+loadRevisionRef\.current/);
     assert.match(source, /const isCurrent = \(\) =>\s*mountedRef\.current && !controller\.signal\.aborted && revision === loadRevisionRef\.current/);
+    if (source !== remit) {
+      // The remittance reader owns the transport and abort signal now.
     assert.match(source, /\{ cache: "no-store", signal: controller\.signal \}/);
+    }
     assert.match(source, /if \(!isCurrent\(\)\) return/);
     assert.match(source, /if \(isCurrent\(\)\) setLoading\(false\)/);
   }
   assert.match(cases, /setCases\(\[\]\);\s*setLoadError\(""\)/);
   assert.match(attendance, /setCorrections\(\[\]\)/);
   assert.match(remit, /setBatches\(\[\]\);\s*setMembers\(\[\]\);\s*setCoverageGaps\(\[\]\)/);
+  const verifiedRead = read("src/lib/statutory-remittance-snapshot-read.ts");
+  assert.match(remit, /readVerifiedRemittanceSnapshot\(\s*organizationId, legalEntityId \?\? null, fetch, controller\.signal,/);
+  assert.match(verifiedRead, /\{ cache: "no-store", signal \}/);
+  assert.match(verifiedRead, /if \(!response\.ok\) throw new Error/);
 });
 
 test("failed contribution-case loads cannot appear as clean; update and correction evidence remains gated", () => {
