@@ -219,6 +219,67 @@ test("extended three-employer reads and asset writes have checkable method-speci
   }
 });
 
+
+test("new sensitive download, legal-employer, leave mutation, and ESS proofs are real", () => {
+  // The HTTP suite executes with actual seeded PostgreSQL rows and two
+  // independent attackers. These assertions disallow a future manifest edit
+  // from citing only an invalid ID, unrelated route, or anonymous 401.
+  const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
+  const cases = [
+    { route: "documents/[id]", method: "GET", own: "ownDocumentDownload",
+      prefix: "/api/documents/", success: 200, deny: 403 },
+    { route: "legal-entities", method: "GET", own: "ownLegalEntities",
+      prefix: "/api/legal-entities", success: 200, deny: 403 },
+    { route: "leave/balances", method: "POST", own: "ownLeavePolicy",
+      prefix: "/api/leave/balances", success: 201, deny: 403 },
+    { route: "self/payslips/[id]", method: "GET", own: "ownPayslipPdf",
+      prefix: "/api/self/payslips/", success: 200, deny: 404 },
+    { route: "self/payslips", method: "GET", own: "ownSelfService",
+      prefix: "/api/self/payslips", success: 200, deny: null },
+  ];
+  for (const spec of cases) {
+    const path = "src/app/api/" + spec.route + "/route.ts";
+    const method = manifest.allApiRouteFiles[path]?.methods.find((m) => m.name === spec.method);
+    assert.equal(method?.status, "COVERED", path + " " + spec.method + " must retain own/victim proof");
+    const proof = method.testedBy;
+    assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs");
+    const own = evidenceLine(proof.file, proof.ownPositiveLine, path + " own");
+    const negative = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign");
+    const ownSpan = source.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 7).join("\n");
+    const denySpan = source.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 5).join("\n");
+    assert.ok(own.includes("const " + spec.own + " = expectStatus") &&
+      own.includes(spec.prefix) && ownSpan.includes("), " + spec.success + ","),
+      path + ": positive proof requires the exact route and successful method");
+    if (spec.deny !== null) {
+      assert.ok(negative.includes("expectStatus(await request(") &&
+        negative.includes(spec.prefix) && denySpan.includes("), " + spec.deny + ","),
+        path + ": denial must use the exact route and status");
+    } else {
+      assert.ok(negative.includes("ownOnly(ownSelfService.json?.payslips") &&
+        denySpan.includes("victimEntry.id") && denySpan.includes("coworkerEntry.id"),
+        "Self-service list requires non-empty own entry and exclusion of victim and coworker");
+      assert.match(ownSpan, /victim\.id/,
+        "Self-service scope must ignore a forged client-supplied victim organizationId");
+    }
+    if (spec.method === "POST") {
+      const invariant = evidenceLine(proof.file, proof.unchangedDbLine, "leave policy invariant");
+      assert.match(invariant, /assert\.deepEqual\(victimLeavePoliciesAfter, victimLeavePoliciesBefore/,
+        "Mutating proof requires actual unchanged victim PostgreSQL rows");
+    }
+  }
+  const script = source.join("\n");
+  assert.match(script, /for \(const idx of \[1, 2\]\)/,
+    "Both independent attacker sessions must exercise these methods");
+  assert.match(script, /"SYNTHETIC-COWORKER-PRIVATE-"/,
+    "Same-employer employee-level isolation requires a separately seeded coworker document");
+  assert.match(script, /employeeCookie[\s\S]*coworkerEntry\.id/,
+    "Employee role must deny same-employer coworker payslip");
+  assert.match(script, /"payroll register"/,
+    "Employee role must not open privileged payroll registers");
+  assert.match(script, /await verifySensitiveTenantDownloadsAndRoles\(f\)/,
+    "Standalone uncalled helper is not executable evidence");
+});
+
 test("all credited proof links point to the claimed route and every recertified write has controls", () => {
   const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   for (const [path, entry] of Object.entries(manifest.allApiRouteFiles)) {
