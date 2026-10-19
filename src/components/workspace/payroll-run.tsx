@@ -26,6 +26,7 @@ import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { visiblePayrollReleaseChecklist, type ObservedPayrollReleaseChecklist, type PayrollReleaseChecklistScope } from "@/lib/payroll-release-checklist-visibility";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
 import { readVerifiedPayrollRegister } from "@/lib/payroll-register-read";
+import { isVerifiedReleaseChecklist, type VerifiedReleaseChecklist } from "@/lib/payroll-read-contracts";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
 import { StatutoryRemittancePanel } from "./statutory-remittance-panel";
@@ -52,14 +53,7 @@ import {
 
 type Stage = "prepare" | "approve" | "release" | "export";
 
-type ReleaseChecklistItem = {
-  key: "inputs" | "attendance" | "calculation" | "exceptions" | "statutory" | "approval" | "bank";
-  label: string;
-  passed: boolean;
-  blocking: boolean;
-  acknowledgeable?: boolean;
-  detail: string;
-};
+type ReleaseChecklistItem = VerifiedReleaseChecklist["items"][number];
 
 const GOVERNMENT_DRAFTS = [
   { value: "bir-1601c", label: "BIR 1601-C worksheet" },
@@ -108,21 +102,9 @@ export function PayrollRunView({
   const [reviewApproverId, setReviewApproverId] = useState<number | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
-  type ReleaseChecklist = {
-    ready: boolean;
-    items: ReleaseChecklistItem[];
-    assuranceSummary?: { high: number; medium: number; blocking: number } | null;
-    assuranceFindings?: Array<{
-      code: string;
-      severity: "high" | "medium" | "info";
-      blocking: boolean;
-      title: string;
-      detail: string;
-      employeeId: number | null;
-    }>;
-  };
   const [checklistObservation, setChecklistObservation] =
-    useState<ObservedPayrollReleaseChecklist<ReleaseChecklist> | null>(null);
+    useState<ObservedPayrollReleaseChecklist<VerifiedReleaseChecklist> | null>(null);
+  const [checklistRevision, setChecklistRevision] = useState(0);
   const [releaseReceipt, setReleaseReceipt] = useState<PayrollReleaseReceipt | null>(null);
   const [releaseFailure, setReleaseFailure] = useState<{ runId: number; error: string } | null>(null);
 
@@ -189,6 +171,7 @@ export function PayrollRunView({
   // Never display a checklist captured for a different run, employer, or
   // dashboard approval snapshot while the current read is in flight.
   const releaseChecklist = visiblePayrollReleaseChecklist(checklistScope, checklistObservation);
+  const checklistUnavailable = checklistObservation?.scope === checklistScope && releaseChecklist === null;
   // A verified release checklist is not a substitute for a verified register.
 
   useEffect(() => {
@@ -207,14 +190,22 @@ export function PayrollRunView({
           setChecklistObservation({ scope: requestScope, checklist: null });
           return;
         }
-        const checklist = await response.json() as ReleaseChecklist;
-        if (active) setChecklistObservation({ scope: requestScope, checklist });
+        const body: unknown = await response.json();
+        if (!isVerifiedReleaseChecklist(body, {
+          organizationId: data.selectedOrganization.id,
+          legalEntityId: run?.legalEntityId ?? null,
+          runId,
+        })) {
+          if (active) setChecklistObservation({ scope: requestScope, checklist: null });
+          return;
+        }
+        if (active) setChecklistObservation({ scope: requestScope, checklist: body });
       } catch {
         if (active) setChecklistObservation({ scope: requestScope, checklist: null });
       }
     })();
     return () => { active = false; controller.abort(); };
-  }, [runId, checklistScope]);
+  }, [runId, checklistScope, checklistRevision, data.selectedOrganization.id, run?.legalEntityId]);
 
   const entriesFailed = !selectedEmployerMatches ||
     (failedObservation?.scope === checklistScope && failedObservation.scopeKey === registerScopeKey);
@@ -454,6 +445,16 @@ export function PayrollRunView({
           </>
         }
       />
+
+      {entriesVerified && checklistUnavailable && (
+        <div className="notice notice-amber" role="alert" style={{ marginBottom: 16 }}>
+          <AlertTriangle size={16} />
+          <span>Payroll approval readiness could not be verified for this employer and run. Release remains blocked.</span>
+          <button className="secondary-button" onClick={() => setChecklistRevision((revision) => revision + 1)}>
+            Retry checks
+          </button>
+        </div>
+      )}
 
       {entriesVerified ? (
       <PayrollPhaseTwoOverview
@@ -782,7 +783,13 @@ export function PayrollRunView({
           </div>}
 
           <div id="payroll-assurance">
-            <PayrollAssurancePanel runId={run.id} employees={data.employees} onExplainEmployee={setExplainEmployeeId} />
+            <PayrollAssurancePanel
+              runId={run.id}
+              organizationId={data.selectedOrganization.id}
+              legalEntityId={run.legalEntityId}
+              employees={data.employees}
+              onExplainEmployee={setExplainEmployeeId}
+            />
           </div>
 
           {!payrollOfficerMode && !ownerMode && releaseChecklist && calculated && (
