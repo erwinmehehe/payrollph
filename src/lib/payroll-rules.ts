@@ -8,12 +8,21 @@ import {
 
 export type HolidayType = "ordinary" | "regular" | "special" | "double";
 
+/** Financial inputs must fail closed; NaN must not become a tax-free zero. */
+function nonnegativeStatutoryAmount(amount: number, label: string) {
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) {
+    throw new Error(label + " must be a nonnegative finite number.");
+  }
+  return amount;
+}
+
 /**
  * SSS Circular 2024-006 schedule effective January 2025 and unchanged in 2026.
  * 15% regular contribution: 5% employee, 10% employer on MSC PHP 5,000–35,000.
  * EC is employer-only: PHP 10 under MSC 15,000; PHP 30 at/above 15,000.
  */
 export function computeSss(monthlySalary: number, asOf = "2026-10-08") {
+  nonnegativeStatutoryAmount(monthlySalary, "SSS contribution salary");
   const rule = resolveEffectiveRulePack(SSS_RULE_PACKS, asOf, "SSS");
   const { mscFloor, mscCeiling, mscStep, regularMscCeiling, employeeRate, employerRate, ecThreshold, ecBelow, ecAtOrAbove } = rule.params;
   const msc = Math.min(mscCeiling, Math.max(mscFloor, Math.round(monthlySalary / mscStep) * mscStep));
@@ -80,8 +89,12 @@ export function computeCutoffStatutoryDeduction(input: {
   timing: StatutoryDeductionTiming;
   isSecondCutoff: boolean;
 }) {
-  const target = round(Math.max(0, input.monthlyTarget));
-  const prior = round(Math.max(0, input.priorCollected));
+  const target = round(nonnegativeStatutoryAmount(input.monthlyTarget, "Statutory monthly deduction target"));
+  const prior = round(nonnegativeStatutoryAmount(input.priorCollected, "Statutory deduction already collected"));
+  if (!["split", "first_cutoff", "second_cutoff"].includes(input.timing) ||
+      typeof input.isSecondCutoff !== "boolean") {
+    throw new Error("Statutory cutoff timing and cutoff position must be valid.");
+  }
 
   if (input.timing === "second_cutoff") {
     return input.isSecondCutoff ? round(Math.max(0, target - prior)) : 0;
@@ -97,6 +110,7 @@ export function computeCutoffStatutoryDeduction(input: {
 }
 
 export function computePagIbig(monthlySalary: number, asOf = "2026-10-08") {
+  nonnegativeStatutoryAmount(monthlySalary, "Pag-IBIG contribution salary");
   const rule = resolveEffectiveRulePack(PAGIBIG_RULE_PACKS, asOf, "Pag-IBIG");
   const { fundSalaryCeiling, lowRateThreshold, employeeLowRate, employeeStandardRate, employerRate } = rule.params;
   const fundSalary = Math.min(fundSalaryCeiling, Math.max(0, monthlySalary));
@@ -108,8 +122,9 @@ export function computePagIbig(monthlySalary: number, asOf = "2026-10-08") {
 
 /** TRAIN annual brackets effective 2023 onward (still applicable in 2026). */
 export function computeAnnualWithholdingTax(taxableAnnualIncome: number, isMwe = false, asOf = "2026-10-08") {
-  if (isMwe) return 0;
+  nonnegativeStatutoryAmount(taxableAnnualIncome, "Annual taxable income");
   const rule = resolveEffectiveRulePack(BIR_WITHHOLDING_RULE_PACKS, asOf, "BIR withholding");
+  if (isMwe) return 0;
   const bracket = rule.params.annual.find((row) => taxableAnnualIncome <= row.limit)
     ?? rule.params.annual[rule.params.annual.length - 1];
   return round(bracket.base + Math.max(0, taxableAnnualIncome - bracket.floor) * bracket.rate);
@@ -121,9 +136,9 @@ export function computeAnnualWithholdingTax(taxableAnnualIncome: number, isMwe =
  * non-taxable items, not gross basic salary.
  */
 export function computeMonthlyWithholdingTax(monthlyTaxableIncome: number, isMwe = false, asOf = "2026-10-08") {
-  const income = Math.max(0, Number(monthlyTaxableIncome) || 0);
-  if (isMwe) return 0;
+  const income = nonnegativeStatutoryAmount(monthlyTaxableIncome, "Monthly taxable income");
   const rule = resolveEffectiveRulePack(BIR_WITHHOLDING_RULE_PACKS, asOf, "BIR withholding");
+  if (isMwe) return 0;
   const bracket = rule.params.monthly.find((row) => income <= row.limit)
     ?? rule.params.monthly[rule.params.monthly.length - 1];
   return round(bracket.base + Math.max(0, income - bracket.floor) * bracket.rate);
@@ -134,9 +149,9 @@ export function computeMonthlyWithholdingTax(monthlyTaxableIncome: number, isMwe
  * This is the published semi-monthly table, not a monthly-table approximation.
  */
 export function computeSemiMonthlyWithholdingTax(semiMonthlyTaxableIncome: number, isMwe = false, asOf = "2026-10-08") {
-  const income = Math.max(0, Number(semiMonthlyTaxableIncome) || 0);
-  if (isMwe) return 0;
+  const income = nonnegativeStatutoryAmount(semiMonthlyTaxableIncome, "Semi-monthly taxable income");
   const rule = resolveEffectiveRulePack(BIR_WITHHOLDING_RULE_PACKS, asOf, "BIR withholding");
+  if (isMwe) return 0;
   const bracket = rule.params.semiMonthly.find((row) => income <= row.limit)
     ?? rule.params.semiMonthly[rule.params.semiMonthly.length - 1];
   return round(bracket.base + Math.max(0, income - bracket.floor) * bracket.rate);
