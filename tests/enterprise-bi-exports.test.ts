@@ -122,8 +122,13 @@ test("Analytics never displays or exports a response from a previous legal emplo
   assert.ok(analytics.includes('resolvedScopeKey === requestScopeKey ? state : "loading"'));
   assert.ok(analytics.includes("data.multiEntity?.legalEntityId,"),
     "changing legal employer must re-run the API request");
-  assert.ok((analytics.match(/setResolvedScopeKey\(requestScopeKey\)/g) ?? []).length >= 3,
-    "success and both failure paths must pin response/error to request identity");
+  // Transport, JSON and scope/shape failures share the same fail-closed catch.
+  // Count success plus that common failure path; the validator tests cover all
+  // distinct transport/contract failures independently.
+  assert.ok((analytics.match(/setResolvedScopeKey\(requestScopeKey\)/g) ?? []).length >= 2,
+    "success and the common failure path must pin response/error to request identity");
+  assert.ok(analytics.includes("readVerifiedReportPayload("),
+    "a successful report must pass the selected-employer contract validator");
   assert.ok(analytics.includes('disabled={visibleState !== "ready" || !visibleResult?.rows.length}'),
     "stale report must not enable an export click");
   assert.ok(analytics.includes('visibleState === "ready" && visibleResult && ('),
