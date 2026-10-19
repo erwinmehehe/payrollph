@@ -660,6 +660,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           <LeavePage
             data={data}
             setNotice={noticeAdapter}
+            readFailed={refreshIssue !== null}
+            readLoading={refreshLoading}
             onRefresh={async () => {
               await refresh();
             }}
