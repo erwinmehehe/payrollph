@@ -40,6 +40,7 @@ export async function GET(request: Request) {
     const deniedEntity = assertEntityResource(context.context, legalEntity.id);
     if (deniedEntity) return deniedEntity;
     return Response.json({
+      organizationId,
       forms: FILING_FORMS.map((definition) => ({
         ...definition,
         official: officialFilingGuidance(definition.agency, definition.form),
