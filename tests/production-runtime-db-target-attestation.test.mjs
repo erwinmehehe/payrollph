@@ -39,6 +39,7 @@ test("#1198 fixed-origin authorized private GET with no redirection or secret ou
   const fetchImpl = async (url, options) => {
     calls++;
     assert.equal(url, RUNTIME_PROBE_URL);
+    assert.equal(url, "https://erwinmehehe-payrollph.vercel.app/api/readiness/database-target");
     assert.equal(options.method, "GET");
     assert.equal(options.redirect, "error");
     assert.equal(options.headers["x-readiness-token"], TOKEN);
@@ -56,6 +57,32 @@ test("#1198 fixed-origin authorized private GET with no redirection or secret ou
   assert.equal(result.historicalMigrationReceiptsProven, false);
   assert.equal(JSON.stringify(result).includes(TOKEN), false);
   assert.equal(JSON.stringify(result).includes("neondb_owner"), false);
+});
+
+test("post-cutover app role and clean baseline are attested only at the fixed Vercel origin", async () => {
+  const target = { ...expected, databaseName: "payrollph_clean_baseline",
+    branchId: "br-young-leaf-b7ae1g8v", endpointId: "ep-aged-surf-b7ru90rs", roleName: "payrollph_app" };
+  const live = payload();
+  Object.assign(live.database, target);
+  delete live.database.commitSha;
+  live.schemaPresence.compensationTablesPresent = 6;
+  live.schemaPresence.migrationLedgerTablesPresent = 3;
+  let calls = 0;
+  const result = await attestRuntimeTarget({ token: TOKEN, expectations: target,
+    fetchImpl: async (url, options) => {
+      calls++;
+      assert.equal(url, "https://erwinmehehe-payrollph.vercel.app/api/readiness/database-target");
+      assert.equal(options.redirect, "error");
+      return new Response(JSON.stringify(live), { status: 200, headers: { "content-type": "application/json" } });
+    } });
+  assert.equal(calls, 1);
+  assert.equal(result.neonSessionIdentityMatchesIndependentConfiguration, true);
+  assert.equal(result.compensationTablesPresent, 6);
+  assert.equal(result.migrationLedgerTablesPresent, 3);
+  assert.equal(JSON.stringify(result).includes(TOKEN), false);
+  await assert.rejects(attestRuntimeTarget({ token: TOKEN, expectations: target,
+    fetchImpl: async () => new Response(null, { status: 302, headers: { location: "https://unverified.invalid/" } }),
+  }), /RUNTIME_DB_TARGET_ATTESTATION_BLOCKED/);
 });
 
 test("#1198 mismatched runtime, source, role, schema evidence fail closed", () => {
