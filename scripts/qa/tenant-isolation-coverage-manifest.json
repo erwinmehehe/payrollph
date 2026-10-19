@@ -15283,7 +15283,7 @@
             "ownPositiveLine": 808,
             "foreignDenialLine": 817,
             "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable",
-            "unchangedDbLine": 924
+            "unchangedDbLine": 967
           }
         }
       ],
