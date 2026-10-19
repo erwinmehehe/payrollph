@@ -137,3 +137,38 @@ test("onboarding filters have accessible counts, 44px targets and an honest empt
   assert.ok(!board.includes('method: "POST"'));
   assert.ok(!board.includes('method: "DELETE"'));
 });
+
+test("onboarding directory search supports surname-first and pasted whitespace", () => {
+  const groups = buildOnboardingChecklistGroups(staff, [
+    task(301, 17), task(302, 18), task(303, 19, true),
+  ]);
+  const ids = (needle: string, show: "open" | "all" = "all") =>
+    filterOnboardingChecklistGroups(groups, needle, show).map(g => g.employee.id);
+  assert.deepEqual(ids("  ALEX    RIVERA  "), [17]);
+  assert.deepEqual(ids(" rIvErA   aLeX "), [17]);
+  assert.deepEqual(ids("RIVERA,   ALEX"), [17]);
+  assert.deepEqual(ids("  emp-017  "), [17]);
+  assert.deepEqual(ids("Alex    Rivera   EMP-017"), [17]);
+  assert.deepEqual(ids("RIVERA Alex", "open"), [17]);
+  assert.deepEqual(ids("ALONZO CORA", "open"), [], "completed task remains excluded from Open");
+  assert.deepEqual(ids("ALONZO CORA", "all"), [19]);
+  assert.deepEqual(ids("RIVERA BEN"), [], "terms from different authorized people must not combine");
+  assert.deepEqual(ids("Foreign Worker"), [], "search does not introduce unauthorized people");
+});
+
+test("onboarding refresh errors and stale-state warnings remain visible without provisioning", () => {
+  const board = readFileSync("src/components/hris-onboarding-checklist.tsx", "utf8");
+  const missingSourceIndex = board.indexOf("{provisioning === undefined ? (");
+  assert.ok(missingSourceIndex > 0, "missing-source branch must remain explicit");
+  for (const message of [
+    '{error && <p role="alert"',
+    "{snapshotStale && <p role=\"status\"",
+    '{notice && <p role="status"',
+  ]) {
+    const index = board.indexOf(message);
+    assert.ok(index > 0 && index < missingSourceIndex,
+      message + " must not be hidden by the missing-source conditional");
+  }
+  assert.equal((board.match(/role="alert"/g) ?? []).length, 1);
+  assert.ok(board.includes("Could not reload the onboarding snapshot. Try again."));
+});

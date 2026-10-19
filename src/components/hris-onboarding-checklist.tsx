@@ -167,6 +167,12 @@ export function HrisOnboardingChecklist({
         </button>}
       </div>
 
+      {error && <p role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}
+      {snapshotStale && <p role="status" className="mt-3 text-xs font-semibold text-amber-900">
+        Checklist edits are paused until a fresh employer snapshot is loaded. Use Refresh above.
+      </p>}
+      {notice && <p role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</p>}
+
       {provisioning === undefined ? (
         <p role="status" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           The provisioning source was not included in this workspace snapshot. No outstanding or completed tasks can be confirmed.
@@ -248,12 +254,6 @@ export function HrisOnboardingChecklist({
           )}
             </>
           )}
-          {error && <p role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}
-          {snapshotStale && <p role="status" className="mt-3 text-xs font-semibold text-amber-900">
-            Checklist edits are paused until a fresh employer snapshot is loaded. Use Refresh above.
-          </p>}
-          {notice && <p role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</p>}
-
           {groups.length === 0 && (
             <p role="status" className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
               No onboarding tasks are recorded for the employees in this snapshot. This does not establish that onboarding is complete or that everyone has a checklist.
