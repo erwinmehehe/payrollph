@@ -61,7 +61,7 @@ export async function GET(request: Request) {
       const entries = await db.select().from(payrollEntries)
         .where(eq(payrollEntries.payrollRunId, runId))
         .orderBy(asc(payrollEntries.id));
-      return Response.json({ runId, entries });
+      return Response.json({ organizationId: target.organizationId, legalEntityId: target.legalEntityId, runId, entries });
     }
 
     const status = await getPayrollJobStatus(runId);
