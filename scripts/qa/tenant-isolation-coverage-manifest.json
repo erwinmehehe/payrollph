@@ -13,7 +13,9 @@
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
-    "leaksUnverified": true
+    "leaksUnverified": true,
+    "sourceIdentifiedAuthorizationGapsFixed": 1,
+    "confirmedExploitableTenantLeaks": 0
   },
   "allApiRouteFiles": {
     "src/app/api/account/email/route.ts": {
@@ -23964,20 +23966,24 @@
       ]
     },
     "src/app/api/self/payslips/[id]/route.ts": {
-      "gitBlobSha": "5676cc0f81342bdb8cfd6638a8f21143afb82d6c",
+      "gitBlobSha": "e6b909e4342a452d30900e0d28ff4b6bdacc6051",
       "route": "self/payslips/[id]",
       "methods": [
         {
           "name": "GET",
-          "line": 11,
+          "line": 12,
           "status": "COVERED",
-          "reason": "Employee-only 200 real own Released payslip PDF, victim high-ID and same-employer coworker PDF both 404 for two separately linked employee sessions",
+          "reason": "Authenticated linked-employee own Released PDF 200; existing victim-only and coworker entry 404; actual revoked/former-employer membership returns 403 while SAME session remains 200. Existing assertMembership guard required before PDF bytes.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "line": 867,
             "ownPositiveLine": 862,
             "foreignDenialLine": 867,
-            "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable"
+            "scope": "Three fictional employers / two independent linked employee role sessions, real Released PDF bytes, direct victim & coworker IDs, revoked former-employer membership while session still authenticated; victim source data unchanged",
+            "currentMembershipGuardLine": 32,
+            "staleSessionOwnPositiveLine": 941,
+            "staleMembershipForeignDenialLine": 946,
+            "staleMembershipUnchangedDbLine": 953
           }
         }
       ],
