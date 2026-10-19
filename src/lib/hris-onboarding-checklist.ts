@@ -76,12 +76,22 @@ export function filterOnboardingChecklistGroups(
   query: string,
   show: "open" | "all",
 ): OnboardingChecklistGroup[] {
-  const needle = query.trim().toLocaleLowerCase("en");
+  // HR directories commonly use "Last, First"; normalize pasted whitespace
+  // without searching beyond the already-authorized employee groups.
+  const normalize = (value: string) =>
+    value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
+  const needle = normalize(query);
   return groups.filter((group) => {
     if (show === "open" && group.remaining === 0) return false;
     if (!needle) return true;
     const employee = group.employee;
-    return (employee.firstName + " " + employee.lastName + " " + employee.employeeNo)
-      .toLocaleLowerCase("en").includes(needle);
+    const fullName = normalize(employee.firstName + " " + employee.lastName);
+    const lastFirst = normalize(employee.lastName + " " + employee.firstName);
+    const employeeNo = normalize(employee.employeeNo);
+    return fullName.includes(needle) ||
+      lastFirst.includes(needle) ||
+      normalize(employee.lastName + ", " + employee.firstName).includes(needle) ||
+      employeeNo.includes(needle) ||
+      (fullName + " " + employeeNo).includes(needle);
   });
 }
