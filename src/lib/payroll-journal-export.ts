@@ -49,7 +49,9 @@ export function buildReleasedPayrollJournal(runs: readonly ReleasedJournalRun[])
     }
     const gross = journalMoneyCentavos(run.grossPay);
     const net = journalMoneyCentavos(run.netPay);
-    if (net > gross) throw new Error("Payroll journal gross/net control is inconsistent.");
+    // A reviewed year-end tax refund can make net payroll exceed wage gross.
+    // Keep the signed withholding control rather than rejecting an otherwise
+    // reconcilable released run or inventing negative accounting credits.
     const deductions = gross - net;
     const base = {
       runId: run.id, legalEntityId: run.legalEntityId as number,
@@ -59,9 +61,9 @@ export function buildReleasedPayrollJournal(runs: readonly ReleasedJournalRun[])
       ...base, accountCode: "6000", accountName: "Payroll expense",
       debitCentavos: gross, creditCentavos: 0,
     });
-    if (deductions > 0) lines.push({
+    if (deductions !== 0) lines.push({
       ...base, accountCode: "2100", accountName: "Payroll deductions control",
-      debitCentavos: 0, creditCentavos: deductions,
+      debitCentavos: Math.max(0, -deductions), creditCentavos: Math.max(0, deductions),
     });
     lines.push({
       ...base, accountCode: "2200", accountName: "Net payroll payable",
