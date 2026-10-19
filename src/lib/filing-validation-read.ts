@@ -157,7 +157,8 @@ function validRow(v: unknown, expected: FilingReadScope): v is FilingRecord {
 export function parseFilingValidationRead(value: unknown, expected: FilingReadScope): VerifiedFilingRead | null {
   if (!positive(expected.organizationId) || !positive(expected.legalEntityId) ||
       !nonempty(expected.agency) || !nonempty(expected.form) ||
-      !object(value) || value.organizationId !== expected.organizationId ||
+      !object(value) || (value.organizationId !== undefined &&
+        value.organizationId !== expected.organizationId) ||
       !object(value.legalEntity) || value.legalEntity.id !== expected.legalEntityId ||
       !nonempty(value.legalEntity.displayName) ||
       !(value.legalEntity.code === null || typeof value.legalEntity.code === "string") ||

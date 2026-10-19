@@ -36,6 +36,10 @@ const response = () => ({
 test("genuine empty same-employer filing evidence is distinct from missing or malformed success", () => {
   assert.equal(parseFilingValidationRead(response(), expected)?.records.length, 1);
   assert.deepEqual(parseFilingValidationRead({ ...response(), records: [] }, expected)?.records, []);
+  // The actual authorized API provides legalEntity.id, not a parent org echo.
+  const { organizationId: orgEcho, ...noOrgEcho } = response();
+  assert.equal(orgEcho, expected.organizationId);
+  assert.deepEqual(parseFilingValidationRead({ ...noOrgEcho, records: [] }, expected)?.records, []);
   assert.equal(parseFilingValidationRead({}, expected), null);
   assert.equal(parseFilingValidationRead({ ...response(), records: undefined }, expected), null);
   assert.equal(parseFilingValidationRead({ ...response(), forms: undefined }, expected), null);
@@ -77,7 +81,9 @@ test("invalid money, identity, truncated form definitions and invented acceptanc
 test("the GET echoes the selected organization and the UI gates every filing mutation on a verified response", () => {
   const route = readFileSync("src/app/api/compliance/filing-validations/route.ts", "utf8");
   const client = readFileSync("src/components/workspace/filing-evidence.tsx", "utf8");
-  assert.match(route, /return Response\.json\(\{\s*organizationId,\s*forms:/);
+  assert.match(route, /assertOrganizationRole\(user\.id, organizationId,/);
+  assert.match(route, /assertEntityResource\(context\.context, legalEntity\.id\)/);
+  // Parent organization is enforced server-side; every returned row is checked client-side.
   assert.match(client, /parseFilingValidationRead\(payload, \{/);
   assert.match(client, /if \(!verifiedRead\) return;/);
   assert.match(client, /disabled=\{creating \|\| !verifiedRead/);

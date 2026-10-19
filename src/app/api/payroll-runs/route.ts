@@ -1,4 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { loadApprovedPayrollExits, payrollEmploymentStatus } from "@/lib/approved-exit-payroll";
 import { formatPayrollPeriodLabel } from "@/lib/payroll-period-ui";
 import { MAX_PAYROLL_PERIOD_DAYS, inclusivePeriodDays, validIsoDate } from "@/lib/payroll-period-validation";
 import { and, asc, desc, eq, lte } from "drizzle-orm";
@@ -241,18 +242,19 @@ export async function POST(request: Request) {
         eq(employees.organizationId, organizationId),
         eq(employees.legalEntityId, legalEntity.id),
         eq(employees.orgUnitId, scopeOrgUnitId),
-        eq(employees.status, "Active"),
+        payrollEmploymentStatus(periodStart),
         lte(employees.startDate, periodEnd),
       )
     : and(
         eq(employees.organizationId, organizationId),
         eq(employees.legalEntityId, legalEntity.id),
-        eq(employees.status, "Active"),
+        payrollEmploymentStatus(periodStart),
         lte(employees.startDate, periodEnd),
       );
   const employeesInScope = await db
     .select({
       id: employees.id,
+      status: employees.status,
       orgUnitId: employees.orgUnitId,
       firstName: employees.firstName,
       lastName: employees.lastName,
@@ -279,6 +281,17 @@ export async function POST(request: Request) {
     }, { status: 422 });
   }
 
+  if (processNow) {
+    try { await loadApprovedPayrollExits(db, organizationId, employeesInScope); }
+    catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      const code = message.split(":")[0];
+      if (["PAYROLL_EXIT_APPROVAL_REQUIRED", "PAYROLL_EXIT_APPROVAL_IDENTITY", "PAYROLL_SEPARATION_CONFLICT", "PAYROLL_FINAL_PAY_WAGE_OVERLAP"].includes(code)) {
+        return Response.json({ error: message, code }, { status: 409 });
+      }
+      return Response.json({ error: "Approved exit evidence could not be verified. Retry before processing payroll.", code: "PAYROLL_EXIT_VERIFICATION_UNAVAILABLE" }, { status: 503 });
+    }
+  }
   const attendanceCutoffGate = await loadAttendanceCutoffGate({
     organizationId,
     periodStart,
