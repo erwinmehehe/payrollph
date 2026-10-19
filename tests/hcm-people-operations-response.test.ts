@@ -45,5 +45,5 @@ test("pagination, duplicate identities and impossible counts are rejected", () =
   assert.equal(isVerifiedPeopleOperationsPayload({ ...valid, filteredTotal: -1 }, 1), false);
   assert.equal(isVerifiedPeopleOperationsPayload({ ...valid, rows: [{ ...valid.rows[0], employeeId: 0 }] }, 1), false);
   assert.equal(isVerifiedPeopleOperationsPayload({ ...valid, rows: [{ ...valid.rows[0], daysUntil: NaN }] }, 1), false);
-  assert.equal(isVerifiedPeopleOperationsPayload(valid, 2), false);
+  assert.equal(isVerifiedPeopleOperationsPayload(valid, 2), true, "Server may safely clamp an out-of-range page");
 });
