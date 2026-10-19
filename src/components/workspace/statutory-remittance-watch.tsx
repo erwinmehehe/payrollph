@@ -17,19 +17,42 @@ function toneClass(tone: StatutoryRemittanceAlert["tone"]) {
   return "notice";
 }
 
-export function StatutoryRemittanceWatch(props: { organizationId: number; onOpen: () => void }) {
-  // Remount on employer switch so an old employer's verified green state cannot flash.
-  return <StatutoryRemittanceWatchContent key={props.organizationId} {...props} />;
+type WatchProps = {
+  organizationId: number;
+  legalEntityId?: number | null;
+  requiresLegalEntitySelection?: boolean;
+  onOpen: () => void;
+};
+
+export function StatutoryRemittanceWatch(props: WatchProps) {
+  // An aggregate multi-entity view is not a verified read of any one employer.
+  // Never silently fall back to the primary entity and display its green status.
+  if (props.requiresLegalEntitySelection && !props.legalEntityId) {
+    return (
+      <article className="card" data-statutory-remittance-watch style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">STATUTORY REMITTANCE WATCH</div>
+            <h2>Legal employer selection required</h2>
+            <p>Select an individual legal employer in the workspace switcher before checking remittance status.</p>
+          </div>
+        </div>
+        <div className="card-body" role="status">No remittance compliance result is available for the combined employer view.</div>
+      </article>
+    );
+  }
+  // Remount on employer switch so the old employer's green status cannot flash.
+  return <StatutoryRemittanceWatchContent key={`${props.organizationId}:${props.legalEntityId ?? "primary"}`} {...props} />;
 }
 
 function StatutoryRemittanceWatchContent({
-  organizationId, onOpen,
-}: { organizationId: number; onOpen: () => void }) {
+  organizationId, legalEntityId, onOpen,
+}: WatchProps) {
   const [revision, setRevision] = useState(0);
   const [stored, setStored] = useState<ReadState | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    void readVerifiedStatutoryRemittanceAlerts(organizationId, fetch, controller.signal)
+    void readVerifiedStatutoryRemittanceAlerts(organizationId, fetch, controller.signal, legalEntityId ?? null)
       .then((alerts) => {
         if (!controller.signal.aborted) setStored({ revision, phase: "ready", alerts });
       })
@@ -40,7 +63,7 @@ function StatutoryRemittanceWatchContent({
         });
       });
     return () => controller.abort();
-  }, [organizationId, revision]);
+  }, [organizationId, legalEntityId, revision]);
 
   const active = stored?.revision === revision ? stored : null;
   const alerts = active?.phase === "ready" ? active.alerts : null;
