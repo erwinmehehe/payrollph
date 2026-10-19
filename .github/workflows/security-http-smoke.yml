@@ -57,6 +57,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # This inventory is SHA-pinned to its audit branch. For this isolated
+          # smoke only, test the exact PR source rather than GitHub's synthetic
+          # merge with newer unrelated main route contents. Merge safety is
+          # evaluated separately by normal integration/branch-policy checks.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v7
         with:
