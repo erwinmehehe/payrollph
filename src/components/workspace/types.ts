@@ -346,6 +346,7 @@ export type FreelancerProfile = {
 } | null;
 
 export type DashboardData = {
+  payrollEmployerSetupNavigationEnabled?: boolean;
   firstPayrollConnectedEnabled?: boolean;
   advancedPlanningAllowed?: boolean;
   coreModuleNavigationEnabled?: boolean;
