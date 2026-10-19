@@ -39,6 +39,7 @@ import {
   schedulePatternDays,
   schedulePatternSegments,
   schedulePatterns,
+  separationRecords,
   shiftDefinitions,
   supplementaryEarnings,
   timePunches,
@@ -633,6 +634,29 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
     }
   }
   const chunkIds = chunk.map((employee) => employee.id);
+  // Approved separation evidence is the authoritative last day for ordinary
+  // payroll proration. Draft separations cannot change wages. An old approved
+  // last day will instead fail closed in calculateEmployeePay.
+  const approvedSeparations = chunkIds.length
+    ? await reader.select({
+        employeeId: separationRecords.employeeId,
+        lastDay: separationRecords.lastDay,
+      }).from(separationRecords).where(and(
+        eq(separationRecords.organizationId, input.organizationId),
+        inArray(separationRecords.employeeId, chunkIds),
+        inArray(separationRecords.status, ["approved", "released"]),
+        lte(separationRecords.lastDay, run.periodEnd),
+      ))
+    : [];
+  const separationEndByEmployee = new Map<number, string>();
+  for (const separation of approvedSeparations) {
+    const lastDay = String(separation.lastDay);
+    const known = separationEndByEmployee.get(separation.employeeId);
+    if (known && known !== lastDay) {
+      throw new Error("PAYROLL_SEPARATION_CONFLICT: Multiple approved end dates must be reconciled before payroll.");
+    }
+    separationEndByEmployee.set(separation.employeeId, lastDay);
+  }
   const payProfileRows = chunkIds.length
     ? await reader.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
     : [];
@@ -1665,6 +1689,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
         sourcePeriodStart: retro.sourcePeriodStart,
         sourcePeriodEnd: retro.sourcePeriodEnd,
       })),
+      employmentEndDate: separationEndByEmployee.get(employee.id) ?? null,
       payProfile: (() => {
         const profile = payProfileByEmployee.get(employee.id);
         if (!profile) throw new Error(`Employee #${employee.id} has no pay profile.`);
@@ -1847,6 +1872,8 @@ async function finalizeRun(runId: number) {
 
 export function calculateEmployeePay(input: {
   employee: typeof employees.$inferSelect;
+  // Only approved/released separation last-day evidence can cap this payroll.
+  employmentEndDate?: string | null;
   punches: Array<typeof timePunches.$inferSelect>;
   advisories: Array<typeof calamityAdvisories.$inferSelect>;
   unitName: string;
@@ -1928,6 +1955,11 @@ export function calculateEmployeePay(input: {
 }) {
   const employeeStartDate = String(input.employee.startDate);
   const employmentStart = employeeStartDate > input.periodStart ? employeeStartDate : input.periodStart;
+  const employmentEnd = input.employmentEndDate && input.employmentEndDate < input.periodEnd
+    ? input.employmentEndDate : input.periodEnd;
+  if (input.employmentEndDate && employmentEnd < employmentStart) {
+    throw new Error("PAYROLL_SEPARATION_OUTSIDE_CUTOFF: Worker exited before this cutoff; exclude from ordinary payroll.");
+  }
   if (employmentStart > input.periodEnd) {
     throw new Error(`Employee #${input.employee.id} starts after this payroll cutoff and must not be included.`);
   }
@@ -1948,6 +1980,7 @@ export function calculateEmployeePay(input: {
     input.periodStart,
     input.periodEnd,
     employeeStartDate,
+    input.employmentEndDate,
   );
   const dailyRate = payProfile.dailyRate;
   const hourlyRate = payProfile.hourlyRate;
@@ -2194,7 +2227,7 @@ export function calculateEmployeePay(input: {
   // but the public pure calculator must uphold the same financial boundary.
   const eligiblePunches = input.punches.filter((punch) => {
     const workDate = String(punch.workDate);
-    return workDate >= employmentStart && workDate <= input.periodEnd;
+    return workDate >= employmentStart && workDate <= employmentEnd;
   });
   const punchesByWorkDate = new Map<string, Array<typeof timePunches.$inferSelect>>();
   for (const punch of eligiblePunches) {
@@ -2834,7 +2867,7 @@ export function calculateEmployeePay(input: {
         .map((holiday) => holiday.date)
         .filter((workDate) =>
           workDate >= employmentStart
-          && workDate <= input.periodEnd
+          && workDate <= employmentEnd
           && !punchedDates.has(workDate)
         ),
     )];
@@ -3777,6 +3810,7 @@ export function calculateEmployeePay(input: {
       `holidayEligibilityAttendanceDates=${(input.holidayEligibilityAttendanceDates ?? []).join("|")}`,
       `holidayEligibilityPaidLeaveDates=${(input.holidayEligibilityPaidLeaveDates ?? []).join("|")}`,
       `employmentStart=${employmentStart}`,
+      `employmentEnd=${employmentEnd}`,
       `regularMinutes=${regularMinutes}`,
       `overtimeMinutes=${overtimeMinutes}`,
       `overtimeAuthorizationDays=${overtimeAuthorizationDays.length}`,
