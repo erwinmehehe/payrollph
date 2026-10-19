@@ -4,9 +4,11 @@ import { ArrowRight, Check, CircleAlert, ShieldCheck, UsersRound, WalletCards } 
 import type { FirstPayrollReadiness as FirstPayrollReadinessState } from "@/lib/first-payroll-readiness";
 import { buildFirstPayrollJourney, FIRST_PAYROLL_STEPS, type FirstPayrollKey } from "@/lib/first-payroll-journey";
 import { FirstPayrollInlinePanel } from "./first-payroll-inline-panel";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { DashboardData, Notify } from "./types";
 import { firstPayrollRunHref } from "@/lib/first-payroll-run-navigation";
+import { parseFirstPayrollProgressRead } from "@/lib/first-payroll-progress-read";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
 
 export function FirstPayrollReadinessCard({
   readiness,
@@ -38,22 +40,21 @@ export function FirstPayrollReadinessCard({
   notify?: Notify;
 }) {
   const [opened,setOpened]=useState<FirstPayrollKey|null>(null);
-  const [progress,setProgress]=useState<{stepOwners?:Record<string,string>;completedSteps?:Record<string,{byUserId:number;at:string;periodStart?:string;periodEnd?:string}>}|null>(null);
   const organizationId=data?.selectedOrganization.id;
-  useEffect(()=>{
-    if(!guided||!inlineEnabled||!organizationId)return;
-    let cancelled=false;
-    void fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"})
-      .then(r=>r.ok?r.json():null)
-      .then(p=>{if(!cancelled)setProgress(p?.progress??null);})
-      .catch(()=>{if(!cancelled)setProgress(null);});
-    return ()=>{cancelled=true;};
-  },[organizationId,guided,inlineEnabled]);
-  async function reloadProgress(){
-    if(!organizationId)return;
-    const response=await fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"});
-    if(response.ok){const result=await response.json();setProgress(result.progress??null);}
-  }
+  // Include the viewer and permissions: an old employer/role's progress must
+  // disappear during render, even before an effect cancels its request.
+  const scopeKey=JSON.stringify([
+    organizationId??null,data?.user?.id??null,data?.access?.role??null,
+    data?.access?.companyWide===true,
+  ]);
+  const loadProgress=useCallback(async (signal:AbortSignal)=>{
+    if(!organizationId)throw new Error("Select an employer to load first-payroll progress.");
+    const response=await fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store",signal});
+    if(!response.ok)throw new Error("Saved first-payroll progress could not be verified.");
+    return parseFirstPayrollProgressRead(await response.json(),organizationId);
+  },[organizationId]);
+  const {data:progress,error:progressError,loading:progressLoading,reload:reloadProgress}=
+    useScopedAsyncResource(scopeKey,loadProgress,undefined,guided&&inlineEnabled&&Boolean(organizationId));
   // Keep the export/filing handoff visible after the first run is released.
   // Once a second run exists, the employer has completed the initial journey.
   if (readiness.firstPayrollReleased && readiness.payrollRunCount > 1) return null;
@@ -95,17 +96,28 @@ export function FirstPayrollReadinessCard({
         <span style={{ width: `${percent}%` }} />
       </div>
 
+      {guided&&inlineEnabled&&progressLoading&&<p role="status">Checking saved first-payroll progress for this employer…</p>}
+      {guided&&inlineEnabled&&progressError&&<div className="notice notice-amber" role="alert">
+        <span>Saved first-payroll progress and role assignments are unavailable. Do not treat previous completion indicators as verified.</span>
+        <button type="button" className="secondary-button" onClick={()=>void reloadProgress()}>Retry saved progress</button>
+      </div>}
       {guided && <ol aria-label="Guided first payroll journey" className="grid gap-3 md:grid-cols-2" style={{ margin: "16px 0", padding: 0, listStyle: "none" }}>
         {journey.map((step, index) => (
           <li key={step.key} className="min-w-0 rounded-xl border p-4" style={{ borderColor: "var(--line)", background: "var(--canvas-subtle)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <strong>{index + 1}. {step.title}</strong>
               <span className="text-xs" style={{ marginLeft: "auto", color: "var(--muted)" }}>
-                {step.state === "complete" ? "Setup recorded" : step.state === "review" ? "Human review needed" : step.state === "available" ? "Next action" : "Upcoming"}
+                {guided&&inlineEnabled&&(step.key==="company"||step.key==="time")&&progressLoading
+                  ? "Checking saved review"
+                  : guided&&inlineEnabled&&(step.key==="company"||step.key==="time")&&progressError
+                    ? "Review not verified"
+                    : step.state === "complete" ? "Setup recorded" : step.state === "review" ? "Human review needed" : step.state === "available" ? "Next action" : "Upcoming"}
               </span>
             </div>
             <p style={{ fontSize: 12, margin: "8px 0" }}>{step.detail}</p>
-            <p className="text-xs" style={{color:"var(--muted)"}}>Responsible: {progress?.stepOwners?.[step.key]??ownerFor(step.key)}</p>
+            <p className="text-xs" style={{color:"var(--muted)"}}>Responsible: {guided&&inlineEnabled&&progressLoading
+              ? "Checking assignment…" : guided&&inlineEnabled&&progressError
+                ? "Assignment not verified" : progress?.stepOwners?.[step.key]??ownerFor(step.key)}</p>
             {step.key === "payroll" && resumeHref ? (
               <a className="first-payroll-link" href={resumeHref}>
                 Open payroll run #{resumeRun!.id} <ArrowRight size={13} />
