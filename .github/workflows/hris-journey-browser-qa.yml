@@ -227,14 +227,21 @@ jobs:
           path: qa-artifacts/hris-journey-failed.png
           if-no-files-found: ignore
           retention-days: 7
+      - name: Upload My Team fictional mobile browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hcm-my-team-mobile-synthetic
+          path: qa-artifacts/hcm-my-team-mobile-*.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: "Upload fictional HR-case and #1114 reviewer phone screenshots"
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: hris-synthetic-mobile-and-hr-case-screenshots
+          name: hr-case-role-screenshots
           path: |
             qa-artifacts/hris-hire-*.png
-            qa-artifacts/hcm-my-team-mobile-*.png
             qa-artifacts/hr-cases-*.png
             qa-artifacts/hris-reviewer-375px.png
             qa-artifacts/hris-reviewer-390px.png
