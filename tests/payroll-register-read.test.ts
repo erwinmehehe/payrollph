@@ -42,11 +42,33 @@ test("Retry restores a verified empty run only after a successful read", async (
   assert.deepEqual(await readVerifiedPayrollRegister(31, 9, fetcher), []);
   assert.equal(calls,2);
 });
+test("register abort signal is wired to a no-store request", async () => {
+  const controller = new AbortController();
+  let seen: RequestInit | undefined;
+  const fetcher = (async (_url: string, options?: RequestInit) => {
+    seen = options;
+    return Response.json({organizationId:31,runId:9,entries:[]});
+  }) as typeof fetch;
+  assert.deepEqual(await readVerifiedPayrollRegister(31,9,fetcher,controller.signal),[]);
+  assert.equal(seen?.cache, "no-store");
+  assert.equal(seen?.signal, controller.signal);
+});
+test("invalid employer/run ids refuse network fetch", async () => {
+  let calls = 0;
+  const fetcher = (async () => { calls++; return Response.json(fixture()); }) as typeof fetch;
+  await assert.rejects(() => readVerifiedPayrollRegister(0,9,fetcher));
+  await assert.rejects(() => readVerifiedPayrollRegister(31,-1,fetcher));
+  assert.equal(calls,0);
+});
 test("API echoes tenant and register view requires verification and explicit Retry", () => {
   const api=readFileSync("src/app/api/payroll-runs/route.ts","utf8");
   const ui=readFileSync("src/components/workspace/payroll-run.tsx","utf8");
   assert.match(api,/return Response\.json\(\{ organizationId: target\.organizationId, runId, entries \}\)/);
-  assert.match(ui,/readVerifiedPayrollRegister\(data\.selectedOrganization\.id, runId\)/);
+  assert.match(ui,/readVerifiedPayrollRegister\(data\.selectedOrganization\.id, runId, fetch, controller\.signal\)/);
+  assert.match(ui,/fetched\.scopeKey === registerScopeKey/);
+  assert.match(ui,/registerRevision,/);
+  assert.match(ui,/return \(\) => controller\.abort\(\)/);
+  assert.match(ui,/canOpenExports=\{entriesVerified && availablePages\.includes\("Exports"\)\}/);
   assert.match(ui,/Retry register/);
   assert.match(ui,/const entriesVerified =/);
   assert.match(ui,/!entriesVerified \|\| hardChecklistBlocked/);
