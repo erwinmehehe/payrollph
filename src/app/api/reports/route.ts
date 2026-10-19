@@ -97,6 +97,7 @@ export async function GET(request: Request) {
   return Response.json({
     organizationId,
     ...report,
+    legalEntityId: scope.context.enabled ? scope.context.legalEntityId : null,
     definition: REPORT_DEFINITIONS.find((definition) => definition.key === key),
     generatedAt: new Date().toISOString(),
   });
