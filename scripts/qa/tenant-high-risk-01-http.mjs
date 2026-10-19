@@ -137,6 +137,27 @@ export async function verifyHighRiskBatchOne(f, { request, expectStatus, makeSes
       .where(and(eq(payrollEntries.payrollRunId, ownRunId),
         eq(payrollEntries.employeeId, ownWorker.id))).limit(1))[0];
     assert.ok(ownEntry && ownEntry.id > 6);
+
+    // The broad auth fixture intentionally has ₱500 of *unclassified* pay
+    // deductions. Journal export MUST fail closed on that inconsistency. Do
+    // not relax the exporter or rewrite previously Released fixture rows.
+    // Seed a separate, internally reconciling, synthetic current cutoff for
+    // this export-only GET case: gross ₱5,000, deductions ₱0, net ₱5,000.
+    // There is no disbursement, approval, agency file or real customer data.
+    const [journalRun] = await db.insert(payrollRuns).values({
+      organizationId: ownOrg.id, legalEntityId: f.entities[idx].id,
+      periodLabel: "CI-JOURNAL-ONLY-" + nonce + "-" + idx,
+      periodStart: "2026-10-16", periodEnd: "2026-10-31",
+      payDate: "2026-11-01", status: "Released",
+      grossPay: "5000.00", netPay: "5000.00", employeeCount: 1,
+    }).returning({ id: payrollRuns.id, organizationId: payrollRuns.organizationId });
+    const [journalEntry] = await db.insert(payrollEntries).values({
+      payrollRunId: journalRun.id, employeeId: ownWorker.id,
+      grossPay: "5000.00", deductions: "0.00", netPay: "5000.00",
+    }).returning({ id: payrollEntries.id });
+    assert.equal(journalRun.organizationId, ownOrg.id);
+    assert.ok(journalRun.id > 6 && journalEntry.id > 6);
+
     const victimMarker = "VictimExclusive";
 
     // Each case proves 200 on a real owner-owned ID or payload BEFORE testing
@@ -178,7 +199,7 @@ export async function verifyHighRiskBatchOne(f, { request, expectStatus, makeSes
       },
       {
         key: "GET payroll-runs/[id]/exports",
-        own: "/api/payroll-runs/" + ownRunId + "/exports?kind=journal",
+        own: "/api/payroll-runs/" + journalRun.id + "/exports?kind=journal",
         foreign: "/api/payroll-runs/" + f.victimRun.id + "/exports?kind=journal",
         prove: (r) => { assert.ok(r.text.length > 40 && !r.json,
           "Journal GET must return a nonempty downloadable file, not error JSON");
