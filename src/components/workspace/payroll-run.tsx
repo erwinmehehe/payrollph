@@ -167,7 +167,7 @@ export function PayrollRunView({
   }), [data.selectedOrganization.id, runId, data.payrollRuns, data.tasks]);
 
   useEffect(() => {
-    if (!runId) return;
+    if (!runId || !selectedEmployerMatches) return;
     const controller = new AbortController();
     const requestScopeKey = registerScopeKey;
     void readVerifiedPayrollRegister(data.selectedOrganization.id, runId, fetch, controller.signal, expectedLegalEntityId)
@@ -184,7 +184,7 @@ export function PayrollRunView({
         setReviewOpen(false);
       });
     return () => controller.abort();
-  }, [runId, data.selectedOrganization.id, expectedLegalEntityId, registerScopeKey, checklistScope]);
+  }, [runId, data.selectedOrganization.id, expectedLegalEntityId, selectedEmployerMatches, registerScopeKey, checklistScope]);
 
   // Never display a checklist captured for a different run, employer, or
   // dashboard approval snapshot while the current read is in flight.
@@ -216,7 +216,8 @@ export function PayrollRunView({
     return () => { active = false; controller.abort(); };
   }, [runId, checklistScope]);
 
-  const entriesFailed = failedObservation?.scope === checklistScope && failedObservation.scopeKey === registerScopeKey;
+  const entriesFailed = !selectedEmployerMatches ||
+    (failedObservation?.scope === checklistScope && failedObservation.scopeKey === registerScopeKey);
   const entriesVerified = Boolean(
     selectedEmployerMatches && fetched && fetched.scope === checklistScope && fetched.scopeKey === registerScopeKey && !entriesFailed,
   );
@@ -331,7 +332,7 @@ export function PayrollRunView({
   // A run counts as calculated once it has stored figures, even when its
   // entries are not the ones loaded for this page (the dashboard only ships
   // entries for the live run).
-  const calculated = entries.length > 0 || Number(run.grossPay) > 0;
+  const calculated = entriesVerified && (entries.length > 0 || Number(run.grossPay) > 0);
   const chunkPercent = run.totalChunks
     ? ((run.processedChunks ?? 0) / Math.max(run.totalChunks, 1)) * 100
     : calculated
@@ -454,6 +455,7 @@ export function PayrollRunView({
         }
       />
 
+      {entriesVerified ? (
       <PayrollPhaseTwoOverview
         run={run}
         task={relatedTask}
@@ -472,6 +474,14 @@ export function PayrollRunView({
         onOpenApprovals={() => onPage("Approvals")}
         onOpenExports={() => onPage("Exports")}
       />
+      ) : (
+        <div className="notice notice-amber" role="status" style={{ marginBottom: 16 }}>
+          <AlertTriangle size={16} />
+          <span>{entriesFailed
+            ? "Payroll totals and workflow status are unavailable until this employer's register can be verified."
+            : "Verifying this employer's payroll register before showing totals or workflow status."}</span>
+        </div>
+      )}
 
       {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
         <PayrollConnectedImpactPanel runId={run.id} onPage={onPage} allowedPages={availablePages} />
@@ -576,7 +586,7 @@ export function PayrollRunView({
         </div>
       )}
 
-      {visibleReleaseReceipt?.runId === run.id && (
+      {entriesVerified && visibleReleaseReceipt?.runId === run.id && (
         <article className="card" data-release-receipt style={{ marginBottom: 16 }}>
           <div className="card-header">
             <div>
@@ -662,7 +672,7 @@ export function PayrollRunView({
         </article>
       )}
 
-      {recoveryStates.length > 0 && (
+      {entriesVerified && recoveryStates.length > 0 && (
         <section aria-label="Payroll recovery actions" style={{ display: "grid", gap: 10, marginBottom: 16 }}>
           {recoveryStates.map((item) => (
             <div className="notice notice-amber" key={item.key} data-recovery-state={item.key}>
@@ -728,7 +738,7 @@ export function PayrollRunView({
           </div>
 
           {/* Gross → deductions → net */}
-          {!ownerMode && <div className="run-stats">
+          {!ownerMode && entriesVerified && <div className="run-stats">
             <div>
               <span>Gross compensation</span>
               <strong>{money(gross)}</strong>
@@ -747,7 +757,7 @@ export function PayrollRunView({
           </div>}
 
           {/* Run progress */}
-          {!ownerMode && <div className="card-body" style={{ paddingTop: 0 }}>
+          {!ownerMode && entriesVerified && <div className="card-body" style={{ paddingTop: 0 }}>
             <div className="progress-label">
               <span>
                 {run.totalChunks
@@ -846,7 +856,7 @@ export function PayrollRunView({
           )}
 
           {/* Stage rail: owner/admin/bookkeeper keep the broader lifecycle controls. */}
-          {!payrollOfficerMode && !ownerMode && (
+          {!payrollOfficerMode && !ownerMode && entriesVerified && (
             <div className="stage-rail">
               <StageCard
                 no={1}
@@ -1016,7 +1026,9 @@ export function PayrollRunView({
             <div style={{ padding: "0 18px 18px" }}>
               <ErrorState
                 title="The register could not be loaded"
-                detail="The register was not verified for the selected employer and run. Review and release actions are unavailable."
+                detail={selectedEmployerMatches
+                  ? "The register was not verified for the selected employer and run. Financial totals, review and release actions are unavailable."
+                  : "The selected legal employer does not match this payroll run. Switch to the correct employer before accessing totals or actions."}
               />
               <button className="secondary-button" type="button"
                 onClick={() => {
