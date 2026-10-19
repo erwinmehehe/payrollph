@@ -80,6 +80,14 @@ test("API echoes tenant and register view requires verification and explicit Ret
   assert.match(ui,/return \(\) => controller\.abort\(\)/);
   assert.match(ui,/canOpenExports=\{entriesVerified && availablePages\.includes\("Exports"\)\}/);
   assert.match(ui,/Retry register/);
+  assert.match(ui,/const entriesFailed = !selectedEmployerMatches \|\|/);
+  assert.match(ui,/if \(!runId \|\| !selectedEmployerMatches\) return;/);
+  assert.match(ui,/\{entriesVerified \? \(\s*<PayrollPhaseTwoOverview/,
+    "do not show a green lifecycle or stored money while the register is unverified");
+  assert.match(ui,/\{!ownerMode && entriesVerified && <div className="run-stats">/,
+    "gross, deductions and net stay hidden until verification");
+  assert.match(ui,/\{entriesVerified && visibleReleaseReceipt\?\.runId === run\.id/,
+    "release success must not be shown as an unverified register state");
   assert.match(ui,/const entriesVerified =/);
   assert.match(ui,/!entriesVerified \|\| hardChecklistBlocked/);
 });
