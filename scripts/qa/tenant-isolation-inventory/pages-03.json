@@ -1,0 +1,136 @@
+{
+  "base": "d94c1f3e0e1a8b1de0d15186923f3ed641314214",
+  "part": 3,
+  "kind": "app",
+  "files": [
+    {
+      "path": "src/app/industries/[slug]/page.tsx",
+      "blob": "248156ba56f162e21adc72a71866630ae561282d",
+      "ids": [],
+      "actions": [
+        {
+          "line": 15,
+          "token": "export async function generateMetadata"
+        }
+      ],
+      "guards": []
+    },
+    {
+      "path": "src/app/industries/bpo/page.tsx",
+      "blob": "16e7e6ae8a7a4ffc9080030da0296bcf6c32c070",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/industries/page.tsx",
+      "blob": "163e6a974e483b24edbc5f11a7152a2e5c044832",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/integrations/[slug]/page.tsx",
+      "blob": "ba6e96c1eb3d85bcf56c2080e4935594d2839538",
+      "ids": [],
+      "actions": [
+        {
+          "line": 12,
+          "token": "export async function generateMetadata"
+        }
+      ],
+      "guards": []
+    },
+    {
+      "path": "src/app/integrations/page.tsx",
+      "blob": "5a85a5b2e7ddb716263b6b2f57e2c064b4b2ab0d",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/invite/page.tsx",
+      "blob": "7d7c8ead0aa1e9c388ce77388ef50c7059a4ff34",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/layout.tsx",
+      "blob": "3aa18ba75f4f3412f8926338fa5a3eb5545c9c4a",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/llms.txt/route.ts",
+      "blob": "8d4eff65a2f2d9a50bf8810829338649e1c6b946",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/login/page.tsx",
+      "blob": "6543e5ba28dc73d1f36256a2e2fb1076d092ab47",
+      "ids": [
+        {
+          "line": 20,
+          "token": "searchParams"
+        },
+        {
+          "line": 22,
+          "token": "searchParams"
+        },
+        {
+          "line": 24,
+          "token": "searchParams"
+        },
+        {
+          "line": 36,
+          "token": "params."
+        },
+        {
+          "line": 38,
+          "token": "params."
+        }
+      ],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/methodology/page.tsx",
+      "blob": "0c207e3fe0097f51b1695666c2b621f31850667b",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/opengraph-image.tsx",
+      "blob": "77a8f3f126757058b2a32de16e00571ac3783d26",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/page.tsx",
+      "blob": "0ef5a8a76b1727e7e5e284aa24471570f2fd54b0",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/pages-sitemap.xml/route.ts",
+      "blob": "850428f337f2f0742549421460b5a2ca215fe880",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/payroll-health-check/page.tsx",
+      "blob": "c30f32b761486f2f8ec6827deaf9effc1ec111c5",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    }
+  ]
+}
