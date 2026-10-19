@@ -1,6 +1,6 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 440 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 437 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -10,7 +10,11 @@
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified authorization defect fixed on main, 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 440 method gaps and 20 page/action gaps. Prior exact-head CI checks were successful, but the **new merge commit must pass CI**. Keep #1260 DRAFT until exact-head CI passes. Source merge of this inventory does not constitute tenant-isolation certification.
+**Disposition:** 1 source-identified authorization defect fixed on main, 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 437 method gaps and 20 page/action gaps. Prior exact-head CI checks were successful, but the **new merge commit must pass CI**. Keep #1260 DRAFT until exact-head CI passes. Source merge of this inventory does not constitute tenant-isolation certification.
+
+## Approved-exit Separation evidence
+
+PR #1280 changes the Separation route; GET, POST and PATCH are bound to the dedicated real HTTP/PG approved-exit test, with own success and explicit foreign-employer rejection plus unchanged victim row. It seeds prior termination-intent approval and executes actual financial checker decisions; it does not claim human intent approval or ordinary-payroll HTTP checker acceptance. Remaining method/page gaps stay open.
 
 ## Latest-main integration
 
@@ -23,9 +27,9 @@ Synced main c053049a5. Seven method controls added for assurance, release checkl
 | routeFiles | 288 |
 | methods | 489 |
 | coveredBefore | 20 |
-| coveredAfter | 43 |
+| coveredAfter | 46 |
 | publicByDesign | 6 |
-| gap | 440 |
+| gap | 437 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -110,7 +114,7 @@ The latest `main@608d51a741c881b8f21b20660fa62bbf02a7f606` added explicit organi
 
 ## Incremental sensitive-document, legal-employer and employee-role HTTP acceptance (October 19, 2026)
 
-**Current classification: 36 provisional COVERED / 6 PUBLIC-BY-DESIGN / 440 API GAP methods; all 20 scoped page/action entries remain GAP.** This batch extends the original CI/disposable PostgreSQL real-HTTP script (not a second harness) for five further methods: `GET documents/[id]`, `GET legal-entities`, `POST leave/balances`, `GET self/payslips/[id]` and `GET self/payslips`.
+**Current classification: 36 provisional COVERED / 6 PUBLIC-BY-DESIGN / 437 API GAP methods; all 20 scoped page/action entries remain GAP.** This batch extends the original CI/disposable PostgreSQL real-HTTP script (not a second harness) for five further methods: `GET documents/[id]`, `GET legal-entities`, `POST leave/balances`, `GET self/payslips/[id]` and `GET self/payslips`.
 
 Both independent attacker employers first receive real 200/201 own-record evidence: exact clean document bytes, owned legal entity, persisted own leave policy, actual PDF signature from a Released own payroll entry, and an ESS collection containing the linked worker's own pay. Each then attempts high-valued existing victim document/payroll IDs and forged victim organization selectors. Direct downloads return required 403/404; leave policy POST with victim organizationId returns 403; victim leave-policy rows and document contents remain unchanged. Separate actual employee-role sessions are linked to owned workers and attempt to read same-employer coworker PDFs and documents (404), privileged payroll registers / approvals / legal-employer and assets views (403), and coworker leave balances (excluded). This is not a general payroll-officer approval SoD certification, nor a signed-object/COE/government-report export test.
 
@@ -511,9 +515,9 @@ Every one of the 288 route files and 489 exported handlers is in the following s
 | [`self/workforce` GET](../../src/app/api/self/workforce/route.ts#L81) | session, query, body | getSessionUser L10, enforceSameOriginMutation L18, getSessionUser L51, enforceSameOriginMutation L141 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`self/workforce` POST](../../src/app/api/self/workforce/route.ts#L140) | session, query, body | getSessionUser L10, enforceSameOriginMutation L18, getSessionUser L51, enforceSameOriginMutation L141 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`separation/[id]/2316` GET](../../src/app/api/separation/[id]/2316/route.ts#L28) | session | getSessionUser L7, assertOrganizationRole L9, assertScope L10, getAccess L11 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`separation` GET](../../src/app/api/separation/route.ts#L278) | session, query, body | enforceSameOriginMutation L1, getSessionUser L31, assertOrganizationRole L34, assertScope L35 | input.organizationId L104, input.employeeId L113, input.organizationId L114 | NO VALID METHOD PROOF | **GAP** |
-| [`separation` POST](../../src/app/api/separation/route.ts#L342) | session, query, body | enforceSameOriginMutation L1, getSessionUser L31, assertOrganizationRole L34, assertScope L35 | input.organizationId L104, input.employeeId L113, input.organizationId L114 | NO VALID METHOD PROOF | **GAP** |
-| [`separation` PATCH](../../src/app/api/separation/route.ts#L1015) | session, query, body | enforceSameOriginMutation L1, getSessionUser L31, assertOrganizationRole L34, assertScope L35 | input.organizationId L104, input.employeeId L113, input.organizationId L114 | NO VALID METHOD PROOF | **GAP** |
+| [`separation` GET](../../src/app/api/separation/route.ts#L291) | session, query, body | enforceSameOriginMutation L1, getSessionUser L31, assertOrganizationRole L34, assertScope L35 | input.organizationId L104, input.employeeId L113, input.organizationId L114 | [approved-exit HTTP proof](../../scripts/qa/payroll-approved-exit-http.mjs#L66) | **COVERED (provisional; CI required)** |
+| [`separation` POST](../../src/app/api/separation/route.ts#L355) | session, query, body | enforceSameOriginMutation L1, getSessionUser L31, assertOrganizationRole L34, assertScope L35 | input.organizationId L104, input.employeeId L113, input.organizationId L114 | [approved-exit HTTP proof](../../scripts/qa/payroll-approved-exit-http.mjs#L63) | **COVERED (provisional; CI required)** |
+| [`separation` PATCH](../../src/app/api/separation/route.ts#L1031) | session, query, body | enforceSameOriginMutation L1, getSessionUser L31, assertOrganizationRole L34, assertScope L35 | input.organizationId L104, input.employeeId L113, input.organizationId L114 | [approved-exit HTTP proof](../../scripts/qa/payroll-approved-exit-http.mjs#L83) | **COVERED (provisional; CI required)** |
 | [`setup` GET](../../src/app/api/setup/route.ts#L21) | body | enforceSameOriginMutation L10, enforceSameOriginMutation L58 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`setup` POST](../../src/app/api/setup/route.ts#L28) | body | enforceSameOriginMutation L10, enforceSameOriginMutation L58 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`signup/resend` POST](../../src/app/api/signup/resend/route.ts#L14) | body | enforceSameOriginMutation L8, enforceSameOriginMutation L15 | none found | NO VALID METHOD PROOF | **GAP** |
@@ -667,4 +671,4 @@ Coverage remains **31 provisional COVERED / 6 PUBLIC-BY-DESIGN / 452 API GAP**, 
 
 ## Reconciled with main after merged #1283 (October 19, 2026)
 
-This merge includes [the already-merged active-employer payslip PDF gate](https://github.com/erwinmehehe/payrollph/pull/1283) and its canonical two-attacker / same-authenticated-session revoked-membership regression, without duplicating that seeded fixture. Existing five-method audit-added real-HTTP tests, immutable victim DB checks and their proof-linked manifest remain intact. Current method classification remains **36 provisional COVERED, 6 PUBLIC-BY-DESIGN, 440 GAP; 20 page/action GAPs**. Original `baseCommit` snapshots are retained as the explicitly historical inventory baseline; only evidence locations were updated to the merged source. New exact-merge-head CI is required. **NOT ACCEPTED / DO NOT MERGE THIS AUDIT PR AS COMPLETE.**
+This merge includes [the already-merged active-employer payslip PDF gate](https://github.com/erwinmehehe/payrollph/pull/1283) and its canonical two-attacker / same-authenticated-session revoked-membership regression, without duplicating that seeded fixture. Existing five-method audit-added real-HTTP tests, immutable victim DB checks and their proof-linked manifest remain intact. Current method classification remains **36 provisional COVERED, 6 PUBLIC-BY-DESIGN, 437 GAP; 20 page/action GAPs**. Original `baseCommit` snapshots are retained as the explicitly historical inventory baseline; only evidence locations were updated to the merged source. New exact-merge-head CI is required. **NOT ACCEPTED / DO NOT MERGE THIS AUDIT PR AS COMPLETE.**
