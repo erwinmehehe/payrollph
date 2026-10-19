@@ -76,7 +76,8 @@ jobs:
         run: |
           node --check scripts/qa/tenant-delegated-trace.mjs
           node --check scripts/qa/tenant-manifest-driven-http.mjs
-          node --test tests/tenant-structural-access-guard.test.mjs tests/tenant-manifest-driven-http.test.mjs
+          node --check scripts/qa/tenant-scoped-page-probes.mjs
+          node --test tests/tenant-structural-access-guard.test.mjs tests/tenant-manifest-driven-http.test.mjs tests/tenant-scoped-pages.test.mjs
       - name: Provision dedicated ephemeral PII key (disposable HTTP QA only)
         run: |
           pii_key=$(openssl rand -hex 32)
