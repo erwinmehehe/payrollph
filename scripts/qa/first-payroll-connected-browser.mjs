@@ -84,6 +84,10 @@ try{for(const width of [1280,390]){
  await page.getByRole('button',{name:'Retry register'}).waitFor();
  assert.equal(await page.getByRole('region',{name:'Payroll Officer run workflow'}).count(),0,
    'A foreign-employer register must not unlock payroll controls');
+ assert.equal(await page.getByRole('region',{name:'Payroll workflow overview'}).count(),0,
+   'A foreign-employer register must not advertise payroll lifecycle readiness');
+ assert.equal(await page.locator('.payroll-detail .run-stats').count(),0,
+   'Gross, deductions and net must stay hidden until register verification');
  await page.screenshot({path:output+'/unverified-register-'+width+'.png',fullPage:true});
  await page.getByRole('button',{name:'Retry register'}).click();
  await page.getByRole('region',{name:'Payroll Officer run workflow'}).waitFor();
