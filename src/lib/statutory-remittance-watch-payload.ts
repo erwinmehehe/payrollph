@@ -23,11 +23,11 @@ const isDate = (v: unknown): v is string =>
   typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(v);
 
 export function isStatutoryRemittanceWatchPayload(
-  value: unknown, organizationId: number,
+  value: unknown, organizationId: number, legalEntityId: number | null = null,
 ): value is StatutoryRemittanceWatchPayload {
   if (!isId(organizationId) || !isRecord(value)) return false;
   const today = value.today;
-  if (!isDate(today) || !isVerifiedRemittanceSnapshot(value, organizationId, null)) return false;
+  if (!isDate(today) || !isVerifiedRemittanceSnapshot(value, organizationId, legalEntityId)) return false;
 
   // The server supplies these independently derived integrity indicators for
   // every batch. Their absence may suppress payment/proof alerts.
@@ -86,9 +86,13 @@ export function isStatutoryRemittanceWatchPayload(
 /** Read response transport and tenant envelope before showing a success status. */
 export async function readVerifiedStatutoryRemittanceAlerts(
   organizationId: number, fetcher: typeof fetch = fetch, signal?: AbortSignal,
+  legalEntityId: number | null = null,
 ): Promise<StatutoryRemittanceAlert[]> {
+  if (!isId(organizationId) || (legalEntityId !== null && !isId(legalEntityId))) {
+    throw new Error("The statutory remittance employer selection is invalid.");
+  }
   const response = await fetcher(
-    `/api/compliance/statutory-remittances?organizationId=${organizationId}`,
+    `/api/compliance/statutory-remittances?organizationId=${organizationId}${legalEntityId !== null ? `&legalEntityId=${legalEntityId}` : ""}`, 
     { cache: "no-store", signal },
   );
   if (!response.ok) throw new Error("Statutory remittance status could not be checked.");
@@ -98,7 +102,7 @@ export async function readVerifiedStatutoryRemittanceAlerts(
   } catch {
     throw new Error("Statutory remittance status returned invalid JSON.");
   }
-  if (!isStatutoryRemittanceWatchPayload(body, organizationId)) {
+  if (!isStatutoryRemittanceWatchPayload(body, organizationId, legalEntityId)) {
     throw new Error("Statutory remittance status could not be verified for the selected employer.");
   }
   return body.alerts;
