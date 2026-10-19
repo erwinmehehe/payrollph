@@ -76,6 +76,7 @@ test("first-payroll UI scopes reads, fails closed and offers explicit retry with
   assert.match(card, /parseFirstPayrollProgressRead\(await response\.json\(\)\)/);
   assert.match(card, /data\?\.user\?\.id/);
   assert.match(card, /data\?\.access\?\.role/);
+  assert.match(card, /key=\{JSON\.stringify\(\[data\.selectedOrganization\.id,data\.user\?\.id/);
   assert.match(card, /Checking saved review/);
   assert.match(card, /Review not verified/);
   assert.match(card, /Assignment not verified/);
