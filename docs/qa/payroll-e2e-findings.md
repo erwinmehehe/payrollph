@@ -1,0 +1,51 @@
+# PayrollPH E2E fictional QA findings and release holds
+
+**Branch:** qa/payroll-e2e-fictional-invariants-20261019, branched from main b9bbed92d2e9db8d391181ba8f972396836fe131.
+**Date:** 2026-10-19.
+**Status:** NOT CERTIFIED. **UNVERIFIED RATE.** These scenarios test software arithmetic only, not statutory accuracy, legal entitlements, agency posting, or release permission.
+**Important:** Pre-patch "actual" values below are reconstructed from source code and documented independently, NOT represented as observed execution until CI result evidence is added. CI execution results and failures must be retained unmodified. No user or financial data, real agency files, provider requests, external disbursements, Neon, production SQL, migrations or persistent flag changes.
+
+## Owner hold / highest severity
+
+**WRONG-MONEY F-01 (fixed in branch; OWNER REVIEW BEFORE MERGE).** The ordinary payroll calculator had no approved separation end-date input and gave an **active but approved-to-exit** monthly-paid employee a full first cutoff. Fictional PHP22,000 monthly employee, approved final workday October 9: expected 22,000 / 2 x (9 / 15) = **PHP6,600.00**. Old ordinary-calculator path used only employment *start* and would calculate **PHP11,000.00** BASIC, **PHP4,400.00 excess**, even if a separate approved separation record already specified October 9 (because payroll did not read it). This is WRONG-MONEY, not a rate or rounding debate. Branch fix reads tenant-scoped separation records with **approved/released** status, rejects conflicting approved end dates, passes an end day into the existing fixed-pay prorater, excludes post-exit attendance and unworked holidays, records the resolved end in the payroll trace, and blocks an employee who already exited before the cutoff. Draft separations are not authoritative pay changes. **Owner must assess downstream final-pay salary double-counting and approve handling before merging.** Pure regression expects PHP6,600.00; connected fictional PG scenario uses PHP22,000.01/month and expects 9/15 x 11,000.005 = **PHP6,600.00**, versus old PHP11,000.01 for that employee. Never substitute this test for separation maker/checker approval.
+
+## Finding register
+
+| ID | Scenario / invariant | Hand expected vs before-fix behavior | Which was wrong and severity | Resolution / residual |
+|---|---|---|---|---|
+| F-01 | S06 / S07: approved mid-period exit and post-exit attendance | Monthly salary PHP22,000: 9/15 x 11,000 = **6,600**, old monthly base **11,000** because no end-date plumbing. Daily employee, Oct8+9 8h x PHP800/day = **1,600**; Oct10 post-exit punch must not add **800**. | **WRONG-MONEY**: source did not carry approved end-date into actual payroll run; isolated pure calculation cannot correct missing life-cycle data on its own. | **Code fix + independent regressions added.** Approval/termination status authority, retro handling, double-counting with final-pay and already-released adjustments still require owner sign-off. |
+| F-02 | S25 / refund GL: payroll net larger than gross due BIR refund | Gross **11,000**; statutory deductions **925**; reviewed refund **1,500** => *signed* deductions 925-1,500=**-575**, net **11,575**. GL must DR wages **11,000** + DR deductions control **575** and CR net payable **11,575**. Pre-patch export rejected when net > gross and produced no journal. | **INCONSISTENT**: journal rejected a valid signed-deduction state rather than emitting balanced debits and credits. It did not initiate or misdirect a payout. | **Code fix + regression added:** debit control when signed withheld balance < 0. Statutory/account naming and tax refund policy **NEEDS-RULING**. |
+| F-03 | S15: stale/future clock-punch input in pure calculator | Oct15 22:00..Oct16 06:00 less 1h break, PHP100/hour: **700 BASIC + 70 ND = 770** first-cutoff gross; explicitly supplied Oct16 09:00..18:00 must not count in first cutoff. Old pure filter had start boundary but no **period-end** boundary (DB loader does filter); a future punch could incorrectly enter period computation or trigger missing-pay-profile errors. | **INCONSISTENT**: pure invocation did not enforce the upper cutoff boundary that live DB fetches did. | **Code fix + regression:** bound by employmentStart..min(employmentEnd,periodEnd) in pure calculator. After-cutoff rates still need a separately approved effective-dated-pricing decision. |
+| F-04 | S26: recalculation of a *reviewed* but not released run | First calculated gross **11,000**, revised basic **10,000**, must never aggregate old+new as **21,000**. Previously reviewed entry/payslip rows are deleted and reconstructed by \`enqueuePayrollRun\`; the system logs job queueing and completion but does not preserve the old signed monetary register as a first-class immutable adjustment. | **INCONSISTENT (OPEN)** relative to requested visible before/after version provenance, though one active set of entries prevents double counting. | Connected test pins *current replacement behavior* and asserts one payslip per worker; the owner must decide whether reviewed-but-unreleased calculations need immutable before/after versioned registers. **Do not silently imply the old snapshots remain accessible.** Released recalculation is hard-blocked. |
+| F-05 | S16 holiday entitlement / prior-day proof | PHP800/day, one unworked regular holiday: proof => **800**; no proof => **0 provisional** plus exception. Unworked special => **0**. | **NEEDS-RULING / UNVERIFIED RATE**: eligibility evidence and pay policies are independently interpretive. | Current behavior pinned; do not edit holiday treatment until reviewed. |
+| F-06 | S09-S15 holiday/rest/OT/ND compounding | With hourly PHP100, 2h OT ordinary **250**, rest **338**, special **338**, regular **520**, regular+rest **676**, special+rest **390**; 8h respective premiums 0, 240, 240, 800, 1280, 400. | **NEEDS-RULING / UNVERIFIED RATE**: source fixture is not a substitute for a current practitioner decision on holiday/rest premium. | Independent matrix + tests pin current software behavior; no rate or statutory change. |
+| F-07 | S17-S20 minimum wage, brackets, employer/employee remittances | PHP22k baseline: gross 11,000, EE deductions SSS550 + PHIC275 + HDMF100 = **925**, employer-only cost 1,100+15+275+100=**1,490**, expected internal snapshot combined = **2,415**. | **NEEDS-RULING / UNVERIFIED RATE**: rates, classifications and agency posting remain unverified. | Pure and Postgres snapshot tests compare only software artifacts; no filing and no remittance posting. |
+| F-08 | S23-S25 13th-month and signed final-pay liability | PHP30,000 accrued basic / 12 = **2,500**, less 1,000 already-paid = **1,500 due**. Gross final 1,500, requested loan 10,000 => net 0, unpaid loan 8,500, signed view -8,500. | **NEEDS-RULING / UNVERIFIED RATE** for exact-cent half-up ties, 13th-month inclusions and legal collectibility of balance. | Flags enabled ONLY within test process with restoration; no negative payout or persistent flag changes. |
+| F-09 | S28 51-person half-cent accumulation | 51 x (PHP22,000.01 /2 rounded for each person) = 51 x 11,000.01 = **561,000.51**, not round(51 x 11,000.005) = **561,000.26**. | **NEEDS-RULING** about half-up convention, but **INCONSISTENT** if the displayed/persisted run total differs from the employee register. | Seeded pure and real PG run totals/line aggregates checked by integer centavos. |
+| F-10 | S27 tenant isolation & authorized release | Employer A = 51 workers, employer B = 2 workers in same period; total A must not change when B runs, one set of entries/payslips per run, released B cannot rerun. | **INCONSISTENT** if tenant bleed or duplicate artifact appears; no failure established merely by source inspection. | Connected PG test added, results subject to actual CI. Test fixture sets \`Releasing\` to exercise atomic settlement; this **does not** prove production reviewer authorization or MFA UI. |
+
+## Invariant acceptance criteria (software-only)
+
+- **I1**: Every persisted and pure payslip: signed earning lines sum to gross, signed deduction/refund lines equal applied deductions, gross - deductions = net, all to integer centavos.
+- **I2**: Persisted entries sum to run gross/net. Released run accounting journal balances. A tax refund can require a **debit** to deductions control, not an invalid negative credit.
+- **I3**: Internal remittance snapshots reconcile employee + employer/EC shares to displayed expected total; employer-only shares are not removed from take-home.
+- **I4**: No negative ordinary net or final-pay disbursement; shortfalls and signed recovery liabilities remain visible as exceptions / read-only amounts.
+- **I5**: Seeded fictional input generation and repeated pure computations are byte-identical. DB recalculation replaces in-review entries and leaves no duplicate current payslips. Released input is immutable.
+- **I6**: No employer isolation breach across identical periods; no future or post-exit worked time paid as current wages.
+- **I7**: No rates/brackets/statutory rounding changed; all limitations from the certification source doc remain.
+
+## Execution log
+
+Not populated with fabricated results. Run the exact check commands, capture process exit status, and append real line(s) from CI logs:
+
+\`\`\`sh
+npm ci
+npx tsc --noEmit
+npm run lint
+npm test
+npx tsx --test tests/payroll-e2e-fictional-pure.test.ts tests/payroll-e2e-fictional-postgres.test.ts
+\`\`\`
+
+The connected PG test deliberately **SKIPs** if not under GitHub Actions with \`CI=true\` and the exact disposable \`postgresql://postgres:...@127.0.0.1:5432/app_db\` target. It must not run against an existing developer database, Neon or production. Existing .github/workflows/ci.yml invokes independent PG16 test shards; the nine-stage workflow has its own disposable PG16/PG18 service and requires separately observed results. Any skipped/error job must be reported as *not run*, not as a pass.
+
+**Required final wording only after supported execution:** “internally consistent on these scenarios; rates and legal treatment still need practitioner verification”. Never write “certified”, “correct for legal payroll”, or imply this authorizes pay release.
