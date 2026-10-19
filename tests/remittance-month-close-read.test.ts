@@ -136,3 +136,36 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   assert.ok(harnessLines.some(line => line.includes('assert.deepEqual(victimBatchesAfter, victimBatchesBefore')));
   assert.ok(harnessLines.some(line => line.includes('assert.deepEqual(victimEvidenceAfter, victimEvidenceBefore')));
 });
+
+
+test("actual server active payment-proof shape parses without nonexistent status field", () => {
+  const original = validRead();
+  const proof = {
+    id: 303, batchId: 101, fileName: "fictional-payment-proof.pdf",
+    fileSha256: digest("c"), byteSize: 82,
+    uploadedByName: "Fictional independent treasury reviewer",
+    uploadedAt: "2026-10-19T08:00:00.000Z",
+  };
+  const ready = {
+    ...original,
+    evaluation: { ...original.evaluation, ready: true, blockers: [], paymentEvidence: [proof] },
+  };
+  assert.equal(parse(ready)?.evaluation.ready, true,
+    "Valid active proof is emitted without status by evaluateRemittanceMonthClose");
+  const invalid = [
+    { ...proof, batchId: 202 },
+    { ...proof, fileSha256: "" },
+    { ...proof, byteSize: 0 },
+    { ...proof, uploadedByName: "" },
+    { ...proof, uploadedAt: "not-a-date" },
+  ];
+  for (const broken of invalid) {
+    assert.equal(parse({
+      ...ready, evaluation: { ...ready.evaluation, paymentEvidence: [broken] },
+    }), null, "Incomplete or foreign active proof must fail closed");
+  }
+  const evaluator = readFileSync("src/lib/statutory-remittance-close.ts", "utf8");
+  assert.match(evaluator, /paymentEvidence: activePaymentEvidence/);
+  assert.match(evaluator, /uploadedByName: evidence.uploadedByName/);
+  assert.match(evaluator, /uploadedAt: String\(evidence.uploadedAt\)/);
+});
