@@ -10,7 +10,7 @@ const empty = () => ({
 });
 const batch = () => ({
   id: 4, organizationId: 14, legalEntityId: 77, agency: "SSS",
-  applicableMonth: "2026-09", dueDate: "2026-10-10", status: "open", displayStatus: "open",
+  applicableMonth: "2026-09", dueDate: "2026-10-10", status: "open", displayStatus: "overdue",
   employeeCount: 1, expectedEmployeeShare: "100.00", expectedEmployerShare: "120.00",
   expectedTotal: "220.00", amountPaid: null, paymentReference: null,
   agencyReceiptReference: null, paidAt: null, pendingPostingCount: 1, exceptionCount: 0,
