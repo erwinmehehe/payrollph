@@ -72,6 +72,9 @@ test("API echoes tenant and register view requires verification and explicit Ret
   assert.match(api,/return Response\.json\(\{ organizationId: target\.organizationId, legalEntityId: target\.legalEntityId, runId, entries \}\)/);
   assert.match(ui,/readVerifiedPayrollRegister\(data\.selectedOrganization\.id, runId, fetch, controller\.signal, expectedLegalEntityId\)/);
   assert.match(ui,/fetched\.scopeKey === registerScopeKey/);
+  assert.match(ui,/fetched\.scope === checklistScope/);
+  assert.match(ui,/failedObservation\?\.scope === checklistScope/);
+  assert.match(ui,/setFetched\(\{ scope: checklistScope, scopeKey: requestScopeKey, entries \}\)/);
   assert.match(ui,/selectedEmployerMatches && fetched/);
   assert.match(ui,/registerRevision,/);
   assert.match(ui,/return \(\) => controller\.abort\(\)/);
