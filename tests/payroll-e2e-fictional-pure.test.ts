@@ -49,7 +49,7 @@ function assertReconciles(result: Calc) {
   const signedDeductionLines = result.lineItems.reduce((sum, line) =>
     sum + (isDeduction(line.code) ? cents(line.amount) : 0), 0);
   assert.equal(grossLines, cents(result.gross), "Signed earnings buckets must equal gross");
-  assert.equal(-signedDeductionLines, cents(result.deductions), "Signed withheld/refunded lines must equal deductions");
+  assert.equal(signedDeductionLines + cents(result.deductions), 0, "Signed withheld/refunded lines must equal deductions");
   assert.equal(grossLines + signedDeductionLines, cents(result.net), "Payslip lines must equal net");
   assert.ok(result.net >= 0, "Ordinary payroll is not a negative payout");
   assert.match(result.payslipText, new RegExp("Gross: PHP " + result.gross.toFixed(2).replace(".", "\\.")));
