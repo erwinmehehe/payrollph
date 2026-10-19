@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { assertMembership } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { renderPayslipPdf } from "@/lib/payslip-pdf";
 
@@ -24,6 +25,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     .where(eq(employees.id, session.employeeId))
     .limit(1);
   if (!employee) return Response.json({ error: "Payslip unavailable." }, { status: 404 });
+
+  // Employee links can outlive a revoked or transferred organization membership.
+  // The payslip PDF must revalidate the active employer grant before reading
+  // or releasing any employee/payroll information, just like Explain My Pay.
+  const membershipDenied = await assertMembership(session.id, employee.organizationId);
+  if (membershipDenied) return membershipDenied;
+
   const [organization] = await db.select().from(organizations)
     .where(eq(organizations.id, employee.organizationId))
     .limit(1);
