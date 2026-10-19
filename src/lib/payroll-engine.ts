@@ -2189,7 +2189,13 @@ export function calculateEmployeePay(input: {
     return resolution;
   }
 
-    const eligiblePunches = input.punches.filter((punch) => String(punch.workDate) >= employmentStart);
+  // Defense in depth: even a non-database caller must not pay attendance
+  // from a previous/future cutoff. The worker query already scopes dates,
+  // but the public pure calculator must uphold the same financial boundary.
+  const eligiblePunches = input.punches.filter((punch) => {
+    const workDate = String(punch.workDate);
+    return workDate >= employmentStart && workDate <= input.periodEnd;
+  });
   const punchesByWorkDate = new Map<string, Array<typeof timePunches.$inferSelect>>();
   for (const punch of eligiblePunches) {
     const workDate = String(punch.workDate);
