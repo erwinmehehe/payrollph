@@ -51,7 +51,7 @@ export function FirstPayrollReadinessCard({
     if(!organizationId)throw new Error("Select an employer to load first-payroll progress.");
     const response=await fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store",signal});
     if(!response.ok)throw new Error("Saved first-payroll progress could not be verified.");
-    return parseFirstPayrollProgressRead(await response.json(),organizationId);
+    return parseFirstPayrollProgressRead(await response.json());
   },[organizationId]);
   const {data:progress,error:progressError,loading:progressLoading,reload:reloadProgress}=
     useScopedAsyncResource(scopeKey,loadProgress,undefined,guided&&inlineEnabled&&Boolean(organizationId));
