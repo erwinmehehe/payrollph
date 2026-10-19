@@ -20,6 +20,7 @@ import {
   type ConnectedReleaseResult,
 } from "@/lib/payroll-connected-release-gate";
 import { loadTimesheetPolicy } from "@/lib/workforce-timesheet-server";
+import { payrollEmploymentStatus } from "@/lib/approved-exit-payroll";
 
 const MAX_SOURCE_ROWS = 500;
 
@@ -83,7 +84,7 @@ export async function buildPayrollConnectedReleaseReadiness(runId: number): Prom
     }).from(payrollJobs).where(eq(payrollJobs.payrollRunId, run.id)),
     db.select({ id: employees.id }).from(employees).where(and(
       eq(employees.organizationId, run.organizationId),
-      eq(employees.status, "Active"),
+      payrollEmploymentStatus(String(run.periodStart)),
       lte(employees.startDate, run.periodEnd),
     )),
   ]);

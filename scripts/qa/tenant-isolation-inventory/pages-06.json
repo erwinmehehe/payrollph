@@ -1,0 +1,295 @@
+{
+  "base": "d94c1f3e0e1a8b1de0d15186923f3ed641314214",
+  "part": 6,
+  "kind": "app",
+  "files": [
+    {
+      "path": "src/app/verify-signup/page.tsx",
+      "blob": "8ab529e97a7587999937e9ccba8ba17b1d862825",
+      "ids": [
+        {
+          "line": 8,
+          "token": "searchParams"
+        },
+        {
+          "line": 8,
+          "token": "searchParams"
+        },
+        {
+          "line": 9,
+          "token": "searchParams"
+        }
+      ],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/welcome/page.tsx",
+      "blob": "05b316281cd08cd13065ca05555e0b31b5acf7c7",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/workforce-analytics/page.tsx",
+      "blob": "fc0af1db8742ad3a3380df847569049596c92bdf",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/workforce-management/page.tsx",
+      "blob": "6387b3e86e8d1b8522d85dcc23440e89a4f6672b",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/workspace/2316/page.tsx",
+      "blob": "a6c4642f9e651eb616de6e301a832ac2d471a33e",
+      "ids": [
+        {
+          "line": 8,
+          "token": "searchParams"
+        },
+        {
+          "line": 8,
+          "token": "searchParams"
+        },
+        {
+          "line": 11,
+          "token": "searchParams"
+        },
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "employeeId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 2,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 10,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 13,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 13,
+          "token": "getAccess"
+        }
+      ]
+    },
+    {
+      "path": "src/app/workspace/page.tsx",
+      "blob": "6d673d92ba77c29bc4952ac8f545cfae8151359f",
+      "ids": [
+        {
+          "line": 5,
+          "token": "searchParams"
+        },
+        {
+          "line": 5,
+          "token": "searchParams"
+        },
+        {
+          "line": 6,
+          "token": "searchParams"
+        }
+      ],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/workspace/prior-employer/page.tsx",
+      "blob": "82327e4d8580af2abe503e7a104321e854dc84f7",
+      "ids": [
+        {
+          "line": 8,
+          "token": "searchParams"
+        },
+        {
+          "line": 8,
+          "token": "searchParams"
+        },
+        {
+          "line": 11,
+          "token": "searchParams"
+        },
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "employeeId"
+        },
+        {
+          "line": 14,
+          "token": "employeeId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 2,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 10,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 13,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 13,
+          "token": "getAccess"
+        }
+      ]
+    },
+    {
+      "path": "src/app/workspace/report-builder/page.tsx",
+      "blob": "68f7e1c72d5bd8b4187d6303b8f4ed02df2008a4",
+      "ids": [
+        {
+          "line": 6,
+          "token": "searchParams"
+        },
+        {
+          "line": 7,
+          "token": "searchParams"
+        },
+        {
+          "line": 7,
+          "token": "organizationId"
+        },
+        {
+          "line": 11,
+          "token": "searchParams"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "params."
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 1,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 8,
+          "token": "getSessionUser"
+        }
+      ]
+    }
+  ]
+}

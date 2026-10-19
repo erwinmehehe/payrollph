@@ -364,6 +364,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Employer setup navigation and verified selector error recovery; no automatic provisioning",
     approval: "Executed empty/error/retry, restricted-role and flag-off browser parity at desktop/390px; existing payroll guards preserved",
   },
+  approvedExitPayroll: {
+    env: "APPROVED_EXIT_PAYROLL_ENABLED",
+    owner: "Payroll / Finance",
+    risk: "P0 approved exit cutoff proration and final-pay wage overlap",
+    approval: "Executed separation-to-payroll-to-final-pay tests, post-exit rate exclusion and exact flag-off parity; no production activation",
+  },
 } as const;
 
 export type CriticalReleaseFlag = keyof typeof CRITICAL_RELEASE_FLAGS;
