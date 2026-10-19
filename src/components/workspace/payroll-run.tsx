@@ -25,6 +25,7 @@ import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { visiblePayrollReleaseChecklist, type ObservedPayrollReleaseChecklist, type PayrollReleaseChecklistScope } from "@/lib/payroll-release-checklist-visibility";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
+import { readVerifiedPayrollRegister } from "@/lib/payroll-register-read";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
 import { StatutoryRemittancePanel } from "./statutory-remittance-panel";
@@ -129,53 +130,66 @@ export function PayrollRunView({
   // run) the first run takes over without an effect round-trip.
   const run = data.payrollRuns.find((item) => item.id === selectedId) ?? data.payrollRuns[0];
 
-  // The dashboard ships entries for one run only, which is rarely the run you
-  // are looking at. The register therefore loads the selected run's own entries
-  // through the membership-gated endpoint, falling back to the dashboard's set
-  // while that request is in flight.
-  const serverEntryRun = data.payrollRuns.find((item) => item.status !== "Released") ?? data.payrollRuns[0];
-  const seeded = run && serverEntryRun && run.id === serverEntryRun.id ? data.payrollEntries : [];
-  const [fetched, setFetched] = useState<{ runId: number; entries: PayrollEntry[] } | null>(null);
-  const [failedRunId, setFailedRunId] = useState<number | null>(null);
+  // The selected register only renders a tenant-verified API response.
+  // Cached dashboard entries are not a substitute for an authoritative run read.
+  const [fetched, setFetched] = useState<{ scope: PayrollReleaseChecklistScope; scopeKey: string; entries: PayrollEntry[] } | null>(null);
+  const [registerRevision, setRegisterRevision] = useState(0);
+  const [failedObservation, setFailedObservation] = useState<{ scope: PayrollReleaseChecklistScope; scopeKey: string } | null>(null);
   const runId = run?.id;
+  const expectedLegalEntityId = data.multiEntity?.enabled
+    ? data.multiEntity.legalEntityId : run?.legalEntityId ?? null;
+  const selectedEmployerMatches = !data.multiEntity?.enabled ||
+    (expectedLegalEntityId !== null && expectedLegalEntityId === run?.legalEntityId);
+  // A changed employer, payroll snapshot or retry instantly invalidates the
+  // old register before React can execute a new effect.
+  const registerScopeKey = JSON.stringify({
+    organizationId: data.selectedOrganization.id,
+    runId: runId ?? null,
+    legalEntityId: expectedLegalEntityId,
+    periodStart: run?.periodStart ?? null,
+    periodEnd: run?.periodEnd ?? null,
+    status: run?.status ?? null,
+    grossPay: run?.grossPay ?? null,
+    netPay: run?.netPay ?? null,
+    employeeCount: run?.employeeCount ?? null,
+    exceptions: run?.exceptions ?? null,
+    ruleVersion: run?.ruleVersion ?? null,
+    registerRevision,
+  });
 
-  useEffect(() => {
-    if (!runId) return;
-    let alive = true;
-    (async () => {
-      try {
-        const response = await fetch(`/api/payroll-runs?runId=${runId}&include=entries`, { cache: "no-store" });
-        if (!alive) return;
-        if (!response.ok) {
-          setFailedRunId(runId);
-          return;
-        }
-        const payload = (await response.json()) as { entries?: PayrollEntry[] };
-        if (!alive) return;
-        setFetched({ runId, entries: payload.entries ?? [] });
-        setFailedRunId((current) => (current === runId ? null : current));
-      } catch {
-        if (alive) setFailedRunId(runId);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [runId, data.payrollRuns]);
-
-  // A new snapshot has a new identity even after switching A -> B -> A.
-  // This invalidates old readiness synchronously during render, before effects.
+  // Snapshot reference identity also prevents A -> B -> A replay of a prior
+  // successful read even when all serialized request fields are identical.
   const checklistScope = useMemo(() => ({
     organizationId: data.selectedOrganization.id,
     runId: runId ?? null,
     payrollRuns: data.payrollRuns,
     tasks: data.tasks,
   }), [data.selectedOrganization.id, runId, data.payrollRuns, data.tasks]);
+
+  useEffect(() => {
+    if (!runId || !selectedEmployerMatches) return;
+    const controller = new AbortController();
+    const requestScopeKey = registerScopeKey;
+    void readVerifiedPayrollRegister(data.selectedOrganization.id, runId, fetch, controller.signal, expectedLegalEntityId)
+      .then((entries) => {
+        if (controller.signal.aborted) return;
+        setFetched({ scope: checklistScope, scopeKey: requestScopeKey, entries });
+        setFailedObservation(null);
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setFetched(null);
+        setFailedObservation({ scope: checklistScope, scopeKey: requestScopeKey });
+        setConfirmReleaseForScope(null);
+        setReviewOpen(false);
+      });
+    return () => controller.abort();
+  }, [runId, data.selectedOrganization.id, expectedLegalEntityId, selectedEmployerMatches, registerScopeKey, checklistScope]);
+
   // Never display a checklist captured for a different run, employer, or
   // dashboard approval snapshot while the current read is in flight.
   const releaseChecklist = visiblePayrollReleaseChecklist(checklistScope, checklistObservation);
-  // Confirmation is invalidated immediately when employer, run or approval snapshot changes.
-  const confirmRelease = confirmReleaseForScope === checklistScope && releaseChecklist !== null;
+  // A verified release checklist is not a substitute for a verified register.
 
   useEffect(() => {
     if (!runId) return;
@@ -202,18 +216,18 @@ export function PayrollRunView({
     return () => { active = false; controller.abort(); };
   }, [runId, checklistScope]);
 
-  const loadedForSelection = Boolean(fetched && fetched.runId === runId);
-  const entries = useMemo(
-    () => (fetched && fetched.runId === runId ? fetched.entries : seeded),
-    // `seeded` is recomputed from props on every render, so this depends on the
-    // props it is derived from rather than on the array identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fetched, runId, data.payrollEntries, serverEntryRun?.id],
+  const entriesFailed = !selectedEmployerMatches ||
+    (failedObservation?.scope === checklistScope && failedObservation.scopeKey === registerScopeKey);
+  const entriesVerified = Boolean(
+    selectedEmployerMatches && fetched && fetched.scope === checklistScope && fetched.scopeKey === registerScopeKey && !entriesFailed,
   );
-  // Derived, not stored: the register is loading until this run's own entries
-  // have come back, unless the request already failed.
-  const entriesFailed = failedRunId === runId;
-  const entriesLoading = !loadedForSelection && !entriesFailed;
+  const entries = useMemo(
+    () => entriesVerified ? fetched!.entries : [],
+    [entriesVerified, fetched],
+  );
+  const entriesLoading = !entriesVerified && !entriesFailed;
+  const confirmRelease =
+    entriesVerified && confirmReleaseForScope === checklistScope && releaseChecklist !== null;
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -237,7 +251,7 @@ export function PayrollRunView({
   const payrollOfficerMode = data.access?.role === "payroll";
   const ownerMode = data.access?.role === "owner";
   async function openReviewSubmission() {
-    if (!run) return;
+    if (!run || !entriesVerified) return;
     setReviewLoading(true);
     try {
       const response = await fetch(
@@ -261,7 +275,7 @@ export function PayrollRunView({
   }
 
   async function submitForReview() {
-    if (!run || !reviewApproverId) {
+    if (!run || !entriesVerified || !reviewApproverId) {
       notify("Choose a checker before submitting payroll for review.", "err");
       return;
     }
@@ -318,7 +332,7 @@ export function PayrollRunView({
   // A run counts as calculated once it has stored figures, even when its
   // entries are not the ones loaded for this page (the dashboard only ships
   // entries for the live run).
-  const calculated = entries.length > 0 || Number(run.grossPay) > 0;
+  const calculated = entriesVerified && (entries.length > 0 || Number(run.grossPay) > 0);
   const chunkPercent = run.totalChunks
     ? ((run.processedChunks ?? 0) / Math.max(run.totalChunks, 1)) * 100
     : calculated
@@ -425,7 +439,7 @@ export function PayrollRunView({
             {!payrollOfficerMode && !ownerMode && (
               <button
                 className="secondary-button"
-                disabled={!calculated}
+                disabled={!calculated || !entriesVerified}
                 onClick={() => setExportsOpen((current) => !current)}
                 aria-expanded={exportsOpen}
               >
@@ -441,13 +455,14 @@ export function PayrollRunView({
         }
       />
 
+      {entriesVerified ? (
       <PayrollPhaseTwoOverview
         run={run}
         task={relatedTask}
         events={data.auditEvents}
         checklist={releaseChecklist?.items ?? null}
         role={data.access?.role ?? data.user?.role ?? ""}
-        canOpenExports={availablePages.includes("Exports")}
+        canOpenExports={entriesVerified && availablePages.includes("Exports")}
         onContinue={() => {
           const target = payrollOfficerMode || ownerMode ? "phase-two-role-workflow" : "payroll-workspace";
           document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -459,12 +474,20 @@ export function PayrollRunView({
         onOpenApprovals={() => onPage("Approvals")}
         onOpenExports={() => onPage("Exports")}
       />
+      ) : (
+        <div className="notice notice-amber" role="status" style={{ marginBottom: 16 }}>
+          <AlertTriangle size={16} />
+          <span>{entriesFailed
+            ? "Payroll totals and workflow status are unavailable until this employer's register can be verified."
+            : "Verifying this employer's payroll register before showing totals or workflow status."}</span>
+        </div>
+      )}
 
       {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
         <PayrollConnectedImpactPanel runId={run.id} onPage={onPage} allowedPages={availablePages} />
       )}
 
-      {!payrollOfficerMode && !ownerMode && (
+      {!payrollOfficerMode && !ownerMode && entriesVerified && (
         <PayrollHandoff
           stages={handoffStages}
           period={run.periodLabel}
@@ -475,7 +498,7 @@ export function PayrollRunView({
         />
       )}
 
-      {payrollOfficerMode && (
+      {payrollOfficerMode && entriesVerified && (
         <div id="phase-two-role-workflow" className="p2-role-controls">
         <PayrollOfficerWorkspace
           data={data}
@@ -485,7 +508,7 @@ export function PayrollRunView({
           assuranceFindings={releaseChecklist?.assuranceFindings ?? []}
           relatedTask={relatedTask}
           calculated={calculated}
-          busy={busy}
+          busy={busy || !entriesVerified}
           onCalculate={() => void onProcess(run.id)}
           onSubmit={() => void openReviewSubmission()}
           onOpenApproval={() => onPage("Approvals")}
@@ -545,7 +568,7 @@ export function PayrollRunView({
         />
       )}
 
-      {ownerMode && (
+      {ownerMode && entriesVerified && (
         <div id="phase-two-role-workflow" className="p2-role-controls">
         <OwnerPayrollRelease
           data={data}
@@ -553,8 +576,8 @@ export function PayrollRunView({
           entries={entries}
           checklist={releaseChecklist?.items ?? null}
           relatedTask={relatedTask}
-          busy={busy}
-          onRelease={() => setConfirmReleaseForScope(checklistScope)}
+          busy={busy || !entriesVerified}
+          onRelease={() => { if (entriesVerified) setConfirmReleaseForScope(checklistScope); }}
           onPage={onPage}
           onInspectPayroll={() => {
             document.getElementById("payroll-assurance")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -563,7 +586,7 @@ export function PayrollRunView({
         </div>
       )}
 
-      {visibleReleaseReceipt?.runId === run.id && (
+      {entriesVerified && visibleReleaseReceipt?.runId === run.id && (
         <article className="card" data-release-receipt style={{ marginBottom: 16 }}>
           <div className="card-header">
             <div>
@@ -602,7 +625,7 @@ export function PayrollRunView({
                 <strong>Bank-file fallback</strong>
                 <p>{visibleReleaseReceipt.bankExport.label}</p>
               </div>
-              <button className="secondary-button" onClick={() => setExportsOpen(true)}>Open exports</button>
+              <button className="secondary-button" disabled={!entriesVerified} onClick={() => setExportsOpen(true)}>Open exports</button>
             </div>
             {visibleReleaseReceipt.payout && (
               <div className="exception-row" style={{ alignItems: "flex-start" }} data-payout-status={visibleReleaseReceipt.payout.status}>
@@ -649,7 +672,7 @@ export function PayrollRunView({
         </article>
       )}
 
-      {recoveryStates.length > 0 && (
+      {entriesVerified && recoveryStates.length > 0 && (
         <section aria-label="Payroll recovery actions" style={{ display: "grid", gap: 10, marginBottom: 16 }}>
           {recoveryStates.map((item) => (
             <div className="notice notice-amber" key={item.key} data-recovery-state={item.key}>
@@ -715,7 +738,7 @@ export function PayrollRunView({
           </div>
 
           {/* Gross → deductions → net */}
-          {!ownerMode && <div className="run-stats">
+          {!ownerMode && entriesVerified && <div className="run-stats">
             <div>
               <span>Gross compensation</span>
               <strong>{money(gross)}</strong>
@@ -734,7 +757,7 @@ export function PayrollRunView({
           </div>}
 
           {/* Run progress */}
-          {!ownerMode && <div className="card-body" style={{ paddingTop: 0 }}>
+          {!ownerMode && entriesVerified && <div className="card-body" style={{ paddingTop: 0 }}>
             <div className="progress-label">
               <span>
                 {run.totalChunks
@@ -833,7 +856,7 @@ export function PayrollRunView({
           )}
 
           {/* Stage rail: owner/admin/bookkeeper keep the broader lifecycle controls. */}
-          {!payrollOfficerMode && !ownerMode && (
+          {!payrollOfficerMode && !ownerMode && entriesVerified && (
             <div className="stage-rail">
               <StageCard
                 no={1}
@@ -884,7 +907,7 @@ export function PayrollRunView({
                   ) : (
                     <button
                       className="secondary-button"
-                      disabled={!calculated || released}
+                      disabled={!calculated || released || !entriesVerified}
                       onClick={() => void openReviewSubmission()}
                     >
                       {reviewLoading ? <Spinner label="Loading" /> : <ShieldCheck size={14} className="i-purple" />} Submit for review
@@ -913,7 +936,7 @@ export function PayrollRunView({
                       Released
                     </span>
                   ) : (
-                    <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || hardChecklistBlocked} onClick={() => setConfirmReleaseForScope(checklistScope)}>
+                    <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || !entriesVerified || hardChecklistBlocked} onClick={() => setConfirmReleaseForScope(checklistScope)}>
                       <Send size={14} className="i-pink" /> Release
                     </button>
                   )
@@ -929,7 +952,7 @@ export function PayrollRunView({
                     : "Run payout validation before release. Final bank files and payslip downloads stay locked until release."
                 }
                 action={
-                  <button className="secondary-button" disabled={!calculated} onClick={() => setExportsOpen(true)}>
+                  <button className="secondary-button" disabled={!calculated || !entriesVerified} onClick={() => setExportsOpen(true)}>
                     <Download size={14} className="i-teal" /> {released ? "Open exports" : "Validate payout"}
                   </button>
                 }
@@ -937,7 +960,7 @@ export function PayrollRunView({
             </div>
           )}
 
-          {reviewOpen && (
+          {reviewOpen && entriesVerified && (
             <article className="card" style={{ margin: "0 18px 16px", boxShadow: "none" }}>
               <div className="card-header">
                 <div>
@@ -981,7 +1004,7 @@ export function PayrollRunView({
             </article>
           )}
 
-          {exportsOpen && (
+          {exportsOpen && entriesVerified && (
             <ExportPanel
               run={run}
               templates={data.templates}
@@ -1003,8 +1026,18 @@ export function PayrollRunView({
             <div style={{ padding: "0 18px 18px" }}>
               <ErrorState
                 title="The register could not be loaded"
-                detail="The server refused or could not return this run's entries. Your figures above still come from the stored run record."
+                detail={selectedEmployerMatches
+                  ? "The register was not verified for the selected employer and run. Financial totals, review and release actions are unavailable."
+                  : "The selected legal employer does not match this payroll run. Switch to the correct employer before accessing totals or actions."}
               />
+              <button className="secondary-button" type="button"
+                onClick={() => {
+                  setConfirmReleaseForScope(null);
+                  setReviewOpen(false);
+                  setRegisterRevision((value) => value + 1);
+                }}>
+                <RefreshCw size={14} /> Retry register
+              </button>
             </div>
           ) : entries.length === 0 ? (
             <div style={{ padding: "0 18px 18px" }}>

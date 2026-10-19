@@ -15,7 +15,7 @@ import {dashboardFixture,sampleRun} from './tests/fixtures/dashboard-ui';
 import {StatutoryRemittanceActionQueue} from './src/components/workspace/statutory-remittance-action-queue';
 const params=new URLSearchParams(location.search),enabled=params.get('mode')!=='off';
 const readiness=buildFirstPayrollReadiness({workspaceName:'Fictional Employer',employees:[{status:'Active',bankCode:'TEST',bankAccount:'fictional'}],memberships:[{role:'payroll'},{role:'checker'}],payrollStatuses:['Draft']});
-const data={...dashboardFixture,firstPayrollConnectedEnabled:enabled,user:{id:1,name:'Fictional payroll',role:'payroll'},payrollRuns:[{...sampleRun,id:43,status:'Draft',employeeCount:1,grossPay:'0',netPay:'0',exceptions:0},{...sampleRun,id:42,status:'Needs review',periodLabel:'Saved fictional payroll',employeeCount:1,grossPay:'15000',netPay:'13500',exceptions:0}],firstPayrollReadiness:readiness,access:{role:'payroll',companyWide:true}};
+const data={...dashboardFixture,firstPayrollConnectedEnabled:enabled,user:{id:1,name:'Fictional payroll',role:'payroll'},payrollRuns:[{...sampleRun,id:43,legalEntityId:7,status:'Draft',employeeCount:1,grossPay:'0',netPay:'0',exceptions:0},{...sampleRun,id:42,legalEntityId:7,status:'Needs review',periodLabel:'Saved fictional payroll',employeeCount:1,grossPay:'15000',netPay:'13500',exceptions:0}],firstPayrollReadiness:readiness,access:{role:'payroll',companyWide:true}};
 const focus=resolveFirstPayrollRunFocus({enabled,demoMode:false,requestedPage:params.get('workspacePage'),requestedOrganizationId:params.get('organizationId'),requestedRunId:params.get('focusPayrollRunId'),organizationId:1,access:data.access,authorizedRuns:data.payrollRuns});
 window.fixtureFocus=focus;
 function LegacyQueue(){const [org,setOrg]=useState(1);return <><button onClick={()=>setOrg(2)}>Switch fixture employer</button><StatutoryRemittanceActionQueue organizationId={org} notify={()=>{}}/></>;}
@@ -34,6 +34,7 @@ const browser=await chromium.launch({headless:true,...(process.env.QA_CHROMIUM_E
 const results=[];
 try{for(const width of [1280,390]){
  const page=await browser.newPage({viewport:{width,height:900}}),errors=[],writes=[];
+ let rejectRegisterOnce=true;
  let releaseEmployerB;const employerBReady=new Promise(resolve=>{releaseEmployerB=resolve;});
  page.on('pageerror',e=>{errors.push(e.message);console.error('COMPONENT_ERROR '+e.stack);});
  await page.route('**/api/**',async route=>{
@@ -51,7 +52,17 @@ try{for(const width of [1280,390]){
      return route.fulfill({status:403,json:{error:'Unavailable in isolated component fixture'}});
    }
    if(url.pathname==='/api/first-payroll/progress')return route.fulfill({json:{progress:null}});
-   if(url.pathname==='/api/payroll-runs')return route.fulfill({json:{entries:[]}});
+   if(url.pathname==='/api/payroll-runs'){
+     const runId=Number(url.searchParams.get('runId'));
+     if(![42,43].includes(runId))return route.fulfill({status:404,json:{error:'Fictional run not found'}});
+     // The fixture must model the authorized full response envelope, not
+     // the old unchecked {entries:[]} body that now rightly fails closed.
+     if(new URL(page.url()).searchParams.get('badRegister')==='1'&&rejectRegisterOnce){
+       rejectRegisterOnce=false;
+       return route.fulfill({json:{organizationId:2,legalEntityId:7,runId,entries:[]}});
+     }
+     return route.fulfill({json:{organizationId:1,legalEntityId:7,runId,entries:[]}});
+   }
    if(url.pathname.endsWith('/release-checklist'))return route.fulfill({json:{ready:false,items:[]}});
    return route.fulfill({status:403,json:{error:'Unavailable in isolated component fixture'}});
  });
@@ -69,6 +80,17 @@ try{for(const width of [1280,390]){
  await page.getByRole('region',{name:'Payroll Officer run workflow'}).waitFor();
  assert.equal(await page.evaluate(()=>window.fixtureFocus),43);
  await page.screenshot({path:output+'/draft-'+width+'.png',fullPage:true});
+ await page.goto(base+'/app?organizationId=1&workspacePage=Payroll&focusPayrollRunId=43&badRegister=1');
+ await page.getByRole('button',{name:'Retry register'}).waitFor();
+ assert.equal(await page.getByRole('region',{name:'Payroll Officer run workflow'}).count(),0,
+   'A foreign-employer register must not unlock payroll controls');
+ assert.equal(await page.getByRole('region',{name:'Payroll workflow overview'}).count(),0,
+   'A foreign-employer register must not advertise payroll lifecycle readiness');
+ assert.equal(await page.locator('.payroll-detail .run-stats').count(),0,
+   'Gross, deductions and net must stay hidden until register verification');
+ await page.screenshot({path:output+'/unverified-register-'+width+'.png',fullPage:true});
+ await page.getByRole('button',{name:'Retry register'}).click();
+ await page.getByRole('region',{name:'Payroll Officer run workflow'}).waitFor();
  await page.goto(base+'/app?organizationId=1&workspacePage=Payroll&focusPayrollRunId=42');
  await page.getByText('Saved fictional payroll',{exact:true}).first().waitFor();
  assert.equal(await page.evaluate(()=>window.fixtureFocus),42,'Explicit saved run must win over newest run');
@@ -101,7 +123,7 @@ try{for(const width of [1280,390]){
  assert.equal(await page.getByText('Private employer 1',{exact:true}).count(),0,'Old employer actions must clear before new response');
  releaseEmployerB();await page.getByText('Private employer 2',{exact:true}).waitFor();
  assert.equal(await page.getByText('Private employer 1',{exact:true}).count(),0);
- assert.deepEqual(errors,[]);results.push({width,pass:true,cases:['flag-off legacy behavior','keyboard resume','exact saved run','failed read is not empty success','GET-only read retry','explicit Sync required','foreign employer denied','unknown run denied','flag-off focus denied'],navigationWrites:0,explicitSyncWrites:1});await page.close();
+ assert.deepEqual(errors,[]);results.push({width,pass:true,cases:['flag-off legacy behavior','keyboard resume','exact saved run','foreign register blocks payroll workflow until Retry','failed read is not empty success','GET-only read retry','explicit Sync required','foreign employer denied','unknown run denied','flag-off focus denied'],navigationWrites:0,explicitSyncWrites:1});await page.close();
 }await writeFile(output+'/results.json',JSON.stringify({result:'PASS',sourceHead:process.env.PR_HEAD_SHA??'local',results,
  boundary:'Actual UI components and navigation resolver with fictional authorized snapshot and stubbed GETs; not authenticated API, financial calculation, physical-device or live deployment proof.'},null,2));console.log('PASS first-payroll connected components: desktop + 390px, flag-off and negative navigation cases');}
 finally{await browser.close();await new Promise(r=>server.close(r));}
