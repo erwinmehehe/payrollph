@@ -133,7 +133,7 @@ function ScopedMyTeam({
   return (
     <main className="min-h-screen bg-slate-50 px-4 pb-14 pt-7 text-slate-900 sm:px-8">
       <div className="mx-auto max-w-6xl">
-        <Link href={"/app?organizationId=" + organizationId} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline">
+        <Link href={"/app?organizationId=" + organizationId} className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
           <ArrowLeft aria-hidden="true" size={16} /> Back to workspace
         </Link>
 
@@ -153,7 +153,7 @@ function ScopedMyTeam({
               </div>
               <button type="button"
                 onClick={() => setRefreshCount((value) => value + 1)}
-                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20">
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300">
                 <RefreshCcw aria-hidden="true" size={16} /> Refresh
               </button>
             </div>
@@ -266,7 +266,7 @@ function ScopedMyTeam({
               </p>
             </div>
             <button type="button" onClick={clearFilters}
-              className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-slate-50">
+              className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
               Clear filters
             </button>
           </div>
@@ -279,7 +279,7 @@ function ScopedMyTeam({
               <input id="hcm-team-search" type="search" maxLength={70}
                 value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)}
                 placeholder="Search current employee records"
-                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+                className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
               />
             </div>
             <div>
@@ -290,14 +290,14 @@ function ScopedMyTeam({
                   setStatusFilter(event.target.value as MyTeamStatusFilter);
                   setCursors([0]);
                 }}
-                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm">
+                className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
                 {MY_TEAM_STATUSES.map((status) => (
                   <option key={status} value={status}>{status === "all" ? "All statuses" : status}</option>
                 ))}
               </select>
             </div>
             <button type="submit"
-              className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-5 text-sm font-semibold text-white hover:bg-emerald-900 sm:mt-5">
+              className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-5 text-sm font-semibold text-white hover:bg-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 sm:mt-5">
               <Search aria-hidden="true" size={16} /> Search
             </button>
           </form>
@@ -319,7 +319,7 @@ function ScopedMyTeam({
                         <div aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 font-bold text-emerald-800">
                           {member.name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 max-w-full break-words">
                           <h3 className="break-words font-semibold text-slate-900">{member.name}</h3>
                           <p className="mt-1 text-sm text-slate-700">
                             {member.jobTitle} <span className="text-slate-400">·</span> {member.employmentType}
@@ -368,7 +368,7 @@ function ScopedMyTeam({
               <nav aria-label="Team directory pages" className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
                 <button type="button" disabled={!hasPrevious}
                   onClick={() => { setCursors((history) => history.length > 1 ? history.slice(0, -1) : history); setRefreshCount((value) => value + 1); }}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40">
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-40">
                   <ArrowLeft aria-hidden="true" size={16} /> Newer
                 </button>
                 <p className="text-xs text-slate-500">Page {cursors.length} · {data.page.size} records per page maximum</p>
@@ -377,7 +377,7 @@ function ScopedMyTeam({
                   onClick={() => {
                     if (data.page.nextCursor !== null) { setCursors((history) => [...history, data.page.nextCursor!]); setRefreshCount((value) => value + 1); }
                   }}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40">
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-40">
                   Older <ArrowRight aria-hidden="true" size={16} />
                 </button>
               </nav>
