@@ -111,6 +111,49 @@ function routeMethods(info) {
   }
   return methods;
 }
+
+/**
+ * Conservative call-graph check: direct SQL/database calls inside an HTTP
+ * handler plus local and @/lib delegation. A discovered gate is a structural
+ * indicator ONLY. No static check can certify branch-sensitive authorization.
+ */
+export function inspectRouteHandler(path, method) {
+  const root = sourceAt(path);
+  const declaration = root?.functions.get(method);
+  if (!declaration) return null;
+  const seen = new Set(), databasePaths = [], gatePaths = [];
+  function walk(file, name, remaining, chain) {
+    const key = file + "::" + name;
+    if (seen.has(key) || remaining < 0) return;
+    seen.add(key);
+    const parsed = sourceAt(file);
+    const node = parsed?.functions.get(name);
+    if (!node) return;
+    const txt = node.getText(parsed.sf);
+    if (/\b(?:db|tx|executor|transaction)\s*\.\s*(?:select|insert|update|delete|execute|transaction)\s*\(|\.from\s*\(/.test(txt)) {
+      databasePaths.push([...chain, file + ":" + name].join(" -> "));
+    }
+    for (const called of calls(node)) {
+      if (GATE_TOKENS.has(called)) {
+        gatePaths.push([...chain, file + ":" + name + " -> " + called].join(" -> "));
+      }
+      if (remaining > 0 && parsed.functions.has(called) && called !== name) {
+        walk(file, called, remaining - 1, [...chain, file + ":" + name]);
+      }
+      if (remaining > 0 && parsed.imports.has(called) && !GATE_TOKENS.has(called)) {
+        const imported = parsed.imports.get(called);
+        walk(imported.file, imported.symbol, remaining - 1,
+          [...chain, file + ":" + name]);
+      }
+    }
+  }
+  walk(path, method, 2, []);
+  return { path, method, accessesDatabase: databasePaths.length > 0,
+    databasePaths: databasePaths.slice(0, 8),
+    structuralAccessGuards: [...new Set(gatePaths)].slice(0, 12),
+    needsHttpProof: true };
+}
+
 export function traceFlaggedSource() {
   if (!Array.isArray(FLAGGED) || FLAGGED.length !== 34) {
     throw new Error("The 34-source trace list changed: explicit triage required.");
