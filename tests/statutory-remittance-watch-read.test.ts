@@ -10,7 +10,7 @@ import {
 const empty = () => ({
   organizationId: 51,
   today: "2026-10-19",
-  legalEntity: { id: 71 },
+  legalEntity: { id: 71, code: "MAIN", displayName: "Fictional Test Employer" },
   batches: [],
   members: [],
   coverageGaps: [],
@@ -32,6 +32,10 @@ const openBatch = () => ({
   expectedTotal: "220.00", amountPaid: null, paymentReference: null,
   agencyReceiptReference: null, paidAt: null, pendingPostingCount: 1,
   exceptionCount: 0, paymentShortfall: 220, hasActivePaymentProof: false,
+  filingCheck: { status: "unverified", filingRecordId: null,
+    filingEmployeeCount: null, remittanceEmployeeCount: 1,
+    filingTotal: null, remittanceTotal: 220,
+    employeeCountDifference: null, totalDifference: null },
 });
 const fetchOnce = (response: Response): typeof fetch =>
   (async () => response) as typeof fetch;
@@ -78,6 +82,20 @@ test("an omitted or forged empty alert list cannot hide an open batch due today"
   assert.equal(isStatutoryRemittanceWatchPayload({ ...complete, batches: [{
     ...openBatch(), hasActivePaymentProof: undefined,
   }] }, 51), false);
+});
+
+test("a missing filing comparison or proof flag cannot suppress the required warning", () => {
+  const today = "2026-10-19";
+  const batches = [openBatch()];
+  const complete = {...empty(), batches,
+    alerts: buildStatutoryRemittanceAlerts({today, batches, coverageGaps:[]})};
+  assert.equal(isStatutoryRemittanceWatchPayload(complete,51), true);
+  assert.equal(isStatutoryRemittanceWatchPayload({...complete,
+    batches:[{...openBatch(), filingCheck:undefined}]},51), false);
+  assert.equal(isStatutoryRemittanceWatchPayload({...complete,
+    batches:[{...openBatch(), paymentShortfall:undefined}]},51), false);
+  assert.equal(isStatutoryRemittanceWatchPayload({...complete,
+    batches:[{...openBatch(), dueDate:"2026-02-31"}]},51), false);
 });
 
 test("an explicit retry can turn a failed read into a verified empty state", async () => {
