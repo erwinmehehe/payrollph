@@ -69,3 +69,23 @@ test("incomplete team breakdown and unknown row team fail closed", () => {
     ...valid, rows: [{ ...valid.rows[0], responsibleTeam: "Unrecognized owner team" }],
   }, 1), false, "Rows must name a controlled source owner team");
 });
+
+
+test("real calendar dates and due-day arithmetic must verify before HR warnings render", () => {
+  assert.equal(isVerifiedPeopleOperationsPayload({ ...valid, today: "2026-02-30" }, 1), false,
+    "A syntactically shaped but impossible business date is not trusted");
+  assert.equal(isVerifiedPeopleOperationsPayload({
+    ...valid, rows: [{ ...valid.rows[0], dueDate: "2026-02-30", daysUntil: -231 }],
+  }, 1), false, "Impossible source dates are rejected, not normalized");
+  assert.equal(isVerifiedPeopleOperationsPayload({
+    ...valid, rows: [{ ...valid.rows[0], dueDate: "2026-10-18", daysUntil: 4 }],
+  }, 1), false, "Forged days-until labels must not contradict the source date");
+  assert.equal(isVerifiedPeopleOperationsPayload({
+    ...valid, rows: [{ ...valid.rows[0], dueDate: null, daysUntil: -1 }],
+  }, 1), false, "Undated rows cannot claim an overdue day count");
+  assert.equal(isVerifiedPeopleOperationsPayload({
+    ...valid, rows: [{ ...valid.rows[0], dueDate: "2026-10-18", daysUntil: null }],
+  }, 1), false, "Dated rows require verified day arithmetic");
+  assert.equal(isVerifiedPeopleOperationsPayload(valid, 1), true,
+    "A genuine source date and derived due-day count remain accepted");
+});

@@ -23,19 +23,28 @@ function text(value: unknown): value is string {
 }
 
 function date(value: unknown): value is string {
-  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  // Reject values that Date.parse would normalize (e.g. February 30).
+  const timestamp = Date.parse(value + "T00:00:00Z");
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === value;
 }
 
-function validRow(value: unknown): boolean {
+function validRow(value: unknown, today: string): boolean {
   if (!object(value)) return false;
+  if (value.dueDate === null) {
+    if (value.daysUntil !== null) return false;
+  } else {
+    if (!date(value.dueDate) || typeof value.daysUntil !== "number" ||
+        !Number.isSafeInteger(value.daysUntil)) return false;
+    const days = Math.round((Date.parse(value.dueDate + "T00:00:00Z") -
+      Date.parse(today + "T00:00:00Z")) / 86_400_000);
+    if (!Number.isSafeInteger(days) || value.daysUntil !== days) return false;
+  }
   return text(value.id) && count(value.employeeId) && value.employeeId > 0 &&
     text(value.employeeNo) && text(value.employeeName) &&
     CATEGORIES.has(String(value.category)) && PRIORITIES.has(String(value.priority)) &&
     text(value.title) && text(value.detail) && text(value.responsibleTeam) &&
-    TEAMS.has(value.responsibleTeam) && PAGES.has(String(value.page)) &&
-    (value.dueDate === null || date(value.dueDate)) &&
-    (value.daysUntil === null ||
-      (typeof value.daysUntil === "number" && Number.isSafeInteger(value.daysUntil)));
+    TEAMS.has(value.responsibleTeam) && PAGES.has(String(value.page));
 }
 
 export function isVerifiedPeopleOperationsPayload(
@@ -66,7 +75,7 @@ export function isVerifiedPeopleOperationsPayload(
   if (value.pages !== expectedPages || value.page !== Math.min(requestedPage, value.pages)) return false;
   const expectedRows = Math.min(value.pageSize,
     Math.max(0, value.filteredTotal - (value.page - 1) * value.pageSize));
-  if (value.rows.length !== expectedRows || !value.rows.every(validRow)) return false;
+  if (value.rows.length !== expectedRows || !value.rows.every((row) => validRow(row, value.today as string))) return false;
   if (new Set(value.rows.map((row: Record<string, unknown>) => row.id)).size !== value.rows.length) return false;
 
   const seenTeams = new Set<string>();
