@@ -62,7 +62,7 @@ jobs:
 
       - run: npm ci
       - name: Reject committed webhook secrets and unreviewed tenant routes
-        run: node --test tests/tenant-second-pass-inventory.test.mjs
+        run: node --test tests/tenant-second-pass-inventory.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
       - name: Pin first high-risk 16-method HTTP proof contract
         run: |
           node --check scripts/qa/tenant-high-risk-01-http.mjs
@@ -88,6 +88,7 @@ jobs:
         env:
           PUBLIC_API_V1_EXTENDED_ENABLED: "true"
           API_V1_EXTENDED_READS_ENABLED: "true"
+          EMPLOYEE_HR_CASES_ENABLED: "true"
           PAYMONGO_WEBHOOK_SECRET: "ci-fake-paymongo-webhook-signing-secret"
           XENDIT_PAYOUT_CALLBACK_TOKEN: "ci-fake-xendit-payout-callback"
           XENDIT_CALLBACK_TOKEN: "ci-fake-xendit-subscription-callback"

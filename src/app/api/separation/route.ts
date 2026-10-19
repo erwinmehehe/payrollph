@@ -1,4 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { verifiedExitPayrollTrace } from "@/lib/approved-exit-payroll";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -138,7 +139,9 @@ async function loadFinalPaySources(input: {
       eq(payrollEntries.employeeId, input.employeeId),
       eq(payrollRuns.status, "Released"),
       sql`extract(year from ${payrollRuns.periodEnd}) = ${taxYear}`,
-      lte(payrollRuns.periodEnd, input.lastDay),
+      criticalReleaseFlagEnabled("approvedExitPayroll")
+        ? lte(payrollRuns.periodStart, input.lastDay)
+        : lte(payrollRuns.periodEnd, input.lastDay),
     ));
 
   // Trace every settled RETRO-* line to the original released payroll run.
@@ -162,7 +165,7 @@ async function loadFinalPaySources(input: {
     retroSourceTaxYear(String(row.sourcePeriodStart), String(row.sourcePeriodEnd)),
   ]));
 
-  const crossing = await reader.select({ id: payrollRuns.id, periodLabel: payrollRuns.periodLabel })
+  const crossing = await reader.select({ id: payrollRuns.id, periodLabel: payrollRuns.periodLabel, periodEnd: payrollRuns.periodEnd, trace: payrollEntries.trace })
     .from(payrollEntries)
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .where(and(
@@ -174,9 +177,17 @@ async function loadFinalPaySources(input: {
       sql`${payrollRuns.periodEnd} > ${input.lastDay}`,
     ));
 
-  if (crossing.length > 0) {
+  const exitRecords = criticalReleaseFlagEnabled("approvedExitPayroll") && crossing.length
+    ? await reader.select({ id: separationRecords.id }).from(separationRecords).where(and(
+        eq(separationRecords.organizationId, input.organizationId),
+        eq(separationRecords.employeeId, input.employeeId),
+        eq(separationRecords.lastDay, input.lastDay),
+      )) : [];
+  const unverifiedCrossing = crossing.find(row => String(row.periodEnd).slice(0, 4) !== String(taxYear)
+    || !exitRecords.some(exit => verifiedExitPayrollTrace(row.trace, input.lastDay, exit.id)));
+  if (unverifiedCrossing) {
     throw new Error(
-      `Released payroll ${crossing[0].periodLabel} crosses the employee's last day. Split or correct that payroll period before computing final pay.`,
+      `Released payroll ${unverifiedCrossing.periodLabel} crosses the employee's last day. Split or correct that payroll period before computing final pay.`,
     );
   }
 
@@ -256,6 +267,8 @@ async function loadFinalPaySources(input: {
     employee,
     payProfile,
     resolvedPayProfile,
+    hasCappedExitPayroll: crossing.length > 0,
+    wagesPaidThroughLastDay: released.some(row => String(row.periodStart) <= input.lastDay && String(row.periodEnd) >= input.lastDay),
     leave,
     released,
     historical,
@@ -493,6 +506,9 @@ export async function POST(request: Request) {
     const historicalBasicSalaryEarned = Number(money(storedHistoricalBasic + historicalBasicOverride));
 
     const unpaidBasicSalary = nonNegative(body.unpaidBasicSalary, "Unpaid basic salary");
+    if (criticalReleaseFlagEnabled("approvedExitPayroll") && sources.hasCappedExitPayroll && unpaidBasicSalary > 0) {
+      return Response.json({ error: "Released payroll already includes wages through this last day. Do not add those wages again as unpaid basic salary. Resolve any separately owed prior-period wages with non-overlapping evidence first." }, { status: 422 });
+    }
     const finalStatutoryDeductions = nonNegative(body.finalStatutoryDeductions, "Final statutory deductions");
     const finalStatutoryReviewed = Boolean(body.finalStatutoryReviewed);
     if (unpaidBasicSalary > 0 && !finalStatutoryReviewed) {
@@ -1494,6 +1510,10 @@ export async function PATCH(request: Request) {
       lastDay: String(sep.lastDay),
     });
     const currentFingerprint = fingerprint(sources);
+    if (criticalReleaseFlagEnabled("approvedExitPayroll") && action === "release"
+      && !sources.wagesPaidThroughLastDay && Number(sep.unpaidBasicSalary) === 0) {
+      return Response.json({ code: "FINAL_PAY_LAST_DAY_WAGES_UNRESOLVED", error: "Last-day wages are not evidenced in released ordinary payroll or reviewed unpaid basic salary. Complete that wage handoff before final-pay release." }, { status: 409 });
+    }
     const currentLoanAuthority = reviewFinalPayLoans(sources.loans);
     if (currentLoanAuthority.invalidLoanIds.length
       || ((snapshot.deductOutstandingLoans === true || Number(sep.loanDeductions) > 0)

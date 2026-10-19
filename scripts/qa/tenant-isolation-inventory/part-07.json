@@ -1,0 +1,1967 @@
+{
+  "base": "d94c1f3e0e1a8b1de0d15186923f3ed641314214",
+  "part": 7,
+  "kind": "api",
+  "files": [
+    {
+      "path": "src/app/api/first-payroll/progress/route.ts",
+      "route": "first-payroll/progress",
+      "blob": "6a5fa62ae5db0648e7d5e9fd92a89dd3a46793dd",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 8
+        },
+        {
+          "method": "PATCH",
+          "line": 23
+        }
+      ],
+      "guard": [
+        {
+          "line": 1,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 2,
+          "token": "getAccess"
+        },
+        {
+          "line": 3,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 11,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 18,
+          "token": "getAccess"
+        },
+        {
+          "line": 26,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 28,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 36,
+          "token": "getAccess"
+        }
+      ],
+      "input": [
+        {
+          "line": 13,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 31,
+          "token": "body.organizationId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 16,
+          "token": "organizationId"
+        },
+        {
+          "line": 18,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 36,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "organizationId"
+        },
+        {
+          "line": 47,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/governed-handoffs/route.ts",
+      "route": "governed-handoffs",
+      "blob": "85e937e999a10afd30348e748c510b2a55f160be",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 59
+        },
+        {
+          "method": "POST",
+          "line": 130
+        }
+      ],
+      "guard": [
+        {
+          "line": 4,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 6,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 7,
+          "token": "assertScope"
+        },
+        {
+          "line": 8,
+          "token": "getAccess"
+        },
+        {
+          "line": 25,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 42,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 49,
+          "token": "getAccess"
+        },
+        {
+          "line": 60,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 97,
+          "token": "assertScope"
+        },
+        {
+          "line": 131,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 134,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 179,
+          "token": "assertScope"
+        }
+      ],
+      "input": [
+        {
+          "line": 63,
+          "token": "params.get(\"organizationId\")"
+        },
+        {
+          "line": 140,
+          "token": "body.organizationId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 39,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 49,
+          "token": "organizationId"
+        },
+        {
+          "line": 63,
+          "token": "organizationId"
+        },
+        {
+          "line": 63,
+          "token": "organizationId"
+        },
+        {
+          "line": 65,
+          "token": "organizationId"
+        },
+        {
+          "line": 66,
+          "token": "organizationId"
+        },
+        {
+          "line": 68,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 95,
+          "token": "organizationId"
+        },
+        {
+          "line": 97,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 100,
+          "token": "organizationId"
+        },
+        {
+          "line": 105,
+          "token": "employeeId"
+        },
+        {
+          "line": 105,
+          "token": "employeeId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm-report-builder/route.ts",
+      "route": "hcm-report-builder",
+      "blob": "3eab916aafbbd25724d16f4011d52380f25c7f9e",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 43
+        },
+        {
+          "method": "POST",
+          "line": 61
+        }
+      ],
+      "guard": [
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 6,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 15,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 21,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 26,
+          "token": "getAccess"
+        },
+        {
+          "line": 45,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 63,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 65,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [
+        {
+          "line": 47,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 68,
+          "token": "body.organizationId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 22,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 47,
+          "token": "organizationId"
+        },
+        {
+          "line": 47,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 49,
+          "token": "organizationId"
+        },
+        {
+          "line": 51,
+          "token": "organizationId"
+        },
+        {
+          "line": 68,
+          "token": "organizationId"
+        },
+        {
+          "line": 68,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm/business-processes/definitions/route.ts",
+      "route": "hcm/business-processes/definitions",
+      "blob": "bf999c2fb4eac736f319b5f6cf160e3113dd087a",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 48
+        },
+        {
+          "method": "POST",
+          "line": 89
+        }
+      ],
+      "guard": [
+        {
+          "line": 4,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 7,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 7,
+          "token": "getAccess"
+        },
+        {
+          "line": 15,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 27,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 34,
+          "token": "getAccess"
+        },
+        {
+          "line": 49,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 90,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 93,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [
+        {
+          "line": 52,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 100,
+          "token": "body.organizationId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 52,
+          "token": "organizationId"
+        },
+        {
+          "line": 52,
+          "token": "organizationId"
+        },
+        {
+          "line": 53,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
+          "token": "organizationId"
+        },
+        {
+          "line": 57,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 67,
+          "token": "organizationId"
+        },
+        {
+          "line": 67,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 100,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm/business-processes/inbox/route.ts",
+      "route": "hcm/business-processes/inbox",
+      "blob": "215ea98cdace04e3f91269957dc8849d89c449e2",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 34
+        },
+        {
+          "method": "POST",
+          "line": 177
+        }
+      ],
+      "guard": [
+        {
+          "line": 8,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 11,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 11,
+          "token": "getAccess"
+        },
+        {
+          "line": 22,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 35,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 43,
+          "token": "getAccess"
+        },
+        {
+          "line": 148,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 178,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 181,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 195,
+          "token": "getAccess"
+        }
+      ],
+      "input": [
+        {
+          "line": 38,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 185,
+          "token": "body.organizationId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 39,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "organizationId"
+        },
+        {
+          "line": 63,
+          "token": "employeeId"
+        },
+        {
+          "line": 64,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 72,
+          "token": "organizationId"
+        },
+        {
+          "line": 72,
+          "token": "organizationId"
+        },
+        {
+          "line": 75,
+          "token": "employeeId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 79,
+          "token": "organizationId"
+        },
+        {
+          "line": 79,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm/capabilities/route.ts",
+      "route": "hcm/capabilities",
+      "blob": "5e8e1d0ac7fd7592a9da34091933ae9f0b6910fd",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 26
+        },
+        {
+          "method": "POST",
+          "line": 103
+        }
+      ],
+      "guard": [
+        {
+          "line": 13,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 13,
+          "token": "assertScope"
+        },
+        {
+          "line": 13,
+          "token": "getAccess"
+        },
+        {
+          "line": 15,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 16,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 27,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 38,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 46,
+          "token": "getAccess"
+        },
+        {
+          "line": 55,
+          "token": "assertScope"
+        },
+        {
+          "line": 104,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 107,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 117,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 124,
+          "token": "getAccess"
+        },
+        {
+          "line": 213,
+          "token": "assertScope"
+        }
+      ],
+      "input": [
+        {
+          "line": 31,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 32,
+          "token": "searchParams.get(\"employeeId\")"
+        },
+        {
+          "line": 111,
+          "token": "body.organizationId"
+        },
+        {
+          "line": 193,
+          "token": "body.employeeId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "employeeId"
+        },
+        {
+          "line": 32,
+          "token": "employeeId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 49,
+          "token": "employeeId"
+        },
+        {
+          "line": 50,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 50,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 52,
+          "token": "employeeId"
+        },
+        {
+          "line": 52,
+          "token": "organizationId"
+        },
+        {
+          "line": 52,
+          "token": "organizationId"
+        },
+        {
+          "line": 55,
+          "token": "orgUnitId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm/documents/route.ts",
+      "route": "hcm/documents",
+      "blob": "bd23d039f78f9747cdf979bb5a611604643f01f1",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 59
+        },
+        {
+          "method": "POST",
+          "line": 248
+        }
+      ],
+      "guard": [
+        {
+          "line": 17,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 17,
+          "token": "assertScope"
+        },
+        {
+          "line": 17,
+          "token": "getAccess"
+        },
+        {
+          "line": 19,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 34,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 60,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 68,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 76,
+          "token": "getAccess"
+        },
+        {
+          "line": 249,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 252,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 265,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 272,
+          "token": "getAccess"
+        },
+        {
+          "line": 301,
+          "token": "assertScope"
+        },
+        {
+          "line": 575,
+          "token": "assertScope"
+        },
+        {
+          "line": 659,
+          "token": "assertScope"
+        },
+        {
+          "line": 699,
+          "token": "assertScope"
+        }
+      ],
+      "input": [
+        {
+          "line": 63,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 259,
+          "token": "body.organizationId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 63,
+          "token": "organizationId"
+        },
+        {
+          "line": 63,
+          "token": "organizationId"
+        },
+        {
+          "line": 64,
+          "token": "organizationId"
+        },
+        {
+          "line": 65,
+          "token": "organizationId"
+        },
+        {
+          "line": 70,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 84,
+          "token": "organizationId"
+        },
+        {
+          "line": 84,
+          "token": "organizationId"
+        },
+        {
+          "line": 87,
+          "token": "organizationId"
+        },
+        {
+          "line": 87,
+          "token": "organizationId"
+        },
+        {
+          "line": 90,
+          "token": "organizationId"
+        },
+        {
+          "line": 90,
+          "token": "organizationId"
+        },
+        {
+          "line": 93,
+          "token": "organizationId"
+        },
+        {
+          "line": 93,
+          "token": "organizationId"
+        },
+        {
+          "line": 100,
+          "token": "orgUnitId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm/effective-changes/route.ts",
+      "route": "hcm/effective-changes",
+      "blob": "fb4bd6692a33a2130f0ec369fedc854334e718db",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 86
+        },
+        {
+          "method": "POST",
+          "line": 115
+        },
+        {
+          "method": "PATCH",
+          "line": 476
+        }
+      ],
+      "guard": [
+        {
+          "line": 14,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 15,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 15,
+          "token": "getAccess"
+        },
+        {
+          "line": 28,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 63,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 70,
+          "token": "getAccess"
+        },
+        {
+          "line": 89,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 118,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 120,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 479,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 481,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [
+        {
+          "line": 92,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 93,
+          "token": "searchParams.get(\"employeeId\")"
+        },
+        {
+          "line": 93,
+          "token": "searchParams.get(\"employeeId\")"
+        },
+        {
+          "line": 124,
+          "token": "body.organizationId"
+        },
+        {
+          "line": 125,
+          "token": "body.employeeId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 65,
+          "token": "organizationId"
+        },
+        {
+          "line": 70,
+          "token": "organizationId"
+        },
+        {
+          "line": 71,
+          "token": "organizationId"
+        },
+        {
+          "line": 92,
+          "token": "organizationId"
+        },
+        {
+          "line": 92,
+          "token": "organizationId"
+        },
+        {
+          "line": 93,
+          "token": "employeeId"
+        },
+        {
+          "line": 93,
+          "token": "employeeId"
+        },
+        {
+          "line": 93,
+          "token": "employeeId"
+        },
+        {
+          "line": 94,
+          "token": "organizationId"
+        },
+        {
+          "line": 94,
+          "token": "organizationId"
+        },
+        {
+          "line": 95,
+          "token": "employeeId"
+        },
+        {
+          "line": 95,
+          "token": "employeeId"
+        },
+        {
+          "line": 95,
+          "token": "employeeId"
+        },
+        {
+          "line": 96,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm/employment-term-decisions/[id]/evidence/route.ts",
+      "route": "hcm/employment-term-decisions/[id]/evidence",
+      "blob": "49957255191041ee83440bd7f24ea5cfd72d491c",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 100
+        },
+        {
+          "method": "POST",
+          "line": 136
+        }
+      ],
+      "guard": [
+        {
+          "line": 14,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 15,
+          "token": "getAccess"
+        },
+        {
+          "line": 21,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 28,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 42,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 45,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 53,
+          "token": "getAccess"
+        },
+        {
+          "line": 104,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 140,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 143,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [
+        {
+          "line": 110,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 320,
+          "token": "body.organizationId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 47,
+          "token": "organizationId"
+        },
+        {
+          "line": 53,
+          "token": "organizationId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 66,
+          "token": "employeeId"
+        },
+        {
+          "line": 72,
+          "token": "positionId"
+        },
+        {
+          "line": 72,
+          "token": "positionId"
+        },
+        {
+          "line": 74,
+          "token": "positionId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "employeeId"
+        },
+        {
+          "line": 77,
+          "token": "employeeId"
+        },
+        {
+          "line": 80,
+          "token": "employeeId"
+        },
+        {
+          "line": 110,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm/employment-term-decisions/[id]/manager-attestation/route.ts",
+      "route": "hcm/employment-term-decisions/[id]/manager-attestation",
+      "blob": "5de82dc98b5fa336b7ec4f8051bc7e66bf3c167c",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 57
+        },
+        {
+          "method": "POST",
+          "line": 90
+        }
+      ],
+      "guard": [
+        {
+          "line": 1,
+          "token": "getAccess"
+        },
+        {
+          "line": 1,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 3,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 12,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 20,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 26,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 34,
+          "token": "getAccess"
+        },
+        {
+          "line": 61,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 94,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 97,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [
+        {
+          "line": 67,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 103,
+          "token": "body.organizationId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 28,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "employeeId"
+        },
+        {
+          "line": 43,
+          "token": "employeeId"
+        },
+        {
+          "line": 67,
+          "token": "organizationId"
+        },
+        {
+          "line": 67,
+          "token": "organizationId"
+        },
+        {
+          "line": 68,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 72,
+          "token": "organizationId"
+        },
+        {
+          "line": 75,
+          "token": "organizationId"
+        },
+        {
+          "line": 81,
+          "token": "employeeId"
+        },
+        {
+          "line": 103,
+          "token": "organizationId"
+        },
+        {
+          "line": 103,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm/employment-term-decisions/route.ts",
+      "route": "hcm/employment-term-decisions",
+      "blob": "83fb1b867a2c244d5d65049d9779f29b682842a4",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 51
+        },
+        {
+          "method": "POST",
+          "line": 77
+        },
+        {
+          "method": "PATCH",
+          "line": 268
+        }
+      ],
+      "guard": [
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 20,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 29,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 36,
+          "token": "getAccess"
+        },
+        {
+          "line": 52,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 78,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 80,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 269,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 271,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [
+        {
+          "line": 56,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 57,
+          "token": "searchParams.get(\"employeeId\")"
+        },
+        {
+          "line": 57,
+          "token": "searchParams.get(\"employeeId\")"
+        },
+        {
+          "line": 84,
+          "token": "body.organizationId"
+        },
+        {
+          "line": 85,
+          "token": "body.employeeId"
+        },
+        {
+          "line": 276,
+          "token": "body.organizationId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 28,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 36,
+          "token": "organizationId"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 57,
+          "token": "employeeId"
+        },
+        {
+          "line": 57,
+          "token": "employeeId"
+        },
+        {
+          "line": 57,
+          "token": "employeeId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 58,
+          "token": "employeeId"
+        },
+        {
+          "line": 58,
+          "token": "employeeId"
+        },
+        {
+          "line": 59,
+          "token": "organizationId"
+        },
+        {
+          "line": 59,
+          "token": "employeeId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 66,
+          "token": "employeeId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm/employment-terms/route.ts",
+      "route": "hcm/employment-terms",
+      "blob": "aad888ffac178b72e61f1fb184c759baf709343c",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 46
+        },
+        {
+          "method": "POST",
+          "line": 86
+        },
+        {
+          "method": "PATCH",
+          "line": 198
+        }
+      ],
+      "guard": [
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 6,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 14,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 24,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 31,
+          "token": "getAccess"
+        },
+        {
+          "line": 47,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 87,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 89,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 199,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 201,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [
+        {
+          "line": 51,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 52,
+          "token": "searchParams.get(\"employeeId\")"
+        },
+        {
+          "line": 52,
+          "token": "searchParams.get(\"employeeId\")"
+        },
+        {
+          "line": 93,
+          "token": "body.organizationId"
+        },
+        {
+          "line": 94,
+          "token": "body.employeeId"
+        },
+        {
+          "line": 206,
+          "token": "body.organizationId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 23,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 51,
+          "token": "organizationId"
+        },
+        {
+          "line": 51,
+          "token": "organizationId"
+        },
+        {
+          "line": 52,
+          "token": "employeeId"
+        },
+        {
+          "line": 52,
+          "token": "employeeId"
+        },
+        {
+          "line": 52,
+          "token": "employeeId"
+        },
+        {
+          "line": 53,
+          "token": "organizationId"
+        },
+        {
+          "line": 53,
+          "token": "employeeId"
+        },
+        {
+          "line": 53,
+          "token": "employeeId"
+        },
+        {
+          "line": 54,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
+          "token": "employeeId"
+        },
+        {
+          "line": 57,
+          "token": "organizationId"
+        },
+        {
+          "line": 61,
+          "token": "employeeId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm/engagement-surveys/route.ts",
+      "route": "hcm/engagement-surveys",
+      "blob": "8355956668eb8bdc0f767f9f72bd01992e964349",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 32
+        },
+        {
+          "method": "POST",
+          "line": 72
+        }
+      ],
+      "guard": [
+        {
+          "line": 6,
+          "token": "getAccess"
+        },
+        {
+          "line": 6,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 7,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 14,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 22,
+          "token": "getAccess"
+        },
+        {
+          "line": 34,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 43,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 74,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 76,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 110,
+          "token": "assertOrganizationRole"
+        }
+      ],
+      "input": [
+        {
+          "line": 36,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 79,
+          "token": "body.organizationId"
+        }
+      ],
+      "ids": [
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 22,
+          "token": "organizationId"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 36,
+          "token": "organizationId"
+        },
+        {
+          "line": 36,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "employeeId"
+        },
+        {
+          "line": 48,
+          "token": "employeeId"
+        },
+        {
+          "line": 51,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/hcm/governance-readiness/route.ts",
+      "route": "hcm/governance-readiness",
+      "blob": "d1369d878c00b84f93df71cee6bd7c657be0086f",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 8
+        }
+      ],
+      "guard": [
+        {
+          "line": 1,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 1,
+          "token": "getAccess"
+        },
+        {
+          "line": 2,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 9,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 15,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 20,
+          "token": "getAccess"
+        }
+      ],
+      "input": [
+        {
+          "line": 11,
+          "token": "searchParams.get(\"organizationId\")"
+        }
+      ],
+      "ids": [
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 16,
+          "token": "organizationId"
+        },
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": false
+      }
+    }
+  ]
+}

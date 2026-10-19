@@ -6,6 +6,7 @@ import { readVerifiedSpendReceipt } from "@/lib/spend-receipt-storage";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
 import { exactLoanPaymentReplayMatches, payrollLoanPosting } from "@/lib/payroll-loan-settlement";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { verifiedExitPayrollTrace } from "@/lib/approved-exit-payroll";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
@@ -25,6 +26,7 @@ import {
   payrollRuns,
   supplementaryEarnings,
   yearEndAdjustments,
+  separationRecords,
 } from "@/db/schema";
 
 function money(value: number) {
@@ -248,6 +250,15 @@ export async function settlePayrollRun(
         ))
       : [];
     const employeeById = new Map(currentEmployees.map((employee) => [employee.id, employee]));
+    const exitRows = criticalReleaseFlagEnabled("approvedExitPayroll") && employeeIds.length
+      ? await tx.select({ id: separationRecords.id, employeeId: separationRecords.employeeId,
+          lastDay: separationRecords.lastDay, unpaidBasicSalary: separationRecords.unpaidBasicSalary,
+          preparedByUserId: separationRecords.preparedByUserId, approvedByUserId: separationRecords.approvedByUserId,
+        }).from(separationRecords).where(and(
+          eq(separationRecords.organizationId, run.organizationId),
+          inArray(separationRecords.employeeId, employeeIds),
+          inArray(separationRecords.status, ["approved", "released"]),
+        )).for("update") : [];
 
     const [holidayRows, unitRows] = await Promise.all([
       tx.select().from(holidays).where(and(
@@ -378,7 +389,17 @@ export async function settlePayrollRun(
       if (!employee) {
         throw new Error(`Employee #${entry.employeeId} no longer belongs to this payroll workspace; recalculate before release.`);
       }
-      if (employee.status !== "Active") {
+      const workerExits = exitRows.filter(exit => exit.employeeId === employee.id);
+      const approvedExit = workerExits.length > 0 && new Set(workerExits.map(exit => String(exit.lastDay))).size === 1
+        && workerExits.every(exit => exit.preparedByUserId != null && exit.approvedByUserId != null
+          && exit.preparedByUserId !== exit.approvedByUserId && Number(exit.unpaidBasicSalary) === 0
+          && String(exit.lastDay) >= String(run.periodStart))
+        && workerExits.some(exit => verifiedExitPayrollTrace(entry.trace,
+          String(exit.lastDay) < String(run.periodEnd) ? String(exit.lastDay) : String(run.periodEnd), exit.id));
+      if (criticalReleaseFlagEnabled("approvedExitPayroll") && traceInputString(entry.trace, "approvedExitProration") != null && !approvedExit) {
+        throw new Error("PAYROLL_EXIT_EVIDENCE_CHANGED: Approved exit or wage overlap evidence changed after calculation; reapprove and recalculate before release.");
+      }
+      if (employee.status !== "Active" && !(employee.status === "Separating" && approvedExit)) {
         throw new Error(
           `${employee.firstName} ${employee.lastName} is now ${employee.status}; recalculate before release so non-active employees are excluded.`,
         );
