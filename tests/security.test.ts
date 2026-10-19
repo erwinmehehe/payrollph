@@ -334,14 +334,72 @@ test("every cookie-authenticated API mutation is protected by same-origin enforc
   }
 });
 
+/**
+ * Security floors are minimum exact stable versions, not a freeze on every
+ * safe patch update. A major upgrade still requires explicit policy review.
+ */
+function assertPinnedFrameworkFloor(
+  name: string,
+  version: string | undefined,
+  floor: readonly [number, number, number],
+) {
+  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version ?? "");
+  assert.ok(match, name + " must be pinned to an exact stable version");
+  const actual: [number, number, number] = [
+    Number(match[1]), Number(match[2]), Number(match[3]),
+  ];
+  assert.ok(actual.every(Number.isSafeInteger), name + " contains an invalid version number");
+  assert.equal(actual[0], floor[0], name + " major version changes require security review");
+  assert.ok(
+    actual[1] > floor[1] || (actual[1] === floor[1] && actual[2] >= floor[2]),
+    name + " " + version + " cannot regress below reviewed security floor " + floor.join("."),
+  );
+}
+
 test("framework security patch floors cannot regress", () => {
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
-  assert.equal(pkg.dependencies?.next, "16.3.8");
-  assert.equal(pkg.devDependencies?.["eslint-config-next"], "16.3.8");
-  assert.equal(pkg.devDependencies?.postcss, "8.5.28");
+  const lock = JSON.parse(readFileSync("package-lock.json", "utf8")) as {
+    packages?: Record<string, {
+      version?: string;
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    }>;
+  };
+  const checked = [
+    ["next", pkg.dependencies?.next, [16, 3, 8],
+      lock.packages?.[""]?.dependencies?.next],
+    ["eslint-config-next", pkg.devDependencies?.["eslint-config-next"], [16, 3, 8],
+      lock.packages?.[""]?.devDependencies?.["eslint-config-next"]],
+    ["postcss", pkg.devDependencies?.postcss, [8, 5, 28],
+      lock.packages?.[""]?.devDependencies?.postcss],
+  ] as const;
+  for (const [name, version, floor, declaredInLock] of checked) {
+    assertPinnedFrameworkFloor(name, version, floor);
+    assert.equal(declaredInLock, version, name + " root lockfile must match package.json");
+    assert.equal(lock.packages?.["node_modules/" + name]?.version, version,
+      name + " installed lockfile version must match package.json");
+  }
+  assert.equal(pkg.dependencies?.next?.split(".")[0],
+    pkg.devDependencies?.["eslint-config-next"]?.split(".")[0],
+    "Next.js and its ESLint configuration must use the same framework major");
+});
+
+test("security floor accepts safe patches and rejects downgrades, ranges and unreviewed majors", () => {
+  assert.doesNotThrow(() => assertPinnedFrameworkFloor("next", "16.4.2", [16, 3, 8]));
+  assert.doesNotThrow(() => assertPinnedFrameworkFloor("postcss", "8.5.30", [8, 5, 28]));
+  assert.throws(() => assertPinnedFrameworkFloor("next", "16.3.7", [16, 3, 8]),
+    /cannot regress/);
+  assert.throws(() => assertPinnedFrameworkFloor("postcss", "8.5.27", [8, 5, 28]),
+    /cannot regress/);
+  assert.throws(() => assertPinnedFrameworkFloor("next", "^16.4.2", [16, 3, 8]),
+    /exact stable version/);
+  assert.throws(() => assertPinnedFrameworkFloor("next", "16.4.2-rc.1", [16, 3, 8]),
+    /exact stable version/);
+  assert.throws(() => assertPinnedFrameworkFloor("next", "17.0.0", [16, 3, 8]),
+    /major version changes/);
 });
 
 
