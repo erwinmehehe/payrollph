@@ -1,0 +1,115 @@
+{
+  "base": "d94c1f3e0e1a8b1de0d15186923f3ed641314214",
+  "part": 4,
+  "kind": "app",
+  "files": [
+    {
+      "path": "src/app/payroll-outsourcing/page.tsx",
+      "blob": "3a101b6e4ba29143da28b0bb5819887569187f9c",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/pricing/page.tsx",
+      "blob": "5536276f8e0a39a2a01bb680c74440be6db88cbb",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/privacy/page.tsx",
+      "blob": "dae8e620d064240670381649f03cd700dacb840a",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/products-sitemap.xml/route.ts",
+      "blob": "79fa3146d374b8d0e8a7a51e258c22fe204dd8a5",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/register/page.tsx",
+      "blob": "e075bb0ed26796e291ada476d78e2aee31e815e7",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/reset-password/page.tsx",
+      "blob": "8380d63a5cf763131df88a0a1ff715becd5725e6",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/resources-sitemap.xml/route.ts",
+      "blob": "1e11a09ece8b8af6a4ee2e7aa5eeddfd58816e58",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/resources/[slug]/page.tsx",
+      "blob": "426753c5cd28bc634bed87b9b53dd76c3cc4cbaa",
+      "ids": [],
+      "actions": [
+        {
+          "line": 19,
+          "token": "export async function generateMetadata"
+        }
+      ],
+      "guards": []
+    },
+    {
+      "path": "src/app/resources/page.tsx",
+      "blob": "c7b554bcefaf94c781d10885ca1fdf974b5f5d43",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/resources/updates/[slug]/page.tsx",
+      "blob": "56b57ab8800463cafdd7a9c8f7caff675824c985",
+      "ids": [],
+      "actions": [
+        {
+          "line": 13,
+          "token": "export async function generateMetadata"
+        }
+      ],
+      "guards": []
+    },
+    {
+      "path": "src/app/resources/updates/feed.xml/route.ts",
+      "blob": "8125b32e771353245ca67c31f84229378b051136",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/resources/updates/page.tsx",
+      "blob": "a8e9a93bf789a155ed96a4ca9c571a5389b146da",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/robots.ts",
+      "blob": "09e337cd98246236f5f6cab0bba864621c52e717",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    },
+    {
+      "path": "src/app/scorecard/page.tsx",
+      "blob": "499682dc9cde5a6a295b9d0dc4e2b6eea1dba04d",
+      "ids": [],
+      "actions": [],
+      "guards": []
+    }
+  ]
+}
