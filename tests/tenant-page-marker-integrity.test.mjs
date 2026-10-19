@@ -1,0 +1,31 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+
+const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+const probe = readFileSync("scripts/qa/tenant-scoped-page-probes.mjs", "utf8");
+
+test("three-employer fixture returns distinct REAL organization names, not undefined", () => {
+  assert.ok(harness.includes("])).returning({ id: organizations.id, name: organizations.name });"),
+    "Do not construct HTML secrecy tests from an ID-only DB returning() projection");
+  assert.match(harness, /name: "Victim Only " \+ nonce/);
+  assert.match(harness, /name: "Attacker A " \+ nonce/);
+  assert.match(harness, /name: "Attacker B " \+ nonce/);
+  assert.match(probe, /const victimOrgMarker = victim\.name;/);
+  assert.match(probe, /assert\.match\(victimOrgMarker, \/\^Victim Only/);
+  assert.match(probe, /assert\.notEqual\(victimOrgMarker, own\.name/);
+});
+
+test("foreign employer HTML must continue to reject real victim markers", () => {
+  assert.match(probe, /assert\.ok\(!foreignRes\.text\.includes\(victimOrgMarker\)/);
+  assert.match(probe, /assert\.ok\(!foreignRes\.text\.includes\(victimPrivateEmployeeMarker\)/);
+  assert.match(probe, /assert\.ok\(!foreignRes\.text\.includes\("VictimExclusive7"\)/);
+  assert.match(probe, /victimEmployeeAndPayrollUnchanged: true/);
+  assert.match(probe, /outstandingPageOrActionGaps: pages\.length, pageGapsReclassified: 0/);
+});
+
+test("undefined is NEVER acceptable as a sensitive marker", () => {
+  const html = "<script>undefined</script>";
+  assert.equal(html.includes(undefined), true, "A missing JS marker gives a false alarm");
+  assert.equal(html.includes("Victim Only 0a1b2c3d4e5f"), false);
+});

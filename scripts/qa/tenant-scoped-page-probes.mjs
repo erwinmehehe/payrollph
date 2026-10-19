@@ -49,6 +49,13 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
     const victim = f.orgs[0];
     const victimPrivateEmployeeMarker = f.victimEmployee.employeeNo;
     const victimOrgMarker = victim.name;
+    assert.match(victimOrgMarker, /^Victim Only [0-9a-f]{12}$/,
+      "Victim-exclusive employer marker MUST be present from a seeded DB row");
+    assert.match(own.name, /^Attacker [AB] [0-9a-f]{12}$/,
+      "Attacker must have a distinct populated employer name");
+    assert.notEqual(victimOrgMarker, own.name, "Foreign and own employer markers must differ");
+    assert.match(victimPrivateEmployeeMarker, /^V-[0-9a-f]{12}-7$/,
+      "Victim-only employee identifier must come from a real seeded victim row");
     const ownerCookie = f.ownerSessions[idx].cookie;
     const employeeCookie = sessions[idx - 1].cookie;
     const signedIn = expectStatus(await request("/api/account", { cookie: ownerCookie }), 200,

@@ -103,7 +103,7 @@ async function makeFixture() {
     { name: "Victim Only " + nonce, legalName: "Fictional Victim " + nonce },
     { name: "Attacker A " + nonce, legalName: "Fictional Attacker A " + nonce },
     { name: "Attacker B " + nonce, legalName: "Fictional Attacker B " + nonce },
-  ]).returning({ id: organizations.id });
+  ]).returning({ id: organizations.id, name: organizations.name });
   const orgs = [victim, attackerA, attackerB];
   const owners = await db.insert(users).values(orgs.map((_, idx) => ({
     email: "secondpass-owner-" + idx + "-" + nonce + "@example.invalid",
