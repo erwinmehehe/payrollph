@@ -282,55 +282,69 @@ test("new sensitive download, legal-employer, leave mutation, and ESS proofs are
 
 
 test("self-service PDF cannot outlive former-employer membership", () => {
-  // Checks only proof integrity; the actual HTTP outcomes and database
-  // invariants execute in the original CI/disposable-Postgres smoke harness.
+  // Integrity checks only: the real-HTTP and unchanged-DB proof runs through
+  // the existing three-employer Security HTTP Smoke CI, not mocked checks.
   const route = "src/app/api/self/payslips/[id]/route.ts";
   const method = manifest.allApiRouteFiles[route].methods.find((m) => m.name === "GET");
-  assert.equal(method?.status, "COVERED", "PDF must not be credited from anonymous 401/404");
+  assert.equal(method?.status, "COVERED");
   const source = readFileSync(route, "utf8");
   const guardCall = "const membershipDenied = await assertMembership(session.id, employee.organizationId);";
-  assert.match(source, /import \{ assertMembership \} from "@\/lib\/access";/,
-    "PDF must use the existing active organization-membership guard");
+  assert.match(source, /import \{ assertMembership \} from "@\/lib\/access";/);
   const guardAt = source.indexOf(guardCall);
   assert.ok(guardAt > source.indexOf("if (!employee) return Response.json"),
-    "Membership must bind to the actual authenticated employee employer");
+    "Guard must use the actual employee's employer");
   assert.ok(guardAt < source.indexOf("db.select().from(organizations)") &&
     guardAt < source.indexOf("renderPayslipPdf("),
-    "Employer access must be checked BEFORE loading identity or releasing any PDF bytes");
-  assert.ok(source.slice(guardAt, guardAt + 240).includes("if (membershipDenied) return membershipDenied;"),
-    "An explicitly denied membership must abort the PDF request");
-  assert.equal(source.split("\n")[method.testedBy.currentMembershipGuardLine - 1].trim(), guardCall,
-    "The manifest must cite the exact guard line instead of stale source");
+    "Active employer grant must be checked before loading identity or returning PDF bytes");
+  assert.ok(source.slice(guardAt, guardAt + 240).includes("if (membershipDenied) return membershipDenied;"));
+  assert.equal(source.split("\n")[method.testedBy.currentMembershipGuardLine - 1].trim(), guardCall);
   assert.equal(method.testedBy.file, "scripts/qa/tenant-second-pass-http.mjs");
   const own = evidenceLine(method.testedBy.file, method.testedBy.ownPositiveLine,
-    "Real own Released payslip 200 before membership changes");
+    "Audit own Released PDF");
   assert.ok(own.includes("const ownPayslipPdf = expectStatus") && own.includes("/api/self/payslips/"),
-    "The previously accessible real PDF is the positive control");
-  const live = evidenceLine(method.testedBy.file, method.testedBy.staleSessionOwnPositiveLine,
-    "Authenticated after transfer");
-  assert.ok(live.includes('const stillSignedIn = expectStatus(await request("/api/account"'),
-    "A valid session must still succeed after old-employer access is revoked");
-  const negative = evidenceLine(method.testedBy.file, method.testedBy.staleMembershipForeignDenialLine,
-    "Former-employer record denial");
-  assert.ok(negative.includes('const stalePayslipPdf = expectStatus(await request("/api/self/payslips/" + ownEntry.id'),
-    "The denial must target the exact previously readable real payroll entry");
+    "Audit employee must actually receive own employer's PDF");
+  const mainOwn = evidenceLine(method.testedBy.file, method.testedBy.staleMembershipOwnPositiveLine,
+    "Canonical merged #1283 own PDF");
+  assert.ok(mainOwn.includes('const ownedPdf = expectStatus(await request("/api/self/payslips/" + ownEntry.id'),
+    "Use canonical merged #1283 own-payroll positive, not a placeholder");
   const scriptLines = readFileSync(method.testedBy.file, "utf8").split("\n");
+  const ownSpan = scriptLines.slice(method.testedBy.staleMembershipOwnPositiveLine - 1,
+    method.testedBy.staleMembershipOwnPositiveLine + 6).join("\n");
+  assert.ok(ownSpan.includes("cookie: employeeCookie") &&
+    ownSpan.includes("}), 200,") && ownSpan.includes("%PDF-"),
+    "Canonical positive control must contain real PDF bytes with exact 200");
+  const live = evidenceLine(method.testedBy.file, method.testedBy.staleSessionOwnPositiveLine,
+    "Same still-signed-in employee account after employer change");
+  assert.ok(live.includes('const stillSignedIn = expectStatus(await request("/api/account"'),
+    "The same session must authenticate after old employer membership revocation");
+  const negative = evidenceLine(method.testedBy.file, method.testedBy.staleMembershipForeignDenialLine,
+    "Former-employer PDF denial");
+  assert.ok(negative.includes('const revokedPdf = expectStatus(await request("/api/self/payslips/" + ownEntry.id'),
+    "Revoked-member negative control must target the exact previously readable PDF");
   const negSpan = scriptLines.slice(method.testedBy.staleMembershipForeignDenialLine - 1,
     method.testedBy.staleMembershipForeignDenialLine + 4).join("\n");
   assert.ok(negSpan.includes("cookie: employeeCookie") && negSpan.includes("}), 403,"),
-    "Cross-employer transfer must deny with exact 403, not invalid 401/404/429");
-  const invariant = evidenceLine(method.testedBy.file, method.testedBy.staleMembershipUnchangedDbLine,
-    "Unchanged payroll record");
-  assert.match(invariant, /assert\.deepEqual\(payrollEntryAfter, oldPayrollEntry/,
-    "Denied PDF must leave the employer payroll DB record unchanged");
-  assert.match(scriptLines.join("\n"), /assert\.equal\(formerMembership\?\.active, false,/,
-    "A real previously active former-employer membership must be revoked");
-  assert.match(scriptLines.join("\n"), /assert\.equal\(newMembership\?\.active, true,/,
-    "Keep a new employer grant active so a 401 from logout cannot false-pass");
-  assert.match(scriptLines.join("\n"), /assert\.equal\(stillSignedIn\.json\?\.profile\?\.id, employeeAccount\.id,/,
-    "Successful post-revocation session must be the same old employer's employee account");
-  assert.match(scriptLines.join("\n"), /await verifySensitiveTenantDownloadsAndRoles\(f\)/,
-    "Evidence must actually run as part of the security HTTP smoke");
+    "Denial must be exact 403; anonymous 401 and made-up 404 do not qualify");
+  const invariant = evidenceLine(method.testedBy.file,
+    method.testedBy.staleMembershipUnchangedDbLine, "Unchanged old payroll after denial");
+  assert.match(invariant, /assert\.deepEqual\(afterDeniedPdf, beforeDeniedPdf/,
+    "Denied PDF must leave the old employer payroll row unchanged");
+  const script = scriptLines.join("\n");
+  assert.match(script, /assert\.equal\(revoked\?\.active, false,/,
+    "Actually revoke original employer membership in disposable PostgreSQL");
+  assert.match(script, /assert\.equal\(stillMember\?\.active, true,/,
+    "Keep new employer membership active so a logged-out 401 cannot false-pass");
+  assert.match(script, /assert\.equal\(stillSignedIn\.json\?\.profile\?\.id, essUser\.id,/,
+    "Post-revocation 200 must belong to the same employee account");
+  assert.ok(script.indexOf("const ownedPdf = expectStatus") <
+      script.indexOf("await db.update(userOrganizations).set({ active: false })") &&
+      script.indexOf("await db.update(userOrganizations).set({ active: false })") <
+      script.indexOf("const revokedPdf = expectStatus"),
+    "The real own PDF must precede actual revocation, then be denied");
+  assert.match(script, /await verifyRevokedEmployerPayslipAccess\(f\)/,
+    "Canonical merged #1283 regression must run, not merely be defined");
+  assert.match(script, /await verifySensitiveTenantDownloadsAndRoles\(f\)/,
+    "Additional audit method-level proofs must continue running");
 });
 
 test("all credited proof links point to the claimed route and every recertified write has controls", () => {

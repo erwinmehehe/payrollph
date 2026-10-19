@@ -2,7 +2,7 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-19",
-  "acceptanceStatus": "NOT ACCEPTED: 447 API methods and 20 page entries still lack per-method cross-employer HTTP/DB proof; new five-method batch requires exact-head CI",
+  "acceptanceStatus": "NOT ACCEPTED: synced with merged PR #1283 but 447 API methods and 20 page entries still lack per-method cross-employer HTTP/DB proof; exact new merge-head CI required",
   "metrics": {
     "routeFiles": 288,
     "methods": 489,
@@ -15283,7 +15283,7 @@
             "ownPositiveLine": 808,
             "foreignDenialLine": 817,
             "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable",
-            "unchangedDbLine": 967
+            "unchangedDbLine": 928
           }
         }
       ],
@@ -23973,17 +23973,18 @@
           "name": "GET",
           "line": 12,
           "status": "COVERED",
-          "reason": "Authenticated linked-employee own Released PDF 200; existing victim-only and coworker entry 404; actual revoked/former-employer membership returns 403 while SAME session remains 200. Existing assertMembership guard required before PDF bytes.",
+          "reason": "Merged #1283 checks current active employer membership before PDF bytes. Two independent employees with real own Released PDF 200 are denied actual victim ID 404 and their own former-employer PDF exact 403 after revoked grant, while same session is still authenticated 200. Additional audit ESS proofs include same-employer coworker denial.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "line": 867,
             "ownPositiveLine": 862,
             "foreignDenialLine": 867,
-            "scope": "Three fictional employers / two independent linked employee role sessions, real Released PDF bytes, direct victim & coworker IDs, revoked former-employer membership while session still authenticated; victim source data unchanged",
+            "scope": "Three disposable PostgreSQL employers / two independent employee-role sessions; merged #1283 canonical former-employer membership transfer/regression, plus own/victim and same-employer coworker PDF evidence retained in this audit",
             "currentMembershipGuardLine": 32,
-            "staleSessionOwnPositiveLine": 941,
-            "staleMembershipForeignDenialLine": 946,
-            "staleMembershipUnchangedDbLine": 953
+            "staleSessionOwnPositiveLine": 994,
+            "staleMembershipForeignDenialLine": 1002,
+            "staleMembershipUnchangedDbLine": 1008,
+            "staleMembershipOwnPositiveLine": 967
           }
         }
       ],

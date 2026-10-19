@@ -910,48 +910,9 @@ async function verifySensitiveTenantDownloadsAndRoles(f) {
         "Employee " + idx + " must not access privileged " + label);
     }
 
-    // Regression for the PDF route's formerly absent membership re-check:
-    // an employee may retain a valid session and a stale employeeId linkage
-    // after being removed from the former employer. The same *real* entry
-    // succeeded above while membership was active; a 401 or invented 404 is
-    // NOT acceptable evidence. Keep another real employer membership active
-    // so this tests tenant authorization, not logout or account deactivation.
-    const destinationOrg = f.orgs[idx === 1 ? 2 : 1];
-    const [oldPayrollEntry] = await db.select().from(payrollEntries)
-      .where(eq(payrollEntries.id, ownEntry.id));
-    assert.ok(oldPayrollEntry && oldPayrollEntry.employeeId === ownEmployeeId,
-      "Revocation probe must target a real previously downloadable pay record");
-    await db.insert(userOrganizations).values({
-      userId: employeeAccount.id, organizationId: destinationOrg.id,
-      role: "employee", active: true,
-    });
-    await db.update(userOrganizations).set({ active: false })
-      .where(and(eq(userOrganizations.userId, employeeAccount.id),
-        eq(userOrganizations.organizationId, attacker.id)));
-    const [formerMembership] = await db.select().from(userOrganizations)
-      .where(and(eq(userOrganizations.userId, employeeAccount.id),
-        eq(userOrganizations.organizationId, attacker.id)));
-    const [newMembership] = await db.select().from(userOrganizations)
-      .where(and(eq(userOrganizations.userId, employeeAccount.id),
-        eq(userOrganizations.organizationId, destinationOrg.id)));
-    assert.equal(formerMembership?.active, false,
-      "The old employer grant must be actually revoked, not invented");
-    assert.equal(newMembership?.active, true,
-      "A different employer grant must remain active for the attacker session");
-    const stillSignedIn = expectStatus(await request("/api/account", {
-      cookie: employeeCookie,
-    }), 200, "Revoked old-employer membership must not be confused with an expired session");
-    assert.equal(stillSignedIn.json?.profile?.id, employeeAccount.id,
-      "The SAME employee account must remain authenticated after employer transfer");
-    const stalePayslipPdf = expectStatus(await request("/api/self/payslips/" + ownEntry.id, {
-      cookie: employeeCookie,
-    }), 403, "Former-employer payslip PDF must require CURRENT active organization membership");
-    assert.ok(!stalePayslipPdf.text.startsWith("%PDF-"),
-      "No PDF bytes may leak after former-employer access has been revoked");
-    const [payrollEntryAfter] = await db.select().from(payrollEntries)
-      .where(eq(payrollEntries.id, ownEntry.id));
-    assert.deepEqual(payrollEntryAfter, oldPayrollEntry,
-      "Former-employer pay row must be unchanged after denied PDF access");
+    // Former-employer membership revocation is exercised by the already-merged
+    // verifyRevokedEmployerPayslipAccess fixture and its independent two-attacker controls.
+
     console.log("PASS additional three-org attacker-" + idx +
       ": owned attachment, foreign IDs, legal employer, leave mutation, ESS pay and employee role");
   }
@@ -971,6 +932,84 @@ async function verifySensitiveTenantDownloadsAndRoles(f) {
   assertions += 15;
 }
 
+/**
+ * Regression: the same employee-role session must lose access to a real
+ * previously downloadable payslip when its former employer membership is
+ * revoked, even if the account remains active at another fictional employer.
+ * This runs in the existing 3-employer disposable PG16/localhost harness.
+ */
+async function verifyRevokedEmployerPayslipAccess(f) {
+  const [victimEntry] = await db.select({ id: payrollEntries.id }).from(payrollEntries)
+    .where(and(eq(payrollEntries.payrollRunId, f.victimRun.id),
+      eq(payrollEntries.employeeId, f.victimEmployee.id))).limit(1);
+  assert.ok(victimEntry?.id > 6, "Victim-only PDF ID must be real and greater than six");
+
+  for (const idx of [1, 2]) {
+    const formerOrg = f.orgs[idx];
+    const newOrg = f.orgs[idx === 1 ? 2 : 1];
+    const ownEmployee = f.ownedEmployees[idx - 1];
+    const [ownEntry] = await db.select().from(payrollEntries)
+      .where(and(eq(payrollEntries.payrollRunId, f.ownRuns[idx].id),
+        eq(payrollEntries.employeeId, ownEmployee.id))).limit(1);
+    assert.ok(ownEntry?.id > 6, "Stale membership probe requires a real owned Released pay entry");
+
+    const [essUser] = await db.insert(users).values({
+      email: "fictional-transferred-ess-" + idx + "-" + f.owners[idx].id + "@example.invalid",
+      name: "Fictional transferred employee " + idx,
+      passwordHash: "fictional-cookie-auth-only", role: "employee",
+      employeeId: ownEmployee.id,
+    }).returning({ id: users.id });
+    await db.insert(userOrganizations).values({
+      userId: essUser.id, organizationId: formerOrg.id, role: "employee", active: true,
+    });
+    const employeeCookie = (await makeSession(essUser.id)).cookie;
+
+    const ownedPdf = expectStatus(await request("/api/self/payslips/" + ownEntry.id, {
+      cookie: employeeCookie,
+    }), 200, "Employee " + idx + " own Released payslip must work BEFORE membership revocation");
+    assert.match(ownedPdf.headers.get("content-type") ?? "", /^application\/pdf/);
+    assert.ok(ownedPdf.text.startsWith("%PDF-"),
+      "Own positive must return actual PDF bytes, not empty/invalid success");
+    expectStatus(await request("/api/self/payslips/" + victimEntry.id, {
+      cookie: employeeCookie,
+    }), 404, "Employee " + idx + " must not retrieve real high-ID victim-employer PDF");
+
+    // Change *real* memberships without changing the session or the
+    // employeeId link. This is a former-employer data-access regression.
+    await db.insert(userOrganizations).values({
+      userId: essUser.id, organizationId: newOrg.id, role: "employee", active: true,
+    });
+    await db.update(userOrganizations).set({ active: false })
+      .where(and(eq(userOrganizations.userId, essUser.id),
+        eq(userOrganizations.organizationId, formerOrg.id)));
+    const [revoked] = await db.select().from(userOrganizations)
+      .where(and(eq(userOrganizations.userId, essUser.id),
+        eq(userOrganizations.organizationId, formerOrg.id)));
+    const [stillMember] = await db.select().from(userOrganizations)
+      .where(and(eq(userOrganizations.userId, essUser.id),
+        eq(userOrganizations.organizationId, newOrg.id)));
+    assert.equal(revoked?.active, false, "Actual former-employer grant must be inactive");
+    assert.equal(stillMember?.active, true, "New employer membership must remain active");
+
+    const stillSignedIn = expectStatus(await request("/api/account", {
+      cookie: employeeCookie,
+    }), 200, "Same employee session must still be authenticated after moving employer");
+    assert.equal(stillSignedIn.json?.profile?.id, essUser.id,
+      "An invalid or different session must never count as a denial");
+    const beforeDeniedPdf = (await db.select().from(payrollEntries)
+      .where(eq(payrollEntries.id, ownEntry.id)))[0];
+    assert.deepEqual(beforeDeniedPdf, ownEntry, "Owned payroll row must exist before access denial");
+    const revokedPdf = expectStatus(await request("/api/self/payslips/" + ownEntry.id, {
+      cookie: employeeCookie,
+    }), 403, "Former-employer payslip PDF must deny a signed-in employee after revocation");
+    assert.ok(!revokedPdf.text.startsWith("%PDF-"), "Denied PDF must not return former-employer bytes");
+    const afterDeniedPdf = (await db.select().from(payrollEntries)
+      .where(eq(payrollEntries.id, ownEntry.id)))[0];
+    assert.deepEqual(afterDeniedPdf, beforeDeniedPdf, "Denied PDF may not modify the old payroll row");
+    console.log("PASS employee-" + idx + ": own PDF 200, victim 404, still-signed-in 200, former-employer PDF 403");
+  }
+}
+
 async function main() {
   requireDisposable();
   const f = await makeFixture();
@@ -983,6 +1022,7 @@ async function main() {
   assert.deepEqual(afterWebhookProbe, beforeWebhookProbe,
     "Forged provider webhook probes must not insert victim provider events");
   await verifyCrossTenant(f);
+  await verifyRevokedEmployerPayslipAccess(f);
   await verifySensitiveTenantDownloadsAndRoles(f);
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
