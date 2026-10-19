@@ -320,8 +320,9 @@ test("S25 flagged signed review and exact 13th-month remain local to test proces
     });
     assert.equal(result.thirteenthDue, 1500);
     assert.equal(result.netFinalPay, 0, "No negative payout permitted");
-    assert.equal(result.signedNetFinalPay, -8500,
-      "Read-only accounting must preserve unrecovered requested loan amount");
+    assert.equal(result.signedNetFinalPay, 0,
+      "Signed view reflects applied loan only; PHP8500 deferred loan is a separate, visible liability");
+    assert.equal(result.deferredLoanBalance, 8500);
   } finally {
     if (first === undefined) delete process.env.FINAL_PAY_SIGNED_REVIEW_ENABLED;
     else process.env.FINAL_PAY_SIGNED_REVIEW_ENABLED = first;
