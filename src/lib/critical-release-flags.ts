@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  payrollEmployerSetupNavigation: {
+    env: "PAYROLL_EMPLOYER_SETUP_NAVIGATION_ENABLED",
+    owner: "Payroll / Onboarding",
+    risk: "Employer setup navigation and verified selector error recovery; no automatic provisioning",
+    approval: "Executed empty/error/retry, restricted-role and flag-off browser parity at desktop/390px; existing payroll guards preserved",
+  },
   firstPayrollConnected: {
     env: "FIRST_PAYROLL_CONNECTED_ENABLED",
     owner: "Payroll / Onboarding",

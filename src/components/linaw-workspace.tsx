@@ -74,6 +74,7 @@ import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 import { useDashboardReadRecovery } from "@/lib/use-dashboard-read-recovery";
 import { resolveFirstPayrollRunFocus } from "@/lib/first-payroll-run-navigation";
+import { EmployerSetupHelp } from "@/components/workspace/employer-setup-help";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null, optionalUiCapabilities = { overpaymentPreview: false, overpaymentInvestigation: false, tenantReportBuilder: false } }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null; optionalUiCapabilities?: { overpaymentPreview: boolean; overpaymentInvestigation: boolean; tenantReportBuilder: boolean } }) {
   const searchParams = useSearchParams();
@@ -747,6 +748,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           <EntityTransferInbox context={data.multiEntity} organizationId={data.selectedOrganization.id}
             onRefresh={async () => { await refresh(); }} />
         </>}
+        {page === "Entities" && !data.multiEntity?.enabled && data.payrollEmployerSetupNavigationEnabled &&
+          <EmployerSetupHelp entitiesPage onOpen={availablePages.includes("Enterprise") ? () => setPage("Enterprise") : undefined} />}
         {page === "Enterprise" && (
           <>
             <LegalEntitiesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />
@@ -779,12 +782,18 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
 
       {newPayrollOpen && (
         <NewPayrollModal
+          key={data.payrollEmployerSetupNavigationEnabled ? data.selectedOrganization.id : undefined}
           organizationId={data.selectedOrganization.id}
           onClose={() => setNewPayrollOpen(false)}
           onCreate={createPayroll}
           busy={busy}
           orgUnits={data.orgUnits ?? []}
           multiEntity={data.multiEntity}
+          employerSetupNavigationEnabled={data.payrollEmployerSetupNavigationEnabled}
+          onOpenEmployerSetup={availablePages.includes("Enterprise") ? () => {
+            setNewPayrollOpen(false);
+            setPage(data.multiEntity?.enabled ? "Entities" : "Enterprise");
+          } : undefined}
         />
       )}
       {outboxOpen && canManageDeliveryOutbox && (
