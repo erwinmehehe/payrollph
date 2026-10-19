@@ -58,7 +58,7 @@ export function isVerifiedPeopleOperationsPayload(
       Number(attention.dueNext7) + Number(attention.dueNext30) +
       Number(attention.undated) > Number(summary.total)) return false;
 
-  if (!count(value.filteredTotal) || value.filteredTotal > summary.total ||
+  if (!count(value.filteredTotal) || value.filteredTotal > Number(summary.total) ||
       !count(value.page) || value.page < 1 ||
       !count(value.pages) || value.pages < 1 ||
       value.pageSize !== 20 || !Number.isSafeInteger(requestedPage) || requestedPage < 1) return false;
