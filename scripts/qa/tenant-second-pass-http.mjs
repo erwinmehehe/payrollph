@@ -19,6 +19,7 @@ import {
 import { mintApiKey } from "../../src/lib/api-keys";
 import { mintScimToken } from "../../src/lib/scim";
 import { SECOND_PASS_ROUTES, SECOND_PASS_FAMILIES } from "./tenant-second-pass-manifest.mjs";
+import { verifyManifestDrivenStatutoryBatch } from "./tenant-manifest-driven-http.mjs";
 
 const BASE = process.env.SECURITY_SMOKE_URL ?? "";
 const ORIGIN = { origin: BASE, "sec-fetch-site": "same-origin" };
@@ -1024,6 +1025,7 @@ async function main() {
   await verifyCrossTenant(f);
   await verifyRevokedEmployerPayslipAccess(f);
   await verifySensitiveTenantDownloadsAndRoles(f);
+  await verifyManifestDrivenStatutoryBatch(f, { request, expectStatus });
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
     result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,
