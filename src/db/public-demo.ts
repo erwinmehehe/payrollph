@@ -1,8 +1,9 @@
-import { count, eq, inArray, sql } from "drizzle-orm";
+import { count, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
   auditEvents,
+  employeePayProfiles,
   employees,
   holidays,
   leaveBalances,
@@ -19,6 +20,7 @@ import { ensureSubscription } from "@/lib/billing";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { fictionalPublicDemoPayroll, PUBLIC_DEMO_PAYROLL_WORKERS } from "@/lib/public-demo-payroll-fixture";
+import { verifiedFictionalPayProfileRows } from "@/lib/public-demo-pay-profile-fixture";
 
 const PUBLIC_DEMO_ORG = "Loom & Local";
 
@@ -291,6 +293,10 @@ export async function ensurePublicDemoTenant() {
   const organizationId = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('linaw-public-demo-tenant-v2'))`);
 
+    const [anotherOrganization] = await tx.select({ id: organizations.id })
+      .from(organizations).where(ne(organizations.name, PUBLIC_DEMO_ORG)).limit(1);
+    if (anotherOrganization) throw new Error("PUBLIC_DEMO_TENANT_NOT_ISOLATED");
+
     let [organization] = await tx
       .select()
       .from(organizations)
@@ -309,6 +315,10 @@ export async function ensurePublicDemoTenant() {
           color: "#176B5D",
         })
         .returning();
+    }
+
+    if (organization.legalName !== "Loom & Local Philippines Inc.") {
+      throw new Error("PUBLIC_DEMO_TENANT_NOT_ISOLATED");
     }
 
     let units = await tx
@@ -382,6 +392,17 @@ export async function ensurePublicDemoTenant() {
       .select()
       .from(employees)
       .where(eq(employees.organizationId, organization.id));
+
+    // Add only verified fictional profiles, never modify existing pay profiles.
+    const profiles = verifiedFictionalPayProfileRows(organization.id, staff, people);
+    await tx.insert(employeePayProfiles).values(profiles)
+      .onConflictDoNothing({ target: employeePayProfiles.employeeId });
+    const persisted = await tx.select({ employeeId: employeePayProfiles.employeeId })
+      .from(employeePayProfiles).where(eq(employeePayProfiles.organizationId, organization.id));
+    const present = new Set(persisted.map(item => item.employeeId));
+    if (persisted.length !== profiles.length || !profiles.every(item => present.has(item.employeeId))) {
+      throw new Error("PUBLIC_DEMO_PAY_PROFILE_INCOMPLETE");
+    }
 
     const activeStaff = staff.filter((employee) => employee.status === "Active");
     const holidayRows = await tx.select().from(holidays).where(eq(holidays.organizationId, organization.id));
