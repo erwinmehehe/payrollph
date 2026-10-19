@@ -53,6 +53,8 @@ import { DoleThirteenthMonthReportPanel } from "@/components/workspace/dole-thir
 import { CompliancePolicyReviewPanel } from "@/components/workspace/compliance-policy-review-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import { manilaCalendarDate } from "@/lib/payroll-period-ui";
+import { readPayrollEmployerOptions } from "@/lib/payroll-employer-options";
+import { EmployerSetupHelp } from "./employer-setup-help";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money, moneyExact } from "./ui";
 export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData; setNotice: (message: string) => void; onRefresh: () => Promise<void> }) {
@@ -1541,6 +1543,8 @@ export function NewPayrollModal({
   busy,
   orgUnits = [],
   multiEntity,
+  employerSetupNavigationEnabled = false,
+  onOpenEmployerSetup,
 }: {
   organizationId: number;
   onClose: () => void;
@@ -1555,6 +1559,8 @@ export function NewPayrollModal({
   busy: boolean;
   orgUnits?: OrgUnit[];
   multiEntity?: NonNullable<DashboardData["multiEntity"]>;
+  employerSetupNavigationEnabled?: boolean;
+  onOpenEmployerSetup?: () => void;
 }) {
   const now = new Date();
   const year = now.getFullYear();
@@ -1574,9 +1580,22 @@ export function NewPayrollModal({
   const entityNameMatches = !multiEntity?.enabled ||
     (selectedEntity && typedEntityName.trim() === selectedEntity.legalName.trim());
   const [legalEntitiesLoading, setLegalEntitiesLoading] = useState(true);
+  const [legalEntitiesError, setLegalEntitiesError] = useState("");
+  const [employerReadAttempt, setEmployerReadAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
+    if (employerSetupNavigationEnabled) {
+      const controller = new AbortController();
+      void readPayrollEmployerOptions(organizationId, controller.signal).then(rows => {
+        if (!alive) return;
+        setLegalEntities(rows);
+        setLegalEntityId(rows.find(row => row.primaryEntity)?.id ?? rows[0]?.id ?? null);
+      }).catch(() => {
+        if (alive) setLegalEntitiesError("Could not verify legal employers. Retry the list or ask your administrator for help.");
+      }).finally(() => { if (alive) setLegalEntitiesLoading(false); });
+      return () => { alive = false; controller.abort(); };
+    }
     (async () => {
       try {
         const response = await fetch(`/api/legal-entities?organizationId=${organizationId}&mode=selector`, { cache: "no-store" });
@@ -1592,7 +1611,7 @@ export function NewPayrollModal({
       }
     })();
     return () => { alive = false; };
-  }, [organizationId]);
+  }, [organizationId, employerSetupNavigationEnabled, employerReadAttempt]);
 
   const periodDays = periodStart && periodEnd
     ? Math.floor((Date.parse(`${periodEnd}T00:00:00Z`) - Date.parse(`${periodStart}T00:00:00Z`)) / 86_400_000) + 1
@@ -1620,12 +1639,23 @@ export function NewPayrollModal({
               }}
               disabled={legalEntitiesLoading}
             >
-              {legalEntities.length === 0 && <option value="">No active legal employer</option>}
+              {legalEntities.length === 0 && <option value="">{employerSetupNavigationEnabled
+                ? legalEntitiesLoading ? "Loading legal employers…" : legalEntitiesError ? "Legal employers unavailable" : "No active legal employer"
+                : "No active legal employer"}</option>}
               {legalEntities.map((entity) => (
                 <option key={entity.id} value={entity.id}>{entity.code} · {entity.displayName}{entity.primaryEntity ? " · Primary" : ""}</option>
               ))}
             </select>
           </label>
+          {employerSetupNavigationEnabled && !legalEntitiesLoading && (legalEntitiesError
+            ? <div role="alert" className="notice notice-amber"><span>{legalEntitiesError}</span>
+                <button type="button" className="secondary-button" onClick={() => {
+                  setLegalEntitiesLoading(true); setLegalEntitiesError("");
+                  setLegalEntities([]); setLegalEntityId(null);
+                  setEmployerReadAttempt(value => value + 1);
+                }}>Retry legal employers</button>
+              </div>
+            : legalEntities.length === 0 && <EmployerSetupHelp onOpen={onOpenEmployerSetup} />)}
           {multiEntity?.enabled && <label>Confirm exact legal employer name: {selectedEntity?.legalName ?? "Select an entity"}
             <input aria-label="Type legal employer name" autoComplete="off"
               value={typedEntityName} onChange={event => setTypedEntityName(event.target.value)}

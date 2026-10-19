@@ -74,6 +74,8 @@ import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 import { useDashboardReadRecovery } from "@/lib/use-dashboard-read-recovery";
 import { resolveFirstPayrollRunFocus } from "@/lib/first-payroll-run-navigation";
+import { EmployerSetupHelp } from "@/components/workspace/employer-setup-help";
+import { payrollEmployerSetupDestination } from "@/lib/payroll-employer-options";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null, optionalUiCapabilities = { overpaymentPreview: false, overpaymentInvestigation: false, tenantReportBuilder: false } }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null; optionalUiCapabilities?: { overpaymentPreview: boolean; overpaymentInvestigation: boolean; tenantReportBuilder: boolean } }) {
   const searchParams = useSearchParams();
@@ -212,6 +214,10 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   ].join(":");
   const canManageDeliveryOutbox = effectiveRole === "owner" || effectiveRole === "admin";
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
+  const employerSetupDestination = payrollEmployerSetupDestination({
+    role: effectiveRole, companyWide: data.access?.companyWide === true,
+    demo: Boolean(demoRole), multiEntity: data.multiEntity?.enabled === true, pages: availablePages,
+  });
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
   function openHrEmployee(employeeId: number) {
@@ -747,6 +753,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           <EntityTransferInbox context={data.multiEntity} organizationId={data.selectedOrganization.id}
             onRefresh={async () => { await refresh(); }} />
         </>}
+        {page === "Entities" && !data.multiEntity?.enabled && data.payrollEmployerSetupNavigationEnabled &&
+          <EmployerSetupHelp entitiesPage onOpen={employerSetupDestination ? () => setPage(employerSetupDestination) : undefined} />}
         {page === "Enterprise" && (
           <>
             <LegalEntitiesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />
@@ -779,12 +787,18 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
 
       {newPayrollOpen && (
         <NewPayrollModal
+          key={data.payrollEmployerSetupNavigationEnabled ? sourceBoundModuleKey : undefined}
           organizationId={data.selectedOrganization.id}
           onClose={() => setNewPayrollOpen(false)}
           onCreate={createPayroll}
           busy={busy}
           orgUnits={data.orgUnits ?? []}
           multiEntity={data.multiEntity}
+          employerSetupNavigationEnabled={data.payrollEmployerSetupNavigationEnabled}
+          onOpenEmployerSetup={employerSetupDestination ? () => {
+            setNewPayrollOpen(false);
+            setPage(employerSetupDestination);
+          } : undefined}
         />
       )}
       {outboxOpen && canManageDeliveryOutbox && (
