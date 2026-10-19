@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { load } from "js-yaml";
 import { cutoverEnvironment } from "../scripts/run-clean-baseline-cutover.mjs";
 import { FORBIDDEN_TARGET_BRANCHES, prepareSchemaDump } from "../scripts/lib/clean-baseline-cutover.mjs";
 
@@ -95,8 +96,11 @@ test("the v2 audit guard companion is bound to the verified target database name
   await assert.rejects(installV2AuditGuards(async () => ({ rows: [] }), { branchId: "br-young-leaf-b7ae1g8v", databaseName: "x'; DROP" }), /CUTOVER_DATABASE_NAME_INVALID/);
 });
 
-test("CI exercises the runner under the real target database name, not neondb", () => {
-  const workflow = readFileSync(".github/workflows/clean-baseline-cutover-rehearsal.yml", "utf8");
-  assert.match(workflow, /EXPECTED_DATABASE_NAME: payrollph_clean_baseline/);
-  assert.match(readFileSync("scripts/qa/provision-cutover-test-target.mjs", "utf8"), /CREATE DATABASE payrollph_clean_baseline OWNER/);
+test("CI provisions and exercises each explicit database from the two-name matrix", () => {
+  const workflow = load(readFileSync(".github/workflows/clean-baseline-cutover-rehearsal.yml", "utf8"));
+  const job = workflow.jobs["production-runner"];
+  assert.deepEqual(job.strategy.matrix.database, ["neondb", "payrollph_clean_baseline"]);
+  assert.equal(job.env.EXPECTED_DATABASE_NAME, "${{ matrix.database }}");
+  const execution = job.steps.find((step) => step.name === "Dry-run commits nothing; apply commits; a second apply is refused");
+  assert.equal(Object.hasOwn(execution.env, "EXPECTED_DATABASE_NAME"), false, "the step cannot override the matrix target");
 });
