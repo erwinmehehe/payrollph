@@ -142,6 +142,19 @@ test("S05/S06/S07: independent calendar-day proration, hire exclusion and docume
   assert.equal(cents(fixedMonthlyBasicForTimeline(timeline, "2026-10-01", "2026-10-15",
     "2025-01-01", "2026-10-09")), 660000,
   "Independent exit end-day arithmetic: 9 / 15 x 11000");
+  const exited = fixture();
+  exited.employmentEndDate = "2026-10-09";
+  assert.equal(amountOf(run(exited), "BASIC"), 660000,
+    "Approved Oct 9 separation must not pay Oct 10-15");
+  const exitedDaily = fixture("daily", 800);
+  exitedDaily.employmentEndDate = "2026-10-09";
+  exitedDaily.punches = [
+    punch(41, "2026-10-08", "09:00", "18:00"),
+    punch(42, "2026-10-09", "09:00", "18:00"),
+    punch(43, "2026-10-10", "09:00", "18:00"),
+  ];
+  assert.equal(amountOf(run(exitedDaily), "BASIC"), 160000,
+    "Only two 800/day workdays were within approved employment");
   const daily = fixture("daily", 800, "2026-10-08");
   daily.punches = [punch(1, "2026-10-07", "09:00", "18:00"), punch(2, "2026-10-08", "09:00", "18:00")];
   assert.equal(amountOf(run(daily), "BASIC"), 80000, "pre-hire time must not be paid");
@@ -194,6 +207,9 @@ test("S15: one overnight shift belongs to its source cutoff and is never counted
   first.punches = [punch(9, "2026-10-15", "22:00", "2026-10-16T06:00",
     "22:00", "06:00", "2026-10-16T01:00", "2026-10-16T02:00")];
   const worked = run(first);
+  const futurePunch = punch(10, "2026-10-16", "09:00", "18:00");
+  assert.equal(cents(run({ ...first, punches: [...first.punches, futurePunch] }).gross), 77000,
+    "Pure engine must ignore explicitly supplied next-cutoff hours");
   assert.equal(amountOf(worked, "BASIC"), 70000);
   assert.equal(amountOf(worked, "ND"), 7000);
   // Defense-in-depth: pure function must not accept a stale punch in the second cutoff.
@@ -266,6 +282,25 @@ test("S23-S25: 13th-month exact-centavos, partial year, final pay floor and sign
   assert.equal(exit.loanDeductions, 1500);
   assert.equal(exit.netFinalPay, 0);
   assert.equal(exit.deferredLoanBalance, 8500);
+  const resignation = computeFinalPay({
+    releasedBasicYtd: 30000, historicalBasicYtd: 0, unpaidBasicSalary: 2000,
+    thirteenthPaidYtd: 1166.67, grossCompensationYtd: 30000,
+    statutoryContributionsYtd: 0, taxWithheldYtd: 0, mwe: false,
+    leaveMonetizationPay: 500, separationPay: 0, retirementPay: 0,
+    otherBenefits: 0, loanDeductions: 1000,
+  });
+  const termination = computeFinalPay({
+    releasedBasicYtd: 30000, historicalBasicYtd: 0, unpaidBasicSalary: 2000,
+    thirteenthPaidYtd: 1166.67, grossCompensationYtd: 30000,
+    statutoryContributionsYtd: 0, taxWithheldYtd: 0, mwe: false,
+    leaveMonetizationPay: 500, separationPay: 2000, retirementPay: 0,
+    otherBenefits: 0, loanDeductions: 1000,
+  });
+  assert.equal(resignation.thirteenthDue, 1500);
+  assert.equal(resignation.grossFinalPay, 4000);
+  assert.equal(resignation.netFinalPay, 3000);
+  assert.equal(termination.grossFinalPay, 6000);
+  assert.equal(termination.netFinalPay, 5000);
   assert.equal(finalPaySignedBalance({ grossFinalPay: "0.00",
     taxAdjustment: "-7500.00", finalStatutoryDeductions: "0.00", loanDeductions: "0.00" }), -7500);
 });
@@ -315,8 +350,8 @@ test("seeded property matrix: 192 fictional employee combinations are determinis
 });
 
 test("journal negative deduction control: a year-end refund increases net and must balance without negative credits", () => {
-  // Independent manual accounting: DR wage expense 11000 + DR tax deduction control 1500
-  // = CR net payable 12500. This is a refund, not a 1500 expense or negative payroll.
+  // Independent accounting: DR wage expense 11000 + DR signed deduction control 575
+  // = CR net payable 11575 (925 contributions less 1500 tax refund).
   const input = fixture("monthly", 22000);
   input.yearEndTaxAdjustment = { id: 19, taxYear: 2026, adjustment: -1500, outcome: "refund" };
   const result = run(input);
