@@ -6,7 +6,7 @@ import { computeFinalPay } from "../src/lib/final-pay";
 import { finalPaySignedBalance } from "../src/lib/final-pay-signed-balance";
 import { thirteenthMonthFromCentavos } from "../src/lib/thirteenth-month-centavos";
 import { resolvePayProfile, resolvePayTimeline, fixedMonthlyBasicForTimeline } from "../src/lib/pay-basis";
-import { holidayMultiplier, computeSss, computePhilHealth, computePagIbig } from "../src/lib/payroll-rules";
+import { holidayMultiplier, computeSss, computePhilHealth, computePagIbig, computeSemiMonthlyWithholdingTax } from "../src/lib/payroll-rules";
 import { allocateMandatoryDeductions } from "../src/lib/payroll-mandatory-shortfall";
 import type { employees, timePunches } from "../src/db/schema";
 
@@ -245,6 +245,32 @@ test("S18-S20: boundary rates are UNVERIFIED RATE and never treated as approval"
   }
   assert.equal(computePagIbig(1500).employee, 15);
   assert.equal(computePagIbig(10000).employee, 200);
+  assert.equal(cents(computeSemiMonthlyWithholdingTax(10417)), 0);
+  // 937.50 + (20,000 - 16,667) x 20% = PHP1,604.10 (UNVERIFIED RATE).
+  assert.equal(cents(computeSemiMonthlyWithholdingTax(20000)), 160410);
+  assert.equal(cents(computeSemiMonthlyWithholdingTax(20000, true)), 0,
+    "MWE withholding path is an eligibility decision, not a blanket region classification");
+});
+
+test("S17: region wage screening and legacy MWE status do not manufacture tax-eligibility approval", () => {
+  const input = fixture("daily", 800);
+  input.employee = { ...input.employee, mwe: true, region: "NCR" };
+  input.punches = [punch(83, "2026-10-09", "09:00", "18:00")];
+  const result = run(input);
+  assert.equal(amountOf(result, "BASIC"), 80000);
+  assert.equal(amountOf(result, "WHT"), 0);
+  assert.ok(result.trace.flags.some((flag) => flag.includes("MWE tax classification")),
+    "Unsupported legacy minimum-wage flag must remain a reviewer exception");
+  assert.equal(result.status, "Exception");
+});
+
+test("S28 zero earned pay never silently pays contributions or returns negative cash", () => {
+  const input = fixture("daily", 800);
+  const result = run(input);
+  assert.equal(cents(result.gross), 0);
+  assert.equal(cents(result.net), 0);
+  assert.equal(result.status, "Exception");
+  assert.ok(result.lineItems.some((line) => line.code === "UNPAID_MANDATORY"));
 });
 
 test("S21/S22: optional loan shortfall defers rather than overdraws, mandatory deficit blocks release", () => {
