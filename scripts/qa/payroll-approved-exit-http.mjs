@@ -79,7 +79,7 @@ try {
   for (const field of ["itCleared", "adminCleared", "financeCleared", "hrCleared"]) {
     expectStatus(await request("/api/separation", checker, "PATCH", { id: separationId, action: "clearance", [field]: true, previousValue: false, clearanceEvidenceReference: "SYNTHETIC-" + field, clearanceReason: "Fictional CI clearance only, no external actions" }), 200, "Synthetic department clearance " + field);
   }
-  expectStatus(await request("/api/separation", maker, "PATCH", { id: separationId, action: "approve" }), 403, "Maker cannot self-approve final pay");
+  const selfDenied = expectStatus(await request("/api/separation", maker, "PATCH", { id: separationId, action: "approve" }), 409, "Maker cannot self-approve final pay"); assert.equal(selfDenied.code, "FINAL_PAY_MAKER_CHECKER_REQUIRED");
   const ownPatch = expectStatus(await request("/api/separation", checker, "PATCH", { id: separationId, action: "approve" }), 200, "Distinct checker approves owned package");
   assert.ok(ownPatch);
 
