@@ -136,6 +136,10 @@ test("API and UI preserve independent payroll decision, exact run task matching 
   const approvals = readFileSync("src/components/workspace/approvals.tsx", "utf8");
   assert.match(api, /assertEntityResource\(entityContext\.context, run\.legalEntityId\)/);
   assert.match(api, /candidate\.legalEntityId === run\.legalEntityId/);
+  assert.match(api, /isNull\(payrollRuns\.legalEntityId\)/);
+  assert.match(api, /eq\(payrollRuns\.scopeOrgUnitId, run\.scopeOrgUnitId\)/);
+  assert.ok(api.indexOf("run.legalEntityId == null") < api.indexOf(".limit(24)"),
+    "Legal employer and unit must be filtered before taking the 24 prior-run candidates");
   assert.match(api, /organizationId: run\.organizationId/);
   assert.match(api, /Cache-Control": "private, no-store"/);
   assert.match(checker, /CheckerVarianceContent key=\{\[props\.organizationId/);

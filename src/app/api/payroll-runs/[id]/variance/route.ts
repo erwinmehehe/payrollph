@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employeePayRevisions, employees, payrollEntries, payrollRuns } from "@/db/schema";
 import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_VIEW_ROLES } from "@/lib/access";
@@ -96,6 +96,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       eq(payrollRuns.organizationId, run.organizationId),
       eq(payrollRuns.status, "Released"),
       lt(payrollRuns.payDate, run.payDate),
+      run.legalEntityId == null
+        ? isNull(payrollRuns.legalEntityId) : eq(payrollRuns.legalEntityId, run.legalEntityId),
+      run.scopeOrgUnitId == null
+        ? isNull(payrollRuns.scopeOrgUnitId) : eq(payrollRuns.scopeOrgUnitId, run.scopeOrgUnitId),
     ))
     .orderBy(desc(payrollRuns.payDate), desc(payrollRuns.id))
     .limit(24);
