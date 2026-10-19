@@ -59,16 +59,29 @@ export function isVerifiedPeopleSummary(value: unknown): value is PeopleIntellig
     value.warnings.every((warning: unknown) => typeof warning === "string");
 }
 
+/** Frozen client-side response contracts; never import database-backed reports.ts. */
+const EXPECTED_COLUMNS: Record<string, readonly string[]> = {
+  headcount: ["Employment type", "Status", "People", "Avg monthly basic"],
+  cost: ["Period", "Scope", "Employees", "Gross", "Deductions", "Net"],
+  turnover: ["Metric", "People", "Share of workforce"],
+  compliance: ["Type", "Count", "Detail"],
+  assurance: ["Severity", "Employee", "Control", "Detail", "Current", "Delta"],
+  workforce: ["Metric", "Current", "Context"],
+  lifecycle: ["Metric", "Current", "Context"],
+  people: ["Area", "Metric", "Value", "Evidence / definition"],
+};
+
 export function isVerifiedReportPayload(
   value: unknown, organizationId: number, key: string,
   legalEntityId: number | null = null,
 ): value is VerifiedReportPayload {
-  if (!id(organizationId) || (legalEntityId !== null && !id(legalEntityId)) ||
+  const expectedColumns = EXPECTED_COLUMNS[key];
+  if (!expectedColumns || !id(organizationId) || (legalEntityId !== null && !id(legalEntityId)) ||
       !key || !record(value) ||
       value.organizationId !== organizationId ||
       value.legalEntityId !== legalEntityId || value.key !== key ||
-      !Array.isArray(value.columns) || value.columns.length === 0 ||
-      !value.columns.every((field: unknown) => typeof field === "string" && field.length > 0) ||
+      !Array.isArray(value.columns) || value.columns.length !== expectedColumns.length ||
+      !value.columns.every((field: unknown, index: number) => field === expectedColumns[index]) ||
       !Array.isArray(value.rows) || typeof value.generatedAt !== "string" ||
       !Number.isFinite(Date.parse(value.generatedAt))) return false;
   const expectedWidth = value.columns.length;
