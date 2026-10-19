@@ -125,7 +125,7 @@ test("Analytics never displays or exports a response from a previous legal emplo
   // Transport, JSON and scope/shape failures share the same fail-closed catch.
   // Count success plus that common failure path; the validator tests cover all
   // distinct transport/contract failures independently.
-  assert.ok((analytics.match(/setResolvedScopeKey\\(requestScopeKey\\)/g) ?? []).length >= 2,
+  assert.ok((analytics.match(/setResolvedScopeKey\(requestScopeKey\)/g) ?? []).length >= 2,
     "success and the common failure path must pin response/error to request identity");
   assert.ok(analytics.includes("readVerifiedReportPayload("),
     "a successful report must pass the selected-employer contract validator");
