@@ -14,9 +14,9 @@ const id = (v: unknown): v is number =>
   typeof v === "number" && Number.isSafeInteger(v) && v > 0;
 const number = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v);
-const month = (v: unknown) => typeof v === "string" && /^\\d{4}-(0[1-9]|1[0-2])$/.test(v);
+const month = (v: unknown) => typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(v);
 const date = (v: unknown) => typeof v === "string" &&
-  /^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$/.test(v) &&
+  /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(v) &&
   Number.isFinite(Date.parse(v + "T00:00:00Z")) &&
   new Date(v + "T00:00:00Z").toISOString().slice(0, 10) === v;
 const count = (v: unknown) => typeof v === "number" &&
