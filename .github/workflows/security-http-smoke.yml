@@ -7,9 +7,6 @@ on:
   pull_request:
     branches:
       - main
-      # Stacked source-pinned tenant proof review: do not merge unrelated main changes
-      # into the historical 489-method inventory merely to run isolation CI.
-      - audit/tenant-isolation-complete-surface-20261019
       # Enforce full payroll release checks on dependent PR #688.
       - feat/payroll-connected-impact-review-20261009
   workflow_dispatch:
@@ -57,12 +54,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          # This inventory is SHA-pinned to its audit branch. For this isolated
-          # smoke only, test the exact PR source rather than GitHub's synthetic
-          # merge with newer unrelated main route contents. Merge safety is
-          # evaluated separately by normal integration/branch-policy checks.
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v7
         with:
@@ -72,7 +63,7 @@ jobs:
       - run: npm ci
       - name: Reject committed webhook secrets and unreviewed tenant routes
         run: node --test tests/tenant-second-pass-inventory.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
-      - name: Trace flagged tenant-ID routes and enforce full-surface structural DB access guard
+      - name: Trace 34 client-ID routes; guard all 489 methods; pin 20 pages
         run: |
           node --check scripts/qa/tenant-delegated-trace.mjs
           node --check scripts/qa/tenant-manifest-driven-http.mjs
@@ -99,6 +90,7 @@ jobs:
         env:
           PUBLIC_API_V1_EXTENDED_ENABLED: "true"
           API_V1_EXTENDED_READS_ENABLED: "true"
+          EMPLOYEE_HR_CASES_ENABLED: "true"
           PAYMONGO_WEBHOOK_SECRET: "ci-fake-paymongo-webhook-signing-secret"
           XENDIT_PAYOUT_CALLBACK_TOKEN: "ci-fake-xendit-payout-callback"
           XENDIT_CALLBACK_TOKEN: "ci-fake-xendit-subscription-callback"

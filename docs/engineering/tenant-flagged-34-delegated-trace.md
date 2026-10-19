@@ -1,6 +1,6 @@
 # Tenant authorization — flagged 34, first delegated-trace and manifest-driven evidence
 
-**Status:** Work in progress; no production probing. This file is a triage guide, not a certification. The source snapshot is the SHA-pinned 489-method, 288-route manifest from draft #1260. **447 GAP API methods and 20 scoped page/action GAPs remain the administrative total until real-HTTP evidence is integrated and reviewed.**
+**Status:** Work in progress; no production probing. This file is a triage guide, not a certification. The source snapshot is the SHA-pinned 489-method, 288-route manifest from draft #1260. **440 GAP API methods and 20 scoped page/action GAPs remain the administrative total until real-HTTP evidence is integrated and reviewed.**
 
 ## How to reproduce (disposable PostgreSQL only)
 
@@ -53,6 +53,8 @@ The `scripts/qa/tenant-delegated-trace.mjs` program parses source ASTs and follo
 
 The family-adapter registry currently contains the two statutory **payment-evidence file/list GETs**, **remittance-actions GET**, **BIR 1601-C GET**, **government loan remittances GET**, and **statutory remittances GET**. It creates eight victim-only real remittance batches, eight downloadable fictional payment proofs and eight compliance tasks so object IDs really exist and exceed 6. A and B each get a real own batch, file and task, an authenticated positive result, explicit foreign-employer 403, and exact **404** when a real foreign document ID is submitted under the caller's legitimate employer. No actual provider, payroll release, wage change or agency event is triggered. Pre/post victim snapshots cover evidence, tasks, employees, payroll, legal entities and audit rows.
 
+**After #1260 merged to main:** 43 methods are provisionally COVERED and 440 remain GAP. Of these six adapters, BIR 1601-C GET already has earlier HTTP coverage; it remains an extra regression, so **five** of the six are newly targeted GAPs.
+
 **Status remains PENDING until exact-head `Security HTTP Smoke` passes.** No `COVERED` statuses, source SHA inventory, or counts have been changed in this batch.
 
 ## 20 page/action GAPs: remain open and source-pinned
@@ -66,4 +68,4 @@ The inventory includes all 20 page paths and their business-ID references. The n
 3. HR-case/employee-vault personal data, remaining statutory and all pages/actions.
 4. Workforce, performance, planning and the remaining API families, with exact manifest-driven adapters.
 
-Historical 447 + 20 are coverage gaps, **not 467 confirmed vulnerabilities**. Source-level helper traces are not independent runtime proof.
+Historical 440 + 20 are coverage gaps, **not 467 confirmed vulnerabilities**. Source-level helper traces are not independent runtime proof.

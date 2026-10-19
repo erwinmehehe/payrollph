@@ -185,10 +185,18 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  assert.equal(gaps.length, 447);
+  assert.equal(gaps.length, 440);
   const gapNames = new Set(gaps.map((x) => x.key));
-  for (const key of FIRST_ADAPTED_METHODS) assert.ok(gapNames.has(key),
-    "A test adapter cannot claim an absent or previously COVERED method: " + key);
+  const methodByKey = new Map(Object.values(manifest.allApiRouteFiles).flatMap((file) =>
+    file.methods.map((method) => [specOf(method.name, file.route), method])));
+  for (const key of FIRST_ADAPTED_METHODS) {
+    assert.ok(["GAP", "COVERED"].includes(methodByKey.get(key)?.status),
+      "A test adapter cannot claim an unrecognized method: " + key);
+  }
+  // Retain the previously-credited BIR GET as a regression, but never
+  // count it as a newly closed GAP after the main audit merge.
+  const alreadyCoveredCases = FIRST_ADAPTED_METHODS.filter((key) => !gapNames.has(key));
+  const candidates = [...gaps, ...alreadyCoveredCases.map((key) => ({ key }))];
   const fixtures = await seedStatutoryFixtures(f);
   const victimOrg = f.orgs[0];
   const victimEvidence = fixtures.evidence[7];
@@ -210,7 +218,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
       "Table-driven attacker must actually be signed in before own/foreign proofs");
     assert.equal(account.json?.profile?.id, f.owners[idx].id);
 
-    for (const item of gaps) {
+    for (const item of candidates) {
       const adapter = CASES[item.key];
       if (!adapter) continue; // GAP remains open; never credit or label safe.
       const urls = adapter.path(actor);
@@ -252,10 +260,12 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   console.log(JSON.stringify({
     kind: "DISPOSABLE_PG16_REAL_HTTP", auditSuite: "manifest-driven-statutes",
     manifestedMethods: manifest.metrics.methods,
-    preexistingGaps: gaps.length, distinctMethodsPassedInThisBatch: FIRST_ADAPTED_METHODS.length,
+    preexistingGaps: gaps.length, previouslyCoveredRegressionMethods: alreadyCoveredCases.length,
+    newlyAdaptedGapMethods: FIRST_ADAPTED_METHODS.length - alreadyCoveredCases.length,
+    distinctMethodsPassedInThisBatch: FIRST_ADAPTED_METHODS.length,
     independentAttackerEmployers: 2, completePositiveAndVictimDenialPairs: observations.length,
     sourceTraceCandidates: manifest.sourceTraceCandidates.length,
-    unadaptedGapMethodsStillOpen: gaps.length - FIRST_ADAPTED_METHODS.length,
+    unadaptedGapMethodsStillOpen: gaps.length - (FIRST_ADAPTED_METHODS.length - alreadyCoveredCases.length),
     trackedPagesStillOpen: manifest.scopedPages.length,
     highExistingVictimIds: [victimBatch.id, victimEvidence.id, victimTask.id],
     victimDatabaseUnchanged: true, productionTested: false, certified: false,
