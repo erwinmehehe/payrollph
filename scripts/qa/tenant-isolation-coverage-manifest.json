@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-19",
-  "acceptanceStatus": "NOT ACCEPTED: 440 API methods and 20 scoped pages/actions remain GAP; seven added method proofs are provisional until exact-head real HTTP CI passes.",
+  "acceptanceStatus": "NOT ACCEPTED: 438 API methods and 20 scoped pages/actions remain without method-specific tenant-isolation proof. New month-close GET/POST provisional classification requires exact-head real-HTTP PG16 CI and human independent review. No production certification.",
   "metrics": {
     "routeFiles": 288,
     "methods": 489,
     "coveredBefore": 20,
-    "coveredAfter": 43,
+    "coveredAfter": 45,
     "publicByDesign": 6,
-    "gap": 440,
+    "gap": 438,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -5993,22 +5993,42 @@
       ]
     },
     "src/app/api/compliance/remittance-month-close/route.ts": {
-      "gitBlobSha": "fbdf6209ddf86ddce4f592c2386a68bffdc1af9a",
+      "gitBlobSha": "240c0de50adbddccebc5a9fa586a25a7485c5163",
       "route": "compliance/remittance-month-close",
       "methods": [
         {
           "name": "GET",
           "line": 188,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: production-mode localhost real HTTP and disposable PG16 two-independent-attacker employer proof; own GET 200 with real SSS reconciled month, victim employer GET 403 with matching valid fictional IDs, victim closure/batches/evidence unchanged. No provider calls or actual money. Requires exact-head CI and human signoff.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1186,
+            "ownPositiveLine": 1186,
+            "foreignDenialLine": 1193,
+            "unchangedDbLine": 1214,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Existing victim (A) plus two separately authenticated owner attackers (B/C); real Sept 2026 synthetic SSS payroll, reconciled batch, posting and hashed proof; independent owner MFA for POST.",
+            "evidence": "Own GET asserts legal employer, calendar month, ready=true, real batch ID; own POST asserts certified closure persisted, hash matches original GET and reread. Foreign GET/POST exact 403; victim closure, batches and payment proof unchanged."
+          }
         },
         {
           "name": "POST",
-          "line": 227,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 229,
+          "status": "COVERED",
+          "reason": "Provisional: production-mode localhost real HTTP and disposable PG16 two-independent-attacker employer proof; own POST 200 with real SSS reconciled month, victim employer POST 403 with matching valid fictional IDs, victim closure/batches/evidence unchanged. No provider calls or actual money. Requires exact-head CI and human signoff.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1194,
+            "ownPositiveLine": 1194,
+            "foreignDenialLine": 1205,
+            "unchangedDbLine": 1214,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Existing victim (A) plus two separately authenticated owner attackers (B/C); real Sept 2026 synthetic SSS payroll, reconciled batch, posting and hashed proof; independent owner MFA for POST.",
+            "evidence": "Own GET asserts legal employer, calendar month, ready=true, real batch ID; own POST asserts certified closure persisted, hash matches original GET and reread. Foreign GET/POST exact 403; victim closure, batches and payment proof unchanged."
+          }
         }
       ],
       "employerSources": {
