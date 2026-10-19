@@ -42,6 +42,20 @@ test("all 34 client-ID source candidates are traced, including delegated helpers
     actualHttpCertificationsFromStaticAnalysis: 0 }));
 });
 
+test("exported GET/POST aliases are resolved to the same scoped handler, not exempted", () => {
+  const route = "src/app/api/year-end/prior-evidence/route.ts";
+  const source = readFileSync(route, "utf8");
+  assert.match(source, /export const GET = respond;/);
+  assert.match(source, /export const POST = respond;/);
+  for (const method of ["GET", "POST"]) {
+    const inspection = inspectRouteHandler(route, method);
+    assert.ok(inspection, method + ": an exported alias with local implementation must be parsed");
+    assert.ok(inspection.structuralAccessGuards.some((path) =>
+      /assertOrganizationRole|getAccess/.test(path)), method + ": preserve scoped guard evidence");
+    assert.equal(inspection.needsHttpProof, true, method + ": AST guard is never HTTP certification");
+  }
+});
+
 test("all 489 handlers reaching PostgreSQL have a gate or explicit source-pinned exception", () => {
   let methods = 0, hitsDb = 0, guarded = 0;
   const legacyGaps = [], explicitPublic = [], evidenced = [], noDbFound = [];

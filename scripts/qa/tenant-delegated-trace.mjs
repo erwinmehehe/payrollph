@@ -55,7 +55,32 @@ function sourceAt(path) {
       }
     }
   }
-  const data = { text, sf, imports, functions };
+  // Exported route handlers may delegate to a local function:
+  //   async function respond(request) { ... }
+  //   export const GET = respond; export const POST = respond;
+  // Resolve only plain, statically provable aliases with a local function body.
+  // Do not credit imports, arbitrary call expressions or unresolved aliases.
+  const exportedMethods = new Map();
+  const isMethod = (name) => /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/.test(name);
+  const isExported = (stmt) => stmt.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+  for (const stmt of sf.statements) {
+    if (ts.isFunctionDeclaration(stmt) && isExported(stmt) &&
+        stmt.name && stmt.body && isMethod(stmt.name.text)) {
+      exportedMethods.set(stmt.name.text, stmt.name.text);
+    }
+    if (ts.isVariableStatement(stmt) && isExported(stmt)) {
+      for (const decl of stmt.declarationList.declarations) {
+        if (!ts.isIdentifier(decl.name) || !isMethod(decl.name.text) || !decl.initializer) continue;
+        const init = decl.initializer;
+        const implementation = ts.isIdentifier(init) ? init.text :
+          (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) ? decl.name.text : null;
+        if (implementation && functions.has(implementation)) {
+          exportedMethods.set(decl.name.text, implementation);
+        }
+      }
+    }
+  }
+  const data = { text, sf, imports, functions, exportedMethods };
   sourceCache.set(path, data);
   return data;
 }
@@ -101,15 +126,8 @@ function trace(path, symbol, remaining, seen = new Set()) {
   return result;
 }
 function routeMethods(info) {
-  const methods = new Map();
-  for (const [key, node] of info.functions.entries()) {
-    if (!/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/.test(key)) continue;
-    const stmt = info.sf.statements.find((s) => s === node);
-    if (!stmt || !ts.isFunctionDeclaration(stmt) ||
-      !stmt.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
-    methods.set(key, node);
-  }
-  return methods;
+  return new Map([...info.exportedMethods.entries()]
+    .map(([method, implementation]) => [method, info.functions.get(implementation)]));
 }
 
 /**
@@ -119,7 +137,9 @@ function routeMethods(info) {
  */
 export function inspectRouteHandler(path, method) {
   const root = sourceAt(path);
-  const declaration = root?.functions.get(method);
+  const implementation = root?.exportedMethods.get(method);
+  if (!implementation || root.sf.parseDiagnostics.length) return null;
+  const declaration = root.functions.get(implementation);
   if (!declaration) return null;
   const seen = new Set(), databasePaths = [], gatePaths = [];
   function walk(file, name, remaining, chain) {
@@ -147,7 +167,7 @@ export function inspectRouteHandler(path, method) {
       }
     }
   }
-  walk(path, method, 2, []);
+  walk(path, implementation, 2, []);
   return { path, method, accessesDatabase: databasePaths.length > 0,
     databasePaths: databasePaths.slice(0, 8),
     structuralAccessGuards: [...new Set(gatePaths)].slice(0, 12),
