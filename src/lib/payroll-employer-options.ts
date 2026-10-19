@@ -6,6 +6,18 @@ export type PayrollEmployerOption = {
   active?: boolean;
 };
 
+export function payrollEmployerSetupDestination(input: {
+  role: string | null;
+  companyWide: boolean;
+  demo: boolean;
+  multiEntity: boolean;
+  pages: readonly string[];
+}): "Entities" | "Enterprise" | null {
+  if (input.demo || !input.companyWide || !["owner", "admin", "bookkeeper"].includes(input.role ?? "")) return null;
+  const page = input.multiEntity ? "Entities" : "Enterprise";
+  return input.pages.includes(page) ? page : null;
+}
+
 /** Selector reads never create an employer and never turn a failed read into empty setup. */
 export async function readPayrollEmployerOptions(
   organizationId: number,

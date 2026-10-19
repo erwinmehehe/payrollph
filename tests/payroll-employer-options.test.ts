@@ -1,10 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readPayrollEmployerOptions } from "../src/lib/payroll-employer-options";
+import { payrollEmployerSetupDestination, readPayrollEmployerOptions } from "../src/lib/payroll-employer-options";
 
 const row = { id: 7, code: "PRIMARY", displayName: "Fictional employer", primaryEntity: true };
 const signal = new AbortController().signal;
 const reply = (body: unknown, status = 200) => (async () => Response.json(body, { status })) as typeof fetch;
+
+test("setup navigation preserves company-wide administrator, menu and demo restrictions", () => {
+  const input = { role: "owner", companyWide: true, demo: false, multiEntity: false, pages: ["Enterprise", "Entities"] };
+  for (const role of ["owner", "admin", "bookkeeper"]) {
+    assert.equal(payrollEmployerSetupDestination({ ...input, role }), "Enterprise");
+    assert.equal(payrollEmployerSetupDestination({ ...input, role, multiEntity: true }), "Entities");
+  }
+  for (const role of [null, "payroll", "checker", "hr", "manager", "group_hr", "employee"]) {
+    assert.equal(payrollEmployerSetupDestination({ ...input, role }), null);
+  }
+  assert.equal(payrollEmployerSetupDestination({ ...input, companyWide: false }), null);
+  assert.equal(payrollEmployerSetupDestination({ ...input, demo: true }), null);
+  assert.equal(payrollEmployerSetupDestination({ ...input, pages: [] }), null);
+});
 
 test("selector executes one scoped read, retains its signal and excludes inactive employers", async () => {
   const calls: unknown[] = [];
