@@ -25,8 +25,9 @@ const isDate = (v: unknown): v is string =>
 export function isStatutoryRemittanceWatchPayload(
   value: unknown, organizationId: number,
 ): value is StatutoryRemittanceWatchPayload {
-  if (!isId(organizationId) || !isRecord(value) || !isDate(value.today) ||
-      !isVerifiedRemittanceSnapshot(value, organizationId, null)) return false;
+  if (!isId(organizationId) || !isRecord(value)) return false;
+  const today = value.today;
+  if (!isDate(today) || !isVerifiedRemittanceSnapshot(value, organizationId, null)) return false;
 
   // The server supplies these independently derived integrity indicators for
   // every batch. Their absence may suppress payment/proof alerts.
@@ -53,7 +54,7 @@ export function isStatutoryRemittanceWatchPayload(
   // very same response contains an overdue liability or uncovered month.
   // Recompute using the validated server snapshot, not the supplied alerts.
   const expected = buildStatutoryRemittanceAlerts({
-    today: value.today,
+    today,
     batches: value.batches.map((batch) => ({
       id: batch.id as number,
       agency: batch.agency as string,
