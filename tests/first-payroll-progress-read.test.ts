@@ -53,21 +53,26 @@ test("a late employer A response cannot mark employer B's first-payroll steps co
   const bKey = { employer: 42 };
   let finishA!: (value: unknown) => void;
   const oldResponse = new Promise<unknown>(resolve => { finishA = resolve; });
-  let rendered: { key: object; data: ReturnType<typeof parseFirstPayrollProgressRead>; error: null } | null = null;
+  const commits: Array<{
+    key: object;
+    data: ReturnType<typeof parseFirstPayrollProgressRead>;
+    error: Error | null;
+  }> = [];
   owner.activate(aKey);
   const requestA = owner.run(aKey,
     async () => parseFirstPayrollProgressRead(await oldResponse, 41),
-    result => { rendered = { key: aKey, data: result.data, error: null }; });
+    result => { commits.push({ key: aKey, ...result }); });
   owner.activate(bKey);
-  assert.equal(activeAsyncResult(rendered, bKey, true), null);
+  assert.equal(activeAsyncResult(commits.at(-1) ?? null, bKey, true), null);
   const requestB = owner.run(bKey,
     async () => parseFirstPayrollProgressRead({ organizationId: 42, progress: null }, 42),
-    result => { rendered = { key: bKey, data: result.data, error: null }; });
+    result => { commits.push({ key: bKey, ...result }); });
   await requestB;
   finishA(sample);
   await requestA;
-  assert.deepEqual(activeAsyncResult(rendered, bKey, true)?.data, null);
-  assert.equal(rendered?.key, bKey);
+  assert.equal(commits.length, 1, "the obsolete employer must never commit");
+  assert.equal(commits[0].key, bKey);
+  assert.deepEqual(activeAsyncResult(commits[0], bKey, true)?.data, null);
 });
 
 test("first-payroll UI and endpoint use scoped reads, fail-closed status and explicit retry", () => {
