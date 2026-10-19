@@ -17,7 +17,7 @@ import test from "node:test";
 
 const ROOT = "src/app";
 const API = "src/app/api";
-const BASE = "608d51a741c881b8f21b20660fa62bbf02a7f606";
+const BASE = "8c2a62135fd6e23db4603197822339cc1020ec27";
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const baseline = JSON.parse(readFileSync("scripts/qa/tenant-isolation-inventory/baseline.json", "utf8"));
 

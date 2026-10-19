@@ -15,85 +15,11 @@ import {
 } from "lucide-react";
 import type { PayrollRun, Task } from "./types";
 import { money, Spinner, Status } from "./ui";
+import { readVerifiedPayrollCheckerVariance, type VerifiedVariancePayload } from "@/lib/payroll-checker-variance-read";
+import type { PayrollVarianceCategory } from "@/lib/payroll-variance";
 
-type Category =
-  | "exception"
-  | "salary_change"
-  | "overtime_spike"
-  | "retro"
-  | "new_hire"
-  | "new_to_run"
-  | "separation"
-  | "missing_from_run"
-  | "bank_details"
-  | "statutory"
-  | "net_variance";
-
-type VarianceRow = {
-  employeeId: number;
-  employeeNo: string;
-  employeeName: string;
-  employeeStatus: string;
-  entryStatus: string;
-  categories: Category[];
-  currentGross: number;
-  previousGross: number | null;
-  currentNet: number;
-  previousNet: number | null;
-  netDelta: number | null;
-  netPercent: number | null;
-  changedLines: Array<{
-    code: string;
-    label: string;
-    previous: number | null;
-    current: number;
-    delta: number | null;
-    netEffectDelta: number | null;
-    reason: string;
-  }>;
-  payRevision: null | {
-    effectiveDate: string;
-    previousPayBasis: string;
-    previousRateAmount: string;
-    newPayBasis: string;
-    newRateAmount: string;
-    reason: string;
-  };
-};
-
-type VariancePayload = {
-  run: {
-    id: number;
-    periodLabel: string;
-    payDate: string;
-    status: string;
-    employeeCount: number;
-    grossPay: number;
-    netPay: number;
-    ruleVersion: string;
-  };
-  previousRun: null | {
-    id: number;
-    periodLabel: string;
-    payDate: string;
-    employeeCount: number;
-    grossPay: number;
-    netPay: number;
-    ruleVersion: string;
-  };
-  summary: {
-    changedEmployees: number;
-    totalEmployeesReviewed: number;
-    calculatedEntries: number;
-    expectedEntries: number;
-    coverageComplete: boolean;
-    exceptionCount: number;
-    grossDelta: number;
-    netDelta: number;
-    categoryCounts: Record<Category, number>;
-  };
-  rows: VarianceRow[];
-};
+type Category = PayrollVarianceCategory;
+type VariancePayload = VerifiedVariancePayload;
 
 const categoryLabel: Record<Category, string> = {
   exception: "Exception",
@@ -122,6 +48,7 @@ const priorityCategories: Category[] = [
 ];
 
 type CheckerVarianceProps = {
+  organizationId: number;
   run: PayrollRun;
   payrollTask: Task | null;
   busy: boolean;
@@ -132,40 +59,53 @@ type CheckerVarianceProps = {
 export function CheckerVarianceCenter(props: CheckerVarianceProps) {
   // Switching the selected run must discard its prior employee details,
   // filters and fetched variance before the new run can paint.
-  return <CheckerVarianceContent key={props.run.id} {...props} />;
+  return <CheckerVarianceContent key={[props.organizationId, props.run.id, props.run.legalEntityId ?? "none"].join(":")} {...props} />;
 }
 
 function CheckerVarianceContent({
+  organizationId,
   run,
   payrollTask,
   busy,
   canDecide,
   onDecide,
 }: CheckerVarianceProps) {
-  const [payload, setPayload] = useState<VariancePayload | null>(null);
-  const [error, setError] = useState("");
+  const [observation, setObservation] = useState<{
+    scopeKey: string; payload: VariancePayload | null; error: string;
+  } | null>(null);
+  const [revision, setRevision] = useState(0);
+  const scopeKey = JSON.stringify({
+    organizationId, runId: run.id, legalEntityId: run.legalEntityId ?? null,
+    scopeOrgUnitId: run.scopeOrgUnitId ?? null,
+    periodStart: run.periodStart, periodEnd: run.periodEnd, payDate: run.payDate,
+    periodLabel: run.periodLabel, status: run.status, ruleVersion: run.ruleVersion,
+    employeeCount: run.employeeCount, grossPay: run.grossPay, netPay: run.netPay, revision,
+  });
+  const current = observation?.scopeKey === scopeKey ? observation : null;
+  const payload = current?.payload ?? null;
+  const error = current?.error ?? "";
+  const loading = current === null;
   const [filter, setFilter] = useState<Category | "all">("all");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    let alive = true;
-    // The run-keyed child starts with empty state; no post-paint clearing.
-    (async () => {
-      try {
-        const response = await fetch(`/api/payroll-runs/${run.id}/variance`, { cache: "no-store" });
-        const body = await response.json().catch(() => ({}));
-        if (!alive) return;
-        if (!response.ok) {
-          setError(body.error ?? "Could not load payroll variance.");
-          return;
-        }
-        setPayload(body);
-      } catch {
-        if (alive) setError("Could not load payroll variance.");
-      }
-    })();
-    return () => { alive = false; };
-  }, [run.id]);
+    const controller = new AbortController();
+    // Defer the first request until after the effect commits.
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+      void readVerifiedPayrollCheckerVariance(organizationId, run, fetch, controller.signal)
+        .then((result) => {
+          if (!controller.signal.aborted) setObservation({ scopeKey, payload: result, error: "" });
+        })
+        .catch((cause) => {
+          if (!controller.signal.aborted) setObservation({
+            scopeKey, payload: null,
+            error: cause instanceof Error ? cause.message : "Could not verify payroll variance.",
+          });
+        });
+    });
+    return () => controller.abort();
+  }, [organizationId, run, scopeKey]);
 
   const visibleRows = useMemo(
     () => payload?.rows.filter((row) => filter === "all" || row.categories.includes(filter)) ?? [],
@@ -201,11 +141,11 @@ function CheckerVarianceContent({
       {error && (
         <div className="notice notice-amber">
           <AlertTriangle size={15} />
-          <span>{error}</span>
+          <span>{error} <button type="button" className="secondary-button" onClick={() => setRevision((value) => value + 1)}>Retry payroll variance</button></span>
         </div>
       )}
 
-      {!error && !payload && (
+      {loading && (
         <div className="checker-variance-loading">
           <Spinner label="Comparing payrolls" />
         </div>

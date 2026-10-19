@@ -90,6 +90,7 @@ export async function GET(request: Request) {
   if (!state) return Response.json({ error: "Organization or legal employer not found." }, { status: 404 });
 
   return Response.json({
+    organizationId,
     today: state.today,
     legalEntity: { id: legalEntity.id, code: legalEntity.code, displayName: legalEntity.displayName },
     batches: state.batches,

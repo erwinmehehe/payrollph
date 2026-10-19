@@ -1,6 +1,6 @@
 {
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
-  "baseCommit": "608d51a741c881b8f21b20660fa62bbf02a7f606",
+  "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-19",
   "acceptanceStatus": "NOT ACCEPTED: missing per-method cross-tenant HTTP/DB proof",
   "metrics": {
@@ -6632,7 +6632,7 @@
       ]
     },
     "src/app/api/compliance/statutory-remittances/route.ts": {
-      "gitBlobSha": "192799803b473fba028ff02b33e422fa65549234",
+      "gitBlobSha": "b5804b036e4da1c2558002d57f3c3d9bf49b5d8d",
       "route": "compliance/statutory-remittances",
       "methods": [
         {
@@ -6644,7 +6644,7 @@
         },
         {
           "name": "POST",
-          "line": 102,
+          "line": 103,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null
@@ -6679,11 +6679,11 @@
           "token": "getSessionUser"
         },
         {
-          "line": 103,
+          "line": 104,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 106,
+          "line": 107,
           "token": "getSessionUser"
         }
       ],
@@ -6697,11 +6697,11 @@
           "token": "searchParams.get(\"legalEntityId\")"
         },
         {
-          "line": 110,
+          "line": 111,
           "token": "body.organizationId"
         },
         {
-          "line": 111,
+          "line": 112,
           "token": "body.legalEntityId"
         }
       ],
@@ -6751,19 +6751,19 @@
           "token": "organizationId"
         },
         {
-          "line": 110,
-          "token": "organizationId"
-        },
-        {
-          "line": 110,
+          "line": 111,
           "token": "organizationId"
         },
         {
           "line": 111,
+          "token": "organizationId"
+        },
+        {
+          "line": 112,
           "token": "legalEntityId"
         },
         {
-          "line": 113,
+          "line": 114,
           "token": "organizationId"
         }
       ]
@@ -19639,12 +19639,12 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/variance/route.ts": {
-      "gitBlobSha": "940e5a03679de5d501fca4cdc5b46e3bd9db0a75",
+      "gitBlobSha": "3b2e99674cf75cbee8c53c453194369e92863301",
       "route": "payroll-runs/[id]/variance",
       "methods": [
         {
           "name": "GET",
-          "line": 56,
+          "line": 57,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null
@@ -19671,78 +19671,86 @@
           "token": "getSessionUser"
         },
         {
-          "line": 63,
+          "line": 64,
           "token": "getSessionUser"
         },
         {
-          "line": 69,
+          "line": 70,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 77,
+          "line": 78,
           "token": "assertOrganizationUnitAccess"
+        },
+        {
+          "line": 85,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 89,
+          "token": "assertEntityResource"
         }
       ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 22,
+          "line": 23,
           "token": "employeeId"
-        },
-        {
-          "line": 58,
-          "token": "runId"
         },
         {
           "line": 59,
           "token": "runId"
         },
         {
-          "line": 66,
+          "line": 60,
           "token": "runId"
         },
         {
-          "line": 71,
+          "line": 67,
+          "token": "runId"
+        },
+        {
+          "line": 72,
           "token": "organizationId"
         },
         {
-          "line": 79,
+          "line": 80,
           "token": "organizationId"
         },
         {
-          "line": 89,
+          "line": 96,
           "token": "organizationId"
         },
         {
-          "line": 89,
+          "line": 96,
           "token": "organizationId"
         },
         {
-          "line": 99,
+          "line": 112,
           "token": "payrollRunId"
         },
         {
-          "line": 101,
+          "line": 114,
           "token": "payrollRunId"
         },
         {
-          "line": 106,
+          "line": 119,
           "token": "employeeId"
-        },
-        {
-          "line": 107,
-          "token": "employeeId"
-        },
-        {
-          "line": 116,
-          "token": "organizationId"
-        },
-        {
-          "line": 116,
-          "token": "organizationId"
         },
         {
           "line": 120,
+          "token": "employeeId"
+        },
+        {
+          "line": 129,
+          "token": "organizationId"
+        },
+        {
+          "line": 129,
+          "token": "organizationId"
+        },
+        {
+          "line": 133,
           "token": "organizationId"
         }
       ]
@@ -22976,7 +22984,7 @@
       ]
     },
     "src/app/api/reports/route.ts": {
-      "gitBlobSha": "1461ffb9e3640800d12e18c01334406f808fb949",
+      "gitBlobSha": "92e63ae4e2251b5d9461d70224da7ac5d2222ccc",
       "route": "reports",
       "methods": [
         {
@@ -28945,7 +28953,7 @@
       ]
     },
     "src/app/api/workforce/attendance-corrections/route.ts": {
-      "gitBlobSha": "23f27338a59e5b4f0057acf8626948aa56fa4753",
+      "gitBlobSha": "2e2ab35557a18014b5d1aeb2261d7d936a35b50e",
       "route": "workforce/attendance-corrections",
       "methods": [
         {
@@ -28957,7 +28965,7 @@
         },
         {
           "name": "POST",
-          "line": 135,
+          "line": 136,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null
@@ -29012,15 +29020,15 @@
           "token": "getAccess"
         },
         {
-          "line": 136,
+          "line": 137,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 139,
+          "line": 140,
           "token": "getSessionUser"
         },
         {
-          "line": 146,
+          "line": 147,
           "token": "assertOrganizationRole"
         }
       ],
@@ -29030,7 +29038,7 @@
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 143,
+          "line": 144,
           "token": "body.organizationId"
         }
       ],
@@ -36255,8 +36263,8 @@
       "lines": [
         69,
         70,
-        110,
-        111
+        111,
+        112
       ],
       "reason": "Caller-supplied business ID with no recognized same-file org-role/scope helper. Needs delegated-helper tracing, not proof of leak."
     },
