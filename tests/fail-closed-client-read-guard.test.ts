@@ -61,7 +61,7 @@ test("regression examples: new silent empty reads fail and verified empty is per
  * duplicating an existing unsafe fallback cannot slip through the baseline.
  */
 export function newReadRegressions(prior: Hit[], current: Hit[]): Hit[] {
-  const fingerprint = (hit: Hit) => [hit.file, hit.rule, hit.source].join("\\u0000");
+  const fingerprint = (hit: Hit) => [hit.file, hit.rule, hit.source].join("\u0000");
   const remaining = new Map<string, number>();
   for (const hit of prior) {
     const key = fingerprint(hit);
@@ -77,11 +77,11 @@ export function newReadRegressions(prior: Hit[], current: Hit[]): Hit[] {
 }
 
 test("baseline drift detects new, changed or duplicated unsafe reads", () => {
-  const prefix = '"use client";\\nconst run=()=>fetch("/api/x");\\nconst empty = () => entries.length === 0;';
-  const old = scanClient("legacy.tsx", prefix + "\\nsetRows(payload.claims ?? []);");
-  const same = scanClient("legacy.tsx", prefix + "\\nsetRows(payload.claims ?? []);");
-  const expanded = scanClient("legacy.tsx", prefix + "\\nsetRows(payload.claims ?? []);\\nsetRows(payload.claims ?? []);");
-  const altered = scanClient("legacy.tsx", prefix + "\\nsetRows(payload.entries ?? []);");
+  const prefix = '"use client";\nconst run=()=>fetch("/api/x");\nconst empty = () => entries.length === 0;';
+  const old = scanClient("legacy.tsx", prefix + "\nsetRows(payload.claims ?? []);");
+  const same = scanClient("legacy.tsx", prefix + "\nsetRows(payload.claims ?? []);");
+  const expanded = scanClient("legacy.tsx", prefix + "\nsetRows(payload.claims ?? []);\nsetRows(payload.claims ?? []);");
+  const altered = scanClient("legacy.tsx", prefix + "\nsetRows(payload.entries ?? []);");
   assert.equal(newReadRegressions(old, same).length, 0);
   assert.equal(newReadRegressions(old, expanded).length, 1);
   assert.equal(newReadRegressions(old, altered).length, 1);
@@ -92,15 +92,15 @@ test("all client components/pages reject new unchecked read-to-success patterns 
   // GitHub Actions explicitly fetches the exact PR base SHA (or pre-push SHA).
   // Local full clones can use HEAD^; a missing git ref MUST fail, not skip.
   const baseRef = process.env.FAIL_CLOSED_GUARD_BASE_REF?.trim() || "HEAD^";
-  assert.match(baseRef, /^(?:[a-f0-9]{40}|HEAD\\^)$/, "Invalid comparison base ref");
+  assert.match(baseRef, /^(?:[a-f0-9]{40}|HEAD\^)$/, "Invalid comparison base ref");
   const tracked = execFileSync("git", ["ls-tree", "-r", "--name-only", baseRef, "src/components", "src/app"],
-    { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }).split("\\n");
+    { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }).split("\n");
   const baselineFiles = new Set(tracked);
   const files = [...filesUnder("src/components"), ...filesUnder("src/app")];
   const current: Hit[] = [];
   const prior: Hit[] = [];
   for (const absolute of files) {
-    const file = relative(".", absolute).replaceAll("\\\\", "/");
+    const file = relative(".", absolute).replaceAll("\\", "/");
     current.push(...scanClient(file, readFileSync(absolute, "utf8")));
     if (baselineFiles.has(file)) {
       const oldSource = execFileSync("git", ["show", baseRef + ":" + file],
@@ -110,8 +110,8 @@ test("all client components/pages reject new unchecked read-to-success patterns 
   }
   const introduced = newReadRegressions(prior, current);
   assert.equal(introduced.length, 0,
-    "New fetched-payload-to-success regressions (legacy debt is NOT marked verified):\\n" +
-    introduced.map((hit) => hit.file + ":" + hit.line + " [" + hit.rule + "] " + hit.source).join("\\n"));
+    "New fetched-payload-to-success regressions (legacy debt is NOT marked verified):\n" +
+    introduced.map((hit) => hit.file + ":" + hit.line + " [" + hit.rule + "] " + hit.source).join("\n"));
   // Explicit output keeps inherited unsafe reads visible in otherwise green CI.
   console.warn("Fail-closed client-read guard: " + current.length +
     " detected patterns, " + introduced.length + " newly introduced; " +
