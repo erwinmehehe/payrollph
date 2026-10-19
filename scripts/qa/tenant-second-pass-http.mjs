@@ -518,6 +518,13 @@ async function verifyCrossTenant(f) {
 
     expectStatus(await request("/api/v1/employees/" + checkVictimId, { bearer: creds.bearer }), 404,
       "Attacker " + idx + " must not GET victim employee");
+    const ownV1Patch = expectStatus(await request("/api/v1/employees/" + ownEmployee, {
+      method: "PATCH", bearer: creds.bearer,
+      body: { title: "Fictional own-tenant profile patch " + idx },
+    }), 200, "Attacker " + idx + " must PATCH only its own employee");
+    assert.equal(ownV1Patch.json.id, ownEmployee);
+    assert.equal(ownV1Patch.json.organizationId, attacker.id);
+
     expectStatus(await request("/api/v1/employees/" + checkVictimId, {
       bearer: creds.bearer, method: "PATCH",
       body: { title: "UNAUTHORIZED CHANGE", organizationId: victim.id },
@@ -545,9 +552,26 @@ async function verifyCrossTenant(f) {
     assert.equal(created.organizationId, attacker.id,
       "Attacker " + idx + " body organizationId must be ignored in favor of API token");
 
+    const ownV1Delete = expectStatus(await request("/api/v1/employees/" + created.id, {
+      method: "DELETE", bearer: creds.bearer,
+    }), 200, "Attacker " + idx + " must offboard only its own new fictional employee");
+    assert.equal(ownV1Delete.json.id, created.id);
+    assert.equal(ownV1Delete.json.status, "Separating");
+    const [separatedOwn] = await db.select().from(employees).where(eq(employees.id, created.id));
+    assert.equal(separatedOwn.organizationId, attacker.id);
+    assert.equal(separatedOwn.status, "Separating");
+
     expectStatus(await request("/api/scim/v2/Users/" + f.victimIdentity.id, {
       scim: creds.scim,
     }), 404, "Attacker " + idx + " must not GET victim SCIM identity");
+    const ownScimPatch = expectStatus(await request("/api/scim/v2/Users/" + ownIdentity, {
+      method: "PATCH", scim: creds.scim,
+      body: { Operations: [{ op: "replace", path: "displayName",
+        value: "Fictional own-tenant SCIM profile " + idx }] },
+    }), 200, "Attacker " + idx + " must PATCH only its own SCIM identity");
+    assert.equal(Number(ownScimPatch.json.id), ownIdentity);
+    assert.equal(ownScimPatch.json.displayName, "Fictional own-tenant SCIM profile " + idx);
+
     expectStatus(await request("/api/scim/v2/Users/" + f.victimIdentity.id, {
       method: "PATCH", scim: creds.scim,
       body: { Operations: [{ op: "replace", path: "active", value: false }],
@@ -607,11 +631,27 @@ async function verifyCrossTenant(f) {
     assert.equal(createdMembership?.orgUnitId, ownUnit,
       "SCIM must not grant unscoped company-wide access or accept a victim department");
 
+    const ownScimDelete = expectStatus(await request("/api/scim/v2/Users/" + Number(ownScimCreate.json.id), {
+      method: "DELETE", scim: creds.scim,
+    }), 204, "Attacker " + idx + " must deactivate only its own new SCIM account");
+    const [deactivatedOwn] = await db.select().from(scimIdentities)
+      .where(eq(scimIdentities.id, Number(ownScimCreate.json.id)));
+    assert.equal(deactivatedOwn.organizationId, attacker.id);
+    assert.equal(deactivatedOwn.active, false);
+
     const ownSessions = list(await request("/api/account/sessions", {
       cookie: attackerCookie,
     }), "sessions", "Attacker " + idx + " account sessions");
     assert.ok(ownSessions.some((s) => s.id === f.ownerSessions[idx].id));
     assert.ok(!ownSessions.some((s) => s.id === f.victimSessions.at(-1).id));
+    const disposableOwnSession = await makeSession(owner.id);
+    const ownSessionDelete = expectStatus(await request("/api/account/sessions", {
+      method: "DELETE", cookie: attackerCookie, body: { id: disposableOwnSession.id },
+    }), 200, "Attacker " + idx + " may revoke its own disposable session");
+    assert.equal(ownSessionDelete.json.revoked, 1);
+    const [revokedOwn] = await db.select().from(sessions).where(eq(sessions.id, disposableOwnSession.id));
+    assert.ok(revokedOwn.revokedAt !== null, "Own session revocation must persist");
+
     expectStatus(await request("/api/account/sessions", {
       method: "DELETE", cookie: attackerCookie,
       body: { id: f.victimSessions.at(-1).id, organizationId: victim.id },

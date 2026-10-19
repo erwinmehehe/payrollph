@@ -213,7 +213,7 @@ test("extended three-employer reads and asset writes have checkable method-speci
   }
 });
 
-test("all credited proof links still point to the claimed route; legacy one-sided tests remain GAP", () => {
+test("all credited proof links point to the claimed route and every recertified write has controls", () => {
   const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   for (const [path, entry] of Object.entries(manifest.allApiRouteFiles)) {
     const stem = "/api/" + entry.route.replaceAll("[id]", "");
@@ -234,14 +234,35 @@ test("all credited proof links still point to the claimed route; legacy one-side
       }
     }
   }
-  for (const [route, method] of [
-    ["account/sessions", "DELETE"], ["scim/v2/Users/[id]", "PATCH"],
-    ["scim/v2/Users/[id]", "DELETE"], ["v1/employees/[id]", "PATCH"],
-    ["v1/employees/[id]", "DELETE"],
+  for (const [route, method, positiveVariable, success] of [
+    ["account/sessions", "DELETE", "ownSessionDelete", 200],
+    ["scim/v2/Users/[id]", "PATCH", "ownScimPatch", 200],
+    ["scim/v2/Users/[id]", "DELETE", "ownScimDelete", 204],
+    ["v1/employees/[id]", "PATCH", "ownV1Patch", 200],
+    ["v1/employees/[id]", "DELETE", "ownV1Delete", 200],
   ]) {
     const key = "src/app/api/" + route + "/route.ts";
-    assert.equal(manifest.allApiRouteFiles[key].methods.find((v) => v.name === method)?.status, "GAP",
-      key + " " + method + ": an attacker-only denial cannot replace a real own-method positive");
+    const methodProof = manifest.allApiRouteFiles[key].methods.find((v) => v.name === method);
+    assert.equal(methodProof?.status, "COVERED",
+      key + " " + method + ": cross-tenant denial alone is insufficient");
+    const proof = methodProof.testedBy;
+    const positive = evidenceLine(proof.file, proof.ownPositiveLine, key + " own");
+    const victim = evidenceLine(proof.file, proof.foreignDenialLine, key + " victim");
+    const ownSpan = source.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 6).join("\n");
+    const victimSpan = source.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 5).join("\n");
+    assert.ok(positive.includes("const " + positiveVariable + " = expectStatus") &&
+      positive.includes("/api/" + route.replaceAll("[id]", "")) &&
+      ownSpan.includes("), " + success + ","),
+      key + " " + method + ": missing same-method own success");
+    assert.ok(victim.includes('expectStatus(await request("/api/' + route.replaceAll("[id]", "")) &&
+      victimSpan.includes("), 404,") &&
+      (victimSpan.includes("f.victimIdentity.id") ||
+        victimSpan.includes("checkVictimId") ||
+        victimSpan.includes("f.victimSessions.at(-1).id")),
+      key + " " + method + ": real existing victim-only record must be denied");
+    const unchanged = evidenceLine(proof.file, proof.unchangedDbLine, key + " unchanged");
+    assert.match(unchanged, /assert\.(?:deepEqual|equal)\(victim/,
+      key + " " + method + ": denied mutation must preserve victim data");
   }
 });
 

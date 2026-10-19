@@ -1,6 +1,6 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 457 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 452 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -11,9 +11,9 @@
 | routeFiles | 288 |
 | methods | 489 |
 | coveredBefore | 20 |
-| coveredAfter | 26 |
+| coveredAfter | 31 |
 | publicByDesign | 6 |
-| gap | 457 |
+| gap | 452 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -67,13 +67,17 @@ Reconciled the active manifest, source line metadata, and pinned baseline agains
 
 ## Incremental real-HTTP proof added (current PR head, pending exact-head CI)
 
-The original source-pinned partition JSON files remain an archival baseline and may still label these three previously untested methods as GAP. The consolidated manifest and updated method tables reflect **26 COVERED / 6 PUBLIC-BY-DESIGN / 457 GAP**, pending current-head GitHub Actions. The new two-attacker, one-victim disposable-PG checks prove seeded own positive and explicit foreign denials for GET dashboard, GET employees and GET payroll-runs, including a direct victim-only payroll register ID. They do **not** constitute proof for POST/PATCH/DELETE or the remaining routes.
+The original source-pinned partition JSON files remain an archival baseline and may still label these three previously untested methods as GAP. The consolidated manifest and updated method tables reflect **31 COVERED / 6 PUBLIC-BY-DESIGN / 452 GAP**, pending current-head GitHub Actions. The new two-attacker, one-victim disposable-PG checks prove seeded own positive and explicit foreign denials for GET dashboard, GET employees and GET payroll-runs, including a direct victim-only payroll register ID. They do **not** constitute proof for POST/PATCH/DELETE or the remaining routes.
 
 ## Additional three-tenant HTTP coverage and proof-link QA — exact-head CI pending
 
 A second disposable-PostgreSQL method batch adds own-positive / attacker-victim-denial HTTP checks for **assets GET, POST, PATCH, DELETE; documents GET; approval chains GET; leave balances GET; compliance calendar GET**. Fixtures contain seeded per-employer assets, documents, approval policies and leave policies. Asset mutation tests assert actual own success, explicit victim-only denial, and unchanged victim rows. No production systems, payroll math or real payments are touched.
 
-**Proof integrity correction:** Five historical provisional COVERED methods were **returned to GAP** because they had an attacker-only denial but **no successful same-method own-object control**: account/sessions DELETE, SCIM user PATCH/DELETE, and API v1 employee PATCH/DELETE. This is not evidence of a vulnerability; it is a stricter evidence threshold. All 18 retained existing COVERED methods and the 8 added methods now link to their actual current source assertions (26 COVERED total, 6 public by design, 457 GAP). The original archived partition JSON files preserve the historical baseline, not the current acceptance classification.
+**Proof integrity correction:** Five historical provisional COVERED methods were **temporarily returned to GAP at the prior revision** because they had an attacker-only denial but **no successful same-method own-object control at that time**: account/sessions DELETE, SCIM user PATCH/DELETE, and API v1 employee PATCH/DELETE. This is not evidence of a vulnerability; it is a stricter evidence threshold. All 18 retained existing COVERED methods, five newly recertified methods, and eight added methods now link to their actual current source assertions (31 COVERED total, 6 public by design, 452 GAP). The original archived partition JSON files preserve the historical baseline, not the current acceptance classification.
+
+## Five formerly one-sided mutation checks now have own-method positives (new head; CI pending)
+
+Added **successful own-tenant mutation evidence** for account session DELETE, SCIM user PATCH/DELETE, and v1 employee PATCH/DELETE. Each test verifies the selected method succeeds for an owned fictional record, denies a real victim-only target with the expected 404, and checks persisted victim session, SCIM identity or employee state is unchanged. SCIM DELETE is a synthetic deactivation; v1 DELETE starts fictional offboarding rather than destroying payroll history. These five methods are **provisionally restored to COVERED** only with their new same-method proof lines. Combined with the previous batch, the inventory now reports **31 COVERED / 6 PUBLIC-BY-DESIGN / 452 GAP**. The latest-head isolated HTTP and CI acceptance must pass before these are treated as verified.
 
 ## Evidence requirements not yet satisfied
 
@@ -96,10 +100,10 @@ Every one of the 288 route files and 489 exported handlers is in the following s
 | [`account/email` POST](../../src/app/api/account/email/route.ts#L22) | SESSION, BODY_CANDIDATE | getSessionUser L5, getSessionUser L29 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`account/email/verify` POST](../../src/app/api/account/email/verify/route.ts#L13) | BODY_CANDIDATE | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`account/password` POST](../../src/app/api/account/password/route.ts#L29) | SESSION, BODY_CANDIDATE | getSessionUser L9, getSessionUser L39 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`account/profile` POST](../../src/app/api/account/profile/route.ts#L13) | SESSION, BODY_CANDIDATE | getSessionUser L6, getSessionUser L17 | none found | [three-org HTTP L620](../../scripts/qa/tenant-second-pass-http.mjs#L620) | **COVERED** |
+| [`account/profile` POST](../../src/app/api/account/profile/route.ts#L13) | SESSION, BODY_CANDIDATE | getSessionUser L6, getSessionUser L17 | none found | [three-org HTTP L660](../../scripts/qa/tenant-second-pass-http.mjs#L660) | **COVERED** |
 | [`account` GET](../../src/app/api/account/route.ts#L14) | SESSION | getSessionUser L4, getSessionUser L15 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`account/sessions` GET](../../src/app/api/account/sessions/route.ts#L14) | SESSION, BODY_CANDIDATE | getSessionUser L6, getSessionUser L15, getSessionUser L32 | none found | [three-org HTTP L610](../../scripts/qa/tenant-second-pass-http.mjs#L610) | **COVERED** |
-| [`account/sessions` DELETE](../../src/app/api/account/sessions/route.ts#L28) | SESSION, BODY_CANDIDATE | getSessionUser L6, getSessionUser L15, getSessionUser L32 | none found | NO VALID METHOD PROOF | **GAP** |
+| [`account/sessions` GET](../../src/app/api/account/sessions/route.ts#L14) | SESSION, BODY_CANDIDATE | getSessionUser L6, getSessionUser L15, getSessionUser L32 | none found | [three-org HTTP L642](../../scripts/qa/tenant-second-pass-http.mjs#L642) | **COVERED** |
+| [`account/sessions` DELETE](../../src/app/api/account/sessions/route.ts#L28) | SESSION, BODY_CANDIDATE | getSessionUser L6, getSessionUser L15, getSessionUser L32 | none found | [three-org HTTP L655](../../scripts/qa/tenant-second-pass-http.mjs#L655) | **COVERED** |
 | [`approval-chains` GET](../../src/app/api/approval-chains/route.ts#L18) | SESSION, URL_QUERY, BODY_CANDIDATE | getSessionUser L4, assertOrganizationRole L5, getAccess L5, getSessionUser L19 | searchParams.get("organizationId") L21, body.organizationId L83 | [three-org HTTP L453](../../scripts/qa/tenant-second-pass-http.mjs#L453) | **COVERED** |
 | [`approval-chains` POST](../../src/app/api/approval-chains/route.ts#L72) | SESSION, URL_QUERY, BODY_CANDIDATE | getSessionUser L4, assertOrganizationRole L5, getAccess L5, getSessionUser L19 | searchParams.get("organizationId") L21, body.organizationId L83 | NO VALID METHOD PROOF | **GAP** |
 | [`approvals/[id]` PATCH](../../src/app/api/approvals/[id]/route.ts#L33) | SESSION, BODY_CANDIDATE | getSessionUser L5, assertOrganizationUnitAccess L16, getSessionUser L46, assertOrganizationUnitAccess L120 | data.runId L270 | NO VALID METHOD PROOF | **GAP** |
@@ -315,7 +319,7 @@ Every one of the 288 route files and 489 exported handlers is in the following s
 | [`it-operations` GET](../../src/app/api/it-operations/route.ts#L26) | session, query, body | assertOrganizationRole L5, assertScope L5, getAccess L5, getSessionUser L6 | searchParams.get("organizationId") L29, body.organizationId L58, body.employeeId L73 | NO VALID METHOD PROOF | **GAP** |
 | [`it-operations` POST](../../src/app/api/it-operations/route.ts#L52) | session, query, body | assertOrganizationRole L5, assertScope L5, getAccess L5, getSessionUser L6 | searchParams.get("organizationId") L29, body.organizationId L58, body.employeeId L73 | NO VALID METHOD PROOF | **GAP** |
 | [`it-operations` PATCH](../../src/app/api/it-operations/route.ts#L120) | session, query, body | assertOrganizationRole L5, assertScope L5, getAccess L5, getSessionUser L6 | searchParams.get("organizationId") L29, body.organizationId L58, body.employeeId L73 | NO VALID METHOD PROOF | **GAP** |
-| [`jobs/admin-status` GET](../../src/app/api/jobs/admin-status/route.ts#L12) | session, query | getSessionUser L1, getAccess L2, getSessionUser L13, getAccess L21 | searchParams.get("organizationId") L15 | [three-org HTTP L633](../../scripts/qa/tenant-second-pass-http.mjs#L633) | **COVERED** |
+| [`jobs/admin-status` GET](../../src/app/api/jobs/admin-status/route.ts#L12) | session, query | getSessionUser L1, getAccess L2, getSessionUser L13, getAccess L21 | searchParams.get("organizationId") L15 | [three-org HTTP L673](../../scripts/qa/tenant-second-pass-http.mjs#L673) | **COVERED** |
 | [`jobs/cron` GET](../../src/app/api/jobs/cron/route.ts#L15) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`jobs/dispatch-readiness` GET](../../src/app/api/jobs/dispatch-readiness/route.ts#L13) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`jobs/status` GET](../../src/app/api/jobs/status/route.ts#L17) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
@@ -441,11 +445,11 @@ Every one of the 288 route files and 489 exported handlers is in the following s
 | [`reports/builder` POST](../../src/app/api/reports/builder/route.ts#L80) | session, query, body | assertOrganizationRole L5, getAccess L5, getSessionUser L7, enforceSameOriginMutation L9 | params.get("organizationId") L71, payload.organizationId L84 | NO VALID METHOD PROOF | **GAP** |
 | [`reports` GET](../../src/app/api/reports/route.ts#L13) | session, query | getSessionUser L2, assertOrganizationRole L4, getAccess L4, getSessionUser L14 | searchParams.get("organizationId") L18 | NO VALID METHOD PROOF | **GAP** |
 | [`scim/v2/ServiceProviderConfig` GET](../../src/app/api/scim/v2/ServiceProviderConfig/route.ts#L3) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **PUBLIC-BY-DESIGN** |
-| [`scim/v2/Users/[id]` GET](../../src/app/api/scim/v2/Users/[id]/route.ts#L82) | body | NONE FOUND | none found | [three-org HTTP L548](../../scripts/qa/tenant-second-pass-http.mjs#L548) | **COVERED** |
-| [`scim/v2/Users/[id]` PATCH](../../src/app/api/scim/v2/Users/[id]/route.ts#L93) | body | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
-| [`scim/v2/Users/[id]` DELETE](../../src/app/api/scim/v2/Users/[id]/route.ts#L314) | body | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
-| [`scim/v2/Users` GET](../../src/app/api/scim/v2/Users/route.ts#L81) | query, body | NONE FOUND | none found | [three-org HTTP L559](../../scripts/qa/tenant-second-pass-http.mjs#L559) | **COVERED** |
-| [`scim/v2/Users` POST](../../src/app/api/scim/v2/Users/route.ts#L146) | query, body | NONE FOUND | none found | [three-org HTTP L572](../../scripts/qa/tenant-second-pass-http.mjs#L572) | **COVERED** |
+| [`scim/v2/Users/[id]` GET](../../src/app/api/scim/v2/Users/[id]/route.ts#L82) | body | NONE FOUND | none found | [three-org HTTP L564](../../scripts/qa/tenant-second-pass-http.mjs#L564) | **COVERED** |
+| [`scim/v2/Users/[id]` PATCH](../../src/app/api/scim/v2/Users/[id]/route.ts#L93) | body | NONE FOUND | none found | [three-org HTTP L575](../../scripts/qa/tenant-second-pass-http.mjs#L575) | **COVERED** |
+| [`scim/v2/Users/[id]` DELETE](../../src/app/api/scim/v2/Users/[id]/route.ts#L314) | body | NONE FOUND | none found | [three-org HTTP L580](../../scripts/qa/tenant-second-pass-http.mjs#L580) | **COVERED** |
+| [`scim/v2/Users` GET](../../src/app/api/scim/v2/Users/route.ts#L81) | query, body | NONE FOUND | none found | [three-org HTTP L583](../../scripts/qa/tenant-second-pass-http.mjs#L583) | **COVERED** |
+| [`scim/v2/Users` POST](../../src/app/api/scim/v2/Users/route.ts#L146) | query, body | NONE FOUND | none found | [three-org HTTP L596](../../scripts/qa/tenant-second-pass-http.mjs#L596) | **COVERED** |
 | [`self/availability` GET](../../src/app/api/self/availability/route.ts#L54) | session | getSessionUser L5, enforceSameOriginMutation L18, getSessionUser L38, enforceSameOriginMutation L102 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`self/availability` POST](../../src/app/api/self/availability/route.ts#L101) | session | getSessionUser L5, enforceSameOriginMutation L18, getSessionUser L38, enforceSameOriginMutation L102 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`self/contribution-evidence` GET](../../src/app/api/self/contribution-evidence/route.ts#L47) | session, query | getSessionUser L20, getSessionUser L48 | none found | NO VALID METHOD PROOF | **GAP** |
@@ -496,17 +500,17 @@ Every one of the 288 route files and 489 exported handlers is in the following s
 | [`treasury-controls` GET](../../src/app/api/treasury-controls/route.ts#L56) | session, query, body | getSessionUser L10, assertOrganizationRole L12, getAccess L13, enforceSameOriginMutation L21 | searchParams.get("organizationId") L60, body.organizationId L130 | NO VALID METHOD PROOF | **GAP** |
 | [`treasury-controls` POST](../../src/app/api/treasury-controls/route.ts#L120) | session, query, body | getSessionUser L10, assertOrganizationRole L12, getAccess L13, enforceSameOriginMutation L21 | searchParams.get("organizationId") L60, body.organizationId L130 | NO VALID METHOD PROOF | **GAP** |
 | [`v1/employees/[id]` GET](../../src/app/api/v1/employees/[id]/route.ts#L32) | apiKey, body | authenticateApiKey L11, authenticateApiKey L24 | none found | [three-org HTTP L519](../../scripts/qa/tenant-second-pass-http.mjs#L519) | **COVERED** |
-| [`v1/employees/[id]` PATCH](../../src/app/api/v1/employees/[id]/route.ts#L54) | apiKey, body | authenticateApiKey L11, authenticateApiKey L24 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`v1/employees/[id]` DELETE](../../src/app/api/v1/employees/[id]/route.ts#L332) | apiKey, body | authenticateApiKey L11, authenticateApiKey L24 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`v1/employees` GET](../../src/app/api/v1/employees/route.ts#L16) | apiKey, query, body | authenticateApiKey L4, authenticateApiKey L22, authenticateApiKey L75 | none found | [three-org HTTP L531](../../scripts/qa/tenant-second-pass-http.mjs#L531) | **COVERED** |
-| [`v1/employees` POST](../../src/app/api/v1/employees/route.ts#L69) | apiKey, query, body | authenticateApiKey L4, authenticateApiKey L22, authenticateApiKey L75 | none found | [three-org HTTP L545](../../scripts/qa/tenant-second-pass-http.mjs#L545) | **COVERED** |
-| [`v1/events` GET](../../src/app/api/v1/events/route.ts#L7) | NONE FOUND | NONE FOUND | none found | [three-org HTTP L660](../../scripts/qa/tenant-second-pass-http.mjs#L660) | **COVERED** |
+| [`v1/employees/[id]` PATCH](../../src/app/api/v1/employees/[id]/route.ts#L54) | apiKey, body | authenticateApiKey L11, authenticateApiKey L24 | none found | [three-org HTTP L528](../../scripts/qa/tenant-second-pass-http.mjs#L528) | **COVERED** |
+| [`v1/employees/[id]` DELETE](../../src/app/api/v1/employees/[id]/route.ts#L332) | apiKey, body | authenticateApiKey L11, authenticateApiKey L24 | none found | [three-org HTTP L532](../../scripts/qa/tenant-second-pass-http.mjs#L532) | **COVERED** |
+| [`v1/employees` GET](../../src/app/api/v1/employees/route.ts#L16) | apiKey, query, body | authenticateApiKey L4, authenticateApiKey L22, authenticateApiKey L75 | none found | [three-org HTTP L538](../../scripts/qa/tenant-second-pass-http.mjs#L538) | **COVERED** |
+| [`v1/employees` POST](../../src/app/api/v1/employees/route.ts#L69) | apiKey, query, body | authenticateApiKey L4, authenticateApiKey L22, authenticateApiKey L75 | none found | [three-org HTTP L552](../../scripts/qa/tenant-second-pass-http.mjs#L552) | **COVERED** |
+| [`v1/events` GET](../../src/app/api/v1/events/route.ts#L7) | NONE FOUND | NONE FOUND | none found | [three-org HTTP L700](../../scripts/qa/tenant-second-pass-http.mjs#L700) | **COVERED** |
 | [`v1/journal-entries` GET](../../src/app/api/v1/journal-entries/route.ts#L10) | query | NONE FOUND | params.get("legalEntityId") L21 | NO VALID METHOD PROOF | **GAP** |
-| [`v1/org-units` GET](../../src/app/api/v1/org-units/route.ts#L7) | NONE FOUND | NONE FOUND | none found | [three-org HTTP L645](../../scripts/qa/tenant-second-pass-http.mjs#L645) | **COVERED** |
-| [`v1/payroll-runs` GET](../../src/app/api/v1/payroll-runs/route.ts#L9) | apiKey, query | authenticateApiKey L4, authenticateApiKey L15 | none found | [three-org HTTP L640](../../scripts/qa/tenant-second-pass-http.mjs#L640) | **COVERED** |
-| [`v1/payslips/[id]` GET](../../src/app/api/v1/payslips/[id]/route.ts#L8) | apiKey | NONE FOUND | none found | [three-org HTTP L651](../../scripts/qa/tenant-second-pass-http.mjs#L651) | **COVERED** |
-| [`v1/payslips` GET](../../src/app/api/v1/payslips/route.ts#L7) | NONE FOUND | NONE FOUND | none found | [three-org HTTP L650](../../scripts/qa/tenant-second-pass-http.mjs#L650) | **COVERED** |
-| [`v1/provider-events` GET](../../src/app/api/v1/provider-events/route.ts#L13) | query | NONE FOUND | none found | [three-org HTTP L667](../../scripts/qa/tenant-second-pass-http.mjs#L667) | **COVERED** |
+| [`v1/org-units` GET](../../src/app/api/v1/org-units/route.ts#L7) | NONE FOUND | NONE FOUND | none found | [three-org HTTP L685](../../scripts/qa/tenant-second-pass-http.mjs#L685) | **COVERED** |
+| [`v1/payroll-runs` GET](../../src/app/api/v1/payroll-runs/route.ts#L9) | apiKey, query | authenticateApiKey L4, authenticateApiKey L15 | none found | [three-org HTTP L680](../../scripts/qa/tenant-second-pass-http.mjs#L680) | **COVERED** |
+| [`v1/payslips/[id]` GET](../../src/app/api/v1/payslips/[id]/route.ts#L8) | apiKey | NONE FOUND | none found | [three-org HTTP L691](../../scripts/qa/tenant-second-pass-http.mjs#L691) | **COVERED** |
+| [`v1/payslips` GET](../../src/app/api/v1/payslips/route.ts#L7) | NONE FOUND | NONE FOUND | none found | [three-org HTTP L690](../../scripts/qa/tenant-second-pass-http.mjs#L690) | **COVERED** |
+| [`v1/provider-events` GET](../../src/app/api/v1/provider-events/route.ts#L13) | query | NONE FOUND | none found | [three-org HTTP L707](../../scripts/qa/tenant-second-pass-http.mjs#L707) | **COVERED** |
 | [`v1` GET](../../src/app/api/v1/route.ts#L6) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`web-bundy/consent` POST](../../src/app/api/web-bundy/consent/route.ts#L16) | session, body | getSessionUser L4, enforceSameOriginMutation L6, enforceSameOriginMutation L18, getSessionUser L19 | body.organizationId L22 | NO VALID METHOD PROOF | **GAP** |
 | [`web-bundy/evidence` GET](../../src/app/api/web-bundy/evidence/route.ts#L60) | session, query, body | getSessionUser L5, enforceSameOriginMutation L7, getSessionUser L28, enforceSameOriginMutation L90 | params.get("organizationId") L63 | NO VALID METHOD PROOF | **GAP** |
