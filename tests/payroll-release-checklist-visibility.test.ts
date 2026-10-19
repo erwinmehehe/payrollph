@@ -64,8 +64,8 @@ test("payroll release stays blocked until its exact checklist loads and confirma
   const source = readFileSync("src/components/workspace/payroll-run.tsx", "utf8");
   assert.ok(source.includes("const hardChecklistBlocked = !releaseChecklist || releaseChecklist.items.some("),
     "an absent or loading checklist must block release controls");
-  assert.ok(source.includes("const confirmRelease = confirmReleaseForScope === checklistScope && releaseChecklist !== null"),
-    "dialog visibility must be scoped to the loaded employer/run/approval snapshot");
+  assert.match(source, /const confirmRelease =\\s*entriesVerified && confirmReleaseForScope === checklistScope && releaseChecklist !== null;/,
+    "dialog visibility must require a verified register plus the exact checklist and approval snapshot");
   assert.ok(source.includes("setConfirmReleaseForScope(checklistScope)"),
     "the dialog must capture the scope the user actually confirmed");
   assert.ok(source.includes("setConfirmReleaseForScope(null)"),
