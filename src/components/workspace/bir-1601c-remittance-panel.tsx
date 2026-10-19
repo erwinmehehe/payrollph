@@ -5,42 +5,7 @@ import { AlertTriangle, CheckCircle2, RefreshCw, ShieldCheck } from "lucide-reac
 import type { Notify } from "./types";
 import { Status, money } from "./ui";
 
-type FilingCheck = {
-  state: "missing" | "metadata_missing" | "mismatch" | "matched";
-  matched: boolean;
-  message: string;
-  filing: {
-    id: number;
-    agencyReference: string | null;
-    submittedAt: string | null;
-    employeeCount: number | null;
-    reportedTotal: string | null;
-  } | null;
-  comparison: {
-    totalMatches: boolean;
-    employeeCountMatches: boolean;
-    totalDifference: number | null;
-    employeeCountDifference: number | null;
-  } | null;
-};
-
-type Batch = {
-  id: number;
-  applicableMonth: string;
-  filingChannel: "non_efps" | "efps";
-  efpsGroup: string | null;
-  filingDueDate: string;
-  paymentDueDate: string;
-  status: string;
-  displayStatus: string;
-  employeeCount: number;
-  payrollRunCount: number;
-  expectedTaxWithheld: string;
-  amountPaid: string | null;
-  paymentReference: string | null;
-  filingReference: string | null;
-  filingCheck: FilingCheck;
-};
+import { parseBir1601cRead, type Batch } from "@/lib/bir-1601c-read";
 
 function previousMonth() {
   const now = new Date();
@@ -65,6 +30,8 @@ function Bir1601cRemittancePanelContent({
   notify: Notify;
 }) {
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [readState, setReadState] = useState<"loading" | "ready" | "error">("loading");
+  const [readError, setReadError] = useState("");
   const [month, setMonth] = useState(previousMonth());
   const [filingChannel, setFilingChannel] = useState<"non_efps" | "efps">("non_efps");
   const [efpsGroup, setEfpsGroup] = useState("A");
@@ -75,14 +42,30 @@ function Bir1601cRemittancePanelContent({
   const [paymentVarianceNote, setPaymentVarianceNote] = useState("");
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    const response = await fetch(
-      `/api/compliance/bir-1601c-remittances?organizationId=${organizationId}`,
-      { cache: "no-store", signal },
-    );
-    const body = await response.json().catch(() => ({}));
-    if (signal?.aborted) return;
-    if (!response.ok) throw new Error(body.error ?? "Could not load BIR 1601-C reconciliation.");
-    setBatches(Array.isArray(body.batches) ? body.batches : []);
+    setReadState("loading");
+    setReadError("");
+    setBatches([]);
+    setPaymentBatchId(null);
+    try {
+      const response = await fetch(
+        `/api/compliance/bir-1601c-remittances?organizationId=${organizationId}`,
+        { cache: "no-store", signal },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (signal?.aborted) return;
+      if (!response.ok) throw new Error(body.error ?? "Could not load BIR 1601-C reconciliation.");
+      const verified = parseBir1601cRead(body, organizationId);
+      if (verified === null) throw new Error("BIR 1601-C evidence was incomplete or belonged to another employer.");
+      setBatches(verified);
+      setReadState("ready");
+    } catch (error) {
+      if (signal?.aborted) return;
+      const message = error instanceof Error ? error.message : "BIR 1601-C evidence could not be verified.";
+      setBatches([]);
+      setReadError(message);
+      setReadState("error");
+      throw error;
+    }
   }, [organizationId]);
 
   useEffect(() => {
@@ -108,7 +91,9 @@ function Bir1601cRemittancePanelContent({
   );
 
   async function mutate(action: string, payload: Record<string, unknown>, success: string) {
+    if (readState !== "ready" || busy !== null) return false;
     setBusy(action);
+    let submitted = false;
     try {
       const response = await fetch("/api/compliance/bir-1601c-remittances", {
         method: "POST",
@@ -117,11 +102,14 @@ function Bir1601cRemittancePanelContent({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "BIR 1601-C reconciliation action failed.");
-      notify(success, "ok");
+      submitted = true;
       await load();
+      notify(success, "ok");
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "BIR 1601-C reconciliation action failed.", "err");
+      notify(submitted
+        ? "The action may have succeeded, but the updated BIR evidence is unverified. Check the record before retrying."
+        : error instanceof Error ? error.message : "BIR 1601-C reconciliation action failed.", "err");
       return false;
     } finally {
       setBusy(null);
@@ -153,6 +141,27 @@ function Bir1601cRemittancePanelContent({
     }
   }
 
+  if (readState !== "ready") {
+    return (
+      <article className="card" data-bir-1601c-remittance style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">BIR 1601-C RECONCILIATION</div>
+            <h2>{readState === "loading" ? "Verifying BIR 1601-C evidence…" : "BIR controls unavailable"}</h2>
+            <p role="status">{readState === "error" ? readError : "Reconciliation actions are locked until the employer's complete evidence is verified."}</p>
+          </div>
+          {readState === "error" && (
+            <button className="secondary-button" disabled={busy !== null}
+              onClick={() => void load().catch((error) =>
+                notify(error instanceof Error ? error.message : "BIR evidence could not be verified.", "err"))}>
+              <RefreshCw size={14} /> Retry
+            </button>
+          )}
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article className="card" data-bir-1601c-remittance style={{ marginBottom: 16 }}>
       <div className="card-header">
@@ -163,7 +172,7 @@ function Bir1601cRemittancePanelContent({
             A clean payroll tax calculation is not enough. This closes the monthly loop from released-payroll withholding to accepted 1601-C filing evidence and payment confirmation.
           </p>
         </div>
-        <button className="secondary-button" onClick={() => void load()} disabled={busy !== null}>
+        <button className="secondary-button" onClick={() => void load().catch((error) => notify(error instanceof Error ? error.message : "BIR evidence could not be verified.", "err"))} disabled={busy !== null}>
           <RefreshCw size={14} /> Refresh
         </button>
       </div>

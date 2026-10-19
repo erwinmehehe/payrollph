@@ -164,6 +164,7 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
+    organizationId,
     today,
     legalEntity: { id: legalEntity.id, code: legalEntity.code, displayName: legalEntity.displayName },
     batches: withChecks,
