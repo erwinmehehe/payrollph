@@ -47,7 +47,10 @@ export async function PATCH(request: Request) {
       key:body.key, action:body.action, targetRole:body.targetRole,
       periodStart:body.periodStart, periodEnd:body.periodEnd, acknowledged:body.acknowledged,
     });
-    return Response.json({progress:await readJourneyProgress(organizationId)});
+    return Response.json(
+      { organizationId, progress: await readJourneyProgress(organizationId) },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (error) {
     return Response.json({error:publicFirstPayrollProgressError(error)},{status:422});
   }
