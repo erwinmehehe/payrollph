@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Check, Download, FileCheck2, Info } from "lucide-react";
 import type { Notify } from "./types";
 import { Segmented, Status, formatDate } from "./ui";
@@ -45,7 +45,7 @@ export function FilingEvidencePanel({
   onRefresh: () => Promise<void>;
 }) {
   const [observation, setObservation] = useState<{
-    scopeKey: string;
+    scopeKey: object;
     records: FilingRecord[] | null;
     definition: FilingForm | null;
     error: string | null;
@@ -63,15 +63,18 @@ export function FilingEvidencePanel({
 
   const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((key) => key + 1);
-  // Invalidate any previous tenant/run/form read synchronously during render.
-  const currentScopeKey = JSON.stringify({
+  // Snapshot identity prevents stale A -> B -> A evidence from replaying.
+  const currentScopeKey = useMemo(() => ({
     organizationId, legalEntityId: run.legalEntityId ?? null,
     runId: run.id, agency, form, reloadKey, entityEnabled: Boolean(entityContext?.enabled),
-  });
+  }), [organizationId, run.legalEntityId, run.id, agency, form, reloadKey, entityContext?.enabled]);
   const currentRead = observation?.scopeKey === currentScopeKey ? observation : null;
   const records = currentRead?.records ?? null;
   const definition = currentRead?.definition ?? null;
-  const loadError = currentRead?.error ?? null;
+  const legalEmployerAvailable =
+    typeof run.legalEntityId === "number" && Number.isSafeInteger(run.legalEntityId) && run.legalEntityId > 0;
+  const loadError = currentRead?.error ??
+    (!legalEmployerAvailable ? "This payroll run has no verified legal employer. Filing actions are unavailable." : null);
   const verifiedRead = records !== null && definition !== null && loadError === null;
 
   useEffect(() => {
@@ -79,13 +82,7 @@ export function FilingEvidencePanel({
     let active = true;
     const requestKey = currentScopeKey;
     const employerId = run.legalEntityId ?? null;
-    setObservation(null);
-
     if (typeof employerId !== "number" || !Number.isSafeInteger(employerId) || employerId <= 0) {
-      setObservation({
-        scopeKey: requestKey, records: null, definition: null,
-        error: "This payroll run has no verified legal employer. Filing actions are unavailable.",
-      });
       return () => { active = false; controller.abort(); };
     }
 
