@@ -38,14 +38,22 @@ function amountOf(result: Calc, code: string) {
 function assertReconciles(result: Calc) {
   assert.equal(cents(result.gross) - cents(result.deductions), cents(result.net),
     "Gross minus applied deductions must equal net to centavo");
-  const earningCents = result.lineItems.reduce((sum, line) => sum + Math.max(0, cents(line.amount)), 0);
-  const appliedCents = result.lineItems.reduce((sum, line) => sum + Math.min(0, cents(line.amount)), 0);
-  assert.equal(earningCents - cents(result.gross), 0, "Positive payslip buckets must equal gross");
-  assert.equal(-appliedCents, cents(result.deductions), "Negative payslip lines must equal applied deductions");
-  assert.equal(earningCents + appliedCents, cents(result.net), "Payslip lines must equal net");
+  // Classify by *economic bucket*, not sign: unpaid leave reduces gross,
+  // while a year-end tax refund is a positive line that reduces deductions.
+  const deductionCodes = new Set(["SSS", "PHIC", "HDMF", "HDMF_VOL", "WHT", "LATE", "UT"]);
+  const isDeduction = (code: string) => deductionCodes.has(code)
+    || code.startsWith("YE-TAX") || code.startsWith("LOAN-")
+    || code.startsWith("ADV-") || code.startsWith("BEN-");
+  const grossLines = result.lineItems.reduce((sum, line) =>
+    sum + (isDeduction(line.code) ? 0 : cents(line.amount)), 0);
+  const signedDeductionLines = result.lineItems.reduce((sum, line) =>
+    sum + (isDeduction(line.code) ? cents(line.amount) : 0), 0);
+  assert.equal(grossLines, cents(result.gross), "Signed earnings buckets must equal gross");
+  assert.equal(-signedDeductionLines, cents(result.deductions), "Signed withheld/refunded lines must equal deductions");
+  assert.equal(grossLines + signedDeductionLines, cents(result.net), "Payslip lines must equal net");
   assert.ok(result.net >= 0, "Ordinary payroll is not a negative payout");
   assert.match(result.payslipText, new RegExp("Gross: PHP " + result.gross.toFixed(2).replace(".", "\\.")));
-  assert.match(result.payslipText, new RegExp("Net: PHP " + result.net.toFixed(2).replace(".", "\\.")));
+  assert.match(result.payslipText, new RegExp("Net pay: PHP " + result.net.toFixed(2).replace(".", "\\.")));
 }
 function worker(id: number, basis: Basis, rate: number, startDate = "2025-01-01", restDay: string | null = null) {
   const monthly = basis === "monthly" ? rate : basis === "daily" ? rate * 22 : rate * 8 * 22;
