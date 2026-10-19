@@ -46,10 +46,12 @@ function report(entry: { employeeId: number; grossPay: string; deductions: strin
 test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> payslip -> remittance snapshot -> release -> GL", {
   skip: !isolated,
 }, async () => {
+  const previousExitFlag = process.env.APPROVED_EXIT_PAYROLL_ENABLED;
+  process.env.APPROVED_EXIT_PAYROLL_ENABLED = "true";
   const { and, eq, inArray } = await import("drizzle-orm");
   const { db } = await import("../src/db");
   const { organizations, legalEntities, employees, timePunches,
-    payrollRuns, payrollEntries, payslips, auditEvents, separationRecords } = await import("../src/db/schema");
+    payrollRuns, payrollEntries, payslips, auditEvents, separationRecords, users } = await import("../src/db/schema");
   const { enqueuePayrollRun, drainPayrollQueue } = await import("../src/lib/payroll-engine");
   const { settlePayrollRun } = await import("../src/lib/payroll-settlement");
   const { buildReleasedPayrollJournal } = await import("../src/lib/payroll-journal-export");
@@ -225,11 +227,17 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
     // Approved (not draft) fictional separation is a distinct source correction.
     // Worker Alpha #2 earns 9/15 of PHP11000.005 = PHP6600.00, not PHP11000.01.
     // No legal separation entitlement is inferred here; only employment end.
+    const [exitMaker, exitChecker] = await db.insert(users).values([
+      { name: "Fictional Exit Maker", email: "exit-maker-" + suffix + "@example.invalid", passwordHash: "fixture-no-login", role: "owner" },
+      { name: "Fictional Exit Checker", email: "exit-checker-" + suffix + "@example.invalid", passwordHash: "fixture-no-login", role: "owner" },
+    ]).returning();
     await db.insert(separationRecords).values({
       organizationId: alpha.id, employeeId: alphaWorkers[1].id,
       separationType: "resignation", noticeDate: "2026-09-20",
       lastDay: "2026-10-09", status: "approved",
+      preparedByUserId: exitMaker.id, approvedByUserId: exitChecker.id,
     });
+    await db.update(employees).set({ status: "Separating" }).where(eq(employees.id, alphaWorkers[1].id));
     await enqueuePayrollRun(runA.id, 25);
     await drainPayrollQueue(10, runA.id);
     const afterExit = await reconcile(runA.id, 51);
@@ -243,6 +251,8 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
     assert.deepEqual((await entries(runB.id)).map(report).sort((a, b) => a.employeeId - b.employeeId),
       bRows.map(report).sort((a, b) => a.employeeId - b.employeeId));
   } finally {
+    if (previousExitFlag === undefined) delete process.env.APPROVED_EXIT_PAYROLL_ENABLED;
+    else process.env.APPROVED_EXIT_PAYROLL_ENABLED = previousExitFlag;
     // Explicit dependent teardown avoids RESTRICT FK ordering between
     // legal employers, released runs and workers. Remaining child rows cascade.
     const orgIds = orgs.map((org) => org.id);
@@ -250,5 +260,6 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
     await db.delete(employees).where(inArray(employees.organizationId, orgIds));
     await db.delete(legalEntities).where(inArray(legalEntities.organizationId, orgIds));
     await db.delete(organizations).where(inArray(organizations.id, orgIds));
+    await db.delete(users).where(inArray(users.email, ["exit-maker-" + suffix + "@example.invalid", "exit-checker-" + suffix + "@example.invalid"]));
   }
 });

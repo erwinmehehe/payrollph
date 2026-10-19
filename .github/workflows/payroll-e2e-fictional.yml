@@ -6,6 +6,9 @@ on:
       - "tests/payroll-e2e-fictional-*.test.ts"
       - "docs/qa/payroll-e2e-*.md"
       - "src/lib/payroll-engine.ts"
+      - "src/lib/approved-exit-payroll.ts"
+      - "src/app/api/separation/route.ts"
+      - "scripts/qa/payroll-approved-exit-http.mjs"
       - "src/lib/payroll-journal-export.ts"
       - ".github/workflows/payroll-e2e-fictional.yml"
 permissions:
@@ -26,6 +29,11 @@ jobs:
       SCHEDULER_REHEARSAL_MODE: isolated-ci-only
       OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: "true"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
       PAYMONGO_DISBURSEMENTS_ENABLED: "false"
       XENDIT_PAYOUTS_ENABLED: "false"
     services:
@@ -65,6 +73,11 @@ jobs:
           echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
           echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
+          for key in WORKER_TOKEN READINESS_TOKEN SETUP_TOKEN MALWARE_SCAN_TOKEN; do
+            secret=$(openssl rand -hex 32)
+            echo "::add-mask::$secret"
+            echo "$key=$secret" >> "$GITHUB_ENV"
+          done
       - name: Create only disposable PG schema (NO repository migration)
         run: npm run db:push
       - name: Apply existing CI-only PG16 audit guard to disposable PG
@@ -76,6 +89,26 @@ jobs:
         run: npm run lint
       - name: Targeted pure engine AND real PG integration acceptance
         run: npx tsx --test --test-concurrency=1 tests/payroll-e2e-fictional-pure.test.ts tests/payroll-e2e-fictional-postgres.test.ts
+      - name: Build real HTTP application for approved-exit handoff
+        run: npm run build
+      - name: Start isolated flag-on server (no deployed flag change)
+        env:
+          APPROVED_EXIT_PAYROLL_ENABLED: "true"
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/payroll-exit-http.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl -fsS "$SECURITY_SMOKE_URL" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/payroll-exit-http.log
+          exit 1
+      - name: Real Separation POST through ordinary payroll and final-pay recomputation
+        env:
+          APPROVED_EXIT_PAYROLL_ENABLED: "true"
+        run: npx tsx scripts/qa/payroll-approved-exit-http.mjs
+      - name: Show isolated server log on failure
+        if: failure()
+        run: cat /tmp/payroll-exit-http.log || true
       - name: Exact full npm test inventory (PG16 only, one isolated service)
         if: matrix.postgres == 16
         run: npm test

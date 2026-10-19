@@ -1,4 +1,6 @@
 import { roundedBasicPayBuckets, roundedGrossFromBuckets, statutoryTrueUpDecision } from "@/lib/payroll-money";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { payrollEmploymentStatus } from "@/lib/approved-exit-payroll";
 import { reviewRetroStatutorySourcePeriods } from "@/lib/payroll-retro-statutory-source-period";
 import { loadPendingPayrollRetroSources } from "@/lib/payroll-retro-source-lookup";
 import { allocateMandatoryDeductions } from "@/lib/payroll-mandatory-shortfall";
@@ -246,25 +248,25 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
           eq(employees.organizationId, run.organizationId),
           eq(employees.legalEntityId, run.legalEntityId),
           eq(employees.orgUnitId, run.scopeOrgUnitId),
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         )
       : and(
           eq(employees.organizationId, run.organizationId),
           eq(employees.legalEntityId, run.legalEntityId),
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         )
     : run.scopeOrgUnitId
       ? and(
           eq(employees.organizationId, run.organizationId),
           eq(employees.orgUnitId, run.scopeOrgUnitId),
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         )
       : and(
           eq(employees.organizationId, run.organizationId),
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         );
   const employeeRows = await db.select().from(employees).where(employeeWhere).orderBy(asc(employees.id));
@@ -590,25 +592,25 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
           eq(employees.organizationId, input.organizationId),
           eq(employees.legalEntityId, run.legalEntityId),
           eq(employees.orgUnitId, run.scopeOrgUnitId),
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         )
       : and(
           eq(employees.organizationId, input.organizationId),
           eq(employees.legalEntityId, run.legalEntityId),
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         )
     : run.scopeOrgUnitId
       ? and(
           eq(employees.organizationId, input.organizationId),
           eq(employees.orgUnitId, run.scopeOrgUnitId),
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         )
       : and(
           eq(employees.organizationId, input.organizationId),
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         );
   const allEmployees = await reader.select().from(employees)
@@ -637,25 +639,43 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
   // Approved separation evidence is the authoritative last day for ordinary
   // payroll proration. Draft separations cannot change wages. An old approved
   // last day will instead fail closed in calculateEmployeePay.
-  const approvedSeparations = chunkIds.length
+  const approvedExitEnabled = criticalReleaseFlagEnabled("approvedExitPayroll");
+  const approvedSeparations = approvedExitEnabled && chunkIds.length
     ? await reader.select({
         employeeId: separationRecords.employeeId,
         lastDay: separationRecords.lastDay,
+        id: separationRecords.id,
+        unpaidBasicSalary: separationRecords.unpaidBasicSalary,
+        preparedByUserId: separationRecords.preparedByUserId,
+        approvedByUserId: separationRecords.approvedByUserId,
       }).from(separationRecords).where(and(
         eq(separationRecords.organizationId, input.organizationId),
         inArray(separationRecords.employeeId, chunkIds),
         inArray(separationRecords.status, ["approved", "released"]),
-        lte(separationRecords.lastDay, run.periodEnd),
       ))
     : [];
   const separationEndByEmployee = new Map<number, string>();
+  const separationIdByEmployee = new Map<number, number>();
   for (const separation of approvedSeparations) {
+    if (separation.preparedByUserId == null || separation.approvedByUserId == null
+      || separation.preparedByUserId === separation.approvedByUserId) {
+      throw new Error("PAYROLL_EXIT_APPROVAL_IDENTITY: Approved exit requires recorded distinct preparer and checker identities.");
+    }
     const lastDay = String(separation.lastDay);
     const known = separationEndByEmployee.get(separation.employeeId);
     if (known && known !== lastDay) {
       throw new Error("PAYROLL_SEPARATION_CONFLICT: Multiple approved end dates must be reconciled before payroll.");
     }
     separationEndByEmployee.set(separation.employeeId, lastDay);
+    separationIdByEmployee.set(separation.employeeId, separation.id);
+    if (Number(separation.unpaidBasicSalary) !== 0) {
+      throw new Error("PAYROLL_FINAL_PAY_WAGE_OVERLAP: Approved final pay includes unpaid basic wages. Recompute it without overlapping wages and obtain independent approval before ordinary payroll.");
+    }
+  }
+  for (const employee of chunk) {
+    if (approvedExitEnabled && employee.status === "Separating" && !separationEndByEmployee.has(employee.id)) {
+      throw new Error("PAYROLL_EXIT_APPROVAL_REQUIRED: A separating employee lacks an independently approved final-pay package. Resolve approval before payroll; the employee was not silently excluded.");
+    }
   }
   const payProfileRows = chunkIds.length
     ? await reader.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
@@ -1690,6 +1710,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
         sourcePeriodEnd: retro.sourcePeriodEnd,
       })),
       employmentEndDate: separationEndByEmployee.get(employee.id) ?? null,
+      approvedSeparationId: separationIdByEmployee.get(employee.id) ?? null,
       payProfile: (() => {
         const profile = payProfileByEmployee.get(employee.id);
         if (!profile) throw new Error(`Employee #${employee.id} has no pay profile.`);
@@ -1874,6 +1895,7 @@ export function calculateEmployeePay(input: {
   employee: typeof employees.$inferSelect;
   // Only approved/released separation last-day evidence can cap this payroll.
   employmentEndDate?: string | null;
+  approvedSeparationId?: number | null;
   punches: Array<typeof timePunches.$inferSelect>;
   advisories: Array<typeof calamityAdvisories.$inferSelect>;
   unitName: string;
@@ -1954,10 +1976,12 @@ export function calculateEmployeePay(input: {
   isFinalCutoffOfMonth?: boolean;
 }) {
   const employeeStartDate = String(input.employee.startDate);
+  const approvedExitEnabled = criticalReleaseFlagEnabled("approvedExitPayroll");
+  const employmentEndDate = approvedExitEnabled ? input.employmentEndDate : null;
   const employmentStart = employeeStartDate > input.periodStart ? employeeStartDate : input.periodStart;
-  const employmentEnd = input.employmentEndDate && input.employmentEndDate < input.periodEnd
-    ? input.employmentEndDate : input.periodEnd;
-  if (input.employmentEndDate && employmentEnd < employmentStart) {
+  const employmentEnd = employmentEndDate && employmentEndDate < input.periodEnd
+    ? employmentEndDate : input.periodEnd;
+  if (employmentEndDate && employmentEnd < employmentStart) {
     throw new Error("PAYROLL_SEPARATION_OUTSIDE_CUTOFF: Worker exited before this cutoff; exclude from ordinary payroll.");
   }
   if (employmentStart > input.periodEnd) {
@@ -1970,7 +1994,7 @@ export function calculateEmployeePay(input: {
     periodStart: employmentStart,
     periodEnd: input.periodEnd,
   });
-  const payProfile = profileForDate(timeline, input.periodEnd);
+  const payProfile = profileForDate(timeline, approvedExitEnabled ? employmentEnd : input.periodEnd);
   const monthly = payProfile.monthlyEquivalent;
   // The denominator remains the full cutoff while timeline coverage begins on
   // the actual employment start date, so a mid-cutoff hire receives only the
@@ -1980,7 +2004,7 @@ export function calculateEmployeePay(input: {
     input.periodStart,
     input.periodEnd,
     employeeStartDate,
-    input.employmentEndDate,
+    employmentEndDate,
   );
   const dailyRate = payProfile.dailyRate;
   const hourlyRate = payProfile.hourlyRate;
@@ -2227,7 +2251,7 @@ export function calculateEmployeePay(input: {
   // but the public pure calculator must uphold the same financial boundary.
   const eligiblePunches = input.punches.filter((punch) => {
     const workDate = String(punch.workDate);
-    return workDate >= employmentStart && workDate <= employmentEnd;
+    return workDate >= employmentStart && (!approvedExitEnabled || workDate <= employmentEnd);
   });
   const punchesByWorkDate = new Map<string, Array<typeof timePunches.$inferSelect>>();
   for (const punch of eligiblePunches) {
@@ -3810,7 +3834,10 @@ export function calculateEmployeePay(input: {
       `holidayEligibilityAttendanceDates=${(input.holidayEligibilityAttendanceDates ?? []).join("|")}`,
       `holidayEligibilityPaidLeaveDates=${(input.holidayEligibilityPaidLeaveDates ?? []).join("|")}`,
       `employmentStart=${employmentStart}`,
-      `employmentEnd=${employmentEnd}`,
+      ...(approvedExitEnabled ? [
+        `employmentEnd=${employmentEnd}`,
+        ...(employmentEndDate && input.approvedSeparationId ? ["approvedExitProration=v1", `approvedSeparationId=${input.approvedSeparationId}`] : []),
+      ] : []),
       `regularMinutes=${regularMinutes}`,
       `overtimeMinutes=${overtimeMinutes}`,
       `overtimeAuthorizationDays=${overtimeAuthorizationDays.length}`,

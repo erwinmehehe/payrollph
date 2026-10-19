@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { beforeEach, afterEach } from "node:test";
+import { mkdtempSync, mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { resolve, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { calculateEmployeePay } from "../src/lib/payroll-engine";
 import { buildReleasedPayrollJournal } from "../src/lib/payroll-journal-export";
 import { computeFinalPay } from "../src/lib/final-pay";
@@ -18,6 +22,9 @@ import type { employees, timePunches } from "../src/db/schema";
 type Input = Parameters<typeof calculateEmployeePay>[0];
 type Calc = ReturnType<typeof calculateEmployeePay>;
 type Basis = "monthly" | "daily" | "hourly";
+let previousExitFlag: string | undefined;
+beforeEach(() => { previousExitFlag = process.env.APPROVED_EXIT_PAYROLL_ENABLED; process.env.APPROVED_EXIT_PAYROLL_ENABLED = "true"; });
+afterEach(() => { if (previousExitFlag === undefined) delete process.env.APPROVED_EXIT_PAYROLL_ENABLED; else process.env.APPROVED_EXIT_PAYROLL_ENABLED = previousExitFlag; });
 const ruleVersions = { sss: "UNVERIFIED RATE", philHealth: "UNVERIFIED RATE",
   pagIbig: "UNVERIFIED RATE", withholding: "UNVERIFIED RATE" };
 
@@ -158,6 +165,30 @@ test("S05/S06/S07: independent calendar-day proration, hire exclusion and docume
   const daily = fixture("daily", 800, "2026-10-08");
   daily.punches = [punch(1, "2026-10-07", "09:00", "18:00"), punch(2, "2026-10-08", "09:00", "18:00")];
   assert.equal(amountOf(run(daily), "BASIC"), 80000, "pre-hire time must not be paid");
+});
+
+test("approved exit ignores a pay revision effective after the last day", () => {
+  const input = fixture("monthly", 44000);
+  input.employmentEndDate = "2026-10-09";
+  input.payRevisions = [{ effectiveDate: "2026-10-10", previousPayBasis: "monthly", previousRateAmount: "22000.00", previousStandardWorkDaysPerMonth: "22.00", previousStandardHoursPerDay: "8.00", newPayBasis: "monthly", newRateAmount: "44000.00", newStandardWorkDaysPerMonth: "22.00", newStandardHoursPerDay: "8.00" }];
+  assert.equal(amountOf(run(input), "BASIC"), 660000);
+});
+
+test("flag-off actual calculator matches pre-feature main byte for byte", async () => {
+  delete process.env.APPROVED_EXIT_PAYROLL_ENABLED;
+  mkdirSync("qa-artifacts", { recursive: true });
+  const directory = mkdtempSync(resolve("qa-artifacts/exit-baseline-"));
+  const path = join(directory, "engine.ts");
+  const baselineRef = process.env.FAIL_CLOSED_GUARD_BASE_REF ?? "c053049a5d91d42d3974367840322afc539dbf1b";
+  writeFileSync(path, execFileSync("git", ["show", baselineRef + ":src/lib/payroll-engine.ts"]));
+  try {
+    const baseline = await import(pathToFileURL(path).href) as { calculateEmployeePay: typeof calculateEmployeePay };
+    for (const input of [fixture(), fixture("daily", 800), fixture("hourly", 100)]) {
+      input.employmentEndDate = "2026-10-09";
+      input.approvedSeparationId = 42;
+      assert.deepEqual(calculateEmployeePay(input), baseline.calculateEmployeePay(input));
+    }
+  } finally { unlinkSync(path); rmdirSync(directory); }
 });
 
 test("S08: approved unpaid day and late/undertime are deducted exactly once", () => {
