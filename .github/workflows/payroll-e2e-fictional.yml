@@ -67,7 +67,8 @@ jobs:
           echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
       - name: Create only disposable PG schema (NO repository migration)
         run: npm run db:push
-      - name: Apply existing CI-only audit guard to disposable PG
+      - name: Apply existing CI-only PG16 audit guard to disposable PG
+        if: matrix.postgres == 16
         run: node scripts/qa/apply-audit-0109-isolated.mjs
       - name: Typecheck
         run: npx tsc --noEmit
