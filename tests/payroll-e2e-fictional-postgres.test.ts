@@ -49,7 +49,7 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
   const { and, eq } = await import("drizzle-orm");
   const { db } = await import("../src/db");
   const { organizations, legalEntities, employees, timePunches,
-    payrollRuns, payrollEntries, payslips, auditEvents } = await import("../src/db/schema");
+    payrollRuns, payrollEntries, payslips, auditEvents, separationRecords } = await import("../src/db/schema");
   const { enqueuePayrollRun, drainPayrollQueue } = await import("../src/lib/payroll-engine");
   const { settlePayrollRun } = await import("../src/lib/payroll-settlement");
   const { buildReleasedPayrollJournal } = await import("../src/lib/payroll-journal-export");
@@ -220,6 +220,26 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
     assert.deepEqual((await entries(runB.id)).map(report), bRows.map(report),
       "Released Beta is unaffected by Alpha correction");
     await assert.rejects(() => enqueuePayrollRun(runB.id), /PAYROLL_RECALCULATION_NOT_ALLOWED/);
+
+    // Approved (not draft) fictional separation is a distinct source correction.
+    // Worker Alpha #2 earns 9/15 of PHP11000.005 = PHP6600.00, not PHP11000.01.
+    // No legal separation entitlement is inferred here; only employment end.
+    await db.insert(separationRecords).values({
+      organizationId: alpha.id, employeeId: alphaWorkers[1].id,
+      separationType: "resignation", noticeDate: "2026-09-20",
+      lastDay: "2026-10-09", status: "approved",
+    });
+    await enqueuePayrollRun(runA.id, 25);
+    await drainPayrollQueue(10, runA.id);
+    const afterExit = await reconcile(runA.id, 51);
+    const exited = afterExit.find((row) => row.employeeId === alphaWorkers[1].id);
+    assert.ok(exited);
+    assert.equal(cents(exited.grossPay), 660000);
+    assert.equal(cents((await runHeader(runA.id)).grossPay), 55691300,
+      "Previous 561313.01 - (11000.01 - 6600.00) = 556913.00");
+    assert.ok((exited.trace as { inputs?: string[] }).inputs?.includes("employmentEnd=2026-10-09"));
+    assert.equal((await slips(alpha.id)).length, 51);
+    assert.deepEqual((await entries(runB.id)).map(report), bRows.map(report));
   } finally {
     // Synthetic parents own every child through FK cascade; no persistent QA rows.
     for (const org of orgs) await db.delete(organizations).where(eq(organizations.id, org.id));
