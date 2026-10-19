@@ -329,15 +329,16 @@ export async function verifyHighRiskBatchOne(f, { request, expectStatus, makeSes
     "Every victim-only employee, payroll run, pay entry, document, entity and audit event must remain byte-for-byte unchanged");
   const targetProof = HIGH_RISK_BATCH_01.flatMap((method) => [method + "#employer-1", method + "#employer-2"]);
   const unmatched = targetProof.filter((id) => !passed.has(id));
-  assert.deepEqual(unmatched.map((x) => x.split("#")[0]).sort(), [...new Set(failures.map((x) => x.split(" attacker-employer-")[0]))].sort(),
-    "Every missing success must be an explicitly surfaced failure, not silent coverage");
-  if (failures.length) {
-    throw new AggregateError(failures.map((msg) => new Error(msg)),
-      "High-risk tenant Batch 01 NOT ACCEPTED; failed methods: " + failures.join(" | "));
+  if (failures.length || unmatched.length) {
+    throw new AggregateError([...failures, ...unmatched.map((id) => "No complete proof for " + id)]
+      .map((msg) => new Error(msg)),
+      "High-risk tenant Batch 01 NOT ACCEPTED; failed/missing proofs: " +
+      [...failures, ...unmatched].join(" | "));
   }
-  assert.equal(passed.size, 32, "All 16 distinct methods must pass both independent attacker organizations");
+  assert.equal(passed.size, 36,
+    "16 real own/foreign method proofs plus two revoked-member controls per attacker are required");
   assert.deepEqual(ownPositive, [16, 16]);
-  assert.deepEqual(deniedForeign, [16, 16]);
+  assert.deepEqual(deniedForeign, [17, 17]);
   console.log(JSON.stringify({
     result: "PASS", kind: "REAL_HTTP_DISPOSABLE_PG16_ONLY",
     batch: "high-risk-01", totalDistinctMethods: 16,
