@@ -46,8 +46,14 @@ export function isVerifiedPayrollRegister(
 
 export async function readVerifiedPayrollRegister(
   organizationId: number, runId: number, fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<PayrollEntry[]> {
-  const response = await fetcher(`/api/payroll-runs?runId=${runId}&include=entries`, { cache: "no-store" });
+  if (!id(organizationId) || !id(runId)) {
+    throw new Error("The selected payroll employer or run is invalid.");
+  }
+  const response = await fetcher(`/api/payroll-runs?runId=${runId}&include=entries`, {
+    cache: "no-store", signal,
+  });
   if (!response.ok) throw new Error("Could not read the selected payroll register.");
   let body: unknown;
   try { body = await response.json(); }
