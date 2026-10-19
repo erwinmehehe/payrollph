@@ -79,7 +79,7 @@ export function filterOnboardingChecklistGroups(
   // HR directories commonly use "Last, First"; normalize pasted whitespace
   // without searching beyond the already-authorized employee groups.
   const normalize = (value: string) =>
-    value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
+    value.trim().replace(/\s*,\s*/g, ", ").replace(/\s+/g, " ").toLocaleLowerCase("en");
   const needle = normalize(query);
   return groups.filter((group) => {
     if (show === "open" && group.remaining === 0) return false;
