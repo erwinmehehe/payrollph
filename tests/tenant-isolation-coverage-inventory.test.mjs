@@ -172,6 +172,79 @@ test("reconciled main hashes retain documented GAPs without inventing authorizat
     "Retain the real three-employer HTTP GET proof, subject to current-head CI");
 });
 
+test("extended three-employer reads and asset writes have checkable method-specific proof", () => {
+  const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
+  for (const [route, method, ownStatus, expectedToken] of [
+    ["assets", "GET", 200, "ownAssetsResult"],
+    ["assets", "POST", 201, "ownCreatedAsset"],
+    ["assets", "PATCH", 200, "ownPatchedAsset"],
+    ["assets", "DELETE", 200, "ownDeletedAsset"],
+    ["approval-chains", "GET", 200, "ownApprovalsResult"],
+    ["leave/balances", "GET", 200, "ownLeaveResult"],
+    ["compliance/calendar", "GET", 200, "ownComplianceResult"],
+    ["documents", "GET", 200, "ownDocumentsResult"],
+  ]) {
+    const key = "src/app/api/" + route + "/route.ts";
+    const entry = manifest.allApiRouteFiles[key].methods.find((item) => item.name === method);
+    assert.equal(entry?.status, "COVERED", key + " " + method + ": requires positive/negative evidence");
+    const proof = entry.testedBy;
+    assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs",
+      key + " " + method + ": fixture must be real disposable-PostgreSQL HTTP");
+    const ownLine = evidenceLine(proof.file, proof.ownPositiveLine, key + " " + method + " own-positive");
+    const foreignLine = evidenceLine(proof.file, proof.foreignDenialLine, key + " " + method + " victim denial");
+    const ownSpan = source.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 6).join("\n");
+    const foreignSpan = source.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 5).join("\n");
+    assert.ok(ownLine.includes("const " + expectedToken + " = expectStatus") &&
+      ownLine.includes('"/api/' + route) &&
+      ownSpan.includes("cookie: attackerCookie") &&
+      ownSpan.includes("), " + ownStatus + ","),
+      key + " " + method + ": own-side request needs real successful scoped data");
+    assert.ok(foreignLine.includes('expectStatus(await request("/api/' + route) &&
+      foreignSpan.includes("cookie: attackerCookie") &&
+      foreignSpan.includes("), 403,") &&
+      (foreignSpan.includes("victim.id") || foreignSpan.includes("f.syntheticAssets[7].id")),
+      key + " " + method + ": denial must name a real victim organization/object");
+    if (method !== "GET") {
+      assert.equal(method === "POST" || method === "PATCH" || method === "DELETE", true);
+      const invariant = evidenceLine(proof.file, proof.unchangedDbLine, key + " " + method + " unchanged victim data");
+      assert.ok(invariant.includes("assert.deepEqual(victimAssetsAfter, victimAssetsBefore"),
+        key + " " + method + ": cross-tenant asset write must leave victim DB unchanged");
+    }
+  }
+});
+
+test("all credited proof links still point to the claimed route; legacy one-sided tests remain GAP", () => {
+  const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
+  for (const [path, entry] of Object.entries(manifest.allApiRouteFiles)) {
+    const stem = "/api/" + entry.route.replaceAll("[id]", "");
+    for (const method of entry.methods) {
+      if (method.status !== "COVERED") continue;
+      const proof = method.testedBy;
+      assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs",
+        path + " " + method.name + ": unsupported evidence source");
+      const ownLine = evidenceLine(proof.file, proof.ownPositiveLine, path + " own-positive");
+      const negativeLine = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign denial");
+      assert.ok(ownLine.includes(stem) && /request\s*\(/.test(ownLine),
+        path + " " + method.name + ": stale positive reference");
+      assert.ok(/expectStatus|ownOnly|assert\.(?:ok|equal|deepEqual)/.test(negativeLine),
+        path + " " + method.name + ": stale foreign-denial or DB proof");
+      if (proof.unchangedDbLine) {
+        const invariant = evidenceLine(proof.file, proof.unchangedDbLine, path + " invariant");
+        assert.match(invariant, /assert\.(?:deepEqual|equal)/);
+      }
+    }
+  }
+  for (const [route, method] of [
+    ["account/sessions", "DELETE"], ["scim/v2/Users/[id]", "PATCH"],
+    ["scim/v2/Users/[id]", "DELETE"], ["v1/employees/[id]", "PATCH"],
+    ["v1/employees/[id]", "DELETE"],
+  ]) {
+    const key = "src/app/api/" + route + "/route.ts";
+    assert.equal(manifest.allApiRouteFiles[key].methods.find((v) => v.name === method)?.status, "GAP",
+      key + " " + method + ": an attacker-only denial cannot replace a real own-method positive");
+  }
+});
+
 test("page and server-action inventory cannot silently omit new or changed business-ID entrypoints", () => {
   const files = appFiles();
   const scoped = new Map(manifest.scopedPages.map((entry) => [entry.path, entry]));
