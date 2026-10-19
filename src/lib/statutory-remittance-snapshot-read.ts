@@ -125,6 +125,9 @@ export function isVerifiedRemittanceSnapshot(
     if (rows.length !== batch.employeeCount ||
         rows.filter((member) => member.postingStatus === "pending").length !== batch.pendingPostingCount ||
         rows.filter((member) => member.postingStatus === "exception").length !== batch.exceptionCount) return false;
+    if (batch.status === "reconciled" &&
+        (batch.pendingPostingCount !== 0 || batch.exceptionCount !== 0 ||
+         batch.paymentShortfall > 0.01 || !batch.hasActivePaymentProof)) return false;
   }
   return value.coverageGaps.every((v: unknown) =>
     record(v) && agency(v.agency) && month(v.applicableMonth) &&
