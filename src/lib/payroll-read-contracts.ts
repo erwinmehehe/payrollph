@@ -48,6 +48,7 @@ const finite = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 const optionalFinite = (value: unknown) =>
   value === undefined || value === null || finite(value);
+const nullableFinite = (value: unknown) => value === null || finite(value);
 const nonempty = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
@@ -106,6 +107,9 @@ export function isVerifiedReleaseChecklist(
     return false;
   }
 
+  if (value.ready && value.assuranceSummary === null) return false;
+  if (value.assuranceSummary === null && value.assuranceFindings.length > 0) return false;
+
   const items: VerifiedReleaseChecklistItem[] = value.items;
   const keys = items.map((item) => item.key);
   if (keys.length !== new Set(keys).size || keys.length < requiredChecklistKeys.length ||
@@ -146,10 +150,12 @@ function validComparison(value: unknown): value is EmployeeVariance {
       !finite(value.currentGross) || !finite(value.currentNet) ||
       !finite(value.currentDeductions) ||
       !["previousGross", "grossDelta", "previousNet", "netDelta",
-        "netPercent", "previousDeductions"].every((field) => optionalFinite(value[field])) ||
+        "netPercent", "previousDeductions"].every((field) =>
+        Object.hasOwn(value, field) && nullableFinite(value[field])) ||
       !validBreakdown(value.currentComponents) ||
       (value.previousComponents !== null && !validBreakdown(value.previousComponents)) ||
       !Array.isArray(value.lineChanges) || !value.lineChanges.every(validLineChange) ||
+      new Set(value.lineChanges.map((item: { code: string }) => item.code)).size !== value.lineChanges.length ||
       typeof value.hasMaterialChange !== "boolean") {
     return false;
   }
