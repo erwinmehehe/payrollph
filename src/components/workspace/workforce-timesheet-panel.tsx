@@ -67,11 +67,13 @@ export function WorkforceTimesheetPanel({
   notify,
   canManage,
   initialPeriod,
+  onPeriodChange,
 }: {
   data: DashboardData;
   notify: Notify;
   canManage: boolean;
   initialPeriod?: { periodStart: string; periodEnd: string };
+  onPeriodChange?: (period: { periodStart: string; periodEnd: string }) => void;
 }) {
   const organizationId = data.selectedOrganization.id;
   const today = localToday();
@@ -172,8 +174,16 @@ export function WorkforceTimesheetPanel({
       </section>
 
       <div className="setting-form" style={{ padding: "0 18px 18px" }}>
-        <label>Period start<input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} /></label>
-        <label>Period end<input type="date" min={periodStart} value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} /></label>
+        <label>Period start<input type="date" value={periodStart} onChange={(event) => {
+          const nextStart = event.target.value;
+          setPeriodStart(nextStart);
+          onPeriodChange?.({ periodStart: nextStart, periodEnd });
+        }} /></label>
+        <label>Period end<input type="date" min={periodStart} value={periodEnd} onChange={(event) => {
+          const nextEnd = event.target.value;
+          setPeriodEnd(nextEnd);
+          onPeriodChange?.({ periodStart, periodEnd: nextEnd });
+        }} /></label>
         {canManage && data.access?.companyWide && (
           <label>
             Payroll enforcement
