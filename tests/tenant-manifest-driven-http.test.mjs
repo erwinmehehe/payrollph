@@ -37,7 +37,7 @@ test("real-HTTP and disposable DB proof requirements cannot be weakened", () => 
   assert.match(harness, /import \{ verifyManifestDrivenStatutoryBatch \} from "\.\/tenant-manifest-driven-http\.mjs";/);
   assert.match(harness, /await verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus \}\);/);
   assert.match(src, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
-  assert.match(src, /const owned? = expectStatus\(await request\(urls\.own, \{ cookie \}\), 200/);
+  assert.match(src, /const own = expectStatus\(await request\(urls\.own, \{ cookie \}\), 200/);
   assert.match(src, /const foreign = expectStatus\(await request\(urls\.foreign, \{ cookie \}\), adapter\.denial/);
   assert.match(src, /assert\.deepEqual\(after, before,/);
   assert.match(src, /evidence\[7\]\.id > 6/);
