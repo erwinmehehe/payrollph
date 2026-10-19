@@ -3,6 +3,7 @@ import type { PayrollEntry } from "../components/workspace/types";
 /** A complete register is scoped to a specific employer and a single payroll run. */
 export type VerifiedPayrollRegister = {
   organizationId: number;
+  legalEntityId: number | null;
   runId: number;
   entries: PayrollEntry[];
 };
@@ -34,9 +35,14 @@ function validEntry(value: unknown, runId: number): value is PayrollEntry {
 /** Missing fields, malformed amounts and a foreign run cannot become a verified empty register. */
 export function isVerifiedPayrollRegister(
   value: unknown, organizationId: number, runId: number,
+  legalEntityId: number | null = null,
 ): value is VerifiedPayrollRegister {
-  if (!id(organizationId) || !id(runId) || !isRecord(value) ||
-      value.organizationId !== organizationId || value.runId !== runId ||
+  if (!id(organizationId) || !id(runId) ||
+      (legalEntityId !== null && !id(legalEntityId)) || !isRecord(value) ||
+      value.organizationId !== organizationId ||
+      (value.legalEntityId !== null && !id(value.legalEntityId)) ||
+      (legalEntityId !== null && value.legalEntityId !== legalEntityId) ||
+      value.runId !== runId ||
       !Array.isArray(value.entries) || !value.entries.every((entry) => validEntry(entry, runId))) {
     return false;
   }
@@ -46,7 +52,7 @@ export function isVerifiedPayrollRegister(
 
 export async function readVerifiedPayrollRegister(
   organizationId: number, runId: number, fetcher: typeof fetch = fetch,
-  signal?: AbortSignal,
+  signal?: AbortSignal, legalEntityId: number | null = null,
 ): Promise<PayrollEntry[]> {
   if (!id(organizationId) || !id(runId)) {
     throw new Error("The selected payroll employer or run is invalid.");
@@ -58,7 +64,7 @@ export async function readVerifiedPayrollRegister(
   let body: unknown;
   try { body = await response.json(); }
   catch { throw new Error("Payroll register returned malformed JSON."); }
-  if (!isVerifiedPayrollRegister(body, organizationId, runId)) {
+  if (!isVerifiedPayrollRegister(body, organizationId, runId, legalEntityId)) {
     throw new Error("The payroll register returned incomplete or foreign-employer data.");
   }
   return body.entries;
