@@ -32,7 +32,7 @@ const openBatch = () => ({
   expectedTotal: "220.00", amountPaid: null, paymentReference: null,
   agencyReceiptReference: null, paidAt: null, pendingPostingCount: 1,
   exceptionCount: 0, paymentShortfall: 220, hasActivePaymentProof: false,
-  filingCheck: { status: "unverified", filingRecordId: null,
+  filingCheck: { status: "unverified" as const, filingRecordId: null,
     filingEmployeeCount: null, remittanceEmployeeCount: 1,
     filingTotal: null, remittanceTotal: 220,
     employeeCountDifference: null, totalDifference: null },
