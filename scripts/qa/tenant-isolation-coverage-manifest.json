@@ -1,6 +1,6 @@
 {
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
-  "baseCommit": "d94c1f3e0e1a8b1de0d15186923f3ed641314214",
+  "baseCommit": "c638d136f3b3d90078d8942693858ddc8d3cae27",
   "generated": "2026-10-19",
   "acceptanceStatus": "NOT ACCEPTED: missing per-method cross-tenant HTTP/DB proof",
   "metrics": {
@@ -14224,7 +14224,7 @@
       ]
     },
     "src/app/api/hr-cases/route.ts": {
-      "gitBlobSha": "6aa89356ceb0d8dd768d65f209fab01925d2c62b",
+      "gitBlobSha": "9a3377096e78f844a9189d75813aa893f0f7f73d",
       "route": "hr-cases",
       "methods": [
         {
@@ -14236,14 +14236,14 @@
         },
         {
           "name": "POST",
-          "line": 93,
+          "line": 94,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null
         },
         {
           "name": "PATCH",
-          "line": 249,
+          "line": 250,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null
@@ -14294,35 +14294,35 @@
           "token": "assertOrganizationRole"
         },
         {
-          "line": 95,
+          "line": 96,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 97,
+          "line": 98,
           "token": "getSessionUser"
         },
         {
-          "line": 251,
+          "line": 252,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 253,
+          "line": 254,
           "token": "getSessionUser"
         },
         {
-          "line": 267,
+          "line": 268,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 269,
+          "line": 270,
           "token": "getAccess"
         },
         {
-          "line": 276,
+          "line": 277,
           "token": "assertScope"
         },
         {
-          "line": 290,
+          "line": 291,
           "token": "getAccess"
         }
       ],
@@ -14332,39 +14332,39 @@
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 146,
+          "line": 147,
           "token": "input.employeeId"
         },
         {
-          "line": 146,
+          "line": 147,
           "token": "input.organizationId"
         },
         {
-          "line": 149,
+          "line": 150,
           "token": "input.organizationId"
         },
         {
-          "line": 166,
+          "line": 167,
           "token": "input.organizationId"
         },
         {
-          "line": 166,
+          "line": 167,
           "token": "input.employeeId"
         },
         {
-          "line": 172,
+          "line": 173,
           "token": "input.organizationId"
         },
         {
-          "line": 176,
+          "line": 177,
           "token": "input.employeeId"
         },
         {
-          "line": 199,
+          "line": 200,
           "token": "input.organizationId"
         },
         {
-          "line": 203,
+          "line": 204,
           "token": "input.employeeId"
         }
       ],
@@ -19787,7 +19787,7 @@
       ]
     },
     "src/app/api/payroll-runs/route.ts": {
-      "gitBlobSha": "fc8ac442e769ff6ea75cddae1b40ece98f64c015",
+      "gitBlobSha": "03b10b462cb2b7fb41a411094b756baab19f2e55",
       "route": "payroll-runs",
       "methods": [
         {

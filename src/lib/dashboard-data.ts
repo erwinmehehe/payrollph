@@ -434,6 +434,7 @@ export async function getDashboardData(organizationId?: number, request?: Reques
   return {
     firstPayrollReadiness,
     firstPayrollConnectedEnabled: criticalReleaseFlagEnabled("firstPayrollConnected"),
+    payrollEmployerSetupNavigationEnabled: criticalReleaseFlagEnabled("payrollEmployerSetupNavigation"),
     advancedPlanningAllowed,
     coreModuleNavigationEnabled,
     employeeImportPreviewEnabled: criticalReleaseFlagEnabled("employeeImportPreview"),

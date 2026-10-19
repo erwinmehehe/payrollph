@@ -37,15 +37,15 @@
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",
-    "dotenv": "18.0.6",
+    "dotenv": "18.0.8",
     "drizzle-orm": "0.45.4",
     "lucide-react": "^0.577.0",
-    "next": "16.3.8",
-    "nodemailer": "^10.0.16",
+    "next": "16.4.2",
+    "nodemailer": "^10.1.1",
     "pdf-lib": "1.17.1",
     "pg": "8.23.1",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "tsx": "^4.19.3"
   },
   "devDependencies": {
@@ -56,8 +56,8 @@
     "@types/react-dom": "19.3.0",
     "drizzle-kit": "0.31.11",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.8",
-    "postcss": "8.5.28",
+    "eslint-config-next": "16.4.2",
+    "postcss": "8.5.30",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3"
   }

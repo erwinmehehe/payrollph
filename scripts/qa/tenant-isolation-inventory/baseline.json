@@ -1,6 +1,6 @@
 {
   "schema": "tenant-isolation-baseline-v1",
-  "baseCommit": "d94c1f3e0e1a8b1de0d15186923f3ed641314214",
+  "baseCommit": "c638d136f3b3d90078d8942693858ddc8d3cae27",
   "baselineStatus": "NOT ACCEPTED - route SHA is not test proof",
   "api": {
     "src/app/api/account/email/route.ts": "0bb833a3219e5f4b136276b6327b2b1a69563bb9",
@@ -128,7 +128,7 @@
     "src/app/api/hcm/worker-profile/route.ts": "755415e58650d7257caa84702219a559cc998676",
     "src/app/api/health/route.ts": "7324d70c7c96141cd8692ad03e725b8a61a9f6d8",
     "src/app/api/holidays/route.ts": "e348143521547acfb4956d866c9ff4bb02a6f4be",
-    "src/app/api/hr-cases/route.ts": "6aa89356ceb0d8dd768d65f209fab01925d2c62b",
+    "src/app/api/hr-cases/route.ts": "9a3377096e78f844a9189d75813aa893f0f7f73d",
     "src/app/api/intake-challenge/route.ts": "7462f3e97e77b0862a0d6163e64857cbe13a950f",
     "src/app/api/integration-connectors/route.ts": "55bf13f593b15196c5a07c3499229b29c4a2f5c8",
     "src/app/api/invitations/accept/route.ts": "d4b43c5e474a9e57e7b2d70317e372a43969a4c8",
@@ -177,7 +177,7 @@
     "src/app/api/payroll-runs/[id]/submit-review/route.ts": "89a93602a5496447bcd902598288cc8543c45276",
     "src/app/api/payroll-runs/[id]/variance/route.ts": "940e5a03679de5d501fca4cdc5b46e3bd9db0a75",
     "src/app/api/payroll-runs/[id]/xendit-payout/route.ts": "745d24f56eac8dca56012728ad6674f3d160de53",
-    "src/app/api/payroll-runs/route.ts": "fc8ac442e769ff6ea75cddae1b40ece98f64c015",
+    "src/app/api/payroll-runs/route.ts": "03b10b462cb2b7fb41a411094b756baab19f2e55",
     "src/app/api/payroll-underpayments/route.ts": "a3ba4823e9609c9f7a3fc6866d7493375e524b26",
     "src/app/api/payroll/overpayment-preflight/route.ts": "e148f3ae34a487822fb9bc361b7a494afbc653f5",
     "src/app/api/performance/action-items/route.ts": "2bab5f0bc2ba519c489b8abef2e8aba3c07fedc9",

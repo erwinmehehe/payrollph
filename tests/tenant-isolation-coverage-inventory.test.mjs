@@ -17,7 +17,7 @@ import test from "node:test";
 
 const ROOT = "src/app";
 const API = "src/app/api";
-const BASE = "d94c1f3e0e1a8b1de0d15186923f3ed641314214";
+const BASE = "c638d136f3b3d90078d8942693858ddc8d3cae27";
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const baseline = JSON.parse(readFileSync("scripts/qa/tenant-isolation-inventory/baseline.json", "utf8"));
 
@@ -151,6 +151,25 @@ test("new dashboard, employee-directory and payroll-list coverage cites executab
   const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
   assert.match(source, /f\.victimRun\.id \+ "&include=entries".*\{ cookie: attackerCookie \}\), 403/,
     "The payroll run read must also deny a direct victim-only register ID");
+});
+
+test("reconciled main hashes retain documented GAPs without inventing authorization proof", () => {
+  // Main updated HR Inbox metadata and Payroll Register response metadata after
+  // the original inventory. Those pre-existing changes require re-inventory,
+  // not new COVERED claims or broad exemptions from the source fingerprint.
+  for (const route of ["hr-cases", "payroll-runs"]) {
+    const path = "src/app/api/" + route + "/route.ts";
+    assert.equal(manifest.allApiRouteFiles[path].gitBlobSha, baseline.api[path],
+      path + ": the reviewed main source and active inventory SHA must match");
+  }
+  const hr = manifest.allApiRouteFiles["src/app/api/hr-cases/route.ts"];
+  assert.ok(hr.methods.every((method) => method.status === "GAP"),
+    "Re-inventory does not turn the HR read or writes into verified tenant proof");
+  const payroll = manifest.allApiRouteFiles["src/app/api/payroll-runs/route.ts"];
+  assert.equal(payroll.methods.find((method) => method.name === "POST")?.status, "GAP",
+    "Payroll run creation still needs independent own/victim/mutation proof");
+  assert.equal(payroll.methods.find((method) => method.name === "GET")?.status, "COVERED",
+    "Retain the real three-employer HTTP GET proof, subject to current-head CI");
 });
 
 test("page and server-action inventory cannot silently omit new or changed business-ID entrypoints", () => {
