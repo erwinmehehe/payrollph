@@ -25,8 +25,8 @@ test("high-risk batch has 16 unique exported GET methods with actual route files
 });
 
 test("live batch is executed from existing disposable two-attacker PG/HTTP harness", () => {
-  assert.match(harness, /import \{ verifyHighRiskBatchOne \} from "\.\/tenant-high-risk-01-http\.mjs";/);
-  assert.match(harness, /await verifyCrossTenant\(f\);[\s\S]*await verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\);/);
+  assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\);/);
+  assert.match(harness, /await verifyCrossTenant\(f\);[\s\S]*await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\);/);
   assert.match(harness, /function requireDisposable\(\)/);
   assert.match(harness, /app\.hostname !== "127\.0\.0\.1"/);
   assert.match(source, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);

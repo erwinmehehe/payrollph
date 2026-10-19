@@ -19,7 +19,6 @@ import {
 import { mintApiKey } from "../../src/lib/api-keys";
 import { mintScimToken } from "../../src/lib/scim";
 import { SECOND_PASS_ROUTES, SECOND_PASS_FAMILIES } from "./tenant-second-pass-manifest.mjs";
-import { verifyHighRiskBatchOne } from "./tenant-high-risk-01-http.mjs";
 
 const BASE = process.env.SECURITY_SMOKE_URL ?? "";
 const ORIGIN = { origin: BASE, "sec-fetch-site": "same-origin" };
@@ -1087,7 +1086,7 @@ async function main() {
   await verifyRevokedEmployerPayslipAccess(f);
   await verifySensitiveTenantDownloadsAndRoles(f);
   await verifyNewMainRouteIsolation(f);
-  await verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });
+  await (await import("./tenant-high-risk-01-http.mjs")).verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
     result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,
