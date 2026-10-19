@@ -61,7 +61,10 @@ export function ApprovalsView({
   const highCount = counts.high;
   const currentRun = data.payrollRuns.find((run) => run.status === "Pending approval") ?? data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0];
   const payrollTask = currentRun
-    ? data.tasks.filter((task) => task.detail.includes("Payroll run #" + currentRun.id)).sort((a, b) => b.id - a.id)[0] ?? null
+    ? data.tasks.filter((task) => task.payrollRunId === currentRun.id ||
+        (task.payrollRunId == null &&
+          new RegExp("Payroll run #" + currentRun.id + "(?![0-9])").test(task.detail)))
+      .sort((a, b) => b.id - a.id)[0] ?? null
     : null;
   const handoffStages = currentRun
     ? buildPayrollHandoff(currentRun, { payrollExceptions: currentRun.exceptions, approvalTask: payrollTask })
@@ -284,6 +287,7 @@ export function ApprovalsView({
       {checkerMode && currentRun && (
         <section className="p2-checker-evidence" id="p2-checker-evidence" aria-label="Payroll approval evidence">
           <CheckerVarianceCenter
+            organizationId={data.selectedOrganization.id}
             run={currentRun}
             payrollTask={payrollTask}
             busy={busy}

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { auditEvents, employeePayRevisions, employees, payrollEntries, payrollRuns } from "@/db/schema";
 import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_VIEW_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
 import { buildPayExplanation } from "@/lib/payroll-explain";
 import { classifyPayrollVariance, type PayrollVarianceCategory } from "@/lib/payroll-variance";
 
@@ -53,7 +54,7 @@ function categoryCounts(rows: Array<{ categories: PayrollVarianceCategory[] }>) 
   return counts;
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const runId = Number(id);
   if (!Number.isInteger(runId)) {
@@ -81,6 +82,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     "This payroll run is outside your assigned organization unit.",
   );
   if (scopeDenied) return scopeDenied;
+  const entityContext = await resolveMultiEntityContext({
+    userId: user.id, organizationId: run.organizationId, request,
+  });
+  if (!entityContext.ok) return entityContext.response;
+  const entityDenied = assertEntityResource(entityContext.context, run.legalEntityId);
+  if (entityDenied) return entityDenied;
 
   const priorRuns = await db
     .select()
@@ -93,7 +100,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     .orderBy(desc(payrollRuns.payDate), desc(payrollRuns.id))
     .limit(24);
 
-  const previousRun = priorRuns.find((candidate) => candidate.scopeOrgUnitId === run.scopeOrgUnitId) ?? null;
+  const previousRun = priorRuns.find((candidate) =>
+    candidate.scopeOrgUnitId === run.scopeOrgUnitId && candidate.legalEntityId === run.legalEntityId
+  ) ?? null;
 
   const [currentEntries, previousEntries] = await Promise.all([
     db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id)),
@@ -177,6 +186,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       }));
 
     return [{
+      organizationId: employee.organizationId,
       employeeId,
       employeeNo: employee.employeeNo,
       employeeName: `${employee.firstName} ${employee.lastName}`,
@@ -213,8 +223,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const grossDelta = Number(run.grossPay) - Number(previousRun?.grossPay ?? 0);
 
   return Response.json({
+    organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
     run: {
       id: run.id,
+      organizationId: run.organizationId,
+      legalEntityId: run.legalEntityId,
+      scopeOrgUnitId: run.scopeOrgUnitId,
       periodLabel: run.periodLabel,
       periodStart: run.periodStart,
       periodEnd: run.periodEnd,
@@ -224,10 +239,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       grossPay: Number(run.grossPay),
       netPay: Number(run.netPay),
       ruleVersion: run.ruleVersion,
+      totalChunks: Number(run.totalChunks ?? 0),
+      processedChunks: Number(run.processedChunks ?? 0),
     },
     previousRun: previousRun
       ? {
           id: previousRun.id,
+          legalEntityId: previousRun.legalEntityId,
+          scopeOrgUnitId: previousRun.scopeOrgUnitId,
           periodLabel: previousRun.periodLabel,
           payDate: previousRun.payDate,
           employeeCount: previousRun.employeeCount,
@@ -252,5 +271,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       categoryCounts: categoryCounts(changedRows),
     },
     rows: changedRows,
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
