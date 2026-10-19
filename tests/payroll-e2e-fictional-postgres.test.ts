@@ -46,7 +46,7 @@ function report(entry: { employeeId: number; grossPay: string; deductions: strin
 test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> payslip -> remittance snapshot -> release -> GL", {
   skip: !isolated,
 }, async () => {
-  const { and, eq } = await import("drizzle-orm");
+  const { and, eq, inArray } = await import("drizzle-orm");
   const { db } = await import("../src/db");
   const { organizations, legalEntities, employees, timePunches,
     payrollRuns, payrollEntries, payslips, auditEvents, separationRecords } = await import("../src/db/schema");
@@ -187,7 +187,8 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
     assert.equal((await runHeader(runB.id)).status, "Released");
     await assert.rejects(() => settlePayrollRun(runB.id), /no longer in the releasing state/);
     await assert.rejects(() => enqueuePayrollRun(runB.id, 25), /PAYROLL_RECALCULATION_NOT_ALLOWED/);
-    assert.deepEqual((await entries(runB.id)).map(report), bRows.map(report),
+    assert.deepEqual((await entries(runB.id)).map(report).sort((a, b) => a.employeeId - b.employeeId),
+      bRows.map(report).sort((a, b) => a.employeeId - b.employeeId),
       "Released entry and payslip money cannot be silently rewritten");
     assert.equal((await slips(beta.id)).length, 2);
     const ledger = buildReleasedPayrollJournal([await runHeader(runB.id)]);
@@ -239,9 +240,15 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
       "Previous 561313.01 - (11000.01 - 6600.00) = 556913.00");
     assert.ok((exited.trace as { inputs?: string[] }).inputs?.includes("employmentEnd=2026-10-09"));
     assert.equal((await slips(alpha.id)).length, 51);
-    assert.deepEqual((await entries(runB.id)).map(report), bRows.map(report));
+    assert.deepEqual((await entries(runB.id)).map(report).sort((a, b) => a.employeeId - b.employeeId),
+      bRows.map(report).sort((a, b) => a.employeeId - b.employeeId));
   } finally {
-    // Synthetic parents own every child through FK cascade; no persistent QA rows.
-    for (const org of orgs) await db.delete(organizations).where(eq(organizations.id, org.id));
+    // Explicit dependent teardown avoids RESTRICT FK ordering between
+    // legal employers, released runs and workers. Remaining child rows cascade.
+    const orgIds = orgs.map((org) => org.id);
+    await db.delete(payrollRuns).where(inArray(payrollRuns.organizationId, orgIds));
+    await db.delete(employees).where(inArray(employees.organizationId, orgIds));
+    await db.delete(legalEntities).where(inArray(legalEntities.organizationId, orgIds));
+    await db.delete(organizations).where(inArray(organizations.id, orgIds));
   }
 });
