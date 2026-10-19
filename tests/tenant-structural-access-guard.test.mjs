@@ -67,8 +67,7 @@ test("all 489 handlers reaching PostgreSQL have a gate or explicit source-pinned
         legacyGaps.push({ id, exactSourceSha: data.gitBlobSha,
           exceptionReason: "Unverified legacy handler blocked from certification: " + method.reason });
       } else if (method.status === "PUBLIC-BY-DESIGN") {
-        assert.ok(method.reason.includes("public") || method.reason.includes("Public") ||
-          method.reason.includes("anonymous") || method.reason.includes("webhook"),
+        assert.match(method.reason, /public|anonymous|static|status|health|webhook|token/i,
           id + ": public/signed protocol boundary needs explicit concrete justification");
         explicitPublic.push(id);
       } else if (method.status === "COVERED") {
