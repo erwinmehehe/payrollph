@@ -285,7 +285,7 @@ export function FilingEvidencePanel({
             {retiredBirAlphalistSource ? (
               <>Legacy per-run Alphalist source records are retained for audit only. Prepare current annual data in Compliance - Year-End Annualization. Official BIR ADES validation and filing acceptance remain separate.</>
             ) : !verifiedRead ? (
-              <>Filing status is unavailable until the selected employer's evidence has been verified.</>
+              <>Filing status is unavailable until the selected employer&apos;s evidence has been verified.</>
             ) : definition?.evidenceMode === "operational" ? (
               <>
                 An accepted filing with the agency&apos;s own acknowledgement can satisfy the <strong>operational filing</strong> gate.
