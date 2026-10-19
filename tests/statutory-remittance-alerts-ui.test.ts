@@ -24,7 +24,8 @@ test("owner and payroll dashboards both surface statutory remittance watch", () 
 
 test("dashboard watch never silently treats an API failure as compliant", () => {
   const reader = readFileSync("src/lib/statutory-remittance-watch-payload.ts", "utf8");
-  assert.ok(reader.includes("Remittance status could not be checked"));
+  assert.match(reader, /if \(!response\.ok\) throw new Error\("Statutory remittance status could not be checked\."\)/,
+    "a non-OK response must stop before any success status is rendered");
   assert.ok(watch.includes("readVerifiedStatutoryRemittanceAlerts"));
   assert.ok(watch.includes('phase: "unavailable"'));
   assert.ok(watch.includes("Retry status read"));
