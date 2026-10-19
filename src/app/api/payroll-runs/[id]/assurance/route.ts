@@ -39,6 +39,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!result) return Response.json({ error: "Payroll run not found." }, { status: 404 });
 
   return Response.json({
+    organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
     runId,
     previousRun: result.previousRun
       ? {
