@@ -786,7 +786,7 @@ export function PayrollRunView({
             <PayrollAssurancePanel
               runId={run.id}
               organizationId={data.selectedOrganization.id}
-              legalEntityId={run.legalEntityId}
+              legalEntityId={run.legalEntityId ?? null}
               employees={data.employees}
               onExplainEmployee={setExplainEmployeeId}
             />
