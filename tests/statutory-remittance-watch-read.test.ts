@@ -46,6 +46,30 @@ test("verified nonempty and genuinely empty full watch snapshots are distinct", 
   assert.deepEqual(await readVerifiedStatutoryRemittanceAlerts(51, fetchOnce(Response.json(empty()))), []);
 });
 
+test("multi-entity watch reads and verifies exactly the selected legal employer", async () => {
+  const selectedLegalEntityId = 71;
+  const foreign = { ...empty(), legalEntity: { ...empty().legalEntity, id: 72 } };
+  assert.equal(isStatutoryRemittanceWatchPayload(empty(), 51, selectedLegalEntityId), true);
+  assert.equal(isStatutoryRemittanceWatchPayload(foreign, 51, selectedLegalEntityId), false);
+  await assert.rejects(() =>
+    readVerifiedStatutoryRemittanceAlerts(51, fetchOnce(Response.json(foreign)), undefined, selectedLegalEntityId),
+  );
+  let requestedUrl = "";
+  let requestOptions: RequestInit | undefined;
+  const fetcher = (async (url: string, options?: RequestInit) => {
+    requestedUrl = url;
+    requestOptions = options;
+    return Response.json(empty());
+  }) as typeof fetch;
+  assert.deepEqual(await readVerifiedStatutoryRemittanceAlerts(51, fetcher, undefined, selectedLegalEntityId), []);
+  assert.equal(requestedUrl, "/api/compliance/statutory-remittances?organizationId=51&legalEntityId=71");
+  assert.equal(requestOptions?.cache, "no-store");
+  let calls = 0;
+  const neverFetch = (async () => { calls++; return Response.json(empty()); }) as typeof fetch;
+  await assert.rejects(() => readVerifiedStatutoryRemittanceAlerts(51, neverFetch, undefined, 0));
+  assert.equal(calls, 0);
+});
+
 test("non-OK, malformed, missing, foreign and inconsistent employer snapshots fail closed", async () => {
   const responses = [
     new Response('{"error":"Denied"}', { status: 403 }),
@@ -114,7 +138,7 @@ test("an explicit retry can turn a failed read into a verified empty state", asy
 test("watch renders all clear only for validated readiness and exposes Retry on unavailable", () => {
   const component = readFileSync("src/components/workspace/statutory-remittance-watch.tsx", "utf8");
   const route = readFileSync("src/app/api/compliance/statutory-remittances/route.ts", "utf8");
-  assert.match(component, /readVerifiedStatutoryRemittanceAlerts\(organizationId, fetch, controller\.signal\)/);
+  assert.match(component, /readVerifiedStatutoryRemittanceAlerts\(organizationId, fetch, controller\.signal, legalEntityId \?\? null\)/);
   assert.match(component, /Retry status read/);
   assert.match(component, /alerts === null/);
   assert.match(component, /alerts\.length === 0/);
