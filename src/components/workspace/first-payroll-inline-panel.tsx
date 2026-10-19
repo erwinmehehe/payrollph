@@ -9,14 +9,14 @@ import { ApprovalsView } from "./approvals";
 import { ExportsView } from "./exports";
 import type { DashboardData, Notify } from "./types";
 import { firstPayrollRunHref } from "@/lib/first-payroll-run-navigation";
+import { parseFirstPayrollProgressRead, type SavedFirstPayrollProgress } from "@/lib/first-payroll-progress-read";
 
 function firstPayrollStep(key: FirstPayrollKey) {
   const found = FIRST_PAYROLL_STEPS.find(item => item.key === key);
   if (!found) throw new Error("Unknown journey step");
   return found;
 }
-type RecordedStep = { byUserId:number;at:string;periodStart?:string;periodEnd?:string };
-type Progress = { stepOwners?:Record<string,string>;completedSteps?:Record<string,RecordedStep>;reviewedByUserId?:number|null };
+type Progress = SavedFirstPayrollProgress;
 type PreviewRow = { employeeId:number;name:string;gross:number|null;sss:number|null;philHealth:number|null;pagIbig:number|null;withholding:number|null;net:number|null;blockers:string[] };
 type Preview = { rows:PreviewRow[];blockers:string[];warnings?:string[];previewReady:boolean;dryRun:true };
 type LegalEmployer = { id:number;primaryEntity:boolean;active:boolean;legalName:string;payrollCalendarMode:string;birTin?:string|null;sssEmployerNo?:string|null;philHealthEmployerNo?:string|null;pagIbigEmployerNo?:string|null };
@@ -52,7 +52,7 @@ export function FirstPayrollInlinePanel({
   let cancelled=false;
   void fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"})
    .then(async r=>{if(!r.ok)throw Error("Cannot load step progress");return r.json();})
-   .then(x=>{if(cancelled)return;const p=x.progress as Progress|null;setProgress(p);
+   .then(x=>{if(cancelled)return;const p=parseFirstPayrollProgressRead(x,organizationId);setProgress(p);
       const reviewed=p?.completedSteps?.time;
       if(reviewed?.periodStart)setStart(reviewed.periodStart);
       if(reviewed?.periodEnd)setEnd(reviewed.periodEnd);
@@ -81,7 +81,7 @@ export function FirstPayrollInlinePanel({
       body:JSON.stringify({...body,organizationId})});
     const result=await response.json().catch(()=>({}));
     if(!response.ok)throw Error(result.error??"Could not complete action");
-    if(result.progress)setProgress(result.progress);
+    if(result.progress)setProgress(parseFirstPayrollProgressRead(result,organizationId));
     if(result.run?.id)setDraftId(result.run.id);
     if(result.progress)await onProgressUpdate?.();
     await onRefresh();
