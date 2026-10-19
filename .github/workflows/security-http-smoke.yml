@@ -62,7 +62,7 @@ jobs:
 
       - run: npm ci
       - name: Reject committed webhook secrets and unreviewed tenant routes
-        run: node --test tests/tenant-second-pass-inventory.test.mjs
+        run: node --test tests/tenant-second-pass-inventory.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
       - name: Provision dedicated ephemeral PII key (disposable HTTP QA only)
         run: |
           pii_key=$(openssl rand -hex 32)
