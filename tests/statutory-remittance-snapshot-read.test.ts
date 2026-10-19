@@ -84,6 +84,27 @@ test("forged reconciliation, foreign members, missing posting proof and inflated
   assert.equal(isVerifiedRemittanceSnapshot({ ...base, members: [{ ...member(), postingStatus: "confirmed" }] }, 14, 77), false);
 });
 
+test("genuinely evidenced reconciliation remains a valid verified success", () => {
+  const reconciled = {
+    ...batch(), status: "reconciled", displayStatus: "reconciled",
+    amountPaid: "220.00", paymentShortfall: 0, pendingPostingCount: 0,
+    hasActivePaymentProof: true,
+  };
+  const confirmed = {
+    ...member(), postingStatus: "confirmed", postingReference: "FIC-CONFIRM-01",
+    postedAmount: "220.00", postingEvidenceArtifactId: 99,
+    postingEvidenceHashSha256: "a".repeat(64),
+  };
+  const evidenced = { ...empty(), batches: [reconciled], members: [confirmed] };
+  assert.equal(isVerifiedRemittanceSnapshot(evidenced, 14, 77), true);
+  assert.equal(isVerifiedRemittanceSnapshot({
+    ...evidenced, members: [{ ...confirmed, postingEvidenceHashSha256: null }],
+  }, 14, 77), false);
+  assert.equal(isVerifiedRemittanceSnapshot({
+    ...evidenced, batches: [{ ...reconciled, hasActivePaymentProof: false }],
+  }, 14, 77), false);
+});
+
 test("explicit retry permits a truly empty but verified remittance list", async () => {
   let tries=0;
   const fetcher=(async () => {
