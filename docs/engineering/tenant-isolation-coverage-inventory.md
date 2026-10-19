@@ -61,7 +61,11 @@ No direct exploit has been demonstrated. Review exact source lines, delegated au
 - [`src/app/api/workforce/demand-observations/outlook/route.ts#L20`](../../src/app/api/workforce/demand-observations/outlook/route.ts#L20) — client-supplied identifier reference at L20. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
 - [`src/app/api/workforce/demand-outlook/route.ts#L23`](../../src/app/api/workforce/demand-outlook/route.ts#L23) — client-supplied identifier reference at L23. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
 
-## Incremental real-HTTP proof added (current PR head, pending exact-head CI)\n\nThe original source-pinned partition JSON files remain an archival baseline and may still label these three previously untested methods as GAP. The consolidated manifest and updated method tables reflect **23 COVERED / 6 PUBLIC-BY-DESIGN / 460 GAP**, pending current-head GitHub Actions. The new two-attacker, one-victim disposable-PG checks prove seeded own positive and explicit foreign denials for GET dashboard, GET employees and GET payroll-runs, including a direct victim-only payroll register ID. They do **not** constitute proof for POST/PATCH/DELETE or the remaining routes.\n\n## Evidence requirements not yet satisfied
+## Incremental real-HTTP proof added (current PR head, pending exact-head CI)
+
+The original source-pinned partition JSON files remain an archival baseline and may still label these three previously untested methods as GAP. The consolidated manifest and updated method tables reflect **23 COVERED / 6 PUBLIC-BY-DESIGN / 460 GAP**, pending current-head GitHub Actions. The new two-attacker, one-victim disposable-PG checks prove seeded own positive and explicit foreign denials for GET dashboard, GET employees and GET payroll-runs, including a direct victim-only payroll register ID. They do **not** constitute proof for POST/PATCH/DELETE or the remaining routes.
+
+## Evidence requirements not yet satisfied
 
 - For every remaining GAP method, create a real own-tenant success before testing real victim-only IDs greater than 6; do not infer 404/401/empty/429 isolation.
 - For cross-tenant writes, capture exact expected rejection and prove unchanged victim row, audit, payout, or attachment state; include forged `organizationId` and list exclusion checks.
