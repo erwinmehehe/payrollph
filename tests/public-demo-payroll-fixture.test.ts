@@ -15,6 +15,13 @@ test("each fictional new-run header matches the SUM of all six detail entries to
   for (const [period, expected] of GOLDEN_FICTIONAL_RUNS.entries()) {
     const fixture = fictionalPublicDemoPayroll(period);
     assert.equal(fixture.entries.length, PUBLIC_DEMO_PAYROLL_WORKERS);
+    for (const row of fixture.entries) {
+      assert.ok(Number.isSafeInteger(row.gross) && row.gross >= 0);
+      assert.ok(Number.isSafeInteger(row.deductions) && row.deductions >= 0);
+      assert.ok(Number.isSafeInteger(row.net) && row.net >= 0);
+      assert.ok(row.deductions <= row.gross);
+      assert.equal(row.net, row.gross - row.deductions);
+    }
     assert.equal(fixture.grossPay, expected.gross);
     assert.equal(fixture.netPay, expected.net);
     const grossCentavos = fixture.entries.reduce((sum, row) => sum + Math.round(row.gross * 100), 0);
