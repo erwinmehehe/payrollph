@@ -4,6 +4,18 @@
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
+## Security finding — employee payslip PDF stale employer membership (source-level fix; owner/security review required)
+
+**Affected method:** `GET /api/self/payslips/[id]`, source: [`src/app/api/self/payslips/[id]/route.ts#L12`](../../src/app/api/self/payslips/[id]/route.ts#L12).
+
+**What was at risk:** The handler validated an authenticated employee ID and a Released, employee-matching payroll entry but did **not** check that the signed-in employee still had an active membership in that payroll entry's employer. A retained `users.employeeId` after a membership revocation/transfer could expose a *former employer's* payslip PDF to the same still-signed-in employee. This is a credible source-identified access-control gap; **no production exposure, exploited account or historical disclosure has been established**.
+
+**Minimal fix:** Add the existing `assertMembership(session.id, employee.organizationId)` guard after reading the session-bound employee row and **before** loading employer identity or rendering/returning PDF bytes ([source L32–33](../../src/app/api/self/payslips/[id]/route.ts#L32)). No payroll math, statutory rules, migrations, flags or provider integrations changed.
+
+**Real-HTTP regression:** Existing [`scripts/qa/tenant-second-pass-http.mjs#L862`](../../scripts/qa/tenant-second-pass-http.mjs#L862) proves a linked fictional employee receives a real own Released payslip PDF; [L913–954](../../scripts/qa/tenant-second-pass-http.mjs#L913) adds a second active employer membership, revokes their original employer membership in **disposable PostgreSQL**, confirms the *same session* is still authorized at `/api/account` (200), and requires the **exact 403** for the *same previously readable payslip*, with no PDF bytes and unchanged payroll entry afterwards. The five-method proof-links and new membership-guard inventory assertion are in [`tests/tenant-isolation-coverage-inventory.test.mjs`](../../tests/tenant-isolation-coverage-inventory.test.mjs).
+
+**Disposition:** Source-level guard fixed **1**; **0** real-HTTP/pre-fix exploitable leaks independently reproduced; impact assessment **NEEDS OWNER**. This is *pending exact-head CI and independent review*, not production remediation, historical incident clearance or release approval. **447 API methods and 20 scoped pages still GAP. Keep PR draft and DO NOT MERGE**.
+
 ## Source-pinned counts
 
 | Metric | Count |
@@ -476,7 +488,7 @@ Every one of the 288 route files and 489 exported handlers is in the following s
 | [`self/identifiers` GET](../../src/app/api/self/identifiers/route.ts#L38) | session, body | getSessionUser L6, enforceSameOriginMutation L11, getSessionUser L17, enforceSameOriginMutation L82 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`self/identifiers` POST](../../src/app/api/self/identifiers/route.ts#L81) | session, body | getSessionUser L6, enforceSameOriginMutation L11, getSessionUser L17, enforceSameOriginMutation L82 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`self/payslips/[id]/explain` GET](../../src/app/api/self/payslips/[id]/explain/route.ts#L10) | session | getSessionUser L5, getSessionUser L11 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`self/payslips/[id]` GET](../../src/app/api/self/payslips/[id]/route.ts#L11) | session | getSessionUser L4, getSessionUser L12 | none found | [three-org HTTP L867](../../scripts/qa/tenant-second-pass-http.mjs#L867) | **COVERED** |
+| [`self/payslips/[id]` GET](../../src/app/api/self/payslips/[id]/route.ts#L12) | session | getSessionUser L4, getSessionUser L12 | none found | [three-org HTTP L867](../../scripts/qa/tenant-second-pass-http.mjs#L867) | **COVERED** |
 | [`self/payslips` GET](../../src/app/api/self/payslips/route.ts#L21) | session, body | getSessionUser L5, enforceSameOriginMutation L8, getSessionUser L22, enforceSameOriginMutation L372 | none found | [three-org HTTP L879](../../scripts/qa/tenant-second-pass-http.mjs#L879) | **COVERED** |
 | [`self/payslips` POST](../../src/app/api/self/payslips/route.ts#L371) | session, body | getSessionUser L5, enforceSameOriginMutation L8, getSessionUser L22, enforceSameOriginMutation L372 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`self/performance/action-items` PATCH](../../src/app/api/self/performance/action-items/route.ts#L48) | session, body | getSessionUser L10, enforceSameOriginMutation L12, getSessionUser L33, enforceSameOriginMutation L49 | none found | NO VALID METHOD PROOF | **GAP** |
