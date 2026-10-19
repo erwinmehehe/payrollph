@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-19",
-  "acceptanceStatus": "NOT ACCEPTED: synced with merged PR #1283 but 447 API methods and 20 page entries still lack per-method cross-employer HTTP/DB proof; exact new merge-head CI required",
+  "acceptanceStatus": "NOT ACCEPTED: 440 API methods and 20 scoped pages/actions remain GAP; seven added method proofs are provisional until exact-head real HTTP CI passes.",
   "metrics": {
     "routeFiles": 288,
     "methods": 489,
     "coveredBefore": 20,
-    "coveredAfter": 36,
+    "coveredAfter": 43,
     "publicByDesign": 6,
-    "gap": 447,
+    "gap": 440,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -3980,22 +3980,36 @@
       ]
     },
     "src/app/api/compliance/bir-1601c-remittances/route.ts": {
-      "gitBlobSha": "82de96433e6c5e798e7d2c382eeaa8145af616bd",
+      "gitBlobSha": "3846d2f3478492a7a2462aff9e43f57806f8cdab",
       "route": "compliance/bir-1601c-remittances",
       "methods": [
         {
           "name": "GET",
           "line": 114,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1060,
+            "ownPositiveLine": 1060,
+            "foreignDenialLine": 1062,
+            "unchangedDbLine": 1069,
+            "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
+          }
         },
         {
           "name": "POST",
-          "line": 173,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 174,
+          "status": "COVERED",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1057,
+            "ownPositiveLine": 1057,
+            "foreignDenialLine": 1059,
+            "unchangedDbLine": 1069,
+            "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
+          }
         }
       ],
       "employerSources": {
@@ -14301,29 +14315,50 @@
       ]
     },
     "src/app/api/hr-cases/route.ts": {
-      "gitBlobSha": "9a3377096e78f844a9189d75813aa893f0f7f73d",
+      "gitBlobSha": "a7af734c9b67c1935f2656360f836e16ccb15cc0",
       "route": "hr-cases",
       "methods": [
         {
           "name": "GET",
-          "line": 36,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 38,
+          "status": "COVERED",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1044,
+            "ownPositiveLine": 1044,
+            "foreignDenialLine": 1046,
+            "unchangedDbLine": 1065,
+            "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
+          }
         },
         {
           "name": "POST",
-          "line": 94,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 96,
+          "status": "COVERED",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1039,
+            "ownPositiveLine": 1039,
+            "foreignDenialLine": 1041,
+            "unchangedDbLine": 1065,
+            "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
+          }
         },
         {
           "name": "PATCH",
-          "line": 250,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 252,
+          "status": "COVERED",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1047,
+            "ownPositiveLine": 1047,
+            "foreignDenialLine": 1049,
+            "unchangedDbLine": 1065,
+            "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
+          }
         }
       ],
       "employerSources": {
@@ -18410,15 +18445,22 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/assurance/route.ts": {
-      "gitBlobSha": "21a4fb65f03ef4a9753a5a787d461f1f13cc44e2",
+      "gitBlobSha": "79306e2c73c1ab8aa94ee67a7127ccc18b52a385",
       "route": "payroll-runs/[id]/assurance",
       "methods": [
         {
           "name": "GET",
           "line": 10,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1028,
+            "ownPositiveLine": 1028,
+            "foreignDenialLine": 1030,
+            "unchangedDbLine": 1071,
+            "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
+          }
         }
       ],
       "employerSources": {
@@ -19341,15 +19383,22 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/release-checklist/route.ts": {
-      "gitBlobSha": "45e0dc8a57afb237ef4f3bdb25499e74c8d564aa",
+      "gitBlobSha": "6ccf72327e632adfcb070ee807b424e6941bce55",
       "route": "payroll-runs/[id]/release-checklist",
       "methods": [
         {
           "name": "GET",
           "line": 10,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1031,
+            "ownPositiveLine": 1031,
+            "foreignDenialLine": 1033,
+            "unchangedDbLine": 1071,
+            "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
+          }
         }
       ],
       "employerSources": {

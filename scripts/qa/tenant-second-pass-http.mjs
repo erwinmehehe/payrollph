@@ -14,7 +14,7 @@ import { db } from "../../src/db";
 import {
   apiKeys, approvalChainPolicies, assets, documents, employees, leavePolicies, legalEntities, organizations, orgUnits, payrollEntries,
   payrollRuns, payslips, providerEvents, scimIdentities, scimTokens,
-  sessions, userOrganizations, users,
+  sessions, userOrganizations, users, employeeHrCases, employeeHrCaseMessages, birWithholdingRemittanceBatches,
 } from "../../src/db/schema";
 import { mintApiKey } from "../../src/lib/api-keys";
 import { mintScimToken } from "../../src/lib/scim";
@@ -1010,6 +1010,67 @@ async function verifyRevokedEmployerPayslipAccess(f) {
   }
 }
 
+async function verifyNewMainRouteIsolation(f) {
+  const victim = f.orgs[0];
+  const [victimCase] = await db.insert(employeeHrCases).values({
+    organizationId: victim.id, employeeId: f.victimEmployee.id,
+    createdByUserId: f.owners[0].id, caseType: "general", assignedRole: "hr",
+    subject: "Fictional victim request", description: "Confidential fictional victim details",
+    slaDueAt: new Date(Date.now() + 86_400_000),
+  }).returning();
+  const victimCasesBefore = await db.select().from(employeeHrCases).where(eq(employeeHrCases.organizationId, victim.id));
+  const victimMessagesBefore = await db.select().from(employeeHrCaseMessages).where(eq(employeeHrCaseMessages.organizationId, victim.id));
+  const victimBatchesBefore = await db.select().from(birWithholdingRemittanceBatches).where(eq(birWithholdingRemittanceBatches.organizationId, victim.id));
+  const victimPayrollBefore = await db.select().from(payrollRuns).where(eq(payrollRuns.id, f.victimRun.id));
+  for (const idx of [1, 2]) {
+    const org = f.orgs[idx];
+    const cookie = f.ownerSessions[idx].cookie;
+    const ownAssurance = expectStatus(await request("/api/payroll-runs/" + f.ownRuns[idx].id + "/assurance", { cookie }), 200, "Own assurance is readable");
+    assert.equal(ownAssurance.json?.organizationId, org.id);
+    expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/assurance", { cookie }), 403, "Real victim assurance denied");
+    const ownChecklist = expectStatus(await request("/api/payroll-runs/" + f.ownRuns[idx].id + "/release-checklist", { cookie }), 200, "Own release checklist is readable");
+    assert.equal(ownChecklist.json?.runId, f.ownRuns[idx].id);
+    expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/release-checklist", { cookie }), 403, "Real victim checklist denied");
+
+    const [ess] = await db.insert(users).values({ email: "case-qa-" + randomUUID() + "@example.invalid", name: "Fictional case employee", passwordHash: "fixture-no-login", role: "employee", employeeId: f.ownedEmployees[idx - 1].id }).returning();
+    await db.insert(userOrganizations).values({ userId: ess.id, organizationId: org.id, role: "employee", active: true });
+    const essCookie = (await makeSession(ess.id)).cookie;
+    // A forged employer/worker in POST must be ignored in favor of the session's worker.
+    const ownCaseCreate = expectStatus(await request("/api/hr-cases", { method: "POST", cookie: essCookie, body: { organizationId: victim.id, employeeId: f.victimEmployee.id, caseType: "general", subject: "Fictional owned request", description: "Fictional own employee service request" } }), 201, "Employee creates own case despite forged employer");
+    const caseId = ownCaseCreate.json?.case?.id;
+    assert.equal(ownCaseCreate.json?.case?.organizationId, org.id);
+    const [persistedCase] = await db.select().from(employeeHrCases).where(eq(employeeHrCases.id, caseId));
+    assert.equal(persistedCase.employeeId, ess.employeeId);
+    const ownCases = expectStatus(await request("/api/hr-cases?organizationId=" + org.id, { cookie }), 200, "Owner reads actual owned case");
+    ownOnly(ownCases.json?.cases, caseId, [victimCase.id], "Cases exclude victim");
+    expectStatus(await request("/api/hr-cases?organizationId=" + victim.id, { cookie }), 403, "Owner cannot read victim inbox");
+    const ownCasePatch = expectStatus(await request("/api/hr-cases", { method: "PATCH", cookie, body: { id: caseId, action: "status", status: "in_progress" } }), 200, "Owner changes own case");
+    assert.equal(ownCasePatch.json?.case?.status, "in_progress");
+    expectStatus(await request("/api/hr-cases", { method: "PATCH", cookie, body: { id: victimCase.id, action: "status", status: "in_progress" } }), 404, "Victim case is indistinguishable from absent");
+    expectStatus(await request("/api/hr-cases", { method: "PATCH", cookie: essCookie, body: { id: victimCase.id, action: "reply", message: "Forged reply" } }), 404, "Employee cannot reply to victim case");
+
+    // Only fictional fixture users/sessions receive a verified MFA timestamp.
+    await db.update(users).set({ totpEnabled: true }).where(eq(users.id, f.owners[idx].id));
+    await db.update(sessions).set({ mfaVerifiedAt: new Date() }).where(eq(sessions.id, f.ownerSessions[idx].id));
+    const [pastRun] = await db.insert(payrollRuns).values({ organizationId: org.id, legalEntityId: f.entities[idx].id, periodLabel: "Fictional prior month", periodStart: "2025-09-01", periodEnd: "2025-09-15", payDate: "2025-09-16", status: "Released" }).returning();
+    await db.insert(payrollEntries).values({ payrollRunId: pastRun.id, employeeId: ess.employeeId, grossPay: "5000.00", deductions: "0.00", netPay: "5000.00" });
+    const ownBirCreate = expectStatus(await request("/api/compliance/bir-1601c-remittances", { method: "POST", cookie, body: { organizationId: org.id, legalEntityId: f.entities[idx].id, action: "create_batch", applicableMonth: "2025-09", filingChannel: "non_efps" } }), 201, "Own BIR batch creation succeeds with fixture MFA");
+    assert.ok(ownBirCreate.json);
+    expectStatus(await request("/api/compliance/bir-1601c-remittances", { method: "POST", cookie, body: { organizationId: victim.id, legalEntityId: f.entities[0].id, action: "create_batch", applicableMonth: "2025-09", filingChannel: "non_efps" } }), 403, "Foreign BIR batch creation denied");
+    const ownBirRead = expectStatus(await request("/api/compliance/bir-1601c-remittances?organizationId=" + org.id + "&legalEntityId=" + f.entities[idx].id, { cookie }), 200, "Own stored BIR batch readable");
+    assert.ok(ownBirRead.json?.batches?.some(row => row.organizationId === org.id && row.applicableMonth === "2025-09"));
+    expectStatus(await request("/api/compliance/bir-1601c-remittances?organizationId=" + victim.id + "&legalEntityId=" + f.entities[0].id, { cookie }), 403, "Foreign BIR read denied");
+  }
+  const victimCasesAfter = await db.select().from(employeeHrCases).where(eq(employeeHrCases.organizationId, victim.id));
+  assert.deepEqual(victimCasesAfter, victimCasesBefore, "Denied and forged case writes leave victim cases unchanged");
+  const victimMessagesAfter = await db.select().from(employeeHrCaseMessages).where(eq(employeeHrCaseMessages.organizationId, victim.id));
+  assert.deepEqual(victimMessagesAfter, victimMessagesBefore, "Denied case replies leave victim messages unchanged");
+  const victimBatchesAfter = await db.select().from(birWithholdingRemittanceBatches).where(eq(birWithholdingRemittanceBatches.organizationId, victim.id));
+  assert.deepEqual(victimBatchesAfter, victimBatchesBefore, "Denied BIR writes leave victim batches unchanged");
+  const victimPayrollAfter = await db.select().from(payrollRuns).where(eq(payrollRuns.id, f.victimRun.id));
+  assert.deepEqual(victimPayrollAfter, victimPayrollBefore, "Denied financial reads leave victim payroll unchanged");
+}
+
 async function main() {
   requireDisposable();
   const f = await makeFixture();
@@ -1024,6 +1085,7 @@ async function main() {
   await verifyCrossTenant(f);
   await verifyRevokedEmployerPayslipAccess(f);
   await verifySensitiveTenantDownloadsAndRoles(f);
+  await verifyNewMainRouteIsolation(f);
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
     result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,

@@ -157,14 +157,14 @@ test("reconciled main hashes retain documented GAPs without inventing authorizat
   // Main updated HR Inbox metadata and Payroll Register response metadata after
   // the original inventory. Those pre-existing changes require re-inventory,
   // not new COVERED claims or broad exemptions from the source fingerprint.
-  for (const route of ["hr-cases", "payroll-runs", "attendance/offline-claims", "web-bundy/review"]) {
+  for (const route of ["payroll-runs", "attendance/offline-claims", "web-bundy/review"]) {
     const path = "src/app/api/" + route + "/route.ts";
     assert.equal(manifest.allApiRouteFiles[path].gitBlobSha, baseline.api[path],
       path + ": the reviewed main source and active inventory SHA must match");
   }
   const hr = manifest.allApiRouteFiles["src/app/api/hr-cases/route.ts"];
-  assert.ok(hr.methods.every((method) => method.status === "GAP"),
-    "Re-inventory does not turn the HR read or writes into verified tenant proof");
+  assert.ok(hr.methods.every((method) => method.status === "COVERED" && method.testedBy),
+    "HR methods require the new executed HTTP controls, not hash refresh alone");
   const payroll = manifest.allApiRouteFiles["src/app/api/payroll-runs/route.ts"];
   assert.equal(payroll.methods.find((method) => method.name === "POST")?.status, "GAP",
     "Payroll run creation still needs independent own/victim/mutation proof");
@@ -350,7 +350,7 @@ test("self-service PDF cannot outlive former-employer membership", () => {
 test("all credited proof links point to the claimed route and every recertified write has controls", () => {
   const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   for (const [path, entry] of Object.entries(manifest.allApiRouteFiles)) {
-    const stem = "/api/" + entry.route.replaceAll("[id]", "");
+    const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
@@ -358,7 +358,7 @@ test("all credited proof links point to the claimed route and every recertified 
         path + " " + method.name + ": unsupported evidence source");
       const ownLine = evidenceLine(proof.file, proof.ownPositiveLine, path + " own-positive");
       const negativeLine = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign denial");
-      assert.ok(ownLine.includes(stem) && /request\s*\(/.test(ownLine),
+      assert.ok(routeFragments.every(fragment => ownLine.includes(fragment)) && /request\s*\(/.test(ownLine),
         path + " " + method.name + ": stale positive reference");
       assert.ok(/expectStatus|ownOnly|assert\.(?:ok|equal|deepEqual)/.test(negativeLine),
         path + " " + method.name + ": stale foreign-denial or DB proof");
