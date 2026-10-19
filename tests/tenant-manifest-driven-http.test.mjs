@@ -34,8 +34,8 @@ test("single table-driven test reads ALL 489 methods and only registers true GAP
 });
 
 test("real-HTTP and disposable DB proof requirements cannot be weakened", () => {
-  assert.match(harness, /import \{ verifyManifestDrivenStatutoryBatch \} from "\.\/tenant-manifest-driven-http\.mjs";/);
-  assert.match(harness, /await verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus \}\);/);
+  assert.match(harness, /await \(await import\("\.\/tenant-manifest-driven-http\.mjs"\)\)\.verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus \}\)/);
+
   assert.match(src, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
   assert.match(src, /const own = expectStatus\(await request\(urls\.own, \{ cookie \}\), 200/);
   assert.match(src, /const foreign = expectStatus\(await request\(urls\.foreign, \{ cookie \}\), adapter\.denial/);
