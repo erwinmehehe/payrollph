@@ -1,6 +1,6 @@
 {
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
-  "baseCommit": "c638d136f3b3d90078d8942693858ddc8d3cae27",
+  "baseCommit": "3a622cbde8508271e9ecb05099729aee15f07ba0",
   "generated": "2026-10-19",
   "acceptanceStatus": "NOT ACCEPTED: missing per-method cross-tenant HTTP/DB proof",
   "metrics": {
@@ -748,7 +748,7 @@
       ]
     },
     "src/app/api/attendance/offline-claims/route.ts": {
-      "gitBlobSha": "247704a9b2a601f627a8c895daf47d6fc1694ee2",
+      "gitBlobSha": "261afb5a2a53ee7b916b5c77914ca289648bfb1e",
       "route": "attendance/offline-claims",
       "methods": [
         {
@@ -760,14 +760,14 @@
         },
         {
           "name": "POST",
-          "line": 65,
+          "line": 67,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null
         },
         {
           "name": "PATCH",
-          "line": 138,
+          "line": 140,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null
@@ -800,31 +800,31 @@
           "text": "getAccess"
         },
         {
-          "line": 43,
+          "line": 44,
           "text": "assertOrganizationRole"
         },
         {
-          "line": 45,
+          "line": 46,
           "text": "getAccess"
         },
         {
-          "line": 69,
+          "line": 71,
           "text": "getSessionUser"
         },
         {
-          "line": 77,
+          "line": 79,
           "text": "getAccess"
         },
         {
-          "line": 142,
+          "line": 144,
           "text": "getSessionUser"
-        },
-        {
-          "line": 154,
-          "text": "assertOrganizationRole"
         },
         {
           "line": 156,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 158,
           "text": "getAccess"
         }
       ],
@@ -834,15 +834,15 @@
           "text": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 75,
+          "line": 77,
           "text": "body.organizationId"
         },
         {
-          "line": 81,
+          "line": 83,
           "text": "body.employeeId"
         },
         {
-          "line": 148,
+          "line": 150,
           "text": "body.organizationId"
         }
       ],
@@ -884,23 +884,39 @@
           "text": "employeeId"
         },
         {
-          "line": 38,
-          "text": "organizationId"
-        },
-        {
-          "line": 38,
+          "line": 34,
           "text": "organizationId"
         },
         {
           "line": 39,
-          "text": "employeeId"
+          "text": "organizationId"
         },
         {
           "line": 39,
+          "text": "organizationId"
+        },
+        {
+          "line": 40,
           "text": "employeeId"
         },
         {
-          "line": 43,
+          "line": 40,
+          "text": "employeeId"
+        },
+        {
+          "line": 42,
+          "text": "organizationId"
+        },
+        {
+          "line": 44,
+          "text": "organizationId"
+        },
+        {
+          "line": 49,
+          "text": "organizationId"
+        },
+        {
+          "line": 62,
           "text": "organizationId"
         }
       ]

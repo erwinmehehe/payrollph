@@ -1,6 +1,6 @@
 {
   "schema": "tenant-isolation-baseline-v1",
-  "baseCommit": "c638d136f3b3d90078d8942693858ddc8d3cae27",
+  "baseCommit": "3a622cbde8508271e9ecb05099729aee15f07ba0",
   "baselineStatus": "NOT ACCEPTED - route SHA is not test proof",
   "api": {
     "src/app/api/account/email/route.ts": "0bb833a3219e5f4b136276b6327b2b1a69563bb9",
@@ -12,7 +12,7 @@
     "src/app/api/approval-chains/route.ts": "17c01676f8e10d8f63b39d13a10b8b1d950b53cb",
     "src/app/api/approvals/[id]/route.ts": "4dacb9acf4d49030f0bfe9c89700769d0dbb42a1",
     "src/app/api/assets/route.ts": "adfea71f5668526ce9d3c7d8dde70ab82cc8799b",
-    "src/app/api/attendance/offline-claims/route.ts": "247704a9b2a601f627a8c895daf47d6fc1694ee2",
+    "src/app/api/attendance/offline-claims/route.ts": "261afb5a2a53ee7b916b5c77914ca289648bfb1e",
     "src/app/api/auth/demo-switch/route.ts": "31d24ba9862b9d9ea121731c2ea9a18074442ad3",
     "src/app/api/auth/forgot-password/route.ts": "ad44408bf3ffce388047ebee270e6701d5b9a7b8",
     "src/app/api/auth/login/route.ts": "2c7ba0211d04d018c73eefe31a69f36d66aeec80",

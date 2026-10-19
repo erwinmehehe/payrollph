@@ -147,6 +147,9 @@ test("onboarding directory search supports surname-first and pasted whitespace",
   assert.deepEqual(ids("  ALEX    RIVERA  "), [17]);
   assert.deepEqual(ids(" rIvErA   aLeX "), [17]);
   assert.deepEqual(ids("RIVERA,   ALEX"), [17]);
+  assert.deepEqual(ids("RIVERA,Alex"), [17]);
+  assert.deepEqual(ids(" Rivera ,Alex "), [17]);
+  assert.deepEqual(ids(" Rivera  ,  Alex "), [17]);
   assert.deepEqual(ids("  emp-017  "), [17]);
   assert.deepEqual(ids("Alex    Rivera   EMP-017"), [17]);
   assert.deepEqual(ids("RIVERA Alex", "open"), [17]);
