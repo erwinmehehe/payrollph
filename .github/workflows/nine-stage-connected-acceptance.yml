@@ -55,6 +55,7 @@ on:
       - "tests/compact-mobile-header.test.ts"
       - "tests/private-parallel-operator-contract.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/two-period-multiworker-connected.ts"
       - "scripts/qa/governed-hire-853-bridge.ts"
       - "scripts/qa/connected-governed-hire.ts"
       - "scripts/qa/connected-year-end-journey.ts"
@@ -139,6 +140,7 @@ on:
       - "tests/compact-mobile-header.test.ts"
       - "tests/private-parallel-operator-contract.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/two-period-multiworker-connected.ts"
       - "scripts/qa/governed-hire-853-bridge.ts"
       - "scripts/qa/connected-governed-hire.ts"
       - "scripts/qa/connected-year-end-journey.ts"
@@ -375,6 +377,9 @@ jobs:
         env:
           NINE_STAGE_EVIDENCE_REQUIRED: "true"
         run: node --test tests/nine-stage-connected-evidence.test.mjs
+      - name: Rehearse ten fictional workers through two real HTTP payroll cutoffs (PG16 direct only)
+        if: ${{ success() && matrix.postgres == '16' && matrix.hire-mode == 'direct' && matrix.cutoff != 'year-end' }}
+        run: NODE_OPTIONS="--require=$(pwd)/scripts/qa/isolated-month-end-clock.cjs" npx tsx scripts/qa/two-period-multiworker-connected.ts
       - name: Show bounded server errors on failure
         if: failure()
         shell: bash
@@ -393,6 +398,7 @@ jobs:
             qa-artifacts/fresh-pg18-dev-schema.json
             qa-artifacts/nine-stage-mobile-report.json
             qa-artifacts/issue-853-synthetic-two-tenant-scope.json
+            qa-artifacts/ten-worker-two-period-report.json
             qa-artifacts/governed-hire-853-report.json
             qa-artifacts/bir-validation-corpus/**
             qa-artifacts/connected-year-end-unsigned.pdf

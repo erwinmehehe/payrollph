@@ -16,6 +16,7 @@ on:
       - "scripts/verify-clean-baseline-cutover.mjs"
       - "scripts/lib/clean-baseline-cutover.mjs"
       - "scripts/qa/provision-cutover-test-target.mjs"
+      - "tests/clean-baseline-cutover-database-guard.test.mjs"
       - ".github/workflows/clean-baseline-cutover.yml"
       - "scripts/qa/probe-runtime-ddl-as-app-role.ts"
       - "scripts/qa/apply-source-baseline-supplement.mjs"
@@ -136,10 +137,15 @@ jobs:
         run: npx tsx scripts/qa/probe-runtime-ddl-as-app-role.ts --fail-on-error
 
   production-runner:
-    name: Production cutover runner against a simulated Neon owner (PG18)
+    name: Production cutover runner against a simulated Neon owner (PG18, ${{ matrix.database }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [neondb, payrollph_clean_baseline]
     env:
+      EXPECTED_DATABASE_NAME: ${{ matrix.database }}
       CI: "true"
       NINE_STAGE_PG_MAJOR: "18"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
@@ -184,13 +190,14 @@ jobs:
           docker exec "$PG_CONTAINER" pg_dump -U postgres -d app_db --schema-only --schema=public \
             --no-owner --no-privileges --no-tablespaces --no-security-labels > cutover-artifact/schema-only.sql
           test -s cutover-artifact/schema-only.sql
-      - name: Simulate Neon (non-superuser owner, empty payrollph_clean_baseline, roles created by SQL)
+      - name: Simulate Neon (non-superuser owner, empty target, roles created by SQL)
         run: node scripts/qa/provision-cutover-test-target.mjs
+      - name: Execute exact database, project and branch guards on PostgreSQL
+        run: CUTOVER_DATABASE_GUARD_TEST_URL="$SIM_OWNER_URL" node --test tests/clean-baseline-cutover-database-guard.test.mjs
       - name: Dry-run commits nothing; apply commits; a second apply is refused
         shell: bash
         env:
           CUTOVER_ISOLATED_TEST: "true"
-          EXPECTED_DATABASE_NAME: payrollph_clean_baseline
         run: |
           set -euo pipefail
           export CUTOVER_TARGET_DATABASE_URL="$SIM_OWNER_URL"
