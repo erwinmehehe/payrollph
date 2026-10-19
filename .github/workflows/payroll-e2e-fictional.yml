@@ -22,6 +22,9 @@ jobs:
     env:
       TZ: Asia/Manila
       CI: "true"
+      FAIL_CLOSED_GUARD_BASE_REF: ${{ github.event.pull_request.base.sha }}
+      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+      OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: "true"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       PAYMONGO_DISBURSEMENTS_ENABLED: "false"
       XENDIT_PAYOUTS_ENABLED: "false"
@@ -42,6 +45,8 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Fetch exact PR base for fail-closed source guards
+        run: git fetch --no-tags --depth=1 origin "$FAIL_CLOSED_GUARD_BASE_REF"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
@@ -62,6 +67,8 @@ jobs:
           echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
       - name: Create only disposable PG schema (NO repository migration)
         run: npm run db:push
+      - name: Apply existing CI-only audit guard to disposable PG
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Lint
