@@ -132,9 +132,9 @@ export function PayrollRunView({
 
   // The selected register only renders a tenant-verified API response.
   // Cached dashboard entries are not a substitute for an authoritative run read.
-  const [fetched, setFetched] = useState<{ scopeKey: string; entries: PayrollEntry[] } | null>(null);
+  const [fetched, setFetched] = useState<{ scope: PayrollReleaseChecklistScope; scopeKey: string; entries: PayrollEntry[] } | null>(null);
   const [registerRevision, setRegisterRevision] = useState(0);
-  const [failedScopeKey, setFailedScopeKey] = useState<string | null>(null);
+  const [failedObservation, setFailedObservation] = useState<{ scope: PayrollReleaseChecklistScope; scopeKey: string } | null>(null);
   const runId = run?.id;
   const expectedLegalEntityId = data.multiEntity?.enabled
     ? data.multiEntity.legalEntityId : run?.legalEntityId ?? null;
@@ -157,6 +157,15 @@ export function PayrollRunView({
     registerRevision,
   });
 
+  // Snapshot reference identity also prevents A -> B -> A replay of a prior
+  // successful read even when all serialized request fields are identical.
+  const checklistScope = useMemo(() => ({
+    organizationId: data.selectedOrganization.id,
+    runId: runId ?? null,
+    payrollRuns: data.payrollRuns,
+    tasks: data.tasks,
+  }), [data.selectedOrganization.id, runId, data.payrollRuns, data.tasks]);
+
   useEffect(() => {
     if (!runId) return;
     const controller = new AbortController();
@@ -164,27 +173,19 @@ export function PayrollRunView({
     void readVerifiedPayrollRegister(data.selectedOrganization.id, runId, fetch, controller.signal, expectedLegalEntityId)
       .then((entries) => {
         if (controller.signal.aborted) return;
-        setFetched({ scopeKey: requestScopeKey, entries });
-        setFailedScopeKey(null);
+        setFetched({ scope: checklistScope, scopeKey: requestScopeKey, entries });
+        setFailedObservation(null);
       })
       .catch(() => {
         if (controller.signal.aborted) return;
         setFetched(null);
-        setFailedScopeKey(requestScopeKey);
+        setFailedObservation({ scope: checklistScope, scopeKey: requestScopeKey });
         setConfirmReleaseForScope(null);
         setReviewOpen(false);
       });
     return () => controller.abort();
-  }, [runId, data.selectedOrganization.id, expectedLegalEntityId, registerScopeKey]);
+  }, [runId, data.selectedOrganization.id, expectedLegalEntityId, registerScopeKey, checklistScope]);
 
-  // A new snapshot has a new identity even after switching A -> B -> A.
-  // This invalidates old readiness synchronously during render, before effects.
-  const checklistScope = useMemo(() => ({
-    organizationId: data.selectedOrganization.id,
-    runId: runId ?? null,
-    payrollRuns: data.payrollRuns,
-    tasks: data.tasks,
-  }), [data.selectedOrganization.id, runId, data.payrollRuns, data.tasks]);
   // Never display a checklist captured for a different run, employer, or
   // dashboard approval snapshot while the current read is in flight.
   const releaseChecklist = visiblePayrollReleaseChecklist(checklistScope, checklistObservation);
@@ -215,9 +216,9 @@ export function PayrollRunView({
     return () => { active = false; controller.abort(); };
   }, [runId, checklistScope]);
 
-  const entriesFailed = failedScopeKey === registerScopeKey;
+  const entriesFailed = failedObservation?.scope === checklistScope && failedObservation.scopeKey === registerScopeKey;
   const entriesVerified = Boolean(
-    selectedEmployerMatches && fetched && fetched.scopeKey === registerScopeKey && !entriesFailed,
+    selectedEmployerMatches && fetched && fetched.scope === checklistScope && fetched.scopeKey === registerScopeKey && !entriesFailed,
   );
   const entries = useMemo(
     () => entriesVerified ? fetched!.entries : [],
