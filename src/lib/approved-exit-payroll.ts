@@ -1,6 +1,16 @@
 import { and, eq, or, sql } from "drizzle-orm";
 import { employees, separationRecords } from "@/db/schema";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import type { EffectivePayRevisionInput, EmployeePayProfileInput } from "@/lib/pay-basis";
+
+/** The current profile may already contain a raise beyond the cutoff/exit. */
+export function profileBeforeFutureRevision(current: EmployeePayProfileInput, revisions: EffectivePayRevisionInput[], date: string): EmployeePayProfileInput {
+  const next = [...revisions].filter(row => row.effectiveDate > date)
+    .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))[0];
+  return next ? { payBasis: next.previousPayBasis, rateAmount: next.previousRateAmount,
+    standardWorkDaysPerMonth: next.previousStandardWorkDaysPerMonth,
+    standardHoursPerDay: next.previousStandardHoursPerDay } : current;
+}
 
 /** Include pending exits explicitly: missing approval must block, never omit pay silently. */
 export function payrollEmploymentStatus(periodStart: string) {

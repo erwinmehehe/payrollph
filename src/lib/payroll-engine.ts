@@ -1,6 +1,6 @@
 import { roundedBasicPayBuckets, roundedGrossFromBuckets, statutoryTrueUpDecision } from "@/lib/payroll-money";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { payrollEmploymentStatus } from "@/lib/approved-exit-payroll";
+import { payrollEmploymentStatus, profileBeforeFutureRevision } from "@/lib/approved-exit-payroll";
 import { reviewRetroStatutorySourcePeriods } from "@/lib/payroll-retro-statutory-source-period";
 import { loadPendingPayrollRetroSources } from "@/lib/payroll-retro-source-lookup";
 import { allocateMandatoryDeductions } from "@/lib/payroll-mandatory-shortfall";
@@ -684,7 +684,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
     ? await reader.select().from(employeePayRevisions).where(and(
         eq(employeePayRevisions.organizationId, input.organizationId),
         inArray(employeePayRevisions.employeeId, chunkIds),
-        lte(employeePayRevisions.effectiveDate, run.periodEnd),
+        approvedExitEnabled ? undefined : lte(employeePayRevisions.effectiveDate, run.periodEnd),
       )).orderBy(asc(employeePayRevisions.effectiveDate), asc(employeePayRevisions.id))
     : [];
   const restDayRevisionRows = chunkIds.length
@@ -1989,7 +1989,9 @@ export function calculateEmployeePay(input: {
   }
 
   const timeline = resolvePayTimeline({
-    currentProfile: input.payProfile,
+    currentProfile: approvedExitEnabled
+      ? profileBeforeFutureRevision(input.payProfile, input.payRevisions ?? [], input.periodEnd)
+      : input.payProfile,
     revisions: input.payRevisions ?? [],
     periodStart: employmentStart,
     periodEnd: input.periodEnd,

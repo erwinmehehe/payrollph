@@ -165,7 +165,7 @@ async function loadFinalPaySources(input: {
     retroSourceTaxYear(String(row.sourcePeriodStart), String(row.sourcePeriodEnd)),
   ]));
 
-  const crossing = await reader.select({ id: payrollRuns.id, periodLabel: payrollRuns.periodLabel, trace: payrollEntries.trace })
+  const crossing = await reader.select({ id: payrollRuns.id, periodLabel: payrollRuns.periodLabel, periodEnd: payrollRuns.periodEnd, trace: payrollEntries.trace })
     .from(payrollEntries)
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .where(and(
@@ -183,8 +183,8 @@ async function loadFinalPaySources(input: {
         eq(separationRecords.employeeId, input.employeeId),
         eq(separationRecords.lastDay, input.lastDay),
       )) : [];
-  const unverifiedCrossing = crossing.find(row => !exitRecords.some(exit =>
-    verifiedExitPayrollTrace(row.trace, input.lastDay, exit.id)));
+  const unverifiedCrossing = crossing.find(row => String(row.periodEnd).slice(0, 4) !== String(taxYear)
+    || !exitRecords.some(exit => verifiedExitPayrollTrace(row.trace, input.lastDay, exit.id)));
   if (unverifiedCrossing) {
     throw new Error(
       `Released payroll ${unverifiedCrossing.periodLabel} crosses the employee's last day. Split or correct that payroll period before computing final pay.`,

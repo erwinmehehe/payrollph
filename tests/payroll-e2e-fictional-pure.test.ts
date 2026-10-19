@@ -172,6 +172,8 @@ test("approved exit ignores a pay revision effective after the last day", () => 
   input.employmentEndDate = "2026-10-09";
   input.payRevisions = [{ effectiveDate: "2026-10-10", previousPayBasis: "monthly", previousRateAmount: "22000.00", previousStandardWorkDaysPerMonth: "22.00", previousStandardHoursPerDay: "8.00", newPayBasis: "monthly", newRateAmount: "44000.00", newStandardWorkDaysPerMonth: "22.00", newStandardHoursPerDay: "8.00" }];
   assert.equal(amountOf(run(input), "BASIC"), 660000);
+  input.payRevisions[0].effectiveDate = "2026-10-20";
+  assert.equal(amountOf(run(input), "BASIC"), 660000, "A raise after the entire cutoff cannot leak into the old current profile");
 });
 
 test("flag-off actual calculator matches pre-feature main byte for byte", async () => {
