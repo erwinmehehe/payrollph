@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { hrCaseTransitionAllowed, type HrCaseStatus, type HrCaseType } from "@/lib/hr-case-policy";
+import { readVerifiedHrCaseQueue } from "@/lib/hr-case-queue-read";
 
 type StaffMessage = {
   id: number;
@@ -12,10 +13,11 @@ type StaffMessage = {
 };
 type StaffHrCase = {
   id: number;
+  organizationId: number;
   employeeId: number;
-  employeeName?: string;
-  employeeTitle?: string;
-  employeeStartDate?: string;
+  employeeName?: string | null;
+  employeeTitle?: string | null;
+  employeeStartDate?: string | null;
   caseType: HrCaseType;
   assignedRole: string;
   subject: string;
@@ -25,7 +27,6 @@ type StaffHrCase = {
   coeDocumentId: number | null;
   messages: StaffMessage[];
 };
-type QueueApi = { cases?: StaffHrCase[]; error?: string };
 type QueueFilter = "active" | "overdue" | "all";
 const STATUSES: HrCaseStatus[] = ["in_progress", "waiting_employee", "resolved", "closed"];
 
@@ -37,14 +38,18 @@ function queueLabel(type: HrCaseType): string {
   return "General request";
 }
 
-export function EmployeeHrCaseStaffQueue({
+export function EmployeeHrCaseStaffQueue(props: { organizationId: number; canApproveCoe: boolean }) {
+  return <EmployeeHrCaseStaffQueueContent key={props.organizationId} {...props} />;
+}
+
+function EmployeeHrCaseStaffQueueContent({
   organizationId,
   canApproveCoe,
 }: {
   organizationId: number;
   canApproveCoe: boolean;
 }) {
-  const [cases, setCases] = useState<StaffHrCase[]>([]);
+  const [cases, setCases] = useState<StaffHrCase[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<QueueFilter>("active");
@@ -52,24 +57,20 @@ export function EmployeeHrCaseStaffQueue({
   const [drafts, setDrafts] = useState<Record<number, string>>({});
   const [visibilities, setVisibilities] = useState<Record<number, "internal" | "employee">>({});
 
-  const refresh = useCallback(async (signal?: AbortSignal) => {
+  const refresh = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
+    setLoading(true);
+    setError("");
+    setCases(null);
     try {
-      const response = await fetch("/api/hr-cases?organizationId=" + organizationId, {
-        cache: "no-store", signal,
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({})) as QueueApi;
-        throw new Error(data.error ?? "Could not load the HR request inbox.");
-      }
-      const data = await response.json() as QueueApi;
-      if (!signal?.aborted) {
-        setCases(Array.isArray(data.cases) ? data.cases : []);
-        setError("");
-      }
+      const verified = await readVerifiedHrCaseQueue(organizationId, fetch, signal);
+      if (signal?.aborted) return false;
+      setCases(verified);
+      return true;
     } catch (cause) {
-      if (!signal?.aborted) setError(
-        cause instanceof Error ? cause.message : "Could not load the HR request inbox.",
-      );
+      if (signal?.aborted) return false;
+      setCases(null);
+      setError(cause instanceof Error ? cause.message : "Could not verify the HR case inbox.");
+      return false;
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -82,14 +83,14 @@ export function EmployeeHrCaseStaffQueue({
   }, [refresh]);
 
   const counts = useMemo(() => ({
-    active: cases.filter(item => !["resolved", "closed"].includes(item.status)).length,
-    overdue: cases.filter(item => item.sla.overdue).length,
+    active: (cases ?? []).filter(item => !["resolved", "closed"].includes(item.status)).length,
+    overdue: (cases ?? []).filter(item => item.sla.overdue).length,
   }), [cases]);
-  const visible = cases.filter(item => filter === "all" ||
+  const visible = (cases ?? []).filter(item => filter === "all" ||
     (filter === "overdue" ? item.sla.overdue : !["resolved", "closed"].includes(item.status)));
 
   async function takeAction(id: number, action: string, extra: Record<string, unknown> = {}) {
-    if (working !== null) return false;
+    if (working !== null || loading || error || cases === null || !cases.some(item => item.id === id)) return false;
     setWorking(id);
     setError("");
     try {
@@ -101,8 +102,7 @@ export function EmployeeHrCaseStaffQueue({
       });
       const payload = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "HR request could not be updated.");
-      await refresh();
-      return true;
+      return await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "HR request could not be updated.");
       return false;
@@ -121,7 +121,7 @@ export function EmployeeHrCaseStaffQueue({
   }
 
   return <section aria-label="Employee HR case inbox">
-    <div className="mb-5 flex flex-wrap items-center gap-3">
+    {cases !== null && !loading && !error && <div className="mb-5 flex flex-wrap items-center gap-3">
       {([
         ["active", "Active (" + counts.active + ")"],
         ["overdue", "Overdue (" + counts.overdue + ")"],
@@ -138,14 +138,17 @@ export function EmployeeHrCaseStaffQueue({
         disabled={loading || working !== null} onClick={() => { void refresh(); }}>
         Refresh inbox
       </button>
-    </div>
+    </div>}
 
     {loading && <p className="text-sm text-slate-600" role="status">Loading HR requests…</p>}
-    {error && <p role="alert" className="mb-4 rounded border border-red-300 p-3 text-sm text-red-700">{error}</p>}
-    {!loading && visible.length === 0 &&
+    {error && <div role="alert" className="mb-4 rounded border border-red-300 p-3 text-sm text-red-700">
+      <p>{error} The inbox and its actions remain unavailable until verified.</p>
+      <button type="button" onClick={() => { void refresh(); }} className="mt-2 rounded border px-3 py-2">Retry HR requests</button>
+    </div>}
+    {!loading && !error && cases !== null && visible.length === 0 &&
       <p className="rounded-lg border border-slate-200 p-6 text-slate-600">No requests match this view.</p>}
 
-    <div className="space-y-5">
+    {cases !== null && !loading && !error && <div className="space-y-5">
       {visible.map(item => {
         const canUpdate = item.status !== "closed";
         const nextStatuses = STATUSES.filter(next =>
@@ -243,6 +246,6 @@ export function EmployeeHrCaseStaffQueue({
           </div>}
         </article>;
       })}
-    </div>
+    </div>}
   </section>;
 }
