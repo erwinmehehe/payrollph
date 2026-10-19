@@ -280,6 +280,59 @@ test("new sensitive download, legal-employer, leave mutation, and ESS proofs are
     "Standalone uncalled helper is not executable evidence");
 });
 
+
+test("self-service PDF cannot outlive former-employer membership", () => {
+  // Checks only proof integrity; the actual HTTP outcomes and database
+  // invariants execute in the original CI/disposable-Postgres smoke harness.
+  const route = "src/app/api/self/payslips/[id]/route.ts";
+  const method = manifest.allApiRouteFiles[route].methods.find((m) => m.name === "GET");
+  assert.equal(method?.status, "COVERED", "PDF must not be credited from anonymous 401/404");
+  const source = readFileSync(route, "utf8");
+  const guardCall = "const membershipDenied = await assertMembership(session.id, employee.organizationId);";
+  assert.match(source, /import \{ assertMembership \} from "@\/lib\/access";/,
+    "PDF must use the existing active organization-membership guard");
+  const guardAt = source.indexOf(guardCall);
+  assert.ok(guardAt > source.indexOf("if (!employee) return Response.json"),
+    "Membership must bind to the actual authenticated employee employer");
+  assert.ok(guardAt < source.indexOf("db.select().from(organizations)") &&
+    guardAt < source.indexOf("renderPayslipPdf("),
+    "Employer access must be checked BEFORE loading identity or releasing any PDF bytes");
+  assert.ok(source.slice(guardAt, guardAt + 240).includes("if (membershipDenied) return membershipDenied;"),
+    "An explicitly denied membership must abort the PDF request");
+  assert.equal(source.split("\n")[method.testedBy.currentMembershipGuardLine - 1].trim(), guardCall,
+    "The manifest must cite the exact guard line instead of stale source");
+  assert.equal(method.testedBy.file, "scripts/qa/tenant-second-pass-http.mjs");
+  const own = evidenceLine(method.testedBy.file, method.testedBy.ownPositiveLine,
+    "Real own Released payslip 200 before membership changes");
+  assert.ok(own.includes("const ownPayslipPdf = expectStatus") && own.includes("/api/self/payslips/"),
+    "The previously accessible real PDF is the positive control");
+  const live = evidenceLine(method.testedBy.file, method.testedBy.staleSessionOwnPositiveLine,
+    "Authenticated after transfer");
+  assert.ok(live.includes('const stillSignedIn = expectStatus(await request("/api/account"'),
+    "A valid session must still succeed after old-employer access is revoked");
+  const negative = evidenceLine(method.testedBy.file, method.testedBy.staleMembershipForeignDenialLine,
+    "Former-employer record denial");
+  assert.ok(negative.includes('const stalePayslipPdf = expectStatus(await request("/api/self/payslips/" + ownEntry.id'),
+    "The denial must target the exact previously readable real payroll entry");
+  const scriptLines = readFileSync(method.testedBy.file, "utf8").split("\n");
+  const negSpan = scriptLines.slice(method.testedBy.staleMembershipForeignDenialLine - 1,
+    method.testedBy.staleMembershipForeignDenialLine + 4).join("\n");
+  assert.ok(negSpan.includes("cookie: employeeCookie") && negSpan.includes("}), 403,"),
+    "Cross-employer transfer must deny with exact 403, not invalid 401/404/429");
+  const invariant = evidenceLine(method.testedBy.file, method.testedBy.staleMembershipUnchangedDbLine,
+    "Unchanged payroll record");
+  assert.match(invariant, /assert\.deepEqual\(payrollEntryAfter, oldPayrollEntry/,
+    "Denied PDF must leave the employer payroll DB record unchanged");
+  assert.match(scriptLines.join("\n"), /assert\.equal\(formerMembership\?\.active, false,/,
+    "A real previously active former-employer membership must be revoked");
+  assert.match(scriptLines.join("\n"), /assert\.equal\(newMembership\?\.active, true,/,
+    "Keep a new employer grant active so a 401 from logout cannot false-pass");
+  assert.match(scriptLines.join("\n"), /assert\.equal\(stillSignedIn\.json\?\.profile\?\.id, employeeAccount\.id,/,
+    "Successful post-revocation session must be the same old employer's employee account");
+  assert.match(scriptLines.join("\n"), /await verifySensitiveTenantDownloadsAndRoles\(f\)/,
+    "Evidence must actually run as part of the security HTTP smoke");
+});
+
 test("all credited proof links point to the claimed route and every recertified write has controls", () => {
   const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   for (const [path, entry] of Object.entries(manifest.allApiRouteFiles)) {
