@@ -6,6 +6,11 @@ on:
       - "tests/payroll-e2e-fictional-*.test.ts"
       - "docs/qa/payroll-e2e-*.md"
       - "src/lib/payroll-engine.ts"
+      - "src/lib/payroll-settlement.ts"
+      - "src/lib/payroll-connected-release-gate-server.ts"
+      - "src/lib/critical-release-flags.ts"
+      - "src/app/api/payroll-runs/route.ts"
+      - "tests/approved-exit-payroll.test.ts"
       - "src/lib/approved-exit-payroll.ts"
       - "src/app/api/separation/route.ts"
       - "scripts/qa/payroll-approved-exit-http.mjs"
@@ -13,6 +18,9 @@ on:
       - ".github/workflows/payroll-e2e-fictional.yml"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   fictional-payroll:
     name: Disposable PG${{ matrix.postgres }} fictional payroll
@@ -95,7 +103,8 @@ jobs:
         env:
           APPROVED_EXIT_PAYROLL_ENABLED: "true"
         run: |
-          nohup npm start -- -H 127.0.0.1 > /tmp/payroll-exit-http.log 2>&1 &
+          setsid npm start -- -H 127.0.0.1 > /tmp/payroll-exit-http.log 2>&1 &
+          echo $! > /tmp/payroll-exit-http.pid
           for attempt in {1..40}; do
             if curl -fsS "$SECURITY_SMOKE_URL" >/dev/null; then exit 0; fi
             sleep 2
@@ -109,6 +118,15 @@ jobs:
       - name: Show isolated server log on failure
         if: failure()
         run: cat /tmp/payroll-exit-http.log || true
+      - name: Stop this fixture's HTTP process group before full regression
+        if: always()
+        run: |
+          if test -f /tmp/payroll-exit-http.pid; then
+            server_pid=$(cat /tmp/payroll-exit-http.pid)
+            if [[ "$server_pid" =~ ^[0-9]+$ ]]; then
+              kill -- -"$server_pid" 2>/dev/null || true
+            fi
+          fi
       - name: Exact full npm test inventory (PG16 only, one isolated service)
         if: matrix.postgres == 16
         run: npm test

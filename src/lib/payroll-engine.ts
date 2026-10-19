@@ -1,6 +1,6 @@
 import { roundedBasicPayBuckets, roundedGrossFromBuckets, statutoryTrueUpDecision } from "@/lib/payroll-money";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { payrollEmploymentStatus, profileBeforeFutureRevision } from "@/lib/approved-exit-payroll";
+import { loadApprovedPayrollExits, payrollEmploymentStatus, profileBeforeFutureRevision } from "@/lib/approved-exit-payroll";
 import { reviewRetroStatutorySourcePeriods } from "@/lib/payroll-retro-statutory-source-period";
 import { loadPendingPayrollRetroSources } from "@/lib/payroll-retro-source-lookup";
 import { allocateMandatoryDeductions } from "@/lib/payroll-mandatory-shortfall";
@@ -41,7 +41,6 @@ import {
   schedulePatternDays,
   schedulePatternSegments,
   schedulePatterns,
-  separationRecords,
   shiftDefinitions,
   supplementaryEarnings,
   timePunches,
@@ -640,43 +639,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
   // payroll proration. Draft separations cannot change wages. An old approved
   // last day will instead fail closed in calculateEmployeePay.
   const approvedExitEnabled = criticalReleaseFlagEnabled("approvedExitPayroll");
-  const approvedSeparations = approvedExitEnabled && chunkIds.length
-    ? await reader.select({
-        employeeId: separationRecords.employeeId,
-        lastDay: separationRecords.lastDay,
-        id: separationRecords.id,
-        unpaidBasicSalary: separationRecords.unpaidBasicSalary,
-        preparedByUserId: separationRecords.preparedByUserId,
-        approvedByUserId: separationRecords.approvedByUserId,
-      }).from(separationRecords).where(and(
-        eq(separationRecords.organizationId, input.organizationId),
-        inArray(separationRecords.employeeId, chunkIds),
-        inArray(separationRecords.status, ["approved", "released"]),
-      ))
-    : [];
-  const separationEndByEmployee = new Map<number, string>();
-  const separationIdByEmployee = new Map<number, number>();
-  for (const separation of approvedSeparations) {
-    if (separation.preparedByUserId == null || separation.approvedByUserId == null
-      || separation.preparedByUserId === separation.approvedByUserId) {
-      throw new Error("PAYROLL_EXIT_APPROVAL_IDENTITY: Approved exit requires recorded distinct preparer and checker identities.");
-    }
-    const lastDay = String(separation.lastDay);
-    const known = separationEndByEmployee.get(separation.employeeId);
-    if (known && known !== lastDay) {
-      throw new Error("PAYROLL_SEPARATION_CONFLICT: Multiple approved end dates must be reconciled before payroll.");
-    }
-    separationEndByEmployee.set(separation.employeeId, lastDay);
-    separationIdByEmployee.set(separation.employeeId, separation.id);
-    if (Number(separation.unpaidBasicSalary) !== 0) {
-      throw new Error("PAYROLL_FINAL_PAY_WAGE_OVERLAP: Approved final pay includes unpaid basic wages. Recompute it without overlapping wages and obtain independent approval before ordinary payroll.");
-    }
-  }
-  for (const employee of chunk) {
-    if (approvedExitEnabled && employee.status === "Separating" && !separationEndByEmployee.has(employee.id)) {
-      throw new Error("PAYROLL_EXIT_APPROVAL_REQUIRED: A separating employee lacks an independently approved final-pay package. Resolve approval before payroll; the employee was not silently excluded.");
-    }
-  }
+  const { ends: separationEndByEmployee, ids: separationIdByEmployee } = await loadApprovedPayrollExits(reader, input.organizationId, chunk);
   const payProfileRows = chunkIds.length
     ? await reader.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
     : [];
@@ -1989,7 +1952,7 @@ export function calculateEmployeePay(input: {
   }
 
   const timeline = resolvePayTimeline({
-    currentProfile: approvedExitEnabled
+    currentProfile: approvedExitEnabled && employmentEndDate
       ? profileBeforeFutureRevision(input.payProfile, input.payRevisions ?? [], input.periodEnd)
       : input.payProfile,
     revisions: input.payRevisions ?? [],

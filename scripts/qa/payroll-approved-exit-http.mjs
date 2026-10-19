@@ -11,6 +11,7 @@ import { organizations, legalEntities, employees, employeePayProfiles, employeeP
 import { freezeSeparationIntent } from "../../src/lib/hcm-separation-business-process";
 import { enqueuePayrollRun, drainPayrollQueue } from "../../src/lib/payroll-engine";
 import { settlePayrollRun } from "../../src/lib/payroll-settlement";
+import { payrollEmploymentStatus } from "../../src/lib/approved-exit-payroll";
 
 const base = process.env.SECURITY_SMOKE_URL;
 const database = new URL(process.env.DATABASE_URL ?? "");
@@ -57,12 +58,16 @@ try {
   const [maker, checker, stranger] = await Promise.all(actors.map(actor => session(actor.id)));
   const [entity] = await db.insert(legalEntities).values({ organizationId: own.id, code: "PRIMARY", legalName: "Fictional Exit Employer", displayName: "Fictional Exit", primaryEntity: true }).returning();
   const [worker] = await db.insert(employees).values({ organizationId: own.id, legalEntityId: entity.id, employeeNo: "EXIT-" + suffix.slice(0, 8), firstName: "Fictional", lastName: "Exit", title: "Synthetic", avatarInitials: "FE", basicRate: "22000.00", startDate: "2025-01-01", mobile: "09999999999" }).returning();
+  assert.deepEqual((await db.select({ id: employees.id }).from(employees).where(and(eq(employees.organizationId, own.id), payrollEmploymentStatus("2026-10-01")))).map(row => row.id), [worker.id]);
   // This fixture isolates the handoff AFTER approved termination intent, not human intent approval.
   await db.insert(hcmBusinessProcessInstances).values({ organizationId: own.id, definitionCode: "fictional-prior-approved-intent", definitionVersion: 1, processType: "termination", sourceType: "separation_initiation", sourceKey: worker.id + ":" + suffix, employeeId: worker.id, effectiveDate: "2026-10-09", status: "approved", initiatedByUserId: actors[0].id, initiatedByName: actors[0].name, definitionSnapshot: { sourceEvidence: freezeSeparationIntent({ organizationId: own.id, employeeId: worker.id, employeeStatus: "Active", employeeOrgUnitId: null, employeeStartDate: "2025-01-01", employmentTermDecisionId: null, separationType: "resignation", noticeDate: "2026-09-20", lastDay: "2026-10-09" }) } });
   const body = { organizationId: own.id, employeeId: worker.id, separationType: "resignation", noticeDate: "2026-09-20", lastDay: "2026-10-09", unpaidBasicSalary: 0 };
   const ownCreate = expectStatus(await request("/api/separation", maker, "POST", body), 201, "Actual Separation POST creates package");
   const separationId = ownCreate.id;
   assert.equal((await db.select().from(employees).where(eq(employees.id, worker.id)))[0].status, "Separating");
+  delete process.env.APPROVED_EXIT_PAYROLL_ENABLED;
+  assert.equal((await db.select().from(employees).where(and(eq(employees.organizationId, own.id), payrollEmploymentStatus("2026-10-01")))).length, 0, "Flag-off SQL keeps the original Active-only scope");
+  process.env.APPROVED_EXIT_PAYROLL_ENABLED = "true";
   const ownRead = expectStatus(await request("/api/separation?organizationId=" + own.id, maker), 200, "Owned Separation GET");
   assert.ok(ownRead.separations.some(row => row.id === separationId));
   const beforeForeign = await db.select().from(separationRecords).where(eq(separationRecords.id, separationId));
@@ -72,7 +77,16 @@ try {
   const afterForeign = await db.select().from(separationRecords).where(eq(separationRecords.id, separationId));
   assert.deepEqual(afterForeign, beforeForeign, "Foreign separation mutations leave victim rows unchanged");
 
-  const [run] = await db.insert(payrollRuns).values({ organizationId: own.id, legalEntityId: entity.id, periodLabel: "Fictional exit cutoff", periodStart: "2026-10-01", periodEnd: "2026-10-15", payDate: "2026-10-15", status: "Draft" }).returning();
+  const payrollBody = { organizationId: own.id, legalEntityId: entity.id, periodStart: "2026-10-01", periodEnd: "2026-10-15", payDate: "2026-10-15", processNow: false };
+  const payrollBeforeForeign = await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, own.id));
+  expectStatus(await request("/api/payroll-runs", stranger, "POST", payrollBody), 403, "Foreign payroll creation denied");
+  const payrollAfterForeign = await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, own.id));
+  assert.deepEqual(payrollAfterForeign, payrollBeforeForeign, "Denied payroll creation cannot mutate the victim register");
+  const preflight = expectStatus(await request("/api/payroll-runs", maker, "POST", { ...payrollBody, processNow: true }), 409, "Processing reports the unapproved exit before creating a run");
+  assert.equal(preflight.code, "PAYROLL_EXIT_APPROVAL_REQUIRED");
+  const ownPayrollCreate = expectStatus(await request("/api/payroll-runs", maker, "POST", payrollBody), 201, "Actual payroll API creates a draft including a separating worker");
+  const run = ownPayrollCreate.run;
+  assert.equal(run.organizationId, own.id);
   const queued = await enqueuePayrollRun(run.id);
   assert.equal(queued.employeeCount, 1, "Separating worker cannot silently disappear");
   await assert.rejects(() => drainPayrollQueue(5, run.id), /PAYROLL_EXIT_APPROVAL_REQUIRED/);
@@ -83,6 +97,16 @@ try {
   const ownPatch = expectStatus(await request("/api/separation", checker, "PATCH", { id: separationId, action: "approve" }), 200, "Distinct checker approves owned package");
   assert.ok(ownPatch);
 
+  // Synthetic legacy/corruption fault injection: a status alone must not authorize wages.
+  await db.update(separationRecords).set({ approvedByUserId: null }).where(eq(separationRecords.id, separationId));
+  await enqueuePayrollRun(run.id);
+  await assert.rejects(() => drainPayrollQueue(5, run.id), /PAYROLL_EXIT_APPROVAL_IDENTITY/);
+  await db.update(separationRecords).set({ approvedByUserId: actors[1].id, unpaidBasicSalary: "6600.00" }).where(eq(separationRecords.id, separationId));
+  await enqueuePayrollRun(run.id);
+  await assert.rejects(() => drainPayrollQueue(5, run.id), /PAYROLL_FINAL_PAY_WAGE_OVERLAP/);
+  assert.equal((await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id))).length, 0);
+  await db.update(separationRecords).set({ unpaidBasicSalary: "0.00" }).where(eq(separationRecords.id, separationId));
+
   // A later raise must not change the worker's pre-exit cutoff pay.
   await db.update(employeePayProfiles).set({ rateAmount: "44000.00" }).where(and(eq(employeePayProfiles.employeeId, worker.id), eq(employeePayProfiles.organizationId, own.id)));
   await db.insert(employeePayRevisions).values({ organizationId: own.id, employeeId: worker.id, effectiveDate: "2026-10-10", previousPayBasis: "monthly", previousRateAmount: "22000.00", previousStandardWorkDaysPerMonth: "22.00", previousStandardHoursPerDay: "8.00", newPayBasis: "monthly", newRateAmount: "44000.00", newStandardWorkDaysPerMonth: "22.00", newStandardHoursPerDay: "8.00", reason: "Fictional post-exit rate regression" });
@@ -90,8 +114,13 @@ try {
   await drainPayrollQueue(5, run.id);
   const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
   assert.equal(entry.grossPay, "6600.00", "Oct1-9 wages: 22000 / 2 * 9/15");
+  assert.ok(entry.trace.inputs.includes("monthlyEquivalent=22000.00"), "Deduction/profile inputs must also exclude the post-exit raise");
   assert.ok(entry.trace.inputs.includes("approvedExitProration=v1"));
   await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, run.id));
+  await db.update(separationRecords).set({ unpaidBasicSalary: "6600.00" }).where(eq(separationRecords.id, separationId));
+  await assert.rejects(() => settlePayrollRun(run.id), /PAYROLL_EXIT_EVIDENCE_CHANGED/);
+  assert.equal((await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id)))[0].status, "Releasing");
+  await db.update(separationRecords).set({ unpaidBasicSalary: "0.00" }).where(eq(separationRecords.id, separationId));
   await settlePayrollRun(run.id); // Synthetic release fixture, not HTTP ordinary checker/MFA evidence.
   expectStatus(await request("/api/separation", maker, "POST", { ...body, unpaidBasicSalary: 6600, finalStatutoryReviewed: true }), 422, "No duplicate wages in final pay");
   const recomputed = expectStatus(await request("/api/separation", maker, "POST", body), 201, "Crossing cutoff with capped immutable wages enters final pay exactly once");
@@ -99,6 +128,9 @@ try {
   assert.equal(recomputed.unpaidBasicSalary, "0.00");
   assert.equal(recomputed.prorated13thMonth, "550.00");
   assert.equal(recomputed.status, "draft", "Recomputation invalidates prior financial approval");
+  expectStatus(await request("/api/separation", checker, "PATCH", { id: separationId, action: "approve" }), 409, "Recomputation requires fresh finance clearance");
+  expectStatus(await request("/api/separation", checker, "PATCH", { id: separationId, action: "clearance", financeCleared: true, previousValue: false, clearanceEvidenceReference: "SYNTHETIC-RECOMPUTED-FINANCE", clearanceReason: "Fictional recomputed package independently reviewed" }), 200, "Fresh finance clearance");
+  expectStatus(await request("/api/separation", checker, "PATCH", { id: separationId, action: "approve" }), 200, "Recomputed final pay receives fresh distinct-checker approval");
   const afterFinalPay = await db.select().from(payrollEntries).where(eq(payrollEntries.id, entry.id));
   assert.deepEqual(afterFinalPay, [entry], "Final-pay recomputation cannot rewrite released payroll");
   console.log(JSON.stringify({ result: "PASS", kind: "SYNTHETIC_APPROVED_EXIT_HTTP_PG", separatingEmployeeIncluded: true, unapprovedExitBlocked: true, makerSelfApprovalDenied: true, foreignReadWriteDenied: true, gross: "6600.00", finalPayBasicYtd: "6600.00", finalPayUnpaidBasic: "0.00", thirteenthDue: "550.00", doubleCount: false, productionActivation: false, humanIntentApprovalTested: false, ordinaryHttpCheckerTested: false }));
