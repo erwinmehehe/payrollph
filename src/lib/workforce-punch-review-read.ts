@@ -109,7 +109,8 @@ export async function readVerifiedPunchReviewQueue(
 
 /** A successful HTTP code alone is not proof that a punch entered the ledger. */
 export function isVerifiedPunchDecisionReceipt(
-  value: unknown, organizationId: number, row: VerifiedPunchReviewRow,
+  value: unknown, organizationId: number,
+  row: Pick<VerifiedPunchReviewRow, "id" | "employeeId" | "organizationId">,
   decision: "approved" | "rejected",
 ): value is VerifiedPunchDecisionReceipt {
   if (!id(organizationId) || !record(value) || !record(value.submission) ||
