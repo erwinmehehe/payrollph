@@ -15,7 +15,9 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 489 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 489);
-  assert.equal(manifest.metrics.gap, 440);
+  assert.equal(manifest.metrics.gap, 436, "Current published audit has 436 GAPs, not the original 440");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 489,
+    "No method may disappear from the audited 489-route-method inventory");
   assert.equal(manifest.sourceTraceCandidates.length, 34);
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
