@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const RUNTIME_PROBE_URL =
-  "https://payrollsoftware.ph/api/readiness/database-target";
+  "https://erwinmehehe-payrollph.vercel.app/api/readiness/database-target";
 
 const ERROR_CODE = "RUNTIME_DB_TARGET_ATTESTATION_BLOCKED";
 function refuse() { throw new Error(ERROR_CODE); }
