@@ -231,9 +231,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: hr-case-role-screenshots
+          name: hris-synthetic-mobile-and-hr-case-screenshots
           path: |
             qa-artifacts/hris-hire-*.png
+            qa-artifacts/hcm-my-team-mobile-*.png
             qa-artifacts/hr-cases-*.png
             qa-artifacts/hris-reviewer-375px.png
             qa-artifacts/hris-reviewer-390px.png
