@@ -176,9 +176,15 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
     && ["owner", "admin", "bookkeeper", "hr", "group_hr"].includes(effectiveRole ?? "");
   const availablePages = useMemo(() => {
     const pages = tenantNavigationPages({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, rolePages, companyWide: data.access?.companyWide, canManageModules: ["owner", "admin", "bookkeeper"].includes(effectiveRole ?? "") }, pilotFocusEnabled && !demoRole);
+    // The server-derived selected-employer plan is a UI hint only.
+    // All premium API endpoints independently re-check billing/authorization.
+    if (data.advancedPlanningAllowed === false) {
+      const index = pages.indexOf("Planning");
+      if (index >= 0) pages.splice(index, 1);
+    }
     if (entityVisible && !pages.includes("Entities")) pages.push("Entities");
     return pages;
-  }, [data.access?.companyWide, data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole, entityVisible]);
+  }, [data.access?.companyWide, data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole, entityVisible, data.advancedPlanningAllowed]);
 
   // Only surface existing HR modules that this role, plan and pilot menu permit.
   const hrisShortcuts = useMemo(
