@@ -52,7 +52,7 @@ export function FirstPayrollInlinePanel({
   let cancelled=false;
   void fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"})
    .then(async r=>{if(!r.ok)throw Error("Cannot load step progress");return r.json();})
-   .then(x=>{if(cancelled)return;const p=parseFirstPayrollProgressRead(x,organizationId);setProgress(p);
+   .then(x=>{if(cancelled)return;const p=parseFirstPayrollProgressRead(x);setProgress(p);
       const reviewed=p?.completedSteps?.time;
       if(reviewed?.periodStart)setStart(reviewed.periodStart);
       if(reviewed?.periodEnd)setEnd(reviewed.periodEnd);
@@ -81,7 +81,7 @@ export function FirstPayrollInlinePanel({
       body:JSON.stringify({...body,organizationId})});
     const result=await response.json().catch(()=>({}));
     if(!response.ok)throw Error(result.error??"Could not complete action");
-    if(result.progress)setProgress(parseFirstPayrollProgressRead(result,organizationId));
+    if(result.progress)setProgress(parseFirstPayrollProgressRead(result));
     if(result.run?.id)setDraftId(result.run.id);
     if(result.progress)await onProgressUpdate?.();
     await onRefresh();
