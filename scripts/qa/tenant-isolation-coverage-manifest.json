@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-19",
-  "acceptanceStatus": "NOT ACCEPTED: missing per-method cross-tenant HTTP/DB proof",
+  "acceptanceStatus": "NOT ACCEPTED: 447 API methods and 20 page entries still lack per-method cross-employer HTTP/DB proof; new five-method batch requires exact-head CI",
   "metrics": {
     "routeFiles": 288,
     "methods": 489,
     "coveredBefore": 20,
-    "coveredAfter": 31,
+    "coveredAfter": 36,
     "publicByDesign": 6,
-    "gap": 452,
+    "gap": 447,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -8018,9 +8018,15 @@
         {
           "name": "GET",
           "line": 27,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Real own clean attachment bytes HTTP 200, victim-only high document ID download and inline 403 for both attackers; read never changes victim document",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 792,
+            "ownPositiveLine": 786,
+            "foreignDenialLine": 792,
+            "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable"
+          }
         }
       ],
       "employerSources": {
@@ -15267,9 +15273,16 @@
         {
           "name": "POST",
           "line": 110,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "POST creates owned fictional policy with 201 and confirmed DB owner; forged victim organizationId POST returns 403 and victim policies unchanged",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 817,
+            "ownPositiveLine": 808,
+            "foreignDenialLine": 817,
+            "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable",
+            "unchangedDbLine": 924
+          }
         }
       ],
       "employerSources": {
@@ -15805,9 +15818,15 @@
         {
           "name": "GET",
           "line": 79,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Own legal-employer selector 200 containing seeded entity, forged victim organizationId 403 for both attackers, victim entities unchanged",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 804,
+            "ownPositiveLine": 799,
+            "foreignDenialLine": 804,
+            "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable"
+          }
         },
         {
           "name": "POST",
@@ -23951,9 +23970,15 @@
         {
           "name": "GET",
           "line": 11,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Employee-only 200 real own Released payslip PDF, victim high-ID and same-employer coworker PDF both 404 for two separately linked employee sessions",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 867,
+            "ownPositiveLine": 862,
+            "foreignDenialLine": 867,
+            "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable"
+          }
         }
       ],
       "employerSources": {
@@ -24016,9 +24041,15 @@
         {
           "name": "GET",
           "line": 21,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Real linked employee GET 200 with victim organizationId spoof ignored, own released entry included, victim and same-employer coworker excluded",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 879,
+            "ownPositiveLine": 874,
+            "foreignDenialLine": 879,
+            "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable"
+          }
         },
         {
           "name": "POST",
