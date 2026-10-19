@@ -37,6 +37,15 @@ const openBatch = () => ({
     filingTotal: null, remittanceTotal: 220,
     employeeCountDifference: null, totalDifference: null },
 });
+const openMember = () => ({
+  id: 8, organizationId: 51, legalEntityId: 71,
+  batchId: 4, employeeId: 19, employeeNo: "FIC-001",
+  employeeShare: "100.00", employerShare: "120.00", totalContribution: "220.00",
+  postingStatus: "pending", postingReference: null, postedAmount: null,
+  postingEvidenceArtifactId: null, postingEvidenceSource: null,
+  postingEvidenceHashSha256: null, postingEvidenceFileName: null,
+  postingEvidenceByteSize: null, exceptionNote: null,
+});
 const fetchOnce = (response: Response): typeof fetch =>
   (async () => response) as typeof fetch;
 
@@ -99,7 +108,7 @@ test("an omitted or forged empty alert list cannot hide an open batch due today"
   const missing = { ...empty(), batches };
   assert.equal(isStatutoryRemittanceWatchPayload(missing, 51), false);
   const complete = {
-    ...missing,
+    ...missing, members: [openMember()],
     alerts: buildStatutoryRemittanceAlerts({ today, batches, coverageGaps: [] }),
   };
   assert.equal(isStatutoryRemittanceWatchPayload(complete, 51), true);
@@ -111,7 +120,7 @@ test("an omitted or forged empty alert list cannot hide an open batch due today"
 test("a missing filing comparison or proof flag cannot suppress the required warning", () => {
   const today = "2026-10-19";
   const batches = [openBatch()];
-  const complete = {...empty(), batches,
+  const complete = {...empty(), batches, members: [openMember()],
     alerts: buildStatutoryRemittanceAlerts({today, batches, coverageGaps:[]})};
   assert.equal(isStatutoryRemittanceWatchPayload(complete,51), true);
   assert.equal(isStatutoryRemittanceWatchPayload({...complete,
@@ -120,6 +129,21 @@ test("a missing filing comparison or proof flag cannot suppress the required war
     batches:[{...openBatch(), paymentShortfall:undefined}]},51), false);
   assert.equal(isStatutoryRemittanceWatchPayload({...complete,
     batches:[{...openBatch(), dueDate:"2026-02-31"}]},51), false);
+});
+
+test("a forged reconciled batch cannot hide pending or unproven employee postings", () => {
+  const today = "2026-10-19";
+  const reconciled = {
+    ...openBatch(), status: "reconciled", displayStatus: "reconciled",
+    amountPaid: "220.00", paymentShortfall: 0,
+    hasActivePaymentProof: true,
+  };
+  const actual = {
+    ...empty(), batches: [reconciled], members: [openMember()],
+    alerts: buildStatutoryRemittanceAlerts({ today, batches: [reconciled], coverageGaps: [] }),
+  };
+  assert.equal(actual.alerts.length, 0, "fixture demonstrates the old false-green case");
+  assert.equal(isStatutoryRemittanceWatchPayload(actual, 51, 71), false);
 });
 
 test("an explicit retry can turn a failed read into a verified empty state", async () => {
