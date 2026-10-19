@@ -12,7 +12,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
-  apiKeys, employees, legalEntities, organizations, orgUnits, payrollEntries,
+  apiKeys, approvalChainPolicies, assets, documents, employees, leavePolicies, legalEntities, organizations, orgUnits, payrollEntries,
   payrollRuns, payslips, providerEvents, scimIdentities, scimTokens,
   sessions, userOrganizations, users,
 } from "../../src/db/schema";
@@ -143,6 +143,45 @@ async function makeFixture() {
     lastName: "Synthetic", title: "Attacker own employee", avatarInitials: "OS",
     basicRate: "18000.00", startDate: "2026-10-01",
   }))).returning({ id: employees.id });
+  // Isolated per-tenant resource fixtures: always seed the victim first so
+  // direct-object attempts exercise real high IDs rather than guessed 1..6.
+  const syntheticAssets = await db.insert(assets).values([
+    ...victimEmployees.map((employee, index) => ({
+      organizationId: victim.id, employeeId: employee.id, type: "laptop",
+      name: "Victim-only asset " + nonce + "-" + index,
+      serialNumber: "VICTIM-" + nonce + "-" + index,
+    })),
+    ...ownedEmployees.map((employee, index) => ({
+      organizationId: orgs[index + 1].id, employeeId: employee.id, type: "laptop",
+      name: "Attacker-owned asset " + nonce + "-" + index,
+      serialNumber: "OWN-" + nonce + "-" + index,
+    })),
+  ]).returning({ id: assets.id, organizationId: assets.organizationId, name: assets.name });
+  const syntheticDocuments = await db.insert(documents).values(
+    [...victimEmployees, ...ownedEmployees].map((employee, index) => {
+      const own = index < 8 ? 0 : index - 7;
+      const bytes = Buffer.from("FICTIONAL-DOCUMENT-" + nonce + "-" + index);
+      return {
+        organizationId: orgs[own].id, employeeId: employee.id,
+        kind: "onboarding", fileName: "fictional-evidence-" + nonce + "-" + index + ".txt",
+        mimeType: "text/plain", byteSize: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        scannedClean: true, scanNote: "Synthetic metadata acceptance only",
+        uploadedBy: owners[own].name, uploadedByUserId: owners[own].id,
+        sourceType: "upload", content: bytes.toString("base64"),
+      };
+    }),
+  ).returning({ id: documents.id, organizationId: documents.organizationId });
+  const syntheticLeavePolicies = await db.insert(leavePolicies).values(orgs.map((org) => ({
+    organizationId: org.id, leaveType: "Vacation", annualDays: "12.0",
+    payTreatment: "paid", paidPercentage: "100.00", active: true,
+  }))).returning({ id: leavePolicies.id, organizationId: leavePolicies.organizationId });
+  const syntheticApprovalChains = await db.insert(approvalChainPolicies).values(orgs.map((org, index) => ({
+    organizationId: org.id, code: "CI-" + nonce + "-" + index,
+    name: "Fictional approval chain " + index,
+    purpose: "automation", steps: [], active: true, createdByUserId: owners[index].id,
+  }))).returning({ id: approvalChainPolicies.id, organizationId: approvalChainPolicies.organizationId });
+
   const scimWorkers = await db.insert(users).values([
     ...Array.from({ length: 8 }, (_, idx) => ({
       email: "victim-scim-" + idx + "-" + nonce + "@example.invalid",
@@ -219,6 +258,7 @@ async function makeFixture() {
   }))).returning({ id: providerEvents.id, organizationId: providerEvents.organizationId });
 
   const highIds = [
+    syntheticAssets[7].id, syntheticDocuments[7].id,
     victimEmployees.at(-1).id, victimRuns.at(-1).id,
     slips[7].id, identities[7].id, victimSessions.at(-1).id, victimUnits.at(-1).id,
   ];
@@ -230,6 +270,7 @@ async function makeFixture() {
   return {
     orgs, owners, entities, ownedUnits, victimEmployees, ownedEmployees, identities,
     victimRuns, ownRuns, slips, events, tokenSets, ownerSessions, victimSessions,
+    syntheticAssets, syntheticDocuments, syntheticLeavePolicies, syntheticApprovalChains,
     victimEmployee: victimEmployees.at(-1), victimIdentity: identities[7],
     victimScimEmail: scimWorkers[7].email,
     victimSlip: slips[7], victimRun: victimRuns.at(-1), victimUnit: victimUnits.at(-1),
@@ -314,6 +355,10 @@ async function verifyCrossTenant(f) {
   const victimEmployeeIdsBefore = (await db.select({ id: employees.id }).from(employees)
     .where(eq(employees.organizationId, victim.id))).map((r) => r.id).sort((a,b) => a-b);
   const victimOwnerBefore = (await db.select().from(users).where(eq(users.id, f.owners[0].id)))[0];
+  const victimAssetsBefore = await db.select().from(assets)
+    .where(eq(assets.organizationId, victim.id)).orderBy(assets.id);
+  const victimDocumentsBefore = await db.select().from(documents)
+    .where(eq(documents.organizationId, victim.id)).orderBy(documents.id);
   const eventIdsBefore = (await db.select().from(providerEvents)
     .where(eq(providerEvents.organizationId, victim.id))).map((e) => e.id).sort((a,b) => a-b);
 
@@ -345,8 +390,141 @@ async function verifyCrossTenant(f) {
     expectStatus(await request("/api/v1/payslips/" + ownSlip, { bearer: creds.bearer }), 200,
       "Attacker " + idx + " payslip own control");
 
+    // Three-tenant real-HTTP read proof, against two independent attacker sessions.
+    // Each successful request must resolve seeded own records BEFORE the denial
+    // assertions; an empty/unauthenticated response cannot count as isolation.
+    const ownDashboard = expectStatus(await request("/api/dashboard?organizationId=" + attacker.id, { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " owns the requested dashboard");
+    assert.equal(ownDashboard.json?.selectedOrganization?.id, attacker.id,
+      "Dashboard must not silently switch to another employer");
+    assert.ok(Array.isArray(ownDashboard.json?.employees) &&
+      ownDashboard.json.employees.some((row) => row.id === ownEmployee),
+      "Dashboard must expose the seeded own employee as positive proof");
+    assert.ok(!ownDashboard.json.employees.some((row) => f.victimEmployees.some((v) => v.id === row.id)),
+      "Dashboard leaked a victim-only employee");
+    expectStatus(await request("/api/dashboard?organizationId=" + victim.id, { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not read the victim dashboard");
+
+    const ownDirectory = expectStatus(await request("/api/employees?organizationId=" + attacker.id, { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " owns employee directory");
+    assert.ok(Array.isArray(ownDirectory.json), "Employee directory positive must return real rows");
+    ownOnly(ownDirectory.json, ownEmployee, f.victimEmployees.map((v) => v.id),
+      "Attacker " + idx + " employee directory must exclude every victim-only worker");
+    assert.ok(ownDirectory.json.every((row) => row.organizationId === attacker.id),
+      "Employee directory must not return another organization's staff");
+    expectStatus(await request("/api/employees?organizationId=" + victim.id, { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not list the victim directory");
+
+    const ownRunList = expectStatus(await request("/api/payroll-runs?organizationId=" + attacker.id, { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " owns payroll run list");
+    assert.ok(Array.isArray(ownRunList.json?.runs), "Payroll run list positive must return a real array");
+    ownOnly(ownRunList.json.runs, ownRun, f.victimRuns.map((r) => r.id),
+      "Attacker " + idx + " payroll runs must exclude victim-only runs");
+    assert.ok(ownRunList.json.runs.every((run) => run.organizationId === attacker.id),
+      "Payroll run list leaked a foreign-employer payroll record");
+    expectStatus(await request("/api/payroll-runs?organizationId=" + victim.id, { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not list victim payroll runs");
+    expectStatus(await request("/api/payroll-runs?organizationId=" + attacker.id +
+      "&runId=" + f.victimRun.id + "&include=entries", { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not read a victim-only run register through a forged employer ID");
+
+    // Every additional GET requires a real own row, plus a foreign-org denial.
+    const ownAssetsResult = expectStatus(await request("/api/assets?organizationId=" + attacker.id, { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " asset inventory own-positive");
+    assert.ok(Array.isArray(ownAssetsResult.json), "Assets GET must return a real array");
+    ownOnly(ownAssetsResult.json, f.syntheticAssets[8 + idx - 1].id,
+      f.syntheticAssets.slice(0, 8).map((asset) => asset.id), "Assets list must exclude victim-only assets");
+    assert.ok(ownAssetsResult.json.every((row) => row.organizationId === attacker.id),
+      "Asset list must remain in the caller's employer");
+    expectStatus(await request("/api/assets?organizationId=" + victim.id, { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not read victim-only asset inventory");
+
+    const ownDocumentsResult = expectStatus(await request("/api/documents?organizationId=" + attacker.id, { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " document metadata own-positive");
+    ownOnly(ownDocumentsResult.json.documents, f.syntheticDocuments[8 + idx - 1].id,
+      f.syntheticDocuments.slice(0, 8).map((doc) => doc.id), "Document metadata must exclude victim-only files");
+    expectStatus(await request("/api/documents?organizationId=" + victim.id, { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not read victim document metadata");
+
+    const ownApprovalsResult = expectStatus(await request("/api/approval-chains?organizationId=" + attacker.id, { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " approval policy own-positive");
+    ownOnly(ownApprovalsResult.json.policies, f.syntheticApprovalChains[idx].id,
+      [f.syntheticApprovalChains[0].id], "Approval policies must exclude victim-only policy");
+    expectStatus(await request("/api/approval-chains?organizationId=" + victim.id, { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not read victim approval policies");
+
+    const ownLeaveResult = expectStatus(await request("/api/leave/balances?organizationId=" + attacker.id + "&asOf=2026-10-19", { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " leave balance own-positive");
+    ownOnly(ownLeaveResult.json.balances, ownEmployee,
+      f.victimEmployees.map((worker) => worker.id), "Leave balances must exclude victim-only workers", "employeeId");
+    assert.ok(ownLeaveResult.json.policies.some((policy) => policy.id === f.syntheticLeavePolicies[idx].id),
+      "The own employer must have a real seeded leave policy");
+    expectStatus(await request("/api/leave/balances?organizationId=" + victim.id + "&asOf=2026-10-19", { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not read victim leave balances");
+
+    const ownComplianceResult = expectStatus(await request("/api/compliance/calendar?organizationId=" + attacker.id, { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " statutory calendar own-positive");
+    assert.ok(Array.isArray(ownComplianceResult.json?.applicableMonths) &&
+      ownComplianceResult.json.applicableMonths.includes("2026-10") &&
+      Array.isArray(ownComplianceResult.json.items),
+      "Calendar must be backed by the caller's real seeded payroll period");
+    expectStatus(await request("/api/compliance/calendar?organizationId=" + victim.id, { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not read victim statutory calendar");
+
+    // Asset POST/PATCH/DELETE: positive owned changes, then real foreign-ID
+    // denials, including a forged organizationId and a real victim employeeId.
+    const ownCreatedAsset = expectStatus(await request("/api/assets", {
+      method: "POST", cookie: attackerCookie,
+      body: { organizationId: attacker.id, employeeId: ownEmployee,
+        type: "laptop", name: "Fictional owned-created asset " + idx },
+    }), 201, "Attacker " + idx + " must create an asset only in its own employer");
+    const [createdAssetRow] = await db.select().from(assets)
+      .where(eq(assets.id, ownCreatedAsset.json.id));
+    assert.equal(createdAssetRow.organizationId, attacker.id,
+      "POST must persist only against the authorized owning employer");
+    expectStatus(await request("/api/assets", {
+      method: "POST", cookie: attackerCookie,
+      body: { organizationId: victim.id, employeeId: f.victimEmployee.id,
+        type: "laptop", name: "FORGED VICTIM ASSET" },
+    }), 403, "Attacker " + idx + " must not POST a victim asset");
+    expectStatus(await request("/api/assets", {
+      method: "POST", cookie: attackerCookie,
+      body: { organizationId: attacker.id, employeeId: f.victimEmployee.id,
+        type: "laptop", name: "FORGED VICTIM WORKER" },
+    }), 404, "Attacker " + idx + " must not bind a victim-only employee");
+
+    const ownPatchedAsset = expectStatus(await request("/api/assets", {
+      method: "PATCH", cookie: attackerCookie,
+      body: { id: f.syntheticAssets[8 + idx - 1].id,
+        name: "Fictional owned-updated asset " + idx },
+    }), 200, "Attacker " + idx + " may edit its own seeded asset");
+    assert.equal(ownPatchedAsset.json.organizationId, attacker.id);
+    expectStatus(await request("/api/assets", {
+      method: "PATCH", cookie: attackerCookie,
+      body: { id: f.syntheticAssets[7].id, organizationId: attacker.id,
+        name: "FORGED VICTIM ASSET PATCH" },
+    }), 403, "Attacker " + idx + " must not PATCH a real victim-only asset");
+
+    const ownDeletedAsset = expectStatus(await request("/api/assets?id=" + ownCreatedAsset.json.id, {
+      method: "DELETE", cookie: attackerCookie,
+    }), 200, "Attacker " + idx + " may delete the disposable own-created asset");
+    assert.equal(ownDeletedAsset.json.success, true);
+    const [stillCreated] = await db.select().from(assets)
+      .where(eq(assets.id, ownCreatedAsset.json.id));
+    assert.equal(stillCreated, undefined, "Own DELETE must actually remove a real own asset");
+    expectStatus(await request("/api/assets?id=" + f.syntheticAssets[7].id, {
+      method: "DELETE", cookie: attackerCookie,
+    }), 403, "Attacker " + idx + " must not DELETE a real victim-only asset");
+
     expectStatus(await request("/api/v1/employees/" + checkVictimId, { bearer: creds.bearer }), 404,
       "Attacker " + idx + " must not GET victim employee");
+    const ownV1Patch = expectStatus(await request("/api/v1/employees/" + ownEmployee, {
+      method: "PATCH", bearer: creds.bearer,
+      body: { title: "Fictional own-tenant profile patch " + idx },
+    }), 200, "Attacker " + idx + " must PATCH only its own employee");
+    assert.equal(ownV1Patch.json.id, ownEmployee);
+    assert.equal(ownV1Patch.json.organizationId, attacker.id);
+
     expectStatus(await request("/api/v1/employees/" + checkVictimId, {
       bearer: creds.bearer, method: "PATCH",
       body: { title: "UNAUTHORIZED CHANGE", organizationId: victim.id },
@@ -374,9 +552,26 @@ async function verifyCrossTenant(f) {
     assert.equal(created.organizationId, attacker.id,
       "Attacker " + idx + " body organizationId must be ignored in favor of API token");
 
+    const ownV1Delete = expectStatus(await request("/api/v1/employees/" + created.id, {
+      method: "DELETE", bearer: creds.bearer,
+    }), 200, "Attacker " + idx + " must offboard only its own new fictional employee");
+    assert.equal(ownV1Delete.json.id, created.id);
+    assert.equal(ownV1Delete.json.status, "Separating");
+    const [separatedOwn] = await db.select().from(employees).where(eq(employees.id, created.id));
+    assert.equal(separatedOwn.organizationId, attacker.id);
+    assert.equal(separatedOwn.status, "Separating");
+
     expectStatus(await request("/api/scim/v2/Users/" + f.victimIdentity.id, {
       scim: creds.scim,
     }), 404, "Attacker " + idx + " must not GET victim SCIM identity");
+    const ownScimPatch = expectStatus(await request("/api/scim/v2/Users/" + ownIdentity, {
+      method: "PATCH", scim: creds.scim,
+      body: { Operations: [{ op: "replace", path: "displayName",
+        value: "Fictional own-tenant SCIM profile " + idx }] },
+    }), 200, "Attacker " + idx + " must PATCH only its own SCIM identity");
+    assert.equal(Number(ownScimPatch.json.id), ownIdentity);
+    assert.equal(ownScimPatch.json.displayName, "Fictional own-tenant SCIM profile " + idx);
+
     expectStatus(await request("/api/scim/v2/Users/" + f.victimIdentity.id, {
       method: "PATCH", scim: creds.scim,
       body: { Operations: [{ op: "replace", path: "active", value: false }],
@@ -436,11 +631,27 @@ async function verifyCrossTenant(f) {
     assert.equal(createdMembership?.orgUnitId, ownUnit,
       "SCIM must not grant unscoped company-wide access or accept a victim department");
 
+    const ownScimDelete = expectStatus(await request("/api/scim/v2/Users/" + Number(ownScimCreate.json.id), {
+      method: "DELETE", scim: creds.scim,
+    }), 204, "Attacker " + idx + " must deactivate only its own new SCIM account");
+    const [deactivatedOwn] = await db.select().from(scimIdentities)
+      .where(eq(scimIdentities.id, Number(ownScimCreate.json.id)));
+    assert.equal(deactivatedOwn.organizationId, attacker.id);
+    assert.equal(deactivatedOwn.active, false);
+
     const ownSessions = list(await request("/api/account/sessions", {
       cookie: attackerCookie,
     }), "sessions", "Attacker " + idx + " account sessions");
     assert.ok(ownSessions.some((s) => s.id === f.ownerSessions[idx].id));
     assert.ok(!ownSessions.some((s) => s.id === f.victimSessions.at(-1).id));
+    const disposableOwnSession = await makeSession(owner.id);
+    const ownSessionDelete = expectStatus(await request("/api/account/sessions", {
+      method: "DELETE", cookie: attackerCookie, body: { id: disposableOwnSession.id },
+    }), 200, "Attacker " + idx + " may revoke its own disposable session");
+    assert.equal(ownSessionDelete.json.revoked, 1);
+    const [revokedOwn] = await db.select().from(sessions).where(eq(sessions.id, disposableOwnSession.id));
+    assert.ok(revokedOwn.revokedAt !== null, "Own session revocation must persist");
+
     expectStatus(await request("/api/account/sessions", {
       method: "DELETE", cookie: attackerCookie,
       body: { id: f.victimSessions.at(-1).id, organizationId: victim.id },
@@ -503,6 +714,10 @@ async function verifyCrossTenant(f) {
       ": own credential controls, victim-only high IDs, SCIM, v1, account, jobs and mutations");
   }
 
+  const victimAssetsAfter = await db.select().from(assets)
+    .where(eq(assets.organizationId, victim.id)).orderBy(assets.id);
+  const victimDocumentsAfter = await db.select().from(documents)
+    .where(eq(documents.organizationId, victim.id)).orderBy(documents.id);
   const victimEmployeeAfter = (await db.select().from(employees)
     .where(eq(employees.id, checkVictimId)))[0];
   const victimScimAfter = (await db.select().from(scimIdentities)
@@ -518,6 +733,10 @@ async function verifyCrossTenant(f) {
   const victimEventsAfter = (await db.select().from(providerEvents)
     .where(eq(providerEvents.organizationId, victim.id))).map((e) => e.id).sort((a,b) => a-b);
 
+  assert.deepEqual(victimAssetsAfter, victimAssetsBefore,
+    "Victim asset rows must remain byte-for-byte unchanged after denied foreign POST/PATCH/DELETE");
+  assert.deepEqual(victimDocumentsAfter, victimDocumentsBefore,
+    "Victim document metadata and content must remain unchanged after foreign read attempts");
   assert.deepEqual(victimEmployeeAfter, victimEmployeeBefore,
     "Cross-tenant employee PATCH/DELETE must have no victim side effects");
   assert.deepEqual(victimScimAfter, victimScimBefore,
