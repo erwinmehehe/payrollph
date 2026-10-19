@@ -50,7 +50,15 @@ function validBatch(v: unknown, organizationId: number, legalEntityId: number): 
     optional(v.filingCheck.filingEmployeeCount, count) &&
     optional(v.filingCheck.filingTotal, number) &&
     optional(v.filingCheck.employeeCountDifference, number) &&
-    optional(v.filingCheck.totalDifference, number);
+    optional(v.filingCheck.totalDifference, number) &&
+    // A matched/mismatched accepted filing must carry actual filing evidence.
+    // Otherwise the UI's nullish-to-zero presentation could invent a zero total.
+    (v.filingCheck.status === "unverified" ||
+      (id(v.filingCheck.filingRecordId) &&
+       count(v.filingCheck.filingEmployeeCount) &&
+       number(v.filingCheck.filingTotal) &&
+       number(v.filingCheck.employeeCountDifference) &&
+       number(v.filingCheck.totalDifference)));
 }
 
 function validMember(v: unknown, organizationId: number, validBatches: Set<number>): v is Record<string, unknown> {
