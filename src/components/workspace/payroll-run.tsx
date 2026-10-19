@@ -132,32 +132,45 @@ export function PayrollRunView({
 
   // The selected register only renders a tenant-verified API response.
   // Cached dashboard entries are not a substitute for an authoritative run read.
-  const [fetched, setFetched] = useState<{ organizationId: number; runId: number; entries: PayrollEntry[] } | null>(null);
+  const [fetched, setFetched] = useState<{ scopeKey: string; entries: PayrollEntry[] } | null>(null);
   const [registerRevision, setRegisterRevision] = useState(0);
-  const [failedRunId, setFailedRunId] = useState<number | null>(null);
+  const [failedScopeKey, setFailedScopeKey] = useState<string | null>(null);
   const runId = run?.id;
+  // A changed employer, payroll snapshot or retry instantly invalidates the
+  // old register before React can execute a new effect.
+  const registerScopeKey = JSON.stringify({
+    organizationId: data.selectedOrganization.id,
+    runId: runId ?? null,
+    periodStart: run?.periodStart ?? null,
+    periodEnd: run?.periodEnd ?? null,
+    status: run?.status ?? null,
+    grossPay: run?.grossPay ?? null,
+    netPay: run?.netPay ?? null,
+    employeeCount: run?.employeeCount ?? null,
+    exceptions: run?.exceptions ?? null,
+    ruleVersion: run?.ruleVersion ?? null,
+    registerRevision,
+  });
 
   useEffect(() => {
     if (!runId) return;
-    let alive = true;
-    // Old amounts may never reappear as verified while a retry is pending.
-    setFetched(null);
-    setFailedRunId(null);
-    void readVerifiedPayrollRegister(data.selectedOrganization.id, runId)
+    const controller = new AbortController();
+    const requestScopeKey = registerScopeKey;
+    void readVerifiedPayrollRegister(data.selectedOrganization.id, runId, fetch, controller.signal)
       .then((entries) => {
-        if (!alive) return;
-        setFetched({ organizationId: data.selectedOrganization.id, runId, entries });
-        setFailedRunId(null);
+        if (controller.signal.aborted) return;
+        setFetched({ scopeKey: requestScopeKey, entries });
+        setFailedScopeKey(null);
       })
       .catch(() => {
-        if (!alive) return;
+        if (controller.signal.aborted) return;
         setFetched(null);
-        setFailedRunId(runId);
+        setFailedScopeKey(requestScopeKey);
         setConfirmReleaseForScope(null);
         setReviewOpen(false);
       });
-    return () => { alive = false; };
-  }, [runId, data.selectedOrganization.id, data.payrollRuns, registerRevision]);
+    return () => controller.abort();
+  }, [runId, data.selectedOrganization.id, registerScopeKey]);
 
   // A new snapshot has a new identity even after switching A -> B -> A.
   // This invalidates old readiness synchronously during render, before effects.
@@ -197,10 +210,9 @@ export function PayrollRunView({
     return () => { active = false; controller.abort(); };
   }, [runId, checklistScope]);
 
-  const entriesFailed = failedRunId === runId;
+  const entriesFailed = failedScopeKey === registerScopeKey;
   const entriesVerified = Boolean(
-    fetched && fetched.organizationId === data.selectedOrganization.id &&
-    fetched.runId === runId && !entriesFailed,
+    fetched && fetched.scopeKey === registerScopeKey && !entriesFailed,
   );
   const entries = useMemo(
     () => entriesVerified ? fetched!.entries : [],
@@ -420,7 +432,7 @@ export function PayrollRunView({
             {!payrollOfficerMode && !ownerMode && (
               <button
                 className="secondary-button"
-                disabled={!calculated}
+                disabled={!calculated || !entriesVerified}
                 onClick={() => setExportsOpen((current) => !current)}
                 aria-expanded={exportsOpen}
               >
@@ -442,7 +454,7 @@ export function PayrollRunView({
         events={data.auditEvents}
         checklist={releaseChecklist?.items ?? null}
         role={data.access?.role ?? data.user?.role ?? ""}
-        canOpenExports={availablePages.includes("Exports")}
+        canOpenExports={entriesVerified && availablePages.includes("Exports")}
         onContinue={() => {
           const target = payrollOfficerMode || ownerMode ? "phase-two-role-workflow" : "payroll-workspace";
           document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -924,7 +936,7 @@ export function PayrollRunView({
                     : "Run payout validation before release. Final bank files and payslip downloads stay locked until release."
                 }
                 action={
-                  <button className="secondary-button" disabled={!calculated} onClick={() => setExportsOpen(true)}>
+                  <button className="secondary-button" disabled={!calculated || !entriesVerified} onClick={() => setExportsOpen(true)}>
                     <Download size={14} className="i-teal" /> {released ? "Open exports" : "Validate payout"}
                   </button>
                 }
@@ -932,7 +944,7 @@ export function PayrollRunView({
             </div>
           )}
 
-          {reviewOpen && (
+          {reviewOpen && entriesVerified && (
             <article className="card" style={{ margin: "0 18px 16px", boxShadow: "none" }}>
               <div className="card-header">
                 <div>
@@ -976,7 +988,7 @@ export function PayrollRunView({
             </article>
           )}
 
-          {exportsOpen && (
+          {exportsOpen && entriesVerified && (
             <ExportPanel
               run={run}
               templates={data.templates}
