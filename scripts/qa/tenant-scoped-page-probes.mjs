@@ -69,6 +69,19 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
       if (path !== "src/app/careers/page.tsx") {
         assert.ok(!foreignRes.text.includes("VictimExclusive7"),
           path + " rendered victim-only personnel details");
+        if (foreignRes.text.includes(victimOrgMarker)) {
+          // Fictional fixture only. Log bounded context to find which SSR/RSC
+          // envelope exposed a foreign marker; DO NOT bypass this assertion.
+          const offset = foreignRes.text.indexOf(victimOrgMarker);
+          console.error("PAGE FOREIGN EMPLOYER MARKER (DISPOSABLE FIXTURE)", JSON.stringify({
+            path, ownStatus: ownRes.status, foreignStatus: foreignRes.status,
+            htmlBytes: foreignRes.text.length, markerOffset: offset,
+            responseType: foreignRes.headers.get("content-type") ?? "",
+            nearbyHtml: foreignRes.text.slice(Math.max(0, offset - 140),
+              Math.min(foreignRes.text.length, offset + victimOrgMarker.length + 140))
+              .replaceAll(victimOrgMarker, "[FICTIONAL VICTIM EMPLOYER]"),
+          }));
+        }
         assert.ok(!foreignRes.text.includes(victimOrgMarker),
           path + " rendered victim-exclusive employer name");
       }
