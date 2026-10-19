@@ -18,7 +18,10 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access?.companyWide || !canReadFirstPayrollProgress(access.role))
     return Response.json({error:"Journey progress requires an authorized company-wide role"},{status:403});
-  return Response.json({progress:await readJourneyProgress(organizationId)});
+  return Response.json(
+    { organizationId, progress: await readJourneyProgress(organizationId) },
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
 }
 export async function PATCH(request: Request) {
   if (!(await firstPayrollInlineAvailable()))
