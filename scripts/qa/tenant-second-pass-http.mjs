@@ -753,6 +753,181 @@ async function verifyCrossTenant(f) {
   assertions += 5;
 }
 
+
+/**
+ * Additional real HTTP acceptance on the SAME disposable, three-employer
+ * fixture. No parallel fake-request harness, production data or provider calls.
+ * A seeded attacker-owned resource succeeds before any victim-only denial.
+ */
+async function verifySensitiveTenantDownloadsAndRoles(f) {
+  const victim = f.orgs[0];
+  const victimDocumentsBefore = await db.select().from(documents)
+    .where(eq(documents.organizationId, victim.id)).orderBy(documents.id);
+  const victimLeavePoliciesBefore = await db.select().from(leavePolicies)
+    .where(eq(leavePolicies.organizationId, victim.id)).orderBy(leavePolicies.id);
+  const victimLegalEntitiesBefore = await db.select().from(legalEntities)
+    .where(eq(legalEntities.organizationId, victim.id)).orderBy(legalEntities.id);
+  const [victimEntry] = await db.select({ id: payrollEntries.id }).from(payrollEntries)
+    .where(and(eq(payrollEntries.payrollRunId, f.victimRun.id),
+      eq(payrollEntries.employeeId, f.victimEmployee.id))).limit(1);
+  assert.ok(victimEntry && victimEntry.id > 6,
+    "Direct PDF denial needs a REAL victim-only payroll entry ID greater than six");
+
+  for (const idx of [1, 2]) {
+    const attacker = f.orgs[idx];
+    const attackerCookie = f.ownerSessions[idx].cookie;
+    const ownEmployeeId = f.ownedEmployees[idx - 1].id;
+    const ownDocId = f.syntheticDocuments[8 + idx - 1].id;
+    const victimDocId = f.syntheticDocuments[7].id;
+    const [storedOwnDoc] = await db.select().from(documents)
+      .where(and(eq(documents.id, ownDocId), eq(documents.organizationId, attacker.id)));
+    assert.ok(storedOwnDoc?.scannedClean, "A real owned, clean document is required");
+
+    const ownDocumentDownload = expectStatus(await request("/api/documents/" + ownDocId + "?download=1", {
+      cookie: attackerCookie,
+    }), 200, "Attacker " + idx + " may download a real own-employer attachment");
+    assert.equal(ownDocumentDownload.text, Buffer.from(storedOwnDoc.content, "base64").toString("utf8"),
+      "Document own-positive must return actual seeded bytes, not a successful empty response");
+    assert.match(ownDocumentDownload.headers.get("content-disposition") ?? "", /^attachment;/);
+    expectStatus(await request("/api/documents/" + victimDocId + "?download=1", {
+      cookie: attackerCookie,
+    }), 403, "Attacker " + idx + " must not download existing victim-only document bytes");
+    expectStatus(await request("/api/documents/" + victimDocId, {
+      cookie: attackerCookie,
+    }), 403, "Attacker " + idx + " must not view existing victim-only document inline");
+
+    const ownLegalEntities = expectStatus(await request("/api/legal-entities?organizationId=" +
+      attacker.id + "&mode=selector", { cookie: attackerCookie }), 200,
+      "Attacker " + idx + " may select only its own legal employer");
+    ownOnly(ownLegalEntities.json?.legalEntities, f.entities[idx].id, [f.entities[0].id],
+      "Legal employer selector must exclude a real victim legal entity");
+    expectStatus(await request("/api/legal-entities?organizationId=" +
+      victim.id + "&mode=selector", { cookie: attackerCookie }), 403,
+      "Attacker " + idx + " must not select a victim legal employer");
+
+    const ownLeavePolicy = expectStatus(await request("/api/leave/balances", {
+      method: "POST", cookie: attackerCookie,
+      body: { organizationId: attacker.id, leaveType: "Fictional QA policy " + f.owners[idx].id,
+        annualDays: 9, payTreatment: "paid" },
+    }), 201, "Attacker " + idx + " must create an owned leave policy before foreign denial");
+    const [createdPolicy] = await db.select().from(leavePolicies)
+      .where(eq(leavePolicies.id, ownLeavePolicy.json?.id));
+    assert.equal(createdPolicy?.organizationId, attacker.id,
+      "Owned leave policy POST must persist in the actual caller's employer");
+    expectStatus(await request("/api/leave/balances", {
+      method: "POST", cookie: attackerCookie,
+      body: { organizationId: victim.id, leaveType: "FORGED VICTIM POLICY " + idx,
+        annualDays: 9, payTreatment: "paid" },
+    }), 403, "Attacker " + idx + " must not create or change a victim leave policy");
+
+    // A genuine employee-role account, bound to a real owned worker, is needed:
+    // an invalid/unlinked user yielding 401 or 403 proves nothing about pay.
+    const [employeeAccount] = await db.insert(users).values({
+      email: "fictional-ess-" + idx + "-" + f.owners[idx].id + "@example.invalid",
+      name: "Fictional own employee " + idx,
+      passwordHash: "fixture-only-no-password-login", role: "employee",
+      employeeId: ownEmployeeId,
+    }).returning({ id: users.id });
+    await db.insert(userOrganizations).values({
+      userId: employeeAccount.id, organizationId: attacker.id,
+      role: "employee", active: true,
+    });
+    const employeeCookie = (await makeSession(employeeAccount.id)).cookie;
+    const [coworker] = await db.insert(employees).values({
+      organizationId: attacker.id, legalEntityId: f.entities[idx].id,
+      orgUnitId: f.ownedUnits[idx].id,
+      employeeNo: "CI-COWORKER-" + idx + "-" + employeeAccount.id,
+      firstName: "FictionalCoworker", lastName: "Private",
+      title: "Separate owned worker", avatarInitials: "FC",
+      basicRate: "19000.00", startDate: "2026-10-01",
+    }).returning({ id: employees.id });
+    const [coworkerEntry] = await db.insert(payrollEntries).values({
+      payrollRunId: f.ownRuns[idx].id, employeeId: coworker.id,
+      grossPay: "6000.00", deductions: "500.00", netPay: "5500.00",
+    }).returning({ id: payrollEntries.id });
+    const otherBytes = Buffer.from("SYNTHETIC-COWORKER-PRIVATE-" + coworker.id);
+    const [coworkerDoc] = await db.insert(documents).values({
+      organizationId: attacker.id, employeeId: coworker.id, kind: "onboarding",
+      fileName: "fictional-coworker-" + coworker.id + ".txt", mimeType: "text/plain",
+      byteSize: otherBytes.byteLength, sha256: createHash("sha256").update(otherBytes).digest("hex"),
+      scannedClean: true, scanNote: "Synthetic tenant-role fixture",
+      uploadedBy: f.owners[idx].name, uploadedByUserId: f.owners[idx].id,
+      sourceType: "upload", content: otherBytes.toString("base64"),
+    }).returning({ id: documents.id });
+    const [ownEntry] = await db.select({ id: payrollEntries.id }).from(payrollEntries)
+      .where(and(eq(payrollEntries.payrollRunId, f.ownRuns[idx].id),
+        eq(payrollEntries.employeeId, ownEmployeeId))).limit(1);
+    assert.ok(ownEntry, "ESS positive control needs a real Released, own-worker payroll entry");
+
+    const ownPayslipPdf = expectStatus(await request("/api/self/payslips/" + ownEntry.id, {
+      cookie: employeeCookie,
+    }), 200, "Employee " + idx + " must download a real own payslip PDF");
+    assert.match(ownPayslipPdf.headers.get("content-type") ?? "", /^application\/pdf/);
+    assert.ok(ownPayslipPdf.text.startsWith("%PDF-"), "Own payslip download must contain real PDF bytes");
+    expectStatus(await request("/api/self/payslips/" + victimEntry.id, {
+      cookie: employeeCookie,
+    }), 404, "Employee " + idx + " must not fetch victim-employer payroll PDF by real high entry ID");
+    expectStatus(await request("/api/self/payslips/" + coworkerEntry.id, {
+      cookie: employeeCookie,
+    }), 404, "Employee " + idx + " must not fetch a coworker's payroll PDF in the SAME employer");
+
+    const ownSelfService = expectStatus(await request("/api/self/payslips?organizationId=" +
+      victim.id, { cookie: employeeCookie }), 200,
+      "Employee " + idx + " self-service must ignore forged victim organizationId");
+    assert.equal(ownSelfService.json?.employee?.id, ownEmployeeId);
+    assert.equal(ownSelfService.json?.employer?.id, attacker.id);
+    ownOnly(ownSelfService.json?.payslips, ownEntry.id, [victimEntry.id, coworkerEntry.id],
+      "ESS list must exclude another employer and same-employer coworkers", "entryId");
+
+    const ownWorkerDocument = expectStatus(await request("/api/documents/" + ownDocId + "?download=1", {
+      cookie: employeeCookie,
+    }), 200, "Employee " + idx + " may download own clean file");
+    assert.equal(ownWorkerDocument.text, Buffer.from(storedOwnDoc.content, "base64").toString("utf8"));
+    expectStatus(await request("/api/documents/" + coworkerDoc.id + "?download=1", {
+      cookie: employeeCookie,
+    }), 404, "Employee " + idx + " must not download SAME-employer coworker document");
+    expectStatus(await request("/api/documents/" + victimDocId + "?download=1", {
+      cookie: employeeCookie,
+    }), 404, "Employee " + idx + " must not download victim employer document");
+
+    const ownEmployeeBalances = expectStatus(await request("/api/leave/balances?organizationId=" +
+      attacker.id + "&asOf=2026-10-19", { cookie: employeeCookie }), 200,
+      "Employee " + idx + " must have a real own leave balance before denial");
+    ownOnly(ownEmployeeBalances.json?.balances, ownEmployeeId,
+      [coworker.id, f.victimEmployee.id], "Employee leave balances must be self-only", "employeeId");
+    expectStatus(await request("/api/leave/balances?organizationId=" +
+      victim.id + "&asOf=2026-10-19", { cookie: employeeCookie }), 403,
+      "Employee " + idx + " must not switch to victim leave balances");
+
+    for (const [path, label] of [
+      ["/api/payroll-runs?organizationId=" + attacker.id, "payroll run listing"],
+      ["/api/payroll-runs?runId=" + f.ownRuns[idx].id + "&include=entries", "payroll register"],
+      ["/api/approval-chains?organizationId=" + attacker.id, "approval administration"],
+      ["/api/legal-entities?organizationId=" + attacker.id + "&mode=selector", "legal employer administration"],
+      ["/api/assets?organizationId=" + attacker.id, "company asset administration"],
+    ]) {
+      expectStatus(await request(path, { cookie: employeeCookie }), 403,
+        "Employee " + idx + " must not access privileged " + label);
+    }
+    console.log("PASS additional three-org attacker-" + idx +
+      ": owned attachment, foreign IDs, legal employer, leave mutation, ESS pay and employee role");
+  }
+
+  const victimDocumentsAfter = await db.select().from(documents)
+    .where(eq(documents.organizationId, victim.id)).orderBy(documents.id);
+  const victimLeavePoliciesAfter = await db.select().from(leavePolicies)
+    .where(eq(leavePolicies.organizationId, victim.id)).orderBy(leavePolicies.id);
+  const victimLegalEntitiesAfter = await db.select().from(legalEntities)
+    .where(eq(legalEntities.organizationId, victim.id)).orderBy(legalEntities.id);
+  assert.deepEqual(victimDocumentsAfter, victimDocumentsBefore,
+    "Victim documents and bytes must remain unchanged after foreign direct download attempts");
+  assert.deepEqual(victimLeavePoliciesAfter, victimLeavePoliciesBefore,
+    "Victim leave policies must remain unchanged after forged cross-tenant POST");
+  assert.deepEqual(victimLegalEntitiesAfter, victimLegalEntitiesBefore,
+    "Victim legal employers must remain unchanged after unauthorized selector calls");
+  assertions += 15;
+}
+
 async function main() {
   requireDisposable();
   const f = await makeFixture();
@@ -765,6 +940,7 @@ async function main() {
   assert.deepEqual(afterWebhookProbe, beforeWebhookProbe,
     "Forged provider webhook probes must not insert victim provider events");
   await verifyCrossTenant(f);
+  await verifySensitiveTenantDownloadsAndRoles(f);
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
     result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,
