@@ -136,11 +136,16 @@ export function PayrollRunView({
   const [registerRevision, setRegisterRevision] = useState(0);
   const [failedScopeKey, setFailedScopeKey] = useState<string | null>(null);
   const runId = run?.id;
+  const expectedLegalEntityId = data.multiEntity?.enabled
+    ? data.multiEntity.legalEntityId : run?.legalEntityId ?? null;
+  const selectedEmployerMatches = !data.multiEntity?.enabled ||
+    (expectedLegalEntityId !== null && expectedLegalEntityId === run?.legalEntityId);
   // A changed employer, payroll snapshot or retry instantly invalidates the
   // old register before React can execute a new effect.
   const registerScopeKey = JSON.stringify({
     organizationId: data.selectedOrganization.id,
     runId: runId ?? null,
+    legalEntityId: expectedLegalEntityId,
     periodStart: run?.periodStart ?? null,
     periodEnd: run?.periodEnd ?? null,
     status: run?.status ?? null,
@@ -156,7 +161,7 @@ export function PayrollRunView({
     if (!runId) return;
     const controller = new AbortController();
     const requestScopeKey = registerScopeKey;
-    void readVerifiedPayrollRegister(data.selectedOrganization.id, runId, fetch, controller.signal)
+    void readVerifiedPayrollRegister(data.selectedOrganization.id, runId, fetch, controller.signal, expectedLegalEntityId)
       .then((entries) => {
         if (controller.signal.aborted) return;
         setFetched({ scopeKey: requestScopeKey, entries });
@@ -170,7 +175,7 @@ export function PayrollRunView({
         setReviewOpen(false);
       });
     return () => controller.abort();
-  }, [runId, data.selectedOrganization.id, registerScopeKey]);
+  }, [runId, data.selectedOrganization.id, expectedLegalEntityId, registerScopeKey]);
 
   // A new snapshot has a new identity even after switching A -> B -> A.
   // This invalidates old readiness synchronously during render, before effects.
@@ -212,7 +217,7 @@ export function PayrollRunView({
 
   const entriesFailed = failedScopeKey === registerScopeKey;
   const entriesVerified = Boolean(
-    fetched && fetched.scopeKey === registerScopeKey && !entriesFailed,
+    selectedEmployerMatches && fetched && fetched.scopeKey === registerScopeKey && !entriesFailed,
   );
   const entries = useMemo(
     () => entriesVerified ? fetched!.entries : [],
@@ -609,7 +614,7 @@ export function PayrollRunView({
                 <strong>Bank-file fallback</strong>
                 <p>{visibleReleaseReceipt.bankExport.label}</p>
               </div>
-              <button className="secondary-button" onClick={() => setExportsOpen(true)}>Open exports</button>
+              <button className="secondary-button" disabled={!entriesVerified} onClick={() => setExportsOpen(true)}>Open exports</button>
             </div>
             {visibleReleaseReceipt.payout && (
               <div className="exception-row" style={{ alignItems: "flex-start" }} data-payout-status={visibleReleaseReceipt.payout.status}>
@@ -891,7 +896,7 @@ export function PayrollRunView({
                   ) : (
                     <button
                       className="secondary-button"
-                      disabled={!calculated || released}
+                      disabled={!calculated || released || !entriesVerified}
                       onClick={() => void openReviewSubmission()}
                     >
                       {reviewLoading ? <Spinner label="Loading" /> : <ShieldCheck size={14} className="i-purple" />} Submit for review
