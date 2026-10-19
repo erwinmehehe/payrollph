@@ -180,7 +180,7 @@ export function HrisHomeShortcuts({
                 <strong className="block text-sm text-slate-900">Onboarding follow-ups</strong>
                 <span className="mt-1 block text-xs text-slate-600">
                   {attention.onboarding === null
-                    ? "Onboarding source unavailable — open the checklist to investigate."
+                    ? "Onboarding source unavailable — open the checklist to reload recorded tasks."
                     : attention.onboarding.recordedWorkers === 0
                       ? "No checklists recorded; onboarding is not verified."
                       : `${attention.onboarding.openTasks} open recorded tasks for ${attention.onboarding.openWorkers} workers`}

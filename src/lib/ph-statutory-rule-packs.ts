@@ -7,7 +7,18 @@ export type EffectiveRulePack<T> = {
 };
 
 function validIsoDate(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (typeof value !== "string") return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  // Strict Gregorian dates; Date.UTC normalizes overflow (e.g. Feb 30).
+  if (year < 100 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() + 1 === month &&
+    date.getUTCDate() === day;
 }
 
 export function resolveEffectiveRulePack<T>(

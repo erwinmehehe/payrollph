@@ -18,7 +18,7 @@ import type { DashboardData, PayrollEntry, PayrollRun, Task } from "./types";
 import { Status, formatDate, money } from "./ui";
 
 type ReleaseChecklistItem = {
-  key: "inputs" | "attendance" | "calculation" | "exceptions" | "statutory" | "approval" | "bank";
+  key: "inputs" | "attendance" | "calculation" | "exceptions" | "statutory" | "approval" | "bank" | "connected";
   label: string;
   passed: boolean;
   blocking: boolean;

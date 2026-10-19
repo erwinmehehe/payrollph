@@ -13,12 +13,12 @@ export type HrisHomeShortcut = {
 };
 
 export const HRIS_HOME_SHORTCUTS: readonly HrisHomeShortcut[] = [
-  { id: "directory", title: "Employee directory", description: "Profiles, records and employment details", group: "People", icon: "people", page: "People" },
-  { id: "hiring", title: "Hire & onboard", description: "Open positions, candidates and offers", group: "People", icon: "hire", page: "Recruitment" },
+  { id: "directory", title: "Employee directory", description: "Find employees and view their authorized records", group: "People", icon: "people", page: "People" },
+  { id: "hiring", title: "Hire & onboard", description: "Review candidates, hires and recorded onboarding steps", group: "People", icon: "hire", page: "Recruitment" },
   { id: "documents", title: "Employee documents", description: "Required files and policy acknowledgements", group: "People", icon: "documents", page: "Documents" },
   { id: "leave", title: "Leave requests", description: "Requests, balances and team leave", group: "Operations", icon: "leave", page: "Leave" },
   { id: "attendance", title: "Time & attendance", description: "Time records and exceptions", group: "Operations", icon: "time", page: "Time & attendance" },
-  { id: "approvals", title: "Approvals", description: "Review requests in their governed workflow", group: "Operations", icon: "approvals", page: "Approvals" },
+  { id: "approvals", title: "Approvals", description: "See pending requests; review and decisions stay in Approvals", group: "Operations", icon: "approvals", page: "Approvals" },
   { id: "performance", title: "Performance", description: "Employee goals and review cycles", group: "Talent", icon: "performance", page: "Performance" },
   { id: "reports", title: "People reports", description: "Headcount, turnover and workforce analysis", group: "Talent", icon: "reports", page: "Analytics" },
 ];

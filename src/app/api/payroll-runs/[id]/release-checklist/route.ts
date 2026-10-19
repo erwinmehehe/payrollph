@@ -27,6 +27,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const checklist = await buildPayrollReleaseChecklist(runId);
   if (!checklist) return Response.json({ error: "Payroll run not found." }, { status: 404 });
   return Response.json({
+    organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
     runId,
     ready: checklist.ready,
     items: checklist.items,

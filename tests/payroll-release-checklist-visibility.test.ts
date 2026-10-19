@@ -56,7 +56,15 @@ test("payroll run explicitly aborts obsolete reads and removes synchronous effec
   assert.match(source, /tasks: data\.tasks/);
   assert.match(source, /signal: controller\.signal/);
   assert.match(source, /return \(\) => \{ active = false; controller\.abort\(\); \}/);
-  assert.match(source, /if \(active\) setChecklistObservation\(\{ scope: requestScope, checklist \}\)/);
+  assert.match(source, /const body: unknown = await response\.json\(\)/);
+  assert.match(source, /if \(!isVerifiedReleaseChecklist\(body, \{/,
+    "a 200 response must not bypass complete release-checklist validation");
+  assert.match(source, /organizationId: data\.selectedOrganization\.id,\s*legalEntityId: run\?\.legalEntityId \?\? null,\s*runId,/,
+    "validation must bind the selected employer, legal entity and current run");
+  assert.match(source, /if \(active\) setChecklistObservation\(\{ scope: requestScope, checklist: null \}\)/,
+    "denial, malformed JSON or mismatched employer data must remove release readiness");
+  assert.match(source, /if \(active\) setChecklistObservation\(\{ scope: requestScope, checklist: body \}\)/,
+    "only the verified response may become a visible checklist");
   assert.doesNotMatch(source, /setReleaseChecklist\(null\)/);
 });
 
