@@ -30,6 +30,7 @@ import { WorkforceCoveragePanel } from "./workforce-coverage-panel";
 import { WorkforceTimesheetPanel } from "./workforce-timesheet-panel";
 import { WorkforceTeamRosterPanel } from "./workforce-team-roster-panel";
 import { WorkforceManagerHome } from "./workforce-manager-home";
+import { WorkforceWorkflowShortcuts } from "./workforce-workflow-shortcuts";
 import { phWorkDateAt } from "@/lib/workforce-manager-actions";
 import { WorkforceBulkRosterPreview } from "./workforce-bulk-roster-preview";
 import { WorkforceRosterBatchReviews } from "./workforce-roster-batch-reviews";
@@ -164,7 +165,12 @@ type WorkforcePlannerProps = {
 
 export function WorkforcePlanner(props: WorkforcePlannerProps) {
   // The planner contains employer-private roster data and unsaved schedule drafts.
-  return <WorkforcePlannerContent key={props.data.selectedOrganization.id} {...props} />;
+  return <WorkforcePlannerContent key={JSON.stringify([
+    props.data.selectedOrganization.id,
+    props.data.user?.id ?? null,
+    props.data.access?.role ?? null,
+    props.data.access?.companyWide === true,
+  ])} {...props} />;
 }
 
 function WorkforcePlannerContent({
@@ -183,8 +189,15 @@ function WorkforcePlannerContent({
   const [workspaceTab, setWorkspaceTab] = useState("today");
   const [timesheetPeriod, setTimesheetPeriod] = useState<{ periodStart: string; periodEnd: string }>();
   const openWorkforceTool = (tab: string, period?: { periodStart: string; periodEnd: string }) => {
-    if (tab === "timesheets") setTimesheetPeriod(period);
+    if (tab === "timesheets" && period) setTimesheetPeriod(period);
     setWorkspaceTab(tab);
+  };
+  // Keep the last valid user-selected cutoff when moving to roster, coverage or swaps.
+  // Period dates are navigation context only; they never approve or release a payroll run.
+  const rememberTimesheetPeriod = (period: { periodStart: string; periodEnd: string }) => {
+    if (period.periodStart && period.periodEnd && period.periodStart <= period.periodEnd) {
+      setTimesheetPeriod(period);
+    }
   };
   const [batchRefresh, setBatchRefresh] = useState(0);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -465,7 +478,7 @@ function WorkforcePlannerContent({
       </div>
       <div className="setting-form" style={{ padding: "12px 0", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "end" }}>
         <label>More workforce tools
-          <select id="wfm-tools" value={["today", "team", "approvals"].includes(workspaceTab) ? "" : workspaceTab} onChange={event => { if (event.target.value) setWorkspaceTab(event.target.value); }}>
+          <select id="wfm-tools" value={["today", "team", "approvals"].includes(workspaceTab) ? "" : workspaceTab} onChange={event => { if (event.target.value) openWorkforceTool(event.target.value); }}>
             <option value="" disabled>Select a tool</option>
             <option value="coverage">Coverage & open shifts</option>
             <option value="timesheets">Timesheets & payroll handoff</option>
@@ -480,6 +493,7 @@ function WorkforcePlannerContent({
         </label>
         {!["today", "team", "approvals"].includes(workspaceTab) && <button type="button" className="secondary-button" onClick={() => setWorkspaceTab("approvals")}>Back to approvals</button>}
       </div>
+      <WorkforceWorkflowShortcuts activeTab={workspaceTab} onNavigate={openWorkforceTool} />
       {["today", "approvals"].map(mode => (
         <div key={mode} tabIndex={0} role="tabpanel" id={`wfm-panel-${mode}`} aria-labelledby={`wfm-tab-${mode}`} hidden={workspaceTab !== mode}>
           {workspaceTab === mode && <WorkforceManagerHome organizationId={organizationId} mode={mode as "today" | "approvals"}
@@ -833,7 +847,7 @@ function WorkforcePlannerContent({
       </div>
       <div tabIndex={0} role="tabpanel" id="wfm-panel-team" aria-labelledby="wfm-tab-team" hidden={workspaceTab !== 'team'}>{workspaceTab === "team" && <WorkforceTeamRosterPanel organizationId={organizationId} canManage={canManage || data.access?.role === "manager"} notify={notify} onScheduleChanged={() => { void loadCatalog(); void loadPreview(); }} />}</div>
       <div tabIndex={0} role="tabpanel" id="wfm-panel-coverage" aria-labelledby="wfm-tools" hidden={workspaceTab !== 'coverage'}>{workspaceTab === "coverage" && <WorkforceCoveragePanel key={organizationId} data={data} notify={notify} canManage={canManage} />}</div>
-      <div tabIndex={0} role="tabpanel" id="wfm-panel-timesheets" aria-labelledby="wfm-tools" hidden={workspaceTab !== 'timesheets'}>{workspaceTab === "timesheets" && <WorkforceTimesheetPanel initialPeriod={timesheetPeriod} data={data} notify={notify} canManage={canManage} />}</div>
+      <div tabIndex={0} role="tabpanel" id="wfm-panel-timesheets" aria-labelledby="wfm-tools" hidden={workspaceTab !== 'timesheets'}>{workspaceTab === "timesheets" && <WorkforceTimesheetPanel initialPeriod={timesheetPeriod} onPeriodChange={rememberTimesheetPeriod} data={data} notify={notify} canManage={canManage} />}</div>
       <div tabIndex={0} role="tabpanel" id="wfm-panel-overtime" aria-labelledby="wfm-tools" hidden={workspaceTab !== 'overtime'}>{workspaceTab === "overtime" && <WorkforceOvertimePanel data={data} notify={notify} />}</div>
       <div tabIndex={0} role="tabpanel" id="wfm-panel-swaps" aria-labelledby="wfm-tools" hidden={workspaceTab !== 'swaps'}>{workspaceTab === "swaps" && <WorkforceScheduleSwapPanel data={data} notify={notify} />}</div>
       <div tabIndex={0} role="tabpanel" id="wfm-panel-worksites" aria-labelledby="wfm-tools" hidden={workspaceTab !== 'worksites'}>{workspaceTab === "worksites" && <WorkforceWorksitesPanel data={data} notify={notify} canManage={canManage} />}</div>
