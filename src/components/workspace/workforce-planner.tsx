@@ -32,6 +32,7 @@ import { WorkforceTeamRosterPanel } from "./workforce-team-roster-panel";
 import { WorkforceManagerHome } from "./workforce-manager-home";
 import { WorkforceWorkflowShortcuts } from "./workforce-workflow-shortcuts";
 import { phWorkDateAt } from "@/lib/workforce-manager-actions";
+import { rememberWfmTimecardPeriod } from "@/lib/workforce-manager-navigation";
 import { WorkforceBulkRosterPreview } from "./workforce-bulk-roster-preview";
 import { WorkforceRosterBatchReviews } from "./workforce-roster-batch-reviews";
 
@@ -189,15 +190,13 @@ function WorkforcePlannerContent({
   const [workspaceTab, setWorkspaceTab] = useState("today");
   const [timesheetPeriod, setTimesheetPeriod] = useState<{ periodStart: string; periodEnd: string }>();
   const openWorkforceTool = (tab: string, period?: { periodStart: string; periodEnd: string }) => {
-    if (tab === "timesheets" && period) setTimesheetPeriod(period);
+    if (tab === "timesheets" && period) setTimesheetPeriod(previous => rememberWfmTimecardPeriod(previous, period));
     setWorkspaceTab(tab);
   };
   // Keep the last valid user-selected cutoff when moving to roster, coverage or swaps.
   // Period dates are navigation context only; they never approve or release a payroll run.
   const rememberTimesheetPeriod = (period: { periodStart: string; periodEnd: string }) => {
-    if (period.periodStart && period.periodEnd && period.periodStart <= period.periodEnd) {
-      setTimesheetPeriod(period);
-    }
+    setTimesheetPeriod(previous => rememberWfmTimecardPeriod(previous, period));
   };
   const [batchRefresh, setBatchRefresh] = useState(0);
   const [loadingPreview, setLoadingPreview] = useState(false);
