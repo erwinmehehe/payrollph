@@ -69,4 +69,5 @@ test("HR home exposes only permitted source-navigation attention and never a new
     actions, onPage: () => {}, employees, approvalTasks: [],
   }));
   assert.match(noSource, /Onboarding source unavailable/);
+  assert.match(noSource, /open the checklist to reload recorded tasks/);
 });
