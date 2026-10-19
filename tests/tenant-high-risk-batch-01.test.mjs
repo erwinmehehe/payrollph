@@ -50,7 +50,7 @@ test("every method requires real seeded owner-positive, real victim denial and n
 
 test("self-service routes use real employee sessions and revoke real memberships", () => {
   assert.match(source, /employeeId: f\.ownedEmployees\[idx - 1\]\.id/);
-  assert.match(source, /await makeSession\(account\.id\)/);
+  assert.match(source, /employeeAccounts\.map\(\(account\) => makeSession\(account\.id\)\)/);
   assert.match(source, /await db\.update\(userOrganizations\)\.set\(\{ active: false \}\)/);
   assert.match(source, /assert\.equal\(revoked\[0\]\?\.active, false\)/);
   assert.match(source, /assert\.equal\(destination\[0\]\?\.active, true\)/);
