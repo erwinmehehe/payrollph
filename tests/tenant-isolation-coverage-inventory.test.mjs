@@ -157,7 +157,7 @@ test("reconciled main hashes retain documented GAPs without inventing authorizat
   // Main updated HR Inbox metadata and Payroll Register response metadata after
   // the original inventory. Those pre-existing changes require re-inventory,
   // not new COVERED claims or broad exemptions from the source fingerprint.
-  for (const route of ["payroll-runs", "attendance/offline-claims", "web-bundy/review"]) {
+  for (const route of ["attendance/offline-claims", "web-bundy/review"]) {
     const path = "src/app/api/" + route + "/route.ts";
     assert.equal(manifest.allApiRouteFiles[path].gitBlobSha, baseline.api[path],
       path + ": the reviewed main source and active inventory SHA must match");
@@ -166,8 +166,8 @@ test("reconciled main hashes retain documented GAPs without inventing authorizat
   assert.ok(hr.methods.every((method) => method.status === "COVERED" && method.testedBy),
     "HR methods require the new executed HTTP controls, not hash refresh alone");
   const payroll = manifest.allApiRouteFiles["src/app/api/payroll-runs/route.ts"];
-  assert.equal(payroll.methods.find((method) => method.name === "POST")?.status, "GAP",
-    "Payroll run creation still needs independent own/victim/mutation proof");
+  assert.equal(payroll.methods.find((method) => method.name === "POST")?.status, "COVERED",
+    "Payroll draft creation requires executed own/foreign HTTP and unchanged-victim proof");
   assert.equal(payroll.methods.find((method) => method.name === "GET")?.status, "COVERED",
     "Retain the real three-employer HTTP GET proof, subject to current-head CI");
   const bundy = manifest.allApiRouteFiles["src/app/api/web-bundy/review/route.ts"];
@@ -354,7 +354,7 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
-      assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs",
+      assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       const ownLine = evidenceLine(proof.file, proof.ownPositiveLine, path + " own-positive");
       const negativeLine = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign denial");

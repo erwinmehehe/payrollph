@@ -1,0 +1,132 @@
+name: Fictional payroll E2E centavo and tenant acceptance (no money)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tests/payroll-e2e-fictional-*.test.ts"
+      - "docs/qa/payroll-e2e-*.md"
+      - "src/lib/payroll-engine.ts"
+      - "src/lib/payroll-settlement.ts"
+      - "src/lib/payroll-connected-release-gate-server.ts"
+      - "src/lib/critical-release-flags.ts"
+      - "src/app/api/payroll-runs/route.ts"
+      - "tests/approved-exit-payroll.test.ts"
+      - "src/lib/approved-exit-payroll.ts"
+      - "src/app/api/separation/route.ts"
+      - "scripts/qa/payroll-approved-exit-http.mjs"
+      - "src/lib/payroll-journal-export.ts"
+      - ".github/workflows/payroll-e2e-fictional.yml"
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  fictional-payroll:
+    name: Disposable PG${{ matrix.postgres }} fictional payroll
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: [16, 18]
+    env:
+      TZ: Asia/Manila
+      CI: "true"
+      FAIL_CLOSED_GUARD_BASE_REF: ${{ github.event.pull_request.base.sha }}
+      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+      OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Fetch exact PR base for fail-closed source guards
+        run: git fetch --no-tags --depth=1 origin "$FAIL_CLOSED_GUARD_BASE_REF"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Exact dependency install
+        run: npm ci
+      - name: Ephemeral fictional-test-only encryption keys (not provider keys)
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          totp_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "::add-mask::$totp_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+          echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
+          for key in WORKER_TOKEN READINESS_TOKEN SETUP_TOKEN MALWARE_SCAN_TOKEN; do
+            secret=$(openssl rand -hex 32)
+            echo "::add-mask::$secret"
+            echo "$key=$secret" >> "$GITHUB_ENV"
+          done
+      - name: Create only disposable PG schema (NO repository migration)
+        run: npm run db:push
+      - name: Apply existing CI-only PG16 audit guard to disposable PG
+        if: matrix.postgres == 16
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Targeted pure engine AND real PG integration acceptance
+        run: npx tsx --test --test-concurrency=1 tests/payroll-e2e-fictional-pure.test.ts tests/payroll-e2e-fictional-postgres.test.ts tests/approved-exit-payroll.test.ts
+      - name: Build real HTTP application for approved-exit handoff
+        run: npm run build
+      - name: Start isolated flag-on server (no deployed flag change)
+        env:
+          APPROVED_EXIT_PAYROLL_ENABLED: "true"
+        run: |
+          setsid npm start -- -H 127.0.0.1 > /tmp/payroll-exit-http.log 2>&1 &
+          echo $! > /tmp/payroll-exit-http.pid
+          for attempt in {1..40}; do
+            if curl -fsS "$SECURITY_SMOKE_URL" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/payroll-exit-http.log
+          exit 1
+      - name: Real Separation POST through ordinary payroll and final-pay recomputation
+        env:
+          APPROVED_EXIT_PAYROLL_ENABLED: "true"
+        run: npx tsx scripts/qa/payroll-approved-exit-http.mjs
+      - name: Show isolated server log on failure
+        if: failure()
+        run: cat /tmp/payroll-exit-http.log || true
+      - name: Stop this fixture's HTTP process group before full regression
+        if: always()
+        run: |
+          if test -f /tmp/payroll-exit-http.pid; then
+            server_pid=$(cat /tmp/payroll-exit-http.pid)
+            if [[ "$server_pid" =~ ^[0-9]+$ ]]; then
+              kill -- -"$server_pid" 2>/dev/null || true
+            fi
+          fi
+      - name: Exact full npm test inventory (PG16 only, one isolated service)
+        if: matrix.postgres == 16
+        run: npm test
