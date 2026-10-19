@@ -278,5 +278,7 @@ test("People UI preserves existing lifecycle tools and supports safe navigation"
   assert.ok(inbox.includes("hcmResponseMatchesReadScope(body, scope)"),
     "HTTP responses must prove tenant and selected legal employer before display");
   assert.ok(inbox.includes("response?.key === requestKey"));
+  assert.ok(inbox.includes("isVerifiedPeopleOperationsPayload(body, filters.page)"));
+  assert.ok(inbox.includes('error ? "Retry inbox" : "Refresh"'));
   assert.ok(!inbox.includes('method: "POST"'));
 });

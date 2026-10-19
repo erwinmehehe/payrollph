@@ -142,7 +142,8 @@ try {
   await complete(await requestId("people-operations-inbox?organizationId=2"), {error:"Current inbox unavailable"}, 503);
   await visible("Current inbox unavailable");
   await absent("STALE_INBOX_ERROR");
-  await page.getByRole("button",{name:"Refresh",exact:true}).click();
+  // The inbox exposes a recovery-specific label after a failed employer-scoped read.
+  await page.getByRole("button",{name:"Retry inbox",exact:true}).click();
   await absent("Current inbox unavailable");
   await visible("Loading tenant-scoped HR follow-ups…");
   await complete(await requestId("people-operations-inbox?organizationId=2"), {organizationId:1,items:[{employeeName:"FOREIGN_INBOX_WORKER"}]});

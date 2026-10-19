@@ -31,21 +31,23 @@ export async function GET(request: Request) {
   if (membership?.role === "employee") {
     if (!user.employeeId) return failure("Employee account must be linked.", 403);
     const rows = await db.select({
-      id: offlinePunchClaims.id, actionType: offlinePunchClaims.actionType,
+      id: offlinePunchClaims.id, organizationId: offlinePunchClaims.organizationId,
+      actionType: offlinePunchClaims.actionType,
       claimedAt: offlinePunchClaims.claimedAt, status: offlinePunchClaims.status,
       createdAt: offlinePunchClaims.createdAt,
     }).from(offlinePunchClaims).where(and(
       eq(offlinePunchClaims.organizationId, organizationId),
       eq(offlinePunchClaims.employeeId, user.employeeId),
     )).orderBy(desc(offlinePunchClaims.createdAt)).limit(40);
-    return Response.json({ claims: rows }, { headers: { "Cache-Control": "private,no-store" } });
+    return Response.json({ organizationId, claims: rows }, { headers: { "Cache-Control": "private,no-store" } });
   }
   const deniedRole = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES);
   if (deniedRole) return deniedRole;
   const access = await getAccess(user.id, organizationId);
   if (!access || !["owner","admin","hr"].includes(access.role)) return failure("Authorized HR reviewers only.", 403);
   const rows = await db.select({
-    id: offlinePunchClaims.id, employeeId: offlinePunchClaims.employeeId,
+    id: offlinePunchClaims.id, organizationId: offlinePunchClaims.organizationId,
+    employeeId: offlinePunchClaims.employeeId,
     submittedByUserId: offlinePunchClaims.submittedByUserId,
     actionType: offlinePunchClaims.actionType, claimedAt: offlinePunchClaims.claimedAt,
     status: offlinePunchClaims.status, createdAt: offlinePunchClaims.createdAt,
@@ -57,7 +59,7 @@ export async function GET(request: Request) {
       eq(employees.organizationId, organizationId),
       access.companyWide ? undefined : eq(employees.orgUnitId, access.orgUnitId!),
     )).orderBy(desc(offlinePunchClaims.createdAt)).limit(100);
-  return Response.json({ claims: rows.map(row => ({
+  return Response.json({ organizationId, claims: rows.map(row => ({
     ...row, employeeName: row.firstName + " " + row.lastName,
     firstName: undefined, lastName: undefined,
   })) }, { headers: { "Cache-Control": "private,no-store" } });
