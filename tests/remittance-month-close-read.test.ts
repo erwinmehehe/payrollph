@@ -95,3 +95,44 @@ test("the client refuses incomplete read and re-reads after write before showing
   assert.match(ui, /verified\?\.certificationValid && verified\.closure\?\.snapshotHash === requestedSnapshot/);
   assert.doesNotMatch(ui, /setState\(body as CloseState\)/);
 });
+
+
+test("new method-level tenant proof survives CI/source drift (GET and POST)", () => {
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const path = "src/app/api/compliance/remittance-month-close/route.ts";
+  const record = manifest.allApiRouteFiles[path];
+  assert.equal(manifest.metrics.methods, 489);
+  assert.equal(manifest.metrics.coveredAfter, 45);
+  assert.equal(manifest.metrics.gap, 438);
+  const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
+  const readLine = (number: number) => {
+    assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);
+    return harnessLines[number - 1];
+  };
+  for (const name of ["GET", "POST"]) {
+    const method = record.methods.find((candidate: { name: string }) => candidate.name === name);
+    assert.equal(method?.status, "COVERED", name + " must not borrow an anonymous 403");
+    assert.equal(method?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
+    const own = readLine(method.testedBy.ownPositiveLine);
+    const foreign = readLine(method.testedBy.foreignDenialLine);
+    const victimUnchanged = readLine(method.testedBy.unchangedDbLine);
+    assert.ok(own.includes("/api/compliance/remittance-month-close") && own.includes("), 200,"),
+      name + ": actual own employer positive 200 required");
+    assert.ok(foreign.includes("/api/compliance/remittance-month-close") &&
+      foreign.includes("victim.id") && foreign.includes("), 403,"),
+      name + ": real victim employer exact 403 required");
+    assert.match(victimUnchanged, /assert\.deepEqual\(victimClosuresAfter, victimClosuresBefore/);
+    if (name === "POST") {
+      assert.ok(own.includes('method: "POST"') && foreign.includes('method: "POST"'));
+      assert.ok(harnessLines.some(line => line.includes("persistedClosure?.id, ownMonthClosePost.json.closure.id")),
+        "Own POST must persist actual certifying record, not just succeed with a stub");
+    }
+  }
+  assert.ok(harnessLines.some(line => line.includes('await verifyRemittanceMonthCloseTenantProof(f);')),
+    "Method-level test must be executed by existing real-HTTP disposable PG16 job");
+  assert.ok(harnessLines.some(line => line.includes('period = "2026-09"')));
+  assert.ok(harnessLines.some(line => line.includes('status: "reconciled"')));
+  assert.ok(harnessLines.some(line => line.includes('fileSha256: createHash("sha256")')));
+  assert.ok(harnessLines.some(line => line.includes('assert.deepEqual(victimBatchesAfter, victimBatchesBefore')));
+  assert.ok(harnessLines.some(line => line.includes('assert.deepEqual(victimEvidenceAfter, victimEvidenceBefore')));
+});
