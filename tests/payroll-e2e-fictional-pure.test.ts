@@ -305,6 +305,31 @@ test("S23-S25: 13th-month exact-centavos, partial year, final pay floor and sign
     taxAdjustment: "-7500.00", finalStatutoryDeductions: "0.00", loanDeductions: "0.00" }), -7500);
 });
 
+test("S25 flagged signed review and exact 13th-month remain local to test process", () => {
+  const first = process.env.FINAL_PAY_SIGNED_REVIEW_ENABLED;
+  const second = process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED;
+  try {
+    process.env.FINAL_PAY_SIGNED_REVIEW_ENABLED = "true";
+    process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED = "true";
+    const result = computeFinalPay({
+      releasedBasicYtd: 30000, historicalBasicYtd: 0, unpaidBasicSalary: 0,
+      thirteenthPaidYtd: 1000, grossCompensationYtd: 30000,
+      statutoryContributionsYtd: 0, taxWithheldYtd: 0, mwe: false,
+      leaveMonetizationPay: 0, separationPay: 0, retirementPay: 0,
+      otherBenefits: 0, loanDeductions: 10000,
+    });
+    assert.equal(result.thirteenthDue, 1500);
+    assert.equal(result.netFinalPay, 0, "No negative payout permitted");
+    assert.equal(result.signedNetFinalPay, -8500,
+      "Read-only accounting must preserve unrecovered requested loan amount");
+  } finally {
+    if (first === undefined) delete process.env.FINAL_PAY_SIGNED_REVIEW_ENABLED;
+    else process.env.FINAL_PAY_SIGNED_REVIEW_ENABLED = first;
+    if (second === undefined) delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED;
+    else process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED = second;
+  }
+});
+
 test("S28: 51 half-cent monthly salary buckets accumulate rounded per-worker, not after grand total", () => {
   let grossCentavos = 0;
   for (let i = 1; i <= 51; i++) {
