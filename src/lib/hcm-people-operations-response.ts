@@ -32,7 +32,7 @@ function validRow(value: unknown): boolean {
     text(value.employeeNo) && text(value.employeeName) &&
     CATEGORIES.has(String(value.category)) && PRIORITIES.has(String(value.priority)) &&
     text(value.title) && text(value.detail) && text(value.responsibleTeam) &&
-    PAGES.has(String(value.page)) &&
+    TEAMS.has(value.responsibleTeam) && PAGES.has(String(value.page)) &&
     (value.dueDate === null || date(value.dueDate)) &&
     (value.daysUntil === null ||
       (typeof value.daysUntil === "number" && Number.isSafeInteger(value.daysUntil)));
@@ -70,6 +70,10 @@ export function isVerifiedPeopleOperationsPayload(
   if (new Set(value.rows.map((row: Record<string, unknown>) => row.id)).size !== value.rows.length) return false;
 
   const seenTeams = new Set<string>();
+  let teamTotal = 0;
+  let teamReview = 0;
+  let teamOverdue = 0;
+  let teamDueWithin7 = 0;
   for (const candidate of value.teamLoad) {
     if (!object(candidate) || !text(candidate.team) || !TEAMS.has(candidate.team) ||
         seenTeams.has(candidate.team) ||
@@ -78,6 +82,16 @@ export function isVerifiedPeopleOperationsPayload(
         Number(candidate.overdue) > Number(candidate.total) ||
         Number(candidate.dueWithin7) > Number(candidate.total)) return false;
     seenTeams.add(candidate.team);
+    teamTotal += Number(candidate.total);
+    teamReview += Number(candidate.review);
+    teamOverdue += Number(candidate.overdue);
+    teamDueWithin7 += Number(candidate.dueWithin7);
   }
-  return true;
+  // Each generated work item has exactly one controlled source-owner team.
+  // A truncated team-load array must not look like a complete HR triage snapshot.
+  return [teamTotal, teamReview, teamOverdue, teamDueWithin7].every(Number.isSafeInteger) &&
+    teamTotal === Number(summary.total) &&
+    teamReview === Number(summary.review) &&
+    teamOverdue === Number(attention.overdue) &&
+    teamDueWithin7 === Number(attention.dueToday) + Number(attention.dueNext7);
 }

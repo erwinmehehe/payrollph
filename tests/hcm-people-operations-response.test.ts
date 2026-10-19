@@ -47,3 +47,25 @@ test("pagination, duplicate identities and impossible counts are rejected", () =
   assert.equal(isVerifiedPeopleOperationsPayload({ ...valid, rows: [{ ...valid.rows[0], daysUntil: NaN }] }, 1), false);
   assert.equal(isVerifiedPeopleOperationsPayload(valid, 2), true, "Server may safely clamp an out-of-range page");
 });
+
+
+test("incomplete team breakdown and unknown row team fail closed", () => {
+  const team = valid.teamLoad[0];
+  assert.equal(isVerifiedPeopleOperationsPayload({ ...valid, teamLoad: [] }, 1), false,
+    "A positive queue must have a reconciled team breakdown");
+  assert.equal(isVerifiedPeopleOperationsPayload({
+    ...valid, teamLoad: [{ ...team, total: 0, review: 0, overdue: 0 }],
+  }, 1), false, "A partial team breakdown must not conceal active work");
+  assert.equal(isVerifiedPeopleOperationsPayload({
+    ...valid, teamLoad: [{ ...team, review: 0 }],
+  }, 1), false, "Team review count must reconcile to the summary");
+  assert.equal(isVerifiedPeopleOperationsPayload({
+    ...valid, teamLoad: [{ ...team, overdue: 0 }],
+  }, 1), false, "Team overdue count must reconcile to the attention bucket");
+  assert.equal(isVerifiedPeopleOperationsPayload({
+    ...valid, teamLoad: [{ ...team, dueWithin7: 1 }],
+  }, 1), false, "Team due-within-seven count must match dated attention");
+  assert.equal(isVerifiedPeopleOperationsPayload({
+    ...valid, rows: [{ ...valid.rows[0], responsibleTeam: "Unrecognized owner team" }],
+  }, 1), false, "Rows must name a controlled source owner team");
+});
