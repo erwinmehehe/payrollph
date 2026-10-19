@@ -284,7 +284,7 @@ export function AnalyticsView({ data, notify, tenantReportBuilderEnabled = false
             <p>
               {visibleState === "ready" && visibleResult
                 ? `${visibleResult.rows.length} row${visibleResult.rows.length === 1 ? "" : "s"} returned${visibleResult.generatedAt ? ` · generated ${new Date(visibleResult.generatedAt).toLocaleTimeString("en-PH")}` : ""}`
-                : "Running the aggregate query…"}
+                : visibleState === "error" ? "Report data was not verified. Retry to load it." : "Running the aggregate query…"}
             </p>
           </div>
           <button
