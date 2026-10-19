@@ -20,7 +20,16 @@ const batch = () => ({
     filingTotal: null, remittanceTotal: 220,
     employeeCountDifference: null, totalDifference: null },
 });
-const snapshot = () => ({ ...empty(), batches: [batch()] });
+const member = () => ({
+  id: 8, organizationId: 14, legalEntityId: 77,
+  batchId: 4, employeeId: 19, employeeNo: "FIC-001",
+  employeeShare: "100.00", employerShare: "120.00", totalContribution: "220.00",
+  postingStatus: "pending", postingReference: null, postedAmount: null,
+  postingEvidenceArtifactId: null, postingEvidenceSource: null,
+  postingEvidenceHashSha256: null, postingEvidenceFileName: null,
+  postingEvidenceByteSize: null, exceptionNote: null,
+});
+const snapshot = () => ({ ...empty(), batches: [batch()], members: [member()] });
 const fake = (r: Response): typeof fetch => (async () => r) as typeof fetch;
 test("verified empty remittance is valid, and populated payment liability remains valid", async () => {
   assert.equal(isVerifiedRemittanceSnapshot(snapshot(), 14, 77), true);
@@ -51,15 +60,30 @@ test("accepted filing cannot masquerade as matched with missing financial eviden
     remittanceEmployeeCount: 1, filingTotal: 220, remittanceTotal: 220,
     employeeCountDifference: 0, totalDifference: 0,
   } };
-  assert.equal(isVerifiedRemittanceSnapshot({ ...empty(), batches: [matched] }, 14, 77), true);
+  assert.equal(isVerifiedRemittanceSnapshot({ ...empty(), batches: [matched], members: [member()] }, 14, 77), true);
   for (const field of ["filingRecordId", "filingEmployeeCount", "filingTotal", "employeeCountDifference", "totalDifference"] as const) {
     const filingCheck = { ...matched.filingCheck, [field]: null };
-    assert.equal(isVerifiedRemittanceSnapshot({ ...empty(), batches: [{ ...matched, filingCheck }] }, 14, 77), false, field);
+    assert.equal(isVerifiedRemittanceSnapshot({ ...empty(), batches: [{ ...matched, filingCheck }], members: [member()] }, 14, 77), false, field);
   }
   assert.equal(isVerifiedRemittanceSnapshot({
-    ...empty(), batches: [{ ...matched, filingCheck: { ...matched.filingCheck, status: "mismatch", filingTotal: null } }],
+    ...empty(), batches: [{ ...matched, filingCheck: { ...matched.filingCheck, status: "mismatch", filingTotal: null } }], members: [member()],
   }, 14, 77), false);
 });
+test("forged reconciliation, foreign members, missing posting proof and inflated counts fail closed", () => {
+  const base = snapshot();
+  assert.equal(isVerifiedRemittanceSnapshot(base, 14, 77), true);
+  assert.equal(isVerifiedRemittanceSnapshot({ ...base, members: [{ ...member(), legalEntityId: 78 }] }, 14, 77), false);
+  assert.equal(isVerifiedRemittanceSnapshot({ ...base, batches: [{ ...batch(), pendingPostingCount: 0 }] }, 14, 77), false);
+  assert.equal(isVerifiedRemittanceSnapshot({ ...base, batches: [{ ...batch(), employeeCount: 0 }] }, 14, 77), false);
+  assert.equal(isVerifiedRemittanceSnapshot({ ...base, batches: [{ ...batch(), paymentShortfall: 0 }] }, 14, 77), false);
+  assert.equal(isVerifiedRemittanceSnapshot({ ...base, batches: [{ ...batch(), status: "invented", displayStatus: "reconciled" }] }, 14, 77), false);
+  assert.equal(isVerifiedRemittanceSnapshot({ ...base, batches: [{
+    ...batch(), status: "reconciled", displayStatus: "reconciled", paymentShortfall: 0,
+    amountPaid: "220.00", hasActivePaymentProof: true,
+  }] }, 14, 77), false, "pending member must prevent a fake reconciled state");
+  assert.equal(isVerifiedRemittanceSnapshot({ ...base, members: [{ ...member(), postingStatus: "confirmed" }] }, 14, 77), false);
+});
+
 test("explicit retry permits a truly empty but verified remittance list", async () => {
   let tries=0;
   const fetcher=(async () => {
