@@ -527,7 +527,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           <>
             {hrisShortcuts.length > 0 && (
               <HrisHomeShortcuts
-                key={data.selectedOrganization.id}
+                key={`hris-home:${data.selectedOrganization.id}`}
                 actions={hrisShortcuts}
                 reviewTeamHref={reviewTeamHref}
                 onPage={setPage}
@@ -557,7 +557,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
             )}
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
-                key={data.selectedOrganization.id}
+                key={`first-payroll-readiness:${data.selectedOrganization.id}`}
                 readiness={data.firstPayrollReadiness}
                 inlineEnabled={inlineFirstPayrollEnabled}
                 guided={isSelfServeCustomer}
