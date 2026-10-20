@@ -348,7 +348,7 @@ export function WorkforceTimesheetPanel({
             })}
           </tbody>
         </table>
-        {(trustedPayload?.employees.length ?? 0) === 0 && (
+        {trustedPayload && trustedPayload.employees.length === 0 && (
           <EmptyState icon={<Clock3 size={20} />} title="No employees in your WFM scope">
             Timesheets appear here when employees are available in the current workforce scope.
           </EmptyState>

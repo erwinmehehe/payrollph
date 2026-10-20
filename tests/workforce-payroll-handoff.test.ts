@@ -149,6 +149,7 @@ test("wired UI renders no payroll-run action while data is loading; restricted r
   assert.match(html, /No payroll-run link is available/);
   assert.doesNotMatch(html, /data-wfm-payroll-run-link|Open payroll run #42/);
   assert.match(html, /Source not verified/);
+  assert.doesNotMatch(html, /No employees in your WFM scope/);
   const restricted = renderToStaticMarkup(createElement(WorkforceTimesheetPanel, {
     data: { ...data, access: { role: "manager", companyWide: false } },
     notify: () => {}, canManage: false,
