@@ -11,11 +11,13 @@ import {
   teamLeaveMonthWindow, TEAM_LEAVE_MONTHS_AHEAD,
   type TeamLeaveCase, type TeamLeaveMonthResponse,
 } from "@/lib/hcm-team-leave-calendar-contract";
+import { scopedReadFailureForHttpStatus, scopedReadFailureMessage, type ScopedReadFailure } from "@/lib/hcm-scoped-read-failure";
 
 type LoadState = {
   requestKey: string;
   status: "ready" | "unavailable";
   payload: TeamLeaveMonthResponse | null;
+  failure?: ScopedReadFailure;
 };
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -70,11 +72,16 @@ export function HcmTeamLeaveCalendar({
     void fetch("/api/hcm/team-leave-calendar?" + params.toString(), {
       cache: "no-store", signal: controller.signal,
     }).then(async (response) => {
-      if (!response.ok) throw new Error("The team leave source is unavailable.");
-      const result = await response.json() as TeamLeaveMonthResponse;
+      if (controller.signal.aborted) return;
+      if (!response.ok) {
+        setLoaded({ requestKey, status: "unavailable", payload: null,
+          failure: scopedReadFailureForHttpStatus(response.status) });
+        return;
+      }
+      const result = await response.json().catch(() => null) as TeamLeaveMonthResponse | null;
       if (controller.signal.aborted) return;
       const expectedDates = teamLeaveMonthWindow(month);
-      if (result.organizationId !== organizationId || result.month !== month ||
+      if (!result || result.organizationId !== organizationId || result.month !== month ||
           result.dates?.start !== expectedDates.start ||
           result.dates?.end !== expectedDates.end ||
           !["company", "unit"].includes(result.scope?.kind) ||
@@ -87,12 +94,13 @@ export function HcmTeamLeaveCalendar({
             entry.startDate > expectedDates.end ||
             entry.endDate < expectedDates.start) ||
            !hasConsistentTeamLeaveSummary(result.summary, result.cases)) {
-        throw new Error("The leave response did not match the selected employer or month.");
+        setLoaded({ requestKey, status: "unavailable", payload: null, failure: "invalid" });
+        return;
       }
       setLoaded({ requestKey, status: "ready", payload: result });
     }).catch(() => {
       if (!controller.signal.aborted) {
-        setLoaded({ requestKey, status: "unavailable", payload: null });
+        setLoaded({ requestKey, status: "unavailable", payload: null, failure: "network" });
       }
     });
     return () => controller.abort();
@@ -205,8 +213,10 @@ export function HcmTeamLeaveCalendar({
           )}
           {active?.status === "unavailable" && (
             <div role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
-              <p>Leave records are unavailable, your scope changed, or the supported month size was exceeded.
-                Previously loaded records were cleared. No missing results are treated as staff availability.</p>
+              <strong>{active.failure === "forbidden" ? "Leave calendar access denied" :
+                active.failure === "sign_in" ? "Sign in required" : "Leave records unavailable"}</strong>
+              <p className="mt-1">{scopedReadFailureMessage(active.failure ?? "server")}</p>
+              <p className="mt-2 text-xs">Previously loaded records were cleared. No missing results are treated as staff availability.</p>
               <button type="button" onClick={() => setRevision((number) => number + 1)}
                 className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-amber-500 bg-white px-4 py-2 font-semibold text-amber-950 hover:bg-amber-100">
                 <RefreshCcw size={16} aria-hidden="true" /> Try again
