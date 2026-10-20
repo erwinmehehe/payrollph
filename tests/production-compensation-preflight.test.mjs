@@ -54,6 +54,31 @@ test("#1015 fail-closed for wrong branch, replica, SHA, role, or forged counts",
     assert.throws(() => verifyProductionCompensationPreflight(p, expected));
   }
 });
+test("#1061 privacy-safe target diagnostics distinguish every guarded identity component", () => {
+  const cases = [
+    ["projectId", "private-project-sentinel", "WRONG_PROJECT"],
+    ["branchId", "private-branch-sentinel", "WRONG_BRANCH"],
+    ["endpointId", "private-endpoint-sentinel", "WRONG_ENDPOINT"],
+    ["databaseName", "private-database-sentinel", "WRONG_DATABASE_NAME"],
+    ["roleName", "private/role-sentinel", "INVALID_ROLE_NAME"],
+    ["inRecovery", true, "RECOVERY_TARGET"],
+  ];
+  for (const [field, value, reason] of cases) {
+    const payload = successful();
+    payload.database[field] = value;
+    assert.throws(() => verifyProductionCompensationPreflight(payload, expected), (error) => {
+      assert.equal(error.message, "PRODUCTION_COMPENSATION_PREFLIGHT_" + reason);
+      assert.doesNotMatch(error.message, /private-|neondb_owner|calm-wave/);
+      return true;
+    });
+  }
+  const payload = successful();
+  assert.throws(
+    () => verifyProductionCompensationPreflight(payload, { ...expected, sha: "invalid" }),
+    /PRODUCTION_COMPENSATION_PREFLIGHT_INVALID_EXPECTED_SHA/
+  );
+});
+
 test("#1061 protected live smoke keeps the private preflight before HR fixture", () => {
   const workflow = readFileSync(".github/workflows/live-rbac-sandbox-smoke.yml", "utf8");
   assert.ok(workflow.includes("scripts/qa/verify-production-compensation-preflight.mjs"));
