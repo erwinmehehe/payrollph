@@ -62,7 +62,6 @@ function GovernmentLoanRemittancePanelContent({
   const [snapshot, setSnapshot] = useState<GovernmentLoanRead | null>(null);
   const [readError, setReadError] = useState("");
   const [reading, setReading] = useState(true);
-  const batches: Batch[] = snapshot?.batches ?? [];
   const members: Member[] = snapshot?.members ?? [];
   const [month, setMonth] = useState(previousMonth());
   const [busy, setBusy] = useState<string | null>(null);
@@ -121,8 +120,8 @@ function GovernmentLoanRemittancePanelContent({
   }, [load, setNotice]);
 
   const monthBatches = useMemo(
-    () => batches.filter((batch) => batch.applicableMonth === month),
-    [batches, month],
+    () => (snapshot?.batches ?? []).filter((batch) => batch.applicableMonth === month),
+    [snapshot, month],
   );
 
   async function mutate(action: string, payload: Record<string, unknown>, success: string) {
