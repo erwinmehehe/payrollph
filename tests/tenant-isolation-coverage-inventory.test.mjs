@@ -354,8 +354,19 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
-      assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs"].includes(proof?.file),
+      assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
+        "scripts/qa/payroll-read-sweep-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
+      if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
+        const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        const integration = readFileSync(proof.file, "utf8");
+        assert.match(harness, /await \(await import\("\.\/payroll-read-sweep-http\.mjs"\)\)\.verifyPayrollReadSweep\(f, \{ request, expectStatus \}\)/,
+          path + ": added evidence suite must execute inside the guarded isolated HTTP harness");
+        assert.match(integration, /assert\.deepEqual\(after, before/,
+          path + ": denied requests must leave real victim data unchanged");
+        assert.match(integration, /process\.env\.TENANT_SECOND_PASS_MODE/,
+          path + ": isolated-only guard is mandatory");
+      }
       const ownLine = evidenceLine(proof.file, proof.ownPositiveLine, path + " own-positive");
       const negativeLine = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign denial");
       assert.ok(routeFragments.every(fragment => ownLine.includes(fragment)) && /request\s*\(/.test(ownLine),

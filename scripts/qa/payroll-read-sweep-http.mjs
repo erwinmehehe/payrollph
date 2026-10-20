@@ -93,9 +93,7 @@ export async function verifyPayrollReadSweep(f, { request, expectStatus }) {
     assert.equal(ownManagedPost.json?.viewerUserId, f.owners[idx].id);
     const gate = ownManagedPost.json?.gates?.[0];
     assert.ok(gate?.id > 0 && gate.engagementId === ownManagedPost.json.engagement.id);
-    const ownManagedGet = expectStatus(await request(
-      "/api/managed-payroll?organizationId=" + org.id, { cookie },
-    ), 200, "Managed payroll GET own positive");
+    const ownManagedGet = expectStatus(await request("/api/managed-payroll?organizationId=" + org.id, { cookie }), 200, "Managed payroll GET own positive");
     assert.equal(ownManagedGet.json?.engagement?.organizationId, org.id);
     assert.ok(ownManagedGet.json?.gates?.some((row) => row.id === gate.id));
     expectStatus(await request(
@@ -120,9 +118,7 @@ export async function verifyPayrollReadSweep(f, { request, expectStatus }) {
     }), 403, "Managed payroll PATCH real victim denied");
 
     const ownRun = f.ownRuns[idx], employee = f.ownedEmployees[idx - 1];
-    const ownExplain = expectStatus(await request(
-      "/api/payroll-runs/" + ownRun.id + "/explain/" + employee.id, { cookie },
-    ), 200, "Explain pay GET own stored run and employee");
+    const ownExplain = expectStatus(await request("/api/payroll-runs/" + ownRun.id + "/explain/" + employee.id, { cookie }), 200, "Explain pay GET own stored run and employee");
     assert.equal(ownExplain.json?.run?.id, ownRun.id);
     assert.equal(ownExplain.json?.employeeId, employee.id);
     assert.equal(ownExplain.json?.organizationId, org.id);
@@ -133,10 +129,8 @@ export async function verifyPayrollReadSweep(f, { request, expectStatus }) {
       { cookie },
     ), 403, "Explain pay GET real victim-only run denied");
 
-    const ownCorrectionGet = expectStatus(await request(
-      "/api/compliance/statutory-remittance-corrections?organizationId=" + org.id +
-      "&legalEntityId=" + f.entities[idx].id, { cookie },
-    ), 200, "Remittance corrections GET own real pending evidence");
+    const ownCorrectionGet = expectStatus(await request("/api/compliance/statutory-remittance-corrections?organizationId=" + org.id +
+      "&legalEntityId=" + f.entities[idx].id, { cookie }), 200, "Remittance corrections GET own real pending evidence");
     assert.equal(ownCorrectionGet.json?.organizationId, org.id);
     assert.equal(ownCorrectionGet.json?.legalEntity?.id, f.entities[idx].id);
     assert.ok(ownCorrectionGet.json?.corrections?.some((x) =>
@@ -146,8 +140,7 @@ export async function verifyPayrollReadSweep(f, { request, expectStatus }) {
       "&legalEntityId=" + f.entities[0].id, { cookie },
     ), 403, "Remittance corrections GET real victim denied");
 
-    const ownCorrectionPost = expectStatus(await request(
-      "/api/compliance/statutory-remittance-corrections", {
+    const ownCorrectionPost = expectStatus(await request("/api/compliance/statutory-remittance-corrections", {
         method: "POST", cookie,
         body: { organizationId: org.id, action: "reject",
           correctionId: seeded[idx].correction.id, decisionNote: "Fictional synthetic negative proof" },

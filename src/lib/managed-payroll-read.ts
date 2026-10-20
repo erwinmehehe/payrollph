@@ -80,12 +80,14 @@ export function parseManagedPayrollRead(
       ? value as ManagedPayload : null;
   }
   const e = value.engagement;
-  if (!record(e) || !id(e.id) || e.organizationId !== expected.organizationId ||
+  if (!record(e)) return null;
+  const engagementId = e.id;
+  if (!id(engagementId) || e.organizationId !== expected.organizationId ||
       !["pilot", "live", "paused"].includes(String(e.status)) ||
       !text(e.serviceTier) || !id(e.clientApproverUserId) ||
       !count(e.slaHours) || e.slaHours < 4 || e.slaHours > 168 ||
       !(e.targetGoLive === null || (text(e.targetGoLive) && /^\d{4}-\d{2}-\d{2}$/.test(e.targetGoLive))) ||
-      !value.gates.every((g: unknown) => validGate(g, e.id)) ||
+      !value.gates.every((g: unknown) => validGate(g, engagementId)) ||
       !value.runs.every((r: unknown) => validRun(r, expected.organizationId))) return null;
   const gates: ManagedGate[] = value.gates;
   const runs: ManagedRun[] = value.runs;
