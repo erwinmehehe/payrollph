@@ -22,6 +22,7 @@ type FixtureOrganization = { id: number; name: string; legalName: string };
 type FixtureReader = Pick<Parameters<Parameters<typeof db.transaction>[0]>[0], "execute">;
 
 function fixtureSettings(env: NodeJS.ProcessEnv) {
+  if (env.PUBLIC_DEMO_DATABASE_ATTESTED !== "true") return null;
   const projectId = env.PUBLIC_DEMO_NEON_PROJECT_ID?.trim() ?? "";
   const branchId = env.PUBLIC_DEMO_NEON_BRANCH_ID?.trim() ?? "";
   const endpointId = env.PUBLIC_DEMO_NEON_ENDPOINT_ID?.trim() ?? "";
@@ -102,7 +103,7 @@ async function inspectFixture(tx: FixtureReader): Promise<DemoProvisioningBounda
   const rows = await tx.execute(sql`
     SELECT id, name, legal_name AS "legalName" FROM organizations LIMIT 2
   `);
-  const candidates = rows.rows as FixtureOrganization[];
+  const candidates = rows.rows as unknown as FixtureOrganization[];
   if (candidates.length > 1 || candidates.length === 0) return "blocked_non_demo_employer";
   return isAttestedProductionDemoFixture(
     identity, candidates,
