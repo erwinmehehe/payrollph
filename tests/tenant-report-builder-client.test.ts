@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   authorizedReportBuilderSelection, tenantReportPreviewKey,
+  verifyReportBuilderCapabilities, verifyReportBuilderPreview, verifyReportBuilderCsvResponse,
   type ReportBuilderCapabilities,
 } from "../src/lib/tenant-report-builder-client";
 
@@ -31,4 +32,44 @@ test("preview and export signatures isolate employer, period, dataset and field 
     { ...base, endDate: "2026-11-01" },
   ]) assert.notEqual(prior, tenantReportPreviewKey(changed));
   assert.equal(tenantReportPreviewKey({ ...base }), prior);
+});
+
+
+test("capability reads require a complete authorized dataset envelope", () => {
+  const verified = verifyReportBuilderCapabilities({
+    fields: { people: ["department", "headcount"], time: [], payroll: [] },
+  }, 101);
+  assert.deepEqual(verified, { organizationId: 101,
+    fields: { people: ["department", "headcount"], time: [], payroll: [] } });
+  for (const invalid of [
+    null, {}, { fields: null }, { fields: { people: [], time: [] } },
+    { fields: { people: ["department", "department"], time: [], payroll: [] } },
+    { fields: { people: ["headcount", 4], time: [], payroll: [] } },
+  ]) assert.throws(() => verifyReportBuilderCapabilities(invalid, 101));
+});
+
+test("a malformed or different-dataset 200 response never becomes an exportable preview", () => {
+  const valid = { source: "people", columns: ["department", "headcount"],
+    rows: [["HR", "3"], ["Operations", "0"]] };
+  assert.deepEqual(verifyReportBuilderPreview(valid, "people", valid.columns),
+    { columns: valid.columns, rows: valid.rows });
+  assert.deepEqual(verifyReportBuilderPreview({ ...valid, rows: [] }, "people", valid.columns).rows, []);
+  for (const invalid of [
+    null, {}, { ...valid, source: "payroll" },
+    { ...valid, source: undefined }, { ...valid, columns: ["headcount", "department"] },
+    { ...valid, columns: ["department"] }, { ...valid, rows: [["HR"]] },
+    { ...valid, rows: [["HR", 3]] }, { ...valid, rows: null },
+    { ...valid, rows: Array.from({ length: 5_001 }, () => ["HR", "1"]) },
+  ]) assert.throws(() => verifyReportBuilderPreview(invalid, "people", valid.columns));
+});
+
+test("a successful HTML or JSON error page must never be downloaded as a CSV", () => {
+  verifyReportBuilderCsvResponse(new Response("department,headcount\\nHR,3", {
+    status: 200, headers: { "Content-Type": "text/csv; charset=utf-8" },
+  }));
+  for (const contentType of ["text/html", "application/json", "application/pdf", ""]) {
+    assert.throws(() => verifyReportBuilderCsvResponse(new Response("error", {
+      status: 200, headers: contentType ? { "Content-Type": contentType } : {},
+    })));
+  }
 });
