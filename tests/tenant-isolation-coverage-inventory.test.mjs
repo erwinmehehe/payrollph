@@ -355,7 +355,8 @@ test("all credited proof links point to the claimed route and every recertified 
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
-        "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs"].includes(proof?.file),
+        "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
+        "scripts/qa/workforce-attendance-sweep-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
@@ -366,6 +367,16 @@ test("all credited proof links point to the claimed route and every recertified 
           path + ": denied requests must leave real victim data unchanged");
         assert.match(integration, /process\.env\.TENANT_SECOND_PASS_MODE/,
           path + ": isolated-only guard is mandatory");
+      }
+      if (proof.file === "scripts/qa/workforce-attendance-sweep-http.mjs") {
+        const runner=readFileSync("scripts/qa/tenant-second-pass-http.mjs","utf8");
+        const suite=readFileSync(proof.file,"utf8");
+        assert.match(runner,/verifyWorkforceAttendanceSweep\(f,\{request,expectStatus\}\)/,
+          "Attendance proof must execute from protected real-HTTP PostgreSQL16 harness");
+        assert.match(suite,/process\.env\.TENANT_SECOND_PASS_MODE/);
+        assert.match(suite,/assert\.deepEqual\(victimEventsAfter,victimEventsBefore/);
+        assert.match(suite,/assert\.deepEqual\(victimPoliciesAfter,victimPoliciesBefore/);
+        assert.match(suite,/assert\.deepEqual\(victimLocksAfter,victimLocksBefore/);
       }
       if (proof.file === "scripts/qa/bank-tenant-http.mjs") {
         assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),
