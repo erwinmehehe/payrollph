@@ -83,7 +83,7 @@ jobs:
           XENDIT_BILLING_ENABLED: "true"
         run: |
           set -euo pipefail
-          resend_webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\\n')"
+          resend_webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
           echo "::add-mask::$resend_webhook_secret"
           export RESEND_WEBHOOK_SECRET="$resend_webhook_secret"
           nohup npm start -- -H 127.0.0.1 > /tmp/tenant-pr-1302-server.log 2>&1 &
