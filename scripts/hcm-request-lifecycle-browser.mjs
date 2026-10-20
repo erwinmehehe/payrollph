@@ -100,7 +100,7 @@ try {
   const staleTeam = await requestId("my-team?organizationId=1");
   await page.evaluate(() => window.renderView("team", {organizationId:2}));
   await complete(staleTeam, {error:"STALE_TEAM_ERROR"}, 403);
-  await complete(await requestId("my-team?organizationId=2"), {organizationId:2,query:"",statusFilter:"all",scope:{kind:"company"},items:[],page:{size:25,hasMore:false,nextCursor:null},summary:{employeeRecordsThisPage:0,pendingLeaveRecordsThisPage:0,pendingOvertimeRecordsThisPage:0,pendingAttendanceCorrectionsThisPage:0,incompletePunchRecordsThisPage:0},observedAt:"2026-10-11T00:00:00Z"});
+  await complete(await requestId("my-team?organizationId=2"), {organizationId:2,query:"",statusFilter:"all",scope:{kind:"company",orgUnitId:null},items:[],page:{size:25,hasMore:false,nextCursor:null},summary:{employeeRecordsThisPage:0,pendingLeaveRecordsThisPage:0,pendingOvertimeRecordsThisPage:0,pendingAttendanceCorrectionsThisPage:0,incompletePunchRecordsThisPage:0},observedAt:"2026-10-11T00:00:00Z",warning:"Fictional safe-empty team page"});
   await visible("Employee records / this page");
   // Revisiting a tenant while the intervening tenant's request is still pending
   // must not reuse the retired tenant's completed response.
@@ -109,7 +109,7 @@ try {
   await page.evaluate(() => window.renderView("team", {organizationId:2}));
   await absent("Employee records / this page");
   await complete(interveningTeam, {error:"RETIRED_TEAM_ERROR"}, 403);
-  await complete(await requestId("my-team?organizationId=2"), {organizationId:2,query:"",statusFilter:"all",scope:{kind:"company"},items:[],page:{size:25,hasMore:false,nextCursor:null},summary:{employeeRecordsThisPage:0,pendingLeaveRecordsThisPage:0,pendingOvertimeRecordsThisPage:0,pendingAttendanceCorrectionsThisPage:0,incompletePunchRecordsThisPage:0},observedAt:"2026-10-11T00:00:00Z"});
+  await complete(await requestId("my-team?organizationId=2"), {organizationId:2,query:"",statusFilter:"all",scope:{kind:"company",orgUnitId:null},items:[],page:{size:25,hasMore:false,nextCursor:null},summary:{employeeRecordsThisPage:0,pendingLeaveRecordsThisPage:0,pendingOvertimeRecordsThisPage:0,pendingAttendanceCorrectionsThisPage:0,incompletePunchRecordsThisPage:0},observedAt:"2026-10-11T00:00:00Z",warning:"Fictional safe-empty team page"});
   await visible("Employee records / this page");
   await page.getByRole("button",{name:"Refresh",exact:true}).click();
   await absent("Employee records / this page");
