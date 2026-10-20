@@ -721,7 +721,12 @@ jobs:
             const demoPayload = await demoProbe.json();
             check(demoPayload.demoDataMode === "synthetic-redacted", `${persona.label}: demo is not using the redacted data contract`);
             check(demoPayload.sensitiveFieldsPersisted === false, `${persona.label}: demo claims sensitive fields are persisted`);
-            await page.waitForLoadState("networkidle");
+            // The development sandbox has polling; networkidle may never fire.
+            // Wait for the authenticated persona and actual landing content.
+            await page.waitForFunction(({ person, landing }) => {
+              const text = document.body?.innerText ?? "";
+              return text.includes(person) && text.toLowerCase().includes(landing.toLowerCase());
+            }, { person: persona.person, landing: persona.landing }, { timeout: 45000 });
 
             const body = (await page.locator("body").textContent()) ?? "";
             check(body.includes(persona.person), `${persona.label}: expected persona identity ${persona.person} is missing`);
