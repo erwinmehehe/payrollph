@@ -114,9 +114,9 @@ test("workspace UI has a gated link and stale employer/page responses cannot sur
   assert.ok(page.includes("pilotFocusEnabled={pilotFocusEnabledForOrganization(organizationId)}"), "pilot focus must be resolved for the selected employer");
   assert.match(ui, /new AbortController\(\)/);
   assert.match(ui, /controller\.abort\(\)/);
-  assert.match(ui, /data\.organizationId !== organizationId/);
+  assert.match(ui, /validMyTeamResponse\(payload, organizationId, cursor, searchQuery, statusFilter\)/);
   assert.match(ui, /stored\?\.scopeKey === scopeKey/);
-  assert.match(ui, /data\.page\.nextCursor/);
+  assert.match(readFileSync("src/lib/hcm-scoped-read-validation.ts", "utf8"), /value\.page\.nextCursor/);
   assert.match(ui, /pendingAttendanceCorrections/);
   assert.match(ui, /incompletePunchRecords/);
   assert.match(ui, /HcmMyTeamActionCenter/);
