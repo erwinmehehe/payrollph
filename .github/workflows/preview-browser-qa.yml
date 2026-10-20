@@ -804,7 +804,7 @@ jobs:
                 `Employee: desktop sidebar items are stretched: ${employeeNavHeights.join(", ")}`,
               );
               check(body.toLowerCase().includes("latest payslip"), "Employee: latest released payslip promotion is missing");
-              check(body.includes("Payslip available"), "Employee: released payslip availability state is missing");
+              check(body.includes("Payslip released"), "Employee: released payslip state is missing");
               check((await page.locator("[data-latest-payslip]").count()) === 1, "Employee: latest payslip card is missing");
               check(body.toLowerCase().includes("next payday"), "Employee: next pay status section is missing");
               check(body.includes("Your payslip will be available after payroll is released."), "Employee: unreleased-pay privacy copy is missing");
@@ -1313,7 +1313,7 @@ jobs:
             const latest = page.locator("[data-latest-payslip]");
             check((await latest.count()) === 1, "Lifecycle: employee latest payslip card is missing after release");
             const latestText = await latest.innerText();
-            check(/Payslip available|payslip is ready/i.test(latestText), "Lifecycle: employee does not see the released payslip state");
+            check(/Payslip released|payslip has been released/i.test(latestText), "Lifecycle: employee does not see the released payslip state");
             check(latestText.includes(period), "Lifecycle: newly released payslip is not promoted above history");
 
             check(errors.length === 0, `Lifecycle: browser console/page errors: ${errors.join(" | ")}`);
