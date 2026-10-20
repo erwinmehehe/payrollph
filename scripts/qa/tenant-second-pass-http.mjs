@@ -103,7 +103,7 @@ async function makeFixture() {
     { name: "Victim Only " + nonce, legalName: "Fictional Victim " + nonce },
     { name: "Attacker A " + nonce, legalName: "Fictional Attacker A " + nonce },
     { name: "Attacker B " + nonce, legalName: "Fictional Attacker B " + nonce },
-  ]).returning({ id: organizations.id });
+  ]).returning({ id: organizations.id, name: organizations.name });
   const orgs = [victim, attackerA, attackerB];
   const owners = await db.insert(users).values(orgs.map((_, idx) => ({
     email: "secondpass-owner-" + idx + "-" + nonce + "@example.invalid",
@@ -1088,6 +1088,8 @@ async function main() {
   await verifyNewMainRouteIsolation(f);
   await (await import("./tenant-high-risk-01-http.mjs")).verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });
   await verifyRemittanceMonthCloseTenantProof(f);
+  await (await import("./tenant-manifest-driven-http.mjs")).verifyManifestDrivenStatutoryBatch(f, { request, expectStatus });
+  await (await import("./tenant-scoped-page-probes.mjs")).probeManifestBusinessPages(f, { request, makeSession, expectStatus });
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
     result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,
