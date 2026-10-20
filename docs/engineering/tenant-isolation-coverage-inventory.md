@@ -20,6 +20,10 @@ PR #1280 changes the Separation route; GET, POST and PATCH are bound to the dedi
 
 Synced main c053049a5. Seven method controls added for assurance, release checklist, HR cases and BIR 1601-C. The HR POST test deliberately supplies victim identifiers and proves the session worker owns the persisted case; PATCH tests a real foreign case. BIR POST creates only a fictional reconciliation batch with fixture MFA, never records payment or calls an agency. The workflow enables HR cases only on its isolated localhost server. Victim case/message/batch/payroll rows are compared before and after. New proof counts remain provisional until exact-head HTTP CI succeeds. Historical partition JSON remains archived, not current acceptance.
 
+## Bank evidence isolation (2026-10-20)
+
+The dedicated `scripts/qa/bank-tenant-http.mjs` suite executes from the existing guarded disposable PG16/production-mode localhost HTTP job. It creates actual fictional released payroll with encrypted frozen bank destinations and a uniquely named fictional CSV mapping. It tests four methods: validation GET/POST, record PATCH and file GET. Both independent attacker employers have positive controls, real victim IDs, forged employer selectors, unchanged victim bank/payroll/audit data, role and anonymous denials. File bytes must match their persisted SHA-256. A formerly authorized owner keeps the same signed-in session and another active employer grant, then loses access to the previously readable file after revocation. Outcome writes use a fictional rejection; no bank portal is contacted and no bank format is certified. New coverage is provisional until exact-head CI passes.
+
 ## Source-pinned counts
 
 | Metric | Count |
@@ -27,9 +31,9 @@ Synced main c053049a5. Seven method controls added for assurance, release checkl
 | routeFiles | 288 |
 | methods | 489 |
 | coveredBefore | 20 |
-| coveredAfter | 47 |
+| coveredAfter | 59 |
 | publicByDesign | 6 |
-| gap | 436 |
+| gap | 424 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
