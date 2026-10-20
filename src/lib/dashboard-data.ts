@@ -1,5 +1,6 @@
 import { sql as entityStorageSql } from "drizzle-orm";
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+import { ownerPracticePayroll } from "./practice-payroll-server";
 import { loadTenantModulePreferences, type TenantModulePreferences } from "./tenant-modules";
 import { organizationModuleSettings, tenantModuleStorageAvailable } from "@/lib/tenant-module-storage";
 import { maskBankAccount } from "@/lib/bank-account-crypto";
@@ -433,6 +434,7 @@ export async function getDashboardData(organizationId?: number, request?: Reques
 
   return {
     firstPayrollReadiness,
+    ...ownerPracticePayroll(access),
     firstPayrollConnectedEnabled: criticalReleaseFlagEnabled("firstPayrollConnected"),
     payrollEmployerSetupNavigationEnabled: criticalReleaseFlagEnabled("payrollEmployerSetupNavigation"),
     advancedPlanningAllowed,

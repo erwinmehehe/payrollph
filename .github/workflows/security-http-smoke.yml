@@ -95,6 +95,7 @@ jobs:
           PUBLIC_API_V1_EXTENDED_ENABLED: "true"
           API_V1_EXTENDED_READS_ENABLED: "true"
           EMPLOYEE_HR_CASES_ENABLED: "true"
+          OWNER_PRACTICE_PAYROLL_ENABLED: "true"
           # Only the disposable localhost three-employer HTTP fixture; never deployed.
           HCM_GOVERNANCE_READINESS_ENABLED: "true"
           PAYMONGO_WEBHOOK_SECRET: "ci-fake-paymongo-webhook-signing-secret"
