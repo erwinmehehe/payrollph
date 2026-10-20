@@ -355,7 +355,7 @@ test("all credited proof links point to the claimed route and every recertified 
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
-        "scripts/qa/payroll-read-sweep-http.mjs"].includes(proof?.file),
+        "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
@@ -366,6 +366,13 @@ test("all credited proof links point to the claimed route and every recertified 
           path + ": denied requests must leave real victim data unchanged");
         assert.match(integration, /process\.env\.TENANT_SECOND_PASS_MODE/,
           path + ": isolated-only guard is mandatory");
+      }
+      if (proof.file === "scripts/qa/bank-tenant-http.mjs") {
+        assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),
+          /await \(await import\("\.\/bank-tenant-http\.mjs"\)\)\.verifyBankTenantIsolation\(f, \{ request, expectStatus, makeSession \}\)/,
+          "Bank proof must execute in the guarded real HTTP/PG harness");
+        assert.match(readFileSync(proof.file, "utf8"), /assert\.deepEqual\(after, before/,
+          "Victim bank records and audit must remain unchanged");
       }
       const ownLine = evidenceLine(proof.file, proof.ownPositiveLine, path + " own-positive");
       const negativeLine = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign denial");

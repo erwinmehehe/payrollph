@@ -1,6 +1,6 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 436 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 423 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -10,7 +10,7 @@
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified authorization defect fixed on main, 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 436 method gaps and 20 page/action gaps. Prior exact-head CI checks were successful, but the **new merge commit must pass CI**. Keep #1260 DRAFT until exact-head CI passes. Source merge of this inventory does not constitute tenant-isolation certification.
+**Disposition:** 1 source-identified authorization defect fixed on main, 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 423 method gaps and 20 page/action gaps. #1260 is merged. New evidence remains provisional until its exact-head CI passes. Source merge of this inventory does not constitute tenant-isolation certification.
 
 ## Approved-exit Separation evidence
 
@@ -20,16 +20,24 @@ PR #1280 changes the Separation route; GET, POST and PATCH are bound to the dedi
 
 Synced main c053049a5. Seven method controls added for assurance, release checklist, HR cases and BIR 1601-C. The HR POST test deliberately supplies victim identifiers and proves the session worker owns the persisted case; PATCH tests a real foreign case. BIR POST creates only a fictional reconciliation batch with fixture MFA, never records payment or calls an agency. The workflow enables HR cases only on its isolated localhost server. Victim case/message/batch/payroll rows are compared before and after. New proof counts remain provisional until exact-head HTTP CI succeeds. Historical partition JSON remains archived, not current acceptance.
 
+## Bank evidence isolation (2026-10-20)
+
+The dedicated `scripts/qa/bank-tenant-http.mjs` suite executes from the existing guarded disposable PG16/production-mode localhost HTTP job. It creates actual fictional released payroll with encrypted frozen bank destinations and a uniquely named fictional CSV mapping. It tests four methods: validation GET/POST, record PATCH and file GET. Both independent attacker employers have positive controls, real victim IDs, forged employer selectors, unchanged victim bank/payroll/audit data, role and anonymous denials. File bytes must match their persisted SHA-256. A formerly authorized owner keeps the same signed-in session and another active employer grant, then loses access to the previously readable file after revocation. Outcome writes use a fictional rejection; no bank portal is contacted and no bank format is certified. New coverage is provisional until exact-head CI passes.
+
+## Fictional demo authorization boundary (2026-10-20)
+
+The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested fictional-only Neon database and pre-registered tenant ID**, with approved host, same-origin, request throttling and fail-closed runtime PostgreSQL identity checks. The new readiness/demo-provisioning GET requires a private token and returns status-only evidence, not tenant rows. Both are untested as production human role acceptance. A missing attestation blocks live demo logins even when a customer's company has the same editable name. The original unverified method inventory remains open, and exact-head CI/security tests are mandatory before treating new proof as verified.
+
 ## Source-pinned counts
 
 | Metric | Count |
 |---|---:|
-| routeFiles | 288 |
-| methods | 489 |
+| routeFiles | 289 |
+| methods | 490 |
 | coveredBefore | 20 |
-| coveredAfter | 47 |
-| publicByDesign | 6 |
-| gap | 436 |
+| coveredAfter | 59 |
+| publicByDesign | 8 |
+| gap | 423 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -122,7 +130,7 @@ Both independent attacker employers first receive real 200/201 own-record eviden
 
 ## Complete API method matrix
 
-Every one of the 288 route files and 489 exported handlers is in the following source-line tables. The JSON manifest stores git blob SHA, source signal, helper symbol, identifier reference, valid test location (where found), and per-method result.
+Every one of the 289 route files and 490 exported handlers is in the following source-line tables. The JSON manifest stores git blob SHA, source signal, helper symbol, identifier reference, valid test location (where found), and per-method result.
 
 <!-- Generated from source-pinned GitHub blob inspection; NOT isolation acceptance -->
 # API methods — inventory appendix A (partitions 00–10)
@@ -146,7 +154,7 @@ Every one of the 288 route files and 489 exported handlers is in the following s
 | [`attendance/offline-claims` GET](../../src/app/api/attendance/offline-claims/route.ts#L22) | SESSION, URL_QUERY, BODY_CANDIDATE | getSessionUser L4, assertOrganizationRole L5, getAccess L5, getSessionUser L25 | searchParams.get("organizationId") L27, body.organizationId L77, body.employeeId L83 | NO VALID METHOD PROOF | **GAP** |
 | [`attendance/offline-claims` POST](../../src/app/api/attendance/offline-claims/route.ts#L67) | SESSION, URL_QUERY, BODY_CANDIDATE | getSessionUser L4, assertOrganizationRole L5, getAccess L5, getSessionUser L25 | searchParams.get("organizationId") L27, body.organizationId L77, body.employeeId L83 | NO VALID METHOD PROOF | **GAP** |
 | [`attendance/offline-claims` PATCH](../../src/app/api/attendance/offline-claims/route.ts#L140) | SESSION, URL_QUERY, BODY_CANDIDATE | getSessionUser L4, assertOrganizationRole L5, getAccess L5, getSessionUser L25 | searchParams.get("organizationId") L27, body.organizationId L77, body.employeeId L83 | NO VALID METHOD PROOF | **GAP** |
-| [`auth/demo-switch` POST](../../src/app/api/auth/demo-switch/route.ts#L179) | BODY_CANDIDATE | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
+| [`auth/demo-switch` POST](../../src/app/api/auth/demo-switch/route.ts#L187) | BODY_CANDIDATE | enforceSameOriginMutation L188, publicDemoAllowed L196, productionDemoEmployerBoundary L228 | none found | Dedicated Neon fixture database/ID attested before provisioning; not production role acceptance | **PUBLIC-BY-DESIGN** |
 | [`auth/forgot-password` POST](../../src/app/api/auth/forgot-password/route.ts#L13) | NONE_FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **PUBLIC-BY-DESIGN** |
 | [`auth/login` POST](../../src/app/api/auth/login/route.ts#L18) | body | enforceSameOriginMutation L12, enforceSameOriginMutation L19 | none found | NO VALID METHOD PROOF | **PUBLIC-BY-DESIGN** |
 | [`auth/logout` POST](../../src/app/api/auth/logout/route.ts#L5) | NONE FOUND | enforceSameOriginMutation L1, enforceSameOriginMutation L6 | none found | NO VALID METHOD PROOF | **GAP** |
@@ -188,10 +196,10 @@ Every one of the 288 route files and 489 exported handlers is in the following s
 | [`compensation` POST](../../src/app/api/compensation/route.ts#L472) | session, query, body | getSessionUser L22, assertOrganizationRole L24, assertScope L24, getAccess L24 | input.organizationId L204, input.organizationId L216, searchParams.get("organizationId") L245 | NO VALID METHOD PROOF | **GAP** |
 | [`compensation` PATCH](../../src/app/api/compensation/route.ts#L825) | session, query, body | getSessionUser L22, assertOrganizationRole L24, assertScope L24, getAccess L24 | input.organizationId L204, input.organizationId L216, searchParams.get("organizationId") L245 | NO VALID METHOD PROOF | **GAP** |
 | [`compliance/audit-chain` GET](../../src/app/api/compliance/audit-chain/route.ts#L9) | session, query | assertOrganizationRole L1, getAccess L1, getSessionUser L2, getSessionUser L10 | searchParams.get("organizationId") L13 | NO VALID METHOD PROOF | **GAP** |
-| [`compliance/bank-validations/[id]/file` GET](../../src/app/api/compliance/bank-validations/[id]/file/route.ts#L18) | session, query | assertOrganizationRole L5, assertOrganizationUnitAccess L6, getSessionUser L13, getSessionUser L22 | searchParams.get("organizationId") L26 | NO VALID METHOD PROOF | **GAP** |
-| [`compliance/bank-validations/[id]` PATCH](../../src/app/api/compliance/bank-validations/[id]/route.ts#L21) | session, body | assertOrganizationRole L2, getSessionUser L11, enforceSameOriginMutation L14, enforceSameOriginMutation L25 | body.organizationId L39 | NO VALID METHOD PROOF | **GAP** |
-| [`compliance/bank-validations` GET](../../src/app/api/compliance/bank-validations/route.ts#L25) | session, query, body | assertOrganizationRole L5, assertOrganizationUnitAccess L6, getAccess L7, getSessionUser L15 | searchParams.get("organizationId") L29, body.organizationId L61, body.runId L62 | NO VALID METHOD PROOF | **GAP** |
-| [`compliance/bank-validations` POST](../../src/app/api/compliance/bank-validations/route.ts#L51) | session, query, body | assertOrganizationRole L5, assertOrganizationUnitAccess L6, getAccess L7, getSessionUser L15 | searchParams.get("organizationId") L29, body.organizationId L61, body.runId L62 | NO VALID METHOD PROOF | **GAP** |
+| [`compliance/bank-validations/[id]/file` GET](../../src/app/api/compliance/bank-validations/[id]/file/route.ts#L18) | session, query | assertOrganizationRole L5, assertOrganizationUnitAccess L6, getSessionUser L13, getSessionUser L22 | searchParams.get("organizationId") L26 | [bank HTTP proof](../../scripts/qa/bank-tenant-http.mjs#L75) | **COVERED (exact-head CI required)** |
+| [`compliance/bank-validations/[id]` PATCH](../../src/app/api/compliance/bank-validations/[id]/route.ts#L21) | session, body | assertOrganizationRole L2, getSessionUser L11, enforceSameOriginMutation L14, enforceSameOriginMutation L25 | body.organizationId L39 | [bank HTTP proof](../../scripts/qa/bank-tenant-http.mjs#L91) | **COVERED (exact-head CI required)** |
+| [`compliance/bank-validations` GET](../../src/app/api/compliance/bank-validations/route.ts#L25) | session, query, body | assertOrganizationRole L5, assertOrganizationUnitAccess L6, getAccess L7, getSessionUser L15 | searchParams.get("organizationId") L29, body.organizationId L61, body.runId L62 | [bank HTTP proof](../../scripts/qa/bank-tenant-http.mjs#L71) | **COVERED (exact-head CI required)** |
+| [`compliance/bank-validations` POST](../../src/app/api/compliance/bank-validations/route.ts#L51) | session, query, body | assertOrganizationRole L5, assertOrganizationUnitAccess L6, getAccess L7, getSessionUser L15 | searchParams.get("organizationId") L29, body.organizationId L61, body.runId L62 | [bank HTTP proof](../../scripts/qa/bank-tenant-http.mjs#L48) | **COVERED (exact-head CI required)** |
 | [`compliance/bir-1601c-remittances` GET](../../src/app/api/compliance/bir-1601c-remittances/route.ts#L114) | session, query, body | getAccess L9, getSessionUser L11, enforceSameOriginMutation L24, getAccess L41 | searchParams.get("organizationId") L119, searchParams.get("legalEntityId") L120, body.organizationId L181 | [own/foreign HTTP controls](../../scripts/qa/tenant-second-pass-http.mjs#L1060) | **COVERED (provisional; CI required)** |
 | [`compliance/bir-1601c-remittances` POST](../../src/app/api/compliance/bir-1601c-remittances/route.ts#L174) | session, query, body | getAccess L9, getSessionUser L11, enforceSameOriginMutation L24, getAccess L41 | searchParams.get("organizationId") L119, searchParams.get("legalEntityId") L120, body.organizationId L181 | [own/foreign HTTP controls](../../scripts/qa/tenant-second-pass-http.mjs#L1057) | **COVERED (provisional; CI required)** |
 | [`compliance/calendar` GET](../../src/app/api/compliance/calendar/route.ts#L10) | session, query | assertOrganizationRole L1, getAccess L1, getSessionUser L2, getSessionUser L11 | searchParams.get("organizationId") L14 | [three-org HTTP L471](../../scripts/qa/tenant-second-pass-http.mjs#L471) | **COVERED** |
@@ -459,6 +467,7 @@ Every one of the 288 route files and 489 exported handlers is in the following s
 | [`provisioning` PATCH](../../src/app/api/provisioning/route.ts#L50) | session, query, body | enforceSameOriginMutation L1, getSessionUser L6, assertOrganizationRole L9, assertScope L9 | searchParams.get("organizationId") L15 | NO VALID METHOD PROOF | **GAP** |
 | [`readiness/billing` GET](../../src/app/api/readiness/billing/route.ts#L15) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`readiness/database-target` GET](../../src/app/api/readiness/database-target/route.ts#L11) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
+| [`readiness/demo-provisioning` GET](../../src/app/api/readiness/demo-provisioning/route.ts#L10) | GLOBAL PRIVATE TOKEN | constantTimeSecretEqual L19 | none found | Protected status-only readiness probe; constant-time token validation before any database import | **PUBLIC-BY-DESIGN** |
 | [`readiness/deployment` GET](../../src/app/api/readiness/deployment/route.ts#L9) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`readiness/pilot-status` GET](../../src/app/api/readiness/pilot-status/route.ts#L28) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`readiness` GET](../../src/app/api/readiness/route.ts#L7) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |

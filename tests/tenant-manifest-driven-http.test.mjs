@@ -15,7 +15,7 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.gap, 427, "New infrastructure/demo-source paths have explicit public-by-design reviews; 427 pre-existing GAP methods remain open");
+  assert.equal(manifest.metrics.gap, 423, "Dedicated-fixture demo review and bank HTTP evidence preserve all 423 still-unverified methods");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 490,
     "No method may disappear from the audited 490-route-method inventory");
   assert.equal(manifest.sourceTraceCandidates.length, 34);

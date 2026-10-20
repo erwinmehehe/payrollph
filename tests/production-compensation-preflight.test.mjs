@@ -68,7 +68,7 @@ test("#1061 protected live smoke keeps the private preflight before HR fixture",
             guardedPost < liveRoles && liveRoles < privacy,
     "Read-only target/schema attestation must precede any production demo POST or HR write");
   const preflightStep = workflow.slice(preflight, boundary);
-  assert.doesNotMatch(preflightStep, /^\\s*if:\\s*steps\\.demo_boundary/m,
+  assert.doesNotMatch(preflightStep, /^\s*if:\s*steps\.demo_boundary/m,
     "Production DB identity attestation cannot be skipped when public demo login is blocked");
   assert.match(workflow, /secrets\.PRODUCTION_READINESS_TOKEN/);
   assert.match(workflow, /\/api\/readiness\/database-target/);

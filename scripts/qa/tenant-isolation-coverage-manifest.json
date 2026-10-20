@@ -1,15 +1,15 @@
 {
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
-  "generated": "2026-10-19",
-  "acceptanceStatus": "NOT ACCEPTED: 427 API method and 20 page/action gaps remain. Six new payroll-read method proofs are provisional until exact-head HTTP/PG CI; no production release approval.",
+  "generated": "2026-10-20",
+  "acceptanceStatus": "NOT ACCEPTED: 423 API method and 20 page/action gaps remain. Provisionally integrated separate disposable-PG bank isolation HTTP evidence (four methods) and explicitly reviewed a dedicated-database-attested public fictional demo POST plus private readiness diagnostic (two public/protocol methods); no untested tenant method is certified. All new coverage requires exact-head CI and reviewer acceptance.",
   "metrics": {
     "routeFiles": 289,
     "methods": 490,
     "coveredBefore": 20,
-    "coveredAfter": 55,
+    "coveredAfter": 59,
     "publicByDesign": 8,
-    "gap": 427,
+    "gap": 423,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -924,14 +924,14 @@
       ]
     },
     "src/app/api/auth/demo-switch/route.ts": {
-      "gitBlobSha": "883a6c4b247f287e2fbcd73ad5232edfc537ff8d",
+      "gitBlobSha": "27d84e87e6a79ab167d8651425dd5bd5fecfcdb1",
       "route": "auth/demo-switch",
       "methods": [
         {
           "name": "POST",
-          "line": 180,
+          "line": 187,
           "status": "PUBLIC-BY-DESIGN",
-          "reason": "Public fictional persona session setup only on approved demo origins and a demo-only employer database. The same-origin/rate-limited endpoint fails closed before provisioning when real employers exist, exposes no real employer records, and its six fictional roles are exercised in disposable PG16. This is not customer authentication certification.",
+          "reason": "Public synthetic demo-role initiation only on approved hosts with same-origin, rate limiting and fail-closed production database attestation: a separately operator-provisioned Neon project/branch/role, pinned existing fictional organization ID and exclusive fixture inventory. This is not customer authentication or production role-certification.",
           "testedBy": null
         }
       ],
@@ -940,15 +940,15 @@
       ],
       "guards": [
         {
-          "line": 181,
+          "line": 188,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 189,
+          "line": 196,
           "token": "publicDemoAllowed"
         },
         {
-          "line": 221,
+          "line": 228,
           "token": "productionDemoEmployerBoundary"
         }
       ],
@@ -3646,9 +3646,15 @@
         {
           "name": "GET",
           "line": 18,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Real own success and two real foreign employers denied; provisional until exact-head isolated HTTP/PG CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/bank-tenant-http.mjs",
+            "line": 75,
+            "ownPositiveLine": 75,
+            "foreignDenialLine": 81,
+            "unchangedDbLine": 123
+          }
         }
       ],
       "employerSources": {
@@ -3748,9 +3754,15 @@
         {
           "name": "PATCH",
           "line": 21,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Real own success and two real foreign employers denied; provisional until exact-head isolated HTTP/PG CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/bank-tenant-http.mjs",
+            "line": 91,
+            "ownPositiveLine": 91,
+            "foreignDenialLine": 87,
+            "unchangedDbLine": 123
+          }
         }
       ],
       "employerSources": {
@@ -3846,16 +3858,28 @@
         {
           "name": "GET",
           "line": 25,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Real own success and two real foreign employers denied; provisional until exact-head isolated HTTP/PG CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/bank-tenant-http.mjs",
+            "line": 71,
+            "ownPositiveLine": 71,
+            "foreignDenialLine": 74,
+            "unchangedDbLine": 123
+          }
         },
         {
           "name": "POST",
           "line": 51,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Real own success and two real foreign employers denied; provisional until exact-head isolated HTTP/PG CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/bank-tenant-http.mjs",
+            "line": 48,
+            "ownPositiveLine": 48,
+            "foreignDenialLine": 84,
+            "unchangedDbLine": 123
+          }
         }
       ],
       "employerSources": {

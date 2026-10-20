@@ -102,8 +102,8 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.coveredAfter, 55);
-  assert.equal(manifest.metrics.gap, 427);
+  assert.equal(manifest.metrics.coveredAfter, 59);
+  assert.equal(manifest.metrics.gap, 423);
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);

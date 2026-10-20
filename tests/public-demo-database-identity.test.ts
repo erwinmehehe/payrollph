@@ -56,6 +56,6 @@ test("source guard AND transaction recheck the same session branch/role identity
     "A missing or mismatched production DB identity must prevent fixture inserts");
   assert.ok(labelGate >= 0 && labelGate < firstWrite,
     "Duplicate reserved labels must be denied before any fictional employer writes");
-  assert.match(seedMethod.slice(0, firstWrite), /requireProductionDemoFixtureInTransaction\\(tx\\)/,
+  assert.match(seedMethod.slice(0, firstWrite), /requireProductionDemoFixtureInTransaction\(tx\)/,
     "The fixture organization ID must also be attested inside the write transaction");
 });
