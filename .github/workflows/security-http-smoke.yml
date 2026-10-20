@@ -63,6 +63,10 @@ jobs:
       - run: npm ci
       - name: Reject committed webhook secrets and unreviewed tenant routes
         run: node --test tests/tenant-second-pass-inventory.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
+      - name: Pin first high-risk 16-method HTTP proof contract
+        run: |
+          node --check scripts/qa/tenant-high-risk-01-http.mjs
+          node --test tests/tenant-high-risk-batch-01.test.mjs
       - name: Provision dedicated ephemeral PII key (disposable HTTP QA only)
         run: |
           pii_key=$(openssl rand -hex 32)
