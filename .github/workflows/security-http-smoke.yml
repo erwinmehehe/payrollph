@@ -67,6 +67,12 @@ jobs:
         run: |
           node --check scripts/qa/tenant-high-risk-01-http.mjs
           node --test tests/tenant-high-risk-batch-01.test.mjs
+      - name: Trace 34 client-ID routes; guard all 489 methods; pin 20 pages
+        run: |
+          node --check scripts/qa/tenant-delegated-trace.mjs
+          node --check scripts/qa/tenant-manifest-driven-http.mjs
+          node --check scripts/qa/tenant-scoped-page-probes.mjs
+          node --test tests/tenant-structural-access-guard.test.mjs tests/tenant-manifest-driven-http.test.mjs tests/tenant-scoped-pages.test.mjs
       - name: Provision dedicated ephemeral PII key (disposable HTTP QA only)
         run: |
           pii_key=$(openssl rand -hex 32)
