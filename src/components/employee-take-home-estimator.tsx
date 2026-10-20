@@ -32,9 +32,6 @@ export function EmployeeTakeHomeEstimator({ language = "en" }: { language?: EssL
 
   useEffect(() => {
     const controller = new AbortController();
-    setPayload(null);
-    setError("");
-    setUnauthorized(false);
 
     async function loadBaseline() {
       try {
@@ -118,7 +115,12 @@ export function EmployeeTakeHomeEstimator({ language = "en" }: { language?: EssL
             <a className="clean-link" href="/login">{t("Sign in")}</a>
           ) : (
             <button type="button" className="clean-link"
-              onClick={() => setReloadCount((count) => count + 1)}>
+              onClick={() => {
+                setPayload(null);
+                setError("");
+                setUnauthorized(false);
+                setReloadCount((count) => count + 1);
+              }}>
               {t("Retry loading")}
             </button>
           )}
