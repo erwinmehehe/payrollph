@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.gap, 422, "HCM GET has real own/foreign HTTP proof; the remaining 422 GAPs must stay open");
-  assert.equal(manifest.metrics.coveredAfter, 60, "Only the independently exercised HCM GET was newly classified COVERED");
+  assert.equal(manifest.metrics.gap, 421, "HCM and payment-proof GET have real own/foreign proof; 421 GAPs remain open");
+  assert.equal(manifest.metrics.coveredAfter, 61, "Only independently exercised HCM and payment-proof GETs count as COVERED");
   const governanceMethod = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(governanceMethod?.status, "COVERED", "HCM governance read requires real own/foreign proof");
   assert.equal(governanceMethod?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
@@ -37,7 +37,7 @@ test("single table-driven test reads ALL 490 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 5);
+  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 4);
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
   assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);
