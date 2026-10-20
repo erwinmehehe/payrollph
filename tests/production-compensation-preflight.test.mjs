@@ -72,7 +72,11 @@ test("#1061 privacy-safe target diagnostics distinguish every guarded identity c
       return true;
     });
   }
+  // Keep the payload's source attestation identical to the invalid expected
+  // source to exercise the specific expected-SHA syntax gate rather than the
+  // preceding (and separately tested) deployment-mismatch refusal.
   const payload = successful();
+  payload.deploymentSha = "invalid";
   assert.throws(
     () => verifyProductionCompensationPreflight(payload, { ...expected, sha: "invalid" }),
     /PRODUCTION_COMPENSATION_PREFLIGHT_INVALID_EXPECTED_SHA/
