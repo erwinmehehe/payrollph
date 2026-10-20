@@ -219,10 +219,21 @@ jobs:
               // component hierarchy, allowing a source fix rather than hiding
               // a real duplicate-key error. No props, names or user data logged.
               void page.evaluate(() => {
+                // With React 19 hydration the server-rendered app shell need
+                // not carry the fiber property. Find an attached descendant.
                 const rootEl = document.querySelector(".app-shell") ?? document.body;
-                const reactKey = Object.keys(rootEl).find((name) => name.startsWith("__reactFiber$"));
-                if (!reactKey) return [{ error: "no React fiber found" }];
-                let root = rootEl[reactKey];
+                const candidates = [rootEl, ...Array.from(rootEl.querySelectorAll("*")).slice(0, 15000)];
+                let attached = null;
+                let reactKey = null;
+                for (const candidate of candidates) {
+                  const match = Object.getOwnPropertyNames(candidate)
+                    .find((name) => name.startsWith("__reactFiber$"));
+                  if (match) { attached = candidate; reactKey = match; break; }
+                }
+                if (!attached || !reactKey) {
+                  return [{ error: "no React fiber on hydrated descendants", elementsScanned: candidates.length }];
+                }
+                let root = attached[reactKey];
                 while (root?.return) root = root.return;
                 const named = (fiber) => {
                   const type = fiber?.elementType ?? fiber?.type;
@@ -1231,6 +1242,22 @@ jobs:
             await page.setViewportSize({ width: 1440, height: 1000 });
             await page.waitForTimeout(120);
 
+            if (errors.some((message) => message.includes("two children with the same key"))) {
+              // Also surface Next's real development overlay component stack.
+              // This is read-only diagnostic capture on disposable test data.
+              try {
+                const issueButtons = page.getByRole("button", { name: /\\d+ issues?/i });
+                if (await issueButtons.count()) {
+                  await issueButtons.first().click({ timeout: 3000 });
+                  const overlayText = (await page.locator("nextjs-portal").allInnerTexts()).join(" ");
+                  console.log("DUPLICATE_KEY_NEXT_OVERLAY " + overlayText.slice(0, 4000));
+                } else {
+                  console.log("DUPLICATE_KEY_NEXT_OVERLAY no accessible issue trigger");
+                }
+              } catch {
+                console.log("DUPLICATE_KEY_NEXT_OVERLAY cannot open from browser automation");
+              }
+            }
             check(errors.length === 0, `${persona.label}: browser console/page errors: ${errors.join(" | ")}`);
 
             report.personas.push({
