@@ -998,6 +998,10 @@ jobs:
               await page.waitForTimeout(250);
               if (persona.id === "payroll") {
                 const recovery = page.locator('[data-recovery-state="unresolved-exception"]');
+                // This recovery card depends on a separate tenant-verified payroll-register GET.
+                // Do not assume it has rendered 250 ms after route navigation.
+                // Wait for the real, visible server-verified state; do not mock or skip it.
+                await recovery.waitFor({ state: "visible", timeout: 45000 });
                 check((await recovery.count()) === 1, "Payroll: unresolved exception recovery state is missing");
                 check((await recovery.innerText()).includes("Review exceptions"), "Payroll: exception recovery action is missing");
               }
