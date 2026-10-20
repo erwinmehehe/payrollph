@@ -12290,9 +12290,9 @@
           "status": "COVERED",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1090,
-            "ownPositiveLine": 1090,
-            "foreignDenialLine": 1094,
+            "line": 1245,
+            "ownPositiveLine": 1245,
+            "foreignDenialLine": 1249,
             "ownStatus": 200,
             "foreignStatus": 403,
             "scope": "Three real fictional employer records and independently authenticated owner sessions in isolated localhost PostgreSQL; HCM feature enabled only in CI",
