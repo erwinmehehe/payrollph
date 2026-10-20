@@ -65,7 +65,7 @@ export function summarizeRlsPolicyCoverage(sourceTables: readonly string[], rows
         ["*", "r", "a", "w", "d"].includes(row.policy_command) &&
         typeof row.policy_permissive === "boolean" &&
         Array.isArray(row.policy_roles) && row.policy_roles.length > 0 &&
-        row.policy_roles.every((name) => validName(name) || name === "PUBLIC") &&
+        row.policy_roles.every((name: string) => validName(name) || name === "PUBLIC") &&
         (row.using_expression === null || typeof row.using_expression === "string") &&
         (row.with_check_expression === null || typeof row.with_check_expression === "string"));
       entry.policies.set(row.policy_name, {
