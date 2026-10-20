@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Building2, ChevronRight, Network, RefreshCw } from "lucide-react";
 import type { HcmOrgExplorerResponse, HcmPositionHistoryResponse } from "@/lib/hcm-org-explorer-contract";
-import { scopedReadFailureForHttpStatus, scopedReadFailureMessage, type ScopedReadFailure } from "@/lib/hcm-scoped-read-failure";
+import { readScopedResponse, scopedReadFailureMessage, type ScopedReadFailure } from "@/lib/hcm-scoped-read-failure";
+import { validOrgExplorerResponse, validPositionHistoryResponse } from "@/lib/hcm-scoped-read-validation";
 
 type Load<T> = {
   scope: string;
@@ -39,26 +40,18 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/hcm/org-explorer?organizationId=" + organizationId, {
-      cache: "no-store", signal: controller.signal,
-    }).then(async (response) => {
+    void readScopedResponse(
+      () => fetch("/api/hcm/org-explorer?organizationId=" + organizationId, {
+        cache: "no-store", signal: controller.signal,
+      }),
+      (payload): payload is HcmOrgExplorerResponse =>
+        validOrgExplorerResponse(payload, organizationId),
+    ).then((result) => {
       if (controller.signal.aborted) return;
-      if (!response.ok) {
-        setGraph({ scope: graphScope, status: "unavailable", data: null,
-          failure: scopedReadFailureForHttpStatus(response.status) });
-        return;
-      }
-      const data = await response.json().catch(() => null) as HcmOrgExplorerResponse | null;
-      if (controller.signal.aborted) return;
-      if (!data || data.tenantId !== organizationId || !Array.isArray(data.units) ||
-          !Array.isArray(data.positions)) {
-        setGraph({ scope: graphScope, status: "unavailable", data: null, failure: "invalid" });
-        return;
-      }
-      setGraph({ scope: graphScope, status: "ready", data });
-    }).catch(() => {
-      if (!controller.signal.aborted) {
-        setGraph({ scope: graphScope, status: "unavailable", data: null, failure: "network" });
+      if (result.status === "ready") {
+        setGraph({ scope: graphScope, status: "ready", data: result.data });
+      } else {
+        setGraph({ scope: graphScope, status: "unavailable", data: null, failure: result.failure });
       }
     });
     return () => controller.abort();
@@ -86,26 +79,18 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
     const params = new URLSearchParams({
       organizationId: String(organizationId), positionId: String(selectedPositionId),
     });
-    void fetch("/api/hcm/position-history?" + params.toString(), {
-      cache: "no-store", signal: controller.signal,
-    }).then(async (response) => {
+    void readScopedResponse(
+      () => fetch("/api/hcm/position-history?" + params.toString(), {
+        cache: "no-store", signal: controller.signal,
+      }),
+      (payload): payload is HcmPositionHistoryResponse =>
+        validPositionHistoryResponse(payload, organizationId, selectedPositionId),
+    ).then((result) => {
       if (controller.signal.aborted) return;
-      if (!response.ok) {
-        setHistory({ scope: positionScope, status: "unavailable", data: null,
-          failure: scopedReadFailureForHttpStatus(response.status) });
-        return;
-      }
-      const data = await response.json().catch(() => null) as HcmPositionHistoryResponse | null;
-      if (controller.signal.aborted) return;
-      if (!data || data.tenantId !== organizationId || data.positionId !== selectedPositionId ||
-          !Array.isArray(data.history?.preview?.items)) {
-        setHistory({ scope: positionScope, status: "unavailable", data: null, failure: "invalid" });
-        return;
-      }
-      setHistory({ scope: positionScope, status: "ready", data });
-    }).catch(() => {
-      if (!controller.signal.aborted) {
-        setHistory({ scope: positionScope, status: "unavailable", data: null, failure: "network" });
+      if (result.status === "ready") {
+        setHistory({ scope: positionScope, status: "ready", data: result.data });
+      } else {
+        setHistory({ scope: positionScope, status: "unavailable", data: null, failure: result.failure });
       }
     });
     return () => controller.abort();
