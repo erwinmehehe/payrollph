@@ -102,8 +102,10 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 489);
-  assert.equal(manifest.metrics.coveredAfter, 60, "59 prior covered methods plus HCM governance GET");
-  assert.equal(manifest.metrics.gap, 423, "Only the proven HCM governance GET was newly recertified");
+  // Previously audited 60 method proofs, plus exactly 2 source-pinned method proofs in PR #1307.
+  // This is intentionally an exact count, not a blanket approval of unrelated GAPs.
+  assert.equal(manifest.metrics.coveredAfter, 62);
+  assert.equal(manifest.metrics.gap, 421);
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);

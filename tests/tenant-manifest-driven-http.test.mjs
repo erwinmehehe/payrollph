@@ -44,7 +44,11 @@ test("single table-driven test reads ALL 489 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 5);
+  const governmentLoan = registry.get("GET compliance/government-loan-remittances");
+  assert.equal(governmentLoan?.status, "COVERED");
+  assert.equal(governmentLoan?.testedBy?.file, "scripts/qa/government-loan-read-http.mjs");
+  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 4,
+    "Exactly one formerly open adapted GET now has independent real-HTTP employer evidence");
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
   assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);
