@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 422 API method and 20 page/action gaps remain. Provisionally integrated separate disposable-PG bank isolation HTTP evidence (four methods) and explicitly reviewed a dedicated-database-attested public fictional demo POST plus private readiness diagnostic (two public/protocol methods); no untested tenant method is certified. All new coverage requires exact-head CI and reviewer acceptance.",
+  "acceptanceStatus": "NOT ACCEPTED: 421 API method and 20 page/action GAPs remain. Real disposable-PG16 method-specific HTTP proof supports the changed statutory proof GET, but the payment-proof POST has no independent real own-success/foreign-denial and unchanged-victim evidence. Do not claim POST tenant isolation or production readiness.",
   "metrics": {
     "routeFiles": 289,
     "methods": 490,
     "coveredBefore": 20,
-    "coveredAfter": 60,
+    "coveredAfter": 61,
     "publicByDesign": 8,
-    "gap": 422,
+    "gap": 421,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -4168,7 +4168,7 @@
       ]
     },
     "src/app/api/compliance/calendar/route.ts": {
-      "gitBlobSha": "646cb631195e918491908c9c34c696cd1f22b31a",
+      "gitBlobSha": "43096dd2330883ccab9e3aeab35fb271e6a07ed7",
       "route": "compliance/calendar",
       "methods": [
         {
@@ -6422,15 +6422,21 @@
       ]
     },
     "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts": {
-      "gitBlobSha": "37a901c394f02ffc1a2d5bf1c034c40ac9d4fd51",
+      "gitBlobSha": "30f7196c737f246be45134591ab8438543588c87",
       "route": "compliance/statutory-remittances/payment-evidence",
       "methods": [
         {
           "name": "GET",
           "line": 57,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Disposable-PG16 two-attacker real HTTP own batch/evidence 200 with exact employer+batch echo; seeded victim-only organization denied 403 and unchanged victim data",
+          "testedBy": {
+            "file": "scripts/qa/tenant-manifest-driven-http.mjs",
+            "line": 51,
+            "ownPositiveLine": 232,
+            "foreignDenialLine": 235,
+            "scope": "Two authenticated attacker employer sessions; real owned and victim-only statutory proof fixtures; method-specific case and unchanged victim DB assertion"
+          }
         },
         {
           "name": "POST",
