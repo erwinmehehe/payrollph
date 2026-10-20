@@ -218,6 +218,13 @@ async function verifyExistingForeignEmployerDenials(demoOwner) {
     runsBody.runs.some(row => row.id === foreign.run && row.organizationId === foreign.org);
   evidence("foreign-owner", "payroll-own-existing-run", runs.status, 200, ownsActualRun);
 
+  const direct = await request("/api/payroll-runs?runId=" + foreign.run +
+    "&include=entries", foreign.cookie);
+  const directBody = await direct.json().catch(() => null);
+  evidence("foreign-owner", "payroll-own-existing-run-direct", direct.status, 200,
+    directBody?.runId === foreign.run && directBody?.organizationId === foreign.org &&
+    Array.isArray(directBody?.entries));
+
   const snapshot = await db.select().from(payrollRuns).where(eq(payrollRuns.id, foreign.run)).limit(1);
   assert.equal(snapshot.length, 1);
 
@@ -311,7 +318,7 @@ async function run() {
   await verifyExistingForeignEmployerDenials(demoOwner);
   // No role may silently drop out of the matrix and leave a green subset.
   // 2 true victim-owned positives + 5 actual victim denials + unchanged DB.
-  const expected = 2 + 5 + ROLES.length * 8 + 2 + 2 + 5 + 1;
+  const expected = 2 + 5 + ROLES.length * 8 + 2 + 3 + 5 + 1;
   assert.equal(observations.length, expected,
     "Every anonymous, login, role-route and cross-tenant probe must execute");
 }
