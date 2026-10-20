@@ -35,6 +35,7 @@ import { ApprovalsView } from "@/components/workspace/approvals";
 import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/components/workspace/command-palette";
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
+import { PracticePayrollCard } from "@/components/workspace/practice-payroll";
 import { OfflinePunchReviewQueue } from "@/components/workspace/offline-punch-review";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
@@ -555,6 +556,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
                 onDecide={(id, status) => void decideTask(id, status)}
               />
             )}
+            {effectiveRole === "owner" && data.access?.companyWide && <PracticePayrollCard key={`practice:${data.selectedOrganization.id}`} payload={data.practicePayroll} />}
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
                 key={data.selectedOrganization.id}
