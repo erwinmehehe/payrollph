@@ -56,7 +56,11 @@ const CASES = Object.freeze({
       foreign: "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
         victimOrg.id + "&batchId=" + victimBatch.id,
     }),
-    prove: (r, { ownedEvidence, victimEvidence }) => {
+    prove: (r, { ownOrg, ownedBatch, ownedEvidence, victimEvidence }) => {
+      assert.equal(r.json?.organizationId, ownOrg.id,
+        "Payment proof index must echo the authenticated employer scope");
+      assert.equal(r.json?.batchId, ownedBatch.id,
+        "Payment proof index must echo the real owned remittance batch");
       assert.ok(Array.isArray(r.json?.evidence));
       assert.ok(r.json.evidence.some((row) => row.id === ownedEvidence.id),
         "Must enumerate a real own evidence record");
