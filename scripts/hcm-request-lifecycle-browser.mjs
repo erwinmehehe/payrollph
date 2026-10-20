@@ -49,6 +49,48 @@ async function visible(text) { await page.getByText(text, { exact: true }).waitF
 async function absent(text) { assert.equal(await page.getByText(text, { exact: true }).count(), 0, `Unexpected stale text: ${text}`); }
 function item(id, title) { return {id,title,detail:"",caseType:"follow_up",status:"open",ownerTeam:"HR Operations",ownerUserId:1,ownerName:"Synthetic owner",dueAt:null,escalateAt:null,escalationLevel:0,overdue:false}; }
 
+function scopedTeam(organizationId, name = "SYNTHETIC_TEAM_WORKER") {
+  return {
+    organizationId, observedAt: "2026-10-20T00:00:00.000Z",
+    scope: {kind:"company", orgUnitId:null}, query:"", statusFilter:"all",
+    warning:"Synthetic read-only page", page:{size:25,hasMore:false,nextCursor:null},
+    summary:{employeeRecordsThisPage:1,pendingLeaveRecordsThisPage:0,pendingOvertimeRecordsThisPage:0,
+      pendingAttendanceCorrectionsThisPage:0,incompletePunchRecordsThisPage:0},
+    items:[{id:18,employeeNo:"FIX-018",name,jobTitle:"Analyst",employmentType:"Regular",
+      status:"Active",orgUnitName:"Synthetic Field Unit",orgUnitIntegrity:"verified",
+      pendingLeaveRecords:0,pendingOvertimeRecords:0,pendingAttendanceCorrections:0,incompletePunchRecords:0}],
+  };
+}
+function scopedOrg(tenantId, unitName = "Synthetic Field Unit") {
+  return {
+    tenantId, observedAt:"2026-10-20T00:00:00.000Z",currentBusinessDate:"2026-10-20",
+    sources:["org_units","positions","job_profiles"],integrity:"ready",unlinkedPositionRecords:0,
+    units:[{id:11,parentId:null,name:unitName,code:"FIX-UNIT",type:"Department",depth:0,
+      relationship:"root",positionRecordCount:1}],
+    positions:[{id:33,code:"FIX-POS-33",status:"Active",jobTitle:"Analyst",orgUnitId:11,
+      supervisoryOrgUnitId:null,reportingUnitId:11,relationship:"linked"}],
+  };
+}
+function scopedHistory() {
+  return {
+    tenantId:17,positionId:33,observedAt:"2026-10-20T00:00:00.000Z",
+    position:{source:"positions",id:33,code:"FIX-POS-33",status:"Active",currentJobTitle:"Analyst"},
+    history:{source:"position_assignments",preview:{hasMore:false,partial:false,
+      items:[{id:45,employeeId:18,assignmentType:"Primary",effectiveFrom:"2026-10-01",
+        effectiveUntil:null}]}},
+  };
+}
+function scopedCalendar(organizationId, employeeName = "SYNTHETIC_LEAVE_WORKER") {
+  return {
+    organizationId, scope:{kind:"company",orgUnitId:null},month:"2026-10",
+    observedAt:"2026-10-20T00:00:00.000Z",
+    dates:{start:"2026-10-01",end:"2026-10-31"},notice:"Synthetic request",
+    summary:{approvedRequestRecords:1,pendingRequestRecords:0},
+    cases:[{requestId:77,employeeId:18,employeeNo:"FIX-018",employeeName,
+      status:"Approved",startDate:"2026-10-01",endDate:"2026-10-31"}],
+  };
+}
+
 try {
   await page.goto(base + "/?organizationId=1");
   await page.evaluate(() => window.renderView("queue"));
@@ -115,6 +157,125 @@ try {
   await absent("Employee records / this page");
   await complete(await requestId("my-team?organizationId=2"), {error:"unavailable"}, 503);
   await visible("Team records unavailable");
+
+  // Behavioral read-state assertions use the actual rendered React surfaces,
+  // not source-code regex matching. No fixture contains real worker data.
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("my-team?organizationId=2"),{error:"auth expired"},401);
+  await visible("Sign in required");
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("my-team?organizationId=2"),{error:"denied"},403);
+  await visible("Team access denied");
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("my-team?organizationId=2"),
+    {...scopedTeam(2),items:[null]});
+  await visible("Team records unavailable");
+  await page.getByRole("alert").getByText(/response did not match the requested employer/i).waitFor();
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await page.evaluate(index => window.completeMalformed(index),
+    await requestId("my-team?organizationId=2"));
+  await page.getByRole("alert").getByText(/response did not match the requested employer/i).waitFor();
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("my-team?organizationId=2"),scopedTeam(999,"FOREIGN_TEAM_WORKER"));
+  await page.getByRole("alert").getByText(/response did not match the requested employer/i).waitFor();
+  await absent("FOREIGN_TEAM_WORKER");
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await page.evaluate(index => window.rejectRequest(index),await requestId("my-team?organizationId=2"));
+  await page.getByRole("alert").getByText(/request could not reach the source/i).waitFor();
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("my-team?organizationId=2"),scopedTeam(2));
+  await visible("SYNTHETIC_TEAM_WORKER");
+  await page.getByRole("button",{name:"Refresh",exact:true}).click();
+  await absent("SYNTHETIC_TEAM_WORKER");
+  await complete(await requestId("my-team?organizationId=2"),{error:"revoked"},403);
+  await visible("Team access denied");
+  await absent("SYNTHETIC_TEAM_WORKER");
+
+  // Organization Explorer rejects malformed rows before rendering and keeps
+  // position history retry independent of an already verified hierarchy.
+  await page.evaluate(() => window.renderView("org",{organizationId:17}));
+  await complete(await requestId("org-explorer?organizationId=17"),{error:"denied"},403);
+  await visible("Organization access denied");
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("org-explorer?organizationId=17"),
+    {...scopedOrg(17),units:[null]});
+  await visible("Organization data unavailable");
+  await page.getByRole("alert").getByText(/response did not match the requested employer/i).waitFor();
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("org-explorer?organizationId=17"),
+    {...scopedOrg(17),positions:[null]});
+  await page.getByRole("alert").getByText(/response did not match the requested employer/i).waitFor();
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("org-explorer?organizationId=17"),scopedOrg(17));
+  await visible("Synthetic Field Unit");
+  await page.getByRole("button",{name:/FIX-POS-33/}).click();
+  const initialOrgReads = await page.evaluate(() =>
+    window.pending.filter(r=>r.url.includes("org-explorer?organizationId=17")).length);
+  await complete(await requestId("position-history?organizationId=17"),
+    {...scopedHistory(),history:{source:"position_assignments",
+      preview:{hasMore:false,partial:false,items:[null]}}});
+  await visible("Position history unavailable");
+  await page.getByRole("button",{name:"Retry position history",exact:true}).click();
+  await complete(await requestId("position-history?organizationId=17"),scopedHistory());
+  await visible("Recorded worker reference #18");
+  assert.equal(await page.evaluate(() =>
+    window.pending.filter(r=>r.url.includes("org-explorer?organizationId=17")).length),
+    initialOrgReads,"Position-history retry must not refetch the organization");
+  await page.getByRole("button",{name:"Refresh sources",exact:true}).click();
+  await absent("Recorded worker reference #18");
+  await absent("Synthetic Field Unit");
+  await complete(await requestId("org-explorer?organizationId=17"),{error:"source outage"},503);
+  await visible("Organization data unavailable");
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  const oldOrg = await requestId("org-explorer?organizationId=17");
+  await page.evaluate(() => window.renderView("org",{organizationId:18}));
+  await complete(oldOrg,scopedOrg(17,"FOREIGN_ORG_UNIT"));
+  await absent("FOREIGN_ORG_UNIT");
+  await complete(await requestId("org-explorer?organizationId=18"),
+    scopedOrg(18,"Second Employer Unit"));
+  await visible("Second Employer Unit");
+  await page.getByRole("button",{name:"Refresh sources",exact:true}).click();
+  await absent("Second Employer Unit");
+  await complete(await requestId("org-explorer?organizationId=18"),{error:"session ended"},401);
+  await visible("Sign in required");
+
+  // Team Leave Calendar must not display stale or unauthenticated private
+  // employee records, including after tenant changes and rejected transport.
+  await page.evaluate(() => window.renderView("calendar",{organizationId:17,initialMonth:"2026-10"}));
+  await complete(await requestId("team-leave-calendar?organizationId=17"),
+    {...scopedCalendar(17),cases:[null]});
+  await visible("Leave records unavailable");
+  await page.getByRole("alert").getByText(/response did not match the requested employer/i).waitFor();
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("team-leave-calendar?organizationId=17"),{error:"denied"},403);
+  await visible("Leave calendar access denied");
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("team-leave-calendar?organizationId=17"),{error:"sign in"},401);
+  await visible("Sign in required");
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("team-leave-calendar?organizationId=17"),{error:"outage"},503);
+  await visible("Leave records unavailable");
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await page.evaluate(index => window.rejectRequest(index),
+    await requestId("team-leave-calendar?organizationId=17"));
+  await page.getByRole("alert").getByText(/request could not reach the source/i).waitFor();
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("team-leave-calendar?organizationId=17"),
+    scopedCalendar(99,"FOREIGN_LEAVE_WORKER"));
+  await page.getByRole("alert").getByText(/response did not match the requested employer/i).waitFor();
+  await absent("FOREIGN_LEAVE_WORKER");
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await complete(await requestId("team-leave-calendar?organizationId=17"),scopedCalendar(17));
+  await visible("SYNTHETIC_LEAVE_WORKER");
+  await page.getByRole("button",{name:"Refresh",exact:true}).click();
+  await absent("SYNTHETIC_LEAVE_WORKER");
+  const staleCalendar = await requestId("team-leave-calendar?organizationId=17");
+  await page.evaluate(() => window.renderView("calendar",{organizationId:18,initialMonth:"2026-10"}));
+  await complete(staleCalendar,scopedCalendar(17));
+  await absent("SYNTHETIC_LEAVE_WORKER");
+  await complete(await requestId("team-leave-calendar?organizationId=18"),
+    scopedCalendar(18,"SYNTHETIC_LEAVE_EMPLOYER_18"));
+  await visible("SYNTHETIC_LEAVE_EMPLOYER_18");
 
   await page.evaluate(() => window.renderView("worker", {organizationId:1,employeeId:11,initialAsOfDate:"2026-10-11"}));
   await complete(await requestId("worker-360?organizationId=1"), {}, 403);
@@ -226,5 +387,5 @@ try {
   await absent("LIFECYCLE_PRIVATE_A1");
 
   assert.deepEqual(errors, []);
-  console.log("HCM request lifecycle browser QA passed: tenant/filter/editor isolation, late history, stale save, refresh/failure states, My Team, Worker 360, People Ops and legal-employer lifecycle (StrictMode; transport ignores abort).");
+  console.log("HCM request lifecycle browser QA passed: tenant/filter/editor isolation, late history, stale save, My Team, org explorer, position history and team leave read failures, retries and stale-scope discard, Worker 360, People Ops and legal-employer lifecycle (StrictMode; transport ignores abort).");
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
