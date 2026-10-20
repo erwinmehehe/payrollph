@@ -22371,9 +22371,9 @@
           "reason": "Fail-closed containment proven in isolated, seeded two-attacker/one-victim HTTP test: authenticated own GET is explicitly 503 with no counts/gates, foreign GET is 403. This is NOT a working readiness dashboard and does not imply pilot approval.",
           "testedBy": {
             "file": "scripts/qa/workspace-readiness-http.mjs",
-            "line": 30,
+            "line": 32,
             "ownPositiveLine": 26,
-            "foreignDenialLine": 30,
+            "foreignDenialLine": 32,
             "ownStatus": 503,
             "foreignStatus": 403,
             "scope": "Synthetic PostgreSQL16, independent authenticated owner sessions; no launch/readiness evidence exposed; dashboard remains unavailable"
