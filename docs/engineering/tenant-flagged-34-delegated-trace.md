@@ -53,7 +53,7 @@ The `scripts/qa/tenant-delegated-trace.mjs` program parses source ASTs and follo
 
 The family-adapter registry currently contains the two statutory **payment-evidence file/list GETs**, **remittance-actions GET**, **BIR 1601-C GET**, **government loan remittances GET**, and **statutory remittances GET**. It creates eight victim-only real remittance batches, eight downloadable fictional payment proofs and eight compliance tasks so object IDs really exist and exceed 6. A and B each get a real own batch, file and task, an authenticated positive result, explicit foreign-employer 403, and exact **404** when a real foreign document ID is submitted under the caller's legitimate employer. No actual provider, payroll release, wage change or agency event is triggered. Pre/post victim snapshots cover evidence, tasks, employees, payroll, legal entities and audit rows.
 
-**After #1290's independently recorded synthetic GET/POST evidence is integrated:** 49 methods are provisionally COVERED and 434 remain GAP. Of these six adapters, BIR 1601-C GET already has earlier HTTP coverage; it remains an extra regression, so **five** of the six are newly targeted GAPs.
+**After #1290's independently recorded synthetic GET/POST evidence is integrated:** 55 methods are provisionally COVERED and 428 remain GAP. Of these six adapters, BIR 1601-C GET already has earlier HTTP coverage; it remains an extra regression, so **five** of the six are newly targeted GAPs.
 
 **New integrated branch status remains PENDING until exact-head `Security HTTP Smoke`, the required CI `check`, CodeQL and payout-isolation checks pass.** No `COVERED` statuses, source SHA inventory, or counts have been changed in this batch.
 
@@ -68,4 +68,4 @@ The inventory includes all 20 page paths and their business-ID references. The n
 3. HR-case/employee-vault personal data, remaining statutory and all pages/actions.
 4. Workforce, performance, planning and the remaining API families, with exact manifest-driven adapters.
 
-The 434 API and 20 page/action coverage gaps are **unverified evidence gaps, not 454 confirmed vulnerabilities**. Source-level helper traces are not independent runtime proof.
+The 428 API and 20 page/action coverage gaps are **unverified evidence gaps, not 448 confirmed vulnerabilities**. Source-level helper traces are not independent runtime proof.

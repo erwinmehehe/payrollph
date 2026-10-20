@@ -44,7 +44,9 @@ test("team access effects defer GET, abort obsolete reads and cannot publish emp
 });
 
 test("remittance correction editor owns drafts by record, not by resetting state in an effect", () => {
-  assert.ok(correction.includes("<StatutoryRemittanceCorrectionsPanelForOrganization key={props.organizationId}"));
+  assert.ok(correction.includes(
+    "<StatutoryRemittanceCorrectionsPanelForOrganization key={JSON.stringify([props.organizationId, props.legalEntityId, props.viewerUserId, props.viewerRole, props.companyWide])}"
+  ), "employer, entity, user and access changes must remount the correction editor");
   assert.equal(correction.split("useEffect(").length - 1, 1);
   assert.ok(correction.includes("paymentEdit && selectedBatch && paymentEdit.id === selectedBatch.id"));
   assert.ok(correction.includes("postingEdit && selectedMember && postingEdit.id === selectedMember.id"));
@@ -68,7 +70,12 @@ test("remittance authoritative reads are abortable, current-tenant only and fail
   assert.ok(begin > 0 && end > begin);
   const scoped = correction.slice(begin, end);
   const beforeFirstFetch = scoped.slice(0, scoped.indexOf("await Promise.all("));
-  assert.ok(!beforeFirstFetch.includes("setReadState("), "mount cannot synchronously reset read gate");
+  assert.ok(beforeFirstFetch.includes('setReadState("loading");'),
+    "deferred load must revoke ready state before either employer evidence request");
+  assert.ok(beforeFirstFetch.includes("setCorrectionData(null);"),
+    "previous permission evidence must be cleared before both reads");
+  assert.ok(scoped.includes("queueMicrotask(() => {"),
+    "the mount effect must defer the loading state transition");
   for (const statement of [
     "const revision = ++readRevisionRef.current;",
     "revision === readRevisionRef.current",

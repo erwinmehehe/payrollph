@@ -1,4 +1,4 @@
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, isNull, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { payrollEntries, payrollRuns } from "@/db/schema";
 import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_VIEW_ROLES } from "@/lib/access";
@@ -31,6 +31,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!entry) return Response.json({ error: "Payroll entry not found for this employee." }, { status: 404 });
   const [previousRun] = await db.select().from(payrollRuns).where(and(
     eq(payrollRuns.organizationId, run.organizationId),
+    run.legalEntityId == null ? isNull(payrollRuns.legalEntityId) : eq(payrollRuns.legalEntityId, run.legalEntityId),
+    run.scopeOrgUnitId == null ? isNull(payrollRuns.scopeOrgUnitId) : eq(payrollRuns.scopeOrgUnitId, run.scopeOrgUnitId),
     eq(payrollRuns.status, "Released"),
     lt(payrollRuns.payDate, run.payDate),
   )).orderBy(desc(payrollRuns.payDate), desc(payrollRuns.id)).limit(1);
@@ -38,6 +40,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     ? await db.select().from(payrollEntries).where(and(eq(payrollEntries.payrollRunId, previousRun.id), eq(payrollEntries.employeeId, employeeId))).limit(1)
     : [];
   return Response.json({
+    organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId ?? null,
+    employeeId,
     run: { id: run.id, periodLabel: run.periodLabel, payDate: run.payDate, ruleVersion: run.ruleVersion },
     previousRun: previousRun ? { id: previousRun.id, periodLabel: previousRun.periodLabel, payDate: previousRun.payDate, ruleVersion: previousRun.ruleVersion } : null,
     explanation: buildPayExplanation(entry, previousEntry ?? null),

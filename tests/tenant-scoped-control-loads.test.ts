@@ -24,7 +24,7 @@ const panels: ProtectedPanel[] = [
   },
   {
     file: "src/components/workspace/managed-payroll-control-room.tsx",
-    keyedInstance: "key={props.data.selectedOrganization.id}",
+    keyedInstance: "key={JSON.stringify([props.data.selectedOrganization.id, props.data.user?.id",
     requiredStateReset: "setPayload(null);",
     payloadClear: "setPayload(null);",
   },
@@ -33,7 +33,10 @@ const panels: ProtectedPanel[] = [
 for (const panel of panels) {
   test(panel.file + " isolates tenant state and retires synchronous effect loading", () => {
     const source = readFileSync(panel.file, "utf8");
-    const loadStart = source.indexOf("  const load = useCallback(async () => {");
+    const managed = panel.file === "src/components/workspace/managed-payroll-control-room.tsx";
+    const loadStart = source.indexOf(managed
+      ? "  const load = useCallback(async (): Promise<boolean> => {"
+      : "  const load = useCallback(async () => {");
     const effectStart = source.indexOf("  useEffect(() => {", loadStart);
     assert.ok(loadStart > 0 && effectStart > loadStart, "load must be async with stable cancellation cleanup");
     const loader = source.slice(loadStart, effectStart);
@@ -47,11 +50,24 @@ for (const panel of panels) {
     assert.ok(!mountEffect.includes("setLoading("), "effect cannot synchronously reset state");
     assert.ok(source.includes(panel.keyedInstance), "changing tenant must remount the panel");
     assert.ok(source.includes(panel.requiredStateReset), "scope-local private drafts must be cleared on reset");
-    assert.ok(!loader.includes("setLoading(true)"), "the mount effect cannot synchronously start loading");
+    if (managed) {
+      const requestAt = loader.indexOf("await fetch(");
+      assert.ok(requestAt > 0, "managed payroll must request fresh employer evidence");
+      assert.ok(loader.indexOf("setPayload(null);") < requestAt,
+        "previous approval evidence must be revoked before the GET");
+      assert.ok(loader.indexOf("setLoading(true);") < requestAt,
+        "a deferred loader may indicate loading but must never expose stale approvals");
+      assert.ok(source.includes("viewerUserId") && source.includes("parseManagedPayrollRead("),
+        "employer/user identity must be bound to the response");
+    } else {
+      assert.ok(!loader.includes("setLoading(true)"), "the mount effect cannot synchronously start loading");
+    }
     assert.ok(loader.includes("activeRead.current?.abort()"), "a superseded read must be aborted");
     assert.ok(loader.includes("const controller = new AbortController();"));
     assert.ok(loader.includes("signal: controller.signal"), "fetch must use the owning abort signal");
-    assert.ok(loader.includes("if (controller.signal.aborted) return;"), "aborted reads must not commit results");
+    assert.ok(loader.includes(managed
+      ? "if (controller.signal.aborted) return false;"
+      : "if (controller.signal.aborted) return;"), "aborted reads must not commit results");
     assert.ok(loader.includes("if (!controller.signal.aborted) setLoading(false);"));
     assert.ok(loader.includes(panel.payloadClear), "read failures must not preserve stale controls");
     assert.ok(source.includes("const refresh = () => {"), "manual refresh must be explicit");
@@ -64,7 +80,9 @@ test("managed payroll read failure cannot be misrepresented as an unenrolled pil
   const errorGate = source.indexOf("  if (loadError) {");
   const notEnabledGate = source.indexOf("  if (!payload?.engagement) {");
   assert.ok(errorGate > 0 && notEnabledGate > errorGate, "a failed or incomplete read must fail closed");
-  assert.ok(source.includes('throw new Error("Managed payroll returned incomplete approval controls.");'));
+  assert.ok(source.includes('throw new Error("Managed payroll employer, approver or gate evidence could not be verified.");'));
+  assert.ok(source.includes("parseManagedPayrollRead(body, { organizationId, viewerUserId })"));
+  assert.ok(source.includes("setPayload(null);"), "stale managed approvals must be withdrawn before retry");
   assert.ok(source.includes("setLoadError(message);"));
   assert.ok(source.includes("<h2>Controls unavailable</h2>"));
 });
