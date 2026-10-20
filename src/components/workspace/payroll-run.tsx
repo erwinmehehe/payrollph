@@ -556,6 +556,10 @@ export function PayrollRunView({
       {["owner", "admin", "bookkeeper", "payroll", "checker"].includes(data.access?.role ?? "") && (
         <StatutoryRemittanceCorrectionsPanel
           organizationId={data.selectedOrganization.id}
+          legalEntityId={data.multiEntity?.enabled ? data.multiEntity.legalEntityId : run?.legalEntityId ?? null}
+          viewerUserId={data.user?.id ?? null}
+          viewerRole={data.access?.role ?? null}
+          companyWide={data.access?.companyWide === true}
           notify={notify}
         />
       )}
