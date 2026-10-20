@@ -75,6 +75,12 @@ test("multiple matching payroll runs are individually listed, not auto-selected"
   if (result.kind !== "visible") return;
   assert.deepEqual(result.runs.map(item => item.id), [42, 43]);
   assert.notEqual(firstPayrollRunHref(71, 42), firstPayrollRunHref(71, 43));
+  const duplicateCohort = snapshot();
+  duplicateCohort.expectations.push({ ...duplicateCohort.expectations[0], id: 9, payrollRunId: 43 });
+  const duplicateResult = resolve(input({ payrollRuns: [run(42), run(43)], timesheetResponse: duplicateCohort }));
+  assert.equal(duplicateResult.kind, "visible");
+  if (duplicateResult.kind === "visible") assert.equal(duplicateResult.counts.expectedMissing, 1,
+    "parallel payroll runs must not double-count a missing employee");
 });
 
 test("nearby periods and missing runs do not assert that payroll is ready", () => {

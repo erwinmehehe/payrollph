@@ -101,6 +101,7 @@ function readCounts(value: unknown, period: WorkforceTimecardPeriod): WorkforceT
   }
 
   const seenExpectations = new Set<string>();
+  const expectedMissingWorkerIds = new Set<number>();
   for (const expected of value.expectations) {
     if (!record(expected) || !positiveId(expected.id) || !positiveId(expected.payrollRunId) ||
         !positiveId(expected.employeeId) || !employeeIds.has(expected.employeeId) ||
@@ -113,8 +114,10 @@ function readCounts(value: unknown, period: WorkforceTimecardPeriod): WorkforceT
     const key = String(expected.payrollRunId) + "/" + String(expected.employeeId);
     if (seenExpectations.has(key)) return null;
     seenExpectations.add(key);
-    if (expected.status === "expected") counts.expectedMissing++;
+    if (expected.status === "expected") expectedMissingWorkerIds.add(expected.employeeId);
   }
+  // A worker expected by two parallel scoped runs is one missing worker, not two.
+  counts.expectedMissing = expectedMissingWorkerIds.size;
   return counts;
 }
 
