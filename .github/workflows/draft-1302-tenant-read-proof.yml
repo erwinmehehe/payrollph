@@ -1,0 +1,104 @@
+name: Draft 1302 isolated tenant read evidence (no money)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - '.github/workflows/draft-1302-tenant-read-proof.yml'
+      - 'scripts/qa/tenant-second-pass-http.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'scripts/qa/tenant-manifest-driven-http.mjs'
+      - 'src/app/api/**'
+      - 'src/lib/**'
+
+permissions:
+  contents: read
+
+jobs:
+  tenant-http-proof:
+    if: ${{ github.event.pull_request.number == 1302 && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      WORKER_TOKEN: ci-worker-token-00000000000000000000000000000000
+      READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
+      SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
+      TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
+      MALWARE_SCAN_TOKEN: ci-malware-token-0000000000000000000000000000
+      REQUIRE_PRIVILEGED_MFA: "true"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral encryption key for disposable CI only
+        shell: bash
+        run: |
+          key=$(openssl rand -hex 32)
+          echo "::add-mask::$key"
+          echo "PII_ENCRYPTION_KEY=$key" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - run: npm run build
+      - name: Start isolated production-mode localhost server
+        shell: bash
+        env:
+          PUBLIC_API_V1_EXTENDED_ENABLED: "true"
+          API_V1_EXTENDED_READS_ENABLED: "true"
+          EMPLOYEE_HR_CASES_ENABLED: "true"
+          OWNER_PRACTICE_PAYROLL_ENABLED: "true"
+          HCM_GOVERNANCE_READINESS_ENABLED: "true"
+          PAYMONGO_WEBHOOK_SECRET: ci-fake-paymongo-webhook-signing-secret
+          XENDIT_PAYOUT_CALLBACK_TOKEN: ci-fake-xendit-payout-callback
+          XENDIT_CALLBACK_TOKEN: ci-fake-xendit-subscription-callback
+          XENDIT_BUSINESS_ID: ci-fictional-merchant
+          XENDIT_BILLING_ENABLED: "true"
+        run: |
+          set -euo pipefail
+          resend_webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\\n')"
+          echo "::add-mask::$resend_webhook_secret"
+          export RESEND_WEBHOOK_SECRET="$resend_webhook_secret"
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-pr-1302-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-pr-1302-server.log
+          exit 1
+      - name: Exercise real signed-in employer ownership and foreign-denial HTTP
+        env:
+          TENANT_SECOND_PASS_MODE: isolated-ci-only
+        run: npx tsx scripts/qa/tenant-second-pass-http.mjs
+      - name: Show isolated server log on failure
+        if: failure()
+        run: cat /tmp/tenant-pr-1302-server.log || true
