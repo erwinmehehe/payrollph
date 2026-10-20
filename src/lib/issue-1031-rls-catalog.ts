@@ -44,6 +44,7 @@ export function summarizeRlsPolicyCoverage(sourceTables: readonly string[], rows
     sourceNames.add(name);
   }
   const seen = new Map<string, { enabled: boolean; forced: boolean; policies: Map<string, Policy> }>();
+  const emptyPolicyTables = new Set<string>();
   for (const row of rows) {
     requireEvidence(row && validName(row.table_name) &&
       typeof row.rls_enabled === "boolean" && typeof row.rls_forced === "boolean");
@@ -52,10 +53,13 @@ export function summarizeRlsPolicyCoverage(sourceTables: readonly string[], rows
     };
     requireEvidence(entry.enabled === row.rls_enabled && entry.forced === row.rls_forced);
     if (row.policy_name === null) {
+      requireEvidence(!seen.has(row.table_name));
+      emptyPolicyTables.add(row.table_name);
       requireEvidence(row.policy_command === null && row.policy_permissive === null &&
         row.policy_roles === null && row.using_expression === null &&
         row.with_check_expression === null && entry.policies.size === 0);
     } else {
+      requireEvidence(!emptyPolicyTables.has(row.table_name));
       requireEvidence(validName(row.policy_name) && !entry.policies.has(row.policy_name) &&
         typeof row.policy_command === "string" &&
         ["*", "r", "a", "w", "d"].includes(row.policy_command) &&
