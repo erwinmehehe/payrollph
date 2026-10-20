@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.gap, 421, "HCM and payment-proof GET have real own/foreign proof; 421 GAPs remain open");
-  assert.equal(manifest.metrics.coveredAfter, 61, "Only independently exercised HCM and payment-proof GETs count as COVERED");
+  assert.equal(manifest.metrics.gap, 420, "HCM and statutory payment-proof GET/POST have real own/foreign proof; 420 GAPs remain open");
+  assert.equal(manifest.metrics.coveredAfter, 62, "Only source-evidenced HCM, statutory GET and statutory POST count as COVERED");
   const governanceMethod = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(governanceMethod?.status, "COVERED", "HCM governance read requires real own/foreign proof");
   assert.equal(governanceMethod?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
@@ -45,7 +45,7 @@ test("single table-driven test reads ALL 490 methods without claiming precovered
 });
 
 test("real-HTTP and disposable DB proof requirements cannot be weakened", () => {
-  assert.match(harness, /await \(await import\("\.\/tenant-manifest-driven-http\.mjs"\)\)\.verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus \}\)/);
+  assert.match(harness, /await \(await import\("\.\/tenant-manifest-driven-http\.mjs"\)\)\.verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus, makeSession \}\)/);
 
   assert.match(src, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
   assert.match(src, /const own = expectStatus\(await request\(urls\.own, \{ cookie \}\), 200/);
