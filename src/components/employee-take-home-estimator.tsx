@@ -2,11 +2,12 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 import { Calculator, LoaderCircle, ShieldCheck } from "lucide-react";
-import { estimateMonthlyTakeHome, type TakeHomeEstimate } from "@/lib/take-home-estimate";
+import { estimateMonthlyTakeHome } from "@/lib/take-home-estimate";
+import {
+  employeeTakeHomeReadError, parseEmployeeTakeHomeBaseline,
+  type EmployeeTakeHomeBaselinePayload,
+} from "@/lib/employee-take-home-baseline";
 import { essText, type EssLanguage } from "@/lib/ess-language";
-
-type Baseline = { monthlyBasic: number; payBasis: string; mwe: boolean };
-type BaselinePayload = { asOf: string; baseline: Baseline; estimate: TakeHomeEstimate; note: string };
 
 const peso = (value: number) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value || 0);
@@ -20,31 +21,60 @@ function numberInput(value: string) {
 export function EmployeeTakeHomeEstimator({ language = "en" }: { language?: EssLanguage }) {
   const t = (text: string) => essText(language, text);
   const headingId = useId();
-  const [payload, setPayload] = useState<BaselinePayload | null>(null);
+  const [payload, setPayload] = useState<EmployeeTakeHomeBaselinePayload | null>(null);
   const [error, setError] = useState("");
+  const [unauthorized, setUnauthorized] = useState(false);
+  const [reloadCount, setReloadCount] = useState(0);
   const [basic, setBasic] = useState("");
   const [taxableAllowances, setTaxableAllowances] = useState("0");
   const [deMinimis, setDeMinimis] = useState("0");
   const [voluntaryPagIbig, setVoluntaryPagIbig] = useState("0");
 
   useEffect(() => {
-    let cancelled = false;
-    fetch("/api/self/take-home-estimate", { cache: "no-store" })
-      .then(async (response) => {
-        const body = await response.json().catch(() => ({}));
-        if (cancelled) return;
+    const controller = new AbortController();
+    setPayload(null);
+    setError("");
+    setUnauthorized(false);
+
+    async function loadBaseline() {
+      try {
+        const response = await fetch("/api/self/take-home-estimate", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+
         if (!response.ok) {
-          setError(body.error ?? "We could not load your pay baseline.");
+          setUnauthorized(response.status === 401);
+          setError(employeeTakeHomeReadError(response.status));
           return;
         }
-        setPayload(body as BaselinePayload);
-        setBasic(String((body as BaselinePayload).baseline.monthlyBasic));
-      })
-      .catch(() => {
-        if (!cancelled) setError("We could not reach the server to load your pay baseline.");
-      });
-    return () => { cancelled = true; };
-  }, []);
+
+        // A 200 response is still unusable if an intermediary returned HTML,
+        // incomplete JSON, or inconsistent salary/withholding amounts.
+        if (!(response.headers.get("content-type") ?? "").includes("application/json")) {
+          setError("The pay baseline response was invalid. Please retry.");
+          return;
+        }
+        const body: unknown = await response.json().catch(() => null);
+        const verified = parseEmployeeTakeHomeBaseline(body);
+        if (controller.signal.aborted) return;
+        if (!verified) {
+          setError("The pay baseline response was invalid. Please retry.");
+          return;
+        }
+        setBasic(String(verified.baseline.monthlyBasic));
+        setPayload(verified);
+      } catch {
+        if (!controller.signal.aborted) {
+          setError("We could not reach the server to load your pay baseline.");
+        }
+      }
+    }
+
+    void loadBaseline();
+    return () => controller.abort();
+  }, [reloadCount]);
 
   const scenario = useMemo(() => {
     if (!payload) return null;
@@ -81,7 +111,19 @@ export function EmployeeTakeHomeEstimator({ language = "en" }: { language?: EssL
           <span>{t("Loading your current pay baseline...")}</span>
         </div>
       )}
-      {error && <div role="alert" className="notice notice-amber" style={{ margin: "13px 14px" }}><span>{t(error)}</span></div>}
+      {error && (
+        <div role="alert" className="notice notice-amber" style={{ margin: "13px 14px" }}>
+          <span>{t(error)}</span>
+          {unauthorized ? (
+            <a className="clean-link" href="/login">{t("Sign in")}</a>
+          ) : (
+            <button type="button" className="clean-link"
+              onClick={() => setReloadCount((count) => count + 1)}>
+              {t("Retry loading")}
+            </button>
+          )}
+        </div>
+      )}
 
       {payload && current && (
         <div style={{ display: "grid", gap: 12, padding: "13px 14px" }}>
