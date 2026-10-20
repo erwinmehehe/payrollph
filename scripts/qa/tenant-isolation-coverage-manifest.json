@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 424 API method and 20 page/action gaps remain. Bank evidence proofs require exact-head real HTTP/PG CI. No production release approval.",
+  "acceptanceStatus": "NOT ACCEPTED: 423 API method and 20 page/action gaps remain. Bank evidence proofs require exact-head real HTTP/PG CI. No production release approval.",
   "metrics": {
     "routeFiles": 288,
     "methods": 489,
     "coveredBefore": 20,
-    "coveredAfter": 59,
+    "coveredAfter": 60,
     "publicByDesign": 6,
-    "gap": 424,
+    "gap": 423,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -12281,15 +12281,23 @@
       ]
     },
     "src/app/api/hcm/governance-readiness/route.ts": {
-      "gitBlobSha": "d1369d878c00b84f93df71cee6bd7c657be0086f",
+      "gitBlobSha": "1d8ad354a97c060c262b73e4f49e0da283713402",
       "route": "hcm/governance-readiness",
       "methods": [
         {
           "name": "GET",
           "line": 8,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1245,
+            "ownPositiveLine": 1245,
+            "foreignDenialLine": 1249,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three real fictional employer records and independently authenticated owner sessions in isolated localhost PostgreSQL; HCM feature enabled only in CI",
+            "evidence": "Victim's 8 workers and complete 8-process inventory return 200; both attacker owners read their real 1-worker employer 200 and are denied 403 for the populated victim employer; anonymous 401"
+          }
         }
       ],
       "employerSources": {
@@ -12361,7 +12369,11 @@
           "token": "organizationId"
         },
         {
-          "line": 34,
+          "line": 36,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
           "token": "organizationId"
         }
       ]
