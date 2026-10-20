@@ -593,7 +593,7 @@ test("employee self-service keeps the payslip summary without mascot dependencie
   const employeeHome = read("src/components/employee-home-dashboard.tsx");
   assert.ok(selfService.includes("<EmployeeHomeDashboard"), "employee portal must render its released-pay summary");
   assert.ok(employeeHome.includes("data-latest-payslip"), "employee view must keep the latest-payslip summary card");
-  assert.ok(employeeHome.includes("Payslip available"), "released payslip status must stay explicit");
+  assert.ok(employeeHome.includes("Payslip released"), "released payslip status must stay explicit without implying payment completion");
   assert.ok(!selfService.includes("PayrollGuide"), "employee view must not use the mascot guide");
   assert.ok(!selfService.includes("payroll-owl"), "employee view must not import mascot assets");
   assert.ok(!selfService.includes("RecentPayrollRuns"), "employee view must not expose company payroll run history");

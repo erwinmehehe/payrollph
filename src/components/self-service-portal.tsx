@@ -617,7 +617,7 @@ export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false
         </header>
 
         <main className="content-area employee-app employee-self-service">
-          <span className="employee-contract-copy">{language === "fil" ? "Sahod ko · Magkano ang natanggap ko? · Available ang payslip" : "My pay · What did I get paid, and what do I need today? · Payslip available"}</span>
+          <span className="employee-contract-copy">{language === "fil" ? "Sahod ko · Aling payroll ang na-release? · Available ang payslip" : "My pay · What payroll has been released? · Payslip available"}</span>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>{languageControl}</div>
           {error && <div className="notice notice-amber" role="alert"><span>{error}</span></div>}
 
@@ -742,7 +742,7 @@ export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false
                 <div>
                   <span>{latestPayslip.period}</span>
                   <strong>{peso(latestPayslip.net)}</strong>
-                  <small>{t("Net pay · paid")} {payDateLabel(latestPayslip.payDate)}</small>
+                  <small>{t("Net pay · released · Scheduled pay date")} {payDateLabel(latestPayslip.payDate)}</small>
                 </div>
                 <a className="secondary-button" href={"/api/self/payslips/" + latestPayslip.entryId}><Download size={14} /> PDF</a>
               </div>

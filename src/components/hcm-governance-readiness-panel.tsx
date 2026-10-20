@@ -3,35 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw, ShieldAlert } from "lucide-react";
 import { HcmGovernanceWorklistPanel } from "@/components/hcm-governance-worklist-panel";
-
-type HcmGovernanceReport = {
-  asOf: string;
-  status: "manual_review_required" | "inventory_only";
-  summary: {
-    employeeCount: number;
-    currentWorkers: number;
-    highPriorityCategories: number;
-    reviewCategories: number;
-    inProgressBusinessProcesses: number;
-    pendingHcmSteps: number;
-    overdueHcmSteps: number;
-  };
-  findings: Array<{
-    code: string;
-    severity: "high" | "review";
-    affected: number;
-    title: string;
-    nextAction: string;
-  }>;
-  processes: Array<{
-    processType: string;
-    configuredDefinitions: number;
-    currentActiveDefinitions: number;
-    scopedDefinitions: number;
-    policyState: string;
-  }>;
-  limitations: string[];
-};
+import { parseHcmGovernanceReadinessResponse, type HcmGovernanceReport } from "@/lib/hcm-governance-verified-read";
 
 function policyLabel(state: string) {
   if (state === "active_definition_exists") return "At least one active policy";
@@ -59,19 +31,14 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
       { cache: "no-store", signal: controller.signal },
     )
       .then(async (response) => {
-        const payload = await response.json().catch(() => ({}));
-        // Never accept an old employer's data or a superseded refresh.
+        const payload: unknown = await response.json().catch(() => null);
+        // A late response, denied read or malformed 200 must never publish
+        // another employer's counts or a false "no exceptions" inventory.
         if (requestId !== requestGeneration.current) return;
-        if (!response.ok) {
-          if (response.status === 403) {
-            setErrorState({ organizationId, message: "Company-wide People administrator access is required for this aggregate readiness report." });
-            setReport(null);
-            return;
-          }
-          throw new Error(payload.error ?? "Could not load HCM governance readiness.");
-        }
+        if (controller.signal.aborted) return;
+        const verified = parseHcmGovernanceReadinessResponse(response.status, payload, organizationId);
         setErrorState(null);
-        setReport(payload as HcmGovernanceReport);
+        setReport(verified);
         setLoadedOrganizationId(organizationId);
       })
       .catch((caught) => {
@@ -111,14 +78,14 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
         <button
           type="button"
           className="secondary-button"
-          onClick={() => { setBusy(true); setErrorState(null); setRefreshNonce((current) => current + 1); }}
+          onClick={() => { setBusy(true); setReport(null); setCheckedOrganizationId(null); setErrorState(null); setRefreshNonce((current) => current + 1); }}
           disabled={busy || !checked}
         >
           <RefreshCw size={14} /> {busy ? "Checking..." : "Refresh checks"}
         </button>
       </div>
-      {error && <div className="notice notice-amber"><span>{error}</span></div>}
-      {!checked && <p>Checking HCM governance records...</p>}
+      {error && <div className="notice notice-amber" role="alert"><span>{error}</span></div>}
+      {!checked && <p role="status">Checking HCM governance records...</p>}
       {report && (
         <>
           <div className="module-grid three" style={{ margin: "0 0 12px" }}>
