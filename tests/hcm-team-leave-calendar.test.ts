@@ -135,7 +135,7 @@ test("a complete leave month rejects missing, invalid and mismatched summary tot
     assert.equal(hasConsistentTeamLeaveSummary(bad, cases), false, JSON.stringify(bad));
   }
   const ui = readFileSync("src/components/hcm-team-leave-calendar.tsx", "utf8");
-  assert.match(ui, /!hasConsistentTeamLeaveSummary\(result\.summary, result\.cases\)/);
+  assert.match(ui, /validTeamLeaveResponse\(payload, organizationId, month, expectedDates\)/);
   assert.match(ui, /status: "unavailable", payload: null/);
   assert.match(ui, /Try again/);
   assert.match(ui, /onClick=\{\(\) => setRevision\(\(number\) => number \+ 1\)\}/);
@@ -197,8 +197,8 @@ test("client hides stale tenant/month responses and shows only recorded request 
   const nav = readFileSync("src/components/hcm-my-team.tsx", "utf8");
   assert.match(ui, /new AbortController\(\)/);
   assert.match(ui, /controller\.abort\(\)/);
-  assert.match(ui, /result\.organizationId !== organizationId/);
-  assert.match(ui, /result\.month !== month/);
+  assert.match(ui, /validTeamLeaveResponse\(payload, organizationId, month, expectedDates\)/);
+  assert.match(readFileSync("src/lib/hcm-scoped-read-validation.ts", "utf8"), /value\.month !== month/);
   assert.match(ui, /loaded\?\.requestKey === requestKey/);
   assert.match(nav, /NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED === "true"/);
   assert.match(nav, /NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ORG_IDS/);

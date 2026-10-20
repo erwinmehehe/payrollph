@@ -96,8 +96,8 @@ test("source queries are bounded, tenant restricted and field minimized", () => 
 test("UI never uses stale employer/position response or performs mutations", () => {
   assert.match(client, /new AbortController\(\)/);
   assert.match(client, /controller\.abort\(\)/);
-  assert.match(client, /data\.tenantId !== organizationId/);
-  assert.match(client, /data\.positionId !== selectedPositionId/);
+  assert.match(client, /validOrgExplorerResponse\(payload, organizationId\)/);
+  assert.match(client, /validPositionHistoryResponse\(payload, organizationId, selectedPositionId\)/);
   assert.match(client, /graph\?\.scope === graphScope/);
   assert.match(client, /history\?\.scope === positionScope/);
   assert.ok(client.includes("selectedUnitChoice?.scope === graphScope"));
