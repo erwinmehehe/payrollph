@@ -6,8 +6,9 @@ const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const probe = readFileSync("scripts/qa/tenant-scoped-page-probes.mjs", "utf8");
 
 test("three-employer fixture returns distinct REAL organization names, not undefined", () => {
-  assert.ok(harness.includes("])).returning({ id: organizations.id, name: organizations.name });"),
-    "Do not construct HTML secrecy tests from an ID-only DB returning() projection");
+  assert.match(harness,
+    /const \[victim, attackerA, attackerB\] = await db\.insert\(organizations\)\.values\(\[[\s\S]*?\]\)\.returning\(\{\s*id:\s*organizations\.id,\s*name:\s*organizations\.name\s*\}\);/,
+    "The three-employer fixture must return real database organization names, not ID-only rows");
   assert.match(harness, /name: "Victim Only " \+ nonce/);
   assert.match(harness, /name: "Attacker A " \+ nonce/);
   assert.match(harness, /name: "Attacker B " \+ nonce/);
