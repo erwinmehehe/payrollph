@@ -181,7 +181,7 @@ async function seedStatutoryFixtures(f) {
     "Real victim-only high IDs must exist in disposable PostgreSQL");
   return { batches, evidence, tasks, bytes, nonce };
 }
-export async function verifyManifestDrivenStatutoryBatch(f, { request, expectStatus }) {
+export async function verifyManifestDrivenStatutoryBatch(f, { request, expectStatus, makeSession }) {
   assert.equal(process.env.CI, "true");
   assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only");
   assert.equal(new URL(process.env.DATABASE_URL).hostname, "127.0.0.1");
@@ -258,6 +258,32 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
           "Foreign batch must not enumerate victim proof bytes or metadata");
       }
     }
+    // This POST proof uses a real production-mode HTTP handler, a real
+    // disposable-PG16 batch and a narrowly scoped CI-only TLS scan stub.
+    // It never reaches a provider or proves production malware acceptance.
+    const privileged = await makeSession(f.owners[idx].id, { privileged: true });
+    const syntheticBytes = Buffer.from("%PDF-1.4\\nSYNTHETIC-PROOF-TENANT-QA:" + fixtures.nonce + ":" + idx + "\\n%%EOF\\n");
+    function proofForm(orgId, batchId) {
+      const form = new FormData();
+      form.append("organizationId", String(orgId));
+      form.append("batchId", String(batchId));
+      form.append("replacementReason", "Synthetic CI replacement; no real statutory payment");
+      form.append("file", new File([syntheticBytes], "synthetic-proof-" + idx + ".pdf", { type: "application/pdf" }));
+      return form;
+    }
+    const ownUpload = expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
+      method: "POST", cookie: privileged.cookie, form: proofForm(ownOrg.id, ownedBatch.id),
+    }), 201, "MFA-verified synthetic employer can store its own test payment proof");
+    assert.equal(ownUpload.json?.organizationId, ownOrg.id, "POST response must echo the owning employer");
+    assert.equal(ownUpload.json?.batchId, ownedBatch.id, "POST response must echo the real owned batch");
+    assert.ok(Number.isSafeInteger(ownUpload.json?.evidence?.id), "Owned upload must return a real stored proof ID");
+    const foreignUpload = expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
+      method: "POST", cookie: privileged.cookie, form: proofForm(victimOrg.id, victimBatch.id),
+    }), 403, "Authenticated employee may never upload a proof to a foreign real employer");
+    assert.ok(!foreignUpload.text.includes("SYNTHETIC-ONLY-0-"), "Foreign upload must reveal no victim evidence");
+    expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
+      method: "POST", cookie: privileged.cookie, form: proofForm(ownOrg.id, victimBatch.id),
+    }), 404, "A real victim batch ID must not be writable under the attacker's organization");
   }
   const after = await snapshotVictim(victimOrg.id);
   assert.deepEqual(after, before,
