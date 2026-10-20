@@ -454,7 +454,7 @@ export function ExportsView({
             />
           )}
 
-          {xenditEnabled && run.status === "Released" && treasuryStatusEligible && (
+          {xenditEnabled && run.status === "Released" && treasuryStatusEligible && payoutState !== null && (
             <XenditPayoutPanel
                 key={run.id}
                 runId={run.id}
