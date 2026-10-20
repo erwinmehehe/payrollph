@@ -116,19 +116,59 @@ jobs:
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Start production build
+      # A production build must still boot on disposable PG16 and refuse all
+      # unattested fictional-account provisioning. This test NEVER contacts
+      # Vercel or live Neon and does not create a production session.
+      - name: Verify production build boots and denies unattested demo sessions
         shell: bash
         run: |
-          nohup npm start -- -H 127.0.0.1 > /tmp/payrollph-next.log 2>&1 &
-          echo $! > /tmp/payrollph-next.pid
+          set -euo pipefail
+          if [ "${PUBLIC_DEMO_DATABASE_ATTESTED:-}" = "true" ]; then
+            echo "::error::Never attest a disposable PG16 runner as a production demo database."
+            exit 1
+          fi
+          node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3001 > /tmp/payrollph-next-production.log 2>&1 &
+          server_pid=$!
+          response_file=$(mktemp)
+          header_file=$(mktemp)
+          trap 'kill "$server_pid" 2>/dev/null || true; rm -f -- "$response_file" "$header_file"' EXIT
+          ready=false
           for attempt in {1..40}; do
-            if curl -fsS "$QA_URL" >/tmp/homepage.html; then
-              echo "Production build is reachable."
+            if curl -fsS --max-time 10 --proto '=http' --resolve localhost:3001:127.0.0.1                 http://localhost:3001/ -o /dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then
+            echo "::error::Production bundle did not boot on the isolated database."
+            exit 1
+          fi
+          status=$(curl -sS --max-time 15 --proto '=http' --resolve localhost:3001:127.0.0.1             -D "$header_file" -o "$response_file" -w '%{http_code}'             -X POST http://localhost:3001/api/auth/demo-switch             -H "Origin: http://localhost:3001"             -H "Sec-Fetch-Site: same-origin"             -H "Content-Type: application/json"             --data '{"role":"owner"}' || true)
+          echo "Disposable production-mode demo login http_status=$status expected=404"
+          if [ "$status" != 404 ] || grep -qi '^set-cookie:' "$header_file"; then
+            echo "::error::Unattested production demo login must refuse and issue no session cookie."
+            exit 1
+          fi
+          echo "PASS: production build boots; unattested fictional login denies with no cookie."
+
+      # Browser persona workflows intentionally use a DEVELOPMENT-only server
+      # against disposable PG16. Production's guard above must not be weakened
+      # or mocked to permit account seeding on a customer-serving database.
+      - name: Start isolated development demo server for browser persona QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3000 > /tmp/payrollph-next.log 2>&1 &
+          echo $! > /tmp/payrollph-next.pid
+          for attempt in {1..90}; do
+            if curl -fsS --max-time 15 --proto '=http' "$QA_URL" -o /tmp/homepage.html; then
+              echo "Disposable development browser sandbox is reachable."
               exit 0
             fi
             sleep 2
           done
-          cat /tmp/payrollph-next.log
+          echo "::error::Development browser sandbox did not start."
           exit 1
 
       - name: Run Chromium homepage and persona QA
