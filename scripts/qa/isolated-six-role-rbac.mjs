@@ -6,7 +6,8 @@ import { isDeepStrictEqual } from "node:util";
 import { eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
 import { operationalSecret } from "../../src/lib/operational-secret";
-import { organizations, payrollRuns, sessions, userOrganizations, users } from "../../src/db/schema";
+import { employees, organizations, payrollRuns, sessions, userOrganizations, users } from "../../src/db/schema";
+import { ensurePublicDemoTenant } from "../../src/db/public-demo";
 
 // Authenticated API proof against an EXCLUSIVELY DISPOSABLE PG16 + localhost
 // Next server. No production host, Neon connection, payroll write, payout,
@@ -168,6 +169,36 @@ async function seedForeignEmployer() {
   return { org: foreignOrg.id, run: foreignRun.id, cookie: "linaw_session=" + token };
 }
 
+/**
+ * Duplicate employer display/legal names must never turn a mixed database
+ * into a writable public demo. This runs AFTER role logins and BEFORE adding
+ * the separate foreign-tenant RBAC fixture, so no other non-demo employer
+ * can make the denial pass for the wrong reason.
+ */
+async function verifyDuplicateDemoLabelDenied(demoOwner) {
+  guardEnvironment();
+  const original = await db.select().from(employees)
+    .where(eq(employees.organizationId, demoOwner.org));
+  assert.ok(original.length > 0, "A real fictional worker fixture is required");
+  const [collision] = await db.insert(organizations).values({
+    name: "Loom & Local", legalName: "Loom & Local Philippines Inc.",
+  }).returning({ id: organizations.id });
+  assert.notEqual(collision.id, demoOwner.org);
+  let deniedForDuplicate = false;
+  try {
+    await ensurePublicDemoTenant();
+  } catch (error) {
+    deniedForDuplicate = error instanceof Error &&
+      error.message === "PUBLIC_DEMO_TENANT_NOT_ISOLATED";
+  }
+  evidence("owner", "duplicate-demo-label-provisioning-denied", 200, 200, deniedForDuplicate);
+  const afterward = await db.select().from(employees)
+    .where(eq(employees.organizationId, demoOwner.org));
+  evidence("owner", "duplicate-demo-label-workers-unchanged", 200, 200,
+    isDeepStrictEqual(afterward, original));
+  await db.delete(organizations).where(eq(organizations.id, collision.id));
+}
+
 async function verifyExistingForeignEmployerDenials(demoOwner) {
   guardEnvironment();
   const foreign = await seedForeignEmployer();
@@ -276,10 +307,11 @@ async function run() {
     }
   }
   assert.ok(demoOwner, "The fictional demo Owner must authenticate before tenant isolation QA");
+  await verifyDuplicateDemoLabelDenied(demoOwner);
   await verifyExistingForeignEmployerDenials(demoOwner);
   // No role may silently drop out of the matrix and leave a green subset.
   // 2 true victim-owned positives + 5 actual victim denials + unchanged DB.
-  const expected = 2 + 5 + ROLES.length * 8 + 2 + 5 + 1;
+  const expected = 2 + 5 + ROLES.length * 8 + 2 + 2 + 5 + 1;
   assert.equal(observations.length, expected,
     "Every anonymous, login, role-route and cross-tenant probe must execute");
 }
