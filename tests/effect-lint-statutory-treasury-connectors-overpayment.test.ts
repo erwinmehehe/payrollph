@@ -21,12 +21,16 @@ for (const path of [MONTH, PROOF, TREASURY, SLACK, OVERPAYMENT]) {
       assert.match(source, /controller\.signal\.aborted/);
       assert.match(source, /setState\(null\)/);
     } else if (path === PROOF) {
-      const hook = read("src/components/workspace/use-scoped-async-resource.tsx");
+      const hook = read("src/components/workspace/use-scoped-async-resource.ts");
+      const owner = read("src/lib/scoped-async-request.ts");
       assert.match(source, /readVerifiedPaymentProof\(organizationId, batchId, fetch, signal\)/);
       assert.match(source, /useScopedAsyncResource\(/);
-      assert.match(hook, /new AbortController\(\)/);
-      assert.match(hook, /\.abort\(\)/);
-      assert.match(hook, /queueMicrotask\(/);
+      assert.match(hook, /owner\.cancel\(key\)/, "Changing employer or batch cancels the owned request");
+      assert.match(hook, /useLayoutEffect\(/, "Owner scope changes cancel before stale render can commit");
+      assert.match(owner, /new AbortController\(\)/);
+      assert.match(owner, /pending\?\.abort\(\)/);
+      assert.match(owner, /activeKey !== key \|\| pending !== controller \|\| controller\.signal\.aborted/,
+        "Late HTTP success may not publish into a new employer scope");
     } else {
       assert.match(source, /const load = useCallback\(async \(signal\?: AbortSignal\) => \{/);
       assert.match(source, /controller\.abort\(\)/);
