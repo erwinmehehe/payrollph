@@ -15,7 +15,15 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 489 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 489);
-  assert.equal(manifest.metrics.gap, 424, "Integrated provisional audit keeps 424 GAP methods open; no silent reclassification");
+  assert.equal(manifest.metrics.gap, 423, "HCM GET has real own/foreign HTTP proof; the remaining 423 GAPs must stay open");
+  assert.equal(manifest.metrics.coveredAfter, 60, "Only the independently exercised HCM GET was newly classified COVERED");
+  const governanceMethod = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
+  assert.equal(governanceMethod?.status, "COVERED", "HCM governance read requires real own/foreign proof");
+  assert.equal(governanceMethod?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
+  const proofLines = harness.split("\n");
+  assert.match(proofLines[governanceMethod.testedBy.ownPositiveLine - 1], /\/api\/hcm\/governance-readiness.*\), 200,/);
+  assert.match(proofLines[governanceMethod.testedBy.foreignDenialLine - 1], /\/api\/hcm\/governance-readiness.*victim\.id.*\), 403,/);
+  assert.match(harness, /await verifyGovernanceTenantRead\(f\)/);
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 489,
     "No method may disappear from the audited 489-route-method inventory");
   assert.equal(manifest.sourceTraceCandidates.length, 34);
