@@ -68,6 +68,7 @@ async function checkRole(browser, role, width, authState, pages) {
   const errors = [];
   let current = "initial load";
   let blocked = 0;
+  let readiness503 = false;
   // Guard both fetch/XHR and form submissions. Any accidental POST/PATCH/PUT/
   // DELETE is aborted, not merely ignored after it reaches the server.
   await context.route("**/*", async route => {
@@ -85,7 +86,14 @@ async function checkRole(browser, role, width, authState, pages) {
       } else await route.continue();
     });
   }
-  page.on("console", msg => { if (msg.type() === "error" && !msg.text().includes("net::ERR_BLOCKED_BY_CLIENT")) errors.push({ page: current, kind: "console", detail: safeText(msg.text()) }); });
+  page.on("console", msg => {
+    if (msg.type() !== "error" || msg.text().includes("net::ERR_BLOCKED_BY_CLIENT")) return;
+    // Chromium emits a generic resource error for the expected fail-closed
+    // readiness 503. The exact response and UI fallback are asserted below.
+    if (current === "Readiness" && readiness503 &&
+        msg.text().includes("the server responded with a status of 503 (Service Unavailable)")) return;
+    errors.push({ page: current, kind: "console", detail: safeText(msg.text()) });
+  });
   page.on("pageerror", err => errors.push({ page: current, kind: "exception", detail: safeText(err.stack ?? err.message) }));
   page.on("requestfailed", req => {
     if (req.url().startsWith(BASE + "/api/") && req.failure()?.errorText !== "net::ERR_ABORTED" && !req.failure()?.errorText?.startsWith("net::ERR_BLOCKED_BY_CLIENT"))
@@ -95,6 +103,11 @@ async function checkRole(browser, role, width, authState, pages) {
     const url = new URL(response.url());
     if (url.origin !== BASE || !url.pathname.startsWith("/api/")) return;
     const status = response.status();
+    if (current === "Readiness" && response.request().method() === "GET" &&
+        url.pathname === "/api/readiness/workspace" && status === 503) {
+      readiness503 = true;
+      return;
+    }
     if (status < 200 || status >= 300) {
       if (!isExpectedDenied({ role, page: current, method: response.request().method(), apiPath: url.pathname, status }))
         errors.push({ page: current, kind: "HTTP " + status, detail: response.request().method() + " " + url.pathname + url.search });
@@ -104,6 +117,7 @@ async function checkRole(browser, role, width, authState, pages) {
     for (const name of pages) {
       current = name;
       blocked = 0;
+      readiness503 = false;
       const started = Date.now();
       const before = errors.length;
       const findings = [];
@@ -247,7 +261,18 @@ async function checkRole(browser, role, width, authState, pages) {
         // Observe all actual error-toast families rather than keyword-matching
         // the benign body copy of a payroll screen.
         const alerts = await page.locator(ERROR_SELECTOR).allTextContents();
-        for (const message of alerts.map(safeText).filter(Boolean)) findings.push({ kind: "visible error", detail: message });
+        const readinessFallback = alerts.some(message =>
+          message.includes("Workspace readiness unavailable.") &&
+          message.includes("Readiness evidence is unavailable for this employer.") &&
+          message.includes("No launch or pilot status has been verified."));
+        for (const message of alerts.map(safeText).filter(Boolean)) {
+          if (name === "Readiness" && readiness503 && readinessFallback &&
+              message.includes("Workspace readiness unavailable.")) continue;
+          findings.push({ kind: "visible error", detail: message });
+        }
+        if (name === "Readiness" && (!readiness503 || !readinessFallback))
+          findings.push({ kind: "readiness fail-closed contract",
+            detail: "Expected employer-scoped HTTP 503 and explicit no-launch-evidence fallback" });
 
         const loadTimeBlockedWrites = blocked;
         // Click only unambiguously non-destructive controls. A label not on the
