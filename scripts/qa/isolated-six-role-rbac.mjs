@@ -1,0 +1,192 @@
+import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+
+// Authenticated API proof against an EXCLUSIVELY DISPOSABLE PG16 + localhost
+// Next server. No production host, Neon connection, payroll write, payout,
+// provider action or official filing is ever contacted.
+const ORIGIN = "http://127.0.0.1:3000";
+const PERIOD = "periodStart=2026-10-01&periodEnd=2026-10-15";
+const ROLES = ["owner", "hr", "payroll", "checker", "bookkeeper", "employee"];
+const ACCESS = {
+  owner:      { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 200, payslips: 403 },
+  hr:         { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 403, payslips: 403 },
+  payroll:    { dashboard: 200, bi: 200, planning: 403, allocations: 403, timesheets: 403, payroll: 200, payslips: 403 },
+  checker:    { dashboard: 200, bi: 403, planning: 403, allocations: 403, timesheets: 403, payroll: 403, payslips: 403 },
+  bookkeeper: { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 200, payslips: 403 },
+  employee:   { dashboard: 403, bi: 403, planning: 403, allocations: 403, timesheets: 200, payroll: 403, payslips: 200 },
+};
+const observations = [];
+let errors = 0;
+
+function guardEnvironment() {
+  assert.equal(process.env.CI, "true");
+  assert.equal(process.env.GITHUB_ACTIONS, "true");
+  assert.equal(process.env.ISOLATED_SIX_ROLE_RBAC, "disposable-pg16-only");
+  assert.equal(process.env.DEMO_MODE, "true");
+  assert.notEqual(process.env.NODE_ENV, "production");
+  assert.equal(process.env.QA_URL, ORIGIN);
+  assert.equal(process.env.APP_BASE_URL, ORIGIN);
+  assert.equal(process.env.PAYMONGO_DISBURSEMENTS_ENABLED, "false");
+  assert.equal(process.env.XENDIT_PAYOUTS_ENABLED, "false");
+  const url = new URL(process.env.DATABASE_URL ?? "");
+  assert.equal(url.hostname, "127.0.0.1");
+  assert.equal(url.port, "5432");
+  assert.equal(url.pathname, "/app_db");
+}
+
+function evidence(role, name, actual, expected, validShape = true) {
+  const passed = actual === expected && validShape;
+  observations.push({ role, route: name, actual, expected, passed });
+  if (!passed) errors += 1;
+  console.log("ISOLATED_RBAC " + role + " " + name + " HTTP=" + actual +
+    " expected=" + expected + " " + (passed ? "PASS" : "FAIL"));
+}
+
+async function request(path, cookie = null, role = null) {
+  assert.ok(path.startsWith("/") && !path.startsWith("//") && !path.includes(".."));
+  const url = new URL(path, ORIGIN);
+  assert.equal(url.origin, ORIGIN);
+  const headers = { Accept: "application/json" };
+  if (cookie) headers.Cookie = cookie;
+  const post = role !== null;
+  if (post) {
+    assert.equal(path, "/api/auth/demo-switch");
+    assert.ok(ROLES.includes(role));
+    headers.Origin = ORIGIN;
+    headers["Sec-Fetch-Site"] = "same-origin";
+    headers["Content-Type"] = "application/json";
+  }
+  return fetch(url, {
+    method: post ? "POST" : "GET",
+    headers, body: post ? JSON.stringify({ role }) : undefined,
+    redirect: "manual", signal: AbortSignal.timeout(45000),
+  });
+}
+
+function validRead(name, body, role, org) {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return false;
+  if (name === "dashboard") return body.selectedOrganization?.id === org;
+  if (name === "bi") return Array.isArray(body.datasets) && body.datasets.length > 0 &&
+    Array.isArray(body.scopes?.legalEntities) && Array.isArray(body.scopes?.orgUnits) &&
+    Array.isArray(body.scopes?.dynamicGroups) && Array.isArray(body.formats);
+  if (name === "planning") return body.access?.organizationId === org &&
+    body.access?.role === role && body.access?.companyWide === true &&
+    Array.isArray(body.profiles) && Array.isArray(body.plans) && Array.isArray(body.positions) &&
+    body.plans.every(row => row.organizationId === org) &&
+    body.positions.every(row => row.organizationId === org);
+  if (name === "allocations") return body.access?.role === role &&
+    body.access?.companyWide === true && Array.isArray(body.allocations) &&
+    Array.isArray(body.submissions) &&
+    body.allocations.every(row => row.organizationId === org) &&
+    body.submissions.every(row => row.organizationId === org);
+  if (name === "timesheets") return typeof body.manager === "boolean" &&
+    body.manager === (role !== "employee") &&
+    Array.isArray(body.employees) && Array.isArray(body.latest) &&
+    Array.isArray(body.expectations) && Array.isArray(body.history) &&
+    (role !== "employee" || body.employees.length <= 1);
+  if (name === "payroll") return Array.isArray(body.runs) &&
+    body.runs.every(row => row.organizationId === org);
+  if (name === "payslips") return body.employer?.id === org &&
+    typeof body.employee?.employeeNo === "string";
+  return false;
+}
+
+async function probe(role, name, path, expected, cookie, org) {
+  try {
+    const response = await request(path, cookie);
+    const body = await response.json().catch(() => null);
+    const valid = response.status === 200 ? validRead(name, body, role, org)
+      : !!body && typeof body.error === "string" && !("runs" in body) &&
+        !("datasets" in body) && !("employees" in body);
+    evidence(role, name, response.status, expected, valid);
+  } catch {
+    evidence(role, name, 0, expected, false);
+  }
+}
+
+async function run() {
+  guardEnvironment();
+  for (const path of ["/api/bi-exports?organizationId=1",
+    "/api/workforce-planning?organizationId=1",
+    "/api/workforce-planning/allocations?organizationId=1",
+    "/api/workforce/timesheets?organizationId=1&" + PERIOD,
+    "/api/payroll-runs?organizationId=1"]) {
+    await probe("anonymous", "deny-" + new URL(path, ORIGIN).pathname,
+      path, 401, null, 1);
+  }
+
+  for (const role of ROLES) {
+    let session;
+    try {
+      const response = await request("/api/auth/demo-switch", null, role);
+      const body = await response.json().catch(() => null);
+      const org = body?.organizationId;
+      const valid = response.status === 200 && body?.ok === true &&
+        body.demoDataMode === "synthetic-redacted" &&
+        body.sensitiveFieldsPersisted === false && body.user?.role === role &&
+        body.redirectTo === "/app?demoRole=" + role &&
+        Number.isSafeInteger(org) && org > 0;
+      const cookies = response.headers.getSetCookie().map(x => x.split(";")[0])
+        .filter(x => /^[A-Za-z0-9_-]+=[^\r\n]+$/.test(x));
+      evidence(role, "demo-session", response.status, 200, valid && cookies.length > 0);
+      if (valid && cookies.length > 0) session = { org, cookie: cookies.join("; ") };
+    } catch {
+      evidence(role, "demo-session", 0, 200, false);
+    }
+    if (!session) continue;
+
+    const org = session.org, cookie = session.cookie;
+    const query = "organizationId=" + org;
+    const paths = {
+      dashboard: "/api/dashboard?" + query,
+      bi: "/api/bi-exports?" + query,
+      planning: "/api/workforce-planning?" + query,
+      allocations: "/api/workforce-planning/allocations?" + query,
+      timesheets: "/api/workforce/timesheets?" + query + "&" + PERIOD,
+      payroll: "/api/payroll-runs?" + query,
+      payslips: "/api/self/payslips",
+    };
+    for (const [name, path] of Object.entries(paths)) {
+      await probe(role, name, path, ACCESS[role][name], cookie, org);
+    }
+    if (role === "owner") {
+      const foreign = org + 1000000;
+      for (const [name, path] of [
+        ["cross-tenant-dashboard", "/api/dashboard?organizationId=" + foreign],
+        ["cross-tenant-bi", "/api/bi-exports?organizationId=" + foreign],
+        ["cross-tenant-workforce", "/api/workforce-planning?organizationId=" + foreign],
+        ["cross-tenant-payroll", "/api/payroll-runs?organizationId=" + foreign],
+      ]) {
+        await probe(role, name, path, 403, cookie, org);
+      }
+    }
+  }
+  // No role may silently drop out of the matrix and leave a green subset.
+  const expected = 5 + ROLES.length * 8 + 4;
+  assert.equal(observations.length, expected,
+    "Every anonymous, login, role-route and cross-tenant probe must execute");
+}
+
+try {
+  await run();
+} catch {
+  errors += 1;
+  console.error("ISOLATED_RBAC_FAILED: fictional environment or complete role coverage was not verified.");
+} finally {
+  await mkdir("qa-artifacts", { recursive: true });
+  await writeFile("qa-artifacts/isolated-six-role-rbac.json", JSON.stringify({
+    sourceSha: process.env.GITHUB_SHA ?? "unknown",
+    environment: "disposable Postgres 16 and localhost, synthetic only",
+    independentHumanUat: false, physicalDeviceAcceptance: false,
+    officialPayrollOrMoneyTested: false,
+    expectedRoleCount: ROLES.length,
+    testedRoleCount: observations.filter(x => x.route === "demo-session" && x.passed).length,
+    total: observations.length,
+    passed: observations.filter(x => x.passed).length,
+    failed: observations.filter(x => !x.passed).length + (errors > 0 && observations.every(x=>x.passed) ? 1 : 0),
+    observations,
+  }, null, 2) + "\n");
+  console.log("ISOLATED_RBAC_SUMMARY total=" + observations.length +
+    " failed=" + errors + " real-customer-UAT=NOT_RUN");
+}
+if (errors !== 0) process.exitCode = 1;
