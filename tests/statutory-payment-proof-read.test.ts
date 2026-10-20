@@ -12,7 +12,10 @@ test("statutory proof binds exact employer/batch, rows, active and genuine empty
   for (const v of [null, {}, { ...proof, organizationId: 42 }, { ...proof, batchId: 23 },
     { ...proof, evidence: undefined }, { ...proof, evidence: [row], active: null },
     { ...proof, evidence: [], active: row }, { ...proof, evidence: [{ ...row, batchId: 23 }] },
-    { ...proof, evidence: [{ ...row, fileSha256: null }] }, { ...proof, evidence: [row, row] }])
+    { ...proof, evidence: [{ ...row, fileSha256: null }] }, { ...proof, evidence: [row, row] },
+    { ...proof, active: { ...row, status: "superseded" } },
+    { ...proof, active: { ...row, fileName: "another-receipt.pdf" } },
+    { ...proof, active: { ...row, uploadedByName: "Different operator" } }])
     assert.equal(parseVerifiedPaymentProof(v, 41, 22), null);
 });
 test("statutory proof non-OK/JSON/foreign/partial always unavailable until successful retry", async () => {
@@ -36,4 +39,6 @@ test("proof uploader cannot act on an unverified read and explicitly offers retr
   assert.match(ui, /if \(!proof\)/);
   assert.match(ui, /Retry payment proof/);
   assert.match(api, /organizationId,\s+batchId,\s+evidence: rows/);
+  assert.match(api, /const \[ownedBatch\] = await db\.select/);
+  assert.match(api, /if \(!ownedBatch\) return Response\.json\(\{ error: "Remittance batch not found\." \}, \{ status: 404 \}\)/);
 });

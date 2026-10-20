@@ -6422,14 +6422,14 @@
       ]
     },
     "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts": {
-      "gitBlobSha": "30f7196c737f246be45134591ab8438543588c87",
+      "gitBlobSha": "5a3e3fc243b18ebb1866fe4c28eafc0ae9c28e7b",
       "route": "compliance/statutory-remittances/payment-evidence",
       "methods": [
         {
           "name": "GET",
           "line": 57,
           "status": "COVERED",
-          "reason": "Disposable-PG16 two-attacker real HTTP own batch/evidence 200 with exact employer+batch echo; seeded victim-only organization denied 403 and unchanged victim data",
+          "reason": "Disposable-PG16 two-attacker real HTTP own batch/evidence 200 with exact employer+batch echo; foreign employer denied 403, real victim-only batch under the attacker's own employer denied 404, victim PostgreSQL unchanged",
           "testedBy": {
             "file": "scripts/qa/tenant-manifest-driven-http.mjs",
             "line": 51,
@@ -6440,7 +6440,7 @@
         },
         {
           "name": "POST",
-          "line": 95,
+          "line": 108,
           "status": "COVERED",
           "reason": "MFA-verified attacker-owned synthetic PDF upload returns 201 through production-mode localhost HTTP, foreign real employer POST returns 403, real victim batch under own employer returns 404, and real victim PostgreSQL snapshot unchanged (synthetic TLS scan stub only; no malware or production certification).",
           "testedBy": {
@@ -6482,11 +6482,11 @@
           "token": "getSessionUser"
         },
         {
-          "line": 96,
+          "line": 109,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 99,
+          "line": 112,
           "token": "getSessionUser"
         }
       ],

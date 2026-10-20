@@ -19,8 +19,13 @@ export type CalendarPayload = {
 const record = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 const text = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
-const isoDay = (v: unknown) => text(v) && /^\d{4}-\d{2}-\d{2}$/.test(v);
-const isoMonth = (v: unknown) => text(v) && /^\d{4}-\d{2}$/.test(v);
+const isoDay = (v: unknown): v is string => {
+  if (!text(v) || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const parsed = new Date(v + "T00:00:00Z");
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === v;
+};
+const isoMonth = (v: unknown): v is string =>
+  typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(v);
 const optionalText = (v: unknown) => v === null || typeof v === "string";
 const calendarStatuses = new Set<CalendarStatus>([
   "complete", "upcoming", "due-soon", "overdue", "posting-pending",
@@ -55,7 +60,8 @@ export function parseVerifiedComplianceCalendar(value: unknown, organizationId: 
   const items = value.items as CalendarItem[];
   const watch = value.ruleWatch as RuleWatchItem[];
   if (new Set(items.map(x => x.id)).size !== items.length ||
-      new Set(watch.map(x => x.family)).size !== watch.length) return null;
+      new Set(watch.map(x => JSON.stringify([x.family, x.label, x.sourceDocument]))).size !== watch.length)
+    return null;
   return value as CalendarPayload;
 }
 export async function readVerifiedComplianceCalendar(

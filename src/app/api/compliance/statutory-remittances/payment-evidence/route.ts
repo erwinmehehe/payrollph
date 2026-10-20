@@ -61,11 +61,22 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
   const batchId = Number(url.searchParams.get("batchId"));
-  if (!Number.isInteger(organizationId) || !Number.isInteger(batchId)) {
-    return Response.json({ error: "organizationId and batchId are required." }, { status: 400 });
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
+      !Number.isSafeInteger(batchId) || batchId <= 0) {
+    return Response.json({ error: "Valid organizationId and batchId are required." }, { status: 400 });
   }
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
+
+  // An empty proof index is verified only for a real batch owned by this employer.
+  // Foreign or nonexistent batches must fail closed instead of returning 200 [].
+  const [ownedBatch] = await db.select({ id: statutoryRemittanceBatches.id })
+    .from(statutoryRemittanceBatches)
+    .where(and(
+      eq(statutoryRemittanceBatches.id, batchId),
+      eq(statutoryRemittanceBatches.organizationId, organizationId),
+    )).limit(1);
+  if (!ownedBatch) return Response.json({ error: "Remittance batch not found." }, { status: 404 });
 
   const rows = await db.select({
     id: statutoryRemittancePaymentEvidence.id,

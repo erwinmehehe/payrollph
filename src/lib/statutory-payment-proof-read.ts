@@ -31,10 +31,12 @@ export function parseVerifiedPaymentProof(
       !(value.active === null || evidenceRow(value.active, batchId))) return null;
   const rows = value.evidence as EvidenceRow[];
   const active = rows.filter(v => v.status === "active");
+  const reportedActive = value.active;
   if (new Set(rows.map(v => v.id)).size !== rows.length || active.length > 1 ||
-      (active.length === 0 ? value.active !== null :
-        !record(value.active) || value.active.id !== active[0].id ||
-        value.active.fileSha256 !== active[0].fileSha256)) return null;
+      (active.length === 0 ? reportedActive !== null :
+        !record(reportedActive) ||
+        Object.entries(active[0]).some(([key, field]) => reportedActive[key] !== field)))
+    return null;
   return value as VerifiedPaymentProof;
 }
 export async function readVerifiedPaymentProof(

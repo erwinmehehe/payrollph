@@ -252,10 +252,10 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
       if (item.key === "GET compliance/statutory-remittances/payment-evidence") {
         const filtered = expectStatus(await request(
           "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
-          ownOrg.id + "&batchId=" + victimBatch.id, { cookie }), 200,
-        "Legitimate own-employer filter with another employer's batch ID");
-        assert.deepEqual(filtered.json?.evidence, [],
-          "Foreign batch must not enumerate victim proof bytes or metadata");
+          ownOrg.id + "&batchId=" + victimBatch.id, { cookie }), 404,
+        "Foreign real batch under own employer must be unavailable, not verified empty");
+        assert.ok(!filtered.text.includes("SYNTHETIC-ONLY-0-" + fixtures.nonce),
+          "Foreign batch denial must not reveal victim proof bytes or metadata");
       }
     }
     // This POST proof uses a real production-mode HTTP handler, a real

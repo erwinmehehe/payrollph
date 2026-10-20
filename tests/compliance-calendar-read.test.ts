@@ -9,13 +9,20 @@ const watch = { family: "BIR", label: "Tax tables", status: "current", currentVe
 const valid = { organizationId: 41, today: "2026-10-20", applicableMonths: ["2026-10"], items: [item], ruleWatch: [watch], note: "Nominal dates" };
 test("calendar only shows verified scoped obligations and complete rule-watch evidence", () => {
   assert.deepEqual(parseVerifiedComplianceCalendar(valid, 41), valid);
+  const scheduledRule = { ...watch, label: "Regional wage update", sourceDocument: "WO-ROVII-27", status: "change-upcoming" };
+  assert.deepEqual(parseVerifiedComplianceCalendar({ ...valid, ruleWatch: [watch, scheduledRule] }, 41)?.ruleWatch,
+    [watch, scheduledRule], "separate statutory notices may share one rule family");
   assert.deepEqual(parseVerifiedComplianceCalendar({ ...valid, items: [], applicableMonths: [], ruleWatch: [] }, 41),
     { ...valid, items: [], applicableMonths: [], ruleWatch: [] }, "verified empty is explicit");
   for (const v of [null, {}, { ...valid, organizationId: 99 }, { ...valid, items: undefined },
     { ...valid, ruleWatch: undefined }, { ...valid, items: [{ ...item, status: undefined }] },
     { ...valid, ruleWatch: [{ ...watch, status: undefined }] },
     { ...valid, items: [{ ...item, id: "" }] },
-    { ...valid, items: [item, item] }])
+    { ...valid, items: [item, item] },
+    { ...valid, today: "2026-02-30" },
+    { ...valid, applicableMonths: ["2026-13"] },
+    { ...valid, items: [{ ...item, dueDate: "2026-02-30" }] },
+    { ...valid, ruleWatch: [watch, watch] }])
     assert.equal(parseVerifiedComplianceCalendar(v, 41), null);
 });
 test("calendar read rejects non-OK, malformed, missing and wrong employer, then recovers on Retry", async () => {

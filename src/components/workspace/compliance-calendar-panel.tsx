@@ -136,7 +136,7 @@ export function ComplianceCalendarPanel({ organizationId }: { organizationId: nu
               </div>
               {payload.ruleWatch.filter((item) => item.status !== "current").map((item) => (
                 <div
-                  key={`${item.family}-${item.sourceDocument ?? item.label}`}
+                  key={`${item.family}-${item.label}-${item.sourceDocument ?? ""}`}
                   className={RULE_WATCH_URGENT.has(item.status) ? "notice notice-amber" : "notice"}
                   style={{ margin: 0 }}
                 >
