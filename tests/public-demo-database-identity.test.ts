@@ -49,7 +49,13 @@ test("source guard AND transaction recheck the same session branch/role identity
   assert.match(seed, /verifiedPublicDemoDatabaseIdentity\(session\.rows\[0\]\)/);
   assert.match(seed, /nameCandidates\.length > 1/);
   const seedMethod = seed.slice(seed.indexOf("export async function ensurePublicDemoTenant()"));
-  assert.ok(seedMethod.indexOf("verifiedPublicDemoDatabaseIdentity") < seedMethod.indexOf("tx.insert(organizations)"),
-    "A missing or mismatched production DB identity must prevent any fictional people or payroll inserts");
-  assert.ok(seedMethod.indexOf("nameCandidates.length > 1") < seedMethod.indexOf("tx.insert(organizations)"));
+  const firstWrite = seedMethod.indexOf(".insert(organizations)");
+  const identityGate = seedMethod.indexOf("verifiedPublicDemoDatabaseIdentity");
+  const labelGate = seedMethod.indexOf("nameCandidates.length > 1");
+  assert.ok(firstWrite >= 0 && identityGate >= 0 && identityGate < firstWrite,
+    "A missing or mismatched production DB identity must prevent fixture inserts");
+  assert.ok(labelGate >= 0 && labelGate < firstWrite,
+    "Duplicate reserved labels must be denied before any fictional employer writes");
+  assert.match(seedMethod.slice(0, firstWrite), /requireProductionDemoFixtureInTransaction\\(tx\\)/,
+    "The fixture organization ID must also be attested inside the write transaction");
 });
