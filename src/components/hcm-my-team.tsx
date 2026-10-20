@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import { MY_TEAM_STATUSES, type MyTeamResponse, type MyTeamStatusFilter } from "@/lib/hcm-my-team-contract";
 import { HcmMyTeamActionCenter } from "@/components/hcm-my-team-action-center";
-import { scopedReadFailureForHttpStatus, scopedReadFailureMessage, type ScopedReadFailure } from "@/lib/hcm-scoped-read-failure";
+import { readScopedResponse, scopedReadFailureMessage, type ScopedReadFailure } from "@/lib/hcm-scoped-read-failure";
+import { validMyTeamResponse } from "@/lib/hcm-scoped-read-validation";
 
 type FetchState = {
   scopeKey: string;
@@ -65,49 +66,18 @@ function ScopedMyTeam({
       status: statusFilter,
     });
 
-    void fetch("/api/hcm/my-team?" + query.toString(), {
-      cache: "no-store",
-      signal: controller.signal,
-    }).then(async (response) => {
+    void readScopedResponse(
+      () => fetch("/api/hcm/my-team?" + query.toString(), {
+        cache: "no-store", signal: controller.signal,
+      }),
+      (payload): payload is MyTeamResponse =>
+        validMyTeamResponse(payload, organizationId, cursor, searchQuery, statusFilter),
+    ).then((result) => {
       if (controller.signal.aborted) return;
-      if (!response.ok) {
-        setStored({ scopeKey, status: "unavailable", value: null,
-          failure: scopedReadFailureForHttpStatus(response.status) });
-        return;
-      }
-      const data = await response.json().catch(() => null) as MyTeamResponse | null;
-      if (controller.signal.aborted) return;
-      if (!data || data.organizationId !== organizationId ||
-          data.query !== searchQuery ||
-          data.statusFilter !== statusFilter ||
-          !["company", "unit"].includes(data.scope?.kind) ||
-          !Array.isArray(data.items) || data.items.length > 25 ||
-          !data.summary ||
-          data.summary.employeeRecordsThisPage !== data.items.length ||
-          !Number.isSafeInteger(data.summary.pendingLeaveRecordsThisPage) ||
-          !Number.isSafeInteger(data.summary.pendingOvertimeRecordsThisPage) ||
-          !Number.isSafeInteger(data.summary.pendingAttendanceCorrectionsThisPage) ||
-          !Number.isSafeInteger(data.summary.incompletePunchRecordsThisPage) ||
-          data.page?.size !== 25 || typeof data.page.hasMore !== "boolean" ||
-          (data.page.hasMore && (
-            typeof data.page.nextCursor !== "number" ||
-            !Number.isSafeInteger(data.page.nextCursor) ||
-            data.page.nextCursor <= cursor
-          )) ||
-          data.items.some((item) =>
-            !Number.isSafeInteger(item.id) || item.id <= cursor ||
-            !Number.isSafeInteger(item.pendingLeaveRecords) || item.pendingLeaveRecords < 0 ||
-            !Number.isSafeInteger(item.pendingOvertimeRecords) || item.pendingOvertimeRecords < 0 ||
-            !Number.isSafeInteger(item.pendingAttendanceCorrections) || item.pendingAttendanceCorrections < 0 ||
-            !Number.isSafeInteger(item.incompletePunchRecords) || item.incompletePunchRecords < 0
-          )) {
-        setStored({ scopeKey, status: "unavailable", value: null, failure: "invalid" });
-        return;
-      }
-      setStored({ scopeKey, status: "ready", value: data });
-    }).catch(() => {
-      if (!controller.signal.aborted) {
-        setStored({ scopeKey, status: "unavailable", value: null, failure: "network" });
+      if (result.status === "ready") {
+        setStored({ scopeKey, status: "ready", value: result.data });
+      } else {
+        setStored({ scopeKey, status: "unavailable", value: null, failure: result.failure });
       }
     });
 
