@@ -6,6 +6,8 @@ import type { DashboardData, Notify } from "./types";
 import { phWorkDateAt } from "@/lib/workforce-manager-actions";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
 import { useScopedAsyncResource } from "./use-scoped-async-resource";
+import { resolveWorkforcePayrollHandoff, verifiedWorkforceTimesheetCounts } from "@/lib/workforce-payroll-handoff";
+import { firstPayrollRunHref } from "@/lib/first-payroll-run-navigation";
 
 type Timesheet = {
   id: number;
@@ -96,6 +98,23 @@ export function WorkforceTimesheetPanel({
   const scopeKey = JSON.stringify([organizationId, periodStart, periodEnd]);
   const onLoadError = useCallback((error: Error) => notify(error.message, "err"), [notify]);
   const { data: payload, error: loadError, loading, reload: load } = useScopedAsyncResource(scopeKey, fetchTimesheets, onLoadError);
+  // Unknown or incomplete reads cannot masquerade as zero open timecards or safe approvals.
+  const verifiedCounts = !loading && !loadError
+    ? verifiedWorkforceTimesheetCounts(payload, { periodStart, periodEnd })
+    : null;
+  const trustedPayload = verifiedCounts ? payload : null;
+  const handoff = resolveWorkforcePayrollHandoff({
+    organizationId,
+    viewerId: data.user?.id,
+    access: data.access,
+    connectedNavigationEnabled: data.firstPayrollConnectedEnabled === true,
+    period: { periodStart, periodEnd },
+    timesheetResponse: trustedPayload,
+    payrollRuns: data.payrollRuns,
+    selectedLegalEntityId: data.multiEntity?.enabled && !data.multiEntity.group
+      ? data.multiEntity.legalEntityId
+      : null,
+  });
 
   async function mutate(action: string, extra: Record<string, unknown>, success: string) {
     setBusy(action);
@@ -117,26 +136,26 @@ export function WorkforceTimesheetPanel({
   }
 
   const employeeById = useMemo(
-    () => new Map((payload?.employees ?? []).map((employee) => [employee.id, employee])),
-    [payload],
+    () => new Map((trustedPayload?.employees ?? []).map((employee) => [employee.id, employee])),
+    [trustedPayload],
   );
   const latestByEmployee = useMemo(
-    () => new Map((payload?.latest ?? []).map((row) => [row.employeeId, row])),
-    [payload],
+    () => new Map((trustedPayload?.latest ?? []).map((row) => [row.employeeId, row])),
+    [trustedPayload],
   );
   const expectationByEmployee = useMemo(() => {
     const map = new Map<number, TimesheetExpectation>();
-    for (const row of payload?.expectations ?? []) {
+    for (const row of trustedPayload?.expectations ?? []) {
       if (!map.has(row.employeeId)) map.set(row.employeeId, row);
     }
     return map;
-  }, [payload]);
+  }, [trustedPayload]);
 
-  const approved = (payload?.latest ?? []).filter((row) => row.status === "approved").length;
-  const submitted = (payload?.latest ?? []).filter((row) => row.status === "submitted").length;
-  const stale = (payload?.latest ?? []).filter((row) => row.status === "stale").length;
-  const missingExpected = [...expectationByEmployee.values()].filter((row) => row.status === "expected").length;
-  const blockers = (payload?.latest ?? []).reduce((sum, row) => sum + row.blockerCount, 0);
+  const approved = verifiedCounts?.approved;
+  const submitted = verifiedCounts?.submitted;
+  const stale = verifiedCounts?.stale;
+  const missingExpected = verifiedCounts?.expectedMissing;
+  const blockers = verifiedCounts?.blockers;
 
   async function updatePolicy(mode: "advisory" | "block") {
     await mutate("update_policy", {
@@ -166,11 +185,11 @@ export function WorkforceTimesheetPanel({
       {loadError && <div className="notice notice-red" role="alert" style={{ margin: "0 18px 18px" }}>{loadError.message}</div>}
 
       <section className="stats-grid" style={{ padding: "0 18px 18px" }}>
-        <Metric label="Approved" value={String(approved)} hint="latest employee versions" icon={<CheckCircle2 size={16} />} tone="mint" />
-        <Metric label="Submitted" value={String(submitted)} hint="awaiting independent review" icon={<FileCheck2 size={16} />} tone={submitted ? "amber" : "slate"} />
-        <Metric label="Stale" value={String(stale)} hint="evidence changed after submission" icon={<RefreshCcw size={16} />} tone={stale ? "amber" : "slate"} />
-        <Metric label="Expected missing" value={String(missingExpected)} hint="frozen payroll cohort; never submitted" icon={<Clock3 size={16} />} tone={missingExpected ? "amber" : "slate"} />
-        <Metric label="Blockers" value={String(blockers)} hint="attendance / OT integrity issues" icon={<ShieldAlert size={16} />} tone={blockers ? "amber" : "slate"} />
+        <Metric label="Approved" value={approved === undefined ? "—" : String(approved)} hint={verifiedCounts ? "latest employee versions" : "Source not verified"} icon={<CheckCircle2 size={16} />} tone="mint" />
+        <Metric label="Submitted" value={submitted === undefined ? "—" : String(submitted)} hint={verifiedCounts ? "awaiting independent review" : "Source not verified"} icon={<FileCheck2 size={16} />} tone={submitted ? "amber" : "slate"} />
+        <Metric label="Stale" value={stale === undefined ? "—" : String(stale)} hint={verifiedCounts ? "evidence changed after submission" : "Source not verified"} icon={<RefreshCcw size={16} />} tone={stale ? "amber" : "slate"} />
+        <Metric label="Expected missing" value={missingExpected === undefined ? "—" : String(missingExpected)} hint={verifiedCounts ? "frozen payroll cohort; never submitted" : "Source not verified"} icon={<Clock3 size={16} />} tone={missingExpected ? "amber" : "slate"} />
+        <Metric label="Blockers" value={blockers === undefined ? "—" : String(blockers)} hint={verifiedCounts ? "attendance / OT integrity issues" : "Source not verified"} icon={<ShieldAlert size={16} />} tone={blockers ? "amber" : "slate"} />
       </section>
 
       <div className="setting-form" style={{ padding: "0 18px 18px" }}>
@@ -188,9 +207,9 @@ export function WorkforceTimesheetPanel({
           <label>
             Payroll enforcement
             <select
-              value={payload?.policy.enforcementMode ?? "advisory"}
+              value={trustedPayload?.policy.enforcementMode ?? "advisory"}
               onChange={(event) => void updatePolicy(event.target.value === "block" ? "block" : "advisory")}
-              disabled={busy !== null}
+              disabled={busy !== null || !trustedPayload}
             >
               <option value="advisory">Advisory only</option>
               <option value="block">Require approved timesheets</option>
@@ -199,13 +218,50 @@ export function WorkforceTimesheetPanel({
         )}
       </div>
 
-      {payload?.policy.enforcementMode === "block" && payload.policy.active && (
+      {trustedPayload?.policy.enforcementMode === "block" && trustedPayload.policy.active && (
         <div className="notice notice-amber" style={{ margin: "0 18px 18px" }}>
           <ShieldAlert size={15} />
           <span>
             <strong>Payroll gate is blocking.</strong> Every active employee in the payroll scope must have an approved latest timesheet version for this exact period before payroll can calculate.
           </span>
         </div>
+      )}
+
+      {handoff.kind !== "restricted" && (
+        <section className="notice notice-slate" data-wfm-payroll-handoff
+          aria-label="Timesheet to payroll review handoff"
+          style={{ margin: "0 18px 18px", display: "grid", gap: 8 }}>
+          <strong>Payroll review handoff · {periodStart} to {periodEnd}</strong>
+          {handoff.kind === "disabled" ? (
+            <p>Direct payroll-run navigation is not enabled for this employer. Use the existing Payroll workspace to review runs.</p>
+          ) : handoff.kind === "unverified" ? (
+            <p role="status">The selected cutoff or source data could not be verified. No payroll-run link is available. Refresh timesheets or retry the employer workspace.</p>
+          ) : (
+            <>
+              <p>
+                Visible timecard source: {handoff.counts.employees} employees · {handoff.counts.approved} approved · {handoff.counts.submitted} submitted · {handoff.counts.stale} stale · {handoff.counts.expectedMissing} expected submissions missing · {handoff.counts.blockers} recorded blockers.
+              </p>
+              <p>This is a read-only navigation shortcut, not a payroll readiness, checker approval, records-release, or payout decision. The Payroll workspace enforces its own source and role checks.</p>
+              {handoff.runs.length === 0 ? (
+                <p>No exact-cutoff payroll run appears in the currently loaded employer dashboard. This is not proof that payroll can proceed.</p>
+              ) : (
+                <>
+                  {handoff.runs.length > 1 && <p>Multiple payroll runs match this cutoff. Choose the intended scope; nothing is selected automatically.</p>}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {handoff.runs.map(run => (
+                      <a key={run.id} className="secondary-button"
+                        data-wfm-payroll-run-link={run.id}
+                        href={firstPayrollRunHref(organizationId, run.id)}
+                        style={{ display: "inline-flex", alignItems: "center", minHeight: 44, maxWidth: "100%", overflowWrap: "anywhere" }}>
+                        Open payroll run #{run.id} · {run.scopeLabel || run.periodLabel} · {run.status}
+                      </a>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </section>
       )}
 
       <div className="data-table-wrap slim-scroll">
@@ -222,7 +278,7 @@ export function WorkforceTimesheetPanel({
             </tr>
           </thead>
           <tbody>
-            {(payload?.employees ?? []).map((employee) => {
+            {(trustedPayload?.employees ?? []).map((employee) => {
               const row = latestByEmployee.get(employee.id);
               const expectation = expectationByEmployee.get(employee.id);
               return (
@@ -292,7 +348,7 @@ export function WorkforceTimesheetPanel({
             })}
           </tbody>
         </table>
-        {(payload?.employees.length ?? 0) === 0 && (
+        {(trustedPayload?.employees.length ?? 0) === 0 && (
           <EmptyState icon={<Clock3 size={20} />} title="No employees in your WFM scope">
             Timesheets appear here when employees are available in the current workforce scope.
           </EmptyState>
