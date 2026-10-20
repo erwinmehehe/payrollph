@@ -9,7 +9,7 @@ import { db } from "../../src/db";
 import {
   managedPayrollEngagements, managedPayrollGates, managedPayrollRunApprovals,
   payrollEntries, statutoryRemittanceBatches, statutoryRemittanceCorrectionRequests,
-  userOrganizations, users,
+  userOrganizations, users, sessions,
 } from "../../src/db/schema";
 
 async function victimSnapshot(f) {
@@ -41,6 +41,20 @@ export async function verifyPayrollReadSweep(f, { request, expectStatus }) {
 
   const victim = f.orgs[0];
   const ownVictim = f.ownerSessions[0].cookie;
+  const mustDenyWithoutMfa = expectStatus(await request("/api/managed-payroll", {
+    method: "POST", cookie: ownVictim, body: { organizationId: victim.id, slaHours: 24 },
+  }), 403, "Privileged fictional managed-payroll POST must require recent MFA");
+  assert.equal(mustDenyWithoutMfa.json?.code, "MFA_REQUIRED");
+
+  // Disposable synthetic CI-only MFA enrollment and session verification.
+  // Production's MFA gate remains fully enabled; no fake header bypass.
+  for (let idx = 0; idx < f.owners.length; idx++) {
+    await db.update(users).set({ totpEnabled: true })
+      .where(eq(users.id, f.owners[idx].id));
+    await db.update(sessions).set({ mfaVerifiedAt: new Date() })
+      .where(eq(sessions.id, f.ownerSessions[idx].id));
+  }
+
   const victimCreated = expectStatus(await request("/api/managed-payroll", {
     method: "POST", cookie: ownVictim,
     body: { organizationId: victim.id, slaHours: 24 },
