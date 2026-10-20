@@ -20,13 +20,22 @@ for (const path of [MONTH, PROOF, TREASURY, SLACK, OVERPAYMENT]) {
       assert.match(source, /activeRead\.current = controller/);
       assert.match(source, /controller\.signal\.aborted/);
       assert.match(source, /setState\(null\)/);
+    } else if (path === PROOF) {
+      const hook = read("src/components/workspace/use-scoped-async-resource.tsx");
+      assert.match(source, /readVerifiedPaymentProof\(organizationId, batchId, fetch, signal\)/);
+      assert.match(source, /useScopedAsyncResource\(/);
+      assert.match(hook, /new AbortController\(\)/);
+      assert.match(hook, /\.abort\(\)/);
+      assert.match(hook, /queueMicrotask\(/);
     } else {
       assert.match(source, /const load = useCallback\(async \(signal\?: AbortSignal\) => \{/);
       assert.match(source, /controller\.abort\(\)/);
       assert.match(source, /signal\?\.aborted/);
     }
-    assert.match(source, /new AbortController\(\)/);
-    assert.match(source, /queueMicrotask\(/);
+    if (path !== PROOF) {
+      assert.match(source, /new AbortController\(\)/);
+      assert.match(source, /queueMicrotask\(/);
+    }
     assert.doesNotMatch(source, /useEffect\(\(\) => \{\s*void load\(\)/);
   });
 }
@@ -48,7 +57,11 @@ test("statutory payment proof resets the selected file and replacement draft per
   assert.match(source, /StatutoryPaymentProofContent key=/);
   assert.match(source, /props\.organizationId\}:\$\{props\.batchId/);
   assert.ok(source.indexOf("function StatutoryPaymentProofContent") < source.indexOf("const [file, setFile]"));
-  assert.match(source, /load\(controller\.signal\)/);
+  assert.match(source, /useScopedAsyncResource\(/);
+  assert.match(source, /readVerifiedPaymentProof\(organizationId, batchId, fetch, signal\)/);
+  assert.match(source, /if \(!proof\)/);
+  assert.match(source, /setFile\(null\)/);
+  assert.match(source, /setReplacementReason\(""\)/);
   assert.match(source, /form\.set\("file", file\)/);
 });
 
