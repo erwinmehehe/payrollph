@@ -88,14 +88,14 @@ test("default-off connected navigation withholds deep links", () => {
 });
 
 test("foreign, missing, repeated employer/run identities and legal-entity mismatches fail closed", () => {
-  for (const payrollRuns of [
-    [run(42, { organizationId: 999 })], [run(42, { organizationId: undefined })],
-    [run(42), run(42)], [run(42, { legalEntityId: 5 })],
-  ]) {
-    assert.equal(resolve(input({
-      payrollRuns,
-      selectedLegalEntityId: payrollRuns[0].legalEntityId === 5 ? 8 : null,
-    })).kind, "unverified");
+  const failures: Array<{ payrollRuns: unknown; selectedLegalEntityId: number | null }> = [
+    { payrollRuns: [run(42, { organizationId: 999 })], selectedLegalEntityId: null },
+    { payrollRuns: [run(42, { organizationId: undefined })], selectedLegalEntityId: null },
+    { payrollRuns: [run(42), run(42)], selectedLegalEntityId: null },
+    { payrollRuns: [run(42, { legalEntityId: 5 })], selectedLegalEntityId: 8 },
+  ];
+  for (const failure of failures) {
+    assert.equal(resolve(input(failure)).kind, "unverified");
   }
   assert.equal(resolve(input({
     payrollRuns: [run(42, { legalEntityId: 8 })], selectedLegalEntityId: 8,
@@ -151,7 +151,7 @@ test("wired UI renders no payroll-run action while data is loading; restricted r
   assert.match(html, /Source not verified/);
   assert.doesNotMatch(html, /No employees in your WFM scope/);
   const restricted = renderToStaticMarkup(createElement(WorkforceTimesheetPanel, {
-    data: { ...data, access: { role: "manager", companyWide: false } },
+    data: { ...data, access: { role: "manager", companyWide: false, orgUnitName: "Fictional Site" } },
     notify: () => {}, canManage: false,
   }));
   assert.doesNotMatch(restricted, /data-wfm-payroll-handoff|payroll-run-link/);
