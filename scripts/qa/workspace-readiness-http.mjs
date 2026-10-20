@@ -28,7 +28,7 @@ export async function verifyWorkspaceReadinessIsolation(f, { request, expectStat
     assert.equal(ownReadinessUnavailable.json?.code, "WORKSPACE_READINESS_UNAVAILABLE");
     assert.match(ownReadinessUnavailable.headers.get("cache-control") ?? "", /\bno-store\b/);
     // Next.js may append max-age=0; both headers prohibit shared caching.
-    expectStatus(await request("/api/readiness/workspace?organizationId=" + victim.id,
-      { cookie }), 403, "Foreign employer's readiness must be denied, not a platform aggregate");
+    expectStatus(await request("/api/readiness/workspace?organizationId=" + victim.id, { cookie }), 403, "Foreign employer denied");
+    // The caller is authenticated for its own employer but cannot read the victim employer.
   }
 }
