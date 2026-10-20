@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 423 API method and 20 page/action gaps remain. Bank evidence proofs require exact-head real HTTP/PG CI. No production release approval.",
+  "acceptanceStatus": "NOT ACCEPTED: 421 API method and 20 page/action gaps remain. Bank evidence proofs require exact-head real HTTP/PG CI. No production release approval.",
   "metrics": {
     "routeFiles": 288,
     "methods": 489,
     "coveredBefore": 20,
-    "coveredAfter": 60,
+    "coveredAfter": 62,
     "publicByDesign": 6,
-    "gap": 423,
+    "gap": 421,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -5144,22 +5144,39 @@
       ]
     },
     "src/app/api/compliance/government-loan-remittances/route.ts": {
-      "gitBlobSha": "6e828574796960775bd5fa0cd589fb903a5dd6f4",
+      "gitBlobSha": "22ff82e86de2c8ef5db3158ff468dced04813b75",
       "route": "compliance/government-loan-remittances",
       "methods": [
         {
           "name": "GET",
           "line": 59,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Disposable real HTTP/PG16 with seeded government-loan batch and member, owned GET 200 for two independently authorized employers, real victim records denied GET 403",
+          "testedBy": {
+            "file": "scripts/qa/government-loan-read-http.mjs",
+            "line": 57,
+            "ownPositiveLine": 49,
+            "foreignDenialLine": 57,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three seeded legal employers; real synthetic employee-loan FK and remittance/member rows; safe local PostgreSQL16 only"
+          }
         },
         {
           "name": "POST",
-          "line": 124,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 130,
+          "status": "COVERED",
+          "reason": "Disposable real HTTP/PG16 synthetic loan posting exception POST 200, victim member POST 403, verified unchanged victim batch and member DB records",
+          "testedBy": {
+            "file": "scripts/qa/government-loan-read-http.mjs",
+            "line": 68,
+            "ownPositiveLine": 60,
+            "foreignDenialLine": 68,
+            "unchangedDbLine": 79,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three seeded legal employers; real synthetic employee-loan FK and remittance/member rows; safe local PostgreSQL16 only"
+          }
         }
       ],
       "employerSources": {
