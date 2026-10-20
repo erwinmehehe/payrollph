@@ -4,6 +4,7 @@ import {
   reconcilePaymongoPayrollTransfers,
   normalizePaymongoTransferStatus,
   type PaymongoBatchSnapshot,
+  type PaymongoTransferSnapshot,
 } from "../src/lib/payroll-payout-reconciliation";
 import { payoutCentsFromNetPay } from "../src/lib/payout-ledger-rules";
 import {
@@ -24,7 +25,7 @@ const row = (employee: string, amountCents: number): PayrollPayoutRow => ({
   amountCents, referenceNumber: "PAY-" + runId + "-" + employee,
 });
 const expected = [row("A", 125001), row("B", 287699), row("C", 50000)];
-const transfer = (employee: string, batchId: string, status: "failed" | "pending" | "succeeded" | "unknown", id: string) => ({
+const transfer = (employee: string, batchId: string, status: "failed" | "pending" | "succeeded" | "unknown", id: string): PaymongoTransferSnapshot => ({
   batchId, transferId: id, referenceNumber: "PAY-" + runId + "-" + employee,
   status, amountCents: expected.find((x) => x.employeeNo === employee)!.amountCents,
   providerReferenceNumber: null,
