@@ -75,8 +75,8 @@ function runRoleSmoke(mode) {
       "let payload = {};",
       'if (url.includes("/api/auth/demo-switch")) {',
       '  const role = JSON.parse(value("--data")).role;',
-      '  if (process.env.MOCK_RBAC_MODE === "reject") {',
-      '    status = 403;',
+      '  if (process.env.MOCK_RBAC_MODE === "reject" || process.env.MOCK_RBAC_MODE === "notFound") {',
+      '    status = process.env.MOCK_RBAC_MODE === "notFound" ? 404 : 403;',
       '    payload = {error:"SYNTHETIC_PRIVATE_BODY_SENTINEL", token:"SYNTHETIC_PRIVATE_BODY_SENTINEL"};',
       '  } else {',
       '    payload = {ok:true,organizationId:1,user:{role},demoDataMode:"synthetic-redacted",sensitiveFieldsPersisted:false,redirectTo:"/app?demoRole="+role};',
@@ -154,4 +154,15 @@ test("fictional success verifies all six roles without logging response bodies",
   for (const role of ["owner", "hr", "payroll", "checker", "bookkeeper", "employee"]) {
     assert.match(transcript, new RegExp("role=" + role + " attempt=1 login_http=200"));
   }
+});
+
+test("unexpected demo 404 with a verified demo-only production boundary fails closed immediately", {
+  skip: bashJqSkip,
+}, () => {
+  const { status, transcript } = runRoleSmoke("notFound");
+  assert.equal(status, 1);
+  assert.match(transcript, /role=owner attempt=1 login_http=404/);
+  assert.match(transcript, /Unexpected demo auth 404/);
+  assert.doesNotMatch(transcript, /SYNTHETIC_PRIVATE_(?:BODY|COOKIE)_SENTINEL/);
+  assert.doesNotMatch(transcript, /role=owner attempt=2/);
 });

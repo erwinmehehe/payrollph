@@ -620,5 +620,14 @@ test("demo-switch refuses provisioning when a production database has real emplo
   const start = route.indexOf('if (process.env.NODE_ENV === "production")');
   const provision = route.indexOf("await preparePublicDemoTenant()");
   assert.ok(start >= 0 && start < provision);
-  assert.ok(route.includes('ne(organizations.name, "Loom & Local")'));
+  const guardedBoundary = read("src/lib/demo-provisioning-boundary.ts");
+  const privateEvidence = read("src/app/api/readiness/demo-provisioning/route.ts");
+  assert.ok(route.includes("await productionDemoEmployerBoundary()"),
+    "demo-switch must reuse the same real-employer guard used by private readiness");
+  assert.ok(guardedBoundary.includes('ne(organizations.name, "Loom & Local")'),
+    "customer employers must block public demo identity provisioning");
+  assert.ok(guardedBoundary.includes('"unverified"'),
+    "a failed DB lookup cannot authorize demo accounts");
+  assert.ok(privateEvidence.includes("constantTimeSecretEqual"),
+    "diagnostic must remain protected by the readiness token");
 });
