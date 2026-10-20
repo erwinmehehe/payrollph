@@ -69,7 +69,10 @@ test("Action Center business-process source is bounded, tenant-scoped and non-ca
 
 test("People workspace remounts HCM Inbox when the selected employer changes", () => {
   const people = readFileSync("src/components/workspace/people.tsx", "utf8");
-  assert.match(people, /<HcmBusinessProcessInbox\s+key=\{data\.selectedOrganization\.id\}/);
+  assert.ok(people.includes('key={`hcm-bp-inbox:${data.selectedOrganization.id}`}'),
+    "The HCM Inbox must remount on employer change using a unique component key");
+  assert.ok(people.includes('key={`hcm-bp-admin:${data.selectedOrganization.id}`}'),
+    "The Inbox must not share a sibling key with the HCM Admin panel");
   const client = readFileSync("src/components/hcm-business-process-inbox.tsx", "utf8");
   assert.ok(client.includes("requestSequence.current"));
 });

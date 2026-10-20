@@ -21,6 +21,7 @@ import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { fictionalPublicDemoPayroll, PUBLIC_DEMO_PAYROLL_WORKERS } from "@/lib/public-demo-payroll-fixture";
 import { verifiedFictionalPayProfileRows } from "@/lib/public-demo-pay-profile-fixture";
+import { productionDemoEmployerBoundary, requireProductionDemoFixtureInTransaction } from "@/lib/demo-provisioning-boundary";
 
 const PUBLIC_DEMO_ORG = "Loom & Local";
 
@@ -292,6 +293,32 @@ async function ensureOptionalDemoData(organizationId: number) {
 export async function ensurePublicDemoTenant() {
   const organizationId = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('linaw-public-demo-tenant-v2'))`);
+
+    // The name-only guard below is not proof of a fictional database: a real
+    // employer could share the same legal/display name. Re-attest the actual
+    // PostgreSQL session INSIDE this seeding transaction before ANY writes.
+    // A table lock keeps new employer writes from racing our isolation check.
+    let productionFixtureId: number | null = null;
+    if (process.env.NODE_ENV === "production") {
+      await tx.execute(sql`LOCK TABLE organizations IN SHARE ROW EXCLUSIVE MODE`);
+      // The helper verifies the actual PostgreSQL session and fixture row on
+      // this exact locked transaction before any employee or payroll writes.
+      productionFixtureId = await requireProductionDemoFixtureInTransaction(tx);
+    }
+
+    const nameCandidates = await tx.select({
+      id: organizations.id, name: organizations.name, legalName: organizations.legalName,
+    }).from(organizations).limit(2);
+    if (nameCandidates.length > 1 || nameCandidates.some((org) =>
+      org.name !== PUBLIC_DEMO_ORG || org.legalName !== "Loom & Local Philippines Inc.")) {
+      throw new Error("PUBLIC_DEMO_TENANT_NOT_ISOLATED");
+    }
+    // A matching customer name/legalName is still not a registered fixture ID.
+    // Never auto-create a production org from an anonymous demo login.
+    if (productionFixtureId !== null &&
+        (nameCandidates.length !== 1 || nameCandidates[0].id !== productionFixtureId)) {
+      throw new Error("PUBLIC_DEMO_TENANT_IDENTITY_NOT_ATTESTED");
+    }
 
     const [anotherOrganization] = await tx.select({ id: organizations.id })
       .from(organizations).where(ne(organizations.name, PUBLIC_DEMO_ORG)).limit(1);
@@ -610,6 +637,10 @@ export async function ensurePublicDemoTenant() {
     return organization.id;
   });
 
+  if (process.env.NODE_ENV === "production" &&
+      await productionDemoEmployerBoundary() !== "demo_only") {
+    throw new Error("PUBLIC_DEMO_FIXTURE_NOT_ATTESTED_AFTER_TRANSACTION");
+  }
   await ensureOptionalDemoData(organizationId);
   return organizationId;
 }
