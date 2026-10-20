@@ -6,6 +6,11 @@ on:
       - "src/lib/payroll-run-payout-lock.ts"
       - "src/lib/paymongo-disbursements.ts"
       - "src/lib/payroll-payout-state.ts"
+      - "src/lib/payroll-payout-reconciliation.ts"
+      - "src/lib/payroll-payout-retry-evidence.ts"
+      - "src/lib/payroll-payout-snapshot.ts"
+      - "src/lib/payout-ledger-rules.ts"
+      - "tests/payout-no-silent-retry.test.ts"
       - "src/lib/payout-ledger.ts"
       - "src/lib/xendit-payroll-operations.ts"
       - "src/lib/xendit-payout-ledger.ts"
@@ -42,6 +47,9 @@ jobs:
       CI: "true"
       TZ: Asia/Manila
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
     services:
       postgres:
         image: postgres:16
@@ -84,11 +92,14 @@ jobs:
           tests/payroll-run-payout-lock.test.ts
           tests/paymongo-bank-file-http-race.test.ts
           tests/paymongo-disbursements.test.ts
+          tests/payout-no-silent-retry.test.ts
           tests/payroll-concurrent-approvals-http-pg.test.ts
           tests/xendit-payroll-ledger-integration.test.ts
           tests/payroll-lifecycle-safety.test.ts
           tests/xendit-payout-ui.test.ts
           tests/payout-export-tenant-access.test.ts
+      # Synthetic exact-centavo reconciliation and failed-only retry safety are
+      # mandatory even when no HTTP/provider integration is requested.
       - name: Verify TypeScript on exact PR head
         run: npx tsc --noEmit
       - name: Install pinned synthetic UI browser
