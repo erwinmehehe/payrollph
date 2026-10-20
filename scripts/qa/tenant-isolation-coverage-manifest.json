@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 421 API method and 20 page/action GAPs remain. Real disposable-PG16 method-specific HTTP proof supports the changed statutory proof GET, but the payment-proof POST has no independent real own-success/foreign-denial and unchanged-victim evidence. Do not claim POST tenant isolation or production readiness.",
+  "acceptanceStatus": "NOT ACCEPTED: 420 API method and 20 page/action GAPs remain. Statutory payment-proof GET has two-attacker real HTTP proof; POST uses a candidate real-localhost authenticated 201/403/404 proof with disposable PostgreSQL and a tightly gated CI-only synthetic scan stub, pending exact-head workflow execution. Synthetic scanner acceptance is NOT malware-scanning acceptance, and neither is production approval.",
   "metrics": {
     "routeFiles": 289,
     "methods": 490,
     "coveredBefore": 20,
-    "coveredAfter": 61,
+    "coveredAfter": 62,
     "publicByDesign": 8,
-    "gap": 421,
+    "gap": 420,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -6441,9 +6441,16 @@
         {
           "name": "POST",
           "line": 95,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "MFA-verified attacker-owned synthetic PDF upload returns 201 through production-mode localhost HTTP, foreign real employer POST returns 403, real victim batch under own employer returns 404, and real victim PostgreSQL snapshot unchanged (synthetic TLS scan stub only; no malware or production certification).",
+          "testedBy": {
+            "file": "scripts/qa/tenant-manifest-driven-http.mjs",
+            "line": 274,
+            "ownPositiveLine": 274,
+            "foreignDenialLine": 280,
+            "unchangedDbLine": 289,
+            "scope": "Two independent MFA-verified synthetic owner sessions, real owned batches and victim-only batches, disposable PG16, CI-only local TLS fixture scanner, zero provider traffic"
+          }
         }
       ],
       "employerSources": {
