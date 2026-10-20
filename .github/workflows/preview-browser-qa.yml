@@ -210,7 +210,52 @@ jobs:
           function attachErrorCollection(page, bucket) {
             page.on("pageerror", (error) => bucket.push(`pageerror: ${error.message}`));
             page.on("console", (message) => {
-              if (message.type() === "error") bucket.push(`console: ${message.text()}`);
+              if (message.type() !== "error") return;
+              const consoleText = message.text();
+              bucket.push(`console: ${consoleText}`);
+              if (!consoleText.includes("two children with the same key")) return;
+
+              // Diagnostic only: React development fibers contain the owning
+              // component hierarchy, allowing a source fix rather than hiding
+              // a real duplicate-key error. No props, names or user data logged.
+              void page.evaluate(() => {
+                const rootEl = document.querySelector(".app-shell") ?? document.body;
+                const reactKey = Object.keys(rootEl).find((name) => name.startsWith("__reactFiber$"));
+                if (!reactKey) return [{ error: "no React fiber found" }];
+                let root = rootEl[reactKey];
+                while (root?.return) root = root.return;
+                const named = (fiber) => {
+                  const type = fiber?.elementType ?? fiber?.type;
+                  return typeof type === "string" ? type
+                    : type?.displayName ?? type?.name ?? `fiber-tag-${fiber?.tag}`;
+                };
+                const results = [];
+                let visited = 0;
+                const walk = (fiber, depth) => {
+                  if (!fiber || depth > 100 || visited++ > 60000 || results.length >= 12) return;
+                  const seen = new Map();
+                  for (let child = fiber.child; child; child = child.sibling) {
+                    if (child.key === null) continue;
+                    const key = String(child.key);
+                    if (seen.has(key)) {
+                      results.push({
+                        owner: named(fiber),
+                        key,
+                        firstChild: seen.get(key),
+                        repeatedChild: named(child),
+                        parent: named(fiber.return),
+                      });
+                    } else seen.set(key, named(child));
+                  }
+                  for (let child = fiber.child; child; child = child.sibling) walk(child, depth + 1);
+                };
+                walk(root, 0);
+                return results.length ? results : [{ error: "no duplicate sibling keys in committed fiber", root: named(root), visited }];
+              }).then((evidence) => {
+                console.log("DUPLICATE_KEY_COMPONENT_EVIDENCE " + JSON.stringify(evidence));
+              }).catch(() => {
+                console.log("DUPLICATE_KEY_COMPONENT_EVIDENCE unavailable");
+              });
             });
           }
 
