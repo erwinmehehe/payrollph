@@ -40,7 +40,7 @@ export type ManagedPayload = {
 const record = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 const id = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0;
-const count = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
+const count = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
 const text = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 const nullable = (v: unknown) => v === null || typeof v === "string";
 const timestamp = (v: unknown) => text(v) && Number.isFinite(Date.parse(v));

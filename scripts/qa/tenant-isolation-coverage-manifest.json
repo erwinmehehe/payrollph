@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-19",
-  "acceptanceStatus": "NOT ACCEPTED: 434 API method and 20 page/action gaps remain. Payroll/Separation and month-close GET/POST proofs require exact-head HTTP/PG CI and independent review; no release approval.",
+  "acceptanceStatus": "NOT ACCEPTED: 428 API method and 20 page/action gaps remain. Six new payroll-read method proofs are provisional until exact-head HTTP/PG CI; no production release approval.",
   "metrics": {
     "routeFiles": 288,
     "methods": 489,
     "coveredBefore": 20,
-    "coveredAfter": 49,
+    "coveredAfter": 55,
     "publicByDesign": 6,
-    "gap": 434,
+    "gap": 428,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -6003,10 +6003,10 @@
           "reason": "Provisional: production-mode localhost real HTTP and disposable PG16 two-independent-attacker employer proof; own GET 200 with real SSS reconciled month, victim employer GET 403 with matching valid fictional IDs, victim closure/batches/evidence unchanged. No provider calls or actual money. Requires exact-head CI and human signoff.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1189,
-            "ownPositiveLine": 1189,
-            "foreignDenialLine": 1196,
-            "unchangedDbLine": 1217,
+            "line": 1190,
+            "ownPositiveLine": 1190,
+            "foreignDenialLine": 1197,
+            "unchangedDbLine": 1218,
             "ownStatus": 200,
             "foreignStatus": 403,
             "scope": "Existing victim (A) plus two separately authenticated owner attackers (B/C); real Sept 2026 synthetic SSS payroll, reconciled batch, posting and hashed proof; independent owner MFA for POST.",
@@ -6020,10 +6020,10 @@
           "reason": "Provisional: production-mode localhost real HTTP and disposable PG16 two-independent-attacker employer proof; own POST 200 with real SSS reconciled month, victim employer POST 403 with matching valid fictional IDs, victim closure/batches/evidence unchanged. No provider calls or actual money. Requires exact-head CI and human signoff.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1197,
-            "ownPositiveLine": 1197,
-            "foreignDenialLine": 1208,
-            "unchangedDbLine": 1217,
+            "line": 1198,
+            "ownPositiveLine": 1198,
+            "foreignDenialLine": 1209,
+            "unchangedDbLine": 1218,
             "ownStatus": 200,
             "foreignStatus": 403,
             "scope": "Existing victim (A) plus two separately authenticated owner attackers (B/C); real Sept 2026 synthetic SSS payroll, reconciled batch, posting and hashed proof; independent owner MFA for POST.",
@@ -6150,22 +6150,42 @@
       ]
     },
     "src/app/api/compliance/statutory-remittance-corrections/route.ts": {
-      "gitBlobSha": "94c9d93779fdf62ea50200b39698f3c88842dde6",
+      "gitBlobSha": "015284992a158be4c0eaa116e6b3eb8cb67a760f",
       "route": "compliance/statutory-remittance-corrections",
       "methods": [
         {
           "name": "GET",
-          "line": 280,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 282,
+          "status": "COVERED",
+          "reason": "Provisional exact-head synthetic localhost PG16 HTTP proof: two independent authenticated owner attackers, own method success, real victim-organization denial, and immutable victim PostgreSQL rows. No provider calls, live money or production acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/payroll-read-sweep-http.mjs",
+            "line": 136,
+            "ownPositiveLine": 136,
+            "foreignDenialLine": 144,
+            "unchangedDbLine": 166,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three independent fictional employer owners, real seeded resources in isolated CI PostgreSQL 16",
+            "evidence": "Valid own employer response with real batch/gate/run/correction; real victim denied 403; victim managed and correction ledgers unchanged."
+          }
         },
         {
           "name": "POST",
-          "line": 310,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 342,
+          "status": "COVERED",
+          "reason": "Provisional exact-head synthetic localhost PG16 HTTP proof: two independent authenticated owner attackers, own method success, real victim-organization denial, and immutable victim PostgreSQL rows. No provider calls, live money or production acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/payroll-read-sweep-http.mjs",
+            "line": 149,
+            "ownPositiveLine": 149,
+            "foreignDenialLine": 158,
+            "unchangedDbLine": 166,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three independent fictional employer owners, real seeded resources in isolated CI PostgreSQL 16",
+            "evidence": "Valid own employer response with real batch/gate/run/correction; real victim denied 403; victim managed and correction ledgers unchanged."
+          }
         }
       ],
       "employerSources": {
@@ -6185,99 +6205,99 @@
           "token": "getSessionUser"
         },
         {
-          "line": 38,
+          "line": 40,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 239,
+          "line": 241,
           "token": "getAccess"
         },
         {
-          "line": 260,
+          "line": 262,
           "token": "getAccess"
         },
         {
-          "line": 282,
+          "line": 284,
           "token": "getSessionUser"
         },
         {
-          "line": 312,
+          "line": 344,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 315,
+          "line": 347,
           "token": "getSessionUser"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 286,
+          "line": 288,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 319,
+          "line": 351,
           "token": "body.organizationId"
         }
       ],
       "businessIds": [
         {
-          "line": 60,
+          "line": 62,
           "token": "organizationId"
-        },
-        {
-          "line": 60,
-          "token": "caseId"
         },
         {
           "line": 62,
           "token": "caseId"
         },
         {
-          "line": 63,
+          "line": 64,
+          "token": "caseId"
+        },
+        {
+          "line": 65,
           "token": "organizationId"
         },
         {
-          "line": 63,
+          "line": 65,
           "token": "organizationId"
         },
         {
-          "line": 77,
-          "token": "legalEntityId"
-        },
-        {
-          "line": 77,
+          "line": 79,
           "token": "legalEntityId"
         },
         {
           "line": 79,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 81,
           "token": "employeeId"
         },
         {
-          "line": 80,
+          "line": 82,
           "token": "organizationId"
         },
         {
-          "line": 80,
+          "line": 82,
           "token": "organizationId"
         },
         {
-          "line": 81,
+          "line": 83,
           "token": "legalEntityId"
         },
         {
-          "line": 81,
+          "line": 83,
           "token": "legalEntityId"
         },
         {
-          "line": 86,
+          "line": 88,
           "token": "organizationId"
         },
         {
-          "line": 86,
+          "line": 88,
           "token": "organizationId"
         },
         {
-          "line": 87,
+          "line": 89,
           "token": "legalEntityId"
         }
       ]
@@ -16321,29 +16341,59 @@
       ]
     },
     "src/app/api/managed-payroll/route.ts": {
-      "gitBlobSha": "97269d65834e54fd0fec05fa072d7805e2771d8c",
+      "gitBlobSha": "ba616f662aa55e894bc0c088f575263d1a297851",
       "route": "managed-payroll",
       "methods": [
         {
           "name": "GET",
-          "line": 88,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 91,
+          "status": "COVERED",
+          "reason": "Provisional exact-head synthetic localhost PG16 HTTP proof: two independent authenticated owner attackers, own method success, real victim-organization denial, and immutable victim PostgreSQL rows. No provider calls, live money or production acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/payroll-read-sweep-http.mjs",
+            "line": 96,
+            "ownPositiveLine": 96,
+            "foreignDenialLine": 101,
+            "unchangedDbLine": 166,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three independent fictional employer owners, real seeded resources in isolated CI PostgreSQL 16",
+            "evidence": "Valid own employer response with real batch/gate/run/correction; real victim denied 403; victim managed and correction ledgers unchanged."
+          }
         },
         {
           "name": "POST",
-          "line": 109,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 112,
+          "status": "COVERED",
+          "reason": "Provisional exact-head synthetic localhost PG16 HTTP proof: two independent authenticated owner attackers, own method success, real victim-organization denial, and immutable victim PostgreSQL rows. No provider calls, live money or production acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/payroll-read-sweep-http.mjs",
+            "line": 89,
+            "ownPositiveLine": 89,
+            "foreignDenialLine": 104,
+            "unchangedDbLine": 166,
+            "ownStatus": 201,
+            "foreignStatus": 403,
+            "scope": "Three independent fictional employer owners, real seeded resources in isolated CI PostgreSQL 16",
+            "evidence": "Valid own employer response with real batch/gate/run/correction; real victim denied 403; victim managed and correction ledgers unchanged."
+          }
         },
         {
           "name": "PATCH",
-          "line": 179,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 182,
+          "status": "COVERED",
+          "reason": "Provisional exact-head synthetic localhost PG16 HTTP proof: two independent authenticated owner attackers, own method success, real victim-organization denial, and immutable victim PostgreSQL rows. No provider calls, live money or production acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/payroll-read-sweep-http.mjs",
+            "line": 108,
+            "ownPositiveLine": 108,
+            "foreignDenialLine": 116,
+            "unchangedDbLine": 166,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three independent fictional employer owners, real seeded resources in isolated CI PostgreSQL 16",
+            "evidence": "Valid own employer response with real batch/gate/run/correction; real victim denied 403; victim managed and correction ledgers unchanged."
+          }
         }
       ],
       "employerSources": {
@@ -16371,65 +16421,65 @@
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 89,
+          "line": 92,
           "token": "getSessionUser"
         },
         {
-          "line": 95,
+          "line": 98,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 102,
+          "line": 105,
           "token": "getAccess"
         },
         {
-          "line": 110,
+          "line": 113,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 112,
+          "line": 115,
           "token": "getSessionUser"
         },
         {
-          "line": 119,
+          "line": 122,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 126,
+          "line": 129,
           "token": "getAccess"
         },
         {
-          "line": 180,
+          "line": 183,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 182,
+          "line": 185,
           "token": "getSessionUser"
         },
         {
-          "line": 189,
+          "line": 192,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 196,
+          "line": 199,
           "token": "getAccess"
         },
         {
-          "line": 237,
+          "line": 240,
           "token": "assertOrganizationRole"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 91,
+          "line": 94,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 118,
+          "line": 121,
           "token": "body.organizationId"
         },
         {
-          "line": 188,
+          "line": 191,
           "token": "body.organizationId"
         }
       ],
@@ -16459,39 +16509,39 @@
           "token": "payrollRunId"
         },
         {
-          "line": 91,
+          "line": 94,
           "token": "organizationId"
         },
         {
-          "line": 91,
+          "line": 94,
           "token": "organizationId"
         },
         {
-          "line": 92,
+          "line": 95,
           "token": "organizationId"
         },
         {
-          "line": 92,
+          "line": 95,
           "token": "organizationId"
         },
         {
-          "line": 93,
+          "line": 96,
           "token": "organizationId"
         },
         {
-          "line": 97,
+          "line": 100,
           "token": "organizationId"
         },
         {
-          "line": 102,
+          "line": 105,
           "token": "organizationId"
         },
         {
-          "line": 106,
+          "line": 109,
           "token": "organizationId"
         },
         {
-          "line": 118,
+          "line": 121,
           "token": "organizationId"
         }
       ]
@@ -18786,15 +18836,25 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/explain/[employeeId]/route.ts": {
-      "gitBlobSha": "2ad766d375db182449b02e6c8ae2eea82a748cb6",
+      "gitBlobSha": "a86813cd36150f04ffcfc2d4d6479300e719391e",
       "route": "payroll-runs/[id]/explain/[employeeId]",
       "methods": [
         {
           "name": "GET",
           "line": 10,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional exact-head synthetic localhost PG16 HTTP proof: two independent authenticated owner attackers, own method success, real victim-organization denial, and immutable victim PostgreSQL rows. No provider calls, live money or production acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/payroll-read-sweep-http.mjs",
+            "line": 123,
+            "ownPositiveLine": 123,
+            "foreignDenialLine": 131,
+            "unchangedDbLine": 166,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three independent fictional employer owners, real seeded resources in isolated CI PostgreSQL 16",
+            "evidence": "Valid own employer response with real batch/gate/run/correction; real victim denied 403; victim managed and correction ledgers unchanged."
+          }
         }
       ],
       "employerSources": {
@@ -18889,7 +18949,7 @@
           "token": "organizationId"
         },
         {
-          "line": 38,
+          "line": 40,
           "token": "payrollRunId"
         }
       ]
@@ -36367,8 +36427,8 @@
     {
       "file": "src/app/api/compliance/statutory-remittance-corrections/route.ts",
       "lines": [
-        286,
-        319
+        288,
+        351
       ],
       "reason": "Caller-supplied business ID with no recognized same-file org-role/scope helper. Needs delegated-helper tracing, not proof of leak."
     },
