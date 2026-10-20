@@ -22,7 +22,7 @@ function optionalId(value: unknown): value is number | null {
   return value === null || id(value);
 }
 function date(value: unknown): value is string {
-  return text(value) && /^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$/.test(value);
+  return text(value) && /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value);
 }
 function observed(value: unknown): value is string {
   return text(value) && value.length > 0 && Number.isFinite(Date.parse(value));
