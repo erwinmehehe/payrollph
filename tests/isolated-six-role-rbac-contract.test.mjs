@@ -9,7 +9,8 @@ const workflow = readFileSync(".github/workflows/live-rbac-sandbox-smoke.yml", "
 const local = readFileSync("scripts/qa/isolated-six-role-rbac.mjs", "utf8");
 
 test("one DB boundary drives production demo-switch and private diagnostics", () => {
-  assert.match(guard, /ne\(organizations\.name, "Loom & Local"\)/);
+  assert.match(guard, /verifiedPublicDemoDatabaseIdentity\(session\.rows\[0\]\)/);
+  assert.match(guard, /PUBLIC_DEMO_ORGANIZATION_ID/);
   assert.match(guard, /"blocked_non_demo_employer"/);
   assert.match(guard, /"unverified"/);
   assert.match(demo, /await productionDemoEmployerBoundary\(\)/);
