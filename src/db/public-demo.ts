@@ -22,6 +22,7 @@ import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-or
 import { fictionalPublicDemoPayroll, PUBLIC_DEMO_PAYROLL_WORKERS } from "@/lib/public-demo-payroll-fixture";
 import { verifiedFictionalPayProfileRows } from "@/lib/public-demo-pay-profile-fixture";
 import { PUBLIC_DEMO_DATABASE_IDENTITY_SQL, verifiedPublicDemoDatabaseIdentity } from "@/lib/public-demo-database-identity";
+import { productionDemoEmployerBoundary, requireProductionDemoFixtureInTransaction } from "@/lib/demo-provisioning-boundary";
 
 const PUBLIC_DEMO_ORG = "Loom & Local";
 
@@ -298,12 +299,14 @@ export async function ensurePublicDemoTenant() {
     // employer could share the same legal/display name. Re-attest the actual
     // PostgreSQL session INSIDE this seeding transaction before ANY writes.
     // A table lock keeps new employer writes from racing our isolation check.
+    let productionFixtureId: number | null = null;
     if (process.env.NODE_ENV === "production") {
       await tx.execute(sql`LOCK TABLE organizations IN SHARE ROW EXCLUSIVE MODE`);
       const session = await tx.execute(PUBLIC_DEMO_DATABASE_IDENTITY_SQL);
       if (!verifiedPublicDemoDatabaseIdentity(session.rows[0])) {
         throw new Error("PUBLIC_DEMO_DATABASE_IDENTITY_NOT_VERIFIED");
       }
+      productionFixtureId = await requireProductionDemoFixtureInTransaction(tx);
     }
 
     const nameCandidates = await tx.select({
@@ -312,6 +315,12 @@ export async function ensurePublicDemoTenant() {
     if (nameCandidates.length > 1 || nameCandidates.some((org) =>
       org.name !== PUBLIC_DEMO_ORG || org.legalName !== "Loom & Local Philippines Inc.")) {
       throw new Error("PUBLIC_DEMO_TENANT_NOT_ISOLATED");
+    }
+    // A matching customer name/legalName is still not a registered fixture ID.
+    // Never auto-create a production org from an anonymous demo login.
+    if (productionFixtureId !== null &&
+        (nameCandidates.length !== 1 || nameCandidates[0].id !== productionFixtureId)) {
+      throw new Error("PUBLIC_DEMO_TENANT_IDENTITY_NOT_ATTESTED");
     }
 
     const [anotherOrganization] = await tx.select({ id: organizations.id })
@@ -631,6 +640,10 @@ export async function ensurePublicDemoTenant() {
     return organization.id;
   });
 
+  if (process.env.NODE_ENV === "production" &&
+      await productionDemoEmployerBoundary() !== "demo_only") {
+    throw new Error("PUBLIC_DEMO_FIXTURE_NOT_ATTESTED_AFTER_TRANSACTION");
+  }
   await ensureOptionalDemoData(organizationId);
   return organizationId;
 }
