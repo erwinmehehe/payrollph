@@ -15,7 +15,7 @@ import {
   Check,
   Clock3,
 } from "lucide-react";
-import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
+import { readVerifiedPayout, isVerifiedPayoutReconciliationReceipt, type VerifiedPayoutRead } from "@/lib/payout-reconciliation-read";
 import { parseTreasuryExportStatus, treasuryExportPermissions, treasuryExportScope, visibleTreasuryExportStatus, type ScopedTreasuryExportStatus } from "@/lib/treasury-export-visibility";
 import { FilingEvidencePanel } from "./filing-evidence";
 import { EntityBadge } from "./multi-entity-ui";
@@ -65,12 +65,22 @@ export function ExportsView({
   const [submittingPayout, setSubmittingPayout] = useState(false);
   const [reconcilingPayout, setReconcilingPayout] = useState(false);
   const [retryingFailedPayouts, setRetryingFailedPayouts] = useState(false);
+  const [payoutRevision, setPayoutRevision] = useState(0);
+  const [payoutObservation, setPayoutObservation] = useState<{ scope: string; data: VerifiedPayoutRead | null; error: string | null } | null>(null);
   const [treasuryObservation, setTreasuryObservation] = useState<ScopedTreasuryExportStatus | null>(null);
 
   const run = runs.find((item) => item.id === runId) ?? runs[0];
   const organizationId = data.selectedOrganization.id;
   const xenditEnabled = data.xenditPayoutsEnabled === true;
-  const payoutState = run ? derivePayrollPayoutState(data.auditEvents, run.id) : null;
+  // Every employer/run/money-action change invalidates the previous snapshot
+  // synchronously during render, before any effect can serve a stale result.
+  const payoutBusy = recordingPayout || preflightingPayout || submittingPayout
+    || reconcilingPayout || retryingFailedPayouts;
+  const payoutScope = JSON.stringify([organizationId, run?.id, run?.netPay,
+    run?.employeeCount, run?.status, payoutRevision, payoutBusy]);
+  const currentPayoutObservation = payoutObservation?.scope === payoutScope ? payoutObservation : null;
+  const payoutState = currentPayoutObservation?.data ?? null;
+  const payoutReadError = currentPayoutObservation?.error ?? null;
   const bookkeeperMode = data.access?.role === "bookkeeper";
   const treasuryStatusEligible = ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "");
   const treasuryScope = treasuryExportScope({
@@ -82,11 +92,13 @@ export function ExportsView({
   // During a role/employer switch, a prior user's authorization must never
   // enable controls while the current scope's status is unresolved.
   const treasuryStatus = visibleTreasuryExportStatus(treasuryScope, treasuryStatusEligible, treasuryObservation);
-  const { canRecordManualPayout, canGenerateLiveBankFile } =
+  const { canRecordManualPayout: treasuryCanRecordPayout, canGenerateLiveBankFile: treasuryCanGenerateFile } =
     treasuryExportPermissions(data.access?.role ?? null, treasuryStatus);
+  const canRecordManualPayout = treasuryCanRecordPayout && payoutState !== null;
+  const canGenerateLiveBankFile = treasuryCanGenerateFile && payoutState !== null;
 
-  const expectedPayoutCents = Math.round(Number(run?.netPay ?? 0) * 100);
-  const payoutTransfers = payoutState?.reconciliation.transfers ?? [];
+  const expectedPayoutCents = payoutState ? Math.round(Number(payoutState.runNetPay) * 100) : null;
+  const payoutTransfers = payoutState ? payoutState.reconciliation.transfers : [];
   const settledPayoutCents = payoutTransfers
     .filter((transfer) => transfer.status === "succeeded")
     .reduce((sum, transfer) => sum + transfer.amountCents, 0);
@@ -96,12 +108,31 @@ export function ExportsView({
   const pendingKnownPayoutCents = payoutTransfers
     .filter((transfer) => transfer.status === "pending" || transfer.status === "unknown")
     .reduce((sum, transfer) => sum + transfer.amountCents, 0);
-  const unsettledPayoutCents = Math.max(0, expectedPayoutCents - settledPayoutCents);
+  const unsettledPayoutCents = expectedPayoutCents === null ? null : Math.max(0, expectedPayoutCents - settledPayoutCents);
   const settledVarianceCents =
     payoutState?.reconciliation.status === "settled"
-      ? expectedPayoutCents - settledPayoutCents
+      ? expectedPayoutCents! - settledPayoutCents
       : null;
   const employeeByNo = new Map(data.employees.map((employee) => [employee.employeeNo, employee]));
+
+  useEffect(() => {
+    if (!run || run.status !== "Released" || payoutBusy) return;
+    const controller = new AbortController();
+    const scope = payoutScope;
+    void readVerifiedPayout({
+      organizationId, runId: run.id, netPay: run.netPay, employeeCount: run.employeeCount,
+    }, fetch, controller.signal)
+      .then(data => {
+        if (!controller.signal.aborted) setPayoutObservation({ scope, data, error: null });
+      })
+      .catch(error => {
+        if (!controller.signal.aborted) setPayoutObservation({
+          scope, data: null,
+          error: error instanceof Error ? error.message : "Payout evidence unavailable.",
+        });
+      });
+    return () => controller.abort();
+  }, [payoutScope, organizationId, run?.id, run?.netPay, run?.employeeCount, run?.status, payoutBusy]);
 
   useEffect(() => {
     if (!treasuryStatusEligible) return;
@@ -160,7 +191,7 @@ export function ExportsView({
   }
 
   async function recordPayoutCompletion() {
-    if (!run) return;
+    if (!run || !payoutState) return;
     const reference = payoutReference.trim();
     if (reference.length < 4) {
       notify("Enter the bank confirmation or transaction reference first.", "err");
@@ -200,7 +231,7 @@ export function ExportsView({
 
 
   async function runPaymongoPreflight() {
-    if (!run) return;
+    if (!run || !payoutState) return;
     setPreflightingPayout(true);
     try {
       const response = await fetch(`/api/payroll-runs/${run.id}/exports`, {
@@ -229,7 +260,7 @@ export function ExportsView({
   }
 
   async function submitPaymongoPayout() {
-    if (!run) return;
+    if (!run || !payoutState) return;
     const confirmed = window.confirm(
       `Submit ${money(run.netPay)} for ${run.employeeCount} employee(s) through PayMongo? This can move real money.`,
     );
@@ -264,7 +295,7 @@ export function ExportsView({
 
 
   async function reconcilePaymongoPayout(action: "reconcile" | "retry-failed") {
-    if (!run) return;
+    if (!run || !payoutState) return;
     const retry = action === "retry-failed";
     if (retry) setRetryingFailedPayouts(true);
     else setReconcilingPayout(true);
@@ -285,20 +316,20 @@ export function ExportsView({
         return;
       }
 
+      if (!isVerifiedPayoutReconciliationReceipt(payload, organizationId, run.id, retry)) {
+        notify("Payout response could not be verified for this employer. The provider action may have taken effect; review current evidence before retrying.", "err");
+        await onRefresh();
+        return;
+      }
+      const reconciliation = payload.reconciliation as {
+        succeeded: number; pending: number; failed: number; unknown: number;
+      };
       if (retry) {
-        notify(payload.message ?? "Failed transfers were resubmitted without touching pending or settled payouts.", "ok");
+        notify(payload.message, "info");
       } else {
-        const reconciliation = payload.reconciliation as {
-          succeeded?: number;
-          pending?: number;
-          failed?: number;
-          unknown?: number;
-        } | undefined;
         notify(
-          reconciliation
-            ? `PayMongo checked: ${reconciliation.succeeded ?? 0} settled, ${reconciliation.pending ?? 0} pending, ${reconciliation.failed ?? 0} failed.`
-            : "PayMongo payout status refreshed.",
-          reconciliation?.failed ? "err" : reconciliation?.pending || reconciliation?.unknown ? "info" : "ok",
+          `PayMongo checked: ${reconciliation.succeeded} settled, ${reconciliation.pending} pending, ${reconciliation.failed} failed.`,
+          reconciliation.failed ? "err" : reconciliation.pending || reconciliation.unknown ? "info" : "ok",
         );
       }
       await onRefresh();
@@ -431,13 +462,22 @@ export function ExportsView({
                 onPaymongoPreflight={runPaymongoPreflight}
                 onPaymongoSubmit={submitPaymongoPayout}
                 canSubmitPaymongo={payoutState?.payout.method === "PayMongo" && payoutState.payout.status === "ready"}
-                allowPaymongoActions={payoutState?.payout.status !== "submitted" && payoutState?.payout.status !== "completed"}
+                allowPaymongoActions={Boolean(payoutState && payoutState.payout.status !== "submitted" && payoutState.payout.status !== "completed")}
                 paymongoPreflighting={preflightingPayout}
                 paymongoSubmitting={submittingPayout}
               />
           )}
 
-          {run.status === "Released" && payoutState &&
+          {run.status === "Released" && !payoutState && (
+            <article className="card" data-payout-unavailable role={payoutReadError ? "alert" : "status"} style={{ marginBottom: 16 }}>
+              <h3>{payoutReadError ? "Payout reconciliation unavailable" : "Checking payout evidence..."}</h3>
+              <p>Transfer counts, settlement totals and payout controls are unavailable until the source snapshot is verified for this employer and payroll run.</p>
+              {payoutReadError && <p>{payoutReadError}</p>}
+              {payoutReadError && <button type="button" className="secondary-button"
+                onClick={() => setPayoutRevision(value => value + 1)}>Retry payout reconciliation</button>}
+            </article>
+          )}
+          {run.status === "Released" && payoutState && expectedPayoutCents !== null && unsettledPayoutCents !== null &&
             (!xenditEnabled || payoutState.reconciliation.provider === "PayMongo" || payoutState.payout.method === "bank-file") && (
             <article className="card" data-payout-operations style={{ marginBottom: 16 }}>
               <div className="card-header">

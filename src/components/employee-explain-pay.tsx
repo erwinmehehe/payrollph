@@ -1,47 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { readVerifiedSelfExplainPay, type SelfExplainPayPayload as ExplainPayload } from "@/lib/self-explain-pay-read";
 import { essText, type EssLanguage } from "@/lib/ess-language";
 import { ChevronDown, ChevronUp, FileSearch, LoaderCircle, ShieldCheck } from "lucide-react";
-
-type ExplainLine = {
-  code: string;
-  label: string;
-  direction: "earning" | "deduction";
-  previous: number | null;
-  current: number;
-  delta: number | null;
-  netEffectDelta: number | null;
-  reason: string;
-  notes: string[];
-};
-
-type ExplainPayload = {
-  run: {
-    id: number;
-    periodLabel: string;
-    payDate: string;
-    ruleVersion: string;
-  };
-  previousRun: {
-    id: number;
-    periodLabel: string;
-    payDate: string;
-    ruleVersion: string;
-  } | null;
-  explanation: {
-    currentGross: number;
-    currentDeductions: number;
-    currentNet: number;
-    previousGross: number | null;
-    previousDeductions: number | null;
-    previousNet: number | null;
-    netDelta: number | null;
-    netPercent: number | null;
-    ruleVersion: string | null;
-    lines: ExplainLine[];
-  };
-};
 
 const peso = (value: number) =>
   new Intl.NumberFormat("en-PH", {
@@ -55,38 +17,49 @@ function signedPeso(value: number, language: EssLanguage) {
   return `${value > 0 ? "+" : "-"}${peso(Math.abs(value))}`;
 }
 
-export function EmployeeExplainPay({ entryId, period, language = "en" }: { entryId: number; period: string; language?: EssLanguage }) {
+export function EmployeeExplainPay({
+  entryId, period, organizationId, employeeId, language = "en",
+}: {
+  entryId: number; period: string; organizationId: number; employeeId: number; language?: EssLanguage;
+}) {
   const t = (label: string) => essText(language, label);
   const [open, setOpen] = useState(false);
-  const [payload, setPayload] = useState<ExplainPayload | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [observation, setObservation] = useState<{
+    scope: string; payload: ExplainPayload | null; error: string; loading: boolean;
+  } | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const scope = JSON.stringify([organizationId, employeeId, entryId, period, revision]);
+  const current = observation?.scope === scope ? observation : null;
+  const payload = current?.payload ?? null;
+  const error = current?.error ?? "";
+  const busy = open && (!current || current.loading);
 
-  async function toggle() {
-    if (open) {
-      setOpen(false);
-      return;
-    }
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    const observedScope = scope;
+    setObservation({ scope: observedScope, payload: null, error: "", loading: true });
+    void readVerifiedSelfExplainPay({ organizationId, employeeId, entryId, periodLabel: period },
+      fetch, controller.signal)
+      .then(value => {
+        if (!controller.signal.aborted) setObservation({
+          scope: observedScope, payload: value, error: "", loading: false,
+        });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setObservation({
+          scope: observedScope, payload: null, error: t("We could not verify this payslip explanation. Retry."), loading: false,
+        });
+      });
+    return () => controller.abort();
+  // Language changes only affect the next error message, not the identity-bound request.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, scope, organizationId, employeeId, entryId, period]);
 
-    setOpen(true);
-    if (payload || busy) return;
-
-    setBusy(true);
-    setError("");
-    try {
-      const response = await fetch(`/api/self/payslips/${entryId}/explain`, { cache: "no-store" });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setError(body.error ?? t("We could not explain this payslip."));
-        return;
-      }
-      setPayload(body as ExplainPayload);
-    } catch {
-      setError(t("We could not load the explanation because the server could not be reached."));
-    } finally {
-      setBusy(false);
-    }
+  function toggle() {
+    setOpen(value => !value);
+    setShowAll(false);
   }
 
   const explanation = payload?.explanation ?? null;
@@ -124,7 +97,12 @@ export function EmployeeExplainPay({ entryId, period, language = "en" }: { entry
             </div>
           )}
 
-          {error && <div className="notice notice-amber"><span>{error}</span></div>}
+          {error && (
+            <div className="notice notice-amber">
+              <span>{error}</span>
+              <button className="secondary-button" type="button" onClick={() => setRevision(value => value + 1)}>Retry explanation</button>
+            </div>
+          )}
 
           {payload && explanation && (
             <>
@@ -204,6 +182,9 @@ export function EmployeeExplainPay({ entryId, period, language = "en" }: { entry
                 ))}
               </div>
 
+              {candidateLines.length === 0 && (
+                <div className="notice notice-blue">{t("No itemized pay components were recorded for this comparison.")}</div>
+              )}
               {candidateLines.length > 4 && (
                 <button
                   type="button"
