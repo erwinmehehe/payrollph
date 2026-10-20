@@ -1146,6 +1146,9 @@ export function PayrollRunView({
 
       {explainEmployeeId != null && (
         <ExplainPayDrawer
+          key={JSON.stringify([data.selectedOrganization.id, run.legalEntityId ?? null, run.id, explainEmployeeId, data.user?.id ?? null, data.access?.role ?? null])}
+          organizationId={data.selectedOrganization.id}
+          legalEntityId={run.legalEntityId ?? null}
           runId={run.id}
           employeeId={explainEmployeeId}
           employeeName={(() => {
