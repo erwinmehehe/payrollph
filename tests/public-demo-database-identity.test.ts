@@ -46,11 +46,14 @@ test("source guard AND transaction recheck the same session branch/role identity
   assert.match(guard, /verifiedPublicDemoDatabaseIdentity\(session\.rows\[0\]\)/);
   assert.match(guard, /candidates\.length > 1/);
   assert.match(seed, /LOCK TABLE organizations IN SHARE ROW EXCLUSIVE MODE/);
-  assert.match(seed, /verifiedPublicDemoDatabaseIdentity\(session\.rows\[0\]\)/);
+  assert.match(guard, /await tx\.execute\(PUBLIC_DEMO_DATABASE_IDENTITY_SQL\)/,
+    "Identity attestation must inspect the write transaction’s PostgreSQL session");
+  assert.match(guard, /await inspectFixture\(tx\)/,
+    "Write-path helper must use the same verified runtime session");
   assert.match(seed, /nameCandidates\.length > 1/);
   const seedMethod = seed.slice(seed.indexOf("export async function ensurePublicDemoTenant()"));
   const firstWrite = seedMethod.indexOf(".insert(organizations)");
-  const identityGate = seedMethod.indexOf("verifiedPublicDemoDatabaseIdentity");
+  const identityGate = seedMethod.indexOf("requireProductionDemoFixtureInTransaction(tx)");
   const labelGate = seedMethod.indexOf("nameCandidates.length > 1");
   assert.ok(firstWrite >= 0 && identityGate >= 0 && identityGate < firstWrite,
     "A missing or mismatched production DB identity must prevent fixture inserts");

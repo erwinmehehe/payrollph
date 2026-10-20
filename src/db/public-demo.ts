@@ -21,7 +21,6 @@ import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { fictionalPublicDemoPayroll, PUBLIC_DEMO_PAYROLL_WORKERS } from "@/lib/public-demo-payroll-fixture";
 import { verifiedFictionalPayProfileRows } from "@/lib/public-demo-pay-profile-fixture";
-import { PUBLIC_DEMO_DATABASE_IDENTITY_SQL, verifiedPublicDemoDatabaseIdentity } from "@/lib/public-demo-database-identity";
 import { productionDemoEmployerBoundary, requireProductionDemoFixtureInTransaction } from "@/lib/demo-provisioning-boundary";
 
 const PUBLIC_DEMO_ORG = "Loom & Local";
@@ -302,10 +301,8 @@ export async function ensurePublicDemoTenant() {
     let productionFixtureId: number | null = null;
     if (process.env.NODE_ENV === "production") {
       await tx.execute(sql`LOCK TABLE organizations IN SHARE ROW EXCLUSIVE MODE`);
-      const session = await tx.execute(PUBLIC_DEMO_DATABASE_IDENTITY_SQL);
-      if (!verifiedPublicDemoDatabaseIdentity(session.rows[0])) {
-        throw new Error("PUBLIC_DEMO_DATABASE_IDENTITY_NOT_VERIFIED");
-      }
+      // The helper verifies the actual PostgreSQL session and fixture row on
+      // this exact locked transaction before any employee or payroll writes.
       productionFixtureId = await requireProductionDemoFixtureInTransaction(tx);
     }
 
