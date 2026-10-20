@@ -367,7 +367,7 @@ jobs:
             exit 1
           fi
       - name: Run all six real authenticated API roles with isolated fictional records
-        run: node scripts/qa/isolated-six-role-rbac.mjs
+        run: npx tsx scripts/qa/isolated-six-role-rbac.mjs
       - name: Publish status-only fictional evidence, never cookies or employee rows
         if: always()
         uses: actions/upload-artifact@v7
