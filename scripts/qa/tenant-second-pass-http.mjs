@@ -1071,31 +1071,6 @@ async function verifyNewMainRouteIsolation(f) {
   assert.deepEqual(victimPayrollAfter, victimPayrollBefore, "Denied financial reads leave victim payroll unchanged");
 }
 
-/**
- * Real HTTP proof for the company-wide HCM inventory, using only the three
- * fictional organizations and signed-in owners in disposable PostgreSQL.
- * A 200 must contain a nonempty own-employer workforce; reading a real
- * victim employer with an attacker session must return 403, not fake 200.
- * Production keeps the feature OFF; only the localhost CI server enables it.
- */
-async function verifyGovernanceTenantRead(f) {
-  const victim = f.orgs[0];
-  const victimGovernance = expectStatus(await request("/api/hcm/governance-readiness?organizationId=" + victim.id, { cookie: f.ownerSessions[0].cookie }), 200, "Victim positive governance inventory");
-  assert.equal(victimGovernance.json?.organizationId, victim.id);
-  assert.equal(victimGovernance.json?.summary?.employeeCount, 8, "Fictional victim workforce must be populated");
-  assert.equal(victimGovernance.json?.processes?.length, 8, "All governed process families must be present");
-  for (const idx of [1, 2]) {
-    const org = f.orgs[idx];
-    const cookie = f.ownerSessions[idx].cookie;
-    const ownGovernance = expectStatus(await request("/api/hcm/governance-readiness?organizationId=" + org.id, { cookie }), 200, "Own employer HCM governance 200");
-    assert.equal(ownGovernance.json?.organizationId, org.id, "Own governance must echo authorized employer");
-    assert.equal(ownGovernance.json?.summary?.employeeCount, 1, "Actual own synthetic worker prevents empty-response false PASS");
-    assert.equal(ownGovernance.json?.processes?.length, 8, "Own report includes full process inventory");
-    expectStatus(await request("/api/hcm/governance-readiness?organizationId=" + victim.id, { cookie }), 403, "Other real employer HCM governance denied");
-  }
-  expectStatus(await request("/api/hcm/governance-readiness?organizationId=" + victim.id), 401, "Anonymous governance read denied");
-}
-
 async function main() {
   requireDisposable();
   const f = await makeFixture();
@@ -1107,8 +1082,7 @@ async function main() {
     .where(eq(providerEvents.organizationId, f.orgs[0].id))).map((e) => e.id).sort((a,b) => a-b);
   assert.deepEqual(afterWebhookProbe, beforeWebhookProbe,
     "Forged provider webhook probes must not insert victim provider events");
-  await verifyGovernanceTenantRead(f);
-  await verifyCrossTenant(f);
+  await verifyGovernanceTenantRead(f); await verifyCrossTenant(f);
   await verifyRevokedEmployerPayslipAccess(f);
   await verifySensitiveTenantDownloadsAndRoles(f);
   await verifyNewMainRouteIsolation(f);
@@ -1250,4 +1224,29 @@ async function verifyRemittanceMonthCloseTenantProof(f) {
     .where(eq(statutoryRemittancePaymentEvidence.organizationId, victim.id))
     .orderBy(statutoryRemittancePaymentEvidence.id);
   assert.deepEqual(victimEvidenceAfter, victimEvidenceBefore, "Foreign month-close requests cannot mutate victim proof artifacts");
+}
+
+/**
+ * Real HTTP proof for the company-wide HCM inventory, using only the three
+ * fictional organizations and signed-in owners in disposable PostgreSQL.
+ * A 200 must contain a nonempty own-employer workforce; reading a real
+ * victim employer with an attacker session must return 403, not fake 200.
+ * Production keeps the feature OFF; only the localhost CI server enables it.
+ */
+async function verifyGovernanceTenantRead(f) {
+  const victim = f.orgs[0];
+  const victimGovernance = expectStatus(await request("/api/hcm/governance-readiness?organizationId=" + victim.id, { cookie: f.ownerSessions[0].cookie }), 200, "Victim positive governance inventory");
+  assert.equal(victimGovernance.json?.organizationId, victim.id);
+  assert.equal(victimGovernance.json?.summary?.employeeCount, 8, "Fictional victim workforce must be populated");
+  assert.equal(victimGovernance.json?.processes?.length, 8, "All governed process families must be present");
+  for (const idx of [1, 2]) {
+    const org = f.orgs[idx];
+    const cookie = f.ownerSessions[idx].cookie;
+    const ownGovernance = expectStatus(await request("/api/hcm/governance-readiness?organizationId=" + org.id, { cookie }), 200, "Own employer HCM governance 200");
+    assert.equal(ownGovernance.json?.organizationId, org.id, "Own governance must echo authorized employer");
+    assert.equal(ownGovernance.json?.summary?.employeeCount, 1, "Actual own synthetic worker prevents empty-response false PASS");
+    assert.equal(ownGovernance.json?.processes?.length, 8, "Own report includes full process inventory");
+    expectStatus(await request("/api/hcm/governance-readiness?organizationId=" + victim.id, { cookie }), 403, "Other real employer HCM governance denied");
+  }
+  expectStatus(await request("/api/hcm/governance-readiness?organizationId=" + victim.id), 401, "Anonymous governance read denied");
 }
