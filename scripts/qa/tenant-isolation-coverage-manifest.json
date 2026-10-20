@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 422 API method and 20 page/action gaps remain. Provisionally integrated separate disposable-PG bank isolation HTTP evidence (four methods) and explicitly reviewed a dedicated-database-attested public fictional demo POST plus private readiness diagnostic (two public/protocol methods); no untested tenant method is certified. All new coverage requires exact-head CI and reviewer acceptance.",
+  "acceptanceStatus": "NOT ACCEPTED: 421 API method and 20 page/action GAPs remain. Read-only self-pay explanation has a concrete isolated-PG16 method-specific own/foreign HTTP proof candidate pending exact-head CI, but changed first-payroll, legal-entity mutation, and payout reconciliation methods still lack complete independently run evidence. Do not merge or move money.",
   "metrics": {
     "routeFiles": 289,
     "methods": 490,
     "coveredBefore": 20,
-    "coveredAfter": 60,
+    "coveredAfter": 61,
     "publicByDesign": 8,
-    "gap": 422,
+    "gap": 421,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -10267,7 +10267,7 @@
       ]
     },
     "src/app/api/first-payroll/preview/route.ts": {
-      "gitBlobSha": "6a3c4a26ea2bea9c59a37ae1c9666e55fdd89285",
+      "gitBlobSha": "33313bcbd12f67cfbfab73a4ea7d6fda3ddff944",
       "route": "first-payroll/preview",
       "methods": [
         {
@@ -10344,7 +10344,7 @@
       ]
     },
     "src/app/api/first-payroll/progress/route.ts": {
-      "gitBlobSha": "6a5fa62ae5db0648e7d5e9fd92a89dd3a46793dd",
+      "gitBlobSha": "5f2cdeabd424861b8a706d24b2071b601dbbf2c4",
       "route": "first-payroll/progress",
       "methods": [
         {
@@ -15938,7 +15938,7 @@
       ]
     },
     "src/app/api/legal-entities/route.ts": {
-      "gitBlobSha": "77f0085c37e67ef119b9fe07f6addb1807167d27",
+      "gitBlobSha": "4bcc6994bcb59321618308a3c3bb890cbddd4bf2",
       "route": "legal-entities",
       "methods": [
         {
@@ -19145,7 +19145,7 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts": {
-      "gitBlobSha": "da23455f7c2b354cd40294a2409921e14d904d14",
+      "gitBlobSha": "4a0f56c5e22127a1d74dd63ef2963df53edb6060",
       "route": "payroll-runs/[id]/payout-reconciliation",
       "methods": [
         {
@@ -24094,15 +24094,22 @@
       ]
     },
     "src/app/api/self/payslips/[id]/explain/route.ts": {
-      "gitBlobSha": "be0e512c522f8bfbd8c877b998158ea0e524477b",
+      "gitBlobSha": "a8e142ca7ac1a81a080d7fb5ac70ef79007dfcfc",
       "route": "self/payslips/[id]/explain",
       "methods": [
         {
           "name": "GET",
           "line": 10,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Disposable-PG16 authenticated synthetic employee own payroll explanation GET 200, real victim-only released entry GET 404 for two independent employer sessions and unchanged victim payroll",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1255,
+            "ownPositiveLine": 1281,
+            "foreignDenialLine": 1286,
+            "scope": "Real synthetic released-pay rows, signed-in company employees, two employers, exact own employer/employee/entry echo, existing victim entry denied, victim database unchanged",
+            "unchangedDbLine": 1292
+          }
         }
       ],
       "employerSources": {
