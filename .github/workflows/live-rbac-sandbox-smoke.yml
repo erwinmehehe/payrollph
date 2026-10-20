@@ -285,6 +285,7 @@ jobs:
       CI: "true"
       TZ: Asia/Manila
       ISOLATED_SIX_ROLE_RBAC: disposable-pg16-only
+      RBAC_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       QA_URL: http://127.0.0.1:3000
       APP_BASE_URL: http://127.0.0.1:3000

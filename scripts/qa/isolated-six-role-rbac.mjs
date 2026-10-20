@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
+import { operationalSecret } from "../../src/lib/operational-secret";
 import { organizations, payrollRuns, sessions, userOrganizations, users } from "../../src/db/schema";
 
 // Authenticated API proof against an EXCLUSIVELY DISPOSABLE PG16 + localhost
@@ -22,6 +24,7 @@ const ACCESS = {
 };
 const observations = [];
 let errors = 0;
+let verifiedSourceSha = null;
 
 function guardEnvironment() {
   assert.equal(process.env.CI, "true");
@@ -37,6 +40,12 @@ function guardEnvironment() {
   assert.equal(url.hostname, "127.0.0.1");
   assert.equal(url.port, "5432");
   assert.equal(url.pathname, "/app_db");
+  // pull_request GITHUB_SHA usually refers to GitHub's synthetic merge commit,
+  // not the exact PR head checked out by actions/checkout. Attest the real HEAD.
+  const checkedOutSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  assert.match(checkedOutSha, /^[0-9a-f]{40}$/);
+  assert.equal(checkedOutSha, process.env.RBAC_SOURCE_SHA);
+  verifiedSourceSha = checkedOutSha;
 }
 
 function evidence(role, name, actual, expected, validShape = true) {
@@ -200,6 +209,26 @@ async function verifyExistingForeignEmployerDenials(demoOwner) {
 
 async function run() {
   guardEnvironment();
+  // Confirm the private production diagnostic is NOT public, and the same
+  // guarded endpoint responds to its real secret inside isolated development.
+  const privatePath = "/api/readiness/demo-provisioning";
+  const unauthorized = await request(privatePath);
+  const denied = await unauthorized.json().catch(() => null);
+  evidence("anonymous", "demo-provisioning-private", unauthorized.status, 404,
+    denied?.error === "Not found." && !("demoProvisioning" in denied));
+
+  const token = operationalSecret("readiness");
+  assert.ok(typeof token === "string" && token.length >= 32);
+  const authorized = await fetch(new URL(privatePath, ORIGIN), {
+    method: "GET",
+    headers: { Accept: "application/json", "x-readiness-token": token },
+    redirect: "manual", signal: AbortSignal.timeout(45000),
+  });
+  const readiness = await authorized.json().catch(() => null);
+  evidence("private-readiness", "demo-provisioning-read", authorized.status, 200,
+    readiness?.demoProvisioning === "non_production" &&
+    readiness?.evidenceScope === "PRIVATE_DEMO_GUARD_ONLY_NOT_PERSONA_ACCEPTANCE");
+
   for (const path of ["/api/bi-exports?organizationId=1",
     "/api/workforce-planning?organizationId=1",
     "/api/workforce-planning/allocations?organizationId=1",
@@ -250,7 +279,7 @@ async function run() {
   await verifyExistingForeignEmployerDenials(demoOwner);
   // No role may silently drop out of the matrix and leave a green subset.
   // 2 true victim-owned positives + 5 actual victim denials + unchanged DB.
-  const expected = 5 + ROLES.length * 8 + 2 + 5 + 1;
+  const expected = 2 + 5 + ROLES.length * 8 + 2 + 5 + 1;
   assert.equal(observations.length, expected,
     "Every anonymous, login, role-route and cross-tenant probe must execute");
 }
@@ -263,7 +292,7 @@ try {
 } finally {
   await mkdir("qa-artifacts", { recursive: true });
   await writeFile("qa-artifacts/isolated-six-role-rbac.json", JSON.stringify({
-    sourceSha: process.env.GITHUB_SHA ?? "unknown",
+    sourceSha: verifiedSourceSha,
     environment: "disposable Postgres 16 and localhost, synthetic only",
     independentHumanUat: false, physicalDeviceAcceptance: false,
     officialPayrollOrMoneyTested: false,

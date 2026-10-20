@@ -50,6 +50,7 @@ test("isolated role QA may contact only localhost and a disposable PostgreSQL 16
   assert.match(local, /independentHumanUat: false/);
   assert.match(workflow, /image: postgres:16/);
   assert.match(workflow, /ISOLATED_SIX_ROLE_RBAC: disposable-pg16-only/);
+  assert.match(workflow, /RBAC_SOURCE_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
   assert.match(workflow, /if: github\.event_name != 'pull_request'/);
   assert.match(workflow, /pull_request:/);
   assert.match(workflow, /run: npx tsx scripts\/qa\/isolated-six-role-rbac\.mjs/,
@@ -101,4 +102,17 @@ test("PRs changing any payroll authorization dependency must run disposable six-
   assert.doesNotMatch(workflow, /  pull_request:\n    branches: \[main\]\n    paths:/);
   assert.match(workflow, /live-sandbox:\n    if: github\.event_name != 'pull_request'/,
     "Pull-request tests must not use live production secrets");
+});
+
+
+test("CI evidence attests the ACTUAL checked-out PR head, not GitHub's synthetic merge SHA", () => {
+  assert.match(local, /execFileSync\("git", \["rev-parse", "HEAD"\]/);
+  assert.match(local, /assert\.equal\(checkedOutSha, process\.env\.RBAC_SOURCE_SHA\)/);
+  assert.match(local, /sourceSha: verifiedSourceSha/);
+  assert.doesNotMatch(local, /sourceSha: process\.env\.GITHUB_SHA/);
+  assert.match(local, /privatePath = "\/api\/readiness\/demo-provisioning"/);
+  assert.match(local, /denied\?\.error === "Not found\."/);
+  assert.match(local, /operationalSecret\("readiness"\)/);
+  assert.match(local, /readiness\?\.demoProvisioning === "non_production"/);
+  assert.match(local, /const expected = 2 \+ 5 \+ ROLES\.length \* 8 \+ 2 \+ 5 \+ 1/);
 });

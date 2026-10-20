@@ -2,7 +2,7 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-19",
-  "acceptanceStatus": "NOT ACCEPTED: 428 API method and 20 page/action gaps remain. Six new payroll-read method proofs are provisional until exact-head HTTP/PG CI; no production release approval.",
+  "acceptanceStatus": "NOT ACCEPTED: 427 API method and 20 page/action gaps remain. Six new payroll-read method proofs are provisional until exact-head HTTP/PG CI; no production release approval.",
   "metrics": {
     "routeFiles": 289,
     "methods": 490,
