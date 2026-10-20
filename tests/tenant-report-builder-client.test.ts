@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   authorizedReportBuilderSelection, tenantReportPreviewKey,
   verifyReportBuilderCapabilities, verifyReportBuilderPreview, verifyReportBuilderCsvResponse,
@@ -72,4 +73,11 @@ test("a successful HTML or JSON error page must never be downloaded as a CSV", (
       status: 200, headers: contentType ? { "Content-Type": contentType } : {},
     })));
   }
+});
+
+test("report state is remounted on user or employer switch, including A-B-A return", () => {
+  const page = readFileSync("src/app/workspace/report-builder/page.tsx", "utf8");
+  // The preview signature alone repeats on A-B-A, so the page must also
+  // remount cached capabilities, previews and fetch generations at the boundary.
+  assert.ok(page.includes('key={`${user.id}:${organizationId}`}'));
 });
