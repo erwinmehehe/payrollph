@@ -75,9 +75,12 @@ test("a successful HTML or JSON error page must never be downloaded as a CSV", (
   }
 });
 
-test("report state is remounted on user or employer switch, including A-B-A return", () => {
-  const page = readFileSync("src/app/workspace/report-builder/page.tsx", "utf8");
-  // The preview signature alone repeats on A-B-A, so the page must also
-  // remount cached capabilities, previews and fetch generations at the boundary.
-  assert.ok(page.includes('key={`${user.id}:${organizationId}`}'));
+test("the report component remounts on employer switch, including A-B-A return", () => {
+  const view = readFileSync("src/components/workspace/tenant-report-builder.tsx", "utf8");
+  // This is a source regression, not a browser test: the keyed child must own
+  // the fetch generation, authorization capabilities, preview and selected period.
+  assert.match(view, /return <ScopedTenantReportBuilder key=\{organizationId\} organizationId=\{organizationId\} \/>;/);
+  assert.match(view, /function ScopedTenantReportBuilder\(/);
+  assert.ok(view.indexOf("const [preview, setPreview]") > view.indexOf("function ScopedTenantReportBuilder("));
+  assert.ok(view.indexOf("const [capabilities, setCapabilities]") > view.indexOf("function ScopedTenantReportBuilder("));
 });
