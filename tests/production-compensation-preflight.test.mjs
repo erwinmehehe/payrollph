@@ -54,6 +54,52 @@ test("#1015 fail-closed for wrong branch, replica, SHA, role, or forged counts",
     assert.throws(() => verifyProductionCompensationPreflight(p, expected));
   }
 });
+test("#1015 preflight names only the mismatched field, never its runtime value", () => {
+  const variants = [
+    ["projectId", "private-project-value", "PROJECT"],
+    ["branchId", "private-branch-value", "BRANCH"],
+    ["endpointId", "private-endpoint-value", "ENDPOINT"],
+    ["databaseName", "private-database-value", "DATABASE"],
+    ["roleName", "private/role/value", "ROLE_FORMAT"],
+    ["inRecovery", true, "RECOVERY"],
+  ];
+  for (const [field, value, marker] of variants) {
+    const payload = successful();
+    payload.database[field] = value;
+    assert.throws(
+      () => verifyProductionCompensationPreflight(payload, expected),
+      (reason) => {
+        assert.equal(reason.message,
+          "PRODUCTION_COMPENSATION_PREFLIGHT_WRONG_DATABASE_TARGET_" + marker);
+        assert.ok(!reason.message.includes(String(value)));
+        return true;
+      },
+      field + " must fail with a nonsecret diagnostic label",
+    );
+  }
+});
+
+test("#1015 concurrent wrong-target fields are reported as labels only, before missing schema", () => {
+  const payload = successful();
+  payload.database.projectId = "sensitive-project-do-not-log";
+  payload.database.branchId = "sensitive-branch-do-not-log";
+  payload.schemaPresence.migrationLedgerTablesPresent = 0;
+  assert.throws(
+    () => verifyProductionCompensationPreflight(payload, expected),
+    (reason) => {
+      assert.equal(reason.message,
+        "PRODUCTION_COMPENSATION_PREFLIGHT_WRONG_DATABASE_TARGET_PROJECT_BRANCH");
+      assert.ok(!reason.message.includes("sensitive-"));
+      return true;
+    },
+  );
+  const expectedWithInvalidSha = { ...expected, sha: "unsafe-invalid-sha" };
+  payload.deploymentSha = expectedWithInvalidSha.sha;
+  payload.database = successful().database;
+  assert.throws(() => verifyProductionCompensationPreflight(payload, expectedWithInvalidSha),
+    /WRONG_DATABASE_TARGET_EXPECTED_SHA/);
+});
+
 test("#1061 protected live smoke keeps the private preflight before HR fixture", () => {
   const workflow = readFileSync(".github/workflows/live-rbac-sandbox-smoke.yml", "utf8");
   assert.ok(workflow.includes("scripts/qa/verify-production-compensation-preflight.mjs"));
