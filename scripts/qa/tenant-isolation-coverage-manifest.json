@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 423 API method and 20 page/action gaps remain. Bank evidence proofs require exact-head real HTTP/PG CI. No production release approval.",
+  "acceptanceStatus": "NOT ACCEPTED: 422 API method and 20 page/action gaps remain. Provisionally integrated separate disposable-PG bank isolation HTTP evidence (four methods) and explicitly reviewed a dedicated-database-attested public fictional demo POST plus private readiness diagnostic (two public/protocol methods); no untested tenant method is certified. All new coverage requires exact-head CI and reviewer acceptance.",
   "metrics": {
-    "routeFiles": 288,
-    "methods": 489,
+    "routeFiles": 289,
+    "methods": 490,
     "coveredBefore": 20,
     "coveredAfter": 60,
-    "publicByDesign": 6,
-    "gap": 423,
+    "publicByDesign": 8,
+    "gap": 422,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -924,21 +924,34 @@
       ]
     },
     "src/app/api/auth/demo-switch/route.ts": {
-      "gitBlobSha": "31d24ba9862b9d9ea121731c2ea9a18074442ad3",
+      "gitBlobSha": "27d84e87e6a79ab167d8651425dd5bd5fecfcdb1",
       "route": "auth/demo-switch",
       "methods": [
         {
           "name": "POST",
-          "line": 179,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
+          "line": 187,
+          "status": "PUBLIC-BY-DESIGN",
+          "reason": "Public synthetic demo-role initiation only on approved hosts with same-origin, rate limiting and fail-closed production database attestation: a separately operator-provisioned Neon project/branch/role, pinned existing fictional organization ID and exclusive fixture inventory. This is not customer authentication or production role-certification.",
           "testedBy": null
         }
       ],
       "employerSources": [
         "BODY_CANDIDATE"
       ],
-      "guards": [],
+      "guards": [
+        {
+          "line": 188,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 196,
+          "token": "publicDemoAllowed"
+        },
+        {
+          "line": 228,
+          "token": "productionDemoEmployerBoundary"
+        }
+      ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
@@ -22288,6 +22301,34 @@
         "body": false
       },
       "guards": [],
+      "callerSuppliedIds": [],
+      "businessIds": []
+    },
+    "src/app/api/readiness/demo-provisioning/route.ts": {
+      "gitBlobSha": "ab14e80f1566e80cfeddc0c2f9f74f52c67bc60d",
+      "route": "readiness/demo-provisioning",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 10,
+          "status": "PUBLIC-BY-DESIGN",
+          "reason": "Global deployment diagnostic rather than tenant-scoped data: always requires a private readiness token checked in constant time BEFORE importing the DB helper, returns only an enum and deployment SHA, no employer identities or counts; unauthorized calls return 404 and SQL errors fail closed.",
+          "testedBy": null
+        }
+      ],
+      "employerSources": {
+        "session": false,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": false
+      },
+      "guards": [
+        {
+          "line": 19,
+          "token": "constantTimeSecretEqual"
+        }
+      ],
       "callerSuppliedIds": [],
       "businessIds": []
     },
