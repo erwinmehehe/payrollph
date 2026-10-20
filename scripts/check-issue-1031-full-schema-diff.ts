@@ -65,7 +65,7 @@ SELECT c.relname::text AS table_name,
        CASE WHEN p.oid IS NULL THEN NULL ELSE ARRAY(
          SELECT CASE WHEN role_oid = 0 THEN 'PUBLIC'::text
                      ELSE pg_catalog.pg_get_userbyid(role_oid)::text END
-         FROM pg_catalog.unnest(p.polroles) AS role_oid ORDER BY 1
+         FROM pg_catalog.unnest(p.polroles) AS policy_role(role_oid) ORDER BY 1
        ) END AS policy_roles,
        pg_catalog.pg_get_expr(p.polqual, p.polrelid) AS using_expression,
        pg_catalog.pg_get_expr(p.polwithcheck, p.polrelid) AS with_check_expression
