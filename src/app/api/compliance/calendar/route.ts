@@ -35,6 +35,7 @@ export async function GET(request: Request) {
   if (calendar.kind === "not-found") return Response.json({ error: "Organization not found." }, { status: 404 });
   if (calendar.kind === "empty") {
     return Response.json({
+      organizationId,
       today: calendar.today,
       applicableMonths: [],
       items: [],
@@ -44,6 +45,7 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
+    organizationId,
     today: calendar.today,
     applicableMonths: calendar.applicableMonths,
     items: calendar.items,
