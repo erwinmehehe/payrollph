@@ -42,6 +42,23 @@ function positiveId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
+function nonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function optionalId(value: unknown): boolean {
+  return value === null || positiveId(value);
+}
+
+function optionalText(value: unknown): boolean {
+  return value === null || typeof value === "string";
+}
+
+function validDate(value: unknown): boolean {
+  return typeof value === "string" &&
+    rememberWfmTimecardPeriod(undefined, { periodStart: value, periodEnd: value }) !== undefined;
+}
+
 const TIMESHEET_STATUSES = new Set(["submitted", "approved", "rejected", "stale"]);
 const EXPECTATION_STATUSES = new Set(["expected", "submitted", "approved", "cancelled"]);
 
@@ -70,7 +87,11 @@ function readCounts(value: unknown, period: WorkforceTimecardPeriod): WorkforceT
         !employeeIds.has(row.employeeId) || seenLatest.has(row.employeeId) ||
         row.periodStart !== period.periodStart || row.periodEnd !== period.periodEnd ||
         typeof row.status !== "string" || !TIMESHEET_STATUSES.has(row.status) ||
-        typeof row.blockerCount !== "number" || !Number.isSafeInteger(row.blockerCount) || row.blockerCount < 0) return null;
+        !positiveId(row.version) || !nonNegativeInteger(row.scheduledMinutes) ||
+        !nonNegativeInteger(row.workedMinutes) || !nonNegativeInteger(row.overtimeMinutes) ||
+        !nonNegativeInteger(row.exceptionCount) || !nonNegativeInteger(row.blockerCount) ||
+        !optionalText(row.submittedBy) || !optionalId(row.submittedByUserId) ||
+        !optionalText(row.decidedBy) || !optionalText(row.decisionNote)) return null;
     seenLatest.add(row.employeeId);
     if (row.status === "approved") counts.approved++;
     if (row.status === "submitted") counts.submitted++;
@@ -84,7 +105,11 @@ function readCounts(value: unknown, period: WorkforceTimecardPeriod): WorkforceT
     if (!record(expected) || !positiveId(expected.id) || !positiveId(expected.payrollRunId) ||
         !positiveId(expected.employeeId) || !employeeIds.has(expected.employeeId) ||
         expected.periodStart !== period.periodStart || expected.periodEnd !== period.periodEnd ||
-        typeof expected.status !== "string" || !EXPECTATION_STATUSES.has(expected.status)) return null;
+        typeof expected.status !== "string" || !EXPECTATION_STATUSES.has(expected.status) ||
+        !validDate(expected.expectedBy) || !positiveId(expected.version) ||
+        !["advisory", "block"].includes(String(expected.enforcementMode)) ||
+        !optionalId(expected.latestTimesheetId) ||
+        !optionalId(expected.latestTimesheetVersion)) return null;
     const key = String(expected.payrollRunId) + "/" + String(expected.employeeId);
     if (seenExpectations.has(key)) return null;
     seenExpectations.add(key);

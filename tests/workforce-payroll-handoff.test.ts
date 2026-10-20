@@ -24,11 +24,25 @@ const snapshot = () => ({
     { id: 2, employeeNo: "FICTION-002", name: "Fictional Bea", orgUnitId: 7 },
   ],
   latest: [
-    { id: 9, employeeId: 1, ...period, status: "approved", blockerCount: 0 },
-    { id: 10, employeeId: 2, ...period, status: "stale", blockerCount: 2 },
+    {
+      id: 9, employeeId: 1, ...period, version: 1, status: "approved",
+      scheduledMinutes: 2400, workedMinutes: 2385, overtimeMinutes: 20,
+      exceptionCount: 0, blockerCount: 0, submittedBy: "Fictional Ada",
+      submittedByUserId: 81, decidedBy: "Fictional reviewer", decisionNote: null,
+    },
+    {
+      id: 10, employeeId: 2, ...period, version: 2, status: "stale",
+      scheduledMinutes: 2300, workedMinutes: 2000, overtimeMinutes: 40,
+      exceptionCount: 3, blockerCount: 2, submittedBy: "Fictional Bea",
+      submittedByUserId: 82, decidedBy: null, decisionNote: null,
+    },
   ],
   history: [],
-  expectations: [{ id: 8, payrollRunId: 42, employeeId: 2, ...period, status: "expected" }],
+  expectations: [{
+    id: 8, payrollRunId: 42, employeeId: 2, ...period, status: "expected",
+    expectedBy: "2026-10-17", enforcementMode: "block", version: 1,
+    latestTimesheetId: null, latestTimesheetVersion: null,
+  }],
 });
 type HandoffInput = Parameters<typeof resolve>[0];
 const input = (changes: Partial<HandoffInput> = {}): HandoffInput => ({
@@ -124,7 +138,17 @@ test("malformed, partial, wrong-cutoff, duplicate and invalid attendance data ne
     { ...original, latest: [{ ...original.latest[0], employeeId: 99 }] },
     { ...original, latest: [{ ...original.latest[0], periodEnd: "2026-10-31" }] },
     { ...original, latest: [original.latest[0], original.latest[0]] },
+    { ...original, latest: [{ ...original.latest[0], version: undefined }] },
+    { ...original, latest: [{ ...original.latest[0], workedMinutes: Number.NaN }] },
+    { ...original, latest: [{ ...original.latest[0], scheduledMinutes: "2400" }] },
+    { ...original, latest: [{ ...original.latest[0], exceptionCount: -1 }] },
+    { ...original, latest: [{ ...original.latest[0], submittedByUserId: 0 }] },
+    { ...original, latest: [{ ...original.latest[0], decidedBy: undefined }] },
     { ...original, expectations: [{ ...original.expectations[0], status: "unknown" }] },
+    { ...original, expectations: [{ ...original.expectations[0], expectedBy: "2026-02-30" }] },
+    { ...original, expectations: [{ ...original.expectations[0], version: 0 }] },
+    { ...original, expectations: [{ ...original.expectations[0], enforcementMode: "none" }] },
+    { ...original, expectations: [{ ...original.expectations[0], latestTimesheetId: 0 }] },
   ]) {
     assert.equal(verifiedWorkforceTimesheetCounts(timesheetResponse, period), null);
     assert.equal(resolve(input({ timesheetResponse })).kind, "unverified");
