@@ -720,7 +720,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
             {availablePages.includes("Recruitment") &&
               ["owner", "admin", "hr"].includes(effectiveRole ?? "") && (
                 <HrisOnboardingChecklist
-                  key={data.selectedOrganization.id}
+                  key={`hris-onboarding:${data.selectedOrganization.id}`}
                   organizationId={data.selectedOrganization.id}
                   employees={data.employees}
                   provisioning={data.provisioning}
@@ -733,7 +733,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
               )}
             <RecruitmentPanel
               everydayHrHireEnabled={data.everydayHrHireEnabled}
-              key={data.selectedOrganization.id}
+              key={`recruitment-panel:${data.selectedOrganization.id}`}
               organizationId={data.selectedOrganization.id}
               setNotice={noticeAdapter}
               onHired={async () => { await refresh(data.selectedOrganization.id); }}
