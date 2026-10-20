@@ -66,3 +66,7 @@ Historical before-values are preserved in issue #1102. An operator should only c
 ## Legacy dependency-table compatibility
 
 The pinned historical target predates some optional dependency tables. The correction now checks catalog existence for the twelve later-generation relations and locks each existing relation before querying it. Missing optional relations have no stored dependencies; missing columns, permissions errors and linked records still abort the transaction. Core payroll, employee, approval and before-image checks remain mandatory. Disposable tests cover both complete and legacy schemas, preserving final ROLLBACK.
+
+### October 20 read-only before-state review
+
+Employees (8), entries (18) and organization (1) still match all original fingerprints. The original audit prefix (IDs 1–3) still hashes to `8a1ed09531b7621c30aee14793e28134`. Three records appended October 19 concern statutory compliance queue synchronization and two outbox message intentions, not payroll header edits. The current six-row audit fingerprint is `2702a91b7425e5dd5164056c743420fd`; the exact full-table witness is refreshed to this value. No audit record is changed. A further append or any other difference still refuses correction.

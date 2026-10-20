@@ -25,7 +25,7 @@ const expectedRuns = [
 const immutableTableHashes = [
   {table:"payroll_entries",sourceHash:"1e19bf4a0bc4b0717b7be848945abc2e"},
   {table:"employees",sourceHash:"3d061f144881d46c8ef4fba3d258ec78"},
-  {table:"audit_events",sourceHash:"8a1ed09531b7621c30aee14793e28134"},
+  {table:"audit_events",sourceHash:"2702a91b7425e5dd5164056c743420fd"},
   {table:"organizations",sourceHash:"906294baa0f4469a704bd60b465677dd"},
 ];
 const requiredTables = [

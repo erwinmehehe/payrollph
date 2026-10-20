@@ -119,7 +119,7 @@ BEGIN
    OR (SELECT md5(coalesce(string_agg(row_to_json(e)::text,'|' ORDER BY e.id),''))
      FROM public.employees e) <> '3d061f144881d46c8ef4fba3d258ec78'
    OR (SELECT md5(coalesce(string_agg(row_to_json(e)::text,'|' ORDER BY e.id),''))
-     FROM public.audit_events e) <> '8a1ed09531b7621c30aee14793e28134'
+     FROM public.audit_events e) <> '2702a91b7425e5dd5164056c743420fd'
    OR (SELECT md5(coalesce(string_agg(row_to_json(e)::text,'|' ORDER BY e.id),''))
      FROM public.organizations e) <> '906294baa0f4469a704bd60b465677dd'
  THEN RAISE EXCEPTION 'ISSUE1102_NON_HEADER_DATA_CHANGED_SINCE_REVIEW'; END IF;
