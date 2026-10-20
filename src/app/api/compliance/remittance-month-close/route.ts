@@ -219,6 +219,8 @@ export async function GET(request: Request) {
   const { evidenceActorIdentity: _evidenceActorIdentity, ...publicResult } = result;
   return Response.json({
     ...publicResult,
+    organizationId,
+    applicableMonth,
     legalEntity: { id: legalEntity.id, code: legalEntity.code, displayName: legalEntity.displayName },
     certificationRole: "independent-reviewer",
   });

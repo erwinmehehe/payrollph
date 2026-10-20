@@ -1,35 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BadgeCheck, RefreshCcw, ShieldAlert } from "lucide-react";
 import type { Notify } from "./types";
+import { parseRemittanceMonthCloseRead, type VerifiedRemittanceMonthClose } from "@/lib/remittance-month-close-read";
 import { Spinner, Status } from "./ui";
-
-type CloseState = {
-  evaluation: {
-    ready: boolean;
-    blockers: string[];
-    snapshotHash: string;
-    agencyCount: number;
-    memberCount: number;
-  };
-  closure: {
-    id: number;
-    status: string;
-    certifiedByName: string;
-    certifiedAt: string;
-    snapshotHash: string;
-  } | null;
-  certificationHistory?: Array<{
-    id: number;
-    status: string;
-    certifiedByName: string;
-    certifiedAt: string;
-    snapshotHash: string;
-  }>;
-  certificationValid: boolean;
-  certificationRole?: "independent-reviewer";
-};
 
 type MonthCloseProps = {
   organizationId: number;
@@ -49,40 +24,63 @@ function StatutoryRemittanceMonthCloseContent({
   applicableMonth,
   notify,
 }: MonthCloseProps) {
-  const [state, setState] = useState<CloseState | null>(null);
+  const [state, setState] = useState<VerifiedRemittanceMonthClose | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [readError, setReadError] = useState("");
+  const activeRead = useRef<AbortController | null>(null);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    const response = await fetch(
-      `/api/compliance/remittance-month-close?organizationId=${organizationId}${legalEntityId ? `&legalEntityId=${legalEntityId}` : ""}&applicableMonth=${applicableMonth}`,
-      { cache: "no-store", signal },
-    );
-    const body = await response.json().catch(() => ({}));
-    if (signal?.aborted) return;
-    if (!response.ok) throw new Error(body.error ?? "Could not load remittance month close.");
-    setState(body as CloseState);
+  const load = useCallback(async (): Promise<VerifiedRemittanceMonthClose | null> => {
+    activeRead.current?.abort();
+    const controller = new AbortController();
+    activeRead.current = controller;
+    // Withdraw any prior readiness/certification until a new scoped GET passes.
+    setState(null);
+    setLoading(true);
+    setReadError("");
+    try {
+      const response = await fetch(
+        `/api/compliance/remittance-month-close?organizationId=${organizationId}${legalEntityId ? `&legalEntityId=${legalEntityId}` : ""}&applicableMonth=${applicableMonth}`,
+        { cache: "no-store", signal: controller.signal },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (controller.signal.aborted) return null;
+      if (!response.ok) throw new Error(body.error ?? "Could not load remittance month close.");
+      const verified = parseRemittanceMonthCloseRead(
+        body, organizationId, legalEntityId || null, applicableMonth,
+      );
+      if (!verified) throw new Error("Remittance certification evidence was incomplete or belonged to a different employer or month.");
+      setState(verified);
+      return verified;
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setState(null);
+        setReadError(error instanceof Error ? error.message : "Remittance month-close evidence could not be verified.");
+      }
+      return null;
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
   }, [applicableMonth, legalEntityId, organizationId]);
 
   useEffect(() => {
     const controller = new AbortController();
     const onChanged = () => {
-      if (controller.signal.aborted) return;
-      void load(controller.signal).catch((error) => {
-        if (!controller.signal.aborted) {
-          notify(error instanceof Error ? error.message : "Could not load remittance month close.", "err");
-        }
-      });
+      if (!controller.signal.aborted) void load();
     };
     // Strict Mode cleanup can cancel the first read before it starts.
     queueMicrotask(onChanged);
     window.addEventListener("statutory-remittance-changed", onChanged);
     return () => {
       controller.abort();
+      activeRead.current?.abort();
       window.removeEventListener("statutory-remittance-changed", onChanged);
     };
-  }, [load, notify]);
+  }, [load]);
 
   async function certify() {
+    if (busy || !state?.evaluation.ready || state.certificationValid) return;
+    const requestedSnapshot = state.evaluation.snapshotHash;
     setBusy(true);
     try {
       const response = await fetch("/api/compliance/remittance-month-close", {
@@ -93,18 +91,41 @@ function StatutoryRemittanceMonthCloseContent({
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         const blockers = Array.isArray(body.blockers) ? body.blockers.join(" · ") : "";
-        throw new Error([body.error, blockers].filter(Boolean).join(" "));
+        notify([body.error ?? "Could not certify remittance month.", blockers].filter(Boolean).join(" "), "err");
+        return;
       }
-      setState(body as CloseState);
-      notify(`${applicableMonth} statutory remittance cycle certified.`, "ok");
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not certify remittance month.", "err");
+      // POST is not a full read contract. Re-read the SAME snapshot before success.
+      const verified = await load();
+      if (verified?.certificationValid && verified.closure?.snapshotHash === requestedSnapshot) {
+        notify(`${applicableMonth} statutory remittance cycle certified.`, "ok");
+      } else {
+        notify("The certification request may have succeeded, but its exact evidence could not be verified. Review the month-close record before retrying.", "err");
+      }
+    } catch {
+      notify("The certification response is uncertain. Check the month-close record before attempting another certification.", "err");
+      void load();
     } finally {
       setBusy(false);
     }
   }
 
-  if (!state) return null;
+  if (loading) {
+    return (
+      <article className="card" style={{ marginBottom: 16 }} data-remittance-month-close>
+        <div className="card-header"><div><div className="card-kicker">REMITTANCE MONTH CLOSE</div><h2>Verifying certification evidence…</h2></div></div>
+      </article>
+    );
+  }
+  if (!state) {
+    return (
+      <article className="card" style={{ marginBottom: 16 }} data-remittance-month-close>
+        <div className="card-header">
+          <div><div className="card-kicker">REMITTANCE MONTH CLOSE</div><h2>Certification status unavailable</h2><p role="alert">{readError || "Remittance evidence could not be verified."} No readiness or certification can be assumed.</p></div>
+          <button className="secondary-button" onClick={() => void load()} disabled={busy}><RefreshCcw size={14} /> Retry</button>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className="card" style={{ marginBottom: 16 }} data-remittance-month-close>
