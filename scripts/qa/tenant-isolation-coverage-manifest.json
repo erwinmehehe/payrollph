@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 423 API method and 20 page/action gaps remain. Bank evidence proofs require exact-head real HTTP/PG CI. No production release approval.",
+  "acceptanceStatus": "NOT ACCEPTED: 419 API method and 20 page/action gaps remain. Bank evidence proofs require exact-head real HTTP/PG CI. No production release approval.",
   "metrics": {
     "routeFiles": 288,
     "methods": 489,
     "coveredBefore": 20,
-    "coveredAfter": 60,
+    "coveredAfter": 64,
     "publicByDesign": 6,
-    "gap": 423,
+    "gap": 419,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -10887,22 +10887,39 @@
       ]
     },
     "src/app/api/hcm/business-processes/inbox/route.ts": {
-      "gitBlobSha": "215ea98cdace04e3f91269957dc8849d89c449e2",
+      "gitBlobSha": "6b63b60bdc16607d538e77a188a88b8dde4fd96e",
       "route": "hcm/business-processes/inbox",
       "methods": [
         {
           "name": "GET",
           "line": 34,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Synthetic PG16 own employer GET 200 with genuine seeded source rows and other employer victim-only GET 403; no cross-employer records",
+          "testedBy": {
+            "file": "scripts/qa/hcm-work-queue-http.mjs",
+            "line": 53,
+            "ownPositiveLine": 48,
+            "foreignDenialLine": 53,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Synthetic three-organization PG16 real HTTP; protected actor session; independent owner approvals and persisted victim work/notification rows"
+          }
         },
         {
           "name": "POST",
-          "line": 177,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 178,
+          "status": "COVERED",
+          "reason": "Synthetic PG16 own employer task decision success 200 and other employer victim task request 403; victim DB unchanged",
+          "testedBy": {
+            "file": "scripts/qa/hcm-work-queue-http.mjs",
+            "line": 59,
+            "ownPositiveLine": 55,
+            "foreignDenialLine": 59,
+            "unchangedDbLine": 84,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Synthetic three-organization PG16 real HTTP; protected actor session; independent owner approvals and persisted victim work/notification rows"
+          }
         }
       ],
       "employerSources": {
@@ -12379,22 +12396,39 @@
       ]
     },
     "src/app/api/hcm/lifecycle-notifications/route.ts": {
-      "gitBlobSha": "f42f3a2fdaeb16ccb0f96cbcfa1586cfd77afc48",
+      "gitBlobSha": "313428af8364c07b38010b5871a5b7f1d5246511",
       "route": "hcm/lifecycle-notifications",
       "methods": [
         {
           "name": "GET",
           "line": 71,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Synthetic PG16 own employer GET 200 with genuine seeded source rows and other employer victim-only GET 403; no cross-employer records",
+          "testedBy": {
+            "file": "scripts/qa/hcm-work-queue-http.mjs",
+            "line": 67,
+            "ownPositiveLine": 62,
+            "foreignDenialLine": 67,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Synthetic three-organization PG16 real HTTP; protected actor session; independent owner approvals and persisted victim work/notification rows"
+          }
         },
         {
           "name": "PATCH",
-          "line": 120,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 121,
+          "status": "COVERED",
+          "reason": "Synthetic PG16 own employer task decision success 200 and other employer victim task request 403; victim DB unchanged",
+          "testedBy": {
+            "file": "scripts/qa/hcm-work-queue-http.mjs",
+            "line": 75,
+            "ownPositiveLine": 69,
+            "foreignDenialLine": 75,
+            "unchangedDbLine": 85,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Synthetic three-organization PG16 real HTTP; protected actor session; independent owner approvals and persisted victim work/notification rows"
+          }
         }
       ],
       "employerSources": {
