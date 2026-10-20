@@ -6,12 +6,6 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
-  ownerPracticePayroll: {
-    env: "OWNER_PRACTICE_PAYROLL_ENABLED",
-    owner: "Payroll / Onboarding",
-    risk: "Owner-only fictional calculation and sample payslip UI; no payroll writes or payment authority",
-    approval: "Executed canonical fixture, owner/tenant gates, default-off parity and desktop/390px browser tests; production activation separate",
-  },
   firstPayrollConnected: {
     env: "FIRST_PAYROLL_CONNECTED_ENABLED",
     owner: "Payroll / Onboarding",
@@ -375,6 +369,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Payroll / Finance",
     risk: "P0 approved exit cutoff proration and final-pay wage overlap",
     approval: "Executed separation-to-payroll-to-final-pay tests, post-exit rate exclusion and exact flag-off parity; no production activation",
+  },
+  ownerPracticePayroll: {
+    env: "OWNER_PRACTICE_PAYROLL_ENABLED",
+    owner: "Payroll / Onboarding",
+    risk: "Owner-only fictional calculation and sample payslip UI; no payroll writes or payment authority",
+    approval: "Executed canonical fixture, owner/tenant gates, default-off parity and desktop/390px browser tests; production activation separate",
   },
 } as const;
 
