@@ -43,16 +43,16 @@ export async function verifyBankTenantIsolation(f, { request, expectStatus, make
       trace: { payment: { employeeName: "FictionalBank Worker" + idx,
         employeeNo: worker.employeeNo, bankAccount: encrypted, bankCode: "CI", mobile: null } },
     });
-    await db.update(users).set({ totpEnabled: true }).where(eq(users.id, f.owners[idx].id)); await db.update(sessions).set({ mfaVerifiedAt: new Date() })
-      .where(eq(sessions.id, f.ownerSessions[idx].id));
+    const [actor] = await db.insert(users).values({ email: "bank-owner-" + nonce + idx + "@example.invalid", name: "Fictional bank owner " + idx, passwordHash: "unused-fixture", role: "owner", totpEnabled: true }).returning(); await db.insert(userOrganizations).values({ userId: actor.id, organizationId: org.id, role: "owner", active: true }); const bankSession = await makeSession(actor.id); await db.update(sessions).set({ mfaVerifiedAt: new Date() })
+      .where(eq(sessions.id, bankSession.id));
     const created = expectStatus(await request("/api/compliance/bank-validations", {
-      method: "POST", cookie: f.ownerSessions[idx].cookie,
+      method: "POST", cookie: bankSession.cookie,
       body: { organizationId: org.id, runId: run.id, templateName: template.name },
     }), 201, "Owner creates real generated bank evidence");
     assert.equal(created.json?.record?.organizationId, org.id);
     assert.equal(created.json?.record?.payrollRunId, run.id);
     assert.match(created.json?.record?.fileSha256 ?? "", /^[a-f0-9]{64}$/);
-    fixtures.push({ worker, run, account, record: created.json.record });
+    fixtures.push({ worker, run, account, cookie: bankSession.cookie, record: created.json.record });
   }
   const victim = fixtures[0];
   async function snapshot() {
@@ -67,7 +67,7 @@ export async function verifyBankTenantIsolation(f, { request, expectStatus, make
   for (const idx of [1, 2]) {
     const own = fixtures[idx];
     const org = f.orgs[idx];
-    const cookie = f.ownerSessions[idx].cookie;
+    const cookie = own.cookie;
     const ownList = expectStatus(await request("/api/compliance/bank-validations?organizationId=" + org.id, { cookie }), 200, "Own stored records readable");
     assert.ok(ownList.json.records.some(r => r.id === own.record.id));
     assert.ok(ownList.json.records.every(r => r.organizationId === org.id));
