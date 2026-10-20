@@ -10,7 +10,7 @@ import { DEMO_MODE, ensureSeedData } from "@/db/seed";
 import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { publicDemoRequestAllowed } from "@/lib/demo-host";
-import { productionDemoEmployerBoundary } from "@/lib/demo-provisioning-boundary";
+import { productionDemoEmployerBoundary, attestedProductionDemoOrganizationId } from "@/lib/demo-provisioning-boundary";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 import { operationalSecret } from "@/lib/operational-secret";
@@ -109,6 +109,13 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number, scope
   }
 
   let [user] = await db.select().from(users).where(eq(users.email, account.email)).limit(1);
+  if (user && process.env.NODE_ENV === "production") {
+    const existingMemberships = await db.select({ organizationId: userOrganizations.organizationId })
+      .from(userOrganizations).where(eq(userOrganizations.userId, user.id));
+    if (existingMemberships.some((membership) => membership.organizationId !== organizationId)) {
+      throw new Error("PUBLIC_DEMO_IDENTITY_BELONGS_TO_ANOTHER_EMPLOYER");
+    }
+  }
   if (!user) {
     [user] = await db
       .insert(users)
@@ -243,10 +250,20 @@ export async function POST(request: Request) {
     );
   }
 
+  // A same-name customer must never win a name-based lookup after seeding.
+  // Re-attest immediately before the account/session write path.
+  const productionFixture = process.env.NODE_ENV === "production"
+    ? attestedProductionDemoOrganizationId() : null;
+  if (process.env.NODE_ENV === "production" &&
+      (productionFixture === null || await productionDemoEmployerBoundary() !== "demo_only")) {
+    return Response.json({ error: "Demo environment could not be verified." }, { status: 503 });
+  }
   const [loom] = await db
     .select()
     .from(organizations)
-    .where(eq(organizations.name, "Loom & Local"))
+    .where(productionFixture === null
+      ? eq(organizations.name, "Loom & Local")
+      : eq(organizations.id, productionFixture))
     .limit(1);
 
   if (!loom) {
