@@ -15,8 +15,29 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 489 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 489);
-  assert.equal(manifest.metrics.gap, 423, "HCM GET has real own/foreign HTTP proof; the remaining 423 GAPs must stay open");
-  assert.equal(manifest.metrics.coveredAfter, 60, "Only the independently exercised HCM GET was newly classified COVERED");
+  assert.equal(manifest.metrics.gap, 418, "Newly covered attendance APIs require own-victim HTTP evidence; remaining 418 methods stay open");
+  assert.equal(manifest.metrics.coveredAfter, 65, "HCM and five attendance methods have actual independently seeded tenant HTTP proof");
+  const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
+  for (const [route, methods] of [
+    ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
+    ["src/app/api/workforce/attendance-exceptions/route.ts", ["GET"]],
+    ["src/app/api/workforce/attendance-locks/route.ts", ["GET","POST"]],
+  ]) {
+    const sourceMethods = manifest.allApiRouteFiles[route]?.methods ?? [];
+    for (const name of methods) {
+      const method = sourceMethods.find((value) => value.name === name);
+      assert.equal(method?.status, "COVERED", route + " " + name + " must retain real independent tenant proof");
+      assert.equal(method?.testedBy?.file, "scripts/qa/workforce-attendance-sweep-http.mjs");
+      const own = workforceProof[method.testedBy.ownPositiveLine - 1];
+      const denied = workforceProof[method.testedBy.foreignDenialLine - 1];
+      assert.match(own, /expectStatus\(await request\(/);
+      assert.match(denied, /expectStatus\(await request\(/);
+      assert.match(denied, /403/);
+      if (name === "POST") {
+        assert.match(workforceProof[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(/);
+      }
+    }
+  }
   const governanceMethod = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(governanceMethod?.status, "COVERED", "HCM governance read requires real own/foreign proof");
   assert.equal(governanceMethod?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
