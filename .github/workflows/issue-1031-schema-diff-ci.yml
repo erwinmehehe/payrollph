@@ -51,7 +51,7 @@ jobs:
       - name: Generate complete AST/Drizzle source manifest (no database access)
         run: ./node_modules/.bin/tsx scripts/issue-1031-print-schema-manifest.ts > /tmp/issue1031-manifest.json
       - name: Pure structural diff tests
-        run: ./node_modules/.bin/tsx --test tests/issue-1031-full-schema-diff.test.ts
+        run: ./node_modules/.bin/tsx --test tests/issue-1031-full-schema-diff.test.ts tests/issue-1031-full-schema-rls.test.ts
       - name: Disposable PostgreSQL 16 drift-injection proof
         env:
           ISSUE1031_DISPOSABLE_PG_URL: postgresql://fixture:fixture@127.0.0.1:5432/issue1031_schema_fixture
