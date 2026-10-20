@@ -262,7 +262,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
     // disposable-PG16 batch and a narrowly scoped CI-only TLS scan stub.
     // It never reaches a provider or proves production malware acceptance.
     const privileged = await makeSession(f.owners[idx].id, { privileged: true });
-    const syntheticBytes = Buffer.from("%PDF-1.4\\nSYNTHETIC-PROOF-TENANT-QA:" + fixtures.nonce + ":" + idx + "\\n%%EOF\\n");
+    const syntheticBytes = Buffer.from("%PDF-1.4\nSYNTHETIC-PROOF-TENANT-QA:" + fixtures.nonce + ":" + idx + "\n%%EOF\n");
     function proofForm(orgId, batchId) {
       const form = new FormData();
       form.append("organizationId", String(orgId));
