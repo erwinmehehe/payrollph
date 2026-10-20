@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 421 API method and 20 page/action GAPs remain. Read-only self-pay explanation has a concrete isolated-PG16 method-specific own/foreign HTTP proof candidate pending exact-head CI, but changed first-payroll, legal-entity mutation, and payout reconciliation methods still lack complete independently run evidence. Do not merge or move money.",
+  "acceptanceStatus": "NOT ACCEPTED: 420 API method and 20 page/action GAPs remain. Employee pay explanation and payout-state GET have explicit isolated real-HTTP proof candidates pending exact-head CI. First payroll, legal-entity POST/PATCH, and payout reconciliation POST still lack adequate own/foreign tenant evidence; no live transfers, deployment, or release approval.",
   "metrics": {
     "routeFiles": 289,
     "methods": 490,
     "coveredBefore": 20,
-    "coveredAfter": 61,
+    "coveredAfter": 62,
     "publicByDesign": 8,
-    "gap": 421,
+    "gap": 420,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -19151,9 +19151,16 @@
         {
           "name": "GET",
           "line": 140,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Two fictional authorized owners read their own released run payout state over production-mode localhost HTTP 200, foreign actual released payroll run GET 403 and POST 403, unchanged victim payroll. Provider transfers unconfigured and not attempted.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1306,
+            "ownPositiveLine": 1306,
+            "foreignDenialLine": 1311,
+            "unchangedDbLine": 1322,
+            "scope": "Disposable PG16 actual seeded payroll runs, two signed-in employer owners, read-only view=payout, foreign existing run denied and unchanged victim DB"
+          }
         },
         {
           "name": "POST",
