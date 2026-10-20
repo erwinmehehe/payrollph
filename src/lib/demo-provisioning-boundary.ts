@@ -1,50 +1,139 @@
-import { ne } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { organizations } from "@/db/schema";
-import {
-  PUBLIC_DEMO_DATABASE_IDENTITY_SQL, verifiedPublicDemoDatabaseIdentity,
-} from "@/lib/public-demo-database-identity";
+import { normalizeRuntimeDatabaseIdentity, type RuntimeDatabaseIdentity } from "@/lib/runtime-database-identity";
 
-/**
- * One fail-closed production guard for both the public identity switch and
- * private readiness. An editable employer name is not trusted demo provenance.
- * No employer names, roles, database metadata or customer rows are returned.
- */
+// A DEMO deployment must have its own independently provisioned Neon PROJECT,
+// role, database and fixture-org ID. These are operator-attested server secrets,
+// never populated from organizations.name/legalName or from the request.
+// The actual customer-serving project is always forbidden, even on a new branch.
+const CUSTOMER_PRODUCTION_PROJECT_ID = "calm-wave-70219564";
+const CUSTOMER_PRODUCTION_BRANCH_ID = "br-lucky-sound-b79i56jw";
+const FIXTURE_NAME = "Loom & Local";
+const FIXTURE_LEGAL_NAME = "Loom & Local Philippines Inc.";
+
 export type DemoProvisioningBoundary =
   | "demo_only"
   | "blocked_non_demo_employer"
   | "unverified"
   | "non_production";
 
+type FixtureOrganization = { id: number; name: string; legalName: string };
+type FixtureReader = Pick<Parameters<Parameters<typeof db.transaction>[0]>[0], "execute">;
+
+function fixtureSettings(env: NodeJS.ProcessEnv) {
+  const projectId = env.PUBLIC_DEMO_NEON_PROJECT_ID?.trim() ?? "";
+  const branchId = env.PUBLIC_DEMO_NEON_BRANCH_ID?.trim() ?? "";
+  const endpointId = env.PUBLIC_DEMO_NEON_ENDPOINT_ID?.trim() ?? "";
+  const databaseName = env.PUBLIC_DEMO_DATABASE_NAME?.trim() ?? "";
+  const roleName = env.PUBLIC_DEMO_DATABASE_ROLE?.trim() ?? "";
+  const hostname = env.PUBLIC_DEMO_DATABASE_HOST?.trim().toLowerCase() ?? "";
+  const organizationText = env.PUBLIC_DEMO_ORGANIZATION_ID?.trim() ?? "";
+  if (
+    !/^[a-z0-9-]{5,60}$/.test(projectId) ||
+    !/^br-[a-z0-9-]{4,58}$/.test(branchId) ||
+    !/^ep-[a-z0-9-]{4,58}$/.test(endpointId) ||
+    !/^[A-Za-z0-9_]{1,63}$/.test(databaseName) ||
+    !/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(roleName) ||
+    !/^[1-9][0-9]{0,14}$/.test(organizationText) ||
+    projectId === CUSTOMER_PRODUCTION_PROJECT_ID ||
+    branchId === CUSTOMER_PRODUCTION_BRANCH_ID
+  ) return null;
+  // A dedicated TLS-verified Neon endpoint, not localhost, an arbitrary URL
+  // or the customer PostgreSQL instance, must be the actual connection target.
+  if (!hostname.startsWith(endpointId + ".") &&
+      !hostname.startsWith(endpointId + "-pooler.")) return null;
+  if (!/^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.neon\.tech$/.test(hostname)) return null;
+
+  let connectedHostname: string;
+  try {
+    const parsed = new URL(env.DATABASE_URL ?? "");
+    if (!["postgres:", "postgresql:"].includes(parsed.protocol)) return null;
+    connectedHostname = parsed.hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  if (hostname !== connectedHostname) return null;
+  const organizationId = Number(organizationText);
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) return null;
+  return { projectId, branchId, endpointId, databaseName, roleName, hostname, organizationId };
+}
+
+/**
+ * Pure positive attestation. Editable company name/legalName are consistency
+ * checks only: never evidence that a customer record is a fictional fixture.
+ * Exactly ONE pre-registered organization must exist; no public request is
+ * permitted to bootstrap an unattested production organization.
+ */
+export function isAttestedProductionDemoFixture(
+  identity: RuntimeDatabaseIdentity,
+  organizations: FixtureOrganization[],
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const expected = fixtureSettings(env);
+  if (!expected || identity.inRecovery) return false;
+  if (
+    identity.projectId !== expected.projectId ||
+    identity.branchId !== expected.branchId ||
+    identity.endpointId !== expected.endpointId ||
+    identity.databaseName !== expected.databaseName ||
+    identity.roleName !== expected.roleName
+  ) return false;
+  if (organizations.length !== 1) return false;
+  const fixture = organizations[0];
+  return fixture.id === expected.organizationId &&
+    fixture.name === FIXTURE_NAME &&
+    fixture.legalName === FIXTURE_LEGAL_NAME;
+}
+
+export function attestedProductionDemoOrganizationId(
+  env: NodeJS.ProcessEnv = process.env,
+): number | null {
+  return fixtureSettings(env)?.organizationId ?? null;
+}
+
+// Must run on the SAME Drizzle transaction / PG connection as any subsequent
+// fixture writes. A separate preflight alone is vulnerable to TOCTOU.
+async function inspectFixture(tx: FixtureReader): Promise<DemoProvisioningBoundary> {
+  if (!fixtureSettings(process.env)) return "blocked_non_demo_employer";
+  const evidence = await tx.execute(sql`
+    SELECT pg_catalog.current_database()::text AS "databaseName",
+      pg_catalog.current_setting('neon.project_id', true)::text AS "projectId",
+      pg_catalog.current_setting('neon.branch_id', true)::text AS "branchId",
+      pg_catalog.current_setting('neon.endpoint_id', true)::text AS "endpointId",
+      current_user::text AS "roleName",
+      pg_catalog.pg_is_in_recovery() AS "inRecovery"
+  `);
+  const identity = normalizeRuntimeDatabaseIdentity(evidence.rows[0]);
+  const rows = await tx.execute(sql`
+    SELECT id, name, legal_name AS "legalName" FROM organizations LIMIT 2
+  `);
+  return isAttestedProductionDemoFixture(
+    identity, rows.rows as FixtureOrganization[],
+  ) ? "demo_only" : "blocked_non_demo_employer";
+}
+
+/** Read-only status-only diagnostic: a missing or failed database lookup is
+ * never proof that demo account provisioning is safe. */
 export async function productionDemoEmployerBoundary(): Promise<DemoProvisioningBoundary> {
   if (process.env.NODE_ENV !== "production") return "non_production";
   try {
-    // Keep the existing non-demo employer blocker even when identity pins are
-    // not configured; a real employer always causes a controlled 404.
-    const [nonDemoEmployer] = await db
-      .select({ id: organizations.id })
-      .from(organizations)
-      .where(ne(organizations.name, "Loom & Local"))
-      .limit(1);
-    if (nonDemoEmployer) return "blocked_non_demo_employer";
-
-    // A duplicate reserved name or a customer name-collision must not be
-    // treated as a unique verified fictional tenant.
-    const candidates = await db.select({
-      id: organizations.id, legalName: organizations.legalName,
-    }).from(organizations).limit(2);
-    if (candidates.length > 1 || candidates.some(org =>
-      org.legalName !== "Loom & Local Philippines Inc.")) {
-      return "blocked_non_demo_employer";
-    }
-
-    // Must be a dedicated operator-attested *runtime* PostgreSQL session.
-    // Missing config, local PG, wrong Neon branch/role or DB read errors fail
-    // closed, including for empty or exact-name-matching organization tables.
-    const session = await db.execute(PUBLIC_DEMO_DATABASE_IDENTITY_SQL);
-    return verifiedPublicDemoDatabaseIdentity(session.rows[0])
-      ? "demo_only" : "unverified";
+    return await db.transaction(async (tx) => inspectFixture(tx), { readOnly: true });
   } catch {
     return "unverified";
   }
+}
+
+/** Recheck inside the lock held by ensurePublicDemoTenant's write transaction. */
+export async function requireProductionDemoFixtureInTransaction(
+  tx: FixtureReader,
+): Promise<number> {
+  if (process.env.NODE_ENV !== "production") {
+    throw new Error("PRODUCTION_DEMO_ATTESTATION_CALLED_OUTSIDE_PRODUCTION");
+  }
+  if (await inspectFixture(tx) !== "demo_only") {
+    throw new Error("PRODUCTION_DEMO_FIXTURE_NOT_ATTESTED");
+  }
+  const organizationId = attestedProductionDemoOrganizationId();
+  if (organizationId === null) throw new Error("PRODUCTION_DEMO_FIXTURE_NOT_ATTESTED");
+  return organizationId;
 }
