@@ -624,8 +624,10 @@ test("demo-switch refuses provisioning when a production database has real emplo
   const privateEvidence = read("src/app/api/readiness/demo-provisioning/route.ts");
   assert.ok(route.includes("await productionDemoEmployerBoundary()"),
     "demo-switch must reuse the same real-employer guard used by private readiness");
-  assert.ok(guardedBoundary.includes('ne(organizations.name, "Loom & Local")'),
-    "customer employers must block public demo identity provisioning");
+  assert.ok(guardedBoundary.includes("verifiedPublicDemoDatabaseIdentity(session.rows[0])"),
+    "an independently attested database session must be required before demo provisioning");
+  assert.ok(guardedBoundary.includes("PUBLIC_DEMO_ORGANIZATION_ID"),
+    "the verified fictional organization ID must be independent of editable names");
   assert.ok(guardedBoundary.includes('"unverified"'),
     "a failed DB lookup cannot authorize demo accounts");
   assert.ok(privateEvidence.includes("constantTimeSecretEqual"),
