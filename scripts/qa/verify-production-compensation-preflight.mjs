@@ -17,13 +17,16 @@ export function verifyProductionCompensationPreflight(payload, expected) {
       payload.evidenceScope !== "PRIVATE_RUNTIME_SESSION_IDENTITY_ONLY_NOT_MIGRATION_APPROVAL" ||
       payload.deploymentSha !== expected.sha ||
       payload.deploymentEnvironment !== "production") fail("WRONG_DEPLOYMENT_OR_RESPONSE");
-  if (!/^[0-9a-f]{40}$/.test(String(expected.sha ?? "")) ||
-      database.projectId !== expected.projectId ||
-      database.branchId !== expected.branchId ||
-      database.endpointId !== expected.endpointId ||
-      database.databaseName !== expected.databaseName ||
-      !/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(String(database.roleName ?? "")) ||
-      database.inRecovery !== false) fail("WRONG_DATABASE_TARGET");
+  // Report only the failed predicate category, never the actual/private
+  // project, branch, endpoint, database, role or readiness JSON value.
+  // These diagnostics do not waive ANY identity or catalog prerequisite.
+  if (!/^[0-9a-f]{40}$/.test(String(expected.sha ?? ""))) fail("INVALID_EXPECTED_SHA");
+  if (database.projectId !== expected.projectId) fail("WRONG_PROJECT");
+  if (database.branchId !== expected.branchId) fail("WRONG_BRANCH");
+  if (database.endpointId !== expected.endpointId) fail("WRONG_ENDPOINT");
+  if (database.databaseName !== expected.databaseName) fail("WRONG_DATABASE_NAME");
+  if (!/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(String(database.roleName ?? ""))) fail("INVALID_ROLE_NAME");
+  if (database.inRecovery !== false) fail("RECOVERY_TARGET");
   if (schema.evidenceScope !== "CATALOG_TABLE_PRESENCE_ONLY_NOT_MIGRATION_APPROVAL" ||
       schema.compensationTablesExpected !== 6 ||
       schema.migrationLedgerTablesExpected !== 3 ||
