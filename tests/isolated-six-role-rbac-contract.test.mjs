@@ -66,6 +66,9 @@ test("cross-employer proof requires existing seeded records and actual second-ow
   assert.match(local, /const ownsActualRun =/);
   assert.match(local, /dashboard-own-positive/);
   assert.match(local, /payroll-own-existing-run/);
+  assert.match(local, /payroll-own-existing-run-direct/);
+  assert.match(local, /await verifyDuplicateDemoLabelDenied\(demoOwner\)/);
+  assert.match(local, /duplicate-demo-label-workers-unchanged/);
   assert.match(local, /const foreign = await seedForeignEmployer\(\)/);
   assert.match(local, /cross-tenant-existing-run/);
   assert.match(local, /isDeepStrictEqual\(after, snapshot\)/);
@@ -114,5 +117,5 @@ test("CI evidence attests the ACTUAL checked-out PR head, not GitHub's synthetic
   assert.match(local, /denied\?\.error === "Not found\."/);
   assert.match(local, /operationalSecret\("readiness"\)/);
   assert.match(local, /readiness\?\.demoProvisioning === "non_production"/);
-  assert.match(local, /const expected = 2 \+ 5 \+ ROLES\.length \* 8 \+ 2 \+ 5 \+ 1/);
+  assert.match(local, /const expected = 2 \+ 5 \+ ROLES\.length \* 8 \+ 2 \+ 3 \+ 5 \+ 1/);
 });
