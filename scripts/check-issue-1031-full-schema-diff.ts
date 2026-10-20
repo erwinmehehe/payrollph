@@ -2,6 +2,7 @@ import { assertCatalogAuditorPrivilegeBoundary, catalogAuditorConnectionOptions 
 import { Client } from "pg";
 import { generateSchemaManifest } from "./lib/issue-1031-schema-manifest";
 import { diffSchema, EVIDENCE, type CatalogRow } from "../src/lib/issue-1031-full-schema-diff";
+import { summarizeRlsPolicyCoverage, type RlsCatalogRow } from "../src/lib/issue-1031-rls-catalog";
 
 /** Metadata-only. No application-table SELECT, no DDL or writes. */
 export const fullSchemaCatalogSql = `
@@ -52,6 +53,27 @@ WITH tab AS (
  WHERE NOT EXISTS(SELECT 1 FROM pg_catalog.pg_constraint con WHERE con.conindid=idx.oid AND con.contype IN ('p','u'))
 )
 SELECT table_name,kind,object_name,details FROM objects ORDER BY table_name,kind,object_name
+`;
+
+export const rlsCatalogSql = `
+SELECT c.relname::text AS table_name,
+       c.relrowsecurity AS rls_enabled,
+       c.relforcerowsecurity AS rls_forced,
+       p.polname::text AS policy_name,
+       p.polcmd::text AS policy_command,
+       p.polpermissive AS policy_permissive,
+       CASE WHEN p.oid IS NULL THEN NULL ELSE ARRAY(
+         SELECT CASE WHEN role_oid = 0 THEN 'PUBLIC'::text
+                     ELSE pg_catalog.pg_get_userbyid(role_oid)::text END
+         FROM pg_catalog.unnest(p.polroles) AS role_oid ORDER BY 1
+       ) END AS policy_roles,
+       pg_catalog.pg_get_expr(p.polqual, p.polrelid) AS using_expression,
+       pg_catalog.pg_get_expr(p.polwithcheck, p.polrelid) AS with_check_expression
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN pg_catalog.pg_policy p ON p.polrelid = c.oid
+WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+ORDER BY c.relname, p.polname
 `;
 
 async function main(){
@@ -107,9 +129,13 @@ async function main(){
   const observed=await client.query<{table_name:string;kind:string;object_name:string;details:Record<string,unknown>}>(fullSchemaCatalogSql);
   const rows:CatalogRow[]=observed.rows.map(({table_name,kind,object_name,details})=>({table_name,kind,object_name,...details}));
   const diff=diffSchema(manifest,rows);
+  // The same approved catalog-only transaction captures all public base and
+  // partitioned-table RLS metadata. No application rows or policy evaluation.
+  const observedRls=await client.query<RlsCatalogRow>(rlsCatalogSql);
+  const rlsCoverage=summarizeRlsPolicyCoverage(manifest.tables.map(t=>t.name),observedRls.rows);
   await client.query("ROLLBACK");tx=false;
   const counts=Object.fromEntries(["PASS","MISSING","DRIFT","EXTRA"].map(s=>[s,diff.filter(r=>r.status===s).length]));
-  console.log(JSON.stringify({evidenceScope:EVIDENCE,sourceSha:sha,checkedTables:manifest.tables.length,counts,rows:diff,readOnly:true,applicationRowsQueried:false,migrationReceiptsVerified:false,approvedForDeployment:false},null,2));
+  console.log(JSON.stringify({evidenceScope:EVIDENCE,sourceSha:sha,checkedTables:manifest.tables.length,counts,rows:diff,rlsCoverage,policyParityVerified:false,completeSchemaParity:false,readOnly:true,applicationRowsQueried:false,migrationReceiptsVerified:false,approvedForDeployment:false},null,2));
   if(diff.some(r=>r.status!=="PASS"))process.exitCode=1;
  }catch{if(tx)try{await client.query("ROLLBACK")}catch{}console.error("Catalog-only full schema inspection failed closed; no database error details printed.");process.exitCode=2;}finally{if(connected)try{await client.end()}catch{}}
 }
