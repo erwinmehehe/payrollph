@@ -15,7 +15,14 @@ function requireDisposablePg() {
   return value;
 }
 
-test("#1031 actual pg_catalog policy metadata changes are detected but never certified", async () => {
+// Global regression shards intentionally lack this dedicated disposable URL.
+// The pinned issue-1031-schema-diff-ci workflow sets it and MUST run this test.
+// A configured URL is still strictly checked below; wrong/nonlocal targets fail.
+test("#1031 actual pg_catalog policy metadata changes are detected but never certified", {
+  skip: !process.env.ISSUE1031_DISPOSABLE_PG_URL
+    ? "Requires dedicated issue-1031 disposable PostgreSQL fixture"
+    : false,
+}, async () => {
   const client = new Client({ connectionString: requireDisposablePg() });
   await client.connect();
   const table = "issue1031_rls_fixture";
