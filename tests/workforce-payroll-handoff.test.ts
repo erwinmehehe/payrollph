@@ -1,0 +1,218 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import {
+  resolveWorkforcePayrollHandoff as resolve,
+  verifiedWorkforceTimesheetCounts,
+} from "../src/lib/workforce-payroll-handoff";
+import { firstPayrollRunHref, resolveFirstPayrollRunFocus } from "../src/lib/first-payroll-run-navigation";
+import { WorkforceTimesheetPanel } from "../src/components/workspace/workforce-timesheet-panel";
+import type { DashboardData } from "../src/components/workspace/types";
+
+const period = { periodStart: "2026-10-01", periodEnd: "2026-10-15" };
+const run = (id = 42, overrides: Record<string, unknown> = {}) => ({
+  id, organizationId: 71, legalEntityId: null, periodStart: period.periodStart,
+  periodEnd: period.periodEnd, periodLabel: "October A", scopeLabel: "Entire company",
+  status: "draft", ...overrides,
+});
+const snapshot = () => ({
+  policy: { active: true, enforcementMode: "block" }, manager: true,
+  employees: [
+    { id: 1, employeeNo: "FICTION-001", name: "Fictional Ada", orgUnitId: null },
+    { id: 2, employeeNo: "FICTION-002", name: "Fictional Bea", orgUnitId: 7 },
+  ],
+  latest: [
+    {
+      id: 9, employeeId: 1, ...period, version: 1, status: "approved",
+      scheduledMinutes: 2400, workedMinutes: 2385, overtimeMinutes: 20,
+      exceptionCount: 0, blockerCount: 0, submittedBy: "Fictional Ada",
+      submittedByUserId: 81, decidedBy: "Fictional reviewer", decisionNote: null,
+    },
+    {
+      id: 10, employeeId: 2, ...period, version: 2, status: "stale",
+      scheduledMinutes: 2300, workedMinutes: 2000, overtimeMinutes: 40,
+      exceptionCount: 3, blockerCount: 2, submittedBy: "Fictional Bea",
+      submittedByUserId: 82, decidedBy: null, decisionNote: null,
+    },
+  ],
+  history: [],
+  expectations: [{
+    id: 8, payrollRunId: 42, employeeId: 2, ...period, status: "expected",
+    expectedBy: "2026-10-17", enforcementMode: "block", version: 1,
+    latestTimesheetId: null, latestTimesheetVersion: null,
+  }],
+});
+type HandoffInput = Parameters<typeof resolve>[0];
+const input = (changes: Partial<HandoffInput> = {}): HandoffInput => ({
+  organizationId: 71, viewerId: 81, access: { role: "owner", companyWide: true },
+  connectedNavigationEnabled: true, period, timesheetResponse: snapshot(),
+  payrollRuns: [run()], selectedLegalEntityId: null, multiEntityMode: false, ...changes,
+});
+
+test("only exact cutoff and currently authorized payroll run appear with scoped timecard facts", () => {
+  const result = resolve(input());
+  assert.equal(result.kind, "visible");
+  if (result.kind !== "visible") return;
+  assert.deepEqual(result.runs.map(item => item.id), [42]);
+  assert.deepEqual(result.counts, {
+    employees: 2, approved: 1, submitted: 0, stale: 1, expectedMissing: 1, blockers: 2,
+  });
+  const url = new URL(firstPayrollRunHref(71, result.runs[0].id), "https://example.test");
+  assert.equal(resolveFirstPayrollRunFocus({
+    enabled: true, demoMode: false, requestedPage: url.searchParams.get("workspacePage"),
+    requestedOrganizationId: url.searchParams.get("organizationId"),
+    requestedRunId: url.searchParams.get("focusPayrollRunId"),
+    organizationId: 71, access: { role: "owner", companyWide: true },
+    authorizedRuns: [run(42)],
+  }), 42);
+});
+
+test("multiple matching payroll runs are individually listed, not auto-selected", () => {
+  const result = resolve(input({ payrollRuns: [run(42), run(43)] }));
+  assert.equal(result.kind, "visible");
+  if (result.kind !== "visible") return;
+  assert.deepEqual(result.runs.map(item => item.id), [42, 43]);
+  assert.notEqual(firstPayrollRunHref(71, 42), firstPayrollRunHref(71, 43));
+  const duplicateCohort = snapshot();
+  duplicateCohort.expectations.push({ ...duplicateCohort.expectations[0], id: 9, payrollRunId: 43 });
+  const duplicateResult = resolve(input({ payrollRuns: [run(42), run(43)], timesheetResponse: duplicateCohort }));
+  assert.equal(duplicateResult.kind, "visible");
+  if (duplicateResult.kind === "visible") assert.equal(duplicateResult.counts.expectedMissing, 1,
+    "parallel payroll runs must not double-count a missing employee");
+});
+
+test("nearby periods and missing runs do not assert that payroll is ready", () => {
+  const result = resolve(input({ payrollRuns: [
+    run(4, { periodStart: "2026-10-16", periodEnd: "2026-10-31" }),
+  ] }));
+  assert.equal(result.kind, "visible");
+  if (result.kind === "visible") assert.deepEqual(result.runs, []);
+});
+
+test("only roles authorized for BOTH company-wide workforce timesheets and payroll view can navigate", () => {
+  for (const access of [
+    { role: "manager", companyWide: true }, { role: "hr", companyWide: true },
+    { role: "payroll", companyWide: true }, { role: "checker", companyWide: true },
+    { role: "employee", companyWide: true }, { role: "payroll", companyWide: false },
+    { role: "checker", companyWide: false }, null,
+  ]) assert.equal(resolve(input({ access })).kind, "restricted");
+  assert.equal(resolve(input({ viewerId: null })).kind, "restricted");
+  for (const role of ["owner", "admin", "bookkeeper"]) {
+    assert.equal(resolve(input({ access: { role, companyWide: true } })).kind, "visible");
+  }
+});
+
+test("default-off connected navigation withholds deep links", () => {
+  assert.equal(resolve(input({ connectedNavigationEnabled: false })).kind, "disabled");
+});
+
+test("foreign, missing, repeated employer/run identities and legal-entity mismatches fail closed", () => {
+  const failures: Array<{ payrollRuns: unknown; selectedLegalEntityId: number | null }> = [
+    { payrollRuns: [run(42, { organizationId: 999 })], selectedLegalEntityId: null },
+    { payrollRuns: [run(42, { organizationId: undefined })], selectedLegalEntityId: null },
+    { payrollRuns: [run(42), run(42)], selectedLegalEntityId: null },
+    { payrollRuns: [run(42, { legalEntityId: 5 })], selectedLegalEntityId: 8 },
+  ];
+  for (const failure of failures) {
+    assert.equal(resolve(input(failure)).kind, "unverified");
+  }
+  assert.equal(resolve(input({
+    payrollRuns: [run(42, { legalEntityId: 8 })], selectedLegalEntityId: 8,
+    multiEntityMode: true,
+  })).kind, "unverified", "entity-filtered payroll cannot trust an org-wide timesheet summary");
+  assert.equal(resolve(input({ multiEntityMode: true })).kind, "unverified");
+});
+
+test("invalid cutoffs including partial/reversed/impossible dates are unverified", () => {
+  for (const selectedPeriod of [
+    { periodStart: "", periodEnd: period.periodEnd },
+    { periodStart: "2026-10-16", periodEnd: "2026-10-15" },
+    { periodStart: "2026-02-30", periodEnd: "2026-10-15" },
+    { periodStart: "2026-10-01", periodEnd: "2026-13-01" },
+  ]) assert.equal(resolve(input({ period: selectedPeriod })).kind, "unverified");
+});
+
+test("malformed, partial, wrong-cutoff, duplicate and invalid attendance data never imply zero blockers", () => {
+  const original = snapshot();
+  for (const timesheetResponse of [
+    null, {}, { ...original, policy: undefined }, { ...original, employees: null },
+    { ...original, latest: null }, { ...original, history: null },
+    { ...original, expectations: null },
+    { ...original, latest: [{ ...original.latest[0], blockerCount: -1 }] },
+    { ...original, latest: [{ ...original.latest[0], employeeId: 99 }] },
+    { ...original, latest: [{ ...original.latest[0], periodEnd: "2026-10-31" }] },
+    { ...original, latest: [original.latest[0], original.latest[0]] },
+    { ...original, latest: [{ ...original.latest[0], version: undefined }] },
+    { ...original, latest: [{ ...original.latest[0], workedMinutes: Number.NaN }] },
+    { ...original, latest: [{ ...original.latest[0], scheduledMinutes: "2400" }] },
+    { ...original, latest: [{ ...original.latest[0], exceptionCount: -1 }] },
+    { ...original, latest: [{ ...original.latest[0], submittedByUserId: 0 }] },
+    { ...original, latest: [{ ...original.latest[0], decidedBy: undefined }] },
+    { ...original, expectations: [{ ...original.expectations[0], status: "unknown" }] },
+    { ...original, expectations: [{ ...original.expectations[0], expectedBy: "2026-02-30" }] },
+    { ...original, expectations: [{ ...original.expectations[0], version: 0 }] },
+    { ...original, expectations: [{ ...original.expectations[0], enforcementMode: "none" }] },
+    { ...original, expectations: [{ ...original.expectations[0], latestTimesheetId: 0 }] },
+  ]) {
+    assert.equal(verifiedWorkforceTimesheetCounts(timesheetResponse, period), null);
+    assert.equal(resolve(input({ timesheetResponse })).kind, "unverified");
+  }
+  assert.deepEqual(verifiedWorkforceTimesheetCounts(snapshot(), period)?.blockers, 2);
+  assert.equal(resolve(input({ timesheetResponse: { ...snapshot(), manager: false } })).kind, "unverified");
+});
+
+test("malformed or foreign dashboard lists cannot be used to infer a safe run", () => {
+  for (const payrollRuns of [
+    null, undefined, [{ id: 42 }], [run(0)],
+    [run(42, { periodStart: "2026-02-30" })], [run(42, { scopeLabel: null })],
+  ]) assert.equal(resolve(input({ payrollRuns })).kind, "unverified");
+});
+
+test("wired UI renders no payroll-run action while data is loading; restricted roles omit handoff", () => {
+  const data = {
+    selectedOrganization: { id: 71, name: "Fictional employer" },
+    user: { id: 81 }, access: { role: "owner", companyWide: true },
+    employees: [], payrollRuns: [run()], firstPayrollConnectedEnabled: true,
+  } as unknown as DashboardData;
+  const html = renderToStaticMarkup(createElement(WorkforceTimesheetPanel, {
+    data, notify: () => {}, canManage: false,
+  }));
+  assert.match(html, /data-wfm-payroll-handoff/);
+  assert.match(html, /No payroll-run link is available/);
+  assert.doesNotMatch(html, /data-wfm-payroll-run-link|Open payroll run #42/);
+  assert.match(html, /Source not verified/);
+  assert.doesNotMatch(html, /No employees in your WFM scope/);
+  const restricted = renderToStaticMarkup(createElement(WorkforceTimesheetPanel, {
+    data: { ...data, access: { role: "manager", companyWide: false, orgUnitName: "Fictional Site" } },
+    notify: () => {}, canManage: false,
+  }));
+  assert.doesNotMatch(restricted, /data-wfm-payroll-handoff|payroll-run-link/);
+  const payrollOnly = renderToStaticMarkup(createElement(WorkforceTimesheetPanel, {
+    data: { ...data, access: { role: "payroll", companyWide: true, orgUnitName: null } },
+    notify: () => {}, canManage: false,
+  }));
+  assert.doesNotMatch(payrollOnly, /data-wfm-payroll-handoff|payroll-run-link/);
+});
+
+test("handoff reuses secured dashboard, abortable scoped WFM read and existing payroll focus gate", () => {
+  const ui = readFileSync("src/components/workspace/workforce-timesheet-panel.tsx", "utf8");
+  const selector = readFileSync("src/lib/workforce-payroll-handoff.ts", "utf8");
+  const dashboard = readFileSync("src/lib/dashboard-data.ts", "utf8");
+  const api = readFileSync("src/app/api/workforce/timesheets/route.ts", "utf8");
+  const planner = readFileSync("src/components/workspace/workforce-planner.tsx", "utf8");
+  assert.match(ui, /verifiedWorkforceTimesheetCounts\(payload, \{ periodStart, periodEnd \}\)/);
+  assert.match(ui, /timesheetResponse: trustedPayload/);
+  assert.match(ui, /connectedNavigationEnabled: data\.firstPayrollConnectedEnabled === true/);
+  assert.match(ui, /firstPayrollRunHref\(organizationId, run\.id\)/);
+  assert.match(ui, /Source not verified/);
+  assert.match(ui, /trustedPayload\?\.employees/);
+  assert.match(dashboard, /eq\(payrollRuns\.organizationId, selectedOrganization\.id\)/);
+  assert.match(api, /const access = await getAccess\(user\.id, organizationId\)/);
+  const roles = readFileSync("src/lib/access.ts", "utf8");
+  assert.match(roles, /WORKFORCE_MANAGER_ROLES = \["owner", "admin", "bookkeeper", "hr", "manager"\]/);
+  assert.match(selector, /!\["owner", "admin", "bookkeeper"\]\.includes/);
+  assert.match(planner, /props\.data\.user\?\.id/);
+  assert.doesNotMatch(selector, /fetch\(|\.post\(|INSERT INTO|UPDATE payroll|payout/);
+});
