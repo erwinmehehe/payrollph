@@ -1247,15 +1247,26 @@ jobs:
             check(payload.demoDataMode === "synthetic-redacted", `Lifecycle: switching to ${role} left the redacted demo contract`);
             check(payload.sensitiveFieldsPersisted === false, `Lifecycle: switching to ${role} persisted sensitive demo fields`);
             const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/app?demoRole=${role}`;
-            await page.goto(target.startsWith("http") ? target : `${base}${target}`, { waitUntil: "networkidle", timeout: 90000 });
+            // Isolated dev pages can poll continuously. A successful navigation and
+            // the actual authenticated role shell are stronger signals than networkidle.
+            const navigation = await page.goto(target.startsWith("http") ? target : `${base}${target}`, {
+              waitUntil: "domcontentloaded", timeout: 90000,
+            });
+            check(navigation && navigation.ok(), `Lifecycle: ${role} workspace navigation failed`);
+            const roleShell = role === "employee"
+              ? page.locator('.app-shell[data-workspace-role="employee"]')
+              : page.locator(`.app-shell[data-demo-role="${role}"]`);
+            await roleShell.waitFor({ state: "visible", timeout: 45000 });
             return payload;
           }
 
           async function notificationText(page) {
             const bell = page.getByRole("button", { name: /^Notifications/ }).first();
+            await bell.waitFor({ state: "visible", timeout: 45000 });
             check((await bell.count()) === 1, "Lifecycle: notification bell is missing");
             await bell.click();
             const tray = page.getByRole("dialog", { name: "Notifications" });
+            await tray.waitFor({ state: "visible", timeout: 15000 });
             check((await tray.count()) === 1, "Lifecycle: notification tray did not open");
             const text = await tray.innerText();
             await bell.click();
@@ -1302,7 +1313,7 @@ jobs:
             const submitPayload = await submitResponse.json();
             check(submitResponse.ok(), `Lifecycle: review submission failed: ${submitPayload.error ?? submitResponse.status()}`);
             check(submitPayload.task?.id, "Lifecycle: review submission returned no approval task");
-            await page.reload({ waitUntil: "networkidle" });
+            await page.reload({ waitUntil: "domcontentloaded" });
             const payrollNotifications = await notificationText(page);
             check(!payrollNotifications.includes("Resolve 2 payroll exceptions"), "Lifecycle: payroll exception notification should disappear after submission");
 
@@ -1316,7 +1327,7 @@ jobs:
             });
             const approvePayload = await approveResponse.json();
             check(approveResponse.ok(), `Lifecycle: checker approval failed: ${approvePayload.error ?? approveResponse.status()}`);
-            await page.reload({ waitUntil: "networkidle" });
+            await page.reload({ waitUntil: "domcontentloaded" });
             const checkerNotificationsAfter = await notificationText(page);
             check(!checkerNotificationsAfter.includes(`Review ${period} payroll`), "Lifecycle: checker notification should disappear after approval");
 
@@ -1336,7 +1347,7 @@ jobs:
             check(releasePayload.receipt?.payout?.status === "awaiting-preflight", "Lifecycle: PayMongo payout should require preflight immediately after release");
             check(releasePayload.receipt?.payslips?.available > 0, "Lifecycle: payslip availability is missing");
 
-            await page.reload({ waitUntil: "networkidle" });
+            await page.reload({ waitUntil: "domcontentloaded" });
             const ownerNotificationsAfter = await notificationText(page);
             check(!ownerNotificationsAfter.includes(`${period} is approved and ready to release`), "Lifecycle: owner release notification should disappear after release");
 
