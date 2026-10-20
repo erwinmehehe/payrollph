@@ -11,7 +11,8 @@ import {
   teamLeaveMonthWindow, TEAM_LEAVE_MONTHS_AHEAD,
   type TeamLeaveCase, type TeamLeaveMonthResponse,
 } from "@/lib/hcm-team-leave-calendar-contract";
-import { scopedReadFailureForHttpStatus, scopedReadFailureMessage, type ScopedReadFailure } from "@/lib/hcm-scoped-read-failure";
+import { readScopedResponse, scopedReadFailureMessage, type ScopedReadFailure } from "@/lib/hcm-scoped-read-failure";
+import { validTeamLeaveResponse } from "@/lib/hcm-scoped-read-validation";
 
 type LoadState = {
   requestKey: string;
@@ -69,38 +70,19 @@ export function HcmTeamLeaveCalendar({
       organizationId: String(organizationId),
       month,
     });
-    void fetch("/api/hcm/team-leave-calendar?" + params.toString(), {
-      cache: "no-store", signal: controller.signal,
-    }).then(async (response) => {
+    const expectedDates = teamLeaveMonthWindow(month);
+    void readScopedResponse(
+      () => fetch("/api/hcm/team-leave-calendar?" + params.toString(), {
+        cache: "no-store", signal: controller.signal,
+      }),
+      (payload): payload is TeamLeaveMonthResponse =>
+        validTeamLeaveResponse(payload, organizationId, month, expectedDates),
+    ).then((result) => {
       if (controller.signal.aborted) return;
-      if (!response.ok) {
-        setLoaded({ requestKey, status: "unavailable", payload: null,
-          failure: scopedReadFailureForHttpStatus(response.status) });
-        return;
-      }
-      const result = await response.json().catch(() => null) as TeamLeaveMonthResponse | null;
-      if (controller.signal.aborted) return;
-      const expectedDates = teamLeaveMonthWindow(month);
-      if (!result || result.organizationId !== organizationId || result.month !== month ||
-          result.dates?.start !== expectedDates.start ||
-          result.dates?.end !== expectedDates.end ||
-          !["company", "unit"].includes(result.scope?.kind) ||
-          !Array.isArray(result.cases) || result.cases.length > 400 ||
-          result.cases.some((entry) =>
-            !Number.isSafeInteger(entry.requestId) || entry.requestId < 1 ||
-            !Number.isSafeInteger(entry.employeeId) || entry.employeeId < 1 ||
-            !["Approved", "Pending"].includes(entry.status) ||
-            entry.startDate > entry.endDate ||
-            entry.startDate > expectedDates.end ||
-            entry.endDate < expectedDates.start) ||
-           !hasConsistentTeamLeaveSummary(result.summary, result.cases)) {
-        setLoaded({ requestKey, status: "unavailable", payload: null, failure: "invalid" });
-        return;
-      }
-      setLoaded({ requestKey, status: "ready", payload: result });
-    }).catch(() => {
-      if (!controller.signal.aborted) {
-        setLoaded({ requestKey, status: "unavailable", payload: null, failure: "network" });
+      if (result.status === "ready") {
+        setLoaded({ requestKey, status: "ready", payload: result.data });
+      } else {
+        setLoaded({ requestKey, status: "unavailable", payload: null, failure: result.failure });
       }
     });
     return () => controller.abort();
