@@ -150,7 +150,12 @@ jobs:
             echo "::error::Unattested production demo login must refuse and issue no session cookie."
             exit 1
           fi
-          echo "PASS: production build boots; unattested fictional login denies with no cookie."
+          if ! grep -qi '^content-security-policy:' "$header_file" ||
+              grep -i '^content-security-policy:' "$header_file" | grep -Fq "'unsafe-eval'"; then
+            echo "::error::The production Content-Security-Policy must exist and prohibit unsafe-eval."
+            exit 1
+          fi
+          echo "PASS: production build boots; demo login denies without a cookie; production CSP remains strict."
 
       # Browser persona workflows intentionally use a DEVELOPMENT-only server
       # against disposable PG16. Production's guard above must not be weakened
@@ -163,7 +168,13 @@ jobs:
           echo $! > /tmp/payrollph-next.pid
           for attempt in {1..90}; do
             if curl -fsS --max-time 15 --proto '=http' "$QA_URL" -o /tmp/homepage.html; then
-              echo "Disposable development browser sandbox is reachable."
+              dev_csp=$(curl -fsSI --max-time 15 --proto '=http' "$QA_URL" |
+                grep -i '^content-security-policy:' || true)
+              if [[ "$dev_csp" != *"'unsafe-eval'"* ]]; then
+                echo "::error::Isolated Next.js development server needs dev-only eval for React diagnostics."
+                exit 1
+              fi
+              echo "Disposable development browser sandbox is reachable with a development-only CSP."
               exit 0
             fi
             sleep 2
