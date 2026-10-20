@@ -7,7 +7,7 @@ import {
   RefreshCcw, ShieldCheck, UsersRound,
 } from "lucide-react";
 import {
-  activeLeaveRequestSpans, hasConsistentTeamLeaveSummary, monthShift, teamLeaveMonthCells,
+  activeLeaveRequestSpans, monthShift, teamLeaveMonthCells,
   teamLeaveMonthWindow, TEAM_LEAVE_MONTHS_AHEAD,
   type TeamLeaveCase, type TeamLeaveMonthResponse,
 } from "@/lib/hcm-team-leave-calendar-contract";
