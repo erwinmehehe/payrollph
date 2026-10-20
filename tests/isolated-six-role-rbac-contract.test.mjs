@@ -52,4 +52,27 @@ test("isolated role QA may contact only localhost and a disposable PostgreSQL 16
   assert.match(workflow, /ISOLATED_SIX_ROLE_RBAC: disposable-pg16-only/);
   assert.match(workflow, /if: github\.event_name != 'pull_request'/);
   assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /run: npx tsx scripts\/qa\/isolated-six-role-rbac\.mjs/,
+    "The disposable CI runner must load the real application DB types.");
+});
+
+test("cross-employer proof requires existing seeded records and actual second-owner access", () => {
+  assert.match(local, /async function seedForeignEmployer\(\)/);
+  assert.match(local, /db\.insert\(organizations\)/);
+  assert.match(local, /db\.insert\(userOrganizations\)/);
+  assert.match(local, /db\.insert\(payrollRuns\)/);
+  assert.match(local, /db\.insert\(sessions\)/);
+  assert.match(local, /const ownsActualRun =/);
+  assert.match(local, /dashboard-own-positive/);
+  assert.match(local, /payroll-own-existing-run/);
+  assert.match(local, /const foreign = await seedForeignEmployer\(\)/);
+  assert.match(local, /cross-tenant-existing-run/);
+  assert.match(local, /isDeepStrictEqual\(after, snapshot\)/);
+  assert.match(local, /await verifyExistingForeignEmployerDenials\(demoOwner\)/);
+  assert.doesNotMatch(local, /org\s*\+\s*1000000/,
+    "Guessed or nonexistent organization IDs cannot certify cross-tenant protection.");
+  const sixRoles = local.indexOf("for (const role of ROLES)");
+  const seedAfterRoles = local.indexOf("await verifyExistingForeignEmployerDenials(demoOwner)");
+  assert.ok(sixRoles >= 0 && seedAfterRoles > sixRoles,
+    "The second employer must be added only after all public demo role sign-ins.");
 });
