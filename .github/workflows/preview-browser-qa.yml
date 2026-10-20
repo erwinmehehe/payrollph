@@ -1246,7 +1246,7 @@ jobs:
               // Also surface Next's real development overlay component stack.
               // This is read-only diagnostic capture on disposable test data.
               try {
-                const issueButtons = page.getByRole("button", { name: /\\d+ issues?/i });
+                const issueButtons = page.getByRole("button", { name: /\d+ issues?/i });
                 if (await issueButtons.count()) {
                   await issueButtons.first().click({ timeout: 3000 });
                   const overlayText = (await page.locator("nextjs-portal").allInnerTexts()).join(" ");
