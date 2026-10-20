@@ -62,7 +62,7 @@ test("self-service routes use real employee sessions and revoke real memberships
 
 test("13 new Batch 01 high-risk GET receipts map each real route to executed two-attacker proof", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  const cases = [...source.matchAll(/^\\s+"(GET [^"]+)",$/gm)].map((m) => m[1]);
+  const cases = [...source.matchAll(/^\s+"(GET [^"]+)",$/gm)].map((m) => m[1]);
   assert.equal(cases.length, 16, "Never silently narrow the tested Batch 01 method set");
   assert.equal(new Set(cases).size, 16);
   const pendingReview = [];
@@ -73,22 +73,22 @@ test("13 new Batch 01 high-risk GET receipts map each real route to executed two
     if (method.testedBy.file !== "scripts/qa/tenant-high-risk-01-http.mjs") continue;
     pendingReview.push(spec);
     const proof = method.testedBy;
-    const lines = source.split("\\n");
+    const lines = source.split("\n");
     const signature = lines[proof.line - 1];
     assert.ok(signature && (signature.includes('key: "' + spec + '"') ||
       signature.includes('await caseCheck("' + spec + '"')),
       spec + ": must link a unique route-specific case, not a generic handler");
-    assert.match(lines[proof.ownPositiveLine - 1] ?? "", /expectStatus\\(await request\\(/);
-    assert.match(lines[proof.foreignDenialLine - 1] ?? "", /expectStatus\\(await request\\(/);
-    assert.match(lines[proof.unchangedDbLine - 1] ?? "", /assert\\.deepEqual\\(victimAfter, victimBefore/);
+    assert.match(lines[proof.ownPositiveLine - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(lines[proof.foreignDenialLine - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(lines[proof.unchangedDbLine - 1] ?? "", /assert\.deepEqual\(victimAfter, victimBefore/);
     assert.match(method.reason, /^Provisional:/);
     assert.match(proof.scope, /independent|Two independent/);
   }
   assert.equal(pendingReview.length, 13, "Only the thirteen previously uncredited GET methods were remapped");
   assert.equal(manifest.metrics.coveredAfter, 73);
   assert.equal(manifest.metrics.gap, 409);
-  assert.match(harness, /await \\(await import\\("\\.\\/tenant-high-risk-01-http\\.mjs"\\)\\)\\.verifyHighRiskBatchOne\\(f, \\{ request, expectStatus, makeSession \\}\\)/);
-  assert.match(source, /for \\(const idx of \\[1, 2\\]\\)/);
-  assert.match(source, /assert\\.equal\\(passed\\.size, 36/);
-  assert.match(source, /assert\\.deepEqual\\(victimAfter, victimBefore/);
+  assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
+  assert.match(source, /for \(const idx of \[1, 2\]\)/);
+  assert.match(source, /assert\.equal\(passed\.size, 36/);
+  assert.match(source, /assert\.deepEqual\(victimAfter, victimBefore/);
 });
