@@ -15,8 +15,15 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 489 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 489);
-  assert.equal(manifest.metrics.gap, 423, "HCM GET has real own/foreign HTTP proof; the remaining 423 GAPs must stay open");
-  assert.equal(manifest.metrics.coveredAfter, 60, "Only the independently exercised HCM GET was newly classified COVERED");
+  // The audited starting point had 60 covered methods and 423 open GAPs.
+  // New evidence is allowed ONLY when the whole-API inventory independently
+  // validates its exact route SHA and executed own/victim HTTP line references.
+  assert.ok(manifest.metrics.coveredAfter >= 60,
+    "Previously executed own/victim HTTP coverage must never be removed");
+  assert.ok(manifest.metrics.gap <= 423,
+    "New tests may close, but never erase or relabel, existing method GAPs");
+  assert.equal(manifest.metrics.coveredAfter - 60, 423 - manifest.metrics.gap,
+    "Every newly reviewed method needs a matching reduction in unresolved GAPs");
   const governanceMethod = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(governanceMethod?.status, "COVERED", "HCM governance read requires real own/foreign proof");
   assert.equal(governanceMethod?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
