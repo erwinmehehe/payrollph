@@ -5,6 +5,7 @@ import type { RuntimeDatabaseIdentity } from "../src/lib/runtime-database-identi
 
 const hostname = "ep-fixture-only-qa.eu-central-1.aws.neon.tech";
 const env: NodeJS.ProcessEnv = {
+  NODE_ENV: "production",
   PUBLIC_DEMO_DATABASE_ATTESTED: "true",
   PUBLIC_DEMO_NEON_PROJECT_ID: "fixture-only-project-qa",
   PUBLIC_DEMO_NEON_BRANCH_ID: "br-fixture-qa-001",
