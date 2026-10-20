@@ -42,9 +42,14 @@ test("a roster preview is invisible immediately after employer, worker or date c
   assert.equal(scopedWorkforcePlannerPreview(null, key), null);
 });
 
-test("the planner remounts when the employer changes and keeps edits in the scoped child", () => {
+test("the planner remounts across employer, viewer and permission changes and keeps edits in the scoped child", () => {
   const src = read(PLANNER);
-  assert.match(src, /WorkforcePlannerContent key=\{props\.data\.selectedOrganization\.id\}/);
+  assert.match(src, /WorkforcePlannerContent key=\{JSON\.stringify\(\[/);
+  assert.match(src, /props\.data\.selectedOrganization\.id,/);
+  assert.match(src, /props\.data\.user\?\.id \?\? null,/);
+  assert.match(src, /props\.data\.access\?\.role \?\? null,/);
+  assert.match(src, /props\.data\.access\?\.companyWide === true,/);
+  assert.doesNotMatch(src, /WorkforcePlannerContent key=\{props\.data\.selectedOrganization\.id\}/);
   assert.ok(src.indexOf("function WorkforcePlannerContent(") < src.indexOf("const [catalog, setCatalog]"));
   assert.match(src, /const patternChoices = patternChoicesDraft \?\? defaults\.patternChoices/);
   assert.match(src, /const overrideMode = overrideModeDraft \?\? defaults\.overrideMode/);
