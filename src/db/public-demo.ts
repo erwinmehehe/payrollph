@@ -21,6 +21,7 @@ import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { fictionalPublicDemoPayroll, PUBLIC_DEMO_PAYROLL_WORKERS } from "@/lib/public-demo-payroll-fixture";
 import { verifiedFictionalPayProfileRows } from "@/lib/public-demo-pay-profile-fixture";
+import { PUBLIC_DEMO_DATABASE_IDENTITY_SQL, verifiedPublicDemoDatabaseIdentity } from "@/lib/public-demo-database-identity";
 
 const PUBLIC_DEMO_ORG = "Loom & Local";
 
@@ -292,6 +293,26 @@ async function ensureOptionalDemoData(organizationId: number) {
 export async function ensurePublicDemoTenant() {
   const organizationId = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('linaw-public-demo-tenant-v2'))`);
+
+    // The name-only guard below is not proof of a fictional database: a real
+    // employer could share the same legal/display name. Re-attest the actual
+    // PostgreSQL session INSIDE this seeding transaction before ANY writes.
+    // A table lock keeps new employer writes from racing our isolation check.
+    if (process.env.NODE_ENV === "production") {
+      await tx.execute(sql`LOCK TABLE organizations IN SHARE ROW EXCLUSIVE MODE`);
+      const session = await tx.execute(PUBLIC_DEMO_DATABASE_IDENTITY_SQL);
+      if (!verifiedPublicDemoDatabaseIdentity(session.rows[0])) {
+        throw new Error("PUBLIC_DEMO_DATABASE_IDENTITY_NOT_VERIFIED");
+      }
+    }
+
+    const nameCandidates = await tx.select({
+      id: organizations.id, name: organizations.name, legalName: organizations.legalName,
+    }).from(organizations).limit(2);
+    if (nameCandidates.length > 1 || nameCandidates.some((org) =>
+      org.name !== PUBLIC_DEMO_ORG || org.legalName !== "Loom & Local Philippines Inc.")) {
+      throw new Error("PUBLIC_DEMO_TENANT_NOT_ISOLATED");
+    }
 
     const [anotherOrganization] = await tx.select({ id: organizations.id })
       .from(organizations).where(ne(organizations.name, PUBLIC_DEMO_ORG)).limit(1);
