@@ -34,6 +34,10 @@ export async function exerciseAuditForwardMigration(t, admin) {
  }));
  await t.test("0133 preserves original row and enforces append-only and separate sealing identities",()=>fixture(async()=>{
   await admin.query(migration);
+  // Execute the catalog fingerprint query against the numbered migration itself,
+  // not only the independently maintained review-only companion fixture.
+  const {STRICT_AUDIT_ROLE_PROOF_SQL}=await import("../../src/lib/audit-role-proof.ts");
+  assert.equal((await admin.query(STRICT_AUDIT_ROLE_PROOF_SQL)).rows[0].auditFunctionBodiesTrusted,true);
   assert.deepEqual((await admin.query("SELECT actor,chain_seq,prev_hash,row_hash FROM public.audit_events WHERE id=1")).rows[0],
    {actor:"fictional-original",chain_seq:null,prev_hash:null,row_hash:null});
   assert.equal((await admin.query("SELECT count(*)::int AS n FROM pg_catalog.pg_trigger WHERE tgrelid='public.audit_events'::regclass AND NOT tgisinternal AND tgenabled='O'")).rows[0].n,3);

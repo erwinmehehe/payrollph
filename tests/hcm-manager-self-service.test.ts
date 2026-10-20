@@ -72,7 +72,7 @@ test("My Team actions are navigation only, not another HR approval endpoint", ()
   assert.ok(team.includes("pilotFocusEnabled={pilotFocusEnabled}"));
   assert.ok(team.includes("pendingAttendanceCorrectionsThisPage"));
   assert.ok(team.includes("incompletePunchRecordsThisPage"));
-  assert.ok(team.includes("data.organizationId !== organizationId"));
+  assert.ok(team.includes("validMyTeamResponse(payload, organizationId, cursor, searchQuery, statusFilter)"));
   assert.ok(team.includes("stored?.scopeKey === scopeKey"));
   assert.ok(api.includes('HCM_MY_TEAM_ENABLED !== "true"'));
   assert.ok(api.includes("deriveMyTeamScope(access)"));

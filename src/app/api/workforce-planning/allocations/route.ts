@@ -14,6 +14,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseAdvancedPlan } from "@/lib/enterprise-advanced-plan-server";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 
@@ -89,6 +90,9 @@ export async function GET(request: Request) {
   if (!access) {
     return Response.json({ error: "Workforce-manager access is required." }, { status: 403 });
   }
+
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
 
   const [allocationRows, submissionRows, unitRows] = await Promise.all([
     db.select().from(workforcePlanAllocations)
@@ -166,6 +170,9 @@ export async function POST(request: Request) {
   if (!access) {
     return Response.json({ error: "Workforce-manager access is required." }, { status: 403 });
   }
+
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
 
   if (entityType === "allocation") {
     const denied = await assertOrganizationRole(
@@ -448,6 +455,8 @@ export async function PATCH(request: Request) {
   }
 
   if (action === "submit") {
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(submission.organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
     if (submission.status !== "draft") {
       return Response.json({ error: "Only draft manager requests can be submitted." }, { status: 409 });
     }

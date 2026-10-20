@@ -191,7 +191,7 @@ test("Employee 360 section navigation focuses non-focusable targets without trap
 test("Employee 360 is mounted only for authorized People administration and resets per worker", () => {
   const people = readFileSync("src/components/workspace/people.tsx", "utf8");
   const overview = readFileSync("src/components/employee-360-overview.tsx", "utf8");
-  assert.ok(people.includes("key={data.selectedOrganization.id + \":\" + selected.id}"));
+  assert.ok(people.includes("key={data.selectedOrganization.id + \":\" + selected.id + \":\" + String(canManage)}"));
   assert.ok(people.includes("{canManage && (") && people.includes("<Employee360Overview"));
   assert.ok(people.includes("profile: connectedProfile"));
   assert.ok(people.includes("profileState,"));

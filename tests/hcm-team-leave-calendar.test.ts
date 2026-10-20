@@ -8,6 +8,7 @@ import {
   isPermittedTeamLeaveMonth,
   monthShift,
   summarizeTeamLeaveMonth,
+  hasConsistentTeamLeaveSummary,
   teamLeaveMonthCells,
   teamLeaveMonthWindow,
   teamLeaveEnabledForEmployer,
@@ -111,6 +112,35 @@ test("source request date spans overlap days but do not assert full-day absence"
   });
 });
 
+test("a complete leave month rejects missing, invalid and mismatched summary totals", () => {
+  const cases: Array<Pick<TeamLeaveCase, "status">> = [
+    { status: "Approved" }, { status: "Pending" }, { status: "Approved" },
+  ];
+  assert.equal(hasConsistentTeamLeaveSummary({
+    approvedRequestRecords: 2, pendingRequestRecords: 1,
+  }, cases), true);
+  assert.equal(hasConsistentTeamLeaveSummary({
+    approvedRequestRecords: 0, pendingRequestRecords: 0,
+  }, []), true, "verified empty source remains an honest empty state");
+
+  for (const bad of [
+    null, undefined, {}, [], { approvedRequestRecords: 2 },
+    { approvedRequestRecords: 2, pendingRequestRecords: "1" },
+    { approvedRequestRecords: -1, pendingRequestRecords: 1 },
+    { approvedRequestRecords: 3, pendingRequestRecords: 0 },
+    { approvedRequestRecords: 2, pendingRequestRecords: 2 },
+    { approvedRequestRecords: Number.NaN, pendingRequestRecords: 1 },
+    { approvedRequestRecords: 2.5, pendingRequestRecords: 1 },
+  ]) {
+    assert.equal(hasConsistentTeamLeaveSummary(bad, cases), false, JSON.stringify(bad));
+  }
+  const ui = readFileSync("src/components/hcm-team-leave-calendar.tsx", "utf8");
+  assert.match(ui, /validTeamLeaveResponse\(payload, organizationId, month, expectedDates\)/);
+  assert.match(ui, /status: "unavailable", payload: null/);
+  assert.match(ui, /Try again/);
+  assert.match(ui, /onClick=\{\(\) => setRevision\(\(number\) => number \+ 1\)\}/);
+});
+
 test("calendar route and page enforce source gate, explicit tenant and private no-store", () => {
   const api = readFileSync("src/app/api/hcm/team-leave-calendar/route.ts", "utf8");
   const page = readFileSync("src/app/hcm/team-leave-calendar/page.tsx", "utf8");
@@ -167,8 +197,8 @@ test("client hides stale tenant/month responses and shows only recorded request 
   const nav = readFileSync("src/components/hcm-my-team.tsx", "utf8");
   assert.match(ui, /new AbortController\(\)/);
   assert.match(ui, /controller\.abort\(\)/);
-  assert.match(ui, /result\.organizationId !== organizationId/);
-  assert.match(ui, /result\.month !== month/);
+  assert.match(ui, /validTeamLeaveResponse\(payload, organizationId, month, expectedDates\)/);
+  assert.match(readFileSync("src/lib/hcm-scoped-read-validation.ts", "utf8"), /value\.month !== month/);
   assert.match(ui, /loaded\?\.requestKey === requestKey/);
   assert.match(nav, /NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED === "true"/);
   assert.match(nav, /NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ORG_IDS/);

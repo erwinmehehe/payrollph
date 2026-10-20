@@ -44,6 +44,18 @@ async function main() {
     basicRate: "30000.00", startDate: "2026-01-01",
   }).returning();
   assert.equal(worker.id, 1, "Worker 360 QA must use only a fresh synthetic DB");
+  // Same employee number in BOTH employers catches stale tenant selection
+  // during actual Chromium Planning/Compensation requests. IDs remain distinct
+  // as required by the relational primary key.
+  const [betaWorker] = await db.insert(employees).values({
+    organizationId: beta.id, employeeNo: "MON-SYNTH-001",
+    firstName: "TenantBetaOnly", lastName: "Employee",
+    title: "Support Associate", avatarInitials: "TB",
+    basicRate: "70000.00", startDate: "2026-01-01",
+  }).returning();
+  assert.equal(betaWorker.id, 2, "A second fictional worker must be tenant-scoped");
+  assert.equal(betaWorker.employeeNo, worker.employeeNo);
+
 
   const passwordHash = hashPassword("Synthetic-HCM-Monitor-Only-2026!");
   const [hr, manager, payroll, checker, employee, scoped, denied, bookkeeper] =

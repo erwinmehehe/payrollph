@@ -16,6 +16,10 @@ on:
       - "scripts/qa/nine-stage-mobile-browser.mjs"
       - "scripts/qa/issue-853-synthetic-coverage.mjs"
       - "tests/nine-stage-connected-evidence.test.mjs"
+      - "docs/sql/source-baseline-supplement.sql"
+      - "scripts/qa/apply-source-baseline-supplement.mjs"
+      - "scripts/lib/migration-only-objects.mjs"
+      - "drizzle/**"
   push:
     branches: [main]
     paths:
@@ -31,6 +35,10 @@ on:
       - "scripts/qa/nine-stage-mobile-browser.mjs"
       - "scripts/qa/issue-853-synthetic-coverage.mjs"
       - "tests/nine-stage-connected-evidence.test.mjs"
+      - "docs/sql/source-baseline-supplement.sql"
+      - "scripts/qa/apply-source-baseline-supplement.mjs"
+      - "scripts/lib/migration-only-objects.mjs"
+      - "drizzle/**"
   workflow_dispatch:
 
 permissions:
@@ -103,6 +111,8 @@ jobs:
         run: |
           node scripts/qa/fresh-pg18-development-schema.mjs capture
           node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Apply source-baseline supplement and prove no migration-only object is missing
+        run: node scripts/qa/apply-source-baseline-supplement.mjs
       - name: pg_dump SCHEMA ONLY from empty-before-first-push local service
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
@@ -152,6 +162,9 @@ jobs:
     env:
       CI: "true"
       FRESH_PG18_DEV_REHEARSAL: disposable-ci-only
+      # Fault injection is restricted to the disposable, locally hosted PG18 CI service.
+      # The scheduler guard independently checks CI, credentials, and database identity.
+      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
       NINE_STAGE_PG_MAJOR: "18"
       DEMO_MODE: "false"
       WFM_GEOFENCE_PILOT_ENABLED: "false"
@@ -206,6 +219,7 @@ jobs:
           node scripts/qa/verified-pg18-bootstrap.mjs
           node scripts/qa/fresh-pg18-development-schema.mjs capture
           node scripts/qa/apply-audit-0109-isolated.mjs
+          node scripts/qa/apply-source-baseline-supplement.mjs
       - name: Run ENTIRE test shard; retain only test labels and exit status
         env:
           SHARD_INDEX: ${{ matrix.shard }}

@@ -511,6 +511,130 @@ try {
     assert.ok(!JSON.stringify(body).includes("BetaPrivate"));
   });
 
+  // Fictional My Team narrow-screen acceptance: real rendered UI in emulated
+  // touch/phone Chromium, NOT an independent physical-phone UAT sign-off.
+  const mobileManagerState = await manager.storageState();
+  const managerRoster = await browserRequest(mp, "/api/hcm/my-team?organizationId=1");
+  assert.equal(managerRoster.status, 200);
+  const sourceMember = managerRoster.body.items.find(item => item.name === "AlphaPrivate Worker");
+  assert.ok(sourceMember && sourceMember.id > 0, "Fictional manager must have a scoped worker");
+  const longNumber = "SYNTHETICLONGEMPLOYEEIDENTIFIER".repeat(6);
+  const longName = "FictionalUnbrokenEmployeeName".repeat(6);
+  const longTitle = "SyntheticUnbrokenPositionTitle".repeat(6);
+  const expandedMember = {
+    ...sourceMember, name: longName, employeeNo: longNumber, jobTitle: longTitle,
+  };
+  const olderMember = {
+    ...sourceMember, id: sourceMember.id + 1, name: "Synthetic Older Worker",
+  };
+  for (const width of [320, 375, 430]) {
+    const phone = await browser.newContext({
+      viewport: { width, height: 844 }, isMobile: true, hasTouch: true,
+      storageState: mobileManagerState,
+    });
+    const mobileTeam = await phone.newPage();
+    const phoneErrors = [];
+    mobileTeam.on("pageerror", error => phoneErrors.push(error.message));
+    await mobileTeam.route("**/api/hcm/my-team?*", async route => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.get("organizationId") !== "1") return route.continue();
+      const olderPage = Number(url.searchParams.get("cursor") ?? "0") > 0;
+      const items = olderPage ? [olderMember] : [expandedMember];
+      const sum = field => items.reduce((total, item) => total + item[field], 0);
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({
+          ...managerRoster.body,
+          query: url.searchParams.get("q") ?? "",
+          statusFilter: url.searchParams.get("status") ?? "all",
+          items,
+          summary: {
+            employeeRecordsThisPage: items.length,
+            pendingLeaveRecordsThisPage: sum("pendingLeaveRecords"),
+            pendingOvertimeRecordsThisPage: sum("pendingOvertimeRecords"),
+            pendingAttendanceCorrectionsThisPage: sum("pendingAttendanceCorrections"),
+            incompletePunchRecordsThisPage: sum("incompletePunchRecords"),
+          },
+          page: {
+            size: 25, hasMore: !olderPage,
+            nextCursor: olderPage ? null : sourceMember.id,
+          },
+        }),
+      });
+    });
+    try {
+      await checkpoint(mobileTeam, width + "px My Team touch, keyboard, long text and paging", async () => {
+        const entry = await mobileTeam.goto(base + "/hcm/my-team?organizationId=1", {
+          waitUntil: "domcontentloaded", timeout: 60000,
+        });
+        assert.equal(entry?.status(), 200, "Fictional manager must reach My Team");
+        await mobileTeam.getByRole("heading", { name: "My Team", exact: true }).waitFor();
+        await mobileTeam.waitForFunction(value => document.body.innerText.includes(value),
+          longNumber, { timeout: 60000 });
+        assert.ok((await mobileTeam.getByRole("list", { name: "Authorized employee records" })
+          .innerText()).includes(longTitle), "Long fictional position should render");
+        const fit = await mobileTeam.evaluate(() => {
+          const roster = document.querySelector('ul[aria-label="Authorized employee records"]');
+          const rect = roster?.getBoundingClientRect();
+          return {
+            viewport: document.documentElement.clientWidth,
+            pageScroll: document.documentElement.scrollWidth,
+            listScroll: roster?.scrollWidth ?? 99999,
+            listWidth: roster?.clientWidth ?? 0,
+            left: rect?.left ?? -999, right: rect?.right ?? 99999,
+          };
+        });
+        assert.ok(fit.pageScroll <= fit.viewport + 1,
+          width + "px long employee text must not horizontally scroll the page");
+        assert.ok(fit.listScroll <= fit.listWidth + 1 &&
+          fit.left >= -1 && fit.right <= fit.viewport + 1,
+          width + "px roster must fit inside the screen");
+
+        const controls = [
+          mobileTeam.getByRole("link", { name: "Back to workspace" }),
+          mobileTeam.getByRole("button", { name: "Refresh", exact: true }),
+          mobileTeam.getByRole("button", { name: "Clear filters" }),
+          mobileTeam.locator("#hcm-team-search"),
+          mobileTeam.locator("#hcm-team-status"),
+          mobileTeam.getByRole("button", { name: "Search", exact: true }),
+          mobileTeam.getByRole("button", { name: "Newer", exact: true }),
+          mobileTeam.getByRole("button", { name: "Older", exact: true }),
+        ];
+        for (const control of controls) {
+          const rect = await control.boundingBox();
+          assert.ok(rect && rect.height >= 43.5,
+            width + "px My Team primary control must provide a 44px high touch target");
+          assert.ok(rect.x >= -1 && rect.x + rect.width <= width + 1,
+            width + "px My Team control must remain visible without horizontal scrolling");
+        }
+        await mobileTeam.keyboard.press("Tab");
+        const back = mobileTeam.getByRole("link", { name: "Back to workspace" });
+        const keyboardOutline = await back.evaluate(el =>
+          el === document.activeElement && el.matches(":focus-visible") &&
+          getComputedStyle(el).outlineStyle !== "none");
+        assert.equal(keyboardOutline, true,
+          width + "px first keyboard focus must be visible on the back link");
+        await mobileTeam.screenshot({
+          path: "qa-artifacts/hcm-my-team-mobile-" + width + "px.png", fullPage: true,
+        });
+
+        await mobileTeam.getByRole("button", { name: "Older", exact: true }).click();
+        await mobileTeam.getByText("Page 2 · 25 records per page maximum").waitFor();
+        await mobileTeam.getByText("Synthetic Older Worker", { exact: true }).waitFor();
+        assert.equal((await mobileTeam.getByRole("list",
+          { name: "Authorized employee records" }).innerText()).includes(longNumber), false);
+        await mobileTeam.getByRole("button", { name: "Newer", exact: true }).click();
+        await mobileTeam.getByText("Page 1 · 25 records per page maximum").waitFor();
+        await mobileTeam.waitForFunction(value => document.body.innerText.includes(value),
+          longNumber, { timeout: 60000 });
+        assert.deepEqual(phoneErrors, [],
+          width + "px My Team must not emit client runtime exceptions");
+      });
+    } finally {
+      await phone.close();
+    }
+  }
+
   await checkpoint(mp, "My Team hands off to independently governed Approvals", async () => {
     await mp.getByRole("link", { name: /My assigned approvals/ }).click();
     await mp.locator('[data-workspace-page="Approvals"]').waitFor({ timeout: 60000 });

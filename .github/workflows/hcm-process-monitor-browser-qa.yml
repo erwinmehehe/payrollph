@@ -14,6 +14,14 @@ on:
       - 'src/lib/hcm-enterprise-plan-*.ts'
       - 'tests/hcm-enterprise-plan-policy.test.ts'
       - 'scripts/hcm-enterprise-plan-synthetic-browser.mjs'
+      - 'scripts/hcm-process-monitor-synthetic-fixture.ts'
+      - 'src/app/api/workforce-planning/**'
+      - 'src/app/api/compensation/**'
+      - 'src/lib/enterprise-advanced-plan-*.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/dashboard-data.ts'
+      - 'src/components/compensation-panel.tsx'
+      - 'tests/enterprise-advanced-*.test.ts'
       - 'src/lib/hcm-process-monitor*.ts'
       - 'src/lib/hcm-context-navigation.ts'
       - 'src/lib/hcm-action-center.ts'
@@ -47,6 +55,14 @@ on:
       - 'src/lib/hcm-enterprise-plan-*.ts'
       - 'tests/hcm-enterprise-plan-policy.test.ts'
       - 'scripts/hcm-enterprise-plan-synthetic-browser.mjs'
+      - 'scripts/hcm-process-monitor-synthetic-fixture.ts'
+      - 'src/app/api/workforce-planning/**'
+      - 'src/app/api/compensation/**'
+      - 'src/lib/enterprise-advanced-plan-*.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/dashboard-data.ts'
+      - 'src/components/compensation-panel.tsx'
+      - 'tests/enterprise-advanced-*.test.ts'
       - 'src/lib/hcm-process-monitor*.ts'
       - 'src/lib/hcm-context-navigation.ts'
       - 'src/lib/hcm-action-center.ts'
@@ -140,6 +156,8 @@ jobs:
         run: npx tsx --test --test-concurrency=1 tests/hcm-process-monitor.test.ts tests/hcm-process-monitor-tenant-integration.test.ts tests/hcm-context-navigation.test.ts tests/hcm-action-center-v2.test.ts
       - name: Verify paid HCM workflow designer GET/POST policy and scope
         run: npx tsx --test --test-concurrency=1 tests/hcm-enterprise-workflow-definition-gate.test.ts
+      - name: Verify #850 Planning/Compensation policy, direct routes and PostgreSQL tenant boundaries
+        run: npx tsx --test --test-concurrency=1 tests/enterprise-advanced-plan-policy.test.ts tests/enterprise-advanced-route-scope.test.ts tests/enterprise-advanced-http-pg.test.ts
       - name: Build local Next.js without external deployment
         run: npm run build
       - name: Install pinned local Chromium and automated accessibility rules

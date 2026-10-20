@@ -19,7 +19,7 @@ test("HR Home to Employee 360 to onboarding shares one selected employee and sou
   const onboarding = readFileSync("src/components/hris-onboarding-checklist.tsx", "utf8");
   assert.ok(workspace.includes("data.employees.some((employee) => employee.id === employeeId)"));
   assert.ok(workspace.includes("setFocusEmployeeId(employeeId)"));
-  assert.ok(people.includes('key={data.selectedOrganization.id + ":" + selected.id}'));
+  assert.ok(people.includes('key={data.selectedOrganization.id + ":" + selected.id + ":" + String(canManage)}'));
   assert.ok(workspace.includes("onOpenEmployee={openHrEmployee}"));
   assert.ok(onboarding.includes('fetch("/api/provisioning"'));
   assert.ok(onboarding.includes("payload.organizationId !== organizationId"));

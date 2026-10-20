@@ -7,6 +7,7 @@ import { EnterpriseBiExportPanel } from "@/components/enterprise-bi-export-panel
 import { HcmReportBuilderPanel } from "./hcm-report-builder-panel";
 import { GroupEntityReports } from "./multi-entity-ui";
 import { useWorkflowUi } from "./workflow-ui-context";
+import { readVerifiedReportPayload } from "@/lib/report-read-payload";
 import { CustomReportBuilder } from "./custom-report-builder";
 import { PeopleIntelligenceOverview } from "./people-intelligence";
 import type { PeopleIntelligenceSummary } from "@/lib/hcm-people-intelligence";
@@ -95,24 +96,19 @@ export function AnalyticsView({ data, notify, tenantReportBuilderEnabled = false
           if (peopleAsOf) query.set("asOf", peopleAsOf);
           query.set("windowDays", String(peopleWindowDays));
         }
-        const response = await fetch(`/api/reports?${query.toString()}`, { cache: "no-store" });
-        const payload = await response.json().catch(() => ({}));
+        const payload = await readVerifiedReportPayload(
+          organizationId, safeActive, query, fetch,
+          data.multiEntity?.enabled ? data.multiEntity.legalEntityId : null,
+        );
         if (!alive) return;
-        if (!response.ok) {
-          setResult(null);
-          setError(payload.error ?? `The report service returned ${response.status}.`);
-          setState("error");
-          setResolvedScopeKey(requestScopeKey);
-          return;
-        }
-        setResult(payload as ReportResult);
+        setResult(payload);
         setError("");
         setState("ready");
         setResolvedScopeKey(requestScopeKey);
-      } catch {
+      } catch (cause) {
         if (!alive) return;
         setResult(null);
-        setError("Could not reach the report service.");
+        setError(cause instanceof Error ? cause.message : "Report source or scope could not be verified.");
         setState("error");
         setResolvedScopeKey(requestScopeKey);
       }
@@ -175,7 +171,7 @@ export function AnalyticsView({ data, notify, tenantReportBuilderEnabled = false
       {data.multiEntity?.enabled && data.multiEntity.group && <GroupEntityReports
         context={data.multiEntity} organizationId={organizationId} />}
       {customReportsEnabled && !data.multiEntity?.enabled && <CustomReportBuilder organizationId={organizationId}
-        active={safeActive} report={result} onReport={key => { setActive(key as ReportKey); setState("loading"); }} />}
+        active={safeActive} report={visibleResult} onReport={key => { setActive(key as ReportKey); setState("loading"); }} />}
       <section className="stats-grid">
         <Metric
           label="Runs on record"
@@ -288,7 +284,7 @@ export function AnalyticsView({ data, notify, tenantReportBuilderEnabled = false
             <p>
               {visibleState === "ready" && visibleResult
                 ? `${visibleResult.rows.length} row${visibleResult.rows.length === 1 ? "" : "s"} returned${visibleResult.generatedAt ? ` · generated ${new Date(visibleResult.generatedAt).toLocaleTimeString("en-PH")}` : ""}`
-                : "Running the aggregate query…"}
+                : visibleState === "error" ? "Report data was not verified. Retry to load it." : "Running the aggregate query…"}
             </p>
           </div>
           <button

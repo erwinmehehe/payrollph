@@ -97,7 +97,13 @@ async function main() {
     id: organizations.id, name: organizations.name,
   }).from(organizations);
   assert.equal(companyRows.length, 2, "Must be the exact two fictional nine-stage employers");
-  const alpha = companyRows.find(r => r.name === "Fictional Connected Employer A")?.id;
+  // The private-invite signup preserves the company name with "Inc.", while
+  // the legacy governed fixture uses the shorter name. Both are fictional
+  // and exact-matched; never select a tenant by list order or prefix.
+  const alpha = companyRows.find(r =>
+    r.name === "Fictional Connected Employer A" ||
+    r.name === "Fictional Connected Employer A Inc."
+  )?.id;
   const beta = companyRows.find(r => r.name === "Fictional Connected Employer B")?.id;
   assert.ok(alpha && beta && alpha !== beta);
   const [released] = await db.select().from(payrollRuns).where(and(

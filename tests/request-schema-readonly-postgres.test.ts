@@ -6,6 +6,7 @@ import {
   doleReportingSchemaSpec,
   separationSchemaSpec,
   marketingLeadSchemaSpec,
+  marketingLeadSchemaForRuntime,
   workforceAttendanceSchemaSpec,
   migrationSchemaSpec,
   outboxDeliverySchemaSpec,
@@ -32,6 +33,25 @@ try {
 } catch {
   isolated = false;
 }
+
+test("actual PostgreSQL index ordering preserves flag-off explicit read-only behavior",{skip:!isolated},async()=>{
+ const client=new Client({connectionString:url,connectionTimeoutMillis:4000,query_timeout:8000});
+ await client.connect();
+ const canonical=marketingLeadSchemaForRuntime({REQUEST_SCHEMA_READONLY_ENABLED:"true"});
+ const legacy=marketingLeadSchemaForRuntime({REQUEST_SCHEMA_READONLY_ENABLED:"false"});
+ const verify=(spec:typeof canonical)=>verifyRequestSchemaReadOnly((sql,parameters)=>client.query(sql,parameters),spec);
+ const indexes=(nulls:string)=>client.query(`DROP INDEX marketing_leads_status_created_idx;
+  DROP INDEX marketing_leads_kind_created_idx;
+  CREATE INDEX marketing_leads_status_created_idx ON marketing_leads(status,created_at DESC ${nulls});
+  CREATE INDEX marketing_leads_kind_created_idx ON marketing_leads(kind,created_at DESC ${nulls})`);
+ try{
+  await verify(canonical);
+  await assert.rejects(()=>verify(legacy),/REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
+  await indexes("NULLS LAST");
+  await verify(legacy);
+  await assert.rejects(()=>verify(canonical),/REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
+ }finally{try{await indexes("NULLS FIRST");}finally{await client.end();}}
+});
 
 test("PostgreSQL 16 catalog accepts money-close, DOLE and separation schema after isolated Drizzle push", {
   skip: !isolated,
@@ -113,7 +133,7 @@ test("PostgreSQL 16 catalog audits all six additional request-schema writers aft
             "WHERE t.relname='marketing_leads' AND a.attnum>0 AND NOT a.attisdropped ORDER BY a.attnum",
           );
           console.error("Synthetic marketing catalog mismatch:", JSON.stringify({
-            indexKeys: indexKeys.rows, columns: columns.rows,
+            indexDDL: indexes.rows, indexKeys: indexKeys.rows, columns: columns.rows,
             constraints: constraints.rows,
             expectedIndexKeys: marketingLeadSchemaSpec.indexes,
           }));

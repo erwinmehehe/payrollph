@@ -3,11 +3,12 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { documentObjectKey, putDocumentObject } from "@/lib/document-object-storage";
 import { COE_PENDING_SOURCE_PREFIX, reconcilePendingCoeDocument, issueCoeObjectWithRecovery } from "@/lib/hr-case-coe-object-reconciliation";
-import { auditEvents, documents, employeeHrCaseMessages, employeeHrCases, employees, organizations } from "@/db/schema";
+import { auditEvents, documents, employeeHrCaseMessages, employeeHrCases, employees, organizations, userOrganizations } from "@/db/schema";
 import {
   assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES,
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { activeHrCaseStaffMembership, linkedEmployeeHrCaseScope } from "@/lib/hr-case-tenant-scope";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { employeeHrCasesEnabled } from "@/lib/hr-case-activation";
 import {
@@ -24,6 +25,7 @@ const unavailable = () => Response.json({ error: "HR cases are not enabled for t
 const caseIdValid = (n: number) => Number.isSafeInteger(n) && n > 0;
 const restrictedStaff = (role: string) => !["owner", "admin", "hr", "payroll"].includes(role);
 const noStore = { "Cache-Control": "private, no-store" } as const;
+const hrCaseNotFound = () => Response.json({ error: "Case not found." }, { status: 404, headers: noStore });
 
 async function employeeForSession(session: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>) {
   if (session.role !== "employee" || !session.employeeId) return null;
@@ -72,6 +74,7 @@ export async function GET(request: Request) {
   )).orderBy(employeeHrCaseMessages.createdAt).limit(500) : [];
   const peopleById = new Map(staff.map(item => [item.id, item]));
   return Response.json({
+    organizationId,
     cases: cases.filter(row => isEmployee || hrCaseRoleCanWork(access!.role, row.assignedRole))
       .map(row => {
         const person = peopleById.get(row.employeeId);
@@ -255,26 +258,35 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({}));
   const caseId = Number(body.id);
   if (!caseIdValid(caseId)) return Response.json({ error: "Case id required." }, { status: 422 });
-  const [existing] = await db.select().from(employeeHrCases).where(eq(employeeHrCases.id, caseId)).limit(1);
-  if (!existing) return Response.json({ error: "Case not found." }, { status: 404 });
+  // Constrain case IDs by the actual worker or active employer membership in
+  // SQL before returning a row whose existence could leak via role/scope errors.
   const isEmployee = user.role === "employee";
+  let existing: typeof employeeHrCases.$inferSelect | undefined;
   if (isEmployee) {
     const worker = await employeeForSession(user);
-    if (!worker || worker.organizationId !== existing.organizationId || worker.id !== existing.employeeId) {
-      return Response.json({ error: "Case not found." }, { status: 404 });
-    }
+    if (!worker) return hrCaseNotFound();
+    [existing] = await db.select().from(employeeHrCases).where(
+      linkedEmployeeHrCaseScope(caseId, worker.organizationId, worker.id),
+    ).limit(1);
   } else {
+    const [scoped] = await db.select({ caseRow: employeeHrCases })
+      .from(employeeHrCases)
+      .innerJoin(userOrganizations, activeHrCaseStaffMembership(user.id))
+      .where(eq(employeeHrCases.id, caseId))
+      .limit(1);
+    existing = scoped?.caseRow;
+  }
+  if (!existing) return hrCaseNotFound();
+  if (!isEmployee) {
     const denied = await assertOrganizationRole(user.id, existing.organizationId, PEOPLE_PAYROLL_ROLES);
-    if (denied) return denied;
+    if (denied) return hrCaseNotFound();
     const access = await getAccess(user.id, existing.organizationId);
-    if (!access || !hrCaseRoleCanWork(access.role, existing.assignedRole)) {
-      return Response.json({ error: "Case not found." }, { status: 404 });
-    }
+    if (!access || !hrCaseRoleCanWork(access.role, existing.assignedRole)) return hrCaseNotFound();
     const [worker] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
       eq(employees.id, existing.employeeId), eq(employees.organizationId, existing.organizationId),
     )).limit(1);
     const scope = assertScope(access, worker?.orgUnitId ?? null);
-    if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+    if (!scope.ok) return hrCaseNotFound();
   }
   const action = String(body.action ?? "");
   if (isEmployee && action !== "reply") return Response.json({ error: "Employee action is not permitted." }, { status: 403 });
@@ -322,7 +334,9 @@ export async function PATCH(request: Request) {
       )) throw new Error("INVALID_CASE_TRANSITION");
       [result] = await tx.update(employeeHrCases).set({
         status: next, updatedAt: new Date(),
-      }).where(eq(employeeHrCases.id, caseId)).returning();
+      }).where(and(
+          eq(employeeHrCases.id, caseId), eq(employeeHrCases.organizationId, row.organizationId),
+        )).returning();
     } else {
       await tx.insert(employeeHrCaseMessages).values({
         organizationId: row.organizationId, caseId, actorUserId: user.id,
@@ -331,7 +345,9 @@ export async function PATCH(request: Request) {
       if (isEmployee && row.status === "waiting_employee") {
         [result] = await tx.update(employeeHrCases).set({
           status: "in_progress", updatedAt: new Date(),
-        }).where(eq(employeeHrCases.id, caseId)).returning();
+        }).where(and(
+          eq(employeeHrCases.id, caseId), eq(employeeHrCases.organizationId, row.organizationId),
+        )).returning();
       }
     }
     await tx.insert(auditEvents).values({

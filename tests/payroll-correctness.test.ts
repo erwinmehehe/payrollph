@@ -485,14 +485,16 @@ test("two releases cannot settle the same expense claim into different payroll r
         payDate: "2026-09-30",
         employeeCount: 1,
       },
+      // A different, non-overlapping cutoff: two Releasing runs for the same period
+      // are refused by payroll_runs_no_overlapping_release (drizzle/0089).
       {
         organizationId: org.id,
-        periodLabel: "Sep 16–30, 2026 B",
-        periodStart: "2026-09-16",
-        periodEnd: "2026-09-30",
+        periodLabel: "Oct 1–15, 2026 B",
+        periodStart: "2026-10-01",
+        periodEnd: "2026-10-15",
         scopeLabel: "All locations",
         status: "Releasing",
-        payDate: "2026-09-30",
+        payDate: "2026-10-15",
         employeeCount: 1,
       },
     ]).returning();

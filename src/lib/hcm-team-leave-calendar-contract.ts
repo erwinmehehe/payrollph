@@ -125,3 +125,21 @@ export function summarizeTeamLeaveMonth(cases: readonly Pick<TeamLeaveCase, "sta
     pendingRequestRecords: cases.filter((item) => item.status === "Pending").length,
   };
 }
+
+/** Verify server summary counts before treating a month as a complete read.
+ * A broken response must not render an empty/false staffing picture.
+ */
+export function hasConsistentTeamLeaveSummary(
+  summary: unknown,
+  cases: readonly Pick<TeamLeaveCase, "status">[],
+): summary is TeamLeaveMonthResponse["summary"] {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) return false;
+  const counts = summary as Record<string, unknown>;
+  const expected = summarizeTeamLeaveMonth(cases);
+  return typeof counts.approvedRequestRecords === "number" &&
+    Number.isSafeInteger(counts.approvedRequestRecords) &&
+    typeof counts.pendingRequestRecords === "number" &&
+    Number.isSafeInteger(counts.pendingRequestRecords) &&
+    counts.approvedRequestRecords === expected.approvedRequestRecords &&
+    counts.pendingRequestRecords === expected.pendingRequestRecords;
+}

@@ -16,13 +16,8 @@ test("BIR 1601-C panel remounts by employer and loads asynchronously", () => {
   assert.match(source, /if \(signal\?\.aborted\) return/);
 });
 
-test("remittance action queue remounts by employer and defers its first sync", () => {
-  const source = read(QUEUE);
-  assert.match(source, /StatutoryRemittanceActionQueueContent key=\{props\.organizationId\}/);
-  assert.match(source, /queueMicrotask\(\(\) => \{\s*if \(active\) void sync\(true\)/);
-  assert.match(source, /active = false;\s*window\.removeEventListener\("statutory-remittance-changed", onChanged\)/);
-  assert.doesNotMatch(source, /useEffect\(\(\) => \{\s*void sync\(true\)/);
-});
+// Queue mount, explicit sync and employer remount are executed in
+// scripts/qa/first-payroll-connected-browser.mjs, replacing brittle source matching.
 
 test("overpayment preview remounts by employer instead of resetting state in the effect", () => {
   const source = read(PREVIEW);

@@ -56,7 +56,15 @@ test("payroll run explicitly aborts obsolete reads and removes synchronous effec
   assert.match(source, /tasks: data\.tasks/);
   assert.match(source, /signal: controller\.signal/);
   assert.match(source, /return \(\) => \{ active = false; controller\.abort\(\); \}/);
-  assert.match(source, /if \(active\) setChecklistObservation\(\{ scope: requestScope, checklist \}\)/);
+  assert.match(source, /const body: unknown = await response\.json\(\)/);
+  assert.match(source, /if \(!isVerifiedReleaseChecklist\(body, \{/,
+    "a 200 response must not bypass complete release-checklist validation");
+  assert.match(source, /organizationId: data\.selectedOrganization\.id,\s*legalEntityId: run\?\.legalEntityId \?\? null,\s*runId,/,
+    "validation must bind the selected employer, legal entity and current run");
+  assert.match(source, /if \(active\) setChecklistObservation\(\{ scope: requestScope, checklist: null \}\)/,
+    "denial, malformed JSON or mismatched employer data must remove release readiness");
+  assert.match(source, /if \(active\) setChecklistObservation\(\{ scope: requestScope, checklist: body \}\)/,
+    "only the verified response may become a visible checklist");
   assert.doesNotMatch(source, /setReleaseChecklist\(null\)/);
 });
 
@@ -64,8 +72,8 @@ test("payroll release stays blocked until its exact checklist loads and confirma
   const source = readFileSync("src/components/workspace/payroll-run.tsx", "utf8");
   assert.ok(source.includes("const hardChecklistBlocked = !releaseChecklist || releaseChecklist.items.some("),
     "an absent or loading checklist must block release controls");
-  assert.ok(source.includes("const confirmRelease = confirmReleaseForScope === checklistScope && releaseChecklist !== null"),
-    "dialog visibility must be scoped to the loaded employer/run/approval snapshot");
+  assert.match(source, /const confirmRelease =\s*entriesVerified && confirmReleaseForScope === checklistScope && releaseChecklist !== null;/,
+    "dialog visibility must require a verified register plus the exact checklist and approval snapshot");
   assert.ok(source.includes("setConfirmReleaseForScope(checklistScope)"),
     "the dialog must capture the scope the user actually confirmed");
   assert.ok(source.includes("setConfirmReleaseForScope(null)"),

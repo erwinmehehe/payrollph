@@ -6,15 +6,22 @@ const checker = "src/components/workspace/checker-variance.tsx";
 const inbox = "src/components/hcm-lifecycle-notification-inbox.tsx";
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("checker variance remounts for the selected payroll run before showing old employee details", () => {
+test("checker variance scopes every read to employer, run and current verified snapshot", () => {
   const source = read(checker);
-  assert.match(source, /CheckerVarianceContent key=\{props\.run\.id\}/);
-  assert.match(source, /const \[payload, setPayload\] = useState<VariancePayload \| null>\(null\)/);
+  const validator = read("src/lib/payroll-checker-variance-read.ts");
+  assert.match(source, /CheckerVarianceContent key=\{\[props\.organizationId, props\.run\.id/);
+  assert.match(source, /const \[observation, setObservation\] = useState</);
+  assert.match(source, /const current = observation\?\.scopeKey === scopeKey \? observation : null/);
+  assert.match(source, /const payload = current\?\.payload \?\? null/);
   assert.match(source, /const \[expanded, setExpanded\] = useState<Set<number>>\(new Set\(\)\)/);
-  assert.doesNotMatch(source, /let alive = true;\s*setPayload\(null\)/);
-  assert.match(source, /if \(!alive\) return;/);
-  assert.match(source, /return \(\) => \{ alive = false; \}/);
+  assert.match(source, /queueMicrotask\(\(\) => \{/);
+  assert.match(source, /readVerifiedPayrollCheckerVariance\(organizationId, run, fetch, controller\.signal\)/);
+  assert.match(source, /if \(!controller\.signal\.aborted\) setObservation/);
+  assert.match(source, /return \(\) => controller\.abort\(\)/);
+  assert.match(source, /Retry payroll variance/);
+  assert.match(validator, /cache: "no-store", signal/);
   assert.match(source, /onDecide: \(id: number, status: "Approved" \| "Declined"\) => Promise<void>/);
+  assert.doesNotMatch(source, /setPayload\(body\)/);
 });
 
 test("lifecycle inbox uses abortable employer-owned reads; existing PATCH is unchanged", () => {

@@ -4,54 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, FilePenLine, RefreshCcw, XCircle } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner, Status, money } from "./ui";
-
-type Batch = {
-  id: number;
-  agency: string;
-  applicableMonth: string;
-  status: string;
-  expectedTotal: string;
-  amountPaid: string | null;
-  paymentReference: string | null;
-  agencyReceiptReference: string | null;
-  paymentChannel: string | null;
-  paymentVarianceNote: string | null;
-  paidAt: string | null;
-};
-
-type Member = {
-  id: number;
-  batchId: number;
-  employeeNo: string;
-  totalContribution: string;
-  postingStatus: string;
-  postingReference: string | null;
-  postedAmount: string | null;
-  postedAt: string | null;
-};
-
-type Correction = {
-  id: number;
-  targetType: "batch_payment" | "member_posting" | "member_addition";
-  batchId: number;
-  memberId: number | null;
-  originalSnapshot: Record<string, unknown>;
-  proposedSnapshot: Record<string, unknown>;
-  reason: string;
-  status: string;
-  requestedByUserId: number | null;
-  requestedByName: string;
-  decidedByName: string | null;
-  decisionNote: string | null;
-  createdAt: string;
-};
-
-type CorrectionPayload = {
-  corrections: Correction[];
-  canRequest: boolean;
-  canApprove: boolean;
-  currentUserId: number;
-};
+import { parseRemittanceCorrectionsRead, type RemittanceCorrectionBatch as Batch, type RemittanceCorrectionMember as Member, type RemittanceCorrectionRequest as Correction, type RemittanceCorrectionPermissions as CorrectionPayload } from "@/lib/statutory-remittance-corrections-read";
 
 function formatDateTimeLocal(value: string | null | undefined) {
   if (!value) return "";
@@ -86,6 +39,10 @@ function summarize(snapshot: Record<string, unknown>) {
 
 type StatutoryRemittanceCorrectionsPanelProps = {
   organizationId: number;
+  legalEntityId: number | null;
+  viewerUserId: number | null;
+  viewerRole: string | null;
+  companyWide: boolean;
   notify: Notify;
 };
 
@@ -120,11 +77,13 @@ function postingDefaults(member: Member | null): MemberPostingDraft {
 // Corrections, free-form evidence drafts and independent-approval decisions
 // are employer-local. Changing A -> B -> A mounts a new empty state.
 export function StatutoryRemittanceCorrectionsPanel(props: StatutoryRemittanceCorrectionsPanelProps) {
-  return <StatutoryRemittanceCorrectionsPanelForOrganization key={props.organizationId} {...props} />;
+  return <StatutoryRemittanceCorrectionsPanelForOrganization key={JSON.stringify([props.organizationId, props.legalEntityId, props.viewerUserId, props.viewerRole, props.companyWide])} {...props} />;
 }
 
 function StatutoryRemittanceCorrectionsPanelForOrganization({
   organizationId,
+  legalEntityId,
+  viewerUserId,
   notify,
 }: StatutoryRemittanceCorrectionsPanelProps) {
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -148,27 +107,34 @@ function StatutoryRemittanceCorrectionsPanelForOrganization({
   const load = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
     const revision = ++readRevisionRef.current;
     const isCurrent = () => !signal?.aborted && revision === readRevisionRef.current;
+    // Remove old approval powers and amounts before attempting either scoped read.
+    setReadState("loading");
+    setBatches([]);
+    setMembers([]);
+    setCorrectionData(null);
+    setReadError("");
     try {
+      const query = "?organizationId=" + organizationId +
+        (legalEntityId ? "&legalEntityId=" + legalEntityId : "");
       const [remittanceResponse, correctionResponse] = await Promise.all([
-        fetch(`/api/compliance/statutory-remittances?organizationId=${organizationId}`, { cache: "no-store", signal }),
-        fetch(`/api/compliance/statutory-remittance-corrections?organizationId=${organizationId}`, { cache: "no-store", signal }),
+        fetch("/api/compliance/statutory-remittances" + query, { cache: "no-store", signal }),
+        fetch("/api/compliance/statutory-remittance-corrections" + query, { cache: "no-store", signal }),
       ]);
-      const [remittanceBody, correctionBody] = await Promise.all([
-        remittanceResponse.json().catch(() => ({})),
-        correctionResponse.json().catch(() => ({})),
+      const [remittanceBody, correctionBody]: unknown[] = await Promise.all([
+        remittanceResponse.json().catch(() => null),
+        correctionResponse.json().catch(() => null),
       ]);
       if (!isCurrent()) return false;
-      if (!remittanceResponse.ok) throw new Error(remittanceBody.error ?? "Could not load remittance evidence.");
-      if (!correctionResponse.ok) throw new Error(correctionBody.error ?? "Could not load remittance corrections.");
-      if (!Array.isArray(remittanceBody.batches) || !Array.isArray(remittanceBody.members)
-        || !Array.isArray(correctionBody.corrections)
-        || typeof correctionBody.canRequest !== "boolean" || typeof correctionBody.canApprove !== "boolean"
-        || !Number.isInteger(correctionBody.currentUserId)) {
-        throw new Error("Authorized remittance correction evidence is incomplete.");
+      if (!remittanceResponse.ok || !correctionResponse.ok) {
+        throw new Error("Authorized remittance corrections could not be loaded.");
       }
-      setBatches(remittanceBody.batches);
-      setMembers(remittanceBody.members);
-      setCorrectionData(correctionBody as CorrectionPayload);
+      const verified = parseRemittanceCorrectionsRead(remittanceBody, correctionBody, {
+        organizationId, legalEntityId, viewerUserId,
+      });
+      if (!verified) throw new Error("Remittance corrections are incomplete or not scoped to the selected employer and viewer.");
+      setBatches(verified.batches);
+      setMembers(verified.members);
+      setCorrectionData(verified.correctionData);
       setReadError("");
       setReadState("ready");
       return true;
@@ -184,7 +150,7 @@ function StatutoryRemittanceCorrectionsPanelForOrganization({
       notify(message, "err");
       return false;
     }
-  }, [organizationId, notify]);
+  }, [organizationId, legalEntityId, viewerUserId, notify]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -238,10 +204,10 @@ function StatutoryRemittanceCorrectionsPanelForOrganization({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Remittance correction action failed.");
-      notify(success, "ok");
-      await load();
+      const verified = await load();
       window.dispatchEvent(new Event("statutory-remittance-changed"));
-      return true;
+      notify(verified ? success : "The correction request may have succeeded, but the current employer evidence could not be verified. Refresh before retrying.", verified ? "ok" : "err");
+      return verified;
     } catch (error) {
       notify(error instanceof Error ? error.message : "Remittance correction action failed.", "err");
       return false;

@@ -1,0 +1,2972 @@
+{
+  "base": "d94c1f3e0e1a8b1de0d15186923f3ed641314214",
+  "reviewedAppFiles": 92,
+  "scoped": [
+    {
+      "path": "src/app/app/engagement/page.tsx",
+      "blob": "caf09023985ba92210805555c8272b2f24df3f07",
+      "ids": [
+        {
+          "line": 13,
+          "token": "searchParams"
+        },
+        {
+          "line": 14,
+          "token": "searchParams"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 19,
+          "token": "searchParams"
+        },
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 7,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 17,
+          "token": "getSessionUser"
+        }
+      ],
+      "business": [
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/app/goals-reviews/page.tsx",
+      "blob": "0792de4c8cbcb4efdf40ecfb986cb140561d5749",
+      "ids": [
+        {
+          "line": 15,
+          "token": "searchParams"
+        },
+        {
+          "line": 16,
+          "token": "searchParams"
+        },
+        {
+          "line": 16,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "searchParams"
+        },
+        {
+          "line": 22,
+          "token": "organizationId"
+        },
+        {
+          "line": 23,
+          "token": "organizationId"
+        },
+        {
+          "line": 23,
+          "token": "organizationId"
+        },
+        {
+          "line": 24,
+          "token": "organizationId"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 7,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 7,
+          "token": "getAccess"
+        },
+        {
+          "line": 8,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 19,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 24,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 25,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 16,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 22,
+          "token": "organizationId"
+        },
+        {
+          "line": 23,
+          "token": "organizationId"
+        },
+        {
+          "line": 23,
+          "token": "organizationId"
+        },
+        {
+          "line": 24,
+          "token": "organizationId"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/app/page.tsx",
+      "blob": "bc7dece43085eb611aa8aa6dfc997eda81dd1ab4",
+      "ids": [
+        {
+          "line": 32,
+          "token": "searchParams"
+        },
+        {
+          "line": 32,
+          "token": "searchParams"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "searchParams"
+        },
+        {
+          "line": 73,
+          "token": "organizationId"
+        },
+        {
+          "line": 111,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 116,
+          "token": "organizationId"
+        },
+        {
+          "line": 122,
+          "token": "organizationId"
+        },
+        {
+          "line": 125,
+          "token": "organizationId"
+        },
+        {
+          "line": 129,
+          "token": "organizationId"
+        },
+        {
+          "line": 135,
+          "token": "organizationId"
+        },
+        {
+          "line": 137,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 8,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 10,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 10,
+          "token": "getAccess"
+        },
+        {
+          "line": 33,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 50,
+          "token": "getAccess"
+        },
+        {
+          "line": 82,
+          "token": "getAccess"
+        },
+        {
+          "line": 98,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 103,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 106,
+          "token": "assertOrganizationRole"
+        }
+      ],
+      "business": [
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 73,
+          "token": "organizationId"
+        },
+        {
+          "line": 111,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 116,
+          "token": "organizationId"
+        },
+        {
+          "line": 122,
+          "token": "organizationId"
+        },
+        {
+          "line": 125,
+          "token": "organizationId"
+        },
+        {
+          "line": 129,
+          "token": "organizationId"
+        },
+        {
+          "line": 135,
+          "token": "organizationId"
+        },
+        {
+          "line": 137,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/billing/setup/page.tsx",
+      "blob": "ee1985ccdde71e9ee7c28b3d0dbe652fa0ea3381",
+      "ids": [
+        {
+          "line": 15,
+          "token": "organizationId"
+        },
+        {
+          "line": 16,
+          "token": "organizationId"
+        },
+        {
+          "line": 17,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 6,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 13,
+          "token": "getSessionUser"
+        }
+      ],
+      "business": [
+        {
+          "line": 15,
+          "token": "organizationId"
+        },
+        {
+          "line": 16,
+          "token": "organizationId"
+        },
+        {
+          "line": 17,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/careers/page.tsx",
+      "blob": "06cfcd7cd0d0458b4a9d8e9e61e03129396541e3",
+      "ids": [
+        {
+          "line": 12,
+          "token": "searchParams"
+        },
+        {
+          "line": 13,
+          "token": "searchParams"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 18,
+          "token": "organizationId"
+        },
+        {
+          "line": 18,
+          "token": "searchParams"
+        },
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 24,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [],
+      "business": [
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 18,
+          "token": "organizationId"
+        },
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 24,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/hcm/action-center/page.tsx",
+      "blob": "5d593fd3c4c28d99792c3ac2450e2616c5cd6f9e",
+      "ids": [
+        {
+          "line": 23,
+          "token": "searchParams"
+        },
+        {
+          "line": 25,
+          "token": "searchParams"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "searchParams"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 45,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 134,
+          "token": "organizationId"
+        },
+        {
+          "line": 134,
+          "token": "organizationId"
+        },
+        {
+          "line": 134,
+          "token": "organizationId"
+        },
+        {
+          "line": 137,
+          "token": "organizationId"
+        },
+        {
+          "line": 137,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 8,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 8,
+          "token": "getAccess"
+        },
+        {
+          "line": 9,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 27,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 34,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 35,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 45,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 134,
+          "token": "organizationId"
+        },
+        {
+          "line": 134,
+          "token": "organizationId"
+        },
+        {
+          "line": 134,
+          "token": "organizationId"
+        },
+        {
+          "line": 137,
+          "token": "organizationId"
+        },
+        {
+          "line": 137,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/hcm/command-center/page.tsx",
+      "blob": "ca0a337f8e57faf37a933f7b6727bddb35e9cd49",
+      "ids": [
+        {
+          "line": 21,
+          "token": "searchParams"
+        },
+        {
+          "line": 23,
+          "token": "searchParams"
+        },
+        {
+          "line": 23,
+          "token": "organizationId"
+        },
+        {
+          "line": 28,
+          "token": "organizationId"
+        },
+        {
+          "line": 28,
+          "token": "searchParams"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 92,
+          "token": "organizationId"
+        },
+        {
+          "line": 92,
+          "token": "organizationId"
+        },
+        {
+          "line": 100,
+          "token": "organizationId"
+        },
+        {
+          "line": 100,
+          "token": "organizationId"
+        },
+        {
+          "line": 108,
+          "token": "organizationId"
+        },
+        {
+          "line": 108,
+          "token": "organizationId"
+        },
+        {
+          "line": 114,
+          "token": "organizationId"
+        },
+        {
+          "line": 114,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 11,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 12,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 12,
+          "token": "getAccess"
+        },
+        {
+          "line": 25,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 37,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 38,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 23,
+          "token": "organizationId"
+        },
+        {
+          "line": 28,
+          "token": "organizationId"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 92,
+          "token": "organizationId"
+        },
+        {
+          "line": 92,
+          "token": "organizationId"
+        },
+        {
+          "line": 100,
+          "token": "organizationId"
+        },
+        {
+          "line": 100,
+          "token": "organizationId"
+        },
+        {
+          "line": 108,
+          "token": "organizationId"
+        },
+        {
+          "line": 108,
+          "token": "organizationId"
+        },
+        {
+          "line": 114,
+          "token": "organizationId"
+        },
+        {
+          "line": 114,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/hcm/hire-payroll-review/page.tsx",
+      "blob": "32dfe6ca009a1b4455b9624be3e1f5a8f26b287a",
+      "ids": [
+        {
+          "line": 48,
+          "token": "searchParams"
+        },
+        {
+          "line": 50,
+          "token": "searchParams"
+        },
+        {
+          "line": 51,
+          "token": "organizationId"
+        },
+        {
+          "line": 52,
+          "token": "employeeId"
+        },
+        {
+          "line": 55,
+          "token": "searchParams"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 57,
+          "token": "employeeId"
+        },
+        {
+          "line": 57,
+          "token": "employeeId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 58,
+          "token": "employeeId"
+        },
+        {
+          "line": 59,
+          "token": "organizationId"
+        },
+        {
+          "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 66,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "employeeId"
+        },
+        {
+          "line": 83,
+          "token": "organizationId"
+        },
+        {
+          "line": 83,
+          "token": "organizationId"
+        },
+        {
+          "line": 84,
+          "token": "organizationId"
+        },
+        {
+          "line": 84,
+          "token": "organizationId"
+        },
+        {
+          "line": 85,
+          "token": "organizationId"
+        },
+        {
+          "line": 85,
+          "token": "organizationId"
+        },
+        {
+          "line": 91,
+          "token": "organizationId"
+        },
+        {
+          "line": 91,
+          "token": "organizationId"
+        },
+        {
+          "line": 91,
+          "token": "employeeId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 62,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 65,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 69,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 51,
+          "token": "organizationId"
+        },
+        {
+          "line": 52,
+          "token": "employeeId"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 57,
+          "token": "employeeId"
+        },
+        {
+          "line": 57,
+          "token": "employeeId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 58,
+          "token": "employeeId"
+        },
+        {
+          "line": 59,
+          "token": "organizationId"
+        },
+        {
+          "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 66,
+          "token": "organizationId"
+        },
+        {
+          "line": 69,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "employeeId"
+        },
+        {
+          "line": 83,
+          "token": "organizationId"
+        },
+        {
+          "line": 83,
+          "token": "organizationId"
+        },
+        {
+          "line": 84,
+          "token": "organizationId"
+        },
+        {
+          "line": 84,
+          "token": "organizationId"
+        },
+        {
+          "line": 85,
+          "token": "organizationId"
+        },
+        {
+          "line": 85,
+          "token": "organizationId"
+        },
+        {
+          "line": 91,
+          "token": "organizationId"
+        },
+        {
+          "line": 91,
+          "token": "organizationId"
+        },
+        {
+          "line": 91,
+          "token": "employeeId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/hcm/hr-cases/page.tsx",
+      "blob": "93ef058a785606fd00921b23b47c73436e308fbb",
+      "ids": [
+        {
+          "line": 17,
+          "token": "searchParams"
+        },
+        {
+          "line": 19,
+          "token": "searchParams"
+        },
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 24,
+          "token": "organizationId"
+        },
+        {
+          "line": 24,
+          "token": "searchParams"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 36,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 4,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 5,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 5,
+          "token": "getAccess"
+        },
+        {
+          "line": 22,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 29,
+          "token": "getAccess"
+        },
+        {
+          "line": 36,
+          "token": "assertOrganizationRole"
+        }
+      ],
+      "business": [
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 24,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 36,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/hcm/manager-decision-inbox/page.tsx",
+      "blob": "b610d07c3af0103f8e94fa4ceb6b0813c5ba42cf",
+      "ids": [
+        {
+          "line": 22,
+          "token": "searchParams"
+        },
+        {
+          "line": 24,
+          "token": "searchParams"
+        },
+        {
+          "line": 24,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "searchParams"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 27,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 33,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 37,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 24,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/hcm/my-team/page.tsx",
+      "blob": "8f7386f007b7a498777ba2549d5fec27e3dd69b8",
+      "ids": [
+        {
+          "line": 22,
+          "token": "searchParams"
+        },
+        {
+          "line": 24,
+          "token": "searchParams"
+        },
+        {
+          "line": 24,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "searchParams"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "params."
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 33,
+          "token": "organizationId"
+        },
+        {
+          "line": 36,
+          "token": "organizationId"
+        },
+        {
+          "line": 39,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 3,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 3,
+          "token": "getAccess"
+        },
+        {
+          "line": 4,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 28,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 35,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 39,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 24,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 33,
+          "token": "organizationId"
+        },
+        {
+          "line": 36,
+          "token": "organizationId"
+        },
+        {
+          "line": 39,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/hcm/org-explorer/page.tsx",
+      "blob": "89df291ced721e908d1c3023b8ec8c94919f479c",
+      "ids": [
+        {
+          "line": 17,
+          "token": "searchParams"
+        },
+        {
+          "line": 19,
+          "token": "searchParams"
+        },
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 25,
+          "token": "searchParams"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "params."
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "params."
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 23,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 35,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/hcm/process-monitor/page.tsx",
+      "blob": "0a146018a98b2e401b9ee07dc3f22760bfe97fd8",
+      "ids": [
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 116,
+          "token": "searchParams"
+        },
+        {
+          "line": 117,
+          "token": "searchParams"
+        },
+        {
+          "line": 118,
+          "token": "searchParams"
+        },
+        {
+          "line": 119,
+          "token": "organizationId"
+        },
+        {
+          "line": 119,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 131,
+          "token": "organizationId"
+        },
+        {
+          "line": 132,
+          "token": "organizationId"
+        },
+        {
+          "line": 134,
+          "token": "organizationId"
+        },
+        {
+          "line": 140,
+          "token": "organizationId"
+        },
+        {
+          "line": 147,
+          "token": "organizationId"
+        },
+        {
+          "line": 147,
+          "token": "organizationId"
+        },
+        {
+          "line": 173,
+          "token": "organizationId"
+        },
+        {
+          "line": 173,
+          "token": "organizationId"
+        },
+        {
+          "line": 177,
+          "token": "organizationId"
+        },
+        {
+          "line": 181,
+          "token": "organizationId"
+        },
+        {
+          "line": 181,
+          "token": "organizationId"
+        },
+        {
+          "line": 206,
+          "token": "organizationId"
+        },
+        {
+          "line": 230,
+          "token": "organizationId"
+        },
+        {
+          "line": 242,
+          "token": "organizationId"
+        },
+        {
+          "line": 248,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 122,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 131,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 132,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 119,
+          "token": "organizationId"
+        },
+        {
+          "line": 119,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 131,
+          "token": "organizationId"
+        },
+        {
+          "line": 132,
+          "token": "organizationId"
+        },
+        {
+          "line": 134,
+          "token": "organizationId"
+        },
+        {
+          "line": 140,
+          "token": "organizationId"
+        },
+        {
+          "line": 147,
+          "token": "organizationId"
+        },
+        {
+          "line": 147,
+          "token": "organizationId"
+        },
+        {
+          "line": 173,
+          "token": "organizationId"
+        },
+        {
+          "line": 173,
+          "token": "organizationId"
+        },
+        {
+          "line": 177,
+          "token": "organizationId"
+        },
+        {
+          "line": 181,
+          "token": "organizationId"
+        },
+        {
+          "line": 181,
+          "token": "organizationId"
+        },
+        {
+          "line": 206,
+          "token": "organizationId"
+        },
+        {
+          "line": 230,
+          "token": "organizationId"
+        },
+        {
+          "line": 242,
+          "token": "organizationId"
+        },
+        {
+          "line": 248,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/hcm/team-leave-calendar/page.tsx",
+      "blob": "bcf78f9ebc733ee6236852960eb46e32c020e272",
+      "ids": [
+        {
+          "line": 24,
+          "token": "searchParams"
+        },
+        {
+          "line": 26,
+          "token": "searchParams"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "searchParams"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 33,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 47,
+          "token": "organizationId"
+        },
+        {
+          "line": 47,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 30,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 36,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 40,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 33,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 47,
+          "token": "organizationId"
+        },
+        {
+          "line": 47,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/hcm/work-items/page.tsx",
+      "blob": "5bfadf60b5e91fec3b0c2e841564f73b72bc5ef3",
+      "ids": [
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "caseId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 50,
+          "token": "caseId"
+        },
+        {
+          "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 70,
+          "token": "organizationId"
+        },
+        {
+          "line": 78,
+          "token": "organizationId"
+        },
+        {
+          "line": 78,
+          "token": "organizationId"
+        },
+        {
+          "line": 78,
+          "token": "caseId"
+        },
+        {
+          "line": 82,
+          "token": "caseId"
+        },
+        {
+          "line": 84,
+          "token": "caseId"
+        },
+        {
+          "line": 88,
+          "token": "organizationId"
+        },
+        {
+          "line": 104,
+          "token": "organizationId"
+        },
+        {
+          "line": 104,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [],
+      "business": [
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "caseId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 50,
+          "token": "caseId"
+        },
+        {
+          "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 70,
+          "token": "organizationId"
+        },
+        {
+          "line": 78,
+          "token": "organizationId"
+        },
+        {
+          "line": 78,
+          "token": "organizationId"
+        },
+        {
+          "line": 78,
+          "token": "caseId"
+        },
+        {
+          "line": 82,
+          "token": "caseId"
+        },
+        {
+          "line": 84,
+          "token": "caseId"
+        },
+        {
+          "line": 88,
+          "token": "organizationId"
+        },
+        {
+          "line": 104,
+          "token": "organizationId"
+        },
+        {
+          "line": 104,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/hcm/worker-360/page.tsx",
+      "blob": "cb47f8fb0f515d22596ef6db9de44ed606b9ee27",
+      "ids": [
+        {
+          "line": 25,
+          "token": "searchParams"
+        },
+        {
+          "line": 27,
+          "token": "searchParams"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "employeeId"
+        },
+        {
+          "line": 34,
+          "token": "searchParams"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 36,
+          "token": "employeeId"
+        },
+        {
+          "line": 36,
+          "token": "employeeId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "employeeId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 53,
+          "token": "organizationId"
+        },
+        {
+          "line": 53,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
+          "token": "employeeId"
+        },
+        {
+          "line": 54,
+          "token": "employeeId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 59,
+          "token": "employeeId"
+        },
+        {
+          "line": 59,
+          "token": "employeeId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 31,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 39,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 43,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "employeeId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 36,
+          "token": "employeeId"
+        },
+        {
+          "line": 36,
+          "token": "employeeId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "employeeId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 53,
+          "token": "organizationId"
+        },
+        {
+          "line": 53,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
+          "token": "employeeId"
+        },
+        {
+          "line": 54,
+          "token": "employeeId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 59,
+          "token": "employeeId"
+        },
+        {
+          "line": 59,
+          "token": "employeeId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/self/schedule-receipts/page.tsx",
+      "blob": "77f085f1b0f20aa7786e893a825e453259429ac0",
+      "ids": [
+        {
+          "line": 18,
+          "token": "employeeId"
+        },
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 20,
+          "token": "employeeId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 22,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 7,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 16,
+          "token": "getSessionUser"
+        }
+      ],
+      "business": [
+        {
+          "line": 18,
+          "token": "employeeId"
+        },
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 20,
+          "token": "employeeId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 22,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/workspace/2316/page.tsx",
+      "blob": "a6c4642f9e651eb616de6e301a832ac2d471a33e",
+      "ids": [
+        {
+          "line": 8,
+          "token": "searchParams"
+        },
+        {
+          "line": 8,
+          "token": "searchParams"
+        },
+        {
+          "line": 11,
+          "token": "searchParams"
+        },
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "employeeId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 2,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 10,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 13,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 13,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "employeeId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/workspace/prior-employer/page.tsx",
+      "blob": "82327e4d8580af2abe503e7a104321e854dc84f7",
+      "ids": [
+        {
+          "line": 8,
+          "token": "searchParams"
+        },
+        {
+          "line": 8,
+          "token": "searchParams"
+        },
+        {
+          "line": 11,
+          "token": "searchParams"
+        },
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "employeeId"
+        },
+        {
+          "line": 14,
+          "token": "employeeId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 2,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 10,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 13,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 13,
+          "token": "getAccess"
+        }
+      ],
+      "business": [
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 11,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "employeeId"
+        },
+        {
+          "line": 14,
+          "token": "employeeId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    },
+    {
+      "path": "src/app/workspace/report-builder/page.tsx",
+      "blob": "68f7e1c72d5bd8b4187d6303b8f4ed02df2008a4",
+      "ids": [
+        {
+          "line": 6,
+          "token": "searchParams"
+        },
+        {
+          "line": 7,
+          "token": "searchParams"
+        },
+        {
+          "line": 7,
+          "token": "organizationId"
+        },
+        {
+          "line": 11,
+          "token": "searchParams"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "params."
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 1,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 8,
+          "token": "getSessionUser"
+        }
+      ],
+      "business": [
+        {
+          "line": 7,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 12,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 13,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        },
+        {
+          "line": 14,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+    }
+  ]
+}

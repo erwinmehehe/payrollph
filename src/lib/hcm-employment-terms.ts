@@ -64,19 +64,33 @@ export async function activateEmploymentTerm(input: {
   const today = philippineBusinessDate(now);
 
   const result = await db.transaction(async (tx) => {
-    const [term] = await tx.select().from(hcmEmploymentTerms)
+    const [candidate] = await tx.select().from(hcmEmploymentTerms)
       .where(eq(hcmEmploymentTerms.id, input.termId))
       .limit(1);
-    if (!term) throw new Error("Employment terms record not found.");
-    if (term.status !== "scheduled") {
-      if (term.status === "active") return { term, event: null, alreadyActive: true as const };
+    if (!candidate) throw new Error("Employment terms record not found.");
+    if (candidate.status !== "scheduled") {
+      if (candidate.status === "active") return { term: candidate, event: null, alreadyActive: true as const };
       throw new Error("Only scheduled employment terms can activate.");
     }
-    if (String(term.effectiveFrom) > today) {
+    if (String(candidate.effectiveFrom) > today) {
       throw new Error("Employment terms cannot activate before their effective date.");
     }
 
-    await tx.execute(sql`select id from employees where id = ${term.employeeId} for update`);
+    // The candidate read above can become stale while this employee is locked
+    // by another scheduler worker. Re-read after acquiring the lock so that a
+    // winning activation is never superseded or duplicated by a waiting worker.
+    await tx.execute(sql`select id from employees where id = ${candidate.employeeId} for update`);
+    const [term] = await tx.select().from(hcmEmploymentTerms)
+      .where(eq(hcmEmploymentTerms.id, input.termId))
+      .limit(1);
+    if (!term || term.employeeId !== candidate.employeeId || term.organizationId !== candidate.organizationId) {
+      throw new Error("Employment terms changed before activation.");
+    }
+    if (term.status === "active") return { term, event: null, alreadyActive: true as const };
+    if (term.status !== "scheduled") throw new Error("Only scheduled employment terms can activate.");
+    if (String(term.effectiveFrom) > today) {
+      throw new Error("Employment terms cannot activate before their effective date.");
+    }
     const [employee] = await tx.select().from(employees).where(and(
       eq(employees.id, term.employeeId),
       eq(employees.organizationId, term.organizationId),

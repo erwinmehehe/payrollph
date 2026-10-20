@@ -28,7 +28,7 @@ async function managedPayload(organizationId: number, userId: number) {
   const [engagement] = await db.select().from(managedPayrollEngagements)
     .where(eq(managedPayrollEngagements.organizationId, organizationId))
     .limit(1);
-  if (!engagement) return { engagement: null, gates: [], runs: [], designatedApprover: null };
+  if (!engagement) return { organizationId, viewerUserId: userId, engagement: null, gates: [], runs: [], designatedApprover: null, currentUserIsApprover: false };
 
   await seedManagedPayrollGates(engagement.id);
 
@@ -55,6 +55,7 @@ async function managedPayload(organizationId: number, userId: number) {
     const fingerprint = approval ? await managedPayrollRunFingerprint(run.id) : null;
     runRows.push({
       id: run.id,
+      organizationId: run.organizationId,
       periodLabel: run.periodLabel,
       status: run.status,
       payDate: run.payDate,
@@ -77,6 +78,8 @@ async function managedPayload(organizationId: number, userId: number) {
   }
 
   return {
+    organizationId,
+    viewerUserId: userId,
     engagement,
     gates,
     runs: runRows,

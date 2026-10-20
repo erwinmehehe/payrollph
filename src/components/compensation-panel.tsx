@@ -158,6 +158,7 @@ function ScopedCompensationPanel({
   investigationEnabled = false,
 }: CompensationPanelProps) {
   const [access, setAccess] = useState<Access | null>(null);
+  const [advancedConfigurationAllowed, setAdvancedConfigurationAllowed] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [jobProfiles, setJobProfiles] = useState<JobProfile[]>([]);
@@ -247,10 +248,11 @@ function ScopedCompensationPanel({
       const body = await response.json().catch(() => ({}));
       if (!isCurrent()) return;
       if (!response.ok) throw new Error(body.error ?? "Could not load compensation.");
-      if (!body.access || typeof body.access.companyWide !== "boolean" || !Array.isArray(body.employees)) {
+      if (!body.access || typeof body.access.companyWide !== "boolean" || !Array.isArray(body.employees) || typeof body.advancedConfigurationAllowed !== "boolean") {
         throw new Error("Authorized compensation data is incomplete. Refresh to retry.");
       }
       setAccess(body.access);
+      setAdvancedConfigurationAllowed(body.advancedConfigurationAllowed);
       setCurrentUserId(Number.isInteger(body.currentUserId) ? body.currentUserId : null);
       setEmployees(body.employees);
       setJobProfiles(body.jobProfiles ?? []);
@@ -267,6 +269,7 @@ function ScopedCompensationPanel({
     } catch (error) {
       if (!isCurrent()) return;
       const message = error instanceof Error ? error.message : "Could not load compensation.";
+      setAdvancedConfigurationAllowed(false);
       setFailedLoad({ organizationId, message });
       setLoadedOrganizationId(null);
       setNotice(message);
@@ -473,6 +476,7 @@ function ScopedCompensationPanel({
       )}
 
       <section className="module-grid three">
+        {advancedConfigurationAllowed ? <>
         <article className="card">
           <div className="card-header">
             <div>
@@ -574,6 +578,15 @@ function ScopedCompensationPanel({
           </div>
         </article>
 
+        </> : (
+          <article className="card" role="status" aria-label="Advanced compensation configuration unavailable">
+            <div className="card-header"><h2>Advanced configuration unavailable</h2></div>
+            <div className="card-body">
+              Salary-band and cycle creation require an active Enterprise subscription for this employer.
+              Existing employee pay proposals and assigned decisions remain available under their original permissions.
+            </div>
+          </article>
+        )}
         <article className="card">
           <div className="card-header">
             <div>

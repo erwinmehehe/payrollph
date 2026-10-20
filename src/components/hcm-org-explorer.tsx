@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Building2, ChevronRight, Network, RefreshCw } from "lucide-react";
 import type { HcmOrgExplorerResponse, HcmPositionHistoryResponse } from "@/lib/hcm-org-explorer-contract";
+import { readScopedResponse, scopedReadFailureMessage, type ScopedReadFailure } from "@/lib/hcm-scoped-read-failure";
+import { validOrgExplorerResponse, validPositionHistoryResponse } from "@/lib/hcm-scoped-read-validation";
 
 type Load<T> = {
   scope: string;
   status: "loading" | "ready" | "unavailable";
   data: T | null;
+  failure?: ScopedReadFailure;
 };
 
 function phDate(value: string | null) {
@@ -32,22 +35,23 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
   const [selectedUnitChoice, setSelectedUnitChoice] = useState<{ scope: string; id: number | null } | null>(null);
   const [selectedPositionChoice, setSelectedPositionChoice] = useState<{ scope: string; id: number | null } | null>(null);
   const [history, setHistory] = useState<Load<HcmPositionHistoryResponse> | null>(null);
+  const [historyRevision, setHistoryRevision] = useState(0);
   const graphScope = organizationId + ":" + revision;
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/hcm/org-explorer?organizationId=" + organizationId, {
-      cache: "no-store", signal: controller.signal,
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("Organization source unavailable");
-      const data = await response.json() as HcmOrgExplorerResponse;
+    void readScopedResponse(
+      () => fetch("/api/hcm/org-explorer?organizationId=" + organizationId, {
+        cache: "no-store", signal: controller.signal,
+      }),
+      (payload): payload is HcmOrgExplorerResponse =>
+        validOrgExplorerResponse(payload, organizationId),
+    ).then((result) => {
       if (controller.signal.aborted) return;
-      if (data.tenantId !== organizationId || !Array.isArray(data.units) ||
-          !Array.isArray(data.positions)) throw new Error("Unexpected employer data");
-      setGraph({ scope: graphScope, status: "ready", data });
-    }).catch(() => {
-      if (!controller.signal.aborted) {
-        setGraph({ scope: graphScope, status: "unavailable", data: null });
+      if (result.status === "ready") {
+        setGraph({ scope: graphScope, status: "ready", data: result.data });
+      } else {
+        setGraph({ scope: graphScope, status: "unavailable", data: null, failure: result.failure });
       }
     });
     return () => controller.abort();
@@ -67,7 +71,7 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
   const selectedPositionId = selectedPositionChoice?.scope === unitScope
     ? selectedPositionChoice.id : null;
   const selectedPosition = visiblePositions.find((position) => position.id === selectedPositionId) ?? null;
-  const positionScope = unitScope + ":" + selectedPositionId;
+  const positionScope = unitScope + ":" + selectedPositionId + ":" + historyRevision;
 
   useEffect(() => {
     if (selectedPositionId === null || !current || !selectedPosition) return;
@@ -75,18 +79,18 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
     const params = new URLSearchParams({
       organizationId: String(organizationId), positionId: String(selectedPositionId),
     });
-    void fetch("/api/hcm/position-history?" + params.toString(), {
-      cache: "no-store", signal: controller.signal,
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("Position source unavailable");
-      const data = await response.json() as HcmPositionHistoryResponse;
+    void readScopedResponse(
+      () => fetch("/api/hcm/position-history?" + params.toString(), {
+        cache: "no-store", signal: controller.signal,
+      }),
+      (payload): payload is HcmPositionHistoryResponse =>
+        validPositionHistoryResponse(payload, organizationId, selectedPositionId),
+    ).then((result) => {
       if (controller.signal.aborted) return;
-      if (data.tenantId !== organizationId || data.positionId !== selectedPositionId ||
-          !Array.isArray(data.history?.preview?.items)) throw new Error("Unexpected position scope");
-      setHistory({ scope: positionScope, status: "ready", data });
-    }).catch(() => {
-      if (!controller.signal.aborted) {
-        setHistory({ scope: positionScope, status: "unavailable", data: null });
+      if (result.status === "ready") {
+        setHistory({ scope: positionScope, status: "ready", data: result.data });
+      } else {
+        setHistory({ scope: positionScope, status: "unavailable", data: null, failure: result.failure });
       }
     });
     return () => controller.abort();
@@ -122,8 +126,14 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
           <p role="status" aria-live="polite" className="mt-6 rounded-xl border bg-white p-5 text-slate-600">Loading authorized organization sources…</p>}
         {status === "unavailable" &&
           <div role="alert" className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
-            <strong>Organization data unavailable</strong>
-            <p className="mt-1 text-sm">A source may be unavailable or exceed this bounded pilot view. No incomplete hierarchy is presented as complete.</p>
+            <strong>{graph?.failure === "forbidden" ? "Organization access denied" :
+              graph?.failure === "sign_in" ? "Sign in required" : "Organization data unavailable"}</strong>
+            <p className="mt-1 text-sm">{scopedReadFailureMessage(graph?.failure ?? "server")}</p>
+            <p className="mt-2 text-xs">An incomplete hierarchy is never presented as complete.</p>
+            <button type="button" onClick={() => setRevision((value) => value + 1)}
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-amber-500 bg-white px-4 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700">
+              <RefreshCw aria-hidden="true" size={16} /> Try again
+            </button>
           </div>}
 
         {current && (
@@ -242,7 +252,15 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
                     {(!activeHistory || activeHistory.status === "loading") &&
                       <p role="status" className="mt-4 text-sm text-slate-600">Loading position history…</p>}
                     {activeHistory?.status === "unavailable" &&
-                      <p role="alert" className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">Position history unavailable; it has not been verified as empty.</p>}
+                      <div role="alert" className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">
+                        <strong>{activeHistory.failure === "forbidden" ? "Position history access denied" :
+                          activeHistory.failure === "sign_in" ? "Sign in required" : "Position history unavailable"}</strong>
+                        <p className="mt-1">{scopedReadFailureMessage(activeHistory.failure ?? "server")}</p>
+                        <button type="button" onClick={() => setHistoryRevision((value) => value + 1)}
+                          className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-amber-500 bg-white px-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700">
+                          <RefreshCw aria-hidden="true" size={16} /> Retry position history
+                        </button>
+                      </div>}
                     {positionHistory && (
                       <>
                         {positionHistory.history.preview.items.length === 0 &&

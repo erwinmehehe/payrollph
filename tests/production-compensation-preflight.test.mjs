@@ -57,10 +57,19 @@ test("#1015 fail-closed for wrong branch, replica, SHA, role, or forged counts",
 test("#1061 protected live smoke keeps the private preflight before HR fixture", () => {
   const workflow = readFileSync(".github/workflows/live-rbac-sandbox-smoke.yml", "utf8");
   assert.ok(workflow.includes("scripts/qa/verify-production-compensation-preflight.mjs"));
-  assert.ok(workflow.indexOf("Verify all six RBAC personas") <
-            workflow.indexOf("Verify private compensation database readiness"));
-  assert.ok(workflow.indexOf("Verify private compensation database readiness") <
-            workflow.indexOf("Verify deployed fictional HR compensation privacy"));
+  const deployed = workflow.indexOf("Wait for exact production deployment");
+  const preflight = workflow.indexOf("Verify private compensation database readiness");
+  const boundary = workflow.indexOf("Read protected demo provisioning boundary");
+  const guardedPost = workflow.indexOf("Verify guarded demo login 404");
+  const liveRoles = workflow.indexOf("Verify all six RBAC personas");
+  const privacy = workflow.indexOf("Verify deployed fictional HR compensation privacy");
+  assert.ok(deployed >= 0 && deployed < preflight &&
+            preflight < boundary && boundary < guardedPost &&
+            guardedPost < liveRoles && liveRoles < privacy,
+    "Read-only target/schema attestation must precede any production demo POST or HR write");
+  const preflightStep = workflow.slice(preflight, boundary);
+  assert.doesNotMatch(preflightStep, /^\s*if:\s*steps\.demo_boundary/m,
+    "Production DB identity attestation cannot be skipped when public demo login is blocked");
   assert.match(workflow, /secrets\.PRODUCTION_READINESS_TOKEN/);
   assert.match(workflow, /\/api\/readiness\/database-target/);
 });

@@ -1,4 +1,6 @@
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseAdvancedPlan } from "@/lib/enterprise-advanced-plan-server";
+import { assertOrganizationRole, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import {
   loadScopedWorkforceForecast,
   redactWorkforceForecastCosts,
@@ -52,6 +54,11 @@ export async function GET(request: Request) {
       error: "organizationId, startDate/endDate, valid scope, and numeric forecast assumptions are required.",
     }, { status: 400 });
   }
+
+  const permissionDenied = await assertOrganizationRole(user.id, organizationId, WORKFORCE_MANAGER_ROLES);
+  if (permissionDenied) return permissionDenied;
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
 
   try {
     const result = await loadScopedWorkforceForecast({

@@ -1,6 +1,30 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import test from "node:test";
-import { generateShapeAudit, HEADERS, normalizeDefault } from "../scripts/issue-1031-source-shape-audit.mjs";
+import { generateShapeAudit, HEADERS, normalizeDefault, reconstructPinnedSchemaText, HISTORICAL_SCHEMA_SHA256 } from "../scripts/issue-1031-source-shape-audit.mjs";
+
+// This is a source-only snapshot comparison. A later main index change
+// must not rewrite the Oct 17/18 evidence or invent migration receipts.
+function assertHistoricalShapeMatchesPinnedEvidence(report, snapshotPath) {
+  const frozen = readFileSync(new URL(snapshotPath, import.meta.url), "utf8");
+  assert.ok(report.rows.length > 0);
+  assert.ok(report.rows.every(row => row.source_schema_sha256 === HISTORICAL_SCHEMA_SHA256));
+  assert.equal(report.csv, frozen, "historical CSV must be byte-for-byte immutable");
+}
+
+test("only two reviewed marketing index edits can be projected to pinned schema bytes", () => {
+  const current = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
+  const historical = reconstructPinnedSchemaText(current);
+  assert.equal(createHash("sha256").update(historical.text).digest("hex"), HISTORICAL_SCHEMA_SHA256);
+  assert.equal(historical.projected, true);
+  assert.equal(reconstructPinnedSchemaText(historical.text).projected, false);
+  assert.throws(() => reconstructPinnedSchemaText(current + "\\n// unexpected source drift"),
+    /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
+  assert.throws(() => reconstructPinnedSchemaText(current.replace(
+    "table.createdAt.desc().nullsFirst()", "table.createdAt.desc().nullsLast()")),
+    /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
+});
 
 test("source-only 100-row evidence is reproducible and receipts stay completely blank", () => {
   const report = generateShapeAudit();
@@ -19,6 +43,11 @@ test("source-only 100-row evidence is reproducible and receipts stay completely 
     "checksum_matches_receipt","disposition",
   ].every(k => r[k] === "")));
   assert.equal(report.csv.split("\n").length, 102);
+  // A later forward-only repair MUST NOT rewrite the pinned 0132-era
+  // evidence simply because the live source worksheet grows to 0134.
+  assertHistoricalShapeMatchesPinnedEvidence(
+    report, "../docs/engineering/issue-1031-20261017-named-shape-analysis-partial.csv",
+  );
   assert.deepEqual(HEADERS.slice(-6), [
     "receipt_found","receipt_source","applied_at","applied_by",
     "checksum_matches_receipt","disposition",
@@ -33,6 +62,24 @@ test("source-only 100-row evidence is reproducible and receipts stay completely 
   }));
   const examples=report.rows.filter(r=>r.classification==="MATCH").slice(0,12).map(r=>r.table_name);
   console.log("ISSUE1031_MATCH_CANDIDATES "+JSON.stringify(examples));
+});
+
+test("new 0134 recovery candidates never pollute the pinned historical 0132 analysis", () => {
+  const report = generateShapeAudit("dated_named");
+  for (const name of [
+    "workforce_demand_import_batches", "workforce_demand_observation_revisions",
+    "workforce_demand_forecast_issues", "workforce_demand_forecast_scores",
+    "workforce_demand_staffing_policies", "workforce_demand_staffing_policy_events",
+  ]) {
+    const row = report.rows.find(x => x.table_name === name);
+    assert.ok(row, "the dated October 17 absence set must still contain " + name);
+    assert.doesNotMatch(row.migration_file_paths, /drizzle\/013[34]_/,
+      "historical creator metadata cannot inherit later forward-repair SQL");
+  }
+  const all = generateShapeAudit("all_numbered");
+  assertHistoricalShapeMatchesPinnedEvidence(
+    all, "../docs/engineering/issue-1031-all-numbered-creator-shape-analysis.csv",
+  );
 });
 
 test("ten manually reviewed static creators retain exact requested functional shape", () => {

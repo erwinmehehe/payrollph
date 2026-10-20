@@ -1,0 +1,86 @@
+name: Legacy Fictional Demo Header Repair Rehearsal (Disposable Only)
+
+# Issue #1102. Exercises TEMP-table, real public-schema and review-only SQL
+# correction/guard rehearsals on disposable loopback PG16/18 ONLY.
+# Full reviewed operator SQL is tested unmodified for wrong-target refusal;
+# a fixture-witness-adapted copy runs a default-ROLLBACK dry run in CI.
+# No Neon, customer records, cloud credentials, bank or filing access.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/issue-1102-header-rehearsal.yml"
+      - "scripts/qa/rehearse-1102-legacy-demo-headers.mjs"
+      - "scripts/qa/rehearse-1102-real-schema-guarded-reversal.mjs"
+      - "src/lib/public-demo-payroll-fixture.ts"
+      - "docs/sql/issue-1102-legacy-fictitious-header-REVIEW-ONLY.sql"
+      - "scripts/qa/rehearse-1102-review-only-sql.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/issue-1102-header-rehearsal.yml"
+      - "scripts/qa/rehearse-1102-legacy-demo-headers.mjs"
+      - "scripts/qa/rehearse-1102-real-schema-guarded-reversal.mjs"
+      - "src/lib/public-demo-payroll-fixture.ts"
+      - "docs/sql/issue-1102-legacy-fictitious-header-REVIEW-ONLY.sql"
+      - "scripts/qa/rehearse-1102-review-only-sql.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-1102-header-rehearsal-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  isolated-rollback:
+    name: Fictional six-worker demo correction/rollback on PostgreSQL ${{ matrix.pg }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: ["16", "18"]
+    env:
+      CI: "true"
+      DEMO_MODE: "true"
+      NODE_ENV: "test"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      TZ: Asia/Manila
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Rehearse exact legacy demo headers, guard denials, change and full rollback
+        run: npx tsx scripts/qa/rehearse-1102-legacy-demo-headers.mjs
+
+      - name: Build real source schema on disposable PostgreSQL only
+        run: npm run db:push
+      - name: Rehearse guarded correction and committed reversal on real public tables
+        run: npx tsx scripts/qa/rehearse-1102-real-schema-guarded-reversal.mjs
+      - name: Validate committed operator SQL and new fail-closed dependency guards
+        run: npx tsx scripts/qa/rehearse-1102-review-only-sql.mjs

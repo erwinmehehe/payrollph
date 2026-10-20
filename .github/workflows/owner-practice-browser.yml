@@ -1,0 +1,41 @@
+name: Owner practice payroll browser (Synthetic Only)
+on:
+  pull_request:
+    paths:
+      - 'src/lib/practice-payroll*'
+      - 'src/lib/dashboard-data.ts'
+      - 'src/lib/critical-release-flags.ts'
+      - 'src/components/workspace/practice-payroll*'
+      - 'src/components/linaw-workspace.tsx'
+      - 'tests/owner-practice-payroll.test.ts'
+      - 'scripts/qa/owner-practice-*'
+      - '.github/workflows/owner-practice-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: owner-practice-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  component-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres@127.0.0.1:1/unused_practice
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx tsx --test tests/owner-practice-payroll.test.ts
+      - run: npx tsx scripts/qa/owner-practice-fixture.ts
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/qa/owner-practice-browser.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: owner-practice-browser
+          path: qa-artifacts/owner-practice/

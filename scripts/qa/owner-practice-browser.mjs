@@ -1,0 +1,88 @@
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.QA_PLAYWRIGHT_MODULE ?? 'playwright');
+const out = 'qa-artifacts/owner-practice';
+await mkdir(out, { recursive: true });
+await build({ stdin: { contents: `import {createRoot} from 'react-dom/client';
+import {PracticePayrollCard} from './src/components/workspace/practice-payroll';
+import fixture from './qa-artifacts/owner-practice/fixture.json';
+const mode=new URLSearchParams(location.search).get('mode');
+createRoot(document.getElementById('root')).render(<main><h1>Owner dashboard</h1>{mode!=='baseline'&&<PracticePayrollCard payload={mode==='off'?undefined:mode==='error'?{status:'unavailable'}:fixture}/>}</main>);`,
+resolveDir: process.cwd(), sourcefile: 'practice-browser.tsx', loader: 'tsx' }, bundle: true,
+platform: 'browser', jsx: 'automatic', define: { 'process.env.NODE_ENV': '"development"' }, outfile: out + '/bundle.js' });
+const js = await readFile(out + '/bundle.js');
+const css = await readFile(out + '/bundle.css', 'utf8');
+const server = createServer((req, res) => {
+  res.setHeader('Content-Type', req.url === '/bundle.js' ? 'text/javascript' : 'text/html');
+  res.end(req.url === '/bundle.js' ? js : `<!doctype html><html lang="en"><head><title>Practice payroll verification</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#f5f8fc;color:#122e4c;font:16px/1.5 Arial}main{max-width:1120px;margin:auto;padding:16px}button{font:inherit;cursor:pointer;padding:10px 16px;border-radius:8px;border:1px solid #526879}.primary-button{background:#0865cf;color:white}.secondary-button{background:white;color:#173b60}button:disabled{opacity:.6;cursor:default}button:focus-visible{outline:3px solid #0666cd;outline-offset:3px}${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);
+});
+await new Promise(r => server.listen(0, '127.0.0.1', r));
+const base = 'http://127.0.0.1:' + server.address().port;
+const browser = await chromium.launch({ headless: true, ...(process.env.QA_CHROMIUM_EXECUTABLE ? { executablePath: process.env.QA_CHROMIUM_EXECUTABLE } : {}) });
+const results = [];
+try {
+  for (const width of [1440, 390]) {
+    const page = await browser.newPage({ viewport: { width, height: 1000 } });
+    const errors = [], apiCalls = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.route('**/api/**', route => { apiCalls.push(route.request().url()); return route.abort(); });
+    await page.goto(base + '?mode=baseline');
+    await page.getByRole('heading', { name: 'Owner dashboard' }).waitFor();
+    const baseline = await page.locator('#root').innerHTML();
+    await page.goto(base + '?mode=off');
+    await page.getByRole('heading', { name: 'Owner dashboard' }).waitFor();
+    assert.equal(await page.locator('#root').innerHTML(), baseline);
+    await page.screenshot({ path: `${out}/off-${width}.png`, fullPage: true });
+    await page.goto(base + '?mode=ready');
+    const launch = page.getByRole('button', { name: 'Open practice payroll' });
+    await launch.focus(); await page.keyboard.press('Enter');
+    const heading = page.getByRole('heading', { name: 'Practice payroll workspace' });
+    await heading.waitFor();
+    await page.waitForFunction(() => document.activeElement?.textContent === 'Practice payroll workspace');
+    const people = page.getByRole('group', { name: 'Fictional employees to include' }).getByRole('checkbox');
+    await people.nth(0).uncheck(); await people.nth(1).uncheck();
+    await page.getByRole('button', { name: 'Calculate practice payroll' }).click();
+    await page.getByRole('alert').waitFor();
+    assert.equal(await page.getByRole('region', { name: 'Practice calculation results' }).count(), 0);
+    await page.screenshot({ path: `${out}/empty-${width}.png`, fullPage: true });
+    await people.nth(0).check(); await people.nth(1).check();
+    await page.getByRole('button', { name: 'Calculate practice payroll' }).click();
+    await page.getByRole('heading', { name: 'Practice calculation complete' }).waitFor();
+    assert.ok((await page.getByRole('region', { name: 'Practice calculation results' }).innerText()).includes('PHP 26,000.00'));
+    const review = page.getByRole('button', { name: 'Complete practice review', exact: true });
+    assert.equal(await review.isDisabled(), true);
+    await page.getByRole('checkbox', { name: 'I understand these are fictional results and no wages will be paid.' }).check();
+    await review.focus(); await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: /View sample payslip for Fictional Alex/ }).click();
+    await page.getByRole('article', { name: /Sample payslip for Fictional Alex/ }).waitFor();
+    assert.ok((await page.getByRole('article').innerText()).includes('PRACTICE ONLY — NOT A REAL PAYSLIP'));
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'no horizontal overflow');
+    await page.screenshot({ path: `${out}/payslip-${width}.png`, fullPage: true });
+    await page.getByLabel('Fictional scenario').selectOption('1');
+    assert.equal(await page.getByRole('article').count(), 0);
+    assert.equal(await page.getByRole('region', { name: 'Practice calculation results' }).count(), 0);
+    await page.getByRole('button', { name: 'Calculate practice payroll' }).click();
+    await page.getByRole('heading', { name: 'Practice calculation complete' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Complete practice review', exact: true }).isDisabled(), true);
+    await page.getByRole('button', { name: 'Close practice' }).click();
+    assert.equal(await launch.evaluate(el => el === document.activeElement), true);
+    await launch.click();
+    assert.equal(await page.getByLabel('Fictional scenario').inputValue(), '0');
+    assert.equal(await page.getByRole('region', { name: 'Practice calculation results' }).count(), 0);
+    await page.goto(base + '?mode=error');
+    await page.getByRole('button', { name: 'Open practice payroll' }).click();
+    await page.getByRole('alert').waitFor();
+    await page.getByRole('button', { name: 'Reload to retry' }).waitFor();
+    await page.screenshot({ path: `${out}/unavailable-${width}.png`, fullPage: true });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    assert.deepEqual(apiCalls, []); assert.deepEqual(errors, []);
+    results.push({ width, result: 'PASS', flagOffDomParity: true, apiCalls: 0, keyboardAndReset: true });
+    await page.close();
+  }
+  await writeFile(out + '/results.json', JSON.stringify({ results, boundary: 'Actual React component and canonical engine fixtures. Not live payroll approval or authenticated HTTP proof.' }, null, 2));
+  console.log(JSON.stringify({ result: 'PASS', results }));
+} finally { await browser.close(); await new Promise(r => server.close(r)); }

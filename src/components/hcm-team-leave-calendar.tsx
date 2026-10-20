@@ -11,11 +11,14 @@ import {
   teamLeaveMonthWindow, TEAM_LEAVE_MONTHS_AHEAD,
   type TeamLeaveCase, type TeamLeaveMonthResponse,
 } from "@/lib/hcm-team-leave-calendar-contract";
+import { readScopedResponse, scopedReadFailureMessage, type ScopedReadFailure } from "@/lib/hcm-scoped-read-failure";
+import { validTeamLeaveResponse } from "@/lib/hcm-scoped-read-validation";
 
 type LoadState = {
   requestKey: string;
   status: "ready" | "unavailable";
   payload: TeamLeaveMonthResponse | null;
+  failure?: ScopedReadFailure;
 };
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -67,31 +70,19 @@ export function HcmTeamLeaveCalendar({
       organizationId: String(organizationId),
       month,
     });
-    void fetch("/api/hcm/team-leave-calendar?" + params.toString(), {
-      cache: "no-store", signal: controller.signal,
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("The team leave source is unavailable.");
-      const result = await response.json() as TeamLeaveMonthResponse;
+    const expectedDates = teamLeaveMonthWindow(month);
+    void readScopedResponse(
+      () => fetch("/api/hcm/team-leave-calendar?" + params.toString(), {
+        cache: "no-store", signal: controller.signal,
+      }),
+      (payload): payload is TeamLeaveMonthResponse =>
+        validTeamLeaveResponse(payload, organizationId, month, expectedDates),
+    ).then((result) => {
       if (controller.signal.aborted) return;
-      const expectedDates = teamLeaveMonthWindow(month);
-      if (result.organizationId !== organizationId || result.month !== month ||
-          result.dates?.start !== expectedDates.start ||
-          result.dates?.end !== expectedDates.end ||
-          !["company", "unit"].includes(result.scope?.kind) ||
-          !Array.isArray(result.cases) || result.cases.length > 400 ||
-          result.cases.some((entry) =>
-            !Number.isSafeInteger(entry.requestId) || entry.requestId < 1 ||
-            !Number.isSafeInteger(entry.employeeId) || entry.employeeId < 1 ||
-            !["Approved", "Pending"].includes(entry.status) ||
-            entry.startDate > entry.endDate ||
-            entry.startDate > expectedDates.end ||
-            entry.endDate < expectedDates.start)) {
-        throw new Error("The leave response did not match the selected employer or month.");
-      }
-      setLoaded({ requestKey, status: "ready", payload: result });
-    }).catch(() => {
-      if (!controller.signal.aborted) {
-        setLoaded({ requestKey, status: "unavailable", payload: null });
+      if (result.status === "ready") {
+        setLoaded({ requestKey, status: "ready", payload: result.data });
+      } else {
+        setLoaded({ requestKey, status: "unavailable", payload: null, failure: result.failure });
       }
     });
     return () => controller.abort();
@@ -204,8 +195,14 @@ export function HcmTeamLeaveCalendar({
           )}
           {active?.status === "unavailable" && (
             <div role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
-              Leave records are unavailable, your scope changed, or the supported month size was exceeded.
-              Previously loaded records were cleared. No missing results are treated as staff availability.
+              <strong>{active.failure === "forbidden" ? "Leave calendar access denied" :
+                active.failure === "sign_in" ? "Sign in required" : "Leave records unavailable"}</strong>
+              <p className="mt-1">{scopedReadFailureMessage(active.failure ?? "server")}</p>
+              <p className="mt-2 text-xs">Previously loaded records were cleared. No missing results are treated as staff availability.</p>
+              <button type="button" onClick={() => setRevision((number) => number + 1)}
+                className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-amber-500 bg-white px-4 py-2 font-semibold text-amber-950 hover:bg-amber-100">
+                <RefreshCcw size={16} aria-hidden="true" /> Try again
+              </button>
             </div>
           )}
 

@@ -32,13 +32,14 @@ test("CI keeps the required check job conditional on all shard results", () => {
   const checkJob = source.split("\n  check:\n")[1];
   assert.ok(checkJob, "CI aggregate job must exist");
   assert.ok(checkJob.includes("if: ${{ always() }}"), "CI aggregate cannot be skipped");
-  assert.ok(checkJob.includes("needs: test-shard"), "CI aggregate must depend on every shard");
+  assert.ok(checkJob.includes("needs: [test-shard, audit-chain-protection]"), "CI aggregate must depend on every shard");
   // Without the explicit status function, failed ancestors can suppress this guard.
-  assert.ok(checkJob.includes("if: ${{ always() && needs.test-shard.result != 'success' }}"),
+  assert.ok(checkJob.includes("if: ${{ always() && (needs.test-shard.result != 'success' || needs.audit-chain-protection.result != 'success') }}"),
     "failed/cancelled/skipped shard must fail the required aggregate job");
   assert.ok(checkJob.includes("exit 1"), "guard must explicitly fail");
-  assert.ok(checkJob.indexOf("Required CI cannot pass unless every regression shard succeeded") <
+  assert.ok(checkJob.indexOf("Required CI needs both regression shards and audit-chain-protection") <
     checkJob.indexOf("actions/checkout@"), "failure gate must be the first step");
+  assert.match(source, /audit-chain-protection:\n/);
   assert.match(source, /run: node scripts\/run-sharded-tests\.mjs/);
   assert.match(source, /postgres:\s*\n\s*image: postgres:16/);
 });

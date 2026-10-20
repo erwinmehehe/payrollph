@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
+import pg from "pg";
 
 /** Synthetic-only direct-route enforcement browser QA on a separate localhost instance. */
 const url = "http://127.0.0.1:3002";
@@ -15,10 +16,10 @@ assert.equal(database.pathname, "/app_db");
 
 const browser = await chromium.launch({ headless: true });
 const receipts = [];
-async function login(context, email) {
-  const response = await context.request.post(url + "/api/auth/login", {
+async function login(context, email, baseUrl = url) {
+  const response = await context.request.post(baseUrl + "/api/auth/login", {
     headers: {
-      origin: url, "sec-fetch-site": "same-origin", "content-type": "application/json",
+      origin: baseUrl, "sec-fetch-site": "same-origin", "content-type": "application/json",
     },
     data: { email, password: "Synthetic-HCM-Monitor-Only-2026!" },
     failOnStatusCode: false,
@@ -100,6 +101,70 @@ try {
   receipts.push("Active Enterprise HR may inspect definitions; invalid write never mutates");
 
   receipts.push("Active Enterprise HR sees advanced navigation; Core HR does not");
+
+  // #850 real localhost server/browser assertions: two actual paid plans,
+  // one HR operator who belongs to both fictional employers, no mutations.
+  for (const endpoint of [
+    "/api/workforce-planning",
+    "/api/workforce-planning/allocations",
+    "/api/workforce-planning/baselines",
+    "/api/workforce-planning/scenarios",
+    "/api/workforce-planning/position-executions",
+  ]) {
+    const enterprise = await read(page, endpoint + "?organizationId=1");
+    assert.equal(enterprise.status, 200, "Enterprise HR must read " + endpoint);
+    const core = await read(page, endpoint + "?organizationId=2");
+    assert.equal(core.status, 402, "Core HR direct API bypass must be denied " + endpoint);
+    assert.equal(core.body?.code, "ENTERPRISE_ADVANCED_PLAN_REQUIRED");
+    assert.ok(core.headers?.includes("no-store"), "Private denial required for " + endpoint);
+  }
+  // Real browser session switches between employers with the SAME employee
+  // number. Employee IDs differ, and neither source may leak the other's row.
+  const planAlpha = await read(page, "/api/workforce-planning?organizationId=1");
+  assert.deepEqual(planAlpha.body?.employees?.map((employee) => employee.firstName),
+    ["Fictional"], "Enterprise Planning must return ONLY employer A's worker");
+  assert.ok(!JSON.stringify(planAlpha.body).includes("TenantBetaOnly"));
+  const compBeta = await read(page, "/api/compensation?organizationId=2");
+  assert.deepEqual(compBeta.body?.employees?.map((employee) => employee.firstName),
+    ["TenantBetaOnly"], "Core compensation must return ONLY employer B's worker");
+  assert.ok(!JSON.stringify(compBeta.body).includes('"firstName":"Fictional"'));
+  const compAlpha = await read(page, "/api/compensation?organizationId=1");
+  assert.deepEqual(compAlpha.body?.employees?.map((employee) => employee.firstName),
+    ["Fictional"], "Enterprise compensation must retain employer A only");
+  assert.ok(!JSON.stringify(compAlpha.body).includes("TenantBetaOnly"));
+  receipts.push("Same employee number across employers: Planning/Compensation browser switching never crosses tenant");
+
+  const advancedPlanning = await write(page, "/api/workforce-planning",
+    { organizationId: 1, entityType: "plan" });
+  assert.equal(advancedPlanning.status, 400, "Paid planning must reach ordinary input validation");
+  const corePlanning = await write(page, "/api/workforce-planning",
+    { organizationId: 2, entityType: "plan" });
+  assert.equal(corePlanning.status, 402, "Core planning cannot bypass subscription with a POST");
+  const baselineCore = await write(page, "/api/workforce-planning/position-executions",
+    { organizationId: 2, planId: 1 });
+  assert.equal(baselineCore.status, 402,
+    "Published plan execution preview is not an Enterprise-free direct POST");
+
+  const compEnterprise = await read(page, "/api/compensation?organizationId=1");
+  assert.equal(compEnterprise.status, 200);
+  assert.equal(compEnterprise.body?.advancedConfigurationAllowed, true);
+  const compCore = await read(page, "/api/compensation?organizationId=2");
+  assert.equal(compCore.status, 200,
+    "Core must retain authorized worker pay/proposal evidence");
+  assert.equal(compCore.body?.advancedConfigurationAllowed, false);
+  const compNewBand = await write(page, "/api/compensation",
+    { organizationId: 2, entityType: "band" });
+  assert.equal(compNewBand.status, 402, "Core cannot create salary bands from direct API");
+  const compPaidCycle = await write(page, "/api/compensation",
+    { organizationId: 1, entityType: "cycle" });
+  assert.equal(compPaidCycle.status, 400,
+    "Enterprise can reach salary cycle validation without creating bad records");
+  const coreExistingPay = await write(page, "/api/compensation",
+    { organizationId: 2, entityType: "component_assignment" });
+  assert.equal(coreExistingPay.status, 400,
+    "Subscription cannot block already-governed worker compensation validation");
+  receipts.push("Advanced Planning/Compensation direct APIs enforce Enterprise; Core assigned pay intact");
+
 
   // These are advanced READ surfaces, not the employee's everyday ESS view.
   assert.equal(await open(page, "/hcm/action-center?organizationId=1"), 200,
@@ -206,7 +271,20 @@ try {
     "/api/hcm/worker-360?organizationId=1&employeeId=1");
   assert.equal(managerWorker.status, 403, "Manager must fail before the plan gate");
   assert.ok(!JSON.stringify(managerWorker.body).includes("HCM_ENTERPRISE_PLAN_REQUIRED"));
-  receipts.push("Unprivileged manager cannot buy their way past existing roles");
+  // The same rejected manager must also fail paid #850 APIs BEFORE billing,
+  // including when attempting another employer with no membership.
+  for (const employer of [1, 2]) {
+    const deniedPlanning = await read(managerPage,
+      "/api/workforce-planning?organizationId=" + employer);
+    assert.equal(deniedPlanning.status, 403);
+    assert.notEqual(deniedPlanning.body?.code, "ENTERPRISE_ADVANCED_PLAN_REQUIRED");
+  }
+  assert.equal((await write(managerPage, "/api/workforce-planning",
+    { organizationId: 1, entityType: "plan" })).status, 403);
+  assert.equal((await read(managerPage, "/api/compensation?organizationId=1")).status, 403);
+  assert.equal((await write(managerPage, "/api/compensation",
+    { organizationId: 1, entityType: "band" })).status, 403);
+  receipts.push("Unprivileged manager cannot buy their way past existing roles or #850 APIs");
   await manager.close();
 
   const bookkeeper = await browser.newContext();
@@ -224,6 +302,47 @@ try {
     "Enrolled bookkeeper cannot revise source approver rules");
   await bookkeeper.close();
   receipts.push("Bookkeeper is denied Enterprise workflow design even in a paid employer");
+
+  const deniedHr = await browser.newContext();
+  await login(deniedHr, "monitor-denied-hr@example.test");
+  const deniedPage = await deniedHr.newPage();
+  await deniedPage.goto(url + "/login", { waitUntil: "domcontentloaded" });
+  const deniedPlanning = await read(deniedPage, "/api/workforce-planning?organizationId=1");
+  assert.equal(deniedPlanning.status, 403, "Custom-denied HR cannot read paid Planning");
+  assert.equal(deniedPlanning.body?.permission, "workforce.manage");
+  assert.equal((await write(deniedPage, "/api/workforce-planning",
+    { organizationId: 1, entityType: "plan" })).status, 403);
+  const deniedComp = await read(deniedPage, "/api/compensation?organizationId=1");
+  assert.equal(deniedComp.status, 403, "Custom-denied HR cannot read pay under a premium plan");
+  assert.equal(deniedComp.body?.permission, "people.admin");
+  const deniedCompWrite = await write(deniedPage, "/api/compensation",
+    { organizationId: 1, entityType: "band" });
+  assert.equal(deniedCompWrite.status, 403, "Direct compensation POST must honor deny-only roles");
+  assert.equal(deniedCompWrite.body?.permission, "people.admin");
+  await deniedHr.close();
+  receipts.push("Custom-denied HR fails Planning and Compensation GET/POST before billing");
+
+  // A second independently started, flag-OFF runtime must preserve the
+  // ordinary Core employer's pre-existing access without Enterprise lookup.
+  const offUrl = "http://127.0.0.1:3000";
+  const flagOff = await browser.newContext();
+  await login(flagOff, "monitor-hr@example.test", offUrl);
+  const offPage = await flagOff.newPage();
+  await offPage.goto(offUrl + "/login", { waitUntil: "domcontentloaded" });
+  const offPlanning = await read(offPage, "/api/workforce-planning?organizationId=2");
+  assert.equal(offPlanning.status, 200, "Default-OFF Core Planning must be unchanged");
+  assert.deepEqual(offPlanning.body?.employees?.map((employee) => employee.firstName),
+    ["TenantBetaOnly"]);
+  const offComp = await read(offPage, "/api/compensation?organizationId=2");
+  assert.equal(offComp.status, 200, "Default-OFF Core compensation must be unchanged");
+  assert.equal(offComp.body?.advancedConfigurationAllowed, true);
+  assert.equal((await write(offPage, "/api/workforce-planning",
+    { organizationId: 2, entityType: "plan" })).status, 400,
+    "Default-OFF source validation must run instead of premium check");
+  assert.equal((await write(offPage, "/api/compensation",
+    { organizationId: 2, entityType: "band" })).status, 400);
+  await flagOff.close();
+  receipts.push("Independent flag-OFF browser runtime retains Core Planning and Compensation");
 
   const unauthenticated = await browser.newContext();
   const anonymousPage = await unauthenticated.newPage();
@@ -246,6 +365,89 @@ try {
     "Anonymous Worker 360 API request must fail before billing");
   await unauthenticated.close();
   receipts.push("Unauthenticated requests denied before billing");
+
+  // Keep the SAME authenticated Chromium session while role and subscription
+  // records change underneath it. No mocked handlers or detached HTTP client.
+  // Synthetic disposable PostgreSQL only; every mutation is restored.
+  const pool = new pg.Pool({ connectionString: env.DATABASE_URL, max: 1 });
+  try {
+    const membership = await pool.query(
+      `SELECT uo.role FROM user_organizations uo
+       JOIN users u ON u.id = uo.user_id
+       WHERE u.email = $1 AND uo.organization_id = 1`,
+      ["monitor-hr@example.test"],
+    );
+    assert.equal(membership.rows.length, 1);
+    assert.equal(membership.rows[0].role, "hr");
+    let changedRole = false;
+    try {
+      const updated = await pool.query(
+        `UPDATE user_organizations SET role = 'employee'
+         WHERE organization_id = 1 AND role = 'hr'
+           AND user_id = (SELECT id FROM users WHERE email = $1)
+         RETURNING id`,
+        ["monitor-hr@example.test"],
+      );
+      assert.equal(updated.rowCount, 1);
+      changedRole = true;
+      const deniedPlan = await read(page, "/api/workforce-planning?organizationId=1");
+      assert.equal(deniedPlan.status, 403, "Live HR-to-employee downgrade must revoke Planning");
+      assert.equal((await write(page, "/api/workforce-planning",
+        { organizationId: 1, entityType: "plan" })).status, 403);
+      assert.equal((await read(page, "/api/compensation?organizationId=1")).status, 403);
+      assert.equal((await write(page, "/api/compensation",
+        { organizationId: 1, entityType: "band" })).status, 403);
+      const stillHrBeta = await read(page, "/api/compensation?organizationId=2");
+      assert.equal(stillHrBeta.status, 200,
+        "Downgrade in employer A cannot revoke independent employer B membership");
+      assert.equal(stillHrBeta.body?.advancedConfigurationAllowed, false);
+    } finally {
+      if (changedRole) {
+        const restored = await pool.query(
+          `UPDATE user_organizations SET role = 'hr'
+           WHERE organization_id = 1 AND role = 'employee'
+             AND user_id = (SELECT id FROM users WHERE email = $1)
+           RETURNING id`,
+          ["monitor-hr@example.test"],
+        );
+        assert.equal(restored.rowCount, 1, "Restore original fictional HR role");
+      }
+    }
+    assert.equal((await read(page, "/api/workforce-planning?organizationId=1")).status, 200);
+    receipts.push("Live same-session role downgrade revokes Planning/Compensation; other employer remains independent");
+
+    let changedSubscription = false;
+    try {
+      const updated = await pool.query(
+        `UPDATE subscriptions SET status = 'past_due'
+         WHERE organization_id = 1 AND status = 'active'
+         RETURNING id`,
+      );
+      assert.equal(updated.rowCount, 1);
+      changedSubscription = true;
+      const deniedPlan = await read(page, "/api/workforce-planning?organizationId=1");
+      assert.equal(deniedPlan.status, 402, "Enterprise status must be checked on each request");
+      assert.equal(deniedPlan.body?.code, "ENTERPRISE_ADVANCED_PLAN_REQUIRED");
+      const unchangedPay = await read(page, "/api/compensation?organizationId=1");
+      assert.equal(unchangedPay.status, 200, "Core pay evidence remains available when billing lapses");
+      assert.equal(unchangedPay.body?.advancedConfigurationAllowed, false);
+      assert.equal((await write(page, "/api/compensation",
+        { organizationId: 1, entityType: "band" })).status, 402);
+    } finally {
+      if (changedSubscription) {
+        const restored = await pool.query(
+          `UPDATE subscriptions SET status = 'active'
+           WHERE organization_id = 1 AND status = 'past_due'
+           RETURNING id`,
+        );
+        assert.equal(restored.rowCount, 1, "Restore fictional Enterprise subscription");
+      }
+    }
+    assert.equal((await read(page, "/api/workforce-planning?organizationId=1")).status, 200);
+    receipts.push("Live subscription lapse denies premium API but preserves existing worker pay reads");
+  } finally {
+    await pool.end();
+  }
   console.log(JSON.stringify({
     status: "PASS", syntheticOnly: true, directApiAndPageGate: true,
     configuredEmployers: [1, 2], receipts, liveEmployerDataAccessed: false,

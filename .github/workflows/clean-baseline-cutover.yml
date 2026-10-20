@@ -1,0 +1,154 @@
+name: Clean Baseline Cutover (Manual, Protected)
+
+# Builds the source-first baseline on an EMPTY, pinned Neon target in one
+# transaction: schema (source push + 0109 + supplement), v2 audit guards,
+# least-privilege grants, migration ledgers with a baseline-included receipt per
+# historical file, and the cutover row. dry-run rolls back; apply commits and is
+# then verified read-only as the planner and the DML-only app role.
+#
+# Before the first run (see docs/engineering/clean-baseline-cutover-runbook.md):
+#   - an empty Neon target database and the payrollph_* roles, created by SQL
+#   - environment "production" with required reviewers, variables
+#     PRODUCTION_NEON_PROJECT_ID / _BRANCH_ID / _ENDPOINT_ID pointing at the NEW
+#     target, and the secrets referenced below.
+# It refuses the original production and QA branches and any non-empty target.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        required: true
+        default: dry-run
+        options:
+          - dry-run
+          - apply
+      reviewed_sha:
+        description: Exact reviewed main commit SHA (40 hex)
+        required: true
+        type: string
+      expected_database_name:
+        description: Target database name (not a URL)
+        required: true
+        default: payrollph_clean_baseline
+        type: string
+      approval_ref:
+        description: Owner approval reference (apply only)
+        required: false
+        type: string
+      apply_confirmation:
+        description: Type APPLY_CLEAN_BASELINE_CUTOVER for apply
+        required: false
+        default: "NO"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payrollph-clean-baseline-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      CI: "true"
+      NINE_STAGE_PG_MAJOR: "18"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      TZ: Asia/Manila
+      REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+      EXPECTED_DATABASE_NAME: ${{ inputs.expected_database_name }}
+      EXPECTED_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+      EXPECTED_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
+      EXPECTED_NEON_ENDPOINT_ID: ${{ vars.PRODUCTION_NEON_ENDPOINT_ID }}
+      CUTOVER_APPROVAL_REF: ${{ inputs.approval_ref }}
+      CUTOVER_APPLY_CONFIRMATION: ${{ inputs.apply_confirmation }}
+    services:
+      # Local, disposable build server for the schema artifact. Never the target.
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Reject wrong release target before dependencies or secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$REVIEWED_SHA" != "$GITHUB_SHA" ]; then
+            echo 'The reviewed SHA does not match this workflow commit.'; exit 1
+          fi
+          if [[ ! "$EXPECTED_NEON_PROJECT_ID" =~ ^[a-z0-9-]{1,60}$ ]] ||
+             [[ ! "$EXPECTED_NEON_BRANCH_ID" =~ ^br-[a-z0-9-]{6,60}$ ]] ||
+             [[ ! "$EXPECTED_NEON_ENDPOINT_ID" =~ ^ep-[a-z0-9-]{6,60}$ ]]; then
+            echo 'Pinned Neon project/branch/endpoint variables are missing.'; exit 1
+          fi
+          case "$EXPECTED_NEON_BRANCH_ID" in
+            br-lucky-sound-b79i56jw|br-green-hat-b77qj8fs)
+              echo 'Refusing the original production or QA branch as a cutover target.'; exit 1 ;;
+          esac
+          if [[ ! "$EXPECTED_DATABASE_NAME" =~ ^[A-Za-z0-9_]{1,63}$ ]]; then
+            echo 'A plain target database name is required.'; exit 1
+          fi
+          if [ "${{ inputs.mode }}" = apply ]; then
+            if [ "${GITHUB_REF_PROTECTED:-}" != "true" ]; then
+              echo 'Apply blocked: the main branch must be protected.'; exit 1
+            fi
+            if [ "$CUTOVER_APPLY_CONFIRMATION" != APPLY_CLEAN_BASELINE_CUTOVER ] ||
+               [[ ! "$CUTOVER_APPROVAL_REF" =~ ^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,120}$ ]]; then
+              echo 'Apply requires an approval reference and the explicit confirmation.'; exit 1
+            fi
+          fi
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies without cutover secrets
+        run: npm ci
+      - name: Build the schema artifact on the local server (push + 0109 + supplement)
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run db:push
+          node scripts/qa/apply-audit-0109-isolated.mjs
+          node scripts/qa/apply-source-baseline-supplement.mjs
+          mkdir -p cutover-artifact
+          docker exec "$PG_CONTAINER" pg_dump -U postgres -d app_db --schema-only --schema=public \
+            --no-owner --no-privileges --no-tablespaces --no-security-labels > cutover-artifact/schema-only.sql
+          test -s cutover-artifact/schema-only.sql
+          echo "CUTOVER_ARTIFACT_SHA256 $(sha256sum cutover-artifact/schema-only.sql | cut -d' ' -f1)"
+      - name: Cutover (${{ inputs.mode }})
+        env:
+          CUTOVER_TARGET_DATABASE_URL: ${{ secrets.PRODUCTION_CUTOVER_OWNER_DATABASE_URL }}
+        run: node scripts/run-clean-baseline-cutover.mjs --${{ inputs.mode }} --artifact cutover-artifact/schema-only.sql
+      - name: Verify read-only as the migration planner
+        if: ${{ inputs.mode == 'apply' }}
+        env:
+          PLANNER_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_AUDIT_DATABASE_URL }}
+        run: node scripts/verify-clean-baseline-cutover.mjs
+      - name: Verify request-time schema checks as the DML-only app role (no writes)
+        if: ${{ inputs.mode == 'apply' }}
+        env:
+          PROBE_APP_DATABASE_URL: ${{ secrets.PRODUCTION_CUTOVER_APP_DATABASE_URL }}
+          REQUEST_SCHEMA_READONLY_ENABLED: "true"
+          CORE_SCHEMA_COMPATIBILITY_MODE: read-only
+        run: npx tsx scripts/qa/probe-runtime-ddl-as-app-role.ts --fail-on-error

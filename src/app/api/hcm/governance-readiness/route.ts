@@ -31,7 +31,11 @@ export async function GET(request: Request) {
       error: "The governance dashboard is not enabled in this environment.",
     }, { status: 404, headers: { "Cache-Control": "private, no-store" } });
   }
-  return Response.json(await loadHcmGovernanceReadiness(organizationId), {
+  // Echo the authorized employer so clients can reject stale or mismatched snapshots.
+  return Response.json({
+    organizationId,
+    ...await loadHcmGovernanceReadiness(organizationId),
+  }, {
     headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
 }

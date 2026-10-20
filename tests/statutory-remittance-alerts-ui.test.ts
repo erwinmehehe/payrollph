@@ -20,10 +20,20 @@ test("owner and payroll dashboards both surface statutory remittance watch", () 
   const matches = overview.match(/<StatutoryRemittanceWatch/g) ?? [];
   assert.equal(matches.length, 2);
   assert.ok(overview.includes('onOpen={() => onPage("Payroll")}'));
+  assert.equal((overview.match(/legalEntityId=\{data\.multiEntity\?\.legalEntityId \?\? null\}/g) ?? []).length, 2);
+  assert.equal((overview.match(/requiresLegalEntitySelection=\{data\.multiEntity\?\.enabled === true\}/g) ?? []).length, 2);
 });
 
 test("dashboard watch never silently treats an API failure as compliant", () => {
-  assert.ok(watch.includes("Remittance status could not be checked"));
+  const reader = readFileSync("src/lib/statutory-remittance-watch-payload.ts", "utf8");
+  assert.match(reader, /if \(!response\.ok\) throw new Error\("Statutory remittance status could not be checked\."\)/,
+    "a non-OK response must stop before any success status is rendered");
+  assert.ok(watch.includes("readVerifiedStatutoryRemittanceAlerts"));
+  assert.ok(watch.includes('phase: "unavailable"'));
+  assert.ok(watch.includes("Retry status read"));
+  assert.ok(reader.includes("isVerifiedRemittanceSnapshot(value, organizationId, legalEntityId)"));
+  assert.ok(watch.includes("requiresLegalEntitySelection && !props.legalEntityId"));
+  assert.ok(watch.includes("No remittance compliance result is available for the combined employer view."));
   assert.ok(watch.includes("Compliance status unavailable"));
   assert.ok(watch.includes("Statutory remittances need attention"));
   assert.ok(watch.includes("Statutory remittances are on track"));
