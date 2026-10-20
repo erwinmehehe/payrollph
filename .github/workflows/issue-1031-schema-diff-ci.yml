@@ -57,4 +57,4 @@ jobs:
       - name: Disposable PostgreSQL 16 drift-injection proof
         env:
           ISSUE1031_DISPOSABLE_PG_URL: postgresql://fixture:fixture@127.0.0.1:5432/issue1031_schema_fixture
-        run: ./node_modules/.bin/tsx --test tests/issue-1031-full-schema-postgres.test.ts
+        run: ./node_modules/.bin/tsx --test tests/issue-1031-full-schema-postgres.test.ts tests/issue-1031-full-schema-rls-postgres.test.ts
