@@ -43,7 +43,7 @@ export async function verifyBankTenantIsolation(f, { request, expectStatus, make
       trace: { payment: { employeeName: "FictionalBank Worker" + idx,
         employeeNo: worker.employeeNo, bankAccount: encrypted, bankCode: "CI", mobile: null } },
     });
-    await db.update(sessions).set({ mfaVerifiedAt: new Date() })
+    await db.update(users).set({ totpEnabled: true }).where(eq(users.id, f.owners[idx].id)); await db.update(sessions).set({ mfaVerifiedAt: new Date() })
       .where(eq(sessions.id, f.ownerSessions[idx].id));
     const created = expectStatus(await request("/api/compliance/bank-validations", {
       method: "POST", cookie: f.ownerSessions[idx].cookie,
@@ -108,7 +108,7 @@ export async function verifyBankTenantIsolation(f, { request, expectStatus, make
     }
     // A previously authorized reader loses the old employer grant but stays signed in.
     const [formerOwner] = await db.insert(users).values({ email: "bank-revoke-" + nonce + idx + "@example.invalid",
-      name: "Fictional former owner", passwordHash: "unused-fixture", role: "owner" }).returning();
+      name: "Fictional former owner", passwordHash: "unused-fixture", role: "owner", totpEnabled: true }).returning();
     await db.insert(userOrganizations).values([org.id, f.orgs[idx === 1 ? 2 : 1].id].map(organizationId => ({
       userId: formerOwner.id, organizationId, role: "owner", active: true,
     })));
