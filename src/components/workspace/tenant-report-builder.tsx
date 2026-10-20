@@ -13,7 +13,13 @@ const DEFAULT_FIELDS: Record<ReportBuilderDataset, string[]> = {
 };
 type Preview = { key: string; columns: string[]; rows: string[][] };
 
+// Employer changes must create a new stateful view; otherwise an A→B→A
+// switch can reuse a previously authorized preview with an identical key.
 export function TenantReportBuilder({ organizationId }: { organizationId: number }) {
+  return <ScopedTenantReportBuilder key={organizationId} organizationId={organizationId} />;
+}
+
+function ScopedTenantReportBuilder({ organizationId }: { organizationId: number }) {
   const [capabilities, setCapabilities] = useState<{ scope: string; value: ReportBuilderCapabilities } | null>(null);
   const [capabilityRetry, setCapabilityRetry] = useState(0);
   const [dataset, setDataset] = useState<ReportBuilderDataset>("people");
