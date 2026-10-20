@@ -1,7 +1,7 @@
 /**
  * Manifest-driven, non-production HTTP/PG authorization test runner.
  * A method enters the registry only with an actual seeded own/foreign case.
- * All 489 manifest methods are read; outstanding GAPs are reported, NEVER
+ * All 490 manifest methods are read; outstanding GAPs are reported, NEVER
  * silently treated as successful coverage. Extensible by family adapters,
  * not hundreds of one-off tests. All writes below are fictional CI fixture SEEDING.
  */
@@ -185,7 +185,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  assert.equal(gaps.length, 428, "Source-pinned audit GAP count must change only with reviewer-accepted proof");
+  assert.equal(gaps.length, 427, "Only the specifically reviewed public demo/diagnostic classification changes the original 428-GAP source baseline");
   const gapNames = new Set(gaps.map((x) => x.key));
   const methodByKey = new Map(Object.values(manifest.allApiRouteFiles).flatMap((file) =>
     file.methods.map((method) => [specOf(method.name, file.route), method])));

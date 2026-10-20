@@ -4,12 +4,12 @@
   "generated": "2026-10-19",
   "acceptanceStatus": "NOT ACCEPTED: 428 API method and 20 page/action gaps remain. Six new payroll-read method proofs are provisional until exact-head HTTP/PG CI; no production release approval.",
   "metrics": {
-    "routeFiles": 288,
-    "methods": 489,
+    "routeFiles": 289,
+    "methods": 490,
     "coveredBefore": 20,
     "coveredAfter": 55,
-    "publicByDesign": 6,
-    "gap": 428,
+    "publicByDesign": 8,
+    "gap": 427,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -924,21 +924,34 @@
       ]
     },
     "src/app/api/auth/demo-switch/route.ts": {
-      "gitBlobSha": "31d24ba9862b9d9ea121731c2ea9a18074442ad3",
+      "gitBlobSha": "883a6c4b247f287e2fbcd73ad5232edfc537ff8d",
       "route": "auth/demo-switch",
       "methods": [
         {
           "name": "POST",
-          "line": 179,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
+          "line": 180,
+          "status": "PUBLIC-BY-DESIGN",
+          "reason": "Public fictional persona session setup only on approved demo origins and a demo-only employer database. The same-origin/rate-limited endpoint fails closed before provisioning when real employers exist, exposes no real employer records, and its six fictional roles are exercised in disposable PG16. This is not customer authentication certification.",
           "testedBy": null
         }
       ],
       "employerSources": [
         "BODY_CANDIDATE"
       ],
-      "guards": [],
+      "guards": [
+        {
+          "line": 181,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 189,
+          "token": "publicDemoAllowed"
+        },
+        {
+          "line": 221,
+          "token": "productionDemoEmployerBoundary"
+        }
+      ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
@@ -22252,6 +22265,34 @@
         "body": false
       },
       "guards": [],
+      "callerSuppliedIds": [],
+      "businessIds": []
+    },
+    "src/app/api/readiness/demo-provisioning/route.ts": {
+      "gitBlobSha": "ab14e80f1566e80cfeddc0c2f9f74f52c67bc60d",
+      "route": "readiness/demo-provisioning",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 10,
+          "status": "PUBLIC-BY-DESIGN",
+          "reason": "Global deployment diagnostic rather than tenant-scoped data: always requires a private readiness token checked in constant time BEFORE importing the DB helper, returns only an enum and deployment SHA, no employer identities or counts; unauthorized calls return 404 and SQL errors fail closed.",
+          "testedBy": null
+        }
+      ],
+      "employerSources": {
+        "session": false,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": false
+      },
+      "guards": [
+        {
+          "line": 19,
+          "token": "constantTimeSecretEqual"
+        }
+      ],
       "callerSuppliedIds": [],
       "businessIds": []
     },

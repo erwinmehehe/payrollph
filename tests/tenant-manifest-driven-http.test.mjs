@@ -13,11 +13,11 @@ const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
-test("single table-driven test reads ALL 489 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 489);
-  assert.equal(manifest.metrics.gap, 428, "Integrated provisional audit keeps 428 GAP methods open; no silent reclassification");
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 489,
-    "No method may disappear from the audited 489-route-method inventory");
+test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
+  assert.equal(manifest.metrics.methods, 490);
+  assert.equal(manifest.metrics.gap, 427, "New infrastructure/demo-source paths have explicit public-by-design reviews; 427 pre-existing GAP methods remain open");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 490,
+    "No method may disappear from the audited 490-route-method inventory");
   assert.equal(manifest.sourceTraceCandidates.length, 34);
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
