@@ -111,6 +111,7 @@ export function WorkforceTimesheetPanel({
     period: { periodStart, periodEnd },
     timesheetResponse: trustedPayload,
     payrollRuns: data.payrollRuns,
+    multiEntityMode: data.multiEntity?.enabled === true,
     selectedLegalEntityId: data.multiEntity?.enabled && !data.multiEntity.group
       ? data.multiEntity.legalEntityId
       : null,

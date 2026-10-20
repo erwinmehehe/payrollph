@@ -30,6 +30,8 @@ type Input = {
   payrollRuns: unknown;
   /** The dashboard's selected legal-entity filter, if any. */
   selectedLegalEntityId?: number | null;
+  /** Timesheets GET has no legal-entity filter; do not hand off cross-entity summaries. */
+  multiEntityMode: boolean;
 };
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -100,18 +102,24 @@ export function verifiedWorkforceTimesheetCounts(
 }
 
 export function resolveWorkforcePayrollHandoff(input: Input): WorkforcePayrollHandoff {
-  // Never reveal run IDs or their presence to manager/HR/worker-only or scoped reviewers.
+  // Only the intersection of workforce.timesheets GET and company-wide payroll viewers.
+  // Payroll and checker roles currently lack WORKFORCE_MANAGER_ROLES timesheet-read permission.
   if (!positiveId(input.organizationId) || !positiveId(input.viewerId) ||
       input.access?.companyWide !== true ||
-      !["owner", "admin", "bookkeeper", "payroll", "checker"].includes(input.access.role ?? "")) {
+      !["owner", "admin", "bookkeeper"].includes(input.access.role ?? "")) {
     return { kind: "restricted" };
   }
   // The existing payroll focus resolver honors this rollout gate too.
   if (!input.connectedNavigationEnabled) return { kind: "disabled" };
+  // The WFM timesheet endpoint filters by organization/unit, not by selected legal entity.
+  // Refuse this read-only handoff for multi-entity mode until the sources share scope.
+  if (input.multiEntityMode !== false) return { kind: "unverified" };
   const period = rememberWfmTimecardPeriod(undefined, input.period);
   if (!period || !Array.isArray(input.payrollRuns)) return { kind: "unverified" };
   const counts = verifiedWorkforceTimesheetCounts(input.timesheetResponse, period);
-  if (!counts) return { kind: "unverified" };
+  if (!counts || !record(input.timesheetResponse) || input.timesheetResponse.manager !== true) {
+    return { kind: "unverified" };
+  }
   if (input.selectedLegalEntityId != null && !positiveId(input.selectedLegalEntityId)) {
     return { kind: "unverified" };
   }
