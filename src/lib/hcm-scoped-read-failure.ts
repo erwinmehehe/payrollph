@@ -31,3 +31,35 @@ export function scopedReadFailureMessage(reason: ScopedReadFailure): string {
       return "The response did not match the requested employer or expected data shape and was discarded. No records were confirmed as empty.";
   }
 }
+
+/**
+ * A rejected fetch is a network failure. A successful HTTP request that
+ * cannot parse or validate is invalid DATA, never a network outage.
+ * The calling effect retains AbortController + request-scope gating so an
+ * aborted/stale request cannot publish a result.
+ */
+export type ScopedReadResult<T> =
+  | { status: "ready"; data: T }
+  | { status: "unavailable"; failure: ScopedReadFailure };
+
+export async function readScopedResponse<T>(
+  fetchResponse: () => Promise<Response>,
+  validate: (payload: unknown) => payload is T,
+): Promise<ScopedReadResult<T>> {
+  let response: Response;
+  try {
+    response = await fetchResponse();
+  } catch {
+    return { status: "unavailable", failure: "network" };
+  }
+  if (!response.ok) {
+    return { status: "unavailable", failure: scopedReadFailureForHttpStatus(response.status) };
+  }
+  try {
+    const payload: unknown = await response.json();
+    if (validate(payload)) return { status: "ready", data: payload };
+  } catch {
+    // Invalid/malformed successful response body or broken payload shape.
+  }
+  return { status: "unavailable", failure: "invalid" };
+}
