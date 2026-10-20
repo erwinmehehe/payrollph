@@ -268,6 +268,13 @@ const taglishCopy: Readonly<Record<string, string>> = {
   "You are classified as a minimum wage earner, so only supplementary taxable pay is taxed.": "Naka-classify ka bilang minimum wage earner, kaya ang taxable supplementary pay lang ang subject sa tax.",
   "We could not load your pay baseline.": "Hindi ma-load ang pay baseline mo.",
   "We could not reach the server to load your pay baseline.": "Hindi maabot ang server para ma-load ang pay baseline mo.",
+
+  "Your session has expired. Sign in again to view your pay estimate.": "Nag-expire na ang session mo. Mag-sign in muli para makita ang pay estimate.",
+  "This account cannot view an employee pay baseline. Contact HR.": "Walang access ang account na ito sa employee pay baseline. Kontakin ang HR.",
+  "Your employee pay record was not found. Contact HR.": "Hindi mahanap ang employee pay record mo. Kontakin ang HR.",
+  "Your pay profile is not set up yet. Ask HR or payroll to complete it.": "Hindi pa kumpleto ang pay profile mo. Hilingin sa HR o Payroll na ayusin ito.",
+  "The pay baseline response was invalid. Please retry.": "Hindi valid ang natanggap na pay baseline. Subukan muli.",
+  "Retry loading": "Subukang i-load muli",
   "WEB & TEAM TIME CLOCK": "WEB & TEAM TIME CLOCK",
   "Select an employee": "Pumili ng employee",
   "attendance": "attendance",
