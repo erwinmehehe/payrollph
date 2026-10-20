@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { normalizeRuntimeDatabaseIdentity, type RuntimeDatabaseIdentity } from "@/lib/runtime-database-identity";
+import { PUBLIC_DEMO_DATABASE_IDENTITY_SQL, verifiedPublicDemoDatabaseIdentity } from "@/lib/public-demo-database-identity";
 
 // A DEMO deployment must have its own independently provisioned Neon PROJECT,
 // role, database and fixture-org ID. These are operator-attested server secrets,
@@ -95,20 +96,16 @@ export function attestedProductionDemoOrganizationId(
 // fixture writes. A separate preflight alone is vulnerable to TOCTOU.
 async function inspectFixture(tx: FixtureReader): Promise<DemoProvisioningBoundary> {
   if (!fixtureSettings(process.env)) return "blocked_non_demo_employer";
-  const evidence = await tx.execute(sql`
-    SELECT pg_catalog.current_database()::text AS "databaseName",
-      pg_catalog.current_setting('neon.project_id', true)::text AS "projectId",
-      pg_catalog.current_setting('neon.branch_id', true)::text AS "branchId",
-      pg_catalog.current_setting('neon.endpoint_id', true)::text AS "endpointId",
-      current_user::text AS "roleName",
-      pg_catalog.pg_is_in_recovery() AS "inRecovery"
-  `);
-  const identity = normalizeRuntimeDatabaseIdentity(evidence.rows[0]);
+  const session = await tx.execute(PUBLIC_DEMO_DATABASE_IDENTITY_SQL);
+  if (!verifiedPublicDemoDatabaseIdentity(session.rows[0])) return "blocked_non_demo_employer";
+  const identity = normalizeRuntimeDatabaseIdentity(session.rows[0]);
   const rows = await tx.execute(sql`
     SELECT id, name, legal_name AS "legalName" FROM organizations LIMIT 2
   `);
+  const candidates = rows.rows as FixtureOrganization[];
+  if (candidates.length > 1 || candidates.length === 0) return "blocked_non_demo_employer";
   return isAttestedProductionDemoFixture(
-    identity, rows.rows as FixtureOrganization[],
+    identity, candidates,
   ) ? "demo_only" : "blocked_non_demo_employer";
 }
 
@@ -117,7 +114,7 @@ async function inspectFixture(tx: FixtureReader): Promise<DemoProvisioningBounda
 export async function productionDemoEmployerBoundary(): Promise<DemoProvisioningBoundary> {
   if (process.env.NODE_ENV !== "production") return "non_production";
   try {
-    return await db.transaction(async (tx) => inspectFixture(tx), { readOnly: true });
+    return await db.transaction(async (tx) => inspectFixture(tx));
   } catch {
     return "unverified";
   }
