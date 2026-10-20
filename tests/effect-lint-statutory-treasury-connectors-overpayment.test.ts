@@ -12,11 +12,21 @@ const read = (path: string) => readFileSync(path, "utf8");
 for (const path of [MONTH, PROOF, TREASURY, SLACK, OVERPAYMENT]) {
   test(path + " starts an abortable read outside synchronous effect setup", () => {
     const source = read(path);
-    assert.match(source, /const load = useCallback\(async \(signal\?: AbortSignal\) => \{/);
+    if (path === MONTH) {
+      // The month-close controller belongs to load() so an event-driven
+      // refresh aborts the previous request and hides any stale approval.
+      assert.match(source, /const load = useCallback\(async \(\): Promise<VerifiedRemittanceMonthClose \| null> => \{/);
+      assert.match(source, /activeRead\.current\?\.abort\(\)/);
+      assert.match(source, /activeRead\.current = controller/);
+      assert.match(source, /controller\.signal\.aborted/);
+      assert.match(source, /setState\(null\)/);
+    } else {
+      assert.match(source, /const load = useCallback\(async \(signal\?: AbortSignal\) => \{/);
+      assert.match(source, /controller\.abort\(\)/);
+      assert.match(source, /signal\?\.aborted/);
+    }
     assert.match(source, /new AbortController\(\)/);
     assert.match(source, /queueMicrotask\(/);
-    assert.match(source, /controller\.abort\(\)/);
-    assert.match(source, /signal\?\.aborted/);
     assert.doesNotMatch(source, /useEffect\(\(\) => \{\s*void load\(\)/);
   });
 }
@@ -28,7 +38,8 @@ test("remittance month close isolates employer/entity/month and removes the even
   assert.match(source, /props\.applicableMonth/);
   assert.match(source, /window\.addEventListener\("statutory-remittance-changed", onChanged\)/);
   assert.match(source, /window\.removeEventListener\("statutory-remittance-changed", onChanged\)/);
-  assert.match(source, /load\(controller\.signal\)/);
+  assert.match(source, /activeRead\.current\?\.abort\(\)/);
+  assert.match(source, /if \(!controller\.signal\.aborted\) void load\(\)/);
   assert.match(source, /method: "POST"/);
 });
 

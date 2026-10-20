@@ -1087,6 +1087,7 @@ async function main() {
   await verifySensitiveTenantDownloadsAndRoles(f);
   await verifyNewMainRouteIsolation(f);
   await (await import("./tenant-high-risk-01-http.mjs")).verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });
+  await verifyRemittanceMonthCloseTenantProof(f);
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
     result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,
@@ -1105,3 +1106,119 @@ main().catch((error) => {
   console.error("Second-pass tenant isolation FAILED (not accepted):", error);
   process.exitCode = 1;
 });
+/**
+ * METHOD-LEVEL PROOF: GET and POST /api/compliance/remittance-month-close
+ * against the same real fictional month/agency for 3 employers. The POST
+ * positive MUST succeed, not false-pass via missing MFA, feature disablement,
+ * guessed victim IDs or invalid requests. No external provider is invoked.
+ *
+ * Invoked only from requireDisposable()-protected PG16/localhost CI runner.
+ */
+async function verifyRemittanceMonthCloseTenantProof(f) {
+  const { statutoryRemittanceBatches, statutoryRemittanceMembers,
+    statutoryRemittancePaymentEvidence, statutoryRemittanceMonthClosures } =
+    await import("../../src/db/schema");
+  const { statutoryRemittanceSnapshotHash } = await import("../../src/lib/statutory-remittance");
+  const orgs = f.orgs;
+  const period = "2026-09";
+  const seed = [];
+  for (let idx = 0; idx < 3; idx++) {
+    const org = orgs[idx];
+    const employee = idx === 0 ? f.victimEmployee : f.ownedEmployees[idx - 1];
+    const employeeNo = idx === 0 ? f.victimEmployee.employeeNo :
+      (await db.select({ employeeNo: employees.employeeNo }).from(employees)
+        .where(eq(employees.id, employee.id)).limit(1))[0].employeeNo;
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id, legalEntityId: f.entities[idx].id,
+      periodLabel: "Synthetic SSS security proof " + period + "-" + idx,
+      periodStart: "2026-09-01", periodEnd: "2026-09-15",
+      payDate: "2026-09-16", status: "Released",
+    }).returning({ id: payrollRuns.id, organizationId: payrollRuns.organizationId });
+    // Actual SSS liability and a reconciled fictional batch are needed for
+    // the positive certification; a zero-liability month is rightly blocked.
+    await db.insert(payrollEntries).values({
+      payrollRunId: run.id, employeeId: employee.id,
+      grossPay: "5000.00", deductions: "100.00", netPay: "4900.00",
+      lineItems: [{ code: "SSS", amount: "-100.00" }], trace: [],
+    });
+    const snapshotHash = statutoryRemittanceSnapshotHash({
+      agency: "SSS", applicableMonth: period,
+      members: [{ employeeId: employee.id, employeeNo,
+        employeeShare: 100, employerShare: 0, totalContribution: 100 }],
+    });
+    const [batch] = await db.insert(statutoryRemittanceBatches).values({
+      organizationId: org.id, legalEntityId: f.entities[idx].id,
+      agency: "SSS", applicableMonth: period, dueDate: "2026-10-15",
+      status: "reconciled", employeeCount: 1,
+      expectedEmployeeShare: "100.00", expectedEmployerShare: "0.00",
+      expectedTotal: "100.00", amountPaid: "100.00",
+      snapshotHash, createdBy: "Independent fictional QA payroll owner",
+      reconciledAt: new Date(), reconciledBy: "Fictional independent reviewer",
+    }).returning({ id: statutoryRemittanceBatches.id, organizationId: statutoryRemittanceBatches.organizationId });
+    const [member] = await db.insert(statutoryRemittanceMembers).values({
+      batchId: batch.id, organizationId: org.id, legalEntityId: f.entities[idx].id,
+      employeeId: employee.id, employeeNo, employeeShare: "100.00",
+      employerShare: "0.00", totalContribution: "100.00",
+      postingStatus: "confirmed", confirmedBy: "Fictional independent reviewer",
+    }).returning({ id: statutoryRemittanceMembers.id });
+    const bytes = Buffer.from("%PDF-1.4\nSYNTHETIC REMITTANCE QA " + idx + "\n%%EOF\n");
+    const [proof] = await db.insert(statutoryRemittancePaymentEvidence).values({
+      organizationId: org.id, batchId: batch.id, fileName: "synthetic-" + idx + ".pdf",
+      mimeType: "application/pdf", byteSize: bytes.byteLength,
+      fileSha256: createHash("sha256").update(bytes).digest("hex"),
+      fileDataBase64: bytes.toString("base64"), uploadedByName: "Fictional treasury operator",
+    }).returning({ id: statutoryRemittancePaymentEvidence.id });
+    seed.push({ run, batch, member, proof, employee });
+  }
+  assert.ok(seed[0].batch.id > 0 && seed[0].proof.id > 0,
+    "Victim-only remittance records must exist, not fabricated numeric placeholders");
+  const victim = orgs[0];
+  const victimClosuresBefore = await db.select().from(statutoryRemittanceMonthClosures)
+    .where(eq(statutoryRemittanceMonthClosures.organizationId, victim.id))
+    .orderBy(statutoryRemittanceMonthClosures.id);
+  const victimBatchesBefore = await db.select().from(statutoryRemittanceBatches)
+    .where(eq(statutoryRemittanceBatches.organizationId, victim.id))
+    .orderBy(statutoryRemittanceBatches.id);
+  const victimEvidenceBefore = await db.select().from(statutoryRemittancePaymentEvidence)
+    .where(eq(statutoryRemittancePaymentEvidence.organizationId, victim.id))
+    .orderBy(statutoryRemittancePaymentEvidence.id);
+  for (const idx of [1, 2]) {
+    const org = orgs[idx], cookie = f.ownerSessions[idx].cookie;
+    const ownMonthCloseGet = expectStatus(await request("/api/compliance/remittance-month-close?organizationId=" + org.id + "&legalEntityId=" + f.entities[idx].id + "&applicableMonth=" + period, { cookie }), 200, "Actual own employer remittance month GET");
+    assert.equal(ownMonthCloseGet.json?.organizationId, org.id);
+    assert.equal(ownMonthCloseGet.json?.applicableMonth, period);
+    assert.equal(ownMonthCloseGet.json?.legalEntity?.id, f.entities[idx].id);
+    assert.equal(ownMonthCloseGet.json?.evaluation?.ready, true,
+      "Positive GET must show real reconciled statutory liability, not an empty blocked month");
+    assert.ok(ownMonthCloseGet.json?.evaluation?.batches?.some(b => b.id === seed[idx].batch.id));
+    expectStatus(await request("/api/compliance/remittance-month-close?organizationId=" + victim.id + "&legalEntityId=" + f.entities[0].id + "&applicableMonth=" + period, { cookie }), 403, "Other real employer month-close GET denied");
+    const ownMonthClosePost = expectStatus(await request("/api/compliance/remittance-month-close", { method: "POST", cookie, body: { organizationId: org.id, legalEntityId: f.entities[idx].id, applicableMonth: period } }), 200, "Own synthetic reconciled remittance month certified");
+    assert.equal(ownMonthClosePost.json?.closure?.organizationId, org.id);
+    assert.equal(ownMonthClosePost.json?.closure?.legalEntityId, f.entities[idx].id);
+    assert.equal(ownMonthClosePost.json?.closure?.status, "certified");
+    assert.equal(ownMonthClosePost.json?.closure?.snapshotHash, ownMonthCloseGet.json.evaluation.snapshotHash,
+      "Server must certify only the immutable evidence snapshot that its own GET presented");
+    const [persistedClosure] = await db.select().from(statutoryRemittanceMonthClosures)
+      .where(and(eq(statutoryRemittanceMonthClosures.organizationId, org.id),
+        eq(statutoryRemittanceMonthClosures.applicableMonth, period)));
+    assert.equal(persistedClosure?.id, ownMonthClosePost.json.closure.id,
+      "Actual own-post positive must persist a real certified PostgreSQL row");
+    expectStatus(await request("/api/compliance/remittance-month-close", { method: "POST", cookie, body: { organizationId: victim.id, legalEntityId: f.entities[0].id, applicableMonth: period } }), 403, "Other real employer month-close POST denied BEFORE certification");
+    const reloaded = expectStatus(await request("/api/compliance/remittance-month-close?organizationId=" + org.id + "&legalEntityId=" + f.entities[idx].id + "&applicableMonth=" + period, { cookie }), 200, "Owned certification reread");
+    assert.equal(reloaded.json?.certificationValid, true);
+    assert.equal(reloaded.json?.closure?.snapshotHash, ownMonthCloseGet.json.evaluation.snapshotHash);
+    console.log("PASS remittance-month-close own GET 200, foreign GET 403, own POST 200, foreign POST 403, persisted closure and matched reread for attacker " + idx);
+  }
+  const victimClosuresAfter = await db.select().from(statutoryRemittanceMonthClosures)
+    .where(eq(statutoryRemittanceMonthClosures.organizationId, victim.id))
+    .orderBy(statutoryRemittanceMonthClosures.id);
+  assert.deepEqual(victimClosuresAfter, victimClosuresBefore, "Foreign month-close POST must not certify a real victim employer");
+  const victimBatchesAfter = await db.select().from(statutoryRemittanceBatches)
+    .where(eq(statutoryRemittanceBatches.organizationId, victim.id))
+    .orderBy(statutoryRemittanceBatches.id);
+  assert.deepEqual(victimBatchesAfter, victimBatchesBefore, "Foreign month-close requests cannot mutate victim remittance batches");
+  const victimEvidenceAfter = await db.select().from(statutoryRemittancePaymentEvidence)
+    .where(eq(statutoryRemittancePaymentEvidence.organizationId, victim.id))
+    .orderBy(statutoryRemittancePaymentEvidence.id);
+  assert.deepEqual(victimEvidenceAfter, victimEvidenceBefore, "Foreign month-close requests cannot mutate victim proof artifacts");
+}
