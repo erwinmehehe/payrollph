@@ -17,6 +17,8 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
+import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
 import {
   batchPaymentSnapshot,
   memberPostingSnapshot,
@@ -284,22 +286,52 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
-  if (!Number.isInteger(organizationId)) {
-    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  const requestedLegalEntityId = Number(url.searchParams.get("legalEntityId") ?? 0);
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
+      !Number.isSafeInteger(requestedLegalEntityId) || requestedLegalEntityId < 0) {
+    return Response.json({ error: "A valid organizationId and legalEntityId are required." }, { status: 400 });
   }
 
   const requester = await requireRequester(user.id, organizationId);
   const approver = await requireApprover(user.id, organizationId);
   if (requester.denied && approver.denied) return requester.denied;
 
-  const rows = await db.select().from(statutoryRemittanceCorrectionRequests)
-    .where(eq(statutoryRemittanceCorrectionRequests.organizationId, organizationId))
-    .orderBy(
-      asc(statutoryRemittanceCorrectionRequests.status),
-      asc(statutoryRemittanceCorrectionRequests.createdAt),
-    );
+  let legalEntity;
+  try {
+    legalEntity = await resolveComplianceLegalEntity({
+      organizationId, legalEntityId: requestedLegalEntityId || null,
+    });
+  } catch {
+    return Response.json({ error: "The selected legal employer could not be verified." }, { status: 409 });
+  }
+  const context = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!context.ok) return context.response;
+  const deniedEntity = assertEntityResource(context.context, legalEntity.id);
+  if (deniedEntity) return deniedEntity;
+
+  // Do not mix corrections from other legal employers into this selected
+  // employer's payment/posting evidence or the viewer's approval list.
+  const batchRows = await db.select({ id: statutoryRemittanceBatches.id })
+    .from(statutoryRemittanceBatches).where(and(
+      eq(statutoryRemittanceBatches.organizationId, organizationId),
+      eq(statutoryRemittanceBatches.legalEntityId, legalEntity.id),
+    ));
+  const batchIds = batchRows.map((row) => row.id);
+  const rows = batchIds.length
+    ? await db.select().from(statutoryRemittanceCorrectionRequests)
+        .where(and(
+          eq(statutoryRemittanceCorrectionRequests.organizationId, organizationId),
+          inArray(statutoryRemittanceCorrectionRequests.batchId, batchIds),
+        ))
+        .orderBy(
+          asc(statutoryRemittanceCorrectionRequests.status),
+          asc(statutoryRemittanceCorrectionRequests.createdAt),
+        )
+    : [];
 
   return Response.json({
+    organizationId,
+    legalEntity: { id: legalEntity.id },
     corrections: rows,
     canRequest: requester.denied == null,
     canApprove: approver.denied == null,
