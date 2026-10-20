@@ -1,6 +1,17 @@
 name: Live RBAC Sandbox Smoke
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/live-rbac-sandbox-smoke.yml"
+      - "src/app/api/auth/demo-switch/route.ts"
+      - "src/app/api/readiness/demo-provisioning/route.ts"
+      - "src/lib/demo-provisioning-boundary.ts"
+      - "tests/demo-sandbox.test.ts"
+      - "tests/live-rbac-ci-log-privacy.test.mjs"
+      - "tests/isolated-six-role-rbac-contract.test.mjs"
+      - "scripts/qa/isolated-six-role-rbac.mjs"
   push:
     branches: [main]
   workflow_dispatch:
@@ -10,6 +21,7 @@ permissions:
 
 jobs:
   live-sandbox:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -56,6 +68,42 @@ jobs:
           echo "Production never reported the expected commit SHA; no response bodies were logged."
           exit 1
 
+      - name: Read protected demo provisioning boundary (no user provisioning)
+        id: demo_boundary
+        env:
+          PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          response_file=$(mktemp)
+          trap 'rm -f -- "$response_file"' EXIT
+          status=$(curl -sS --max-time 20 --proto '=https' \
+            -H "x-readiness-token: $PRODUCTION_READINESS_TOKEN" \
+            -o "$response_file" -w '%{http_code}' \
+            "$BASE_URL/api/readiness/demo-provisioning" || true)
+          if [ "$status" != 200 ]; then
+            echo "::error::Private demo boundary unavailable; HTTP status=$status. Six-role production verification not permitted."
+            exit 1
+          fi
+          mode=$(jq -r --arg sha "$EXPECTED_COMMIT_SHA" '
+            if type == "object" and
+               .deploymentSha == $sha and
+               .evidenceScope == "PRIVATE_DEMO_GUARD_ONLY_NOT_PERSONA_ACCEPTANCE" and
+               (.demoProvisioning == "demo_only" or
+                .demoProvisioning == "blocked_non_demo_employer")
+            then .demoProvisioning else empty end
+          ' "$response_file" 2>/dev/null || true)
+          case "$mode" in
+            demo_only|blocked_non_demo_employer)
+              echo "mode=$mode" >> "$GITHUB_OUTPUT"
+              echo "Authenticated deployment demo boundary=$mode; no employer metadata logged."
+              ;;
+            *)
+              echo "::error::Demo boundary could not be verified on the expected deployment; fail closed."
+              exit 1
+              ;;
+          esac
+
       - name: Wait for production demo page
         run: |
           set -euo pipefail
@@ -77,7 +125,29 @@ jobs:
       - name: Verify anonymous Workforce/BI reads deny access
         run: bash scripts/live-workforce-bi-rbac-smoke.sh --anonymous
 
+      - name: Verify guarded demo login 404 (production role acceptance NOT_RUN)
+        if: steps.demo_boundary.outputs.mode == 'blocked_non_demo_employer'
+        run: |
+          set -euo pipefail
+          umask 077
+          response_file=$(mktemp)
+          trap 'rm -f -- "$response_file"' EXIT
+          # The same guard now says this deployment contains a non-demo employer.
+          # The POST must stop at the production guard before any demo provisioning.
+          status=$(curl -sS --max-time 20 --proto '=https' \
+            -o "$response_file" -w '%{http_code}' -X POST \
+            "$BASE_URL/api/auth/demo-switch" \
+            -H "Origin: $BASE_URL" -H "Sec-Fetch-Site: same-origin" \
+            -H "Content-Type: application/json" --data '{"role":"owner"}' || true)
+          echo "Production protected demo role=owner http_status=$status expected=404"
+          if [ "$status" != 404 ]; then
+            echo "::error::Production demo block was not verified; no role access certified."
+            exit 1
+          fi
+          echo "::notice::Demo access intentionally blocked on a customer-scope production database. Production six-role RBAC NOT_RUN; the separate disposable-PG16 job must pass."
+
       - name: Verify all six RBAC personas on production
+        if: steps.demo_boundary.outputs.mode == 'demo_only'
         run: |
           set -euo pipefail
           # GitHub runner files can contain session cookies and response data.
@@ -99,6 +169,10 @@ jobs:
                 -H "Content-Type: application/json" \
                 --data "{\"role\":\"$role\"}" || true)
               echo "role=$role attempt=$attempt login_http=$login_status"
+              if [ "$login_status" = 404 ]; then
+                echo "::error::Unexpected demo auth 404 while the protected boundary declares demo_only; do not retry or treat this as intentional."
+                exit 1
+              fi
 
               # Check exact typed fields; never grep or log untrusted JSON.
               if [[ "$login_status" =~ ^2[0-9][0-9]$ ]] &&
@@ -181,6 +255,7 @@ jobs:
       # PostgreSQL session is the expected Neon target with named relations.
       # Missing tables cause a visible FAIL; never skip or green the privacy test.
       - name: Verify private compensation database readiness (#1015/#1061)
+        if: steps.demo_boundary.outputs.mode == 'demo_only'
         env:
           PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
           EXPECTED_NEON_PROJECT_ID: calm-wave-70219564
@@ -207,6 +282,97 @@ jobs:
           fi
           node scripts/qa/verify-production-compensation-preflight.mjs "$response_file"
       - name: Verify deployed fictional HR compensation privacy (#1046)
+        if: steps.demo_boundary.outputs.mode == 'demo_only'
         env:
           PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
         run: bash scripts/live-compensation-scope-smoke.sh
+
+  isolated-fictional-rbac:
+    name: Six-persona RBAC (disposable PG16, no production)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      ISOLATED_SIX_ROLE_RBAC: disposable-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      QA_URL: http://127.0.0.1:3000
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "true"
+      REQUIRE_PRIVILEGED_MFA: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      WFM_PUNCH_EVIDENCE_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Provision ephemeral fictional-only encryption keys
+        run: |
+          for name in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+      - name: Prove isolated source and script contracts
+        run: |
+          node --check scripts/qa/isolated-six-role-rbac.mjs
+          node --test tests/isolated-six-role-rbac-contract.test.mjs tests/live-rbac-ci-log-privacy.test.mjs
+      - name: Apply schema only on disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply append-only 0109 audit guard only to ephemeral test database
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Start fictional localhost app (no public listener)
+        run: |
+          set -euo pipefail
+          npm run dev -- --hostname 127.0.0.1 --port 3000 > /tmp/payrollph-isolated-rbac-next.log 2>&1 &
+          ready=false
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail --max-time 5 --proto '=http' \
+                http://127.0.0.1:3000/demo > /dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then
+            echo "::error::Disposable localhost app did not start; no production fallback."
+            exit 1
+          fi
+      - name: Run all six real authenticated API roles with isolated fictional records
+        run: node scripts/qa/isolated-six-role-rbac.mjs
+      - name: Publish status-only fictional evidence, never cookies or employee rows
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: isolated-six-role-rbac-pg16
+          path: qa-artifacts/isolated-six-role-rbac.json
+          if-no-files-found: ignore
+          retention-days: 7
