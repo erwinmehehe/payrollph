@@ -70,7 +70,7 @@ export function isVerifiedGovernmentLoanRemittanceRead(
       !text(v.legalEntity.displayName) || !Array.isArray(v.batches) ||
       !Array.isArray(v.members) || v.batches.length > 5000 || v.members.length > 20000) return false;
   const entityId = v.legalEntityId;
-  if (!v.batches.every((b: unknown) => batch(b, organizationId, entityId, v.today)) ||
+  if (!v.batches.every((b: unknown) => batch(b, organizationId, entityId, v.today as string)) ||
       !v.members.every((m: unknown) => member(m, organizationId, entityId))) return false;
   const batches = v.batches as GovernmentLoanBatch[];
   const members = v.members as GovernmentLoanMember[];
