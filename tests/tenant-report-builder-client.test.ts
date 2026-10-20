@@ -46,6 +46,8 @@ test("capability reads require a complete authorized dataset envelope", () => {
     null, {}, { fields: null }, { fields: { people: [], time: [] } },
     { fields: { people: ["department", "department"], time: [], payroll: [] } },
     { fields: { people: ["headcount", 4], time: [], payroll: [] } },
+    { fields: { people: Array.from({ length: 13 }, (_, i) => "field-" + i), time: [], payroll: [] } },
+    { fields: { people: [""], time: [], payroll: [] } },
   ]) assert.throws(() => verifyReportBuilderCapabilities(invalid, 101));
 });
 
