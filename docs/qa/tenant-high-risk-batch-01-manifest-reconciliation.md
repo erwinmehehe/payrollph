@@ -1,0 +1,14 @@
+# High-risk tenant Batch 01: evidence-to-manifest reconciliation (source-only)
+**Status: DRAFT / NOT ACCEPTED. No production tenant audit or security certification.**
+
+The original 490-method inventory has 60 provisionally COVERED / 8 PUBLIC-BY-DESIGN / 422 GAP methods plus 20 business-ID pages/actions. Current reviewed `scripts/qa/tenant-high-risk-01-http.mjs` covers 16 GET methods in a real production-mode localhost Next.js build against disposable PostgreSQL 16 with two independently authenticated attacker employers and real victim IDs above six. Three methods were already credited; the remaining **13 GETs** were still marked GAP despite executed evidence.
+
+The [main Security HTTP Smoke](https://github.com/erwinmehehe/payrollph/actions/runs/39445598204) on `826d563da539405911f1a6921d31e2d2a8ed1e72` logged both attacker loops, **16/16 distinct GET method cases PASS per attacker**, plus two membership-revocation controls per attacker, real 200 own-positive and exact 403/404 cross-employer denials, an unchanged victim DB snapshot, and no payout/provider/filing activity. This is **synthetic security evidence**; do not extrapolate to 100% authorization coverage or to production.
+
+**Proposed provisional inventory after this PR:** 289 route files, 490 HTTP methods, **73 COVERED / 8 PUBLIC-BY-DESIGN / 409 GAP**, plus **20 page/action GAPs**. The 13 newly mapped GETs are `payroll-runs/[id]/close`, `payroll-runs/[id]/variance`, `payroll-runs/[id]/exports`, `compensation`, `payout-profiles`, `payroll-underpayments`, `compliance/statutory-remittances`, `compliance/filing-validations`, `organizations/[id]/payroll-approvers`, `exports`, `reports`, `self/documents`, `self/payslips/[id]/explain`.
+
+Each method has a unique Batch 01 case line as proof anchor, plus its actual own 200, foreign denial, and victim-state invariant. The case runner fails if a single method/attacker fails or a victim row changes. Existing route source blob hashes remain pinned. The structural test still inventories all 490 methods.
+
+**Acceptance gate:** exact new PR-head required CI, CodeQL, Security HTTP Smoke with two attacker sessions and real local PG16, source-review gate, test contract acceptance, and human maintainer evidence review. Do not mark the inventory accepted or merge the branch if any check is missing or fails. New source changes require reproof.
+
+**Still open:** 409 untested/unaccepted API method pairs (including payout release, payout destination mutation, payroll submit, self-service/HR scopes), all 20 page/action gaps, production roles, live DB target attestation, real payroll period reconciliation and no-money end-to-end payout provider acceptance. This PR makes no application route, financial, bank/API, schema, migration, deployment credential or production environment change.
