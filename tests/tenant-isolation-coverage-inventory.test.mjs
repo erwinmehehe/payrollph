@@ -354,9 +354,64 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      // The manifest-driven suite is allowed only for the two explicitly
+      // evidenced statutory payment-proof methods. It must retain real own and
+      // victim employer requests, PostgreSQL invariants and CI-only boundaries.
+      const statutoryManifestProof =
+        proof?.file === "scripts/qa/tenant-manifest-driven-http.mjs" &&
+        path === "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts" &&
+        ["GET", "POST"].includes(method.name);
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
-        "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs"].includes(proof?.file),
+        "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs"].includes(proof?.file)
+        || statutoryManifestProof,
         path + " " + method.name + ": unsupported evidence source");
+      if (statutoryManifestProof) {
+        const harness = source.join("\n");
+        const suite = readFileSync(proof.file, "utf8");
+        const suiteLines = suite.split("\n");
+        assert.match(harness,
+          /await \(await import\("\.\/tenant-manifest-driven-http\.mjs"\)\)\.verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus, makeSession \}\)/,
+          "Statutory evidence must run inside the isolated real-HTTP harness");
+        assert.match(suite, /assert\.equal\(process\.env\.CI, "true"\)/);
+        assert.match(suite, /assert\.equal\(process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"\)/);
+        assert.match(suite, /assert\.equal\(new URL\(process\.env\.DATABASE_URL\)\.hostname, "127\.0\.0\.1"\)/);
+        assert.match(suite, /for \(const idx of \[1, 2\]\)/,
+          "Two independent authenticated attacker employers must be exercised");
+        assert.match(suite, /assert\.equal\(account\.json\?\.profile\?\.id, f\.owners\[idx\]\.id\)/);
+        assert.match(suite, /const before = await snapshotVictim\(victimOrg\.id\)/);
+        assert.match(suite, /const after = await snapshotVictim\(victimOrg\.id\)/);
+        assert.match(suite, /assert\.deepEqual\(after, before,/,
+          "Real victim data must be unchanged after adversarial HTTP");
+        const own = evidenceLine(proof.file, proof.ownPositiveLine, path + " own");
+        const foreign = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign");
+        if (method.name === "GET") {
+          const header = '"GET ' + entry.route + '": {';
+          const start = suite.indexOf(header);
+          assert.ok(start >= 0, path + ": exact method-specific adapter missing");
+          const end = suite.indexOf('\n  "GET ', start + header.length);
+          const adapter = suite.slice(start, end < 0 ? undefined : end);
+          assert.match(adapter, /family: "download-index", denial: 403/);
+          assert.match(adapter, /own: "\/api\/compliance\/statutory-remittances\/payment-evidence\?organizationId="/);
+          assert.match(adapter, /foreign: "\/api\/compliance\/statutory-remittances\/payment-evidence\?organizationId="/);
+          assert.match(adapter, /r\.json\?\.organizationId/);
+          assert.match(adapter, /r\.json\?\.batchId/);
+          assert.match(adapter, /r\.json\.evidence\.some\(\(row\) => row\.id === ownedEvidence\.id\)/);
+          assert.match(own, /const own = expectStatus\(await request\(urls\.own, \{ cookie \}\), 200/);
+          assert.match(foreign, /const foreign = expectStatus\(await request\(urls\.foreign, \{ cookie \}\), adapter\.denial/);
+        } else {
+          assert.match(own, /const ownUpload = expectStatus\(await request\("\/api\/compliance\/statutory-remittances\/payment-evidence"/);
+          assert.match(foreign, /const foreignUpload = expectStatus\(await request\("\/api\/compliance\/statutory-remittances\/payment-evidence"/);
+          const ownSpan = suiteLines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 3).join("\n");
+          const foreignSpan = suiteLines.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 3).join("\n");
+          assert.match(ownSpan, /method: "POST", cookie: privileged\.cookie, form: proofForm\(ownOrg\.id, ownedBatch\.id\)/);
+          assert.match(ownSpan, /\}\), 201,/);
+          assert.match(foreignSpan, /method: "POST", cookie: privileged\.cookie, form: proofForm\(victimOrg\.id, victimBatch\.id\)/);
+          assert.match(foreignSpan, /\}\), 403,/);
+          assert.match(evidenceLine(proof.file, proof.unchangedDbLine, path + " unchanged"),
+            /assert\.deepEqual\(after, before,/);
+        }
+        continue; // This adapter has stronger method-specific proof than generic literal line checks.
+      }
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
         const integration = readFileSync(proof.file, "utf8");
