@@ -178,12 +178,29 @@ async function main() {
       await testDependency(client,localSql,test);
       assert.deepEqual(await baseline(client),state,test.name+"_CHANGED_CORE_FIXTURES");
     }
+    // Exercise the reviewed SQL against the older generation: absent optional
+    // relations contain no dependencies, while all core before-images remain.
+    const optionalTables=requiredTables.slice(7);
+    const hidden=[];
+    try {
+      for(const table of optionalTables){
+        await client.query('ALTER TABLE public.'+table+' RENAME TO issue1102_hidden_'+table);
+        hidden.push(table);
+      }
+      await client.query(localSql);
+      assert.deepEqual(await baseline(client),state,"LEGACY_SCHEMA_ROLLBACK_FAILED");
+    } finally {
+      for(const table of hidden.reverse()){
+        await client.query('ALTER TABLE public.issue1102_hidden_'+table+' RENAME TO '+table);
+      }
+    }
     console.log(JSON.stringify({
       result:"PASS",scope:"DISPOSABLE_GITHUB_POSTGRES_ONLY",
       unmodifiedSqlWrongTargetDenied:true,
       inMemoryAdaptation:"database-name and seven synthetic MD5 witnesses only",
       actualOriginalNeonRowsTested:false,
       sourceFilePreservesRollback:true,
+      absentOptionalRelationsRehearsed:optionalTables.length,
       proposedRunPairsReconciled:3,
       linkedDependencyDenials:tests.map(x=>x.name),
       allHistoricalHeaderRowsRestored:true,

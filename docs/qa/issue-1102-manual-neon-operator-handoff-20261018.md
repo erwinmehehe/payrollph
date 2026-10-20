@@ -62,3 +62,7 @@ Expected: each run has `details=6`, matching header/detail gross and net pairs `
 ### Reversal note
 
 Historical before-values are preserved in issue #1102. An operator should only consider a **new**, separately controlled compare-and-swap reverse transaction if the exact just-applied target amounts, statuses, source entries and audit state still match, with zero intervening dependencies. Never blindly replay stale reversal SQL or perform Neon snapshot promotion as routine undo.
+
+## Legacy dependency-table compatibility
+
+The pinned historical target predates some optional dependency tables. The correction now checks catalog existence for the twelve later-generation relations and locks each existing relation before querying it. Missing optional relations have no stored dependencies; missing columns, permissions errors and linked records still abort the transaction. Core payroll, employee, approval and before-image checks remain mandatory. Disposable tests cover both complete and legacy schemas, preserving final ROLLBACK.
