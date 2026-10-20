@@ -57,7 +57,9 @@ test("client editor is hidden until authorized response; employer switch clears 
   assert.ok(admin.includes('if (view === "error" && !payload)'));
   assert.equal(admin.split('setView("restricted")').length - 1, 3,
     "Read, save, and enable/disable must all close on subscription revocation");
-  assert.ok(people.includes('<HcmBusinessProcessAdmin key={data.selectedOrganization.id} organizationId={data.selectedOrganization.id} />'));
+  assert.ok(people.includes('<HcmBusinessProcessAdmin key={`hcm-bp-admin:${data.selectedOrganization.id}`} organizationId={data.selectedOrganization.id} />'));
+  assert.ok(people.includes('key={`hcm-bp-inbox:${data.selectedOrganization.id}`}'),
+    'Admin and inbox retain separate React identities across employer switches');
 });
 
 test("assigned inbox and review decisions are not plan-gated by the workflow designer", () => {

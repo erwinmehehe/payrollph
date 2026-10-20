@@ -9,7 +9,10 @@ const securityHeaders = [
       "form-action 'self'",
       "frame-ancestors 'none'",
       "object-src 'none'",
-      "script-src 'self' 'unsafe-inline'",
+      // Next/React dev tooling uses eval for debugging. NEVER permit it in
+      // production, preview production builds, or production security smoke.
+      "script-src 'self' 'unsafe-inline'" +
+        (process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""),
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://fonts.gstatic.com",

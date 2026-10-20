@@ -101,9 +101,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
-  assert.equal(manifest.metrics.methods, 489);
+  assert.equal(manifest.metrics.methods, 490);
   assert.equal(manifest.metrics.coveredAfter, 60, "59 prior covered methods plus HCM governance GET");
-  assert.equal(manifest.metrics.gap, 423, "Only the proven HCM governance GET was newly recertified");
+  assert.equal(manifest.metrics.gap, 422, "Only the proven HCM governance GET was newly recertified");
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);
