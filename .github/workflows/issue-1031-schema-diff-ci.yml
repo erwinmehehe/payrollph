@@ -6,6 +6,7 @@ on:
       - "scripts/lib/issue-1031-schema-manifest.ts"
       - "scripts/check-issue-1031-full-schema-diff.ts"
       - "src/lib/issue-1031-full-schema-diff.ts"
+      - "src/lib/issue-1031-rls-catalog.ts"
       - "tests/issue-1031-full-schema-*.test.ts"
       - ".github/workflows/issue-1031-schema-diff-ci.yml"
   pull_request:
@@ -13,6 +14,7 @@ on:
       - "scripts/lib/issue-1031-schema-manifest.ts"
       - "scripts/check-issue-1031-full-schema-diff.ts"
       - "src/lib/issue-1031-full-schema-diff.ts"
+      - "src/lib/issue-1031-rls-catalog.ts"
       - "tests/issue-1031-full-schema-*.test.ts"
       - ".github/workflows/issue-1031-schema-diff-ci.yml"
 
