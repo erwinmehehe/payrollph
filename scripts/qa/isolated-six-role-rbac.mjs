@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
+import { eq } from "drizzle-orm";
+import { db, pool } from "../../src/db";
+import { organizations, payrollRuns, sessions, userOrganizations, users } from "../../src/db/schema";
 
 // Authenticated API proof against an EXCLUSIVELY DISPOSABLE PG16 + localhost
 // Next server. No production host, Neon connection, payroll write, payout,
@@ -104,6 +109,95 @@ async function probe(role, name, path, expected, cookie, org) {
   }
 }
 
+
+// This fixture is created ONLY after the six demo personas have signed in.
+// Demo provisioning must not run again once a second fictional employer exists.
+// A known, existing foreign tenant AND a non-empty payroll resource prevent
+// a guessed/nonexistent organization ID from falsely passing isolation QA.
+async function seedForeignEmployer() {
+  guardEnvironment();
+  const nonce = randomUUID().replaceAll("-", "").slice(0, 12);
+  const [foreignOrg] = await db.insert(organizations).values({
+    name: "Isolated RBAC Victim " + nonce,
+    legalName: "Fictional RBAC Victim " + nonce,
+  }).returning({ id: organizations.id });
+  const [foreignUser] = await db.insert(users).values({
+    email: "isolated-rbac-victim-" + nonce + "@example.invalid",
+    name: "Fictional foreign employer owner",
+    role: "owner",
+    passwordHash: "synthetic-ci-session-only-login-disabled",
+    localPasswordEnabled: false,
+  }).returning({ id: users.id });
+  await db.insert(userOrganizations).values({
+    userId: foreignUser.id,
+    organizationId: foreignOrg.id,
+    role: "owner",
+    active: true,
+  });
+  const [foreignRun] = await db.insert(payrollRuns).values({
+    organizationId: foreignOrg.id,
+    periodLabel: "FICTIONAL-CROSS-TENANT-QA-" + nonce,
+    periodStart: "2026-10-01",
+    periodEnd: "2026-10-15",
+    payDate: "2026-10-16",
+    status: "Draft",
+    grossPay: "0.00",
+    netPay: "0.00",
+  }).returning({ id: payrollRuns.id, organizationId: payrollRuns.organizationId });
+  assert.ok(Number.isSafeInteger(foreignOrg.id) && foreignOrg.id > 0);
+  assert.equal(foreignRun.organizationId, foreignOrg.id);
+
+  // The fixture session has no public password or demo-switch route.
+  // It is valid only inside the disposable PostgreSQL 16 CI environment.
+  const token = randomBytes(32).toString("hex");
+  await db.insert(sessions).values({
+    userId: foreignUser.id,
+    tokenHash: createHash("sha256").update(token).digest("hex"),
+    expiresAt: new Date(Date.now() + 60 * 60_000),
+    lastSeenAt: new Date(),
+  });
+  return { org: foreignOrg.id, run: foreignRun.id, cookie: "linaw_session=" + token };
+}
+
+async function verifyExistingForeignEmployerDenials(demoOwner) {
+  guardEnvironment();
+  const foreign = await seedForeignEmployer();
+  assert.notEqual(foreign.org, demoOwner.org,
+    "Cross-tenant QA requires two distinct actually seeded employers.");
+
+  // Positive owner controls: denial alone is insufficient without a real
+  // foreign employer and an authenticated session able to read its own data.
+  const dashboard = await request("/api/dashboard?organizationId=" + foreign.org, foreign.cookie);
+  const dashboardBody = await dashboard.json().catch(() => null);
+  evidence("foreign-owner", "dashboard-own-positive", dashboard.status, 200,
+    validRead("dashboard", dashboardBody, "owner", foreign.org));
+
+  const runs = await request("/api/payroll-runs?organizationId=" + foreign.org, foreign.cookie);
+  const runsBody = await runs.json().catch(() => null);
+  const ownsActualRun = runsBody && Array.isArray(runsBody.runs) &&
+    runsBody.runs.some(row => row.id === foreign.run && row.organizationId === foreign.org);
+  evidence("foreign-owner", "payroll-own-existing-run", runs.status, 200, ownsActualRun);
+
+  const snapshot = await db.select().from(payrollRuns).where(eq(payrollRuns.id, foreign.run)).limit(1);
+  assert.equal(snapshot.length, 1);
+
+  // Use the SAME real victim organization ID (and actual existing run ID) that
+  // the other owner just accessed, not a fabricated ID with a canned denial.
+  for (const [name, path] of [
+    ["cross-tenant-dashboard", "/api/dashboard?organizationId=" + foreign.org],
+    ["cross-tenant-bi", "/api/bi-exports?organizationId=" + foreign.org],
+    ["cross-tenant-workforce", "/api/workforce-planning?organizationId=" + foreign.org],
+    ["cross-tenant-payroll", "/api/payroll-runs?organizationId=" + foreign.org],
+    ["cross-tenant-existing-run", "/api/payroll-runs?runId=" + foreign.run + "&include=entries"],
+  ]) {
+    await probe("owner", name, path, 403, demoOwner.cookie, demoOwner.org);
+  }
+
+  const after = await db.select().from(payrollRuns).where(eq(payrollRuns.id, foreign.run)).limit(1);
+  evidence("foreign-owner", "run-unchanged-after-denials", 200, 200,
+    isDeepStrictEqual(after, snapshot));
+}
+
 async function run() {
   guardEnvironment();
   for (const path of ["/api/bi-exports?organizationId=1",
@@ -115,6 +209,7 @@ async function run() {
       path, 401, null, 1);
   }
 
+  let demoOwner = null;
   for (const role of ROLES) {
     let session;
     try {
@@ -134,6 +229,7 @@ async function run() {
       evidence(role, "demo-session", 0, 200, false);
     }
     if (!session) continue;
+    if (role === "owner") demoOwner = session;
 
     const org = session.org, cookie = session.cookie;
     const query = "organizationId=" + org;
@@ -149,20 +245,12 @@ async function run() {
     for (const [name, path] of Object.entries(paths)) {
       await probe(role, name, path, ACCESS[role][name], cookie, org);
     }
-    if (role === "owner") {
-      const foreign = org + 1000000;
-      for (const [name, path] of [
-        ["cross-tenant-dashboard", "/api/dashboard?organizationId=" + foreign],
-        ["cross-tenant-bi", "/api/bi-exports?organizationId=" + foreign],
-        ["cross-tenant-workforce", "/api/workforce-planning?organizationId=" + foreign],
-        ["cross-tenant-payroll", "/api/payroll-runs?organizationId=" + foreign],
-      ]) {
-        await probe(role, name, path, 403, cookie, org);
-      }
-    }
   }
+  assert.ok(demoOwner, "The fictional demo Owner must authenticate before tenant isolation QA");
+  await verifyExistingForeignEmployerDenials(demoOwner);
   // No role may silently drop out of the matrix and leave a green subset.
-  const expected = 5 + ROLES.length * 8 + 4;
+  // 2 true victim-owned positives + 5 actual victim denials + unchanged DB.
+  const expected = 5 + ROLES.length * 8 + 2 + 5 + 1;
   assert.equal(observations.length, expected,
     "Every anonymous, login, role-route and cross-tenant probe must execute");
 }
@@ -188,5 +276,6 @@ try {
   }, null, 2) + "\n");
   console.log("ISOLATED_RBAC_SUMMARY total=" + observations.length +
     " failed=" + errors + " real-customer-UAT=NOT_RUN");
+  await pool.end();
 }
 if (errors !== 0) process.exitCode = 1;
