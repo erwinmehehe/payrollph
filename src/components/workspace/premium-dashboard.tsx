@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -40,6 +41,10 @@ const WORKFLOW_STAGES = [
  * All irreversible payroll actions remain inside the existing guarded flows.
  */
 export function PremiumDashboard({ data, currentRun: run, role, onPage, onNewRun }: Props) {
+  // Relative timestamps depend on wall time and can cross minute boundaries between SSR and hydration.
+  // Render a stable UTC date until the browser has hydrated, then show relative time.
+  const [clientTimeReady, setClientTimeReady] = useState(false);
+  useEffect(() => { setClientTimeReady(true); }, []);
   const view = buildPremiumDashboardModel(data, run);
   const firstName = data.user?.name?.trim().split(/\s+/)[0] || "there";
   const released = run?.status === "Released";
@@ -209,7 +214,7 @@ export function PremiumDashboard({ data, currentRun: run, role, onPage, onNewRun
                   <li key={event.id}>
                     <span className="pd-activity-dot" aria-hidden />
                     <div><strong>{event.action}</strong><small>{event.actor || "System"}</small></div>
-                    <time dateTime={new Date(event.createdAt).toISOString()}>{relativeTime(event.createdAt)}</time>
+                    <time dateTime={new Date(event.createdAt).toISOString()}>{clientTimeReady ? relativeTime(event.createdAt) : new Date(event.createdAt).toISOString().slice(0, 10)}</time>
                   </li>
                 ))}
               </ul>
