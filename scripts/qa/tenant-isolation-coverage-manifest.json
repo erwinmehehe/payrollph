@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 423 API method and 20 page/action gaps remain. Bank evidence proofs require exact-head real HTTP/PG CI. No production release approval.",
+  "acceptanceStatus": "NOT ACCEPTED: 422 API method and 20 page/action gaps remain. Bank evidence proofs require exact-head real HTTP/PG CI. No production release approval.",
   "metrics": {
     "routeFiles": 288,
     "methods": 489,
     "coveredBefore": 20,
-    "coveredAfter": 60,
+    "coveredAfter": 61,
     "publicByDesign": 6,
-    "gap": 423,
+    "gap": 422,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -22361,15 +22361,23 @@
       "businessIds": []
     },
     "src/app/api/readiness/workspace/route.ts": {
-      "gitBlobSha": "0d70753b2bc9b455ee256bae57633fd662b7a242",
+      "gitBlobSha": "10121c3378f2e4ee983ab9b9551498a6f8dccdfd",
       "route": "readiness/workspace",
       "methods": [
         {
           "name": "GET",
           "line": 7,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Fail-closed containment proven in isolated, seeded two-attacker/one-victim HTTP test: authenticated own GET is explicitly 503 with no counts/gates, foreign GET is 403. This is NOT a working readiness dashboard and does not imply pilot approval.",
+          "testedBy": {
+            "file": "scripts/qa/workspace-readiness-http.mjs",
+            "line": 26,
+            "ownPositiveLine": 26,
+            "foreignDenialLine": 16,
+            "ownStatus": 503,
+            "foreignStatus": 403,
+            "scope": "Synthetic PostgreSQL16, independent authenticated owner sessions; no launch/readiness evidence exposed; dashboard remains unavailable"
+          }
         }
       ],
       "employerSources": {

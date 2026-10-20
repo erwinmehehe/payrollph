@@ -355,7 +355,8 @@ test("all credited proof links point to the claimed route and every recertified 
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
-        "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs"].includes(proof?.file),
+        "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
+        "scripts/qa/workspace-readiness-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
@@ -366,6 +367,16 @@ test("all credited proof links point to the claimed route and every recertified 
           path + ": denied requests must leave real victim data unchanged");
         assert.match(integration, /process\.env\.TENANT_SECOND_PASS_MODE/,
           path + ": isolated-only guard is mandatory");
+      }
+      if (proof.file === "scripts/qa/workspace-readiness-http.mjs") {
+        const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        const suite = readFileSync(proof.file, "utf8");
+        assert.match(runner, /await \(await import\("\.\/workspace-readiness-http\.mjs"\)\)\.verifyWorkspaceReadinessIsolation\(f, \{ request, expectStatus \}\)/,
+          path + ": fail-closed suite must execute in the real disposable HTTP harness");
+        assert.equal(proof.ownStatus, 503, path + ": workspace is unavailable, not read-ready");
+        assert.equal(proof.foreignStatus, 403, path + ": foreign employer must be denied");
+        assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE/);
+        assert.match(suite, /WORKSPACE_READINESS_UNAVAILABLE/);
       }
       if (proof.file === "scripts/qa/bank-tenant-http.mjs") {
         assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),
