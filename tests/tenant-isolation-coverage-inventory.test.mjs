@@ -355,7 +355,8 @@ test("all credited proof links point to the claimed route and every recertified 
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
-        "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs"].includes(proof?.file),
+        "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
+        "scripts/qa/government-loan-read-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
@@ -366,6 +367,15 @@ test("all credited proof links point to the claimed route and every recertified 
           path + ": denied requests must leave real victim data unchanged");
         assert.match(integration, /process\.env\.TENANT_SECOND_PASS_MODE/,
           path + ": isolated-only guard is mandatory");
+      }
+      if (proof.file === "scripts/qa/government-loan-read-http.mjs") {
+        const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        const suite = readFileSync(proof.file, "utf8");
+        assert.match(runner, /await \(await import\("\.\/government-loan-read-http\.mjs"\)\)\.verifyGovernmentLoanRemittanceIsolation\(f, \{ request, expectStatus \}\)/,
+          path + ": gov loan proof must run in guarded isolated PG16");
+        assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE/);
+        assert.match(suite, /assert\.deepEqual\(afterBatches,beforeBatches/);
+        assert.match(suite, /assert\.deepEqual\(afterMembers,beforeMembers/);
       }
       if (proof.file === "scripts/qa/bank-tenant-http.mjs") {
         assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),

@@ -21,9 +21,11 @@ test("probation review panel remounts by employment term and loads asynchronousl
 test("government loan remittance panel remounts by employer and loads asynchronously", () => {
   const source = read(LOAN);
   assert.match(source, /GovernmentLoanRemittancePanelContent key=\{props\.organizationId\}/);
-  assert.match(source, /const load = useCallback\(async \(signal\?: AbortSignal\) => \{/);
+  assert.match(source, /const load = useCallback\(async \(signal\?: AbortSignal\): Promise<boolean> => \{/);
   assert.match(source, /new AbortController\(\)/);
-  assert.match(source, /queueMicrotask\(\(\) => \{\s*if \(controller\.signal\.aborted\) return;\s*void load\(controller\.signal\)\.catch/);
+  assert.match(source, /queueMicrotask\(\(\) => \{\s*if \(controller\.signal\.aborted\) return;\s*void load\(controller\.signal\);/);
+  assert.match(source, /setSnapshot\(null\)/, "Clear stale remittance evidence on each load");
+  assert.match(source, /catch \{[\s\S]*?setReadError\(/, "Internal errors explicitly mark verification unavailable");
   assert.match(source, /return \(\) => controller\.abort\(\)/);
   assert.match(source, /if \(signal\?\.aborted\) return/);
 });

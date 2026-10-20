@@ -90,7 +90,11 @@ export async function GET(request: Request) {
   const batchIds = batches.map((batch) => batch.id);
   const members = batchIds.length
     ? await db.select().from(governmentLoanRemittanceMembers)
-        .where(inArray(governmentLoanRemittanceMembers.batchId, batchIds))
+        .where(and(
+          inArray(governmentLoanRemittanceMembers.batchId, batchIds),
+          eq(governmentLoanRemittanceMembers.organizationId, organizationId),
+          eq(governmentLoanRemittanceMembers.legalEntityId, legalEntity.id),
+        ))
         .orderBy(asc(governmentLoanRemittanceMembers.batchId), asc(governmentLoanRemittanceMembers.employeeNo))
     : [];
 
@@ -102,6 +106,8 @@ export async function GET(request: Request) {
   }).format(new Date());
 
   return Response.json({
+    organizationId,
+    legalEntityId: legalEntity.id,
     today,
     legalEntity: { id: legalEntity.id, code: legalEntity.code, displayName: legalEntity.displayName },
     batches: batches.map((batch) => ({

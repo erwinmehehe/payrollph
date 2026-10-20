@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
+import { isVerifiedGovernmentLoanRemittanceRead, type GovernmentLoanRead } from "@/lib/government-loan-remittance-read";
 
 type Agency = "SSS" | "Pag-IBIG";
 
@@ -58,8 +59,11 @@ function GovernmentLoanRemittancePanelContent({
   organizationId: number;
   setNotice: (message: string) => void;
 }) {
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [snapshot, setSnapshot] = useState<GovernmentLoanRead | null>(null);
+  const [readError, setReadError] = useState("");
+  const [reading, setReading] = useState(true);
+  const batches: Batch[] = snapshot?.batches ?? [];
+  const members: Member[] = snapshot?.members ?? [];
   const [month, setMonth] = useState(previousMonth());
   const [busy, setBusy] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
@@ -73,21 +77,36 @@ function GovernmentLoanRemittancePanelContent({
   const [postingReference, setPostingReference] = useState("");
   const [exceptionNote, setExceptionNote] = useState("");
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    const response = await fetch(
-      `/api/compliance/government-loan-remittances?organizationId=${organizationId}`,
-      { cache: "no-store", signal },
-    );
-    const body = await response.json().catch(() => ({}));
-    if (signal?.aborted) return;
-    if (response.status === 403) {
-      setForbidden(true);
-      return;
+  const load = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
+    setReading(true);
+    setSnapshot(null);
+    setReadError("");
+    try {
+      const response = await fetch(
+        `/api/compliance/government-loan-remittances?organizationId=${organizationId}`,
+        { cache: "no-store", signal },
+      );
+      if (signal?.aborted) return false;
+      if (response.status === 403) {
+        setForbidden(true);
+        setReadError("Access to this employer's government loan records is unavailable.");
+        return false;
+      }
+      if (!response.ok) throw new Error("Government loan remittances are unavailable.");
+      const body: unknown = await response.json();
+      if (!isVerifiedGovernmentLoanRemittanceRead(body, organizationId)) {
+        throw new Error("Government loan totals or member records are incomplete or from another employer.");
+      }
+      if (signal?.aborted) return false;
+      setForbidden(false);
+      setSnapshot(body);
+      return true;
+    } catch {
+      if (!signal?.aborted) setReadError("Government loan evidence is unavailable or could not be verified. Retry before taking action.");
+      return false;
+    } finally {
+      if (!signal?.aborted) setReading(false);
     }
-    if (!response.ok) throw new Error(body.error ?? "Could not load government loan remittances.");
-    setForbidden(false);
-    setBatches(Array.isArray(body.batches) ? body.batches : []);
-    setMembers(Array.isArray(body.members) ? body.members : []);
   }, [organizationId]);
 
   useEffect(() => {
@@ -96,10 +115,7 @@ function GovernmentLoanRemittancePanelContent({
     // Strict Mode cleanup can cancel this scheduled read before it starts.
     queueMicrotask(() => {
       if (controller.signal.aborted) return;
-      void load(controller.signal).catch((error) => {
-        if (controller.signal.aborted) return;
-        setNotice(error instanceof Error ? error.message : "Could not load government loan remittances.");
-      });
+      void load(controller.signal);
     });
     return () => controller.abort();
   }, [load, setNotice]);
@@ -110,6 +126,7 @@ function GovernmentLoanRemittancePanelContent({
   );
 
   async function mutate(action: string, payload: Record<string, unknown>, success: string) {
+    if (!snapshot || reading || busy !== null) return false;
     setBusy(action);
     try {
       const response = await fetch("/api/compliance/government-loan-remittances", {
@@ -119,8 +136,8 @@ function GovernmentLoanRemittancePanelContent({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Government loan remittance action failed.");
+      if (!await load()) return false;
       setNotice(success);
-      await load();
       return true;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Government loan remittance action failed.");
@@ -182,7 +199,11 @@ function GovernmentLoanRemittancePanelContent({
     }
   }
 
-  if (forbidden) return null;
+  if (forbidden) return (
+    <div role="alert" className="notice notice-amber">
+      Government loan records are unavailable for this employer. No status or payment actions can be shown.
+    </div>
+  );
 
   return (
     <article className="card" style={{ marginTop: 18 }} data-government-loan-remittance>
@@ -200,6 +221,14 @@ function GovernmentLoanRemittancePanelContent({
       </div>
 
       <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 14 }}>
+        {reading && <p role="status">Verifying employer-scoped remittance and member evidence…</p>}
+        {readError && <div role="alert" className="notice notice-amber">
+          <AlertTriangle size={15} /> {readError}
+          <button className="secondary-button" type="button" onClick={() => void load()}>Retry evidence read</button>
+        </div>}
+        {snapshot && monthBatches.length === 0 && (
+          <p role="status">No remittance batch is recorded for this month. This is not proof that loan liabilities are zero.</p>
+        )}
         <div className="notice notice-amber" style={{ margin: 0 }}>
           <AlertTriangle size={15} />
           <span>
@@ -216,7 +245,7 @@ function GovernmentLoanRemittancePanelContent({
             <button
               key={agency}
               className="secondary-button"
-              disabled={busy !== null || monthBatches.some((batch) => batch.agency === agency)}
+              disabled={!snapshot || reading || busy !== null || monthBatches.some((batch) => batch.agency === agency)}
               onClick={() => void createBatch(agency)}
             >
               <Landmark size={14} />
