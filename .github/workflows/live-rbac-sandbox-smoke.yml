@@ -3,15 +3,6 @@ name: Live RBAC Sandbox Smoke
 on:
   pull_request:
     branches: [main]
-    paths:
-      - ".github/workflows/live-rbac-sandbox-smoke.yml"
-      - "src/app/api/auth/demo-switch/route.ts"
-      - "src/app/api/readiness/demo-provisioning/route.ts"
-      - "src/lib/demo-provisioning-boundary.ts"
-      - "tests/demo-sandbox.test.ts"
-      - "tests/live-rbac-ci-log-privacy.test.mjs"
-      - "tests/isolated-six-role-rbac-contract.test.mjs"
-      - "scripts/qa/isolated-six-role-rbac.mjs"
   push:
     branches: [main]
   workflow_dispatch:
@@ -68,6 +59,35 @@ jobs:
           echo "Production never reported the expected commit SHA; no response bodies were logged."
           exit 1
 
+      # Never invoke token-gated HR fixture writes until the actual deployed
+      # PostgreSQL session is the expected Neon target with named relations.
+      # Missing tables cause a visible FAIL; never skip or green the privacy test.
+      - name: Verify private compensation database readiness (#1015/#1061)
+        env:
+          PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
+          EXPECTED_NEON_PROJECT_ID: calm-wave-70219564
+          EXPECTED_NEON_BRANCH_ID: br-lucky-sound-b79i56jw
+          EXPECTED_NEON_ENDPOINT_ID: ep-cool-hat-b7e7gpoo
+          EXPECTED_NEON_DATABASE_NAME: neondb
+        run: |
+          set -euo pipefail
+          umask 077
+          if [ "${#PRODUCTION_READINESS_TOKEN}" -lt 32 ]; then
+            echo '::error::Private database readiness token is unavailable.'
+            exit 1
+          fi
+          response_file=$(mktemp)
+          trap 'rm -f -- "$response_file"' EXIT
+          http_status=$(curl -sS --max-time 20 --proto '=https' \
+            -H "x-readiness-token: $PRODUCTION_READINESS_TOKEN" \
+            -o "$response_file" -w '%{http_code}' \
+            "$BASE_URL/api/readiness/database-target" || true)
+          echo "private database readiness http_status=$http_status"
+          if [ "$http_status" != 200 ]; then
+            echo '::error::Private deployment-to-Neon identity is unavailable; no HR fixture attempted.'
+            exit 1
+          fi
+          node scripts/qa/verify-production-compensation-preflight.mjs "$response_file"
       - name: Read protected demo provisioning boundary (no user provisioning)
         id: demo_boundary
         env:
@@ -251,36 +271,6 @@ jobs:
               "$role" "$organization_id" "$work_dir/demo-cookies.txt" "$work_dir"
           done
 
-      # Never invoke token-gated HR fixture writes until the actual deployed
-      # PostgreSQL session is the expected Neon target with named relations.
-      # Missing tables cause a visible FAIL; never skip or green the privacy test.
-      - name: Verify private compensation database readiness (#1015/#1061)
-        if: steps.demo_boundary.outputs.mode == 'demo_only'
-        env:
-          PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
-          EXPECTED_NEON_PROJECT_ID: calm-wave-70219564
-          EXPECTED_NEON_BRANCH_ID: br-lucky-sound-b79i56jw
-          EXPECTED_NEON_ENDPOINT_ID: ep-cool-hat-b7e7gpoo
-          EXPECTED_NEON_DATABASE_NAME: neondb
-        run: |
-          set -euo pipefail
-          umask 077
-          if [ "${#PRODUCTION_READINESS_TOKEN}" -lt 32 ]; then
-            echo '::error::Private database readiness token is unavailable.'
-            exit 1
-          fi
-          response_file=$(mktemp)
-          trap 'rm -f -- "$response_file"' EXIT
-          http_status=$(curl -sS --max-time 20 --proto '=https' \
-            -H "x-readiness-token: $PRODUCTION_READINESS_TOKEN" \
-            -o "$response_file" -w '%{http_code}' \
-            "$BASE_URL/api/readiness/database-target" || true)
-          echo "private database readiness http_status=$http_status"
-          if [ "$http_status" != 200 ]; then
-            echo '::error::Private deployment-to-Neon identity is unavailable; no HR fixture attempted.'
-            exit 1
-          fi
-          node scripts/qa/verify-production-compensation-preflight.mjs "$response_file"
       - name: Verify deployed fictional HR compensation privacy (#1046)
         if: steps.demo_boundary.outputs.mode == 'demo_only'
         env:

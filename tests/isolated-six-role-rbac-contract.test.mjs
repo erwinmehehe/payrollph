@@ -76,3 +76,29 @@ test("cross-employer proof requires existing seeded records and actual second-ow
   assert.ok(sixRoles >= 0 && seedAfterRoles > sixRoles,
     "The second employer must be added only after all public demo role sign-ins.");
 });
+
+
+test("production target identity and schema must be attested before ANY demo login", () => {
+  const deployment = workflow.indexOf("- name: Wait for exact production deployment");
+  const preflight = workflow.indexOf("- name: Verify private compensation database readiness");
+  const boundary = workflow.indexOf("- name: Read protected demo provisioning boundary");
+  const demoLogin = workflow.indexOf("- name: Verify guarded demo login 404");
+  assert.ok(deployment >= 0 && deployment < preflight && preflight < boundary && boundary < demoLogin,
+    "Read-only target/ledger attestation must precede even the guarded demo 404 probe");
+  const preflightBlock = workflow.slice(preflight, boundary);
+  assert.doesNotMatch(preflightBlock, /^\s*if:\s*steps\.demo_boundary/m,
+    "Customer-scope demo guard must NEVER disable production DB target and schema verification");
+  assert.match(preflightBlock, /\/api\/readiness\/database-target/);
+  assert.match(preflightBlock, /verify-production-compensation-preflight\.mjs/);
+  assert.match(workflow,
+    /- name: Verify deployed fictional HR compensation privacy \(#1046\)\n        if: steps\.demo_boundary\.outputs\.mode == 'demo_only'/,
+    "Mutating fictional HR provisioning must still be limited to verified demo-only target");
+});
+
+test("PRs changing any payroll authorization dependency must run disposable six-role tests", () => {
+  assert.match(workflow, /  pull_request:\n    branches: \[main\]\n  push:/,
+    "No file path allowlist: role guard, schema, middleware and session changes all need RBAC tests");
+  assert.doesNotMatch(workflow, /  pull_request:\n    branches: \[main\]\n    paths:/);
+  assert.match(workflow, /live-sandbox:\n    if: github\.event_name != 'pull_request'/,
+    "Pull-request tests must not use live production secrets");
+});
