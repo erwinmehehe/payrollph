@@ -8,14 +8,15 @@ import { INVITABLE_ROLES } from "@/lib/roles";
 import { ApprovalsView } from "./approvals";
 import { ExportsView } from "./exports";
 import type { DashboardData, Notify } from "./types";
+import { firstPayrollRunHref } from "@/lib/first-payroll-run-navigation";
+import { parseFirstPayrollProgressRead, type SavedFirstPayrollProgress } from "@/lib/first-payroll-progress-read";
 
 function firstPayrollStep(key: FirstPayrollKey) {
   const found = FIRST_PAYROLL_STEPS.find(item => item.key === key);
   if (!found) throw new Error("Unknown journey step");
   return found;
 }
-type RecordedStep = { byUserId:number;at:string;periodStart?:string;periodEnd?:string };
-type Progress = { stepOwners?:Record<string,string>;completedSteps?:Record<string,RecordedStep>;reviewedByUserId?:number|null };
+type Progress = SavedFirstPayrollProgress;
 type PreviewRow = { employeeId:number;name:string;gross:number|null;sss:number|null;philHealth:number|null;pagIbig:number|null;withholding:number|null;net:number|null;blockers:string[] };
 type Preview = { rows:PreviewRow[];blockers:string[];warnings?:string[];previewReady:boolean;dryRun:true };
 type LegalEmployer = { id:number;primaryEntity:boolean;active:boolean;legalName:string;payrollCalendarMode:string;birTin?:string|null;sssEmployerNo?:string|null;philHealthEmployerNo?:string|null;pagIbigEmployerNo?:string|null };
@@ -51,7 +52,7 @@ export function FirstPayrollInlinePanel({
   let cancelled=false;
   void fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"})
    .then(async r=>{if(!r.ok)throw Error("Cannot load step progress");return r.json();})
-   .then(x=>{if(cancelled)return;const p=x.progress as Progress|null;setProgress(p);
+   .then(x=>{if(cancelled)return;const p=parseFirstPayrollProgressRead(x);setProgress(p);
       const reviewed=p?.completedSteps?.time;
       if(reviewed?.periodStart)setStart(reviewed.periodStart);
       if(reviewed?.periodEnd)setEnd(reviewed.periodEnd);
@@ -80,7 +81,7 @@ export function FirstPayrollInlinePanel({
       body:JSON.stringify({...body,organizationId})});
     const result=await response.json().catch(()=>({}));
     if(!response.ok)throw Error(result.error??"Could not complete action");
-    if(result.progress)setProgress(result.progress);
+    if(result.progress)setProgress(parseFirstPayrollProgressRead(result));
     if(result.run?.id)setDraftId(result.run.id);
     if(result.progress)await onProgressUpdate?.();
     await onRefresh();
@@ -237,6 +238,13 @@ export function FirstPayrollInlinePanel({
      <p>Active payroll officers: {data.firstPayrollReadiness?.payrollOfficerCount??0}; independent checkers: {data.firstPayrollReadiness?.checkerCount??0}.</p>
    </div>}
    {step==="payroll"&&<div className="grid gap-3">
+     {data.firstPayrollConnectedEnabled && canPreviewPayroll && data.payrollRuns.length > 0 && <section aria-label="Saved payroll runs" className="grid gap-3 rounded-lg border p-3">
+       <h3 className="font-semibold">Continue a saved payroll</h3>
+       <p className="text-sm">Open the existing run to calculate, resolve exceptions and submit it to a separate checker. Refreshing this page does not require another draft.</p>
+       {data.payrollRuns.map(run => <a key={run.id} className="first-payroll-link flex flex-wrap gap-2" href={firstPayrollRunHref(organizationId, run.id)}>
+         <span>Open payroll run #{run.id}</span><span>{run.periodLabel} · {run.status}</span>
+       </a>)}
+     </section>}
      <p>First payroll preview reads actual employer records and reuses the payroll calculator. It never creates a run or a ledger entry. Creating a draft is a separate, explicit action.</p>
      <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period start</span><input className="block min-w-0 w-full" type="date" value={start} onChange={e=>{setStart(e.target.value);setPreview(null);setDraftId(null);}}/></label>
      <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period end</span><input className="block min-w-0 w-full" type="date" value={end} onChange={e=>{setEnd(e.target.value);setPreview(null);setDraftId(null);}}/></label>

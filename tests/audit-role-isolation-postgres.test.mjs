@@ -262,6 +262,44 @@ test("actual restricted logins: audit grants, GUC spoofing and forward guards",{
     CREATE TRIGGER audit_events_protect_mutation BEFORE UPDATE OR DELETE ON public.audit_events FOR EACH ROW EXECUTE FUNCTION public.audit_events_protect_v2();
     DROP FUNCTION public.qa908_noop()`);}
   });
+
+  // A privileged CREATE OR REPLACE retains pg_proc OID (and thus trigger
+  // tgfoid), but must NEVER preserve a strict PASS after body substitution.
+  // A SAVEPOINT-scoped SESSION AUTHORIZATION changes the querying identity
+  // within the same transaction, so the uncommitted replacement is visible.
+  // The surrounding transaction rolls back all fictional DDL.
+  for(const [signature,replacement] of [
+   ["audit_events_protect_v2()", "CREATE OR REPLACE FUNCTION public.audit_events_protect_v2() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $qa908$BEGIN RETURN NEW; END$qa908$"],
+   ["audit_events_insert_guard_v2()", "CREATE OR REPLACE FUNCTION public.audit_events_insert_guard_v2() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $qa908$BEGIN RETURN NEW; END$qa908$"],
+   ["audit_events_reject_truncate_v2()", "CREATE OR REPLACE FUNCTION public.audit_events_reject_truncate_v2() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $qa908$BEGIN RETURN NULL; END$qa908$"],
+   ["seal_audit_events(integer)", "CREATE OR REPLACE FUNCTION public.seal_audit_events(max_rows integer DEFAULT 500) RETURNS integer LANGUAGE plpgsql SET search_path=pg_catalog AS $qa908$BEGIN RETURN 0; END$qa908$"],
+   ["audit_event_row_hash(text,bigint,integer,integer,text,text,text,jsonb,timestamptz)", "CREATE OR REPLACE FUNCTION public.audit_event_row_hash(prev text,seq bigint,event_id integer,org integer,actor text,action text,resource text,metadata jsonb,created timestamptz) RETURNS text LANGUAGE sql STABLE AS $qa908$SELECT repeat('0',64)$qa908$"],
+   ["audit_events_protect_v2()", "ALTER FUNCTION public.audit_events_protect_v2() SET search_path=public"],
+   ["audit_events_protect_v2()", "ALTER FUNCTION public.audit_events_protect_v2() RESET search_path"],
+   ["audit_events_protect_v2()", "ALTER FUNCTION public.audit_events_protect_v2() SECURITY DEFINER"],
+   ["seal_audit_events(integer)", "ALTER FUNCTION public.seal_audit_events(integer) STABLE"],
+   ["seal_audit_events(integer)", "ALTER FUNCTION public.seal_audit_events(integer) SET work_mem='8MB'"],
+   ["audit_event_row_hash(text,bigint,integer,integer,text,text,text,jsonb,timestamptz)", "ALTER FUNCTION public.audit_event_row_hash(text,bigint,integer,integer,text,text,text,jsonb,timestamptz) VOLATILE"],
+   ["audit_events_reject_truncate_v2()", "CREATE OR REPLACE FUNCTION public.audit_events_reject_truncate_v2() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $qa908$\nBEGIN\n RAISE EXCEPTION 'audit history cannot be truncated' USING ERRCODE='insufficient_privilege';\nEND\n\n$qa908$"],
+  ])await t.test("same-OID changed body/metadata fails strict definition proof: "+signature+" / "+replacement,async()=>{
+   const sig="public."+signature;
+   const {rows:[{oid:beforeOid}]}=await admin.query("SELECT pg_catalog.to_regprocedure($1)::oid AS oid",[sig]);
+   assert.ok(beforeOid);
+   await transaction(admin,async()=>{
+    await admin.query(replacement);
+    const {rows:[{oid:afterOid}]}=await admin.query("SELECT pg_catalog.to_regprocedure($1)::oid AS oid",[sig]);
+    assert.equal(afterOid,beforeOid,"CREATE OR REPLACE must retain function OID");
+    await admin.query("SAVEPOINT qa908_definition_probe");
+    try{
+     await admin.query("SET LOCAL SESSION AUTHORIZATION qa908_app");
+     const {rows:[row]}=await admin.query(STRICT_AUDIT_ROLE_PROOF_SQL);
+     assert.equal(row.auditFunctionBodiesTrusted,false);
+     assert.equal(auditChainProtectionProven(row,true),false);
+    }finally{await admin.query("ROLLBACK TO SAVEPOINT qa908_definition_probe");}
+   });
+   assert.equal(await proof(app),true,"rollback restores original trusted definitions");
+  });
+
   const appUrl=new URL(url);appUrl.username="qa908_app";appUrl.password=credentials.get("qa908_app");
   const sealerUrl=new URL(url);sealerUrl.username="qa908_sealer";sealerUrl.password=credentials.get("qa908_sealer");
   const sealerEnv={NODE_ENV:"production",DATABASE_URL:appUrl.href,AUDIT_SEALER_DATABASE_URL:sealerUrl.href,AUDIT_ROLE_ISOLATION_PROOF_ENABLED:"true"};

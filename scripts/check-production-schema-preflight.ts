@@ -99,7 +99,7 @@ async function main() {
       "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind = 'f' AND p.oid = to_regprocedure('public.seal_audit_events(integer)')) AS present",
     );
     const triggers = await client.query<{ name: string }>(
-      "SELECT c.relname || '.' || t.tgname AS name FROM pg_catalog.pg_trigger t JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'audit_events' AND NOT t.tgisinternal AND t.tgenabled IN ('O','A') AND (t.tgtype & 27) = 27 AND t.tgfoid = to_regprocedure('public.audit_events_protect()') AND t.tgname = 'audit_events_protect_mutation'",
+      "SELECT c.relname || '.' || t.tgname AS name FROM pg_catalog.pg_trigger t JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'audit_events' AND NOT t.tgisinternal AND t.tgenabled IN ('O','A') AND (t.tgtype & 27) = 27 AND t.tgfoid IN (to_regprocedure('public.audit_events_protect()'), to_regprocedure('public.audit_events_protect_v2()')) AND t.tgname = 'audit_events_protect_mutation'",
     );
     const evaluation = evaluateReleaseSchemaInventory({
       tables: tables.rows.map((row) => row.name),

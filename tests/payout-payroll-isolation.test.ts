@@ -87,7 +87,8 @@ test("general CI keeps independent payroll and statutory certification mandatory
   const direct = /npx tsx --test(?: --test-concurrency=\d+)? tests\/\*\.test\.ts/.test(workflow);
   const viaNpm = /- run: npm test(?:\s|$)/.test(workflow)
     && fullRegressionCommand.test(packageJson.scripts?.test ?? "");
-  const sharded = /needs: test-shard/.test(workflow)
+  const sharded = /needs: \[test-shard, audit-chain-protection\]/.test(workflow)
+    && /needs\.audit-chain-protection\.result != 'success'/.test(workflow)
     && /shard: \[0, 1, 2, 3\]/.test(workflow)
     && /node scripts\/run-sharded-tests\.mjs/.test(workflow)
     && /npm run db:push/.test(workflow)

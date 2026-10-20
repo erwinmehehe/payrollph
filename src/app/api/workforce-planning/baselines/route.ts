@@ -19,6 +19,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseAdvancedPlan } from "@/lib/enterprise-advanced-plan-server";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   compareHeadcountPlanDimensions,
@@ -154,6 +155,10 @@ export async function GET(request: Request) {
 
   const access = await planningAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "Workforce-manager access is required." }, { status: 403 });
+  const permissionDenied = await assertOrganizationRole(user.id, organizationId, WORKFORCE_MANAGER_ROLES);
+  if (permissionDenied) return permissionDenied;
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
   const canViewCost = roleAllowed(access.role, PEOPLE_PAYROLL_ROLES as readonly string[]);
 
   const [baselineRows, positionRows, assignmentRows, orgUnitRows, costCenterRows] = await Promise.all([
@@ -294,6 +299,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Publishing the official headcount baseline requires company-wide access." }, { status: 403 });
   }
 
+
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(scenario.organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
 
   const [[plan], positionRows, assignmentRows] = await Promise.all([
     db.select().from(workforcePlans).where(and(

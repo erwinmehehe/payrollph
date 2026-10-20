@@ -60,11 +60,24 @@ test("actual HTTP PayMongo POST and final bank GET cannot double-claim a release
       avatarInitials: "FW", basicRate: "20000.00", startDate: "2026-01-01",
       bankAccount: "1234567890", bankCode: "BDO",
     }).returning();
+    // Each released run needs its own genuine cutoff. 0089's overlap guard
+    // must remain active while these independent payout-rail races are tested.
+    const cutoffs = [
+      ["2026-07-01", "2026-07-15", "2026-07-16"],
+      ["2026-07-16", "2026-07-31", "2026-08-01"],
+      ["2026-08-01", "2026-08-15", "2026-08-16"],
+      ["2026-08-16", "2026-08-31", "2026-09-01"],
+      ["2026-09-01", "2026-09-15", "2026-09-16"],
+      ["2026-09-16", "2026-09-30", "2026-10-01"],
+      ["2026-10-01", "2026-10-15", "2026-10-16"],
+    ] as const;
+    let cutoffIndex = 0;
     const newRun = async (label: string) => {
+      const [periodStart, periodEnd, payDate] = cutoffs[cutoffIndex++]!;
       const [run] = await db.insert(payrollRuns).values({
         organizationId: org.id, periodLabel: label,
-        periodStart: "2026-10-01", periodEnd: "2026-10-15",
-        payDate: "2026-10-16", status: "Released",
+        periodStart, periodEnd,
+        payDate, status: "Released",
         employeeCount: 1, grossPay: "20000.00", netPay: "15000.00",
       }).returning();
       await db.insert(payrollEntries).values({

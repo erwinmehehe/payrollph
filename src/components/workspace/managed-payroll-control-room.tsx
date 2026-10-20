@@ -12,46 +12,7 @@ import {
 } from "lucide-react";
 import type { DashboardData, Notify, PayrollRun } from "./types";
 import { Status, formatDate, money } from "./ui";
-
-type ManagedGate = {
-  id: number;
-  gateKey: string;
-  label: string;
-  status: string;
-  evidenceRef: string | null;
-  completedBy: string | null;
-  completedAt: string | null;
-};
-
-type ManagedRun = {
-  id: number;
-  periodLabel: string;
-  status: string;
-  payDate: string;
-  employeeCount: number;
-  grossPay: string;
-  netPay: string;
-  clientApproval: null | {
-    approvedBy: string;
-    approvedAt: string;
-    valid: boolean;
-  };
-};
-
-type ManagedPayload = {
-  engagement: null | {
-    id: number;
-    status: string;
-    serviceTier: string;
-    slaHours: number;
-    targetGoLive: string | null;
-    clientApproverUserId: number;
-  };
-  gates: ManagedGate[];
-  runs: ManagedRun[];
-  designatedApprover: null | { id: number; name: string; email: string };
-  currentUserIsApprover?: boolean;
-};
+import { parseManagedPayrollRead, type ManagedGate, type ManagedPayload } from "@/lib/managed-payroll-read";
 
 type ManagedPayrollControlRoomProps = {
   data: DashboardData;
@@ -63,7 +24,7 @@ type ManagedPayrollControlRoomProps = {
 // Switching A -> B -> A remounts instead of reviving a previous approval snapshot.
 export function ManagedPayrollControlRoom(props: ManagedPayrollControlRoomProps) {
   return <ManagedPayrollControlRoomForEmployer
-    key={props.data.selectedOrganization.id}
+    key={JSON.stringify([props.data.selectedOrganization.id, props.data.user?.id ?? null, props.data.access?.role ?? null, props.data.access?.companyWide === true])}
     {...props}
   />;
 }
@@ -74,6 +35,7 @@ function ManagedPayrollControlRoomForEmployer({
   notify,
 }: ManagedPayrollControlRoomProps) {
   const organizationId = data.selectedOrganization.id;
+  const viewerUserId = data.user?.id ?? null;
   const [payload, setPayload] = useState<ManagedPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -82,42 +44,38 @@ function ManagedPayrollControlRoomForEmployer({
   const activeRead = useRef<AbortController | null>(null);
   const cancelRead = useCallback(() => { activeRead.current?.abort(); }, []);
 
-  const load = useCallback(async () => {
-    // Initial mount is already loading. The effect launches only an async GET;
-    // user-initiated Refresh owns the synchronous loading transition.
+  const load = useCallback(async (): Promise<boolean> => {
     activeRead.current?.abort();
     const controller = new AbortController();
     activeRead.current = controller;
+    // Withdraw the previous register and approval permissions before any fresh GET.
+    setPayload(null);
+    setLoading(true);
+    setLoadError(null);
     try {
-      const response = await fetch(`/api/managed-payroll?organizationId=${organizationId}`, {
+      const response = await fetch("/api/managed-payroll?organizationId=" + organizationId, {
         cache: "no-store",
         signal: controller.signal,
       });
-      const body = await response.json().catch(() => ({}));
-      if (controller.signal.aborted) return;
-      if (!response.ok) throw new Error(body.error ?? "Managed payroll controls could not be loaded.");
-      if (!Object.hasOwn(body, "engagement") || !Array.isArray(body.gates) || !Array.isArray(body.runs)) {
-        throw new Error("Managed payroll returned incomplete approval controls.");
-      }
-      setPayload(body as ManagedPayload);
-      setLoadError(null);
-      setEvidence((current) => {
-        const next = { ...current };
-        for (const gate of body.gates as ManagedGate[]) {
-          if (!(gate.id in next)) next[gate.id] = gate.evidenceRef ?? "";
-        }
-        return next;
-      });
+      const body: unknown = await response.json().catch(() => null);
+      if (controller.signal.aborted) return false;
+      if (!response.ok) throw new Error("Managed payroll controls could not be loaded.");
+      const verified = parseManagedPayrollRead(body, { organizationId, viewerUserId });
+      if (!verified) throw new Error("Managed payroll employer, approver or gate evidence could not be verified.");
+      setPayload(verified);
+      setEvidence(Object.fromEntries(verified.gates.map((gate) => [gate.id, gate.evidenceRef ?? ""])));
+      return true;
     } catch (error) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) return false;
       const message = error instanceof Error ? error.message : "Managed payroll controls could not be loaded.";
       setPayload(null);
       setLoadError(message);
       notify(message, "err");
+      return false;
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [organizationId, notify]);
+  }, [organizationId, viewerUserId, notify]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -150,8 +108,10 @@ function ManagedPayrollControlRoomForEmployer({
         notify(body.error ?? "Managed payroll could not be enabled.", "err");
         return;
       }
-      setPayload(body as ManagedPayload);
-      notify("Managed payroll pilot controls enabled. Release now requires exact-run client approval.", "ok");
+      const verified = await load();
+      notify(verified
+        ? "Managed payroll pilot controls enabled. Release now requires exact-run client approval."
+        : "The enable request may have succeeded, but its exact employer controls could not be verified. Refresh before acting.", verified ? "ok" : "err");
     } catch {
       notify("Managed payroll could not be enabled because the service could not be reached.", "err");
     } finally {
@@ -177,8 +137,10 @@ function ManagedPayrollControlRoomForEmployer({
         notify(body.error ?? "Implementation gate could not be updated.", "err");
         return;
       }
-      setPayload(body as ManagedPayload);
-      notify(status === "verified" ? "Implementation evidence recorded." : "Implementation gate reopened.", "ok");
+      const verified = await load();
+      notify(verified
+        ? (status === "verified" ? "Implementation evidence recorded." : "Implementation gate reopened.")
+        : "The evidence update may have succeeded, but its authorized result could not be verified. Refresh before retrying.", verified ? "ok" : "err");
     } catch {
       notify("Implementation gate could not be updated because the service could not be reached.", "err");
     } finally {
@@ -203,8 +165,12 @@ function ManagedPayrollControlRoomForEmployer({
         notify(body.error ?? "Client payroll approval could not be recorded.", "err");
         return;
       }
-      notify(body.replacedStaleApproval ? "Changed payroll reviewed and re-approved." : "Exact payroll register approved for managed release.", "ok");
-      await load();
+      const verified = await load();
+      notify(!verified
+        ? "The approval request may have succeeded, but its current register could not be verified. Refresh before retrying."
+        : body.replacedStaleApproval
+          ? "Changed payroll reviewed and re-approved."
+          : "Exact payroll register approved for managed release.", verified ? "ok" : "err");
     } catch {
       notify("Client payroll approval could not be recorded because the service could not be reached.", "err");
     } finally {

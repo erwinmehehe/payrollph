@@ -6,6 +6,7 @@ import type { Notify } from "./types";
 import { Spinner, Status, money } from "./ui";
 import { StatutoryPostingImport } from "./statutory-posting-import";
 import { StatutoryPaymentProof } from "./statutory-payment-proof";
+import { readVerifiedRemittanceSnapshot } from "@/lib/statutory-remittance-snapshot-read";
 
 type Agency = "SSS" | "PhilHealth" | "Pag-IBIG";
 type Batch = {
@@ -114,16 +115,13 @@ function ScopedStatutoryRemittancePanel({
     setMembers([]);
     setCoverageGaps([]);
     try {
-      const response = await fetch(
-        `/api/compliance/statutory-remittances?organizationId=${organizationId}${legalEntityId ? `&legalEntityId=${legalEntityId}` : ""}`,
-        { cache: "no-store", signal: controller.signal },
+      const body = await readVerifiedRemittanceSnapshot(
+        organizationId, legalEntityId ?? null, fetch, controller.signal,
       );
-      const body = await response.json().catch(() => ({}));
       if (!isCurrent()) return false;
-      if (!response.ok) throw new Error(body.error ?? "Could not load statutory remittances.");
-      setBatches(Array.isArray(body.batches) ? body.batches : []);
-      setMembers(Array.isArray(body.members) ? body.members : []);
-      setCoverageGaps(Array.isArray(body.coverageGaps) ? body.coverageGaps : []);
+      setBatches(body.batches as unknown as Batch[]);
+      setMembers(body.members as unknown as Member[]);
+      setCoverageGaps(body.coverageGaps as unknown as CoverageGap[]);
       return true;
     } catch (error) {
       if (isCurrent()) {
@@ -165,7 +163,7 @@ function ScopedStatutoryRemittancePanel({
   );
 
   async function mutate(action: string, payload: Record<string, unknown>, success: string) {
-    if (!mountedRef.current) return false;
+    if (!mountedRef.current || loading || loadError) return false;
     setBusy(action);
     try {
       const response = await fetch("/api/compliance/statutory-remittances", {

@@ -148,7 +148,7 @@ export function EmployeeHomeDashboard({
           <strong>{latest ? dashboardMoney(latest.net) : "—"}</strong>
           <small>
             {latest
-              ? `${t("Payslip available · Net pay · Paid")} ${dashboardDate(latest.payDate)}`
+              ? `${t("Payslip released · Scheduled pay date")} ${dashboardDate(latest.payDate)}`
               : t("Your released pay will appear here.")}
           </small>
         </div>
@@ -198,7 +198,7 @@ export function EmployeeHomeDashboard({
               </span>
               <span>
                 <strong>{slip.period}</strong>
-                <small>{t("Paid")} {dashboardDate(slip.payDate)}</small>
+                <small>{t("Scheduled pay date")} {dashboardDate(slip.payDate)}</small>
               </span>
               <strong>{dashboardMoney(slip.net)}</strong>
               <ArrowRight size={16} />

@@ -1,5 +1,6 @@
 import { sql as entityStorageSql } from "drizzle-orm";
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+import { ownerPracticePayroll } from "./practice-payroll-server";
 import { loadTenantModulePreferences, type TenantModulePreferences } from "./tenant-modules";
 import { organizationModuleSettings, tenantModuleStorageAvailable } from "@/lib/tenant-module-storage";
 import { maskBankAccount } from "@/lib/bank-account-crypto";
@@ -39,6 +40,8 @@ import { ensureSeedData } from "@/db/seed";
 import { getAccess, PAYROLL_CHECKER_ROLES, PAYROLL_OPERATOR_ROLES, PAYROLL_VIEW_ROLES, PEOPLE_PAYROLL_ROLES, roleAllowed } from "@/lib/access";
 import { roleApproverMatchesRole } from "@/lib/delegation";
 import { getSessionUser, publicUser } from "@/lib/auth";
+import { getEntitlements } from "@/lib/billing";
+import { resolveAdvancedHcmPlan } from "@/lib/enterprise-advanced-plan-policy";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
@@ -135,6 +138,14 @@ export async function getDashboardData(organizationId?: number, request?: Reques
   const selectedEntityId = entityContext.enabled ? entityContext.legalEntityId : null;
   const allEmployeesVisible = access.companyWide && selectedEntityId === null;
   await ensureEmployeePayProfiles(selectedOrganization.id);
+
+  // After verified session, employer and scope: a navigation hint only.
+  // Each direct premium API retains its own authoritative gate.
+  const advancedPlanningDecision = await resolveAdvancedHcmPlan(
+    selectedOrganization.id, "planning", process.env, getEntitlements,
+  );
+  const advancedPlanningAllowed = advancedPlanningDecision === "not-enforced"
+    || advancedPlanningDecision === "allowed";
 
   const canViewPayroll = roleAllowed(access.role, PAYROLL_VIEW_ROLES);
   const canViewPeoplePay = roleAllowed(access.role, PEOPLE_PAYROLL_ROLES);
@@ -423,6 +434,10 @@ export async function getDashboardData(organizationId?: number, request?: Reques
 
   return {
     firstPayrollReadiness,
+    ...ownerPracticePayroll(access),
+    firstPayrollConnectedEnabled: criticalReleaseFlagEnabled("firstPayrollConnected"),
+    payrollEmployerSetupNavigationEnabled: criticalReleaseFlagEnabled("payrollEmployerSetupNavigation"),
+    advancedPlanningAllowed,
     coreModuleNavigationEnabled,
     employeeImportPreviewEnabled: criticalReleaseFlagEnabled("employeeImportPreview"),
     xenditPayoutsEnabled: criticalReleaseFlagEnabled("xenditPayrollPayouts"),

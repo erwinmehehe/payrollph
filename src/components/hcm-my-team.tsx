@@ -8,11 +8,14 @@ import {
 } from "lucide-react";
 import { MY_TEAM_STATUSES, type MyTeamResponse, type MyTeamStatusFilter } from "@/lib/hcm-my-team-contract";
 import { HcmMyTeamActionCenter } from "@/components/hcm-my-team-action-center";
+import { readScopedResponse, scopedReadFailureMessage, type ScopedReadFailure } from "@/lib/hcm-scoped-read-failure";
+import { validMyTeamResponse } from "@/lib/hcm-scoped-read-validation";
 
 type FetchState = {
   scopeKey: string;
   status: "loading" | "ready" | "unavailable";
   value: MyTeamResponse | null;
+  failure?: ScopedReadFailure;
 };
 
 const STATUS_TONE: Record<string, string> = {
@@ -63,43 +66,18 @@ function ScopedMyTeam({
       status: statusFilter,
     });
 
-    void fetch("/api/hcm/my-team?" + query.toString(), {
-      cache: "no-store",
-      signal: controller.signal,
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("My Team source unavailable.");
-      const data = await response.json() as MyTeamResponse;
+    void readScopedResponse(
+      () => fetch("/api/hcm/my-team?" + query.toString(), {
+        cache: "no-store", signal: controller.signal,
+      }),
+      (payload): payload is MyTeamResponse =>
+        validMyTeamResponse(payload, organizationId, cursor, searchQuery, statusFilter),
+    ).then((result) => {
       if (controller.signal.aborted) return;
-      if (data.organizationId !== organizationId ||
-          data.query !== searchQuery ||
-          data.statusFilter !== statusFilter ||
-          !["company", "unit"].includes(data.scope?.kind) ||
-          !Array.isArray(data.items) || data.items.length > 25 ||
-          !data.summary ||
-          data.summary.employeeRecordsThisPage !== data.items.length ||
-          !Number.isSafeInteger(data.summary.pendingLeaveRecordsThisPage) ||
-          !Number.isSafeInteger(data.summary.pendingOvertimeRecordsThisPage) ||
-          !Number.isSafeInteger(data.summary.pendingAttendanceCorrectionsThisPage) ||
-          !Number.isSafeInteger(data.summary.incompletePunchRecordsThisPage) ||
-          data.page?.size !== 25 || typeof data.page.hasMore !== "boolean" ||
-          (data.page.hasMore && (
-            typeof data.page.nextCursor !== "number" ||
-            !Number.isSafeInteger(data.page.nextCursor) ||
-            data.page.nextCursor <= cursor
-          )) ||
-          data.items.some((item) =>
-            !Number.isSafeInteger(item.id) || item.id <= cursor ||
-            !Number.isSafeInteger(item.pendingLeaveRecords) || item.pendingLeaveRecords < 0 ||
-            !Number.isSafeInteger(item.pendingOvertimeRecords) || item.pendingOvertimeRecords < 0 ||
-            !Number.isSafeInteger(item.pendingAttendanceCorrections) || item.pendingAttendanceCorrections < 0 ||
-            !Number.isSafeInteger(item.incompletePunchRecords) || item.incompletePunchRecords < 0
-          )) {
-        throw new Error("My Team data did not match the selected employer or query.");
-      }
-      setStored({ scopeKey, status: "ready", value: data });
-    }).catch(() => {
-      if (!controller.signal.aborted) {
-        setStored({ scopeKey, status: "unavailable", value: null });
+      if (result.status === "ready") {
+        setStored({ scopeKey, status: "ready", value: result.data });
+      } else {
+        setStored({ scopeKey, status: "unavailable", value: null, failure: result.failure });
       }
     });
 
@@ -133,7 +111,7 @@ function ScopedMyTeam({
   return (
     <main className="min-h-screen bg-slate-50 px-4 pb-14 pt-7 text-slate-900 sm:px-8">
       <div className="mx-auto max-w-6xl">
-        <Link href={"/app?organizationId=" + organizationId} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline">
+        <Link href={"/app?organizationId=" + organizationId} className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
           <ArrowLeft aria-hidden="true" size={16} /> Back to workspace
         </Link>
 
@@ -153,7 +131,7 @@ function ScopedMyTeam({
               </div>
               <button type="button"
                 onClick={() => setRefreshCount((value) => value + 1)}
-                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20">
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300">
                 <RefreshCcw aria-hidden="true" size={16} /> Refresh
               </button>
             </div>
@@ -199,11 +177,14 @@ function ScopedMyTeam({
         )}
         {active?.status === "unavailable" && (
           <section role="alert" className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-950">
-            <h2 className="font-semibold">Team records unavailable</h2>
-            <p className="mt-1 text-sm">
-              Your scope may have changed or a source is unavailable. Previously loaded records have been cleared;
-              no missing information is interpreted as an approved or completed action.
-            </p>
+            <h2 className="font-semibold">{active.failure === "forbidden" ? "Team access denied" :
+              active.failure === "sign_in" ? "Sign in required" : "Team records unavailable"}</h2>
+            <p className="mt-1 text-sm">{scopedReadFailureMessage(active.failure ?? "server")}</p>
+            <p className="mt-2 text-xs">Previously loaded records have been cleared. No missing information is treated as an approved or completed action.</p>
+            <button type="button" onClick={() => setRefreshCount((value) => value + 1)}
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-amber-500 bg-white px-4 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700">
+              <RefreshCcw aria-hidden="true" size={16} /> Try again
+            </button>
           </section>
         )}
 
@@ -266,7 +247,7 @@ function ScopedMyTeam({
               </p>
             </div>
             <button type="button" onClick={clearFilters}
-              className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-slate-50">
+              className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
               Clear filters
             </button>
           </div>
@@ -279,7 +260,7 @@ function ScopedMyTeam({
               <input id="hcm-team-search" type="search" maxLength={70}
                 value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)}
                 placeholder="Search current employee records"
-                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+                className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
               />
             </div>
             <div>
@@ -290,14 +271,14 @@ function ScopedMyTeam({
                   setStatusFilter(event.target.value as MyTeamStatusFilter);
                   setCursors([0]);
                 }}
-                className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm">
+                className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
                 {MY_TEAM_STATUSES.map((status) => (
                   <option key={status} value={status}>{status === "all" ? "All statuses" : status}</option>
                 ))}
               </select>
             </div>
             <button type="submit"
-              className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-5 text-sm font-semibold text-white hover:bg-emerald-900 sm:mt-5">
+              className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-5 text-sm font-semibold text-white hover:bg-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 sm:mt-5">
               <Search aria-hidden="true" size={16} /> Search
             </button>
           </form>
@@ -319,7 +300,7 @@ function ScopedMyTeam({
                         <div aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 font-bold text-emerald-800">
                           {member.name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")}
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 max-w-full break-words">
                           <h3 className="break-words font-semibold text-slate-900">{member.name}</h3>
                           <p className="mt-1 text-sm text-slate-700">
                             {member.jobTitle} <span className="text-slate-400">·</span> {member.employmentType}
@@ -368,7 +349,7 @@ function ScopedMyTeam({
               <nav aria-label="Team directory pages" className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
                 <button type="button" disabled={!hasPrevious}
                   onClick={() => { setCursors((history) => history.length > 1 ? history.slice(0, -1) : history); setRefreshCount((value) => value + 1); }}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40">
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-40">
                   <ArrowLeft aria-hidden="true" size={16} /> Newer
                 </button>
                 <p className="text-xs text-slate-500">Page {cursors.length} · {data.page.size} records per page maximum</p>
@@ -377,7 +358,7 @@ function ScopedMyTeam({
                   onClick={() => {
                     if (data.page.nextCursor !== null) { setCursors((history) => [...history, data.page.nextCursor!]); setRefreshCount((value) => value + 1); }
                   }}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40">
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-40">
                   Older <ArrowRight aria-hidden="true" size={16} />
                 </button>
               </nav>

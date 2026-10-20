@@ -76,7 +76,7 @@ export async function GET(request:Request) {
       eq(workforcePunchSubmissions.status,"pending"),scopeClause))
     .orderBy(asc(workforcePunchSubmissions.serverReceivedAt),
       asc(workforcePunchSubmissions.id)).limit(100);
-  return Response.json({submissions:rows.filter(row=>assertScope(context.access,row.orgUnitId).ok).map(row=>({
+  return Response.json({organizationId,submissions:rows.filter(row=>assertScope(context.access,row.orgUnitId).ok).map(row=>({
     ...row.submission,deviceDigest:undefined,name:row.name+" "+row.lastName,
   }))},{headers:privateHeaders});
 }
@@ -215,7 +215,12 @@ export async function POST(request:Request) {
       }).where(and(
         eq(workforcePunchSubmissions.id,id),eq(workforcePunchSubmissions.organizationId,organizationId),
         eq(workforcePunchSubmissions.status,"pending"),
-      )).returning({id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status});
+      )).returning({
+        id:workforcePunchSubmissions.id,
+        organizationId:workforcePunchSubmissions.organizationId,
+        employeeId:workforcePunchSubmissions.employeeId,
+        status:workforcePunchSubmissions.status,
+      });
       if(!saved)throw Error("Already decided.");
       await tx.insert(auditEvents).values({
         organizationId,actor:context.user!.name,action:"Enhanced Web Bundy punch "+decision,
@@ -247,9 +252,9 @@ export async function POST(request:Request) {
     }catch{
       // The transaction committed. Do not claim the whole review failed and
       // tempt a second attendance promotion; expose the partial sync warning.
-      return Response.json({ok:true,submission:result,approvedWorkDate,
+      return Response.json({ok:true,organizationId,submission:result,approvedWorkDate,
         warning:"Attendance approved; exception reconciliation requires follow-up."},{headers:privateHeaders});
     }
   }
-  return Response.json({ok:true,submission:result,approvedWorkDate},{headers:privateHeaders});
+  return Response.json({ok:true,organizationId,submission:result,approvedWorkDate},{headers:privateHeaders});
 }

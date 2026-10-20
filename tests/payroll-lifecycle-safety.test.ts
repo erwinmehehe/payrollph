@@ -7,16 +7,9 @@ import { payrollPayoutProviderForReleaseReceipt } from "../src/lib/payroll-payou
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("regular payroll scopes only active employees at draft and calculation time", () => {
-  const createRun = read("src/app/api/payroll-runs/route.ts");
-  const engine = read("src/lib/payroll-engine.ts");
-
-  assert.ok(createRun.includes('eq(employees.status, "Active")'));
-  assert.ok(createRun.includes("has no active employees"));
-  assert.ok((engine.match(/eq\(employees\.status, "Active"\)/g) ?? []).length >= 2);
-  assert.ok(engine.includes("Payroll scope has no active employees"));
-  assert.ok(engine.includes("Payroll employee scope changed after calculation was queued"));
-});
+// Converted the former Active-only source-text assertion to executed HTTP/PG
+// status/scope tests in scripts/qa/payroll-approved-exit-http.mjs: actual draft
+// creation, flag-off query, separating-worker inclusion and settlement guards.
 
 test("calculation snapshots payout instructions and release rejects stale employee data", () => {
   const engine = read("src/lib/payroll-engine.ts");

@@ -35,6 +35,7 @@ import { ApprovalsView } from "@/components/workspace/approvals";
 import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/components/workspace/command-palette";
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
+import { PracticePayrollCard } from "@/components/workspace/practice-payroll";
 import { OfflinePunchReviewQueue } from "@/components/workspace/offline-punch-review";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
@@ -73,6 +74,9 @@ import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 import { useDashboardReadRecovery } from "@/lib/use-dashboard-read-recovery";
+import { resolveFirstPayrollRunFocus } from "@/lib/first-payroll-run-navigation";
+import { EmployerSetupHelp } from "@/components/workspace/employer-setup-help";
+import { payrollEmployerSetupDestination } from "@/lib/payroll-employer-options";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlineFirstPayrollEnabled = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null, optionalUiCapabilities = { overpaymentPreview: false, overpaymentInvestigation: false, tenantReportBuilder: false } }: { initialData: DashboardData; isSelfServeCustomer?: boolean; inlineFirstPayrollEnabled?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null; optionalUiCapabilities?: { overpaymentPreview: boolean; overpaymentInvestigation: boolean; tenantReportBuilder: boolean } }) {
   const searchParams = useSearchParams();
@@ -86,6 +90,14 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
       : null;
   const demoInfo = demoRoleInfo(demoRole);
   const requestedWorkspacePage = searchParams.get("workspacePage");
+  const focusedPayrollRunId = resolveFirstPayrollRunFocus({
+    enabled: initialData.firstPayrollConnectedEnabled === true,
+    demoMode: Boolean(demoRole), requestedPage: requestedWorkspacePage,
+    requestedOrganizationId: searchParams.get("organizationId"),
+    requestedRunId: searchParams.get("focusPayrollRunId"),
+    organizationId: initialData.selectedOrganization.id,
+    access: initialData.access, authorizedRuns: initialData.payrollRuns,
+  });
   const linkedTeamWorkflowPage = requestedMyTeamWorkspacePage({
     requestedPage: requestedWorkspacePage,
     role: initialData.access?.role ?? initialData.user?.role,
@@ -111,7 +123,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
     (searchParams.get("workspacePage") === "People" &&
       canOpenPeopleHome(initialData.access) &&
       roleHasPeopleWorkspace(initialData.access?.role)
-      ? "People" : linkedTeamWorkflowPage ?? linkedHirePayrollPage ?? "Overview");
+      ? "People" : focusedPayrollRunId !== null ? "Payroll" : linkedTeamWorkflowPage ?? linkedHirePayrollPage ?? "Overview");
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
@@ -167,9 +179,15 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
     && ["owner", "admin", "bookkeeper", "hr", "group_hr"].includes(effectiveRole ?? "");
   const availablePages = useMemo(() => {
     const pages = tenantNavigationPages({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, rolePages, companyWide: data.access?.companyWide, canManageModules: ["owner", "admin", "bookkeeper"].includes(effectiveRole ?? "") }, pilotFocusEnabled && !demoRole);
+    // The server-derived selected-employer plan is a UI hint only.
+    // All premium API endpoints independently re-check billing/authorization.
+    if (data.advancedPlanningAllowed === false) {
+      const index = pages.indexOf("Planning");
+      if (index >= 0) pages.splice(index, 1);
+    }
     if (entityVisible && !pages.includes("Entities")) pages.push("Entities");
     return pages;
-  }, [data.access?.companyWide, data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole, entityVisible]);
+  }, [data.access?.companyWide, data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole, entityVisible, data.advancedPlanningAllowed]);
 
   // Only surface existing HR modules that this role, plan and pilot menu permit.
   const hrisShortcuts = useMemo(
@@ -197,6 +215,10 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   ].join(":");
   const canManageDeliveryOutbox = effectiveRole === "owner" || effectiveRole === "admin";
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
+  const employerSetupDestination = payrollEmployerSetupDestination({
+    role: effectiveRole, companyWide: data.access?.companyWide === true,
+    demo: Boolean(demoRole), multiEntity: data.multiEntity?.enabled === true, pages: availablePages,
+  });
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
   function openHrEmployee(employeeId: number) {
@@ -506,7 +528,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           <>
             {hrisShortcuts.length > 0 && (
               <HrisHomeShortcuts
-                key={data.selectedOrganization.id}
+                key={`hris-home:${data.selectedOrganization.id}`}
                 actions={hrisShortcuts}
                 reviewTeamHref={reviewTeamHref}
                 onPage={setPage}
@@ -534,9 +556,10 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
                 onDecide={(id, status) => void decideTask(id, status)}
               />
             )}
+            {effectiveRole === "owner" && data.access?.companyWide && <PracticePayrollCard key={`practice:${data.selectedOrganization.id}`} payload={data.practicePayroll} />}
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
-                key={data.selectedOrganization.id}
+                key={`first-payroll-readiness:${data.selectedOrganization.id}`}
                 readiness={data.firstPayrollReadiness}
                 inlineEnabled={inlineFirstPayrollEnabled}
                 guided={isSelfServeCustomer}
@@ -568,6 +591,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           organizationId={data.selectedOrganization.id} title="Payroll by entity" />}
         {page === "Payroll" && (
           <PayrollRunView
+            key={data.firstPayrollConnectedEnabled ? `${data.selectedOrganization.id}:${focusedPayrollRunId ?? "default"}` : undefined}
+            initialRunId={focusedPayrollRunId ?? undefined}
             data={data}
             availablePages={availablePages}
             busy={busy}
@@ -637,6 +662,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           <LeavePage
             data={data}
             setNotice={noticeAdapter}
+            readFailed={refreshIssue !== null}
+            readLoading={refreshLoading}
             onRefresh={async () => {
               await refresh();
             }}
@@ -695,7 +722,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
             {availablePages.includes("Recruitment") &&
               ["owner", "admin", "hr"].includes(effectiveRole ?? "") && (
                 <HrisOnboardingChecklist
-                  key={data.selectedOrganization.id}
+                  key={`hris-onboarding:${data.selectedOrganization.id}`}
                   organizationId={data.selectedOrganization.id}
                   employees={data.employees}
                   provisioning={data.provisioning}
@@ -708,7 +735,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
               )}
             <RecruitmentPanel
               everydayHrHireEnabled={data.everydayHrHireEnabled}
-              key={data.selectedOrganization.id}
+              key={`recruitment-panel:${data.selectedOrganization.id}`}
               organizationId={data.selectedOrganization.id}
               setNotice={noticeAdapter}
               onHired={async () => { await refresh(data.selectedOrganization.id); }}
@@ -730,6 +757,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           <EntityTransferInbox context={data.multiEntity} organizationId={data.selectedOrganization.id}
             onRefresh={async () => { await refresh(); }} />
         </>}
+        {page === "Entities" && !data.multiEntity?.enabled && data.payrollEmployerSetupNavigationEnabled &&
+          <EmployerSetupHelp entitiesPage onOpen={employerSetupDestination ? () => setPage(employerSetupDestination) : undefined} />}
         {page === "Enterprise" && (
           <>
             <LegalEntitiesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />
@@ -762,12 +791,18 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
 
       {newPayrollOpen && (
         <NewPayrollModal
+          key={data.payrollEmployerSetupNavigationEnabled ? sourceBoundModuleKey : undefined}
           organizationId={data.selectedOrganization.id}
           onClose={() => setNewPayrollOpen(false)}
           onCreate={createPayroll}
           busy={busy}
           orgUnits={data.orgUnits ?? []}
           multiEntity={data.multiEntity}
+          employerSetupNavigationEnabled={data.payrollEmployerSetupNavigationEnabled}
+          onOpenEmployerSetup={employerSetupDestination ? () => {
+            setNewPayrollOpen(false);
+            setPage(employerSetupDestination);
+          } : undefined}
         />
       )}
       {outboxOpen && canManageDeliveryOutbox && (

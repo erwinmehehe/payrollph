@@ -1,70 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Check, Download, FileCheck2, Info } from "lucide-react";
 import type { Notify } from "./types";
 import { Segmented, Status, formatDate } from "./ui";
 import { EntityBadge } from "./multi-entity-ui";
 import type { DashboardData } from "./types";
-
-type FilingRecord = {
-  id: number;
-  legalEntityId: number;
-  payrollRunId: number | null;
-  agency: string;
-  form: string;
-  periodLabel: string;
-  applicableMonth: string | null;
-  employeeCount: number | null;
-  reportedTotal: string | null;
-  fileName: string;
-  fileSha256: string;
-  generatorVersion: string;
-  status: "generated" | "accepted" | "rejected";
-  submissionMethod: "file_upload" | "manual_entry" | null;
-  agencyReference: string | null;
-  submittedAt: string | null;
-  outcomeNote: string | null;
-  generatedBy: string;
-  recordedBy: string | null;
-  recordedAt: string | null;
-  createdAt: string;
-};
-
-type FilingForm = {
-  agency: string;
-  form: string;
-  generatorVersion: string;
-  referenceLabel: string;
-  evidenceMode: "file-format" | "operational";
-  submissionMethods: Array<"file_upload" | "manual_entry">;
-  requiresFinalCutoff?: boolean;
-  official?: {
-    workflow: string;
-    officialInstructionsUrl: string;
-    officialPortalUrl: string;
-    acceptanceEvidence: string;
-    acceptanceChecklist: string[];
-    worksheetStatus: "reconciliation-only";
-    notes: string;
-  } | null;
-  relatedCertificate?: {
-    form: string;
-    officialInstructionsUrl: string;
-    acceptanceChecklist: string[];
-    notes: string;
-  } | null;
-  copy: {
-    title: string;
-    agencyLabel: string;
-    portalLabel: string;
-    methodLabels: { file_upload: string; manual_entry: string };
-    manualEntryNote: string;
-    answerLabel: string;
-    scopeNote: string | null;
-    unconfirmedNote: string;
-  };
-};
+import { parseFilingValidationRead, type FilingRecord, type FilingForm } from "@/lib/filing-validation-read";
 
 function todayInput() {
   return new Date().toISOString().slice(0, 10);
@@ -102,9 +44,12 @@ export function FilingEvidencePanel({
   notify: Notify;
   onRefresh: () => Promise<void>;
 }) {
-  const [records, setRecords] = useState<FilingRecord[] | null>(null);
-  const [definition, setDefinition] = useState<FilingForm | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [observation, setObservation] = useState<{
+    scopeKey: object;
+    records: FilingRecord[] | null;
+    definition: FilingForm | null;
+    error: string | null;
+  } | null>(null);
   const [creating, setCreating] = useState(false);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
@@ -118,34 +63,60 @@ export function FilingEvidencePanel({
 
   const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((key) => key + 1);
+  // Snapshot identity prevents stale A -> B -> A evidence from replaying.
+  const currentScopeKey = useMemo(() => ({
+    organizationId, legalEntityId: run.legalEntityId ?? null,
+    runId: run.id, agency, form, reloadKey, entityEnabled: Boolean(entityContext?.enabled),
+  }), [organizationId, run.legalEntityId, run.id, agency, form, reloadKey, entityContext?.enabled]);
+  const currentRead = observation?.scopeKey === currentScopeKey ? observation : null;
+  const records = currentRead?.records ?? null;
+  const definition = currentRead?.definition ?? null;
+  const legalEmployerAvailable =
+    typeof run.legalEntityId === "number" && Number.isSafeInteger(run.legalEntityId) && run.legalEntityId > 0;
+  const loadError = currentRead?.error ??
+    (!legalEmployerAvailable ? "This payroll run has no verified legal employer. Filing actions are unavailable." : null);
+  const verifiedRead = records !== null && definition !== null && loadError === null;
 
   useEffect(() => {
+    const controller = new AbortController();
     let active = true;
-    fetch(`/api/compliance/filing-validations?organizationId=${organizationId}${entityContext?.enabled && run.legalEntityId
-      ? "&legalEntityId=" + run.legalEntityId : ""}`, { cache: "no-store" })
-      .then(async (response) => ({ ok: response.ok, payload: await response.json().catch(() => ({})) }))
-      .then(({ ok, payload }) => {
-        if (!active) return;
-        if (!ok) {
-          setLoadError(payload.error ?? "Filing records could not be loaded.");
-          setRecords([]);
-          return;
-        }
-        setLoadError(null);
-        setRecords(payload.records ?? []);
-        setDefinition((payload.forms ?? []).find((item: FilingForm) => item.agency === agency && item.form === form) ?? null);
-      })
-      .catch(() => {
-        if (!active) return;
-        setLoadError("Filing records could not be loaded because the server could not be reached.");
-        setRecords([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [organizationId, agency, form, reloadKey, entityContext?.enabled, run.legalEntityId]);
+    const requestKey = currentScopeKey;
+    const employerId = run.legalEntityId ?? null;
+    if (typeof employerId !== "number" || !Number.isSafeInteger(employerId) || employerId <= 0) {
+      return () => { active = false; controller.abort(); };
+    }
 
-  const forRun = (records ?? []).filter((item) => item.agency === agency && item.form === form && item.payrollRunId === run.id);
+    void fetch(
+      "/api/compliance/filing-validations?organizationId=" + organizationId + "&legalEntityId=" + employerId,
+      { cache: "no-store", signal: controller.signal },
+    )
+      .then(async (response) => {
+        const payload: unknown = await response.json().catch(() => null);
+        if (!response.ok) throw new Error("Filing records could not be loaded for this employer.");
+        return payload;
+      })
+      .then((payload) => {
+        if (!active || controller.signal.aborted) return;
+        const verified = parseFilingValidationRead(payload, {
+          organizationId, legalEntityId: employerId, agency, form,
+        });
+        if (!verified) throw new Error("Filing evidence is incomplete or does not belong to the selected legal employer.");
+        setObservation({
+          scopeKey: requestKey, records: verified.records, definition: verified.definition, error: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (!active || controller.signal.aborted) return;
+        setObservation({
+          scopeKey: requestKey, records: null, definition: null,
+          error: error instanceof Error ? error.message : "Filing evidence could not be verified.",
+        });
+      });
+
+    return () => { active = false; controller.abort(); };
+  }, [currentScopeKey, organizationId, agency, form, run.legalEntityId]);
+
+  const forRun = (verifiedRead ? records : []).filter((item) => item.agency === agency && item.form === form && item.payrollRunId === run.id);
   const currentVersion = definition?.generatorVersion;
   const copy = definition?.copy;
   const agencyLabel = copy?.agencyLabel ?? agency;
@@ -166,6 +137,7 @@ export function FilingEvidencePanel({
   }
 
   async function createRecord() {
+    if (!verifiedRead) return;
     setCreating(true);
     try {
       const response = await fetch("/api/compliance/filing-validations", {
@@ -194,6 +166,7 @@ export function FilingEvidencePanel({
   }
 
   async function downloadFile(record: FilingRecord) {
+    if (!verifiedRead) return;
     setDownloadingId(record.id);
     try {
       const response = await fetch(`/api/compliance/filing-validations/${record.id}/file?organizationId=${organizationId}`, { cache: "no-store" });
@@ -221,6 +194,7 @@ export function FilingEvidencePanel({
   }
 
   async function saveResult(record: FilingRecord) {
+    if (!verifiedRead) return;
     if (outcome === "accepted" && reference.trim().length < 4) {
       notify(`Enter the reference ${agencyLabel} gave you before recording an acceptance.`, "err");
       return;
@@ -310,6 +284,8 @@ export function FilingEvidencePanel({
           <span>
             {retiredBirAlphalistSource ? (
               <>Legacy per-run Alphalist source records are retained for audit only. Prepare current annual data in Compliance - Year-End Annualization. Official BIR ADES validation and filing acceptance remain separate.</>
+            ) : !verifiedRead ? (
+              <>Filing status is unavailable until the selected employer&apos;s evidence has been verified.</>
             ) : definition?.evidenceMode === "operational" ? (
               <>
                 An accepted filing with the agency&apos;s own acknowledgement can satisfy the <strong>operational filing</strong> gate.
@@ -364,16 +340,24 @@ export function FilingEvidencePanel({
         )}
 
         {loadError && (
-          <div className="notice notice-red" style={{ margin: 0 }}>
+          <div className="notice notice-red" style={{ margin: 0 }} role="alert">
             <AlertTriangle size={15} className="i-red" />
-            <span>{loadError}</span>
+            <span>{loadError} Filing actions are locked until a verified reload succeeds.</span>
+            <button className="secondary-button" type="button" onClick={reload}>
+              Retry evidence read
+            </button>
+          </div>
+        )}
+        {!verifiedRead && !loadError && (
+          <div className="notice notice-slate" role="status" style={{ margin: 0 }}>
+            Verifying filing records and legal employer before enabling actions…
           </div>
         )}
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <button
             className="secondary-button"
-            disabled={creating || records === null || !isFinalCutoff || retiredBirAlphalistSource}
+            disabled={creating || !verifiedRead || !isFinalCutoff || retiredBirAlphalistSource}
             onClick={() => void createRecord()}
           >
             <FileCheck2 size={14} className="i-teal" />
@@ -416,7 +400,7 @@ export function FilingEvidencePanel({
               {record.status === "generated" && !retiredBirAlphalistSource && (
                 <>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button className="secondary-button" disabled={downloadingId === record.id} onClick={() => void downloadFile(record)}>
+                    <button className="secondary-button" disabled={!verifiedRead || downloadingId === record.id} onClick={() => void downloadFile(record)}>
                       <Download size={14} className="i-teal" />
                       {downloadingId === record.id ? "Preparing…" : "1. Download this file"}
                     </button>
@@ -484,7 +468,7 @@ export function FilingEvidencePanel({
                         </label>
                       )}
                       <div>
-                        <button className="primary-button brand" disabled={saving} onClick={() => void saveResult(record)}>
+                        <button className="primary-button brand" disabled={!verifiedRead || saving} onClick={() => void saveResult(record)}>
                           {saving ? "Recording…" : outcome === "accepted" ? "Record acceptance" : "Record rejection"}
                         </button>
                         <p className="field-help">

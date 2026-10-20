@@ -6,6 +6,18 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  firstPayrollConnected: {
+    env: "FIRST_PAYROLL_CONNECTED_ENABLED",
+    owner: "Payroll / Onboarding",
+    risk: "Recognize invitation-created pilot workspaces and resume authorized saved payroll runs",
+    approval: "Executed invited-pilot expiry and tenant/run navigation tests, flag-off parity, desktop/390px connected payroll evidence; no payment activation",
+  },
+  requestSchemaReadonly: {
+    env: "REQUEST_SCHEMA_READONLY_ENABLED",
+    owner: "Database Operations / Release",
+    risk: "Replace request-time compatibility DDL/backfills with catalog-only checks",
+    approval: "Flag-off mode parity, executed PG16/18 migration-to-preflight and guard-drift tests, approved schema and restricted-role cutover; no automatic production activation",
+  },
   auditRoleIsolationProof: {
     env: "AUDIT_ROLE_ISOLATION_PROOF_ENABLED",
     owner: "Security / Database Operations",
@@ -345,6 +357,24 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "People Operations and Payroll",
     risk: "P0 documented clearance waivers, final-pay authority and worker access revocation",
     approval: "Three-actor final-pay pilot, tenant isolation, waiver evidence and revoked-session rollback UAT",
+  },
+  payrollEmployerSetupNavigation: {
+    env: "PAYROLL_EMPLOYER_SETUP_NAVIGATION_ENABLED",
+    owner: "Payroll / Onboarding",
+    risk: "Employer setup navigation and verified selector error recovery; no automatic provisioning",
+    approval: "Executed empty/error/retry, restricted-role and flag-off browser parity at desktop/390px; existing payroll guards preserved",
+  },
+  approvedExitPayroll: {
+    env: "APPROVED_EXIT_PAYROLL_ENABLED",
+    owner: "Payroll / Finance",
+    risk: "P0 approved exit cutoff proration and final-pay wage overlap",
+    approval: "Executed separation-to-payroll-to-final-pay tests, post-exit rate exclusion and exact flag-off parity; no production activation",
+  },
+  ownerPracticePayroll: {
+    env: "OWNER_PRACTICE_PAYROLL_ENABLED",
+    owner: "Payroll / Onboarding",
+    risk: "Owner-only fictional calculation and sample payslip UI; no payroll writes or payment authority",
+    approval: "Executed canonical fixture, owner/tenant gates, default-off parity and desktop/390px browser tests; production activation separate",
   },
 } as const;
 

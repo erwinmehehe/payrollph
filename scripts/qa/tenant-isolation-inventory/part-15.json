@@ -1,0 +1,1345 @@
+{
+  "base": "d94c1f3e0e1a8b1de0d15186923f3ed641314214",
+  "part": 15,
+  "kind": "api",
+  "files": [
+    {
+      "path": "src/app/api/self/contribution-evidence/route.ts",
+      "route": "self/contribution-evidence",
+      "blob": "16d7e0c049d948f9c34b627e4c8ba05169f12f7e",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 47
+        }
+      ],
+      "guard": [
+        {
+          "line": 20,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 48,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 50,
+          "token": "employeeId"
+        },
+        {
+          "line": 67,
+          "token": "employeeId"
+        },
+        {
+          "line": 70,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 89,
+          "token": "organizationId"
+        },
+        {
+          "line": 98,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 99,
+          "token": "organizationId"
+        },
+        {
+          "line": 99,
+          "token": "organizationId"
+        },
+        {
+          "line": 110,
+          "token": "organizationId"
+        },
+        {
+          "line": 110,
+          "token": "organizationId"
+        },
+        {
+          "line": 111,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 111,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 122,
+          "token": "employeeId"
+        },
+        {
+          "line": 123,
+          "token": "payrollRunId"
+        },
+        {
+          "line": 125,
+          "token": "payrollRunId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": false
+      }
+    },
+    {
+      "path": "src/app/api/self/contribution-issues/route.ts",
+      "route": "self/contribution-issues",
+      "blob": "a172323a29fffd2ac78b3ba4354d120aad762041",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 52
+        },
+        {
+          "method": "POST",
+          "line": 104
+        }
+      ],
+      "guard": [
+        {
+          "line": 16,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 18,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 34,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 105,
+          "token": "enforceSameOriginMutation"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 38,
+          "token": "employeeId"
+        },
+        {
+          "line": 45,
+          "token": "employeeId"
+        },
+        {
+          "line": 57,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 63,
+          "token": "organizationId"
+        },
+        {
+          "line": 63,
+          "token": "organizationId"
+        },
+        {
+          "line": 64,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 64,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 65,
+          "token": "employeeId"
+        },
+        {
+          "line": 72,
+          "token": "organizationId"
+        },
+        {
+          "line": 72,
+          "token": "organizationId"
+        },
+        {
+          "line": 73,
+          "token": "employeeId"
+        },
+        {
+          "line": 80,
+          "token": "caseId"
+        },
+        {
+          "line": 80,
+          "token": "caseId"
+        },
+        {
+          "line": 112,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 112,
+          "token": "legalEntityId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/self/documents/route.ts",
+      "route": "self/documents",
+      "blob": "09d499529bd1fb09cdafcaebfffcea2719dd811b",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 47
+        },
+        {
+          "method": "POST",
+          "line": 147
+        }
+      ],
+      "guard": [
+        {
+          "line": 14,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 16,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 27,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 148,
+          "token": "enforceSameOriginMutation"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 29,
+          "token": "employeeId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 39,
+          "token": "employeeId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 78,
+          "token": "organizationId"
+        },
+        {
+          "line": 78,
+          "token": "organizationId"
+        },
+        {
+          "line": 79,
+          "token": "employeeId"
+        },
+        {
+          "line": 97,
+          "token": "documentId"
+        },
+        {
+          "line": 105,
+          "token": "organizationId"
+        },
+        {
+          "line": 105,
+          "token": "organizationId"
+        },
+        {
+          "line": 106,
+          "token": "employeeId"
+        },
+        {
+          "line": 177,
+          "token": "organizationId"
+        },
+        {
+          "line": 177,
+          "token": "organizationId"
+        },
+        {
+          "line": 178,
+          "token": "employeeId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/self/identifiers/route.ts",
+      "route": "self/identifiers",
+      "blob": "3d8bf2b16de6768423bbe92c9c7aea03359bd7c1",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 38
+        },
+        {
+          "method": "POST",
+          "line": 81
+        }
+      ],
+      "guard": [
+        {
+          "line": 6,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 11,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 17,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 82,
+          "token": "enforceSameOriginMutation"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 19,
+          "token": "employeeId"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 25,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "employeeId"
+        },
+        {
+          "line": 33,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "employeeId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 56,
+          "token": "employeeId"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 101,
+          "token": "employeeId"
+        },
+        {
+          "line": 116,
+          "token": "organizationId"
+        },
+        {
+          "line": 116,
+          "token": "organizationId"
+        },
+        {
+          "line": 117,
+          "token": "employeeId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/self/payslips/[id]/explain/route.ts",
+      "route": "self/payslips/[id]/explain",
+      "blob": "be0e512c522f8bfbd8c877b998158ea0e524477b",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 10
+        }
+      ],
+      "guard": [
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 11,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 13,
+          "token": "employeeId"
+        },
+        {
+          "line": 23,
+          "token": "employeeId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 33,
+          "token": "payrollRunId"
+        },
+        {
+          "line": 36,
+          "token": "employeeId"
+        },
+        {
+          "line": 36,
+          "token": "employeeId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 55,
+          "token": "payrollRunId"
+        },
+        {
+          "line": 56,
+          "token": "employeeId"
+        },
+        {
+          "line": 56,
+          "token": "employeeId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": false
+      }
+    },
+    {
+      "path": "src/app/api/self/payslips/[id]/route.ts",
+      "route": "self/payslips/[id]",
+      "blob": "5676cc0f81342bdb8cfd6638a8f21143afb82d6c",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 11
+        }
+      ],
+      "guard": [
+        {
+          "line": 4,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 12,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 14,
+          "token": "employeeId"
+        },
+        {
+          "line": 24,
+          "token": "employeeId"
+        },
+        {
+          "line": 28,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "payrollRunId"
+        },
+        {
+          "line": 40,
+          "token": "employeeId"
+        },
+        {
+          "line": 40,
+          "token": "employeeId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": false
+      }
+    },
+    {
+      "path": "src/app/api/self/payslips/route.ts",
+      "route": "self/payslips",
+      "blob": "b09cb66d894b985620bbd2e8fcb59860c36b9c17",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 21
+        },
+        {
+          "method": "POST",
+          "line": 371
+        }
+      ],
+      "guard": [
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 8,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 22,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 372,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 375,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 28,
+          "token": "employeeId"
+        },
+        {
+          "line": 33,
+          "token": "employeeId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "payrollRunId"
+        },
+        {
+          "line": 46,
+          "token": "employeeId"
+        },
+        {
+          "line": 46,
+          "token": "employeeId"
+        },
+        {
+          "line": 47,
+          "token": "organizationId"
+        },
+        {
+          "line": 47,
+          "token": "organizationId"
+        },
+        {
+          "line": 81,
+          "token": "organizationId"
+        },
+        {
+          "line": 81,
+          "token": "organizationId"
+        },
+        {
+          "line": 82,
+          "token": "employeeId"
+        },
+        {
+          "line": 82,
+          "token": "employeeId"
+        },
+        {
+          "line": 88,
+          "token": "organizationId"
+        },
+        {
+          "line": 88,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/self/performance/action-items/route.ts",
+      "route": "self/performance/action-items",
+      "blob": "7ed5c8e01a6de43867a1fbb015643ab0992beee6",
+      "methods": [
+        {
+          "method": "PATCH",
+          "line": 48
+        }
+      ],
+      "guard": [
+        {
+          "line": 10,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 12,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 33,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 49,
+          "token": "enforceSameOriginMutation"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 35,
+          "token": "employeeId"
+        },
+        {
+          "line": 39,
+          "token": "employeeId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 73,
+          "token": "organizationId"
+        },
+        {
+          "line": 73,
+          "token": "organizationId"
+        },
+        {
+          "line": 74,
+          "token": "employeeId"
+        },
+        {
+          "line": 100,
+          "token": "organizationId"
+        },
+        {
+          "line": 100,
+          "token": "organizationId"
+        },
+        {
+          "line": 103,
+          "token": "employeeId"
+        },
+        {
+          "line": 103,
+          "token": "employeeId"
+        },
+        {
+          "line": 112,
+          "token": "organizationId"
+        },
+        {
+          "line": 112,
+          "token": "organizationId"
+        },
+        {
+          "line": 119,
+          "token": "employeeId"
+        },
+        {
+          "line": 119,
+          "token": "employeeId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/self/performance/development-plans/route.ts",
+      "route": "self/performance/development-plans",
+      "blob": "386d1d74a308ce3ff8e4587e4db3ddc122a8039d",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 36
+        },
+        {
+          "method": "POST",
+          "line": 77
+        },
+        {
+          "method": "PATCH",
+          "line": 139
+        }
+      ],
+      "guard": [
+        {
+          "line": 12,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 14,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 21,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 78,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 140,
+          "token": "enforceSameOriginMutation"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 23,
+          "token": "employeeId"
+        },
+        {
+          "line": 27,
+          "token": "employeeId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "employeeId"
+        },
+        {
+          "line": 57,
+          "token": "organizationId"
+        },
+        {
+          "line": 57,
+          "token": "organizationId"
+        },
+        {
+          "line": 108,
+          "token": "organizationId"
+        },
+        {
+          "line": 108,
+          "token": "organizationId"
+        },
+        {
+          "line": 109,
+          "token": "employeeId"
+        },
+        {
+          "line": 118,
+          "token": "organizationId"
+        },
+        {
+          "line": 118,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
+          "token": "employeeId"
+        },
+        {
+          "line": 129,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/self/performance/route.ts",
+      "route": "self/performance",
+      "blob": "b85a8c7cbc40512c3d77da503c744ac7eb5748dd",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 47
+        },
+        {
+          "method": "POST",
+          "line": 167
+        },
+        {
+          "method": "PATCH",
+          "line": 226
+        }
+      ],
+      "guard": [
+        {
+          "line": 18,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 19,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 29,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 168,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 227,
+          "token": "enforceSameOriginMutation"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 34,
+          "token": "employeeId"
+        },
+        {
+          "line": 38,
+          "token": "employeeId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
+          "token": "organizationId"
+        },
+        {
+          "line": 55,
+          "token": "employeeId"
+        },
+        {
+          "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 61,
+          "token": "employeeId"
+        },
+        {
+          "line": 65,
+          "token": "organizationId"
+        },
+        {
+          "line": 65,
+          "token": "organizationId"
+        },
+        {
+          "line": 68,
+          "token": "organizationId"
+        },
+        {
+          "line": 68,
+          "token": "organizationId"
+        },
+        {
+          "line": 70,
+          "token": "organizationId"
+        },
+        {
+          "line": 70,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/self/photo/route.ts",
+      "route": "self/photo",
+      "blob": "9451f4e37d3b0088ed08106dce5e5bd0e748e64e",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 59
+        },
+        {
+          "method": "HEAD",
+          "line": 62
+        },
+        {
+          "method": "POST",
+          "line": 66
+        },
+        {
+          "method": "DELETE",
+          "line": 136
+        }
+      ],
+      "guard": [
+        {
+          "line": 8,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 11,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 21,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 67,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 137,
+          "token": "enforceSameOriginMutation"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 23,
+          "token": "employeeId"
+        },
+        {
+          "line": 28,
+          "token": "organizationId"
+        },
+        {
+          "line": 28,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "employeeId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "employeeId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 108,
+          "token": "employeeId"
+        },
+        {
+          "line": 109,
+          "token": "organizationId"
+        },
+        {
+          "line": 109,
+          "token": "organizationId"
+        },
+        {
+          "line": 116,
+          "token": "employeeId"
+        },
+        {
+          "line": 127,
+          "token": "organizationId"
+        },
+        {
+          "line": 127,
+          "token": "organizationId"
+        },
+        {
+          "line": 131,
+          "token": "employeeId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/self/probation-reviews/route.ts",
+      "route": "self/probation-reviews",
+      "blob": "0ecd8f2070c286151ad74259986102ff539f6435",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 45
+        },
+        {
+          "method": "POST",
+          "line": 73
+        }
+      ],
+      "guard": [
+        {
+          "line": 11,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 18,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 25,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 74,
+          "token": "enforceSameOriginMutation"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 30,
+          "token": "employeeId"
+        },
+        {
+          "line": 35,
+          "token": "employeeId"
+        },
+        {
+          "line": 39,
+          "token": "organizationId"
+        },
+        {
+          "line": 50,
+          "token": "organizationId"
+        },
+        {
+          "line": 50,
+          "token": "organizationId"
+        },
+        {
+          "line": 51,
+          "token": "employeeId"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 98,
+          "token": "organizationId"
+        },
+        {
+          "line": 98,
+          "token": "organizationId"
+        },
+        {
+          "line": 99,
+          "token": "employeeId"
+        },
+        {
+          "line": 109,
+          "token": "organizationId"
+        },
+        {
+          "line": 109,
+          "token": "organizationId"
+        },
+        {
+          "line": 111,
+          "token": "employeeId"
+        },
+        {
+          "line": 121,
+          "token": "organizationId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/self/profile/route.ts",
+      "route": "self/profile",
+      "blob": "85b5bbf1aff9e1777fc523d067586f9870dc87a6",
+      "methods": [
+        {
+          "method": "PATCH",
+          "line": 18
+        }
+      ],
+      "guard": [
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 7,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 19,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 22,
+          "token": "getSessionUser"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 24,
+          "token": "employeeId"
+        },
+        {
+          "line": 31,
+          "token": "employeeId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 50,
+          "token": "employeeId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 58,
+          "token": "organizationId"
+        },
+        {
+          "line": 63,
+          "token": "employeeId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": true
+      }
+    },
+    {
+      "path": "src/app/api/self/schedule-receipts/route.ts",
+      "route": "self/schedule-receipts",
+      "blob": "b490bbb2aab7471901b769bd410c80652566daf8",
+      "methods": [
+        {
+          "method": "GET",
+          "line": 35
+        },
+        {
+          "method": "POST",
+          "line": 44
+        }
+      ],
+      "guard": [
+        {
+          "line": 4,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 7,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 18,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 46,
+          "token": "enforceSameOriginMutation"
+        }
+      ],
+      "input": [],
+      "ids": [
+        {
+          "line": 20,
+          "token": "employeeId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 22,
+          "token": "employeeId"
+        },
+        {
+          "line": 24,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 28,
+          "token": "employeeId"
+        },
+        {
+          "line": 28,
+          "token": "organizationId"
+        },
+        {
+          "line": 28,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
+          "token": "employeeId"
+        }
+      ],
+      "origin": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": false,
+        "body": false
+      }
+    }
+  ]
+}

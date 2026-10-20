@@ -1,69 +1,63 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { parseExplainPayRead, type ExplainPayload } from "@/lib/explain-pay-read";
 import { ArrowDownRight, ArrowUpRight, FileSearch, X } from "lucide-react";
 import { money } from "./ui";
 
-type ExplainLine = {
-  code: string;
-  label: string;
-  direction: "earning" | "deduction";
-  previous: number | null;
-  current: number;
-  delta: number | null;
-  netEffectDelta: number | null;
-  reason: string;
-  notes: string[];
-};
-
-type ExplainPayload = {
-  run: { periodLabel: string };
-  previousRun: { periodLabel: string } | null;
-  explanation: {
-    currentGross: number;
-    currentDeductions: number;
-    currentNet: number;
-    previousNet: number | null;
-    netDelta: number | null;
-    netPercent: number | null;
-    ruleVersion: string | null;
-    context: Record<string, string | number | null>;
-    lines: ExplainLine[];
-  };
-};
-
 export function ExplainPayDrawer({
+  organizationId,
+  legalEntityId,
   runId,
   employeeId,
   employeeName,
   onClose,
 }: {
+  organizationId: number;
+  legalEntityId: number | null;
   runId: number;
   employeeId: number;
   employeeName: string;
   onClose: () => void;
 }) {
-  const [payload, setPayload] = useState<ExplainPayload | null>(null);
-  const [error, setError] = useState("");
+  const [observed, setObserved] = useState<{
+    scope: object;
+    payload: ExplainPayload | null;
+    error: string;
+  } | null>(null);
+  const [revision, setRevision] = useState(0);
+  // Observation identity changes immediately on employer/run/employee/retry.
+  const scope = useMemo(() => ({
+    organizationId, legalEntityId, runId, employeeId, revision,
+  }), [organizationId, legalEntityId, runId, employeeId, revision]);
+  const currentRead = observed?.scope === scope ? observed : null;
+  const payload = currentRead?.payload ?? null;
+  const error = currentRead?.error ?? "";
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
+    const controller = new AbortController();
+    void (async () => {
       try {
-        const response = await fetch(`/api/payroll-runs/${runId}/explain/${employeeId}`, { cache: "no-store" });
-        const body = await response.json().catch(() => ({}));
-        if (!alive) return;
-        if (!response.ok) {
-          setError(body.error ?? "Could not explain this payroll entry.");
-          return;
-        }
-        setPayload(body);
-      } catch {
-        if (alive) setError("Could not load the payroll explanation.");
+        const response = await fetch("/api/payroll-runs/" + runId + "/explain/" + employeeId, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const body: unknown = await response.json().catch(() => null);
+        if (controller.signal.aborted) return;
+        if (!response.ok) throw new Error("Could not load the selected payroll explanation.");
+        const verified = parseExplainPayRead(body, { organizationId, legalEntityId, runId, employeeId });
+        if (!verified) throw new Error("Payroll explanation was incomplete or did not belong to the selected employer, run and employee.");
+        setObserved({ scope, payload: verified, error: "" });
+      } catch (cause) {
+        if (controller.signal.aborted) return;
+        setObserved({
+          scope, payload: null,
+          error: cause instanceof Error ? cause.message : "Could not verify the selected payroll explanation.",
+        });
       }
     })();
-    return () => { alive = false; };
-  }, [runId, employeeId]);
+    return () => controller.abort();
+  }, [scope, organizationId, legalEntityId, runId, employeeId]);
 
   const explanation = payload?.explanation;
   const changePositive = Number(explanation?.netDelta ?? 0) >= 0;
@@ -79,7 +73,10 @@ export function ExplainPayDrawer({
           Stored payroll components and the exact changes from the previous released cutoff. Nothing here is re-calculated in the browser.
         </p>
 
-        {error && <div className="notice notice-amber" style={{ marginTop: 14 }}>{error}</div>}
+        {error && <div className="notice notice-amber" role="alert" style={{ marginTop: 14 }}>
+          <span>{error} No pay explanation is shown until a verified reread succeeds.</span>
+          <button type="button" className="secondary-button" onClick={() => setRevision((value) => value + 1)}>Retry explanation</button>
+        </div>}
         {!error && !payload && <p style={{ color: "var(--muted)", marginTop: 18 }}>Loading payroll explanation…</p>}
 
         {explanation && (

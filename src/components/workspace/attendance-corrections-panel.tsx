@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Clock3, RefreshCcw, ShieldCheck, X } from "lucide-react";
 import type { Employee, Notify, Punch } from "./types";
 import { EmptyState, Spinner, Status } from "./ui";
+import { readVerifiedAttendanceCorrections, verifiedCorrectionReceipt } from "@/lib/workforce-attendance-corrections-read";
 
 type PunchSnapshot = {
   workDate?: string;
@@ -79,6 +80,7 @@ function ScopedAttendanceCorrectionsPanel({
 }: AttendanceCorrectionsProps) {
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [readError, setReadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [selectedPunchId, setSelectedPunchId] = useState<number | null>(null);
   const [timeIn, setTimeIn] = useState("");
@@ -103,19 +105,19 @@ function ScopedAttendanceCorrectionsPanel({
     const isCurrent = () =>
       mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
     setLoading(true);
+    setReadError("");
     // A fresh read is required before showing sensitive original/proposed punch snapshots.
     setCorrections([]);
     try {
-      const response = await fetch(
-        `/api/workforce/attendance-corrections?organizationId=${organizationId}`,
-        { cache: "no-store", signal: controller.signal },
-      );
-      const body = await response.json().catch(() => ({}));
+      const payload = await readVerifiedAttendanceCorrections(organizationId, fetch, controller.signal);
       if (!isCurrent()) return;
-      if (!response.ok) throw new Error(body.error ?? "Could not load attendance corrections.");
-      setCorrections(Array.isArray(body.requests) ? body.requests : []);
+      setCorrections(payload.requests);
     } catch (error) {
-      if (isCurrent()) notify(error instanceof Error ? error.message : "Could not load attendance corrections.", "err");
+      if (isCurrent()) {
+        const message = error instanceof Error ? error.message : "Could not load attendance corrections.";
+        setReadError(message);
+        notify(message, "err");
+      }
     } finally {
       if (isCurrent()) setLoading(false);
     }
@@ -132,6 +134,8 @@ function ScopedAttendanceCorrectionsPanel({
       loadControllerRef.current?.abort();
     };
   }, [load]);
+
+  const queueVerified = !loading && !readError;
 
   const pendingPunchIds = useMemo(
     () => new Set(
@@ -158,7 +162,10 @@ function ScopedAttendanceCorrectionsPanel({
   }
 
   async function requestCorrection() {
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || saving || !canManage || !queueVerified) {
+      notify("Verify this employer\u0027s attendance queue before requesting a correction.", "err");
+      return;
+    }
     if (!selectedPunchId || !reason.trim()) {
       notify("Choose a punch and enter the correction reason.", "err");
       return;
@@ -180,6 +187,9 @@ function ScopedAttendanceCorrectionsPanel({
       const body = await response.json().catch(() => ({}));
       if (!mountedRef.current) return;
       if (!response.ok) throw new Error(body.error ?? "Could not request attendance correction.");
+      if (!verifiedCorrectionReceipt(body, organizationId, "create_request", { punchId: selectedPunchId })) {
+        throw new Error("Attendance request receipt was incomplete. Refresh the queue; do not submit the same change blindly.");
+      }
       notify("Attendance correction sent for independent approval.", "ok");
       setSelectedPunchId(null);
       setTimeIn("");
@@ -187,14 +197,24 @@ function ScopedAttendanceCorrectionsPanel({
       setReason("");
       await load();
     } catch (error) {
-      if (mountedRef.current) notify(error instanceof Error ? error.message : "Could not request attendance correction.", "err");
+      if (mountedRef.current) {
+        notify(error instanceof Error ? error.message : "Could not request attendance correction.", "err");
+        await load();
+      }
     } finally {
       if (mountedRef.current) setSaving(false);
     }
   }
 
   async function decide(requestId: number, decision: "approved" | "rejected") {
-    if (!mountedRef.current) return;
+    const target = corrections.find((row) => row.id === requestId);
+    if (!mountedRef.current || saving || !queueVerified || !canManage || !canDecide ||
+        !target || target.status !== "pending" || currentUserId == null ||
+        target.requestedByUserId === currentUserId ||
+        (decision === "approved" && target.requestedByUserId == null)) {
+      notify("An authorized independent reviewer needs a verified pending request.", "err");
+      return;
+    }
     setSaving(true);
     try {
       const response = await fetch("/api/workforce/attendance-corrections", {
@@ -210,6 +230,9 @@ function ScopedAttendanceCorrectionsPanel({
       const body = await response.json().catch(() => ({}));
       if (!mountedRef.current) return;
       if (!response.ok) throw new Error(body.error ?? "Could not decide attendance correction.");
+      if (!verifiedCorrectionReceipt(body, organizationId, "decide_request", { requestId, decision })) {
+        throw new Error("Attendance decision receipt was incomplete. Refresh the queue; do not resubmit blindly.");
+      }
       notify(
         decision === "approved"
           ? "Attendance correction approved. Any stale unreleased payroll calculation was invalidated."
@@ -222,7 +245,10 @@ function ScopedAttendanceCorrectionsPanel({
       }
       await load();
     } catch (error) {
-      if (mountedRef.current) notify(error instanceof Error ? error.message : "Could not decide attendance correction.", "err");
+      if (mountedRef.current) {
+        notify(error instanceof Error ? error.message : "Could not decide attendance correction.", "err");
+        await load();
+      }
     } finally {
       if (mountedRef.current) setSaving(false);
     }
@@ -246,7 +272,11 @@ function ScopedAttendanceCorrectionsPanel({
         </button>
       </div>
 
-      {canManage && (
+      {readError && <div role="alert" className="notice notice-amber" style={{ margin: 16 }}>
+        {readError} <button type="button" className="secondary-button" disabled={saving} onClick={() => void load()}>Retry attendance queue</button>
+      </div>}
+
+      {canManage && queueVerified && (
         <div style={{ padding: "0 18px 18px", display: "grid", gap: 10 }}>
           <div className="form-grid" style={{ margin: 0 }}>
             <label>
@@ -348,12 +378,14 @@ function ScopedAttendanceCorrectionsPanel({
                     </td>
                     {canManage && (
                       <td>
-                        {row.status === "pending" ? (
-                          canDecide && row.requestedByUserId !== currentUserId ? (
+                        {queueVerified && row.status === "pending" ? (
+                          canDecide && currentUserId !== null && row.requestedByUserId !== currentUserId ? (
                             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                              <button className="secondary-button" onClick={() => void decide(row.id, "approved")} disabled={saving}>
-                                <Check size={13} className="i-green" /> Approve
-                              </button>
+                              {row.requestedByUserId != null ? (
+                                <button className="secondary-button" onClick={() => void decide(row.id, "approved")} disabled={saving}>
+                                  <Check size={13} className="i-green" /> Approve
+                                </button>
+                              ) : <span className="id">Missing requester identity: approval blocked; reject and recreate.</span>}
                               <button className="secondary-button" onClick={() => void decide(row.id, "rejected")} disabled={saving}>
                                 <X size={13} className="i-red" /> Reject
                               </button>
@@ -374,14 +406,14 @@ function ScopedAttendanceCorrectionsPanel({
           </tbody>
         </table>
 
-        {!loading && corrections.length === 0 && (
+        {queueVerified && corrections.length === 0 && (
           <EmptyState icon={<Clock3 size={20} className="i-green" />} title="No attendance corrections">
             Corrections will appear here with original and proposed punch values preserved side by side.
           </EmptyState>
         )}
       </div>
 
-      {pending.length > 0 && (
+      {queueVerified && pending.length > 0 && (
         <div className="notice notice-amber" style={{ margin: 16 }}>
           <ShieldCheck size={14} />
           <span>

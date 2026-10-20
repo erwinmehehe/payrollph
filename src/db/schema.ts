@@ -2097,8 +2097,8 @@ export const marketingLeads = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("marketing_leads_status_created_idx").on(table.status, table.createdAt.desc()),
-    index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt.desc()),
+    index("marketing_leads_status_created_idx").on(table.status, table.createdAt.desc().nullsFirst()),
+    index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt.desc().nullsFirst()),
     check("marketing_leads_kind_check",
       sql`${table.kind} in ('demo','trial-access','payroll-outsourcing')`),
     check("marketing_leads_status_check",

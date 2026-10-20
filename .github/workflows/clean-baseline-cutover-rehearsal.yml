@@ -1,0 +1,218 @@
+name: Clean Baseline Cutover Rehearsal (Disposable, No Neon)
+
+# Rehearses the clean-baseline recovery on throwaway PostgreSQL: build from
+# source + 0109 + supplement, set up least-privilege roles, migration ledgers
+# and the cutover row, install the v2 audit guards, then run the reviewed
+# migration runner (plan + apply) and prove the app's request-time schema
+# checks pass as a DML-only runtime role. Never touches Neon or real data.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/clean-baseline-cutover-rehearsal.yml"
+      - "scripts/qa/rehearse-clean-baseline-cutover.mjs"
+      - "scripts/run-clean-baseline-cutover.mjs"
+      - "scripts/verify-clean-baseline-cutover.mjs"
+      - "scripts/lib/clean-baseline-cutover.mjs"
+      - "scripts/qa/provision-cutover-test-target.mjs"
+      - "tests/clean-baseline-cutover-database-guard.test.mjs"
+      - ".github/workflows/clean-baseline-cutover.yml"
+      - "scripts/qa/probe-runtime-ddl-as-app-role.ts"
+      - "scripts/qa/apply-source-baseline-supplement.mjs"
+      - "scripts/lib/migration-only-objects.mjs"
+      - "scripts/lib/reviewed-migration-runner.mjs"
+      - "scripts/lib/historical-catalog-gate.mjs"
+      - "scripts/lib/reviewed-migration-control-ledger.mjs"
+      - "docs/sql/source-baseline-supplement.sql"
+      - "docs/sql/issue908-audit-trigger-boundary-REVIEW_ONLY.sql"
+      - "docs/engineering/reviewed-migration-cutover-template.sql"
+      - "docs/engineering/production-migration-receipt-journal-template.sql"
+      - "src/db/schema.ts"
+      - "src/lib/core-schema-readonly.ts"
+      - "src/lib/request-schema-readonly.ts"
+      - "src/lib/audit-sealer-connection.ts"
+      - "drizzle/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/clean-baseline-cutover-rehearsal.yml"
+      - "scripts/qa/rehearse-clean-baseline-cutover.mjs"
+      - "scripts/run-clean-baseline-cutover.mjs"
+      - "scripts/verify-clean-baseline-cutover.mjs"
+      - "scripts/lib/clean-baseline-cutover.mjs"
+      - "scripts/qa/provision-cutover-test-target.mjs"
+      - ".github/workflows/clean-baseline-cutover.yml"
+      - "scripts/qa/probe-runtime-ddl-as-app-role.ts"
+      - "docs/sql/source-baseline-supplement.sql"
+      - "src/db/schema.ts"
+      - "drizzle/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  rehearse:
+    name: Cutover rehearsal on PostgreSQL ${{ matrix.pg }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: ["16", "18"]
+    env:
+      CI: "true"
+      NINE_STAGE_PG_MAJOR: ${{ matrix.pg }}
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      TZ: Asia/Manila
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Synthetic encryption keys, never used outside CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          bk="$(openssl rand -hex 32)"
+          pk="$(openssl rand -hex 32)"
+          echo "::add-mask::$bk"
+          echo "::add-mask::$pk"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bk" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pk" >> "$GITHUB_ENV"
+      - name: Build the clean baseline (source push + 0109 + supplement)
+        run: |
+          set -euo pipefail
+          npm run db:push
+          node scripts/qa/apply-audit-0109-isolated.mjs
+          node scripts/qa/apply-source-baseline-supplement.mjs
+      - name: Clone the baseline into a disposable neondb for the rehearsal
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e '
+            const { Client } = require("pg");
+            (async () => {
+              const c = new Client({ connectionString: "postgresql://postgres:postgres@127.0.0.1:5432/postgres" });
+              await c.connect();
+              await c.query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()", ["app_db"]);
+              await c.query("CREATE DATABASE neondb TEMPLATE app_db");
+              await c.end();
+            })().catch((e) => { console.error(e.message); process.exit(1); });'
+      - name: Rehearse roles, ledgers, cutover, v2 audit guards, runner plan + apply, sealing
+        run: npx tsx scripts/qa/rehearse-clean-baseline-cutover.mjs
+      - name: Request-time schema checks pass as the DML-only runtime role (cutover configuration)
+        env:
+          # The cutover configuration: the rollout flag forces read-only mode and the
+          # canonical (numbered-SQL) schema shapes that the clean baseline has.
+          REQUEST_SCHEMA_READONLY_ENABLED: "true"
+          CORE_SCHEMA_COMPATIBILITY_MODE: read-only
+        run: npx tsx scripts/qa/probe-runtime-ddl-as-app-role.ts --fail-on-error
+
+  production-runner:
+    name: Production cutover runner against a simulated Neon owner (PG18, ${{ matrix.database }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [neondb, payrollph_clean_baseline]
+    env:
+      EXPECTED_DATABASE_NAME: ${{ matrix.database }}
+      CI: "true"
+      NINE_STAGE_PG_MAJOR: "18"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      TZ: Asia/Manila
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build the schema artifact exactly as the protected workflow does
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run db:push
+          node scripts/qa/apply-audit-0109-isolated.mjs
+          node scripts/qa/apply-source-baseline-supplement.mjs
+          mkdir -p cutover-artifact
+          docker exec "$PG_CONTAINER" pg_dump -U postgres -d app_db --schema-only --schema=public \
+            --no-owner --no-privileges --no-tablespaces --no-security-labels > cutover-artifact/schema-only.sql
+          test -s cutover-artifact/schema-only.sql
+      - name: Simulate Neon (non-superuser owner, empty target, roles created by SQL)
+        run: node scripts/qa/provision-cutover-test-target.mjs
+      - name: Execute exact database, project and branch guards on PostgreSQL
+        run: CUTOVER_DATABASE_GUARD_TEST_URL="$SIM_OWNER_URL" node --test tests/clean-baseline-cutover-database-guard.test.mjs
+      - name: Dry-run commits nothing; apply commits; a second apply is refused
+        shell: bash
+        env:
+          CUTOVER_ISOLATED_TEST: "true"
+        run: |
+          set -euo pipefail
+          export CUTOVER_TARGET_DATABASE_URL="$SIM_OWNER_URL"
+          node scripts/run-clean-baseline-cutover.mjs --dry-run --artifact cutover-artifact/schema-only.sql
+          node scripts/run-clean-baseline-cutover.mjs --apply --artifact cutover-artifact/schema-only.sql
+          if node scripts/run-clean-baseline-cutover.mjs --apply --artifact cutover-artifact/schema-only.sql > second.json; then
+            echo "A second apply must be refused"; exit 1
+          fi
+          grep -q CUTOVER_TARGET_NOT_EMPTY second.json
+      - name: Verify read-only as the migration planner
+        shell: bash
+        run: PLANNER_DATABASE_URL="$SIM_PLANNER_URL" node scripts/verify-clean-baseline-cutover.mjs
+      - name: Request-time schema checks as the DML-only app role, no writes
+        shell: bash
+        env:
+          REQUEST_SCHEMA_READONLY_ENABLED: "true"
+          CORE_SCHEMA_COMPATIBILITY_MODE: read-only
+        run: PROBE_APP_DATABASE_URL="$SIM_APP_URL" npx tsx scripts/qa/probe-runtime-ddl-as-app-role.ts --fail-on-error

@@ -1,0 +1,69 @@
+name: Connected first payroll signup and resume (synthetic only)
+on:
+  pull_request:
+    paths:
+      - 'src/lib/saas-workspace-access.ts'
+      - 'src/lib/first-payroll-run-navigation.ts'
+      - 'src/lib/critical-release-flags.ts'
+      - 'src/app/api/signup/**'
+      - 'src/components/linaw-workspace.tsx'
+      - 'src/components/workspace/first-payroll-*.tsx'
+      - 'src/components/workspace/payroll-run.tsx'
+      - 'tests/first-payroll-invited-pilot-postgres.test.ts'
+      - 'tests/first-payroll-run-navigation.test.ts'
+      - 'scripts/qa/first-payroll-connected-browser.mjs'
+      - '.github/workflows/first-payroll-connected.yml'
+permissions:
+  contents: read
+jobs:
+  connected:
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: [16, 18]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Generate distinct fictional encryption keys
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - run: npm run db:push
+      - run: npx tsx --test --test-concurrency=1 tests/first-payroll-invited-pilot-postgres.test.ts tests/first-payroll-run-navigation.test.ts tests/critical-release-flags.test.ts
+      - run: npm install --no-save --package-lock=false playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/qa/first-payroll-connected-browser.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: first-payroll-connected-pg${{ matrix.postgres }}
+          path: qa-artifacts/first-payroll-connected
+          retention-days: 7

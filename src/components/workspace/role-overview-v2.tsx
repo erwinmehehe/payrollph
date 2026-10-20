@@ -114,6 +114,8 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
 
       <StatutoryRemittanceWatch
         organizationId={data.selectedOrganization.id}
+        legalEntityId={data.multiEntity?.legalEntityId ?? null}
+        requiresLegalEntitySelection={data.multiEntity?.enabled === true}
         onOpen={() => onPage("Payroll")}
       />
 
@@ -204,6 +206,8 @@ function PayrollWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Com
 
       <StatutoryRemittanceWatch
         organizationId={data.selectedOrganization.id}
+        legalEntityId={data.multiEntity?.legalEntityId ?? null}
+        requiresLegalEntitySelection={data.multiEntity?.enabled === true}
         onOpen={() => onPage("Payroll")}
       />
 

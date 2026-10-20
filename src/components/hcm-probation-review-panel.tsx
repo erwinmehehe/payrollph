@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -10,6 +10,10 @@ import {
   Send,
   UserCheck,
 } from "lucide-react";
+import {
+  isProbationReviewReadEnvelope, probationReviewReadActions,
+  type ProbationReviewReadPhase,
+} from "@/lib/hcm-probation-review-read-state";
 
 type ProbationReview = {
   id: number;
@@ -75,6 +79,8 @@ function HcmProbationReviewPanelContent({
   onChanged?: () => Promise<unknown> | unknown;
 }) {
   const [payload, setPayload] = useState<Payload | null>(null);
+  const [readPhase, setReadPhase] = useState<ProbationReviewReadPhase>("loading");
+  const requestRevision = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -92,6 +98,9 @@ function HcmProbationReviewPanelContent({
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setError("");
+    const revision = ++requestRevision.current;
+    setReadPhase("loading");
+    setPayload(null);
     try {
       const response = await fetch(
         "/api/hcm/probation-reviews?organizationId=" + organizationId
@@ -100,10 +109,15 @@ function HcmProbationReviewPanelContent({
         { cache: "no-store", signal },
       );
       const data = await response.json().catch(() => ({}));
-      if (signal?.aborted) return;
+      if (signal?.aborted) return false;
+      if (revision !== requestRevision.current) return false;
       if (!response.ok) throw new Error(data.error ?? "Could not load probation review.");
+      if (!isProbationReviewReadEnvelope(data)) {
+        throw new Error("Probation review returned an invalid authorized source view.");
+      }
       const next = data as Payload;
       setPayload(next);
+      setReadPhase("ready");
       if (next.review) {
         setForm({
           recommendation: next.review.recommendation ?? "",
@@ -117,10 +131,14 @@ function HcmProbationReviewPanelContent({
           developmentAreas: next.review.developmentAreas ?? "",
         });
       }
+      return true;
     } catch (loadError) {
-      if (signal?.aborted) return;
+      if (signal?.aborted) return false;
+      if (revision !== requestRevision.current) return false;
       setPayload(null);
+      setReadPhase("unavailable");
       setError(loadError instanceof Error ? loadError.message : "Could not load probation review.");
+      return false;
     }
   }, [employeeId, employmentTermId, organizationId]);
 
@@ -134,7 +152,10 @@ function HcmProbationReviewPanelContent({
     return () => controller.abort();
   }, [load]);
 
+  const controls = probationReviewReadActions(readPhase, payload);
+
   async function createDraft() {
+    if (busy || !controls.canOpen) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -146,8 +167,10 @@ function HcmProbationReviewPanelContent({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Could not open probation review.");
-      setNotice("Probation review draft opened.");
-      await load();
+      const verified = await load();
+      setNotice(verified
+        ? "Probation review draft opened."
+        : "Draft creation was accepted, but its saved state could not be verified. Refresh before editing.");
     } catch (mutationError) {
       setError(mutationError instanceof Error ? mutationError.message : "Could not open probation review.");
     } finally {
@@ -156,7 +179,7 @@ function HcmProbationReviewPanelContent({
   }
 
   async function save(action: "save" | "submit") {
-    if (!payload?.review) return;
+    if (busy || !payload?.review || !controls.canEdit) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -181,10 +204,12 @@ function HcmProbationReviewPanelContent({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Could not update probation review.");
-      setNotice(action === "submit"
-        ? "Probation review submitted and locked as lifecycle evidence."
-        : "Probation review draft saved.");
-      await load();
+      const verified = await load();
+      setNotice(verified
+        ? action === "submit"
+          ? "Probation review submitted and locked as lifecycle evidence."
+          : "Probation review draft saved."
+        : "Review update was accepted, but its saved state could not be verified. Refresh before editing.");
       await onChanged?.();
     } catch (mutationError) {
       setError(mutationError instanceof Error ? mutationError.message : "Could not update probation review.");
@@ -193,8 +218,7 @@ function HcmProbationReviewPanelContent({
     }
   }
 
-  const review = payload?.review ?? null;
-  const submitted = review?.status === "submitted";
+  const review = readPhase === "ready" ? payload?.review ?? null : null;
 
   return (
     <section className="card" style={{ margin: "12px 0 0", boxShadow: "none" }}>
@@ -207,13 +231,13 @@ function HcmProbationReviewPanelContent({
             a separate governed employment decision is still required.
           </p>
         </div>
-        <button className="secondary-button" type="button" onClick={() => void load()} disabled={busy}>
+        <button className="secondary-button" type="button" onClick={() => void load()} disabled={busy || readPhase === "loading"}>
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
 
       {error && (
-        <div className="notice notice-amber" style={{ marginBottom: 12 }}>
+        <div className="notice notice-amber" role="alert" style={{ marginBottom: 12 }}>
           <AlertTriangle size={15} /><span>{error}</span>
         </div>
       )}
@@ -232,13 +256,34 @@ function HcmProbationReviewPanelContent({
         </span>
       </div>
 
-      {!review && (
-        <button className="primary-button" type="button" onClick={() => void createDraft()} disabled={busy}>
+      {readPhase === "loading" && (
+        <div className="notice notice-slate" role="status" aria-live="polite" style={{ marginBottom: 12 }}>
+          Checking the authorized probation review and its current approval state…
+        </div>
+      )}
+      {readPhase === "unavailable" && (
+        <div className="notice notice-amber" role="status" style={{ marginBottom: 12 }}>
+          The review could not be verified. No draft or editing actions are available until Refresh succeeds.
+        </div>
+      )}
+      {controls.showUnavailablePermission && (
+        <div className="notice notice-slate" role="status" style={{ marginBottom: 12 }}>
+          No review is recorded in this authorized view. Opening a draft is not currently permitted.
+        </div>
+      )}
+      {controls.showReadOnlyDraft && (
+        <div className="notice notice-slate" role="status" style={{ marginBottom: 12 }}>
+          A draft review is recorded, but this role or review state does not permit editing.
+        </div>
+      )}
+
+      {controls.canOpen && (
+        <button className="primary-button" type="button" onClick={() => void createDraft()} disabled={busy || !controls.canOpen}>
           <ClipboardCheck size={14} /> Open probation review
         </button>
       )}
 
-      {review && !submitted && (
+      {controls.canEdit && (
         <div style={{ display: "grid", gap: 12 }}>
           <div className="setting-form">
             <label>
@@ -304,7 +349,7 @@ function HcmProbationReviewPanelContent({
         </div>
       )}
 
-      {review && submitted && (
+      {controls.showSubmitted && review && (
         <div style={{ display: "grid", gap: 12 }}>
           <div className="run-stats" style={{ margin: 0 }}>
             <div>

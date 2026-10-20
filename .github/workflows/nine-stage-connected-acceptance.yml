@@ -53,7 +53,9 @@ on:
       - "src/lib/dashboard-data.ts"
       - "src/lib/critical-release-flags.ts"
       - "tests/compact-mobile-header.test.ts"
+      - "tests/private-parallel-operator-contract.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/two-period-multiworker-connected.ts"
       - "scripts/qa/governed-hire-853-bridge.ts"
       - "scripts/qa/connected-governed-hire.ts"
       - "scripts/qa/connected-year-end-journey.ts"
@@ -78,6 +80,8 @@ on:
       - "tests/verified-pg18-bootstrap.test.mjs"
       - "drizzle.config.ts"
       - "src/db/schema.ts"
+      # Migration recovery PRs must re-prove the complete two-employer no-money journey.
+      - "drizzle/0134_wfm_demand_missing_foundation_forward.sql"
       - "src/lib/ess-profile-schema.ts"
       - "src/lib/saas-billing-schema.ts"
       - "src/lib/workforce-schedule-receipt-schema.ts"
@@ -134,7 +138,9 @@ on:
       - "src/lib/dashboard-data.ts"
       - "src/lib/critical-release-flags.ts"
       - "tests/compact-mobile-header.test.ts"
+      - "tests/private-parallel-operator-contract.test.ts"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
+      - "scripts/qa/two-period-multiworker-connected.ts"
       - "scripts/qa/governed-hire-853-bridge.ts"
       - "scripts/qa/connected-governed-hire.ts"
       - "scripts/qa/connected-year-end-journey.ts"
@@ -198,6 +204,8 @@ jobs:
       NINE_STAGE_HIRE_MODE: ${{ matrix.hire-mode }}
       NINE_STAGE_PG_MAJOR: ${{ matrix.postgres }}
       NINE_STAGE_CUTOFF_MODE: ${{ matrix.cutoff || 'month' }}
+      FIRST_PAYROLL_CONNECTED_ENABLED: ${{ matrix.hire-mode == 'direct' && 'true' || 'false' }}
+      FIRST_PAYROLL_INLINE_ENABLED: ${{ matrix.hire-mode == 'direct' && 'true' || 'false' }}
       YEAR_END_PRIOR_EVIDENCE_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
       EXACT_THIRTEENTH_CENTAVOS_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
       FINAL_PAY_SIGNED_REVIEW_ENABLED: ${{ matrix.cutoff == 'year-end' && 'true' || 'false' }}
@@ -261,6 +269,19 @@ jobs:
           echo "::add-mask::$pii_key"
           echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+          if [ "${{ matrix.hire-mode }}" = direct ]; then
+            invite=$(openssl rand -hex 32)
+            echo "::add-mask::$invite"
+            echo "PRIVATE_PILOT_QA_INVITE_CODE=$invite" >> "$GITHUB_ENV"
+            echo "PRIVATE_PILOT_INVITE_CODE_SHA256=$(printf %s "$invite" | sha256sum | cut -d' ' -f1)" >> "$GITHUB_ENV"
+            echo "PRIVATE_PILOT_INVITE_EMAIL_SHA256=$(printf %s owner.nine@linaw.test | sha256sum | cut -d' ' -f1)" >> "$GITHUB_ENV"
+            echo "PRIVATE_PILOT_INVITE_ENABLED=true" >> "$GITHUB_ENV"
+            echo "PRIVATE_PILOT_INVITE_EXPIRES_AT=2030-01-01T00:00:00Z" >> "$GITHUB_ENV"
+            echo "PUBLIC_SIGNUP_MODE=pilot" >> "$GITHUB_ENV"
+            # Production signup requires an HTTPS canonical URL. The actual
+            # test server and every HTTP client remain on the same loopback port.
+            echo "APP_BASE_URL=https://127.0.0.1:3000" >> "$GITHUB_ENV"
+          fi
           # Pick the current Manila month-end once for this disposable run so
           # authenticated browser cookies are not expired in real wall time.
           echo "NINE_STAGE_SYNTHETIC_CLOCK=$(node scripts/qa/synthetic-month-end.cjs)" >> "$GITHUB_ENV"
@@ -301,6 +322,8 @@ jobs:
             tests/workforce-attendance-locks.test.ts \
             tests/workforce-timesheet.test.ts \
             tests/filing-remittance-crosscheck.test.ts
+      - name: Verify synthetic 10-worker two-month private parallel reconciliation contract
+        run: npx tsx --test tests/private-parallel-operator-contract.test.ts
       - name: Generate byte-bound fictional official-validator handoff (not certification)
         run: |
           npx tsx --test tests/bir-validation-corpus.test.ts tests/bir-1604c-dat-candidate.test.ts tests/bir-1604c-pre-export.test.ts
@@ -354,6 +377,9 @@ jobs:
         env:
           NINE_STAGE_EVIDENCE_REQUIRED: "true"
         run: node --test tests/nine-stage-connected-evidence.test.mjs
+      - name: Rehearse ten fictional workers through two real HTTP payroll cutoffs (PG16 direct only)
+        if: ${{ success() && matrix.postgres == '16' && matrix.hire-mode == 'direct' && matrix.cutoff != 'year-end' }}
+        run: NODE_OPTIONS="--require=$(pwd)/scripts/qa/isolated-month-end-clock.cjs" npx tsx scripts/qa/two-period-multiworker-connected.ts
       - name: Show bounded server errors on failure
         if: failure()
         shell: bash
@@ -372,6 +398,7 @@ jobs:
             qa-artifacts/fresh-pg18-dev-schema.json
             qa-artifacts/nine-stage-mobile-report.json
             qa-artifacts/issue-853-synthetic-two-tenant-scope.json
+            qa-artifacts/ten-worker-two-period-report.json
             qa-artifacts/governed-hire-853-report.json
             qa-artifacts/bir-validation-corpus/**
             qa-artifacts/connected-year-end-unsigned.pdf
@@ -383,7 +410,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nine-stage-role-layout-screenshots-pg${{ matrix.postgres }}-${{ matrix.hire-mode }}${{ matrix.cutoff == 'year-end' && '-year-end' || '' }}
-          path: qa-artifacts/nine-stage-layout-*.png
+          path: |
+            qa-artifacts/nine-stage-layout-*.png
+            qa-artifacts/first-payroll-authenticated-resume-*.png
           if-no-files-found: warn
           retention-days: 14
 

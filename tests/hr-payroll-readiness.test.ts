@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildHrPayrollReadiness } from "../src/lib/hr-payroll-readiness";
+import { buildHrPayrollReadiness, hrPayrollReadinessPresentation } from "../src/lib/hr-payroll-readiness";
+import { readFileSync } from "node:fs";
 
 const baseEmployee = {
   id: 1,
@@ -89,4 +90,66 @@ test("separating employees need an employment-date record", () => {
     period: { periodStart: "2026-10-01", periodEnd: "2026-10-15", periodLabel: "Oct 1–15" },
   });
   assert.ok(model.rows[0].issues.some((issue) => issue.key === "employment_dates"));
+});
+
+test("a new employer with zero workers is not falsely shown as fully payroll ready", () => {
+  const model = buildHrPayrollReadiness({ employees: [], provisioning: [] });
+  assert.equal(model.total, 0);
+  assert.deepEqual(hrPayrollReadinessPresentation(model), {
+    hasEligibleEmployees: false,
+    percentage: null,
+    heading: "No eligible employees to assess",
+    statusLabel: "Not assessed",
+  });
+});
+
+test("inactive and future-period hires are not equivalent to a ready payroll roster", () => {
+  const model = buildHrPayrollReadiness({
+    employees: [
+      { ...baseEmployee, id: 1, status: "Inactive" },
+      { ...baseEmployee, id: 2, startDate: "2026-11-01" },
+    ],
+    period: { periodStart: "2026-10-01", periodEnd: "2026-10-15", periodLabel: "Oct 1–15" },
+    provisioning: [],
+  });
+  assert.equal(model.total, 0);
+  assert.equal(hrPayrollReadinessPresentation(model).percentage, null);
+  assert.equal(hrPayrollReadinessPresentation(model).statusLabel, "Not assessed");
+});
+
+test("assessed workers preserve authentic readiness percentages and issue labels", () => {
+  const model = buildHrPayrollReadiness({
+    employees: [baseEmployee, { ...baseEmployee, id: 2, bankAccount: null }],
+    punches: [
+      { employeeId: 1, workDate: "2026-10-02", status: "Complete" },
+      { employeeId: 2, workDate: "2026-10-02", status: "Complete" },
+    ],
+    period: { periodStart: "2026-10-01", periodEnd: "2026-10-15", periodLabel: "Oct 1–15" },
+    provisioning: [],
+  });
+  assert.equal(model.total, 2);
+  assert.equal(model.ready, 1);
+  assert.deepEqual(hrPayrollReadinessPresentation(model), {
+    hasEligibleEmployees: true,
+    percentage: 50,
+    heading: "1 of 2 employees ready",
+    statusLabel: "1 needs attention",
+  });
+  const complete = buildHrPayrollReadiness({
+    employees: [baseEmployee],
+    punches: [{ employeeId: 1, workDate: "2026-10-02", status: "Complete" }],
+    period: { periodStart: "2026-10-01", periodEnd: "2026-10-15" },
+    provisioning: [],
+  });
+  assert.equal(hrPayrollReadinessPresentation(complete).percentage, 100);
+  assert.equal(hrPayrollReadinessPresentation(complete).statusLabel, "All assessed employees ready");
+});
+
+test("HR readiness UI renders the unassessed state instead of manufacturing a 100 percent success", () => {
+  const source = readFileSync("src/components/workspace/hr-payroll-readiness.tsx", "utf8");
+  assert.match(source, /hrPayrollReadinessPresentation\(model\)/);
+  assert.match(source, /percentage === null \? "—"/);
+  assert.match(source, /readiness\.hasEligibleEmployees/);
+  assert.match(source, /Readiness not assessed/);
+  assert.doesNotMatch(source, /model\.total \? Math\.round\(\(model\.ready \/ model\.total\) \* 100\) : 100/);
 });

@@ -8,7 +8,10 @@ function fixtureClockOffset(env, realNow = Date.now()) {
   assert.equal(env.CI, "true");
   assert.equal(env.GITHUB_ACTIONS, "true");
   assert.equal(env.QA_URL, "http://127.0.0.1:3000");
-  assert.equal(env.APP_BASE_URL, env.QA_URL);
+  // HTTPS is a canonical-URL alias for production signup checks, never a
+  // network destination: QA_URL and the database must still be exact loopback.
+  assert.ok([env.QA_URL, "https://127.0.0.1:3000"].includes(env.APP_BASE_URL),
+    "Synthetic canonical URL must remain the exact loopback host and port");
   assert.equal(env.DEMO_MODE, "false");
   const url = new URL(env.DATABASE_URL || "https://invalid");
   assert.equal(url.protocol, "postgresql:");

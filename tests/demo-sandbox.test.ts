@@ -593,7 +593,7 @@ test("employee self-service keeps the payslip summary without mascot dependencie
   const employeeHome = read("src/components/employee-home-dashboard.tsx");
   assert.ok(selfService.includes("<EmployeeHomeDashboard"), "employee portal must render its released-pay summary");
   assert.ok(employeeHome.includes("data-latest-payslip"), "employee view must keep the latest-payslip summary card");
-  assert.ok(employeeHome.includes("Payslip available"), "released payslip status must stay explicit");
+  assert.ok(employeeHome.includes("Payslip released"), "released payslip status must stay explicit without implying payment completion");
   assert.ok(!selfService.includes("PayrollGuide"), "employee view must not use the mascot guide");
   assert.ok(!selfService.includes("payroll-owl"), "employee view must not import mascot assets");
   assert.ok(!selfService.includes("RecentPayrollRuns"), "employee view must not expose company payroll run history");
@@ -620,5 +620,16 @@ test("demo-switch refuses provisioning when a production database has real emplo
   const start = route.indexOf('if (process.env.NODE_ENV === "production")');
   const provision = route.indexOf("await preparePublicDemoTenant()");
   assert.ok(start >= 0 && start < provision);
-  assert.ok(route.includes('ne(organizations.name, "Loom & Local")'));
+  const guardedBoundary = read("src/lib/demo-provisioning-boundary.ts");
+  const privateEvidence = read("src/app/api/readiness/demo-provisioning/route.ts");
+  assert.ok(route.includes("await productionDemoEmployerBoundary()"),
+    "demo-switch must reuse the same real-employer guard used by private readiness");
+  assert.ok(guardedBoundary.includes("verifiedPublicDemoDatabaseIdentity(session.rows[0])"),
+    "an independently attested database session must be required before demo provisioning");
+  assert.ok(guardedBoundary.includes("PUBLIC_DEMO_ORGANIZATION_ID"),
+    "the verified fictional organization ID must be independent of editable names");
+  assert.ok(guardedBoundary.includes('"unverified"'),
+    "a failed DB lookup cannot authorize demo accounts");
+  assert.ok(privateEvidence.includes("constantTimeSecretEqual"),
+    "diagnostic must remain protected by the readiness token");
 });

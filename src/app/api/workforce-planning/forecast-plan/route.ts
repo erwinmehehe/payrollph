@@ -9,11 +9,13 @@ import {
   workforcePlans,
 } from "@/db/schema";
 import {
+  assertOrganizationRole,
   getAccess,
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseAdvancedPlan } from "@/lib/enterprise-advanced-plan-server";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import {
@@ -119,6 +121,11 @@ export async function POST(request: Request) {
       error: "Creating a forecast revision from the official published baseline requires company-wide workforce access.",
     }, { status: 403 });
   }
+
+  const permissionDenied = await assertOrganizationRole(user.id, organizationId, WORKFORCE_MANAGER_ROLES);
+  if (permissionDenied) return permissionDenied;
+  const advancedDenied = await denyOptInEnterpriseAdvancedPlan(organizationId, "planning");
+  if (advancedDenied) return advancedDenied;
 
   const [[plan], [baseline], positionRows, assignmentRows] = await Promise.all([
     db.select().from(workforcePlans).where(and(

@@ -54,21 +54,63 @@ export function reconcilePaymongoPayrollTransfers(input: {
   expectedRows: PayrollPayoutRow[];
   batches: PaymongoBatchSnapshot[];
 }): PaymongoPayrollReconciliation {
-  const expected = new Map(input.expectedRows.map((row) => [row.referenceNumber, row]));
-  const latest = new Map<string, PaymongoTransferSnapshot>();
+  if (!Number.isSafeInteger(input.runId) || input.runId <= 0 ||
+      !Array.isArray(input.expectedRows) || input.expectedRows.length === 0 ||
+      input.expectedRows.length > 1000 || !Array.isArray(input.batches)) {
+    throw new Error("PAYOUT_RECONCILIATION_INVALID_INPUT");
+  }
+  const expected = new Map<string, PayrollPayoutRow>();
+  const employeeNos = new Set<string>();
+  for (const row of input.expectedRows) {
+    if (!row || typeof row.referenceNumber !== "string" ||
+        typeof row.employeeNo !== "string" ||
+        payrollEmployeeNoFromReference(input.runId, row.referenceNumber) !== row.employeeNo ||
+        !Number.isSafeInteger(row.amountCents) || row.amountCents <= 0 ||
+        expected.has(row.referenceNumber) || employeeNos.has(row.employeeNo)) {
+      throw new Error("PAYOUT_RECONCILIATION_DUPLICATE_OR_INVALID_RELEASED_ROW");
+    }
+    expected.set(row.referenceNumber, row);
+    employeeNos.add(row.employeeNo);
+  }
 
+  const latest = new Map<string, PaymongoTransferSnapshot>();
+  const batchIds = new Set<string>();
+  const transferIds = new Set<string>();
   for (const batch of input.batches) {
+    if (!batch || typeof batch.batchId !== "string" || !batch.batchId.trim() ||
+        !["instapay", "pesonet"].includes(batch.provider) ||
+        !Array.isArray(batch.transfers) || batchIds.has(batch.batchId)) {
+      throw new Error("PAYOUT_RECONCILIATION_DUPLICATE_OR_INVALID_BATCH");
+    }
+    batchIds.add(batch.batchId);
+    const referencesInBatch = new Set<string>();
     for (const transfer of batch.transfers) {
+      if (!transfer || transfer.batchId !== batch.batchId ||
+          typeof transfer.transferId !== "string" || !transfer.transferId.trim() ||
+          transferIds.has(transfer.transferId) ||
+          referencesInBatch.has(transfer.referenceNumber) ||
+          !["pending", "succeeded", "failed", "unknown"].includes(transfer.status)) {
+        throw new Error("PAYOUT_RECONCILIATION_DUPLICATE_OR_INVALID_TRANSFER");
+      }
+      transferIds.add(transfer.transferId);
+      referencesInBatch.add(transfer.referenceNumber);
       const expectedRow = expected.get(transfer.referenceNumber);
       if (!expectedRow) {
         throw new Error(
           `PayMongo batch ${batch.batchId} returned transfer reference "${transfer.referenceNumber}" that does not belong to payroll run #${input.runId}.`,
         );
       }
-      if (transfer.amountCents !== expectedRow.amountCents) {
+      if (!Number.isSafeInteger(transfer.amountCents) ||
+          transfer.amountCents !== expectedRow.amountCents) {
         throw new Error(
           `PayMongo amount mismatch for ${transfer.referenceNumber}: provider ${transfer.amountCents} cents, released payroll ${expectedRow.amountCents} cents.`,
         );
+      }
+      // Retrying a succeeded/pending/unknown transfer can duplicate real funds.
+      // Only a previously FAILED reference may have another provider attempt.
+      const previous = latest.get(transfer.referenceNumber);
+      if (previous && previous.status !== "failed") {
+        throw new Error("PAYOUT_RECONCILIATION_UNSAFE_RETRY_" + previous.status.toUpperCase());
       }
       latest.set(transfer.referenceNumber, transfer);
     }
