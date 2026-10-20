@@ -11,5 +11,6 @@ export default async function ReportBuilderPage({
   const params = await searchParams;
   const organizationId = Number(params.organizationId ?? 0);
   if (!Number.isSafeInteger(organizationId) || organizationId < 1) return <p>Select an employer first.</p>;
-  return <TenantReportBuilder organizationId={organizationId} />;
+  // A different signed-in account or employer must never inherit a prior report preview.
+  return <TenantReportBuilder key={`${user.id}:${organizationId}`} organizationId={organizationId} />;
 }
