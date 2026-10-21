@@ -7,6 +7,7 @@
  */
 import assert from "node:assert/strict";
 import { verifyTenantImportHistory } from "./tenant-dl01-import-history-http.mjs";
+import { verifyTenantFilingFile } from "./tenant-dl01-filing-file-http.mjs";
 
 export async function verifyTenantIndependentImportTemplate(f, { request, expectStatus }) {
   assert.equal(process.env.CI, "true");
@@ -59,6 +60,7 @@ export async function verifyTenantIndependentImportTemplate(f, { request, expect
     else assert.equal(own.text, postingTemplate, "Fixed statutory template differs by employer session");
   }
   console.log("PASS public statutory posting import CSV: anonymous plus three fictional employer sessions, identical nonempty template bytes and forged selectors ignored");
-  // Private history is a separate real-HTTP proof, never a public-template disposition.
+  // Separate private-data proofs; neither inherits a public-template disposition.
   await verifyTenantImportHistory(f, { request, expectStatus });
+  await verifyTenantFilingFile(f, { request, expectStatus });
 }
