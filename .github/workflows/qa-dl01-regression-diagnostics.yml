@@ -32,15 +32,18 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: Reproduce the original stale-count failure on the same source tree
+      - name: Reproduce the original stale-count failure with its pinned manifest
         shell: bash
         run: |
           set -euo pipefail
           git fetch --no-tags --depth=1 origin "$BASELINE_SHA"
           target=tests/remittance-month-close-read.test.ts
+          manifest=scripts/qa/tenant-isolation-coverage-manifest.json
+          cp "$manifest" "$RUNNER_TEMP/tenant-manifest.fixed.json"
           cp "$target" "$RUNNER_TEMP/remittance-month-close-read.fixed.ts"
-          trap 'cp "$RUNNER_TEMP/remittance-month-close-read.fixed.ts" "$target"' EXIT
+          trap 'cp "$RUNNER_TEMP/remittance-month-close-read.fixed.ts" "$target"; cp "$RUNNER_TEMP/tenant-manifest.fixed.json" "$manifest"' EXIT
           git show "$BASELINE_SHA:$target" > "$target"
+          git show "$BASELINE_SHA:$manifest" > "$manifest"
           set +e
           npx --no-install tsx --test --test-concurrency=1 --test-reporter=spec "$target" > "$RUNNER_TEMP/original-regression.log" 2>&1
           baseline_status=$?
@@ -53,8 +56,9 @@ jobs:
           grep -F "Retain five attendance and add four HCM proof methods" "$RUNNER_TEMP/original-regression.log"
           grep -F "78 !== 76" "$RUNNER_TEMP/original-regression.log"
           cp "$RUNNER_TEMP/remittance-month-close-read.fixed.ts" "$target"
+          cp "$RUNNER_TEMP/tenant-manifest.fixed.json" "$manifest"
           trap - EXIT
-          git diff --exit-code -- "$target"
+          git diff --exit-code -- "$target" "$manifest"
       - name: Run all repaired remittance read tests
         run: npx --no-install tsx --test --test-concurrency=1 --test-reporter=spec tests/remittance-month-close-read.test.ts
       - name: Verify count reconciliation and all DL-01 source-proof guards
