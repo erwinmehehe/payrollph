@@ -6,23 +6,43 @@ const item = { id: "bir-oct", agency: "BIR", obligation: "Withholding", applicab
   status: "complete", detail: "Evidence confirmed", sourceLabel: "Source", sourceUrl: "/api/x", exactness: "nominal" };
 const watch = { family: "BIR", label: "Tax tables", status: "current", currentVersion: "2026",
   sourceDocument: null, lastVerifiedOn: null, detail: "Verified" };
-const valid = { organizationId: 41, today: "2026-10-20", applicableMonths: ["2026-10"], items: [item], ruleWatch: [watch], note: "Nominal dates" };
+const ruleWatch = [
+  { ...watch, family: "sss", label: "SSS rules" },
+  { ...watch, family: "philhealth", label: "PhilHealth rules" },
+  { ...watch, family: "pagibig", label: "Pag-IBIG rules" },
+  { ...watch, family: "bir-withholding", label: "BIR withholding rules" },
+  { ...watch, family: "wage-orders", label: "Regional wage orders" },
+];
+const valid = { organizationId: 41, today: "2026-10-20", applicableMonths: ["2026-10"], items: [item], ruleWatch, note: "Nominal dates" };
 test("calendar only shows verified scoped obligations and complete rule-watch evidence", () => {
   assert.deepEqual(parseVerifiedComplianceCalendar(valid, 41), valid);
   const scheduledRule = { ...watch, label: "Regional wage update", sourceDocument: "WO-ROVII-27", status: "change-upcoming" };
-  assert.deepEqual(parseVerifiedComplianceCalendar({ ...valid, ruleWatch: [watch, scheduledRule] }, 41)?.ruleWatch,
-    [watch, scheduledRule], "separate statutory notices may share one rule family");
-  assert.deepEqual(parseVerifiedComplianceCalendar({ ...valid, items: [], applicableMonths: [], ruleWatch: [] }, 41),
-    { ...valid, items: [], applicableMonths: [], ruleWatch: [] }, "verified empty is explicit");
+  assert.deepEqual(parseVerifiedComplianceCalendar({ ...valid, ruleWatch: [...ruleWatch, scheduledRule] }, 41)?.ruleWatch,
+    [...ruleWatch, scheduledRule], "separate statutory notices may share one rule family");
+  assert.deepEqual(parseVerifiedComplianceCalendar({ ...valid, items: [], applicableMonths: [] }, 41),
+    { ...valid, items: [], applicableMonths: [] }, "verified empty is explicit");
   for (const v of [null, {}, { ...valid, organizationId: 99 }, { ...valid, items: undefined },
     { ...valid, ruleWatch: undefined }, { ...valid, items: [{ ...item, status: undefined }] },
     { ...valid, ruleWatch: [{ ...watch, status: undefined }] },
+    { ...valid, ruleWatch: ruleWatch.map(w => ({ ...w, family: "bir-withholding" })) },
     { ...valid, items: [{ ...item, id: "" }] },
     { ...valid, items: [item, item] },
+    // Missing obligation families and missing rule-watch families must NOT
+    // render the green "no items need attention" card.
+    { ...valid, items: [] },
+    { ...valid, ruleWatch: [] },
+    { ...valid, ruleWatch: ruleWatch.slice(0, 4) },
+    { ...valid, applicableMonths: ["2026-10", "2026-09"] },
+    { ...valid, applicableMonths: ["2026-10", "2026-10"] },
+    { ...valid, items: [{ ...item, id: "ANNUAL-BIR-2026" }] },
+    { ...valid, items: [
+      { ...item, id: "SSS-2026-10", agency: "SSS" },
+      { ...item, id: "PhilHealth-2026-10", agency: "PhilHealth" },
+    ] },
     { ...valid, today: "2026-02-30" },
     { ...valid, applicableMonths: ["2026-13"] },
     { ...valid, items: [{ ...item, dueDate: "2026-02-30" }] },
-    { ...valid, ruleWatch: [watch, watch] }])
+    { ...valid, ruleWatch: [...ruleWatch, ruleWatch[0]] }])
     assert.equal(parseVerifiedComplianceCalendar(v, 41), null);
 });
 test("calendar read rejects non-OK, malformed, missing and wrong employer, then recovers on Retry", async () => {
@@ -36,7 +56,7 @@ test("calendar read rejects non-OK, malformed, missing and wrong employer, then 
   await assert.rejects(() => readVerifiedComplianceCalendar(41, fetcher), /different employer/);
   payload = { ...valid, ruleWatch: undefined };
   await assert.rejects(() => readVerifiedComplianceCalendar(41, fetcher), /incomplete/);
-  payload = { ...valid, items: [], applicableMonths: [], ruleWatch: [] };
+  payload = { ...valid, items: [], applicableMonths: [] };
   assert.deepEqual((await readVerifiedComplianceCalendar(41, fetcher)).items, []);
   assert.equal(requests, 5);
 });

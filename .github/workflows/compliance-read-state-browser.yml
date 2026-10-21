@@ -1,0 +1,49 @@
+name: Compliance read-state flag OFF/ON desktop and 390px QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/components/workspace/compliance-calendar-panel.tsx"
+      - "src/components/workspace/statutory-payment-proof.tsx"
+      - "src/lib/compliance-calendar-read.ts"
+      - "src/lib/critical-release-flags.ts"
+      - "scripts/qa/compliance-read-state-browser.mjs"
+      - ".github/workflows/compliance-read-state-browser.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compliance-state-ui-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  desktop-and-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - name: Verify flag-off DOM parity and actual responsive UI states
+        run: node scripts/qa/compliance-read-state-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-read-state-${{ github.sha }}
+          path: |
+            qa-artifacts/compliance-read-*.png
+            qa-artifacts/compliance-read-state-browser-report.json
+          if-no-files-found: warn

@@ -13,6 +13,11 @@ import { Status } from "@/components/workspace/ui";
 import { readVerifiedComplianceCalendar, type CalendarPayload as Payload, type CalendarStatus, type RuleWatchItem } from "@/lib/compliance-calendar-read";
 import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
 
+// This flag controls explanatory UI only. Employer authorization and
+// fail-closed source checks run even when the optional notice is OFF.
+const complianceReadStateUiEnabled =
+  process.env.NEXT_PUBLIC_COMPLIANCE_READ_STATE_UI_ENABLED === "true";
+
 const RULE_WATCH_LABEL: Record<RuleWatchItem["status"], string> = {
   current: "Current",
   "review-due": "Review due",
@@ -95,6 +100,11 @@ export function ComplianceCalendarPanel({ organizationId }: { organizationId: nu
           <div className="notice notice-red" style={{ margin: 0 }}>
             <AlertTriangle size={15} />
             <span><strong>Calendar unavailable.</strong> {error}</span>
+            {complianceReadStateUiEnabled && (
+              <span role="status" style={{ display: "block", overflowWrap: "anywhere" }}>
+                Filing and remittance statuses are hidden until the complete employer-specific calendar and rule-watch sources are verified. No all-clear is implied.
+              </span>
+            )}
             <button type="button" className="secondary-button" onClick={() => void reload()}>Retry calendar</button>
           </div>
         </div>

@@ -7,6 +7,11 @@ import { FileCheck2, UploadCloud } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner } from "./ui";
 
+// Optional explanatory state only: failed/mismatched evidence reads block
+// upload unconditionally, regardless of this flag.
+const complianceReadStateUiEnabled =
+  process.env.NEXT_PUBLIC_COMPLIANCE_READ_STATE_UI_ENABLED === "true";
+
 type PaymentProofProps = {
   organizationId: number;
   batchId: number;
@@ -89,6 +94,11 @@ function StatutoryPaymentProofContent({
     <div data-statutory-payment-proof className="notice notice-amber" style={{ display: "grid", gap: 8 }}>
       <strong>{loading ? "Checking payment proof…" : "Payment proof unavailable"}</strong>
       {!loading && <span>{error?.message ?? "The evidence read could not be verified."}</span>}
+      {!loading && complianceReadStateUiEnabled && (
+        <span role="status" style={{ overflowWrap: "anywhere" }}>
+          Payment evidence cannot be accepted as filed or uploaded until this employer and batch have a verified source read.
+        </span>
+      )
       {!loading && <button className="secondary-button" type="button" onClick={() => void reload()}>Retry payment proof</button>}
     </div>
   );

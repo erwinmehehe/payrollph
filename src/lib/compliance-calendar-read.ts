@@ -62,6 +62,29 @@ export function parseVerifiedComplianceCalendar(value: unknown, organizationId: 
   if (new Set(items.map(x => x.id)).size !== items.length ||
       new Set(watch.map(x => JSON.stringify([x.family, x.label, x.sourceDocument]))).size !== watch.length)
     return null;
+
+  // These five source-status families are always produced by the server,
+  // including when there are no payroll runs. An empty ruleWatch is not an
+  // authoritative all-clear, even if the HTTP status is 200.
+  const requiredFamilies = ["sss", "philhealth", "pagibig", "bir-withholding", "wage-orders"];
+  if (!requiredFamilies.every(family => watch.some(entry => entry.family === family)))
+    return null;
+
+  // A nonempty payroll month cannot become "no obligations" by dropping items.
+  // Payroll periods can differ from BIR pay months: each listed month must
+  // contain either its BIR monthly filing, or all three contribution items.
+  const months = value.applicableMonths as string[];
+  if (new Set(months).size !== months.length) return null;
+  for (const m of months) {
+    const monthly = items.filter(item => item.applicableMonth === m);
+    const monthlyContributionAgencies = ["SSS", "PhilHealth", "Pag-IBIG"];
+    const presentContributions = monthlyContributionAgencies.filter(agency =>
+      monthly.some(item => item.agency === agency));
+    if (presentContributions.length !== 0 && presentContributions.length !== 3)
+      return null;
+    const hasBirMonthly = monthly.some(item => item.id === "BIR-1601C-" + m && item.agency === "BIR");
+    if (!hasBirMonthly && presentContributions.length !== 3) return null;
+  }
   return value as CalendarPayload;
 }
 export async function readVerifiedComplianceCalendar(
