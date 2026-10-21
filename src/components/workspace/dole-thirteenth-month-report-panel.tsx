@@ -12,73 +12,9 @@ import {
 } from "lucide-react";
 import type { Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
+import { readVerifiedDole13th, type VerifiedDole13thRead } from "@/lib/dole-thirteenth-month-read";
 
-type State = {
-  profile: {
-    establishmentAddress: string;
-    principalBusiness: string;
-    contactName: string;
-    contactPosition: string;
-    contactPhone: string;
-  } | null;
-  report: {
-    reportType: string;
-    taxYear: number;
-    dueDate: string;
-    establishmentName: string;
-    establishmentAddress: string;
-    principalBusiness: string;
-    totalEmployment: number;
-    workersBenefited: number;
-    totalBenefitsGranted: number;
-    contactName: string;
-    contactPosition: string;
-    contactPhone: string;
-    employees: Array<{
-      employeeNo: string;
-      employeeName: string;
-      amountGranted: number;
-    }>;
-  };
-  reportHash: string;
-  profileComplete: boolean;
-  readyToSubmit: boolean;
-  reviewRows: Array<{
-    employeeNo: string;
-    employeeName: string;
-    amountGranted: number;
-    screeningEntitlement: number;
-    screeningShortfall: number;
-  }>;
-  incompleteBasicRows: Array<{
-    employeeNo: string;
-    employeeName: string;
-  }>;
-  sourceNote: string;
-  submissionCurrent: boolean;
-  currentSubmission: {
-    portalReference: string;
-    submittedAt: string;
-    recordedByName: string;
-  } | null;
-  latestSubmission: {
-    reportHash: string;
-    portalReference: string;
-    submittedAt: string;
-  } | null;
-  submissionHistory: Array<{
-    id: number;
-    reportHash: string;
-    portalReference: string;
-    submittedAt: string;
-    recordedByName: string;
-  }>;
-  officialSource: {
-    label: string;
-    url: string;
-    deadline: string;
-  };
-};
+type State = VerifiedDole13thRead;
 
 function currentYear() {
   return Number(new Intl.DateTimeFormat("en", { timeZone: "Asia/Manila", year: "numeric" }).format(new Date()));
@@ -142,20 +78,15 @@ function ScopedDoleThirteenthMonthReportPanel({
       contactPhone: "",
     });
     try {
-      const response = await fetch(
-        `/api/compliance/dole-13th-month?organizationId=${organizationId}&taxYear=${taxYear}`,
-        { cache: "no-store", signal: controller.signal },
-      );
-      const body = await response.json().catch(() => ({}));
+      const verified = await readVerifiedDole13th(organizationId, taxYear, fetch, controller.signal);
       if (!isCurrent()) return false;
-      if (!response.ok) throw new Error(body.error ?? "DOLE 13th-month report could not be loaded.");
-      setState(body);
+      setState(verified);
       setProfile({
-        establishmentAddress: body.profile?.establishmentAddress ?? "",
-        principalBusiness: body.profile?.principalBusiness ?? "",
-        contactName: body.profile?.contactName ?? "",
-        contactPosition: body.profile?.contactPosition ?? "",
-        contactPhone: body.profile?.contactPhone ?? "",
+        establishmentAddress: verified.profile?.establishmentAddress ?? "",
+        principalBusiness: verified.profile?.principalBusiness ?? "",
+        contactName: verified.profile?.contactName ?? "",
+        contactPosition: verified.profile?.contactPosition ?? "",
+        contactPhone: verified.profile?.contactPhone ?? "",
       });
       return true;
     } catch (loadError) {
@@ -238,7 +169,8 @@ function ScopedDoleThirteenthMonthReportPanel({
       {error ? (
         <div className="card-body" style={{ paddingTop: 0 }}>
           <div className="notice notice-red" style={{ margin: 0 }}>
-            <ShieldAlert size={15} /><span>{error}</span>
+            <ShieldAlert size={15} /><span><strong>DOLE report unavailable.</strong> {error}</span>
+            <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>Retry DOLE report</button>
           </div>
         </div>
       ) : state ? (
@@ -362,7 +294,7 @@ function ScopedDoleThirteenthMonthReportPanel({
             <span>{state.sourceNote} Current report hash: {state.reportHash.slice(0, 12)}…</span>
           </div>
 
-          {(state.submissionHistory?.length ?? 0) > 0 && (
+          {state.submissionHistory.length > 0 && (
             <details>
               <summary style={{ cursor: "pointer", fontWeight: 800, fontSize: 12 }}>
                 Submission evidence history ({state.submissionHistory.length})
