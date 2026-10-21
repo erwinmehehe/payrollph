@@ -41,3 +41,30 @@ test("tenant-independent template is compared by real HTTP across 3 employers an
   assert.ok(live.includes("assert.equal(own.text, reference"));
   assert.ok(live.includes('process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only"'));
 });
+
+test("statutory posting GET serves a globally public static CSV, unlike the separate POST", () => {
+  const route = readFileSync("src/app/api/compliance/statutory-remittances/posting-import/route.ts", "utf8");
+  const a = route.indexOf("export async function GET()");
+  const b = route.indexOf("export async function POST(");
+  assert.ok(a >= 0 && b > a, "Must keep GET separate from authenticated mutation POST");
+  const get = route.slice(a, b);
+  assert.ok(get.includes('new Response(STATUTORY_POSTING_TEMPLATE +'));
+  assert.ok(get.includes('filename="statutory-posting-template.csv"'));
+  assert.ok(!get.includes("getSessionUser("), "Public static GET cannot use another employer session");
+  assert.ok(!get.includes("organizationId"));
+  assert.ok(!get.includes("db.select"));
+  const entry = manifest.allApiRouteFiles[
+    "src/app/api/compliance/statutory-remittances/posting-import/route.ts"].methods;
+  const getter = entry.find((method) => method.name === "GET");
+  const poster = entry.find((method) => method.name === "POST");
+  assert.equal(getter?.status, "PUBLIC-BY-DESIGN");
+  assert.ok(getter.reason.includes("unauthenticated"));
+  assert.ok(getter.reason.includes("static"));
+  assert.equal(poster?.status, "GAP", "Statutory posting mutation POST cannot inherit GET public classification");
+  assert.ok(live.includes("for (const idx of [null, 0, 1, 2])"));
+  assert.ok(live.includes('"/api/compliance/statutory-remittances/posting-import", options'));
+  assert.ok(live.includes('"?organizationId=" + f.orgs[0].id') ||
+    live.includes('posting-import?organizationId=" + f.orgs[0].id'));
+  assert.ok(live.includes("assert.equal(forged.text, own.text"));
+  assert.ok(live.includes("assert.equal(own.text, postingTemplate"));
+});
