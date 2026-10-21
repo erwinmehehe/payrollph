@@ -4687,7 +4687,7 @@
           "testedBy": {
             "file": "scripts/qa/compliance-read-sweep-http.mjs",
             "line": 91,
-            "ownPositiveLine": 79,
+            "ownPositiveLine": 80,
             "foreignDenialLine": 91,
             "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only."
           }
@@ -4700,10 +4700,10 @@
           "testedBy": {
             "file": "scripts/qa/compliance-read-sweep-http.mjs",
             "line": 98,
-            "ownPositiveLine": 69,
-            "foreignDenialLine": 98,
+            "ownPositiveLine": 70,
+            "foreignDenialLine": 99,
             "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only.",
-            "unchangedDbLine": 132
+            "unchangedDbLine": 133
           }
         }
       ],
@@ -5194,7 +5194,7 @@
           "testedBy": {
             "file": "scripts/qa/compliance-read-sweep-http.mjs",
             "line": 110,
-            "ownPositiveLine": 100,
+            "ownPositiveLine": 101,
             "foreignDenialLine": 110,
             "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only."
           }
@@ -5207,10 +5207,10 @@
           "testedBy": {
             "file": "scripts/qa/compliance-read-sweep-http.mjs",
             "line": 125,
-            "ownPositiveLine": 111,
-            "foreignDenialLine": 125,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 126,
             "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only.",
-            "unchangedDbLine": 140
+            "unchangedDbLine": 141
           }
         }
       ],
