@@ -77,7 +77,7 @@ const server=createServer((req,res)=>{
   const requestedVariant=address.searchParams.get("variant");
   const variant=requestedVariant==="legacy" ? "legacy" : requestedVariant==="on" ? "on" : "off";
   res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
-    +'<style>'+css+'</style></head><body><div id="root"></div>'+init
+    +'<style>'+css+':root{--font-inter:Arial;--font-jetbrains-mono:monospace}</style></head><body><div id="root"></div>'+init
     +'<script src="/test.js?variant='+variant+'"></script></body></html>');
 });
 await new Promise(r=>server.listen(0,"127.0.0.1",r));
@@ -111,7 +111,11 @@ try{
         assert.match(text,/DOLE 13th-month reporting is unavailable/);
         assert.equal(await page.getByRole("link",{name:/Download source worksheet/}).count(),0);
         assert.equal(await page.getByRole("button",{name:/Record OCP submission/}).count(),0);
-        if(variant==="on")assert.match(text,/Legal-employer attribution is required/);
+        if(variant==="on"){
+          assert.match(text,/Legal-employer attribution is required/);
+          const noticeWidth=await page.getByRole("status").evaluate(el=>el.getBoundingClientRect().width);
+          assert.ok(noticeWidth>=Math.min(width*0.6,500),"Attribution text must remain readable, not squeezed into narrow columns");
+        }
         else assert.doesNotMatch(text,/Legal-employer attribution is required/);
       }
       if(mode==="valid")assert.match(text,/Fictional Worker/);

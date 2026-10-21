@@ -240,6 +240,9 @@ function ScopedDoleThirteenthMonthReportPanel({
     }
   }
 
+  const showAttributionNotice = doleAttributionStateUiEnabled &&
+    error.includes("until historical payroll");
+
   return (
     <article className="card" data-dole-13th-month-report style={{ marginTop: 16 }}>
       <div className="card-header">
@@ -265,15 +268,17 @@ function ScopedDoleThirteenthMonthReportPanel({
 
       {error ? (
         <div className="card-body" style={{ paddingTop: 0 }}>
-          <div className="notice notice-red" style={{ margin: 0 }}>
+          <div className="notice notice-red" style={{ margin: 0, ...(showAttributionNotice ? {
+            display: "grid", gridTemplateColumns: "15px minmax(0, 1fr)", alignItems: "start",
+          } : {}) }}>
             <ShieldAlert size={15} /><span>{error}</span>
-            {doleAttributionStateUiEnabled &&
-              error.includes("until historical payroll") && (
-                <span role="status" style={{ display: "block", overflowWrap: "anywhere" }}>
+            {showAttributionNotice && (
+                <span role="status" style={{ display: "block", overflowWrap: "anywhere", gridColumn: 2 }}>
                   Legal-employer attribution is required before the DOLE report, CSV download, profile changes or portal submission evidence can be used. Nothing has been submitted or approved.
                 </span>
               )}
-            <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>
+            <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}
+              style={showAttributionNotice ? { gridColumn: 2, justifySelf: "start" } : undefined}>
               <RefreshCcw size={14} /> Retry verified report
             </button>
           </div>
