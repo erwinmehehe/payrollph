@@ -70,6 +70,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Guard isolated login-audit prerequisite
+        run: node --test tests/hcm-salary-correction-cases-workflow.test.mjs
       - name: Ephemeral encryption key for disposable CI only
         shell: bash
         run: |
@@ -85,6 +87,8 @@ jobs:
       - name: Start isolated production-mode localhost server
         shell: bash
         env:
+          # Required by the shared login-audit probe; this localhost server only.
+          LOCAL_LOGIN_AUDIT_ENABLED: "true"
           HCM_SALARY_CORRECTION_CASES_ENABLED: "true"
           PUBLIC_API_V1_EXTENDED_ENABLED: "true"
           API_V1_EXTENDED_READS_ENABLED: "true"
