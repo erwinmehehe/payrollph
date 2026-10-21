@@ -67,7 +67,10 @@ test("HCM business-process and lifecycle own/foreign proof is source-pinned", ()
       assert.equal(method.testedBy?.file, "scripts/qa/hcm-work-queue-http.mjs");
       assert.match(suite[method.testedBy.ownPositiveLine - 1], /expectStatus\(await request\(/);
       assert.match(suite[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\(/);
-      assert.match(suite[method.testedBy.foreignDenialLine - 1], /403/);
+      const foreignSpan = suite.slice(method.testedBy.foreignDenialLine - 1,
+        method.testedBy.foreignDenialLine + 5).join("\n");
+      assert.match(foreignSpan, /\), 403,/,
+        "The source-pinned victim-only request must assert HTTP 403");
       if (method.name !== "GET") assert.match(suite[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(/);
     }
   }
