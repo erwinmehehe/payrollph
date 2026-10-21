@@ -249,7 +249,7 @@ try {
     for (let index = 1; index <= 2; index++) {
       const result = await http("/api/employees", { method: "POST", cookie: state.ownerCookie,
         body: { organizationId: state.a, firstName: "Fictional", lastName: `Worker${index}`,
-          startDate: "2026-01-05", employeeNo: `SMOKE-${index}`,
+          startDate: "2026-09-16", employeeNo: `SMOKE-${index}`,
           payBasis: "monthly", rateAmount: 22000 + index * 1000,
           bankCode: "BPI", bankAccount: `0000000000${index}`, mobile: "09999999999",
           tin: "000000000", sssNo: "0000000000",
