@@ -1,0 +1,73 @@
+name: PR1322 pinned review preparation (no branch mutation)
+
+on:
+  push:
+    branches: [qa/1322-review-prep-20261021]
+    paths:
+      - '.github/workflows/qa-1322-review-prep.yml'
+      - 'scripts/qa/prepare-1322-review.mjs'
+      - 'scripts/qa/1322-review-guard-source.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: github.repository == 'erwinmehehe/payrollph' && github.ref == 'refs/heads/qa/1322-review-prep-20261021'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      CI: 'true'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+    defaults:
+      run:
+        working-directory: target
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: prep
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: '562cf77333de667dfb99f6a0a0fb340fc776a1ec'
+          path: target
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Install pinned source dependencies
+        run: npm ci
+      - name: Prepare exact reviewed links and remove retired diagnostics
+        env:
+          REVIEW_GUARD_SOURCE: '../prep/scripts/qa/1322-review-guard-source.mjs'
+        run: node ../prep/scripts/qa/prepare-1322-review.mjs prepare
+      - name: Source size and no-whitespace-error check
+        run: git diff --cached --check
+      - name: All remittance regression tests
+        run: npx --no-install tsx --test --test-concurrency=1 --test-reporter=spec tests/remittance-month-close-read.test.ts
+      - name: Retained and new source-proof guards (not HTTP certification)
+        run: >-
+          node --test --test-concurrency=1 --test-reporter=spec
+          tests/tenant-isolation-coverage-inventory.test.mjs
+          tests/tenant-isolation-closure-plan.test.mjs
+          tests/tenant-dl01-evidence-order.test.mjs
+          tests/tenant-manifest-driven-http.test.mjs
+          tests/tenant-static-import-template.test.mjs
+          tests/tenant-dl01-filing-file-http.test.mjs
+          tests/tenant-dl01-import-history-http.test.mjs
+          tests/tenant-dl01-session-control.test.mjs
+          tests/hcm-salary-correction-cases-workflow.test.mjs
+          tests/tenant-dl01-reviewed-proof-links.test.mjs
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Store tested blobs and tree without changing a branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node ../prep/scripts/qa/prepare-1322-review.mjs publish-tree
