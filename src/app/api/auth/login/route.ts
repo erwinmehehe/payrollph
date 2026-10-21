@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
-import { createSession, publicUser, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
+import { createSession, publicUser, revokeSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
+import { recordSuccessfulLocalLogin } from "@/lib/audit";
 import { hashPassword, passwordNeedsRehash, sha256, verifyPassword } from "@/lib/crypto";
 import { currentLoginLock, nextFailedLoginState } from "@/lib/login-lockout";
 import { findMatchingBackupCode } from "@/lib/mfa-backup-code";
@@ -159,6 +160,22 @@ export async function POST(request: Request) {
     mfaVerifiedAt: user.totpEnabled ? new Date() : null,
     authMethod: "local",
   });
+  // A session is not issued to the browser until its successful sign-in
+  // is durably audited under every active employer membership. This is an
+  // ordinary app-role INSERT, never a sealer, DDL or privileged operation.
+  try {
+    await recordSuccessfulLocalLogin({
+      userId: user.id,
+      actor: user.name,
+      mfaVerified: user.totpEnabled,
+    });
+  } catch (error) {
+    // The token was minted but not delivered. Revoke rather than leave an
+    // unaudited active session behind if the append-only audit write fails.
+    await revokeSession(session.token).catch(() => {});
+    throw error;
+  }
+
   const jar = await cookies();
   jar.set(SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
 

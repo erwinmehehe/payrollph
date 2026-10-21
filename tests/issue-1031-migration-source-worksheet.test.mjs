@@ -11,10 +11,10 @@ const read = file => readFileSync(resolve(root, file), "utf8");
 
 test("source-only worksheet covers every drizzle file with current byte SHA and no populated receipts", () => {
   const result = generateSourceWorksheet();
-  assert.equal(result.summary.totalDrizzleFiles, 150);
-  assert.equal(result.summary.numberedSqlFiles, 148);
-  assert.equal(result.summary.sqlFiles, 149);
-  assert.equal(result.summary.sourceSchemaTables, 271);
+  assert.equal(result.summary.totalDrizzleFiles, 151);
+  assert.equal(result.summary.numberedSqlFiles, 149);
+  assert.equal(result.summary.sqlFiles, 150);
+  assert.equal(result.summary.sourceSchemaTables, 273);
   assert.equal(result.summary.duplicatePrefixGroups, 13);
   assert.ok(result.migrationRows.some(row => row.file_path === "drizzle/0127_year_end_prior_evidence.sql" && row.creates_objects.includes("year_end_prior_evidence")));
   assert.ok(result.tableRows.some(row => row.schema_table === "year_end_prior_evidence"));
@@ -68,6 +68,17 @@ test("source-only worksheet covers every drizzle file with current byte SHA and 
   ]) assert.ok(recoveredCandidate.creates_objects.includes(name), name);
   for (const field of RECEIPT_FIELDS) assert.equal(recoveredCandidate[field], "");
   assert.equal(recoveredCandidate.numeric_prefix, "0134");
+
+  // First forward migration after the cutover: source inventory only, no receipt.
+  const correctionCases = result.migrationRows.find(row =>
+    row.file_path === "drizzle/0135_salary_correction_cases.sql");
+  assert.ok(correctionCases, "0135 must be inventoried as source, never as live proof");
+  assert.equal(correctionCases.numeric_prefix, "0135");
+  for (const name of ["salary_correction_cases", "salary_correction_case_runs"]) {
+    assert.ok(correctionCases.creates_objects.includes(name), name);
+    assert.ok(result.tableRows.some(row => row.schema_table === name), name + " in source crosswalk");
+  }
+  for (const field of RECEIPT_FIELDS) assert.equal(correctionCases[field], "");
 
   const paths = readdirSync(resolve(root, "drizzle")).map(name => "drizzle/" + name).sort();
   assert.deepEqual(result.migrationRows.map(row => row.file_path).sort(), paths);

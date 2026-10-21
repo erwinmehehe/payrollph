@@ -44,7 +44,9 @@ test("0134 is accepted by the protected exact-SHA runner and consecutively numbe
   assert.ok(loadReviewedSql("drizzle",entry).includes("ISSUE1198_MISSING_REQUIRED_PARENTS"));
   assert.throws(()=>loadReviewedSql("drizzle",{...entry,sha256:"0".repeat(64)}),
     /SQL_CHANGED_AFTER_PLAN/);
-  const prefixHistory=inventory.files.filter(x=>x.path!==path).map(x=>x.path);
+  // History as it stood when 0134 was added: later forward migrations (0135+) excluded.
+  const prefixHistory=inventory.files.map(x=>x.path)
+    .filter(p=>p!==path&&Number(/^drizzle\/(\d{4})_/.exec(p)?.[1]??0)<134);
   const check=analyzeMigrationChanges(prefixHistory,[{status:"A",path}]);
   assert.deepEqual(check.errors,[]);
   assert.equal(check.maxNumber,133);
