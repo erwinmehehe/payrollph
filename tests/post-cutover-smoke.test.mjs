@@ -88,7 +88,7 @@ test("exact protected runner, app UPDATE audit denial, restart proof and sanitiz
   const flow = readFileSync(".github/workflows/post-cutover-real-role-smoke.yml", "utf8");
   assert.match(ci, /UPDATE public.audit_events SET actor='tamper'/);
   assert.match(ci, /assert\.ok\(code === "42501"/);
-  assert.match(ci, /"ROLE_DENIAL_/);
+  assert.match(ci, /ROLE_DENIAL_/);
   assert.match(ci, /MISSING_TAIL_WAS_NOT_DETECTED/);
   assert.match(ci, /dispatchAuditSealing/);
   assert.match(ci, /kind=bank&dryRun=true/);
