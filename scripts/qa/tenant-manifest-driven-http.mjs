@@ -1,7 +1,7 @@
 /**
  * Manifest-driven, non-production HTTP/PG authorization test runner.
  * A method enters the registry only with an actual seeded own/foreign case.
- * All 490 manifest methods are read; outstanding GAPs are reported, NEVER
+ * All 493 manifest methods are read; outstanding GAPs are reported, NEVER
  * silently treated as successful coverage. Extensible by family adapters,
  * not hundreds of one-off tests. All writes below are fictional CI fixture SEEDING.
  */
