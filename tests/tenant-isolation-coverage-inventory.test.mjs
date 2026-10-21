@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 406, "Five attendance plus four HCM methods have real source-pinned HTTP proof");
-  assert.equal(manifest.metrics.coveredAfter, 76, "Retain 72 earlier methods plus four HCM methods");
+  assert.equal(manifest.metrics.gap, 394, "Five attendance, four HCM and twelve Batch-01 GET methods have source-pinned HTTP proof");
+  assert.equal(manifest.metrics.coveredAfter, 88, "Retain 76 current-main methods and credit twelve Batch-01 GETs");
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
@@ -463,7 +463,7 @@ test("all credited proof links point to the claimed route and every recertified 
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
         "scripts/qa/workforce-attendance-sweep-http.mjs",
-        "scripts/qa/hcm-work-queue-http.mjs"].includes(proof?.file),
+        "scripts/qa/hcm-work-queue-http.mjs", "scripts/qa/tenant-high-risk-01-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
@@ -504,6 +504,50 @@ test("all credited proof links point to the claimed route and every recertified 
           "Bank proof must execute in the guarded real HTTP/PG harness");
         assert.match(readFileSync(proof.file, "utf8"), /assert\.deepEqual\(after, before/,
           "Victim bank records and audit must remain unchanged");
+      }
+      if (proof.file === "scripts/qa/tenant-high-risk-01-http.mjs") {
+        // Only an exact method-named, actually executed Batch 01 case may use
+        // request(item.own) rather than an inline literal route in the proof.
+        const evidence = readFileSync(proof.file, "utf8");
+        const evidenceLines = evidence.split("\n");
+        const spec = method.name + " " + entry.route;
+        const signature = evidenceLine(proof.file, proof.line, spec + " exact method case");
+        const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        assert.equal(method.name, "GET", spec + ": this does not authorize mutating methods");
+        assert.ok(signature.includes('key: "' + spec + '"') ||
+          signature.includes('await caseCheck("' + spec + '"'),
+          spec + ": must link a distinct exact-route high-risk test case");
+        assert.ok(harness.includes("verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });") &&
+          evidence.includes("for (const idx of [1, 2])") &&
+          evidence.includes("assert.equal(passed.size, 36") &&
+          evidence.includes("assert.deepEqual(victimAfter, victimBefore"),
+          spec + ": both attacker sessions and unchanged victim PostgreSQL rows required");
+        const positive = evidenceLine(proof.file, proof.ownPositiveLine, spec + " own 200");
+        const denial = evidenceLine(proof.file, proof.foreignDenialLine, spec + " denied");
+        const invariant = evidenceLine(proof.file, proof.unchangedDbLine, spec + " victim DB");
+        assert.match(invariant, /assert\.deepEqual\(victimAfter, victimBefore/);
+        if (spec === "GET self/documents") {
+          assert.ok(positive.includes('request("/api/self/documents"') &&
+            denial.includes("request(endpoint") && denial.includes("), 403,") &&
+            evidence.includes("victim.id +") && evidence.includes("cookie: employeeCookie"),
+            spec + ": forged selector and former-employer revocation require active employee session");
+        } else if (spec === "GET self/payslips/[id]/explain") {
+          assert.ok(positive.includes('request("/api/self/payslips/" + ownEntry.id') &&
+            denial.includes('request("/api/self/payslips/" + victimEntry.id') &&
+            evidence.includes("}), 404,") && evidence.includes("cookie: employeeCookie"),
+            spec + ": actual own Released payslip 200 and victim pay entry 404 required");
+        } else {
+          const caseSpan = evidenceLines.slice(proof.line - 1, proof.line + 13).join("\n");
+          assert.ok(caseSpan.includes('own: "/api/') &&
+            caseSpan.includes('foreign: "/api/') &&
+            (caseSpan.includes("victim.id") || caseSpan.includes("f.victimRun.id")),
+            spec + ": missing method-specific own and victim actual route selectors");
+          assert.ok(positive.includes("expectStatus(await request(item.own") &&
+            denial.includes("expectStatus(await request(item.foreign") &&
+            evidence.includes("), 403,"),
+            spec + ": authenticated own 200 and victim 403 HTTP pair required");
+        }
+        continue;
       }
       const ownLine = evidenceLine(proof.file, proof.ownPositiveLine, path + " own-positive");
       const negativeLine = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign denial");

@@ -7,9 +7,9 @@
     "routeFiles": 289,
     "methods": 490,
     "coveredBefore": 20,
-    "coveredAfter": 76,
+    "coveredAfter": 88,
     "publicByDesign": 8,
-    "gap": 406,
+    "gap": 394,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -3361,9 +3361,17 @@
         {
           "name": "GET",
           "line": 242,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 209,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         },
         {
           "name": "POST",
@@ -5023,9 +5031,17 @@
         {
           "name": "GET",
           "line": 20,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 239,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         },
         {
           "name": "POST",
@@ -6740,9 +6756,17 @@
         {
           "name": "GET",
           "line": 64,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 232,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         },
         {
           "name": "POST",
@@ -10168,9 +10192,17 @@
         {
           "name": "GET",
           "line": 19,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 254,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         }
       ],
       "employerSources": {
@@ -17624,9 +17656,17 @@
         {
           "name": "GET",
           "line": 15,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 246,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         }
       ],
       "employerSources": {
@@ -18148,9 +18188,17 @@
         {
           "name": "GET",
           "line": 69,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 216,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         },
         {
           "name": "PATCH",
@@ -18730,9 +18778,17 @@
         {
           "name": "GET",
           "line": 135,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 173,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         },
         {
           "name": "POST",
@@ -19086,9 +19142,17 @@
         {
           "name": "GET",
           "line": 51,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 201,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         },
         {
           "name": "POST",
@@ -19934,9 +19998,17 @@
         {
           "name": "GET",
           "line": 57,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 180,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         }
       ],
       "employerSources": {
@@ -20353,9 +20425,17 @@
         {
           "name": "GET",
           "line": 52,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 224,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         },
         {
           "name": "POST",
@@ -23323,9 +23403,17 @@
         {
           "name": "GET",
           "line": 13,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 263,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         }
       ],
       "employerSources": {
@@ -23983,9 +24071,17 @@
         {
           "name": "GET",
           "line": 47,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 287,
+            "ownPositiveLine": 288,
+            "foreignDenialLine": 340,
+            "unchangedDbLine": 349,
+            "scope": "Two independent active employee sessions: forged employer/employee selectors stay self-scoped; revoked former-employer membership denied 403 on same live session; victim database unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
         },
         {
           "name": "POST",
