@@ -27,7 +27,7 @@ const hookStub = [
   '  if (mode === "error") state.error = new Error(key.startsWith("compliance-calendar")',
   '    ? "Payroll month obligations could not be verified." : "Payment proof read was incomplete.");',
   '  if (mode === "empty") state.data = key.startsWith("compliance-calendar")',
-  '    ? { today:"2026-10-21", applicableMonths:[],items:[],ruleWatch:[],',
+  '    ? { today:"2026-10-21", applicableMonths:[],items:[],ruleWatch:["sss","philhealth","pagibig","bir-withholding","wage-orders"].map(family => ({ family, label:family, status:"current", currentVersion:"fictional", sourceDocument:null, lastVerifiedOn:null, detail:"Synthetic source rule" })),',
   '        note:"No payroll runs on record for this fictional employer." }',
   '    : { organizationId:41,batchId:22,evidence:[],active:null };',
   '  return state;',
