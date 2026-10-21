@@ -86,9 +86,20 @@ try {
     assert.equal(logged.status, 200, "RESTART_LOGIN_FAILED");
     const cookie = (logged.headers.get("set-cookie") ?? "").split(";")[0];
     assert.ok(cookie.startsWith("__Host-linaw_session="), "RESTART_SESSION_MISSING");
-    const r = await fetch(
-      `http://127.0.0.1:3000/api/payroll-runs?organizationId=${original.fictionalIds.organizationId}`,
-      { method: "GET", headers: { cookie }, signal: AbortSignal.timeout(12000) });
+    // The JSON report supplies ONLY a validated integer query parameter.
+    // It cannot choose an outbound host, scheme or URL path. URLSearchParams
+    // performs query encoding; the network destination is fixed to localhost.
+    const organizationId = original.fictionalIds.organizationId;
+    assert.ok(Number.isSafeInteger(organizationId) &&
+      organizationId > 0 && organizationId <= 2147483647,
+    "RESTART_REPORT_ORGANIZATION_ID_INVALID");
+    const localPayrollUrl = new URL("/api/payroll-runs", "http://127.0.0.1:3000");
+    localPayrollUrl.searchParams.set("organizationId", String(organizationId));
+    assert.equal(localPayrollUrl.origin, "http://127.0.0.1:3000",
+      "RESTART_OUTBOUND_LOOPBACK_REQUIRED");
+    const r = await fetch(localPayrollUrl, {
+      method: "GET", headers: { cookie }, signal: AbortSignal.timeout(12000),
+    });
     assert.equal(r.status, 200, "RESTART_PAYROLL_REGISTER_HTTP_DENIED");
     const body = await r.json();
     assert.equal(body.runs?.length, 1, "RESTART_HTTP_PAYROLL_COUNT_NOT_ONE");
