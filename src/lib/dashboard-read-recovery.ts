@@ -33,8 +33,10 @@ function validPayrollRun(value: unknown, organizationId: number): boolean {
     verifiedDashboardAmount(value.grossPay) !== null &&
     verifiedDashboardAmount(value.netPay) !== null;
 }
-function validPayrollEntry(value: unknown, organizationId: number): boolean {
-  return matchingOrgRow(value, organizationId) && positive(value.id) &&
+function validPayrollEntry(value: unknown): boolean {
+  // payroll_entries has no organization_id column: prove employer via an
+  // authorized payrollRunId that belongs to this selected employer.
+  return object(value) && positive(value.id) &&
     positive(value.employeeId) && typeof value.status === "string" &&
     verifiedDashboardAmount(value.netPay) !== null;
 }
@@ -59,7 +61,7 @@ export function isValidDashboardSnapshot(value: unknown, organizationId: number)
   if (!employees.every((employee) => matchingOrgRow(employee, organizationId) &&
       positive(employee.id) && typeof employee.status === "string")) return false;
   if (!runs.every((run) => validPayrollRun(run, organizationId))) return false;
-  if (!entries.every((entry) => validPayrollEntry(entry, organizationId))) return false;
+  if (!entries.every((entry) => validPayrollEntry(entry))) return false;
   const ids = runs.map((run) => (run as Record<string, unknown>).id);
   if (new Set(ids).size !== ids.length) return false;
   const runIds = new Set(ids);
