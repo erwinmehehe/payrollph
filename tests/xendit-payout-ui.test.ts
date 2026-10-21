@@ -8,16 +8,27 @@ import { payoutUiFixture } from "./fixtures/payout-ui";
 
 Object.assign(globalThis, { React });
 
-test("disabled and absent server gate preserve the real rendered PayMongo export controls", () => {
+test("disabled and absent server gate preserve PayMongo guidance but not unverified payout controls", () => {
   for (const enabled of [undefined, false]) {
     const markup = renderToStaticMarkup(React.createElement(ExportsView, {
       data: payoutUiFixture(enabled), notify: () => {}, onRefresh: async () => {},
     }));
     assert.doesNotMatch(markup, /Xendit|legacy/);
-    assert.match(markup, /Primary payout: PayMongo/);
-    assert.match(markup, /Run PayMongo preflight/);
     assert.match(markup, /PayMongo is Linaw/);
+    // Server rendering cannot run the employer/run-bound reconciliation fetch.
+    // Workspace totals alone must never unlock transfer or preflight controls.
+    assert.match(markup, /data-payout-unavailable="true"/);
+    assert.match(markup, /Checking payout evidence/);
+    assert.doesNotMatch(markup, /Primary payout: PayMongo|Run PayMongo preflight/);
   }
+});
+
+test("an enabled provider gate does not bypass initial payout evidence verification", () => {
+  const markup = renderToStaticMarkup(React.createElement(ExportsView, {
+    data: payoutUiFixture(true), notify: () => {}, onRefresh: async () => {},
+  }));
+  assert.match(markup, /data-payout-unavailable="true"/);
+  assert.doesNotMatch(markup, /data-xendit|Xendit payroll payouts|Run PayMongo preflight/);
 });
 
 test("the real profile selector offers Xendit only under the delivered boolean gate", () => {

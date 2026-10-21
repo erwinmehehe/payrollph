@@ -1089,8 +1089,12 @@ async function main() {
   await (await import("./tenant-high-risk-01-http.mjs")).verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });
   await verifyRemittanceMonthCloseTenantProof(f); await (await import("./bank-tenant-http.mjs")).verifyBankTenantIsolation(f, { request, expectStatus, makeSession }); await (await import("./owner-practice-http.mjs")).verifyOwnerPracticeHttp(f, { request, expectStatus });
   await (await import("./payroll-read-sweep-http.mjs")).verifyPayrollReadSweep(f, { request, expectStatus });
-  await (await import("./tenant-manifest-driven-http.mjs")).verifyManifestDrivenStatutoryBatch(f, { request, expectStatus, makeSession });
+  await (await import("./tenant-manifest-driven-http.mjs")).verifyManifestDrivenStatutoryBatch(f, { request, expectStatus, makeSession }); await verifySelfExplanationTenantRead(f); await verifyPayoutStatusTenantRead(f);
   await (await import("./tenant-scoped-page-probes.mjs")).probeManifestBusinessPages(f, { request, makeSession, expectStatus });
+  if (process.env.TENANT_1302_FIRST_PAYROLL_PROOF === "isolated-ci-only") {
+    await (await import("./pr-1302-tenant-proof.mjs")).verifyFirstPayrollTenantRead(f, { request, expectStatus });
+  }
+  await (await import("./pr-1302-tenant-proof.mjs")).verifyLegalEmployerTenantMutations(f, { request, expectStatus });
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
     result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,
@@ -1249,4 +1253,80 @@ async function verifyGovernanceTenantRead(f) {
     expectStatus(await request("/api/hcm/governance-readiness?organizationId=" + victim.id, { cookie }), 403, "Other real employer HCM governance denied");
   }
   expectStatus(await request("/api/hcm/governance-readiness?organizationId=" + victim.id), 401, "Anonymous governance read denied");
+}
+
+/**
+ * #1302 read-only employee pay explanation: actual authenticated GET against
+ * seeded disposable PostgreSQL. A legitimate employee must read their own
+ * released payroll entry, while a different employer's existing entry is 404.
+ * This proof never changes payroll, calls a provider, or sends money.
+ */
+async function verifySelfExplanationTenantRead(f) {
+  const [victimEntry] = await db.select({ id: payrollEntries.id })
+    .from(payrollEntries).where(eq(payrollEntries.payrollRunId, f.victimRun.id)).limit(1);
+  assert.ok(victimEntry?.id > 6, "Proof must use a real victim-only payroll entry");
+  const victimBefore = await db.select().from(payrollEntries)
+    .where(eq(payrollEntries.payrollRunId, f.victimRun.id));
+  for (const idx of [1, 2]) {
+    const ownOrg = f.orgs[idx];
+    const ownEmployee = f.ownedEmployees[idx - 1];
+    const [ownEntry] = await db.select({ id: payrollEntries.id }).from(payrollEntries)
+      .where(eq(payrollEntries.payrollRunId, f.ownRuns[idx].id)).limit(1);
+    assert.ok(ownEntry?.id && ownEmployee?.id, "Nonempty own employee and released pay entry required");
+    const [actor] = await db.insert(users).values({
+      email: "self-explain-ci-" + idx + "-" + randomUUID() + "@example.invalid",
+      name: "Fictional Self-Pay Employee", passwordHash: "ci-no-real-login",
+      role: "employee", employeeId: ownEmployee.id,
+    }).returning({ id: users.id });
+    await db.insert(userOrganizations).values({
+      userId: actor.id, organizationId: ownOrg.id, role: "employee", active: true,
+    });
+    const ownSession = await makeSession(actor.id);
+    const ownExplanation = expectStatus(await request("/api/self/payslips/" + ownEntry.id + "/explain", { cookie: ownSession.cookie }), 200,
+      "Real signed-in employee must read their own released pay explanation");
+    assert.equal(ownExplanation.json?.organizationId, ownOrg.id, "Own explanation must echo employer");
+    assert.equal(ownExplanation.json?.employeeId, ownEmployee.id, "Own explanation must bind employee");
+    assert.equal(ownExplanation.json?.entryId, ownEntry.id, "Own explanation must bind actual payroll entry");
+    const foreignExplanation = expectStatus(await request("/api/self/payslips/" + victimEntry.id + "/explain", { cookie: ownSession.cookie }), 404,
+      "Employee may not read another employer's real released-pay entry");
+    assert.ok(!foreignExplanation.text.includes("VICTIM-EXCLUSIVE"), "Victim pay evidence must stay private");
+  }
+  const victimAfter = await db.select().from(payrollEntries)
+    .where(eq(payrollEntries.payrollRunId, f.victimRun.id));
+  assert.deepEqual(victimAfter, victimBefore, "Denied explanation requests cannot modify victim payroll");
+}
+
+/**
+ * Read-only payroll payout-state evidence: two signed-in owners and existing
+ * stored fictional released runs, no provider credentials or provider traffic.
+ */
+async function verifyPayoutStatusTenantRead(f) {
+  const victimBefore = await db.select().from(payrollRuns)
+    .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
+  for (const idx of [1, 2]) {
+    const ownOrg = f.orgs[idx];
+    const run = f.ownRuns[idx];
+    const session = f.ownerSessions[idx].cookie;
+    const ownPayout = expectStatus(await request("/api/payroll-runs/" + run.id + "/payout-reconciliation?view=payout", { cookie: session }), 200,
+      "Signed-in owner must read the real owned released payroll payout snapshot");
+    assert.equal(ownPayout.json?.organizationId, ownOrg.id, "Payout GET must echo owned employer");
+    assert.equal(ownPayout.json?.runId, run.id, "Payout GET must echo owned payroll run");
+    assert.ok(ownPayout.json?.reconciliation, "Nonempty authoritative own payout state required");
+    const foreignPayout = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/payout-reconciliation?view=payout", { cookie: session }), 403,
+      "Actual victim-only payroll payout state must not be available to another owner");
+    assert.ok(!foreignPayout.text.includes("VICTIM-ONLY"), "Victim payroll evidence must not leak");
+    // Owned POST reaches the provider-disabled 501 boundary; victim POST is
+    // 403. Neither proves successful external reconciliation or money movement.
+    assert.ok(!process.env.PAYMONGO_SECRET_KEY, "Provider secret prohibited for isolated proof");
+    const ownDisabledPayoutPost = expectStatus(await request("/api/payroll-runs/" + run.id + "/payout-reconciliation", {
+      cookie: session, method: "POST", body: { action: "reconcile" },
+    }), 501, "Owned payout POST must stop before any provider action");
+    assert.match(ownDisabledPayoutPost.text, /credentials are not configured/i);
+    expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/payout-reconciliation", {
+      cookie: session, method: "POST", body: { action: "reconcile" },
+    }), 403, "Payout reconciliation POST for a victim-only run must be forbidden");
+  }
+  const victimAfter = await db.select().from(payrollRuns)
+    .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
+  assert.deepEqual(victimAfter, victimBefore, "Denied payout reads/mutations cannot affect another employer's payroll");
 }

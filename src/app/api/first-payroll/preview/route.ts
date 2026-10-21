@@ -34,7 +34,7 @@ export async function GET(request:Request){
    await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`);
    return loadCanonicalFirstPayrollPreview({organizationId,periodStart,periodEnd,payDate},tx);
   });
-  return privatePreviewJson(data);
+  return privatePreviewJson({ ...data, organizationId, periodStart, periodEnd, payDate });
  }catch(e){
   return privatePreviewJson({error:publicFirstPayrollPreviewError(e)},422);
  }

@@ -62,3 +62,19 @@ Expected: each run has `details=6`, matching header/detail gross and net pairs `
 ### Reversal note
 
 Historical before-values are preserved in issue #1102. An operator should only consider a **new**, separately controlled compare-and-swap reverse transaction if the exact just-applied target amounts, statuses, source entries and audit state still match, with zero intervening dependencies. Never blindly replay stale reversal SQL or perform Neon snapshot promotion as routine undo.
+
+## Legacy dependency-table compatibility
+
+The pinned historical target predates some optional dependency tables. The correction now checks catalog existence for the twelve later-generation relations and locks each existing relation before querying it. Missing optional relations have no stored dependencies; missing columns, permissions errors and linked records still abort the transaction. Core payroll, employee, approval and before-image checks remain mandatory. Disposable tests cover both complete and legacy schemas, preserving final ROLLBACK.
+
+### October 20 read-only before-state review
+
+Employees (8), entries (18) and organization (1) still match all original fingerprints. The original audit prefix (IDs 1–3) still hashes to `8a1ed09531b7621c30aee14793e28134`. Three records appended October 19 concern statutory compliance queue synchronization and two outbox message intentions, not payroll header edits. The current six-row audit fingerprint is `2702a91b7425e5dd5164056c743420fd`; the exact full-table witness is refreshed to this value. No audit record is changed. A further append or any other difference still refuses correction.
+
+### October 20 authorized original-target execution receipt
+
+Following the owner's explicit request to fix the stored fictional records, the revised guarded SQL passed with final ROLLBACK on the exact original project/branch/endpoint and database listed above. The same statements were then executed with only the final ROLLBACK changed to COMMIT through the Neon transactional connector.
+
+A fresh read-only postflight returned all three run headers reconciled with six details each: run 1 gross/net 181300.00/147400.00; run 2 182800.00/148600.00; run 3 184300.00/149800.00. Statuses and periods remained unchanged. Independent fresh aggregate fingerprints matched the before-state for 8 employees, 18 payroll entries, 1 organization and 6 audit events. No schema or application credential changes were made.
+
+Database correction is committed. Hosted UI verification remains outstanding: the active app was cut over to a different database, so its current owner session cannot attest this preserved original database's historical demo screens. Keep #1102 open for that final acceptance boundary; source CI for the compatibility change remains separate.

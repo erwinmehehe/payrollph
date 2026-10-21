@@ -2,35 +2,50 @@ name: Security PR repair candidate
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths: ['.github/workflows/repair-security-pr-candidate.yml', 'scripts/qa/repair-security-pr-candidate.mjs']
+    paths:
+      - '.github/workflows/repair-security-pr-candidate.yml'
+      - 'scripts/qa/repair-security-pr-candidate.mjs'
 permissions:
   contents: read
 jobs:
   inspect:
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.number == 1303 && github.head_ref == 'fix/fail-closed-compliance-reads-20261020'
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      ((github.event.number == 1302 && github.head_ref == 'fix/fail-closed-payroll-payouts-20261020') ||
+       (github.event.number == 1303 && github.head_ref == 'fix/fail-closed-compliance-reads-20261020'))
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-          fetch-depth: 1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '22'
-          cache: npm
-      - run: npm ci
-      - name: Package pinned source and installed dependencies without credentials
+          fetch-depth: 0
+      - name: Read repair inputs without modifying repository refs
+        env:
+          PR_NUMBER: ${{ github.event.number }}
         run: |
-          mkdir -p /tmp/security-repair-source
-          git -c credential.helper= fetch --quiet --depth=1 https://github.com/erwinmehehe/payrollph.git acd76b7e0ae546e8519d4084ccf926d87373fb61 72a74254d78c5fb57f9a1a451a97f4c5cebb6679
-          git archive acd76b7e0ae546e8519d4084ccf926d87373fb61 | gzip > /tmp/security-repair-source/pr1302.tar.gz
-          git archive 72a74254d78c5fb57f9a1a451a97f4c5cebb6679 | gzip > /tmp/security-repair-source/pr1303.tar.gz
-          tar czf /tmp/security-repair-source/node_modules.tar.gz node_modules
-      - uses: actions/upload-artifact@v4
-        with:
-          name: security-repair-pinned-sources
-          path: /tmp/security-repair-source/*.tar.gz
-          retention-days: 1
-          if-no-files-found: error
+          node --input-type=module <<'NODE'
+          import { readFileSync, readdirSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          import { createHash } from 'node:crypto';
+          const base = process.env.PR_NUMBER === '1302' ? 'acd76b7e0ae546e8519d4084ccf926d87373fb61' : '72a74254d78c5fb57f9a1a451a97f4c5cebb6679';
+          const manifest = JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json', 'utf8'));
+          const files = execFileSync('git', ['diff', '--name-only', base + '^', base], { encoding: 'utf8' });
+          console.log('REPAIR_METADATA', JSON.stringify({ head: execFileSync('git', ['rev-parse', 'HEAD'], {encoding:'utf8'}).trim(), metrics: manifest.metrics, acceptanceStatus: manifest.acceptanceStatus }));
+          const paths = process.env.PR_NUMBER === '1302' ? ['first-payroll/preview', 'first-payroll/progress', 'legal-entities', 'payroll-runs/[id]/payout-reconciliation', 'self/payslips/[id]/explain'] : ['compliance/calendar', 'compliance/statutory-remittances/payment-evidence'];
+          for (const route of paths) {
+            const path = 'src/app/api/' + route + '/route.ts';
+            const bytes = readFileSync(path);
+            const sha = createHash('sha1').update(Buffer.from('blob ' + bytes.length + '\0')).update(bytes).digest('hex');
+            console.log('REPAIR_ROUTE', JSON.stringify({path, sha, record: manifest.allApiRouteFiles[path]}));
+          }
+          for (const file of readdirSync('tests')) {
+            if (!/\.(mjs|ts|tsx)$/.test(file)) continue;
+            const source = readFileSync('tests/' + file, 'utf8');
+            if (source.includes('disabled and absent server gate preserve')) {
+              console.log('REPAIR_PAYOUT_TEST_FILE', file);
+              console.log(source);
+            }
+          }
+          NODE
