@@ -1,15 +1,15 @@
 {
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
-  "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 406 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required.",
+  "generated": "2026-10-21",
+  "acceptanceStatus": "NOT ACCEPTED: 398 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required.",
   "metrics": {
     "routeFiles": 289,
     "methods": 490,
     "coveredBefore": 20,
-    "coveredAfter": 76,
+    "coveredAfter": 84,
     "publicByDesign": 8,
-    "gap": 406,
+    "gap": 398,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -2874,22 +2874,35 @@
       ]
     },
     "src/app/api/bir/annual-employer/module-evidence/route.ts": {
-      "gitBlobSha": "05481f4863308204f7e6972d230460faed25e98c",
+      "gitBlobSha": "1d3d5ac993fc90ba8123a03a141dcc2f686e3bd6",
       "route": "bir/annual-employer/module-evidence",
       "methods": [
         {
           "name": "GET",
           "line": 65,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Real synthetic own-employer GET succeeded, both independent foreign-employer requests denied and victim data unchanged in isolated PG16 HTTP tests; no production filing/payments.",
+          "testedBy": {
+            "file": "scripts/qa/compliance-read-sweep-http.mjs",
+            "line": 193,
+            "ownPositiveLine": 182,
+            "foreignDenialLine": 193,
+            "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only."
+          }
         },
         {
           "name": "POST",
-          "line": 92,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 95,
+          "status": "COVERED",
+          "reason": "Real synthetic own-employer POST succeeded, both independent foreign-employer requests denied and victim data unchanged in isolated PG16 HTTP tests; no production filing/payments.",
+          "testedBy": {
+            "file": "scripts/qa/compliance-read-sweep-http.mjs",
+            "line": 222,
+            "ownPositiveLine": 205,
+            "foreignDenialLine": 222,
+            "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only.",
+            "unchangedDbLine": 250
+          }
         }
       ],
       "employerSources": {
@@ -2929,11 +2942,11 @@
           "token": "getSessionUser"
         },
         {
-          "line": 93,
+          "line": 96,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 96,
+          "line": 99,
           "token": "getSessionUser"
         }
       ],
@@ -4168,7 +4181,7 @@
       ]
     },
     "src/app/api/compliance/calendar/route.ts": {
-      "gitBlobSha": "646cb631195e918491908c9c34c696cd1f22b31a",
+      "gitBlobSha": "43096dd2330883ccab9e3aeab35fb271e6a07ed7",
       "route": "compliance/calendar",
       "methods": [
         {
@@ -4663,22 +4676,35 @@
       ]
     },
     "src/app/api/compliance/dole-13th-month/route.ts": {
-      "gitBlobSha": "0db61808f5012c5f2a4f0376e046ac72a566a816",
+      "gitBlobSha": "f134741638c3de500c1aa7c17ae3eb7efa108bec",
       "route": "compliance/dole-13th-month",
       "methods": [
         {
           "name": "GET",
           "line": 40,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Real synthetic own-employer GET succeeded, both independent foreign-employer requests denied and victim data unchanged in isolated PG16 HTTP tests; no production filing/payments.",
+          "testedBy": {
+            "file": "scripts/qa/compliance-read-sweep-http.mjs",
+            "line": 91,
+            "ownPositiveLine": 79,
+            "foreignDenialLine": 91,
+            "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only."
+          }
         },
         {
           "name": "POST",
-          "line": 129,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 131,
+          "status": "COVERED",
+          "reason": "Real synthetic own-employer POST succeeded, both independent foreign-employer requests denied and victim data unchanged in isolated PG16 HTTP tests; no production filing/payments.",
+          "testedBy": {
+            "file": "scripts/qa/compliance-read-sweep-http.mjs",
+            "line": 98,
+            "ownPositiveLine": 69,
+            "foreignDenialLine": 98,
+            "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only.",
+            "unchangedDbLine": 132
+          }
         }
       ],
       "employerSources": {
@@ -4718,11 +4744,11 @@
           "token": "getSessionUser"
         },
         {
-          "line": 131,
+          "line": 133,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 134,
+          "line": 136,
           "token": "getSessionUser"
         }
       ],
@@ -4732,7 +4758,7 @@
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 140,
+          "line": 142,
           "token": "body.organizationId"
         }
       ],
@@ -4778,23 +4804,23 @@
           "token": "organizationId"
         },
         {
-          "line": 140,
+          "line": 142,
           "token": "organizationId"
         },
         {
-          "line": 140,
+          "line": 142,
           "token": "organizationId"
         },
         {
-          "line": 143,
+          "line": 145,
           "token": "organizationId"
         },
         {
-          "line": 144,
+          "line": 146,
           "token": "organizationId"
         },
         {
-          "line": 149,
+          "line": 151,
           "token": "organizationId"
         }
       ]
@@ -5157,22 +5183,35 @@
       ]
     },
     "src/app/api/compliance/government-loan-remittances/route.ts": {
-      "gitBlobSha": "6e828574796960775bd5fa0cd589fb903a5dd6f4",
+      "gitBlobSha": "d6d6a23909c9cacd401a4022d60804792bb57b6a",
       "route": "compliance/government-loan-remittances",
       "methods": [
         {
           "name": "GET",
           "line": 59,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Real synthetic own-employer GET succeeded, both independent foreign-employer requests denied and victim data unchanged in isolated PG16 HTTP tests; no production filing/payments.",
+          "testedBy": {
+            "file": "scripts/qa/compliance-read-sweep-http.mjs",
+            "line": 110,
+            "ownPositiveLine": 100,
+            "foreignDenialLine": 110,
+            "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only."
+          }
         },
         {
           "name": "POST",
-          "line": 124,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 125,
+          "status": "COVERED",
+          "reason": "Real synthetic own-employer POST succeeded, both independent foreign-employer requests denied and victim data unchanged in isolated PG16 HTTP tests; no production filing/payments.",
+          "testedBy": {
+            "file": "scripts/qa/compliance-read-sweep-http.mjs",
+            "line": 125,
+            "ownPositiveLine": 111,
+            "foreignDenialLine": 125,
+            "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only.",
+            "unchangedDbLine": 140
+          }
         }
       ],
       "employerSources": {
@@ -5204,11 +5243,11 @@
           "token": "getSessionUser"
         },
         {
-          "line": 125,
+          "line": 126,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 128,
+          "line": 129,
           "token": "getSessionUser"
         }
       ],
@@ -5222,11 +5261,11 @@
           "token": "searchParams.get(\"legalEntityId\")"
         },
         {
-          "line": 132,
+          "line": 133,
           "token": "body.organizationId"
         },
         {
-          "line": 133,
+          "line": 134,
           "token": "body.legalEntityId"
         }
       ],
@@ -5284,11 +5323,11 @@
           "token": "legalEntityId"
         },
         {
-          "line": 132,
+          "line": 133,
           "token": "organizationId"
         },
         {
-          "line": 132,
+          "line": 133,
           "token": "organizationId"
         }
       ]
@@ -6422,22 +6461,35 @@
       ]
     },
     "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts": {
-      "gitBlobSha": "37a901c394f02ffc1a2d5bf1c034c40ac9d4fd51",
+      "gitBlobSha": "1d68d1a18b3660d1f03d3e9e5c310bbbed59ba64",
       "route": "compliance/statutory-remittances/payment-evidence",
       "methods": [
         {
           "name": "GET",
           "line": 57,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Real synthetic own-employer GET succeeded, both independent foreign-employer requests denied and victim data unchanged in isolated PG16 HTTP tests; no production filing/payments.",
+          "testedBy": {
+            "file": "scripts/qa/compliance-read-sweep-http.mjs",
+            "line": 234,
+            "ownPositiveLine": 224,
+            "foreignDenialLine": 234,
+            "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only."
+          }
         },
         {
           "name": "POST",
-          "line": 95,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 97,
+          "status": "COVERED",
+          "reason": "Real synthetic own-employer POST succeeded, both independent foreign-employer requests denied and victim data unchanged in isolated PG16 HTTP tests; no production filing/payments.",
+          "testedBy": {
+            "file": "scripts/qa/compliance-read-sweep-http.mjs",
+            "line": 246,
+            "ownPositiveLine": 236,
+            "foreignDenialLine": 246,
+            "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only.",
+            "unchangedDbLine": 254
+          }
         }
       ],
       "employerSources": {
@@ -6469,11 +6521,11 @@
           "token": "getSessionUser"
         },
         {
-          "line": 96,
+          "line": 98,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 99,
+          "line": 101,
           "token": "getSessionUser"
         }
       ],
@@ -6521,27 +6573,27 @@
           "token": "organizationId"
         },
         {
-          "line": 105,
+          "line": 107,
           "token": "organizationId"
         },
         {
-          "line": 105,
+          "line": 107,
           "token": "organizationId"
         },
         {
-          "line": 110,
+          "line": 112,
           "token": "organizationId"
         },
         {
-          "line": 111,
+          "line": 113,
           "token": "organizationId"
         },
         {
-          "line": 114,
+          "line": 116,
           "token": "organizationId"
         },
         {
-          "line": 121,
+          "line": 123,
           "token": "organizationId"
         }
       ]
