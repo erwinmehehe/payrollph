@@ -55,7 +55,14 @@ test("single table-driven test reads ALL 490 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 4);
+  // Of the six adapter GETs, BIR, statutory-remittances and government-loan
+  // now have independently source-pinned proof. Three other GETs remain GAP;
+  // do not turn missing payment evidence into a fictitious positive read.
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), [
+    "GET compliance/statutory-remittances/payment-evidence/[id]",
+    "GET compliance/statutory-remittances/payment-evidence",
+    "GET compliance/remittance-actions",
+  ]);
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
   assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);
