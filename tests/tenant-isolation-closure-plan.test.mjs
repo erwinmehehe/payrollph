@@ -48,7 +48,7 @@ test("current overview headline equals complete 490-method manifest (historical 
 
 test("closure plan schedules every original GAP exactly once in priority order", () => {
   const current = allMethods();
-  const headers = [...plan.matchAll(/^### Batch ([A-Z0-9-]+) — .+ \\(([0-9]+) methods; phase ([1-6])\\)$/gm)];
+  const headers = [...plan.matchAll(/^### Batch ([A-Z0-9-]+) — .+ \(([0-9]+) methods; phase ([1-6])\)$/gm)];
   assert.equal(headers.length, 12, "12 numbered baseline closure PR batches expected");
   const scheduled = new Map();
   const sizes = [];
@@ -62,7 +62,7 @@ test("closure plan schedules every original GAP exactly once in priority order",
       plan.indexOf("## Page and server-action closure", headers[idx].index);
     assert.ok(end > headers[idx].index, id + " missing end of batch section");
     const body = plan.slice(headers[idx].index + heading.length, end);
-    const items = [...body.matchAll(/^- \\x60(GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \\/api\\/([^\\x60]+)\\x60 — \\[source\\]\\(\\.\\.\\/\\.\\.\\/(src\\/app\\/api\\/[^)]+)#L([0-9]+)\\)$/gm)];
+    const items = [...body.matchAll(/^- \x60(GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\/([^\x60]+)\x60 — \[source\]\(\.\.\/\.\.\/(src\/app\/api\/[^)]+)#L([0-9]+)\)$/gm)];
     assert.equal(items.length, Number(expectedSize), id + ": incomplete method queue");
     assert.ok(items.length >= 25 && items.length <= 40, id + ": batch outside 25-40 methods");
     for (const item of items) {
@@ -90,7 +90,7 @@ test("closure plan schedules every original GAP exactly once in priority order",
 test("all 20 page/action gaps have explicit real-wrong-employer closure slots", () => {
   const body = plan.split("## Page and server-action closure")[1]?.split("## CI and proof-link")[0];
   assert.ok(body, "Page closure section required");
-  const sources = [...body.matchAll(/^- \\x60GET [^\\x60]+\\x60 — \\x60(src\\/app\\/[^\\x60]+\\/page\\.tsx)\\x60;/gm)]
+  const sources = [...body.matchAll(/^- \x60GET [^\x60]+\x60 — \x60(src\/app\/[^\x60]+\/page\.tsx)\x60;/gm)]
     .map((match) => match[1]);
   assert.equal(sources.length, manifest.scopedPages.length);
   assert.equal(new Set(sources).size, sources.length, "Do not duplicate page slots");
@@ -102,9 +102,9 @@ test("all preexisting COVERED references have real, checked-in own/victim and wr
     if (method.status !== "COVERED") continue;
     const evidence = method.testedBy;
     assert.ok(evidence && typeof evidence.file === "string", key + ": no proof file");
-    assert.match(evidence.file, /^(tests|scripts\\/qa)\\//);
+    assert.match(evidence.file, /^(tests|scripts\/qa)\//);
     assert.ok(existsSync(evidence.file), key + ": proof file missing");
-    const lines = readFileSync(evidence.file, "utf8").split("\\n");
+    const lines = readFileSync(evidence.file, "utf8").split("\n");
     for (const field of ["line", "ownPositiveLine", "foreignDenialLine",
       ...(["POST", "PUT", "PATCH", "DELETE"].includes(key.split(" ")[0]) ?
         ["unchangedDbLine"] : [])]) {
