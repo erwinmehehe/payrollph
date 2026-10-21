@@ -82,7 +82,8 @@ if(process.argv[2]==='prepare') {
  high = change(high,'assert.equal(manifest.metrics.coveredAfter, 93, "91 covered methods inherited from main plus two DL-01 payment-evidence GETs");','assert.equal(manifest.metrics.coveredAfter, 96, "Retain 93 earlier proofs plus three reviewed real HTTP file/history methods");');
  high = change(high,'assert.equal(manifest.metrics.gap, 390, "390 unverified methods remain GAP; no new DL-01 runtime credit");','assert.equal(manifest.metrics.gap, 387, "387 unverified methods remain GAP; three executed DL-01 proofs now linked");');
  writeFileSync(hi,high);
- git('add','-A','--',...allowed);
+ // The first stage already staged the deletion; only these two files changed here.
+ git('add','--',inv,hi);
  assert.deepEqual(git('diff','--cached','--name-only').split('\n').sort(),allowed);
  console.log(git('diff','--cached','--stat'));
 } else if(process.argv[2]==='publish-tree') {
