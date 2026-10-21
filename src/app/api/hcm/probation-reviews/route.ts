@@ -141,13 +141,14 @@ export async function GET(request: Request) {
   if ("error" in gate) return gate.error;
 
   const packet = await loadProbationReviewPacket({ organizationId, employmentTermId });
+  const lockReason = await reviewMutable(organizationId, employmentTermId, gate.term.status);
   return Response.json({
     organizationId,
     review: packet?.review ?? null,
     acknowledgment: packet?.acknowledgment ?? null,
     events: packet?.events ?? [],
     canManage: true,
-    mutable: !packet?.review || packet.review.status === "draft",
+    mutable: !lockReason && (!packet?.review || packet.review.status === "draft"),
     employee: gate.employee,
     term: gate.term,
     guardrail: "A probation review is evidence and a manager recommendation only. It never changes employment status or approves an employment decision.",
