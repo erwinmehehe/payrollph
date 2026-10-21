@@ -227,8 +227,9 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 386, "Five attendance, four HCM and twelve Batch-01 GET methods have source-pinned HTTP proof");
-  assert.equal(manifest.metrics.coveredAfter, 99, "Retain 76 current-main methods and credit twelve Batch-01 GETs");
+  assert.equal(manifest.metrics.gap, 383, "Five attendance, four HCM and twelve Batch-01 GET methods have source-pinned HTTP proof");
+  assert.equal(manifest.metrics.coveredAfter, 100, "93 main-covered methods and seven uniquely credited compliance methods");
+  assert.equal(manifest.metrics.publicByDesign, 10, "Two additional inert-template methods retain main review");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -590,6 +591,50 @@ test("all credited proof links point to the claimed route and every recertified 
           assert.match(invariant, /assert\.deepEqual\(\s*(?:victim|officialVictim|storedVictim)/,
             path + ": an unchanged victim database snapshot is mandatory for writes");
         }
+        continue;
+      }
+      if (proof.file === "scripts/qa/tenant-manifest-driven-http.mjs") {
+        // The manifest-driven runner uses shared request(urls.own/foreign) lines:
+        // those lines do not repeat literal /api paths. Validate the *specific*
+        // route adapter and its executable real-HTTP proof instead of relaxing
+        // the generic guard for ordinary source-pinned method assertions.
+        const key = method.name + " " + entry.route;
+        assert.ok(new Set([
+          "GET compliance/statutory-remittances/payment-evidence/[id]",
+          "GET compliance/statutory-remittances/payment-evidence",
+        ]).has(key), path + " " + method.name + ": unreviewed table-driven credit");
+        const suite = readFileSync(proof.file, "utf8");
+        const runner = source.join("\n");
+        assert.match(runner,
+          /await \(await import\("\.\/tenant-manifest-driven-http\.mjs"\)\)\.verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus \}\)/,
+          key + ": proof must execute inside the isolated PostgreSQL HTTP harness");
+        assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+        const adapter = evidenceLine(proof.file, proof.line, key + " adapter");
+        assert.ok(adapter.includes(JSON.stringify(key) + ": {"),
+          key + ": pinned case does not match credited method");
+        const start = suite.indexOf(adapter);
+        const next = suite.indexOf("\n  \"GET ", start + adapter.length);
+        const caseSource = suite.slice(start, next < 0 ? undefined : next);
+        const urlPath = "/api/" + entry.route.replace(/\[[^\]]+\]/g, "");
+        assert.equal(caseSource.split(urlPath).length - 1, 2,
+          key + ": adapter must name actual own and victim HTTP paths");
+        assert.match(caseSource, /denial: 403/,
+          key + ": foreign employer denial must be exact 403");
+        assert.match(evidenceLine(proof.file, proof.ownPositiveLine, key + " own"),
+          /const own = expectStatus\(await request\(urls\.own, \{ cookie \}\), 200,/);
+        assert.match(evidenceLine(proof.file, proof.foreignDenialLine, key + " victim"),
+          /const foreign = expectStatus\(await request\(urls\.foreign, \{ cookie \}\), adapter\.denial,/);
+        const forged = evidenceLine(proof.file, proof.forgedSelectorLine, key + " forged selector");
+        assert.ok(forged.includes(key.endsWith("/[id]")
+          ? "const crossId = expectStatus(await request("
+          : "const filtered = expectStatus(await request("),
+          key + ": real foreign identifier must be tested under own employer");
+        assert.match(evidenceLine(proof.file, proof.unchangedDbLine, key + " victim unchanged"),
+          /assert\.deepEqual\(after, before,/);
+        assert.match(suite, /for \(const idx of \[1, 2\]\)/,
+          key + ": both independent attacker sessions required");
+        assert.match(suite, /const before = await snapshotVictim\(victimOrg\.id\)/);
+        assert.match(suite, /const after = await snapshotVictim\(victimOrg\.id\)/);
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",

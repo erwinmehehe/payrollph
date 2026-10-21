@@ -131,13 +131,18 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
         ?.methods.find((entry: { name: string }) => entry.name === name);
       assert.ok(method, key + ": method must exist");
       assert.ok(method.status === "GAP" ||
-        (method.status === "COVERED" && method.testedBy?.file === suite.file),
+        (method.status === "COVERED" && (method.testedBy?.file === suite.file ||
+          (key === "GET compliance/statutory-remittances/payment-evidence" &&
+            method.testedBy?.file === "scripts/qa/tenant-manifest-driven-http.mjs"))),
         key + ": only actual source-pinned own/victim HTTP tests may close a GAP");
       if (method.status === "GAP") assert.equal(method.testedBy, null);
       return method;
     });
-    const added = methods.filter((method) => method.status === "COVERED").length;
-    assert.ok(added === 0 || added === suite.keys.length,
+    const externalMain = methods.filter((method) => method.status === "COVERED" &&
+      method.testedBy?.file === "scripts/qa/tenant-manifest-driven-http.mjs").length;
+    const added = methods.filter((method) => method.status === "COVERED" &&
+      method.testedBy?.file === suite.file).length;
+    assert.ok(added === 0 || added + externalMain === suite.keys.length,
       suite.file + ": partial HTTP suites cannot receive method-level credit");
     if (!added) continue;
     assert.ok(harnessLines.some(line => line.includes(suite.entry + "(f, { request, expectStatus })")),
@@ -145,7 +150,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     const source = readFileSync(suite.file, "utf8").split("\n");
     assert.ok(source.some(line => line.includes("for (const idx of [1, 2])")),
       suite.file + ": exercise two independent attackers");
-    for (const method of methods) {
+    for (const method of methods.filter(method => method.testedBy?.file === suite.file)) {
       const { ownPositiveLine, foreignDenialLine, unchangedDbLine } = method.testedBy;
       assert.match(source[ownPositiveLine - 1] ?? "", /expectStatus\(await request(?:Multipart)?\(/,
         method.name + ": authenticated own-employer success required");
@@ -157,10 +162,10 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     }
     newlySourcePinned += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 91,
-    "Keep 91 historical COVERED methods; add only proven HCM/compliance methods");
-  assert.equal(manifest.metrics.gap + newlySourcePinned, 394,
-    "Never close a historical GAP without its source-linked HTTP proof");
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 93,
+    "Keep all 93 main-proven methods; add only independently proven HCM/compliance methods");
+  assert.equal(manifest.metrics.gap + newlySourcePinned, 390,
+    "Never reduce main’s 390 open method GAPs without new source-linked real HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);

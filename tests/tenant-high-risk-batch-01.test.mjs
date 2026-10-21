@@ -90,7 +90,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(payExplain?.status, "COVERED");
   assert.equal(payExplain?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs",
     "Keep the newer source-matched own/foreign real-HTTP pay-explanation proof");
-  // Preserve all 88 previously accepted main-branch method receipts. Newly
+  // Preserve all 93 main-branch method receipts, including two payment-evidence GETs. Newly
   // credited routes may only add to this historical count when their specific
   // isolated two-attacker HTTP suite is wired into the real PG16 harness.
   // Never "fix" this gate by substituting a new total without proof.
@@ -126,14 +126,18 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     const statuses = suite.methods.map((key) => {
       const method = methodsByKey.get(key);
       assert.ok(method, key + ": reviewed route and method must still exist");
-      assert.ok(method.status === "GAP" ||
+      const mainEvidence = key === "GET compliance/statutory-remittances/payment-evidence" &&
+        method.status === "COVERED" &&
+        method.testedBy?.file === "scripts/qa/tenant-manifest-driven-http.mjs";
+      assert.ok(method.status === "GAP" || mainEvidence ||
         (method.status === "COVERED" && method.testedBy?.file === suite.file),
         key + ": a historical GAP can only close with its reviewed own/victim HTTP evidence");
       if (method.status === "GAP") assert.equal(method.testedBy, null);
-      return method.status;
+      return method.status === "COVERED" && method.testedBy?.file !== suite.file ? "INHERITED" : method.status;
     });
     const added = statuses.filter((status) => status === "COVERED").length;
-    assert.ok(added === 0 || added === suite.methods.length,
+    const inherited = statuses.filter((status) => status === "INHERITED").length;
+    assert.ok(added === 0 || added + inherited === suite.methods.length,
       suite.file + ": an incomplete/partial proof suite cannot silently receive credit");
     if (!added) continue;
     const runner = readFileSync(suite.file, "utf8");
@@ -144,6 +148,12 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     const proofLines = runner.split("\n");
     for (const key of suite.methods) {
       const method = methodsByKey.get(key);
+      if (method.testedBy?.file === "scripts/qa/tenant-manifest-driven-http.mjs") {
+        assert.equal(key, "GET compliance/statutory-remittances/payment-evidence");
+        assert.ok(method.testedBy.ownPositiveLine && method.testedBy.foreignDenialLine &&
+          method.testedBy.forgedSelectorLine && method.testedBy.unchangedDbLine);
+        continue;
+      }
       assert.equal(method.testedBy.file, suite.file);
       const { ownPositiveLine, foreignDenialLine, unchangedDbLine } = method.testedBy;
       assert.match(proofLines[ownPositiveLine - 1] ?? "",
@@ -158,9 +168,9 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     }
     additionalSourcePinnedMethods += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 91,
-    "All 91 historical covered methods must remain, excluding only source-pinned additions");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 394,
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 93,
+    "All 93 source-validated main methods must remain, plus seven nonduplicate compliance proofs");
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 390,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

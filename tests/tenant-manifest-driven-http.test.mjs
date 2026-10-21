@@ -15,8 +15,9 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 493);
-  assert.equal(manifest.metrics.gap, 386, "Uncovered methods remain gaps until own/victim HTTP proof is accepted");
-  assert.equal(manifest.metrics.coveredAfter, 99, "Eight independently source-pinned compliance methods join 91 prior main proofs");
+  assert.equal(manifest.metrics.gap, 383, "383 methods remain uncertified after independent statutory and compliance HTTP proofs");
+  assert.equal(manifest.metrics.coveredAfter, 100, "100 unioned methods, with shared payment-evidence GET counted once");
+  assert.equal(manifest.metrics.publicByDesign, 10, "Retain two independently reviewed inert template methods");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -48,19 +49,17 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
     info.methods.map((m) => [m.name + " " + info.route, { path, ...m }])));
-  assert.equal(specs.length, 6);
+  assert.equal(specs.length, 7);
   assert.equal(new Set(specs).size, specs.length);
   for (const spec of specs) {
     const method = registry.get(spec);
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  // The baseline had four adapter GAPs. Only the government-loan and
-  // payment-evidence index GETs can leave that group after their own real,
-  // two-attacker compliance HTTP suite is source-pinned and wired into CI.
+  // Preserve the independently tested main evidence GETs and the separately
+  // source-pinned government-loan GET. Do not double-credit a shared method.
   const newlySourcePinned = [
     "GET compliance/government-loan-remittances",
-    "GET compliance/statutory-remittances/payment-evidence",
   ];
   for (const spec of newlySourcePinned) {
     const method = registry.get(spec);
@@ -71,9 +70,20 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
     assert.ok(harness.includes("verifyComplianceReadSweep(f, { request, expectStatus })"),
       spec + ": new HTTP proof must actually execute in the disposable PostgreSQL runner");
   }
-  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length +
-    newlySourcePinned.length, 4,
-    "The original four adapter GAPs can only shrink by the two source-pinned compliance reads");
+  const mainEvidence = [
+    "GET compliance/statutory-remittances/payment-evidence/[id]",
+    "GET compliance/statutory-remittances/payment-evidence",
+  ];
+  for (const spec of mainEvidence) {
+    const method = registry.get(spec);
+    assert.equal(method?.status, "COVERED", spec + ": preserve main's real evidence HTTP proof");
+    assert.equal(method.testedBy?.file, "scripts/qa/tenant-manifest-driven-http.mjs");
+    assert.ok(method.testedBy?.ownPositiveLine && method.testedBy?.foreignDenialLine &&
+      method.testedBy?.forgedSelectorLine && method.testedBy?.unchangedDbLine,
+      spec + ": proof requires own response, foreign denial, forged selector and unchanged victim DB");
+  }
+  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 2,
+    "Only remittance-actions and posting-evidence GET remain unproven table-driven adapters");
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
   assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);
