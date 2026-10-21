@@ -16,7 +16,7 @@ export function useScopedAsyncResource<T>(
   const [refreshing, setRefreshing] = useState<typeof key | null>(null);
 
   const run = useCallback(() => {
-    if (!key.enabled) return Promise.resolve();
+    if (!key.enabled) return Promise.resolve(undefined);
     return owner.run(key, key.load, (outcome) => {
       setSettled({ key, ...outcome });
       setRefreshing(null);
@@ -36,7 +36,7 @@ export function useScopedAsyncResource<T>(
 
   // Called by explicit refresh/mutation handlers, never by the mount effect.
   const reload = useCallback(() => {
-    if (!key.enabled || !owner.isActive(key)) return Promise.resolve();
+    if (!key.enabled || !owner.isActive(key)) return Promise.resolve(undefined);
     setRefreshing(key);
     return run();
   }, [key, owner, run, setRefreshing]);
