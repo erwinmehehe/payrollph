@@ -258,7 +258,12 @@ function PayrollWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Com
 }
 
 function CheckerWorkspace({ data, currentRun, firstName, onPage }: CommonProps) {
-  const previous = data.payrollRuns.find((run) => run.id !== currentRun?.id && run.status === "Released");
+  const previous = currentRun ? data.payrollRuns.find((run) =>
+    run.id !== currentRun.id && run.status === "Released" &&
+    run.legalEntityId === currentRun.legalEntityId &&
+    run.scopeOrgUnitId === currentRun.scopeOrgUnitId &&
+    run.payDate < currentRun.payDate
+  ) : undefined;
   const currentNet = verifiedDashboardAmount(currentRun?.netPay);
   const previousNet = verifiedDashboardAmount(previous?.netPay);
   const delta = currentNet === null || previousNet === null ? null : currentNet - previousNet;
@@ -287,24 +292,24 @@ function CheckerWorkspace({ data, currentRun, firstName, onPage }: CommonProps) 
         <div className="mockup-checker-money">
           <strong>{fullMoney(currentNet)}</strong>
           <span>Net payroll</span>
-          <div><b>{delta !== null && delta >= 0 ? "+" : ""}{fullMoney(delta)}</b><em>{previous && deltaPct !== null ? (deltaPct >= 0 ? "+" : "") + deltaPct.toFixed(1) + "%" : "Comparison unavailable"}</em></div>
+          <div><b>{delta !== null && delta >= 0 ? "+" : ""}{fullMoney(delta)}</b><em>{previous && deltaPct !== null ? (deltaPct >= 0 ? "+" : "") + deltaPct.toFixed(1) + "%" : previous ? "Comparison unavailable" : "No comparable prior run"}</em></div>
         </div>
         <div className="mockup-meaningful-card">
           <strong>{meaningful}</strong>
-          <span>Meaningful changes</span>
+          <span>Visible review signals</span>
           <div className="mockup-bars"><i /><i /><i /><i /><i /></div>
         </div>
       </section>
 
       <section className="mockup-change-cards payroll-focus-summary">
-        <ChangeCard value={payChanges} label="Salary changes" tone="orange" />
-        <ChangeCard value={Math.max(0, exceptions.length - retro)} label="Overtime spikes" tone="blue" />
-        <ChangeCard value={retro} label="Retro adjustment" tone="rose" />
-        <ChangeCard value={newHires} label="New hire" tone="green" />
+        <ChangeCard value={payChanges} label="Recorded pay revisions" tone="orange" />
+        <ChangeCard value={exceptions.length} label="Flagged entries" tone="blue" />
+        <ChangeCard value={retro} label="Pending retro adjustments" tone="rose" />
+        <ChangeCard value={newHires} label="Open onboarding items" tone="green" />
       </section>
 
       <section className="mockup-section checker-review-section">
-        <MockupSectionHeader title={"Changes to review (" + String(meaningful) + ")"} action="All changes" onAction={() => onPage("Approvals")} />
+        <MockupSectionHeader title={"Current register entries to inspect (" + String(data.payrollEntries.length) + ")"} action="Open payroll review" onAction={() => onPage("Approvals")} />
         <div className="mockup-table checker-mockup-table">
           <div className="mockup-table-head"><span>Employee</span><span>Previous</span><span>Current</span><span>Change</span><span>Reason</span><span>Status</span></div>
           {reviewRows.map((entry) => {
@@ -313,21 +318,21 @@ function CheckerWorkspace({ data, currentRun, firstName, onPage }: CommonProps) 
             return (
               <div className="mockup-table-row" key={entry.id}>
                 <PersonCell employee={employee} fallback={"Employee #" + String(entry.employeeId)} />
-                <span>{previous ? fullMoney(Math.max(0, Number(entry.netPay) * .95)) : "—"}</span>
+                <span>Unavailable</span>
                 <span>{fullMoney(entry.netPay)}</span>
-                <span className={isException ? "mockup-impact rose" : ""}>{isException ? "+" + fullMoney(Math.abs(Number(entry.netPay) * .08)) : "—"}</span>
-                <span>{isException ? "Payroll variance" : "—"}</span>
-                <span className={"mockup-review-status " + (isException ? "attention" : "ok")}>{isException ? "Needs attention" : "Looks okay"}</span>
+                <span className="mockup-impact">Unavailable</span>
+                <span>{isException ? "Flagged payroll entry" : "Not independently compared"}</span>
+                <span className={"mockup-review-status " + (isException ? "attention" : "pending")}>{isException ? "Needs attention" : "Open for review"}</span>
               </div>
             );
           })}
         </div>
 
         <div className="mockup-checker-footer">
-          <span>{meaningful} changes reviewed · {exceptions.length} unresolved</span>
+          <span>{reviewRows.length} of {data.payrollEntries.length} entries shown · {exceptions.length} flagged</span>
           <div>
             <button type="button" className="mockup-secondary-button" onClick={() => onPage("Approvals")}>Return to Payroll Officer</button>
-            <button type="button" className="mockup-primary-button" onClick={() => onPage("Approvals")}>Approve payroll</button>
+            <button type="button" className="mockup-primary-button" onClick={() => onPage("Approvals")}>Open approval review</button>
           </div>
         </div>
       </section>

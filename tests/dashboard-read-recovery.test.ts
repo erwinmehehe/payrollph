@@ -116,6 +116,10 @@ test("payroll monetary amounts and entries must be scoped through complete paren
     { ...full, payrollRuns: [{ ...run, grossPay: "" }] },
     { ...full, payrollRuns: [{ ...run, exceptions: undefined }] },
     { ...full, payrollEntries: [{ ...entry, payrollRunId: 99 }] },
+    // An own-employer run must never borrow another employer's employee ID:
+    // the DB run and employee foreign keys are otherwise independent.
+    { ...full, payrollEntries: [{ ...entry, employeeId: 501 }] },
+    { ...full, payrollEntries: [entry, { ...entry, id: 16, employeeId: 501 }] },
     { ...full, payrollEntries: [{ ...entry, netPay: null }] },
     { ...full, payrollEntries: [{ ...entry, grossPay: undefined }] },
     { ...full, payrollEntries: [{ ...entry, deductions: "" }] },

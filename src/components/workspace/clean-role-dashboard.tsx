@@ -24,7 +24,7 @@ import {
 } from "@/lib/dashboard-presentation";
 import type { DashboardData, PayrollRun } from "./types";
 import { isPreliminaryPayroll } from "@/lib/payroll-period-ui";
-import { readVerifiedPayrollCheckerVariance, type VerifiedVariancePayload } from "@/lib/payroll-checker-variance-read";
+import { checkerVarianceSourceKey, readVerifiedPayrollCheckerVariance, type VerifiedVariancePayload } from "@/lib/payroll-checker-variance-read";
 import { Status } from "./ui";
 import { StatutoryRemittanceWatch } from "./statutory-remittance-watch";
 
@@ -162,7 +162,7 @@ export function CleanRoleDashboard({
           </p>
         </section>
       ) : (
-        <CheckerHome run={run} organizationId={data.selectedOrganization.id} onPage={onPage} />
+        <CheckerHome run={run} entries={data.payrollEntries} organizationId={data.selectedOrganization.id} onPage={onPage} />
       )}
       {role !== "checker" && (
         <PayrollHistory
@@ -435,6 +435,7 @@ function PayrollHome({
 }
 
 type VarianceSummary = {
+  sourceKey: string;
   organizationId: number;
   runId: number;
   runStatus?: string;
@@ -446,21 +447,26 @@ type VarianceSummary = {
 };
 function CheckerHome({
   run,
+  entries,
   organizationId,
   onPage,
 }: {
   run?: PayrollRun;
+  entries: DashboardData["payrollEntries"];
   organizationId: number;
   onPage: Props["onPage"];
 }) {
   const [result, setResult] = useState<VarianceSummary | null>(null);
-  const [failure, setFailure] = useState<number | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   const [tab, setTab] = useState("changes");
   const [revision, setRevision] = useState(0);
   const runId = run?.id;
   const runStatus = run?.status;
+  // Recompute in render so changed employer/run/entry evidence hides stale
+  // verified counts immediately, before the next effect can refetch.
+  const sourceKey = checkerVarianceSourceKey(organizationId, run, entries);
   useEffect(() => {
-    if (!run) return;
+    if (!run || sourceKey === null) return;
     const controller = new AbortController();
     // Never infer no changes on a failed or foreign-employer variance read.
     queueMicrotask(() => {
@@ -470,21 +476,24 @@ function CheckerHome({
           if (controller.signal.aborted) return;
           setFailure(null);
           setResult({
-            organizationId, runId: run.id, runStatus: run.status,
+            sourceKey, organizationId, runId: run.id, runStatus: run.status,
             summary: payload.summary,
           });
         })
         .catch(() => {
           if (controller.signal.aborted) return;
           setResult(null);
-          setFailure(run.id);
+          setFailure(sourceKey);
         });
     });
     return () => controller.abort();
-  }, [organizationId, run, runId, runStatus, revision]);
-  const loaded = result?.organizationId === organizationId &&
+  }, [organizationId, run, runId, runStatus, revision, sourceKey]);
+  const loaded = sourceKey !== null &&
+    result?.sourceKey === sourceKey &&
+    result?.organizationId === organizationId &&
     result?.runId === run?.id && result?.runStatus === run?.status
     ? result : null;
+  const failed = sourceKey === null ? Boolean(run) : failure === sourceKey;
   const counts = loaded?.summary.categoryCounts;
   const exceptions: number | null = loaded?.summary.exceptionCount ?? null;
   const categories = [
@@ -561,12 +570,12 @@ function CheckerHome({
             <h3>What changed?</h3>
             {run && !loaded && (
               <p className="clean-muted" role="status">
-                {failure === run.id
+                {failed
                   ? "Comparison unavailable or not scoped to this employer. Retry before trusting exception counts."
-                  : "Loading the stored payroll comparison…"}
+                  : "Loading the stored payroll comparison…"
               </p>
             )}
-            {failure === run?.id && <button type="button" className="clean-link" onClick={() => { setResult(null); setFailure(null); setRevision((r) => r + 1); }}>Retry verified comparison</button>}
+            {failed && <button type="button" className="clean-link" onClick={() => { setResult(null); setFailure(null); setRevision((r) => r + 1); }}>Retry verified comparison</button>
             {categories.map(([key, label]) => (
               <ActionRow
                 key={key}

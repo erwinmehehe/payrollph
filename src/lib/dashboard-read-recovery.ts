@@ -34,8 +34,8 @@ function validPayrollRun(value: unknown, organizationId: number): boolean {
     verifiedDashboardAmount(value.netPay) !== null;
 }
 function validPayrollEntry(value: unknown): boolean {
-  // payroll_entries has no organization_id column: prove employer via an
-  // authorized payrollRunId that belongs to this selected employer.
+  // Employer proof is completed below using both the payroll run and the
+  // associated employee from this selected employer's validated records.
   return object(value) && positive(value.id) &&
     positive(value.employeeId) && typeof value.status === "string" &&
     verifiedDashboardAmount(value.grossPay) !== null &&
@@ -67,9 +67,14 @@ export function isValidDashboardSnapshot(value: unknown, organizationId: number)
   const ids = runs.map((run) => (run as Record<string, unknown>).id);
   if (new Set(ids).size !== ids.length) return false;
   const runIds = new Set(ids);
+  const employeeIds = new Set(employees.map((employee) =>
+    (employee as Record<string, unknown>).id));
+  // payroll_entries has separate run/employee FKs and no organizationId.
+  // Both referenced parents must belong to this selected employer.
   if (entries.some((entry) => {
     const row = entry as Record<string, unknown>;
-    return !positive(row.payrollRunId) || !runIds.has(row.payrollRunId);
+    return !positive(row.payrollRunId) || !runIds.has(row.payrollRunId) ||
+      !positive(row.employeeId) || !employeeIds.has(row.employeeId);
   })) return false;
   return true;
 }
