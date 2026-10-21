@@ -82,6 +82,6 @@ The live run is intentionally narrower than CI: **no signup, no synthetic test e
 
 - A simulated Neon owner and local PostgreSQL 18 are not a proof of the hosting vendor's network, pooling, TLS authentication or real-provider health.
 - The CI's fictional MFA session evidence proves server-side guards but not real-world device enrollment. Do not relabel it as full MFA acceptance.
-- The denied release is a financial **preflight/transaction-safety** check, not a fault-injected partial write inside the calculation engine. More invasive failure injection would require separately reviewed, disposable-only instrumentation.
+- The negative unapproved release is a financial **preflight** check. A separate controlled app-role transaction deliberately fails after a payroll draft and first entry insert, confirming atomic rollback with no partial rows. Neither substitutes for injecting an exception into the actual payroll calculation worker; doing that would require separately reviewed disposable-only instrumentation.
 - Business route audit completeness is tested rather than assumed; missing events, incorrect states or schema mismatches are findings, not expected skips.
 - Do not run this owner-only live script from any GitHub Actions job. Its built-in `CI` and `GITHUB_ACTIONS` guards reject doing so.
