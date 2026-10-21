@@ -63,6 +63,24 @@ test("each download method has own content, victim denial and a forged selector"
   assert.ok(src.includes('const wrongScopedCase = expectStatus(await request('));
 });
 
+test("BI and labor download use existing HIGHER-ID victim-only DB records", () => {
+  for (const fragment of [
+    'const [victimExportWorker] = await db.insert(employees).values({',
+    'const [victimBiRun] = await db.insert(payrollRuns).values({',
+    'assert.equal(persistedVictimWorker?.organizationId, victimOrg.id)',
+    'assert.equal(persistedVictimBiRun?.organizationId, victimOrg.id)',
+    'assert.ok(victimExportWorker.id > f.ownedEmployees[0].id',
+    'victimExportWorker.id > f.ownedEmployees[1].id && victimExportWorker.id > 6',
+    'assert.ok(victimBiRun.id > f.ownRuns[1].id',
+    'victimBiRun.id > f.ownRuns[2].id && victimBiRun.id > 6',
+    'assert.ok(fixture.victimExportWorker.id > worker.id)',
+    'assert.ok(fixture.victimBiRun.id > f.ownRuns[idx].id)',
+    'assert.ok(!ownBi.text.includes(fixture.victimBiRun.periodLabel))',
+    'assert.ok(!ownInspection.text.includes(fixture.victimExportWorker.employeeNo))',
+    'db.select().from(employees).where(filter(employees)).orderBy(employees.id)',
+  ]) assert.ok(src.includes(fragment), "Real higher-ID victim-only export proof missing: " + fragment);
+});
+
 test("new candidates remain provisional unless exact reviewed line references exist", () => {
   const lines = src.split("\n");
   for (const [method, route] of keys) {
