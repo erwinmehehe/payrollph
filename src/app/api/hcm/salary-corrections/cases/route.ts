@@ -3,6 +3,7 @@ import {
   assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES,
   PAYROLL_TAX_APPROVER_ROLES, PAYROLL_VIEW_ROLES,
 } from "@/lib/access";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
@@ -22,7 +23,7 @@ const NO_STORE = { "Cache-Control": "private, no-store" };
  * request (/api/payroll-underpayments) or an explicit "no shortfall" decision.
  */
 function disabled() {
-  return process.env.HCM_SALARY_CORRECTION_CASES_ENABLED !== "true";
+  return !criticalReleaseFlagEnabled("hcmSalaryCorrectionCases");
 }
 
 const STATUS_BY_CODE: Record<string, number> = {

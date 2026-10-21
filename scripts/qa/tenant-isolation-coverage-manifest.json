@@ -13517,12 +13517,12 @@
       ]
     },
     "src/app/api/hcm/salary-corrections/cases/route.ts": {
-      "gitBlobSha": "f1fd558aabe78b0899b91b00d38b43b09e1d2a67",
+      "gitBlobSha": "26993c273d5482f602f420cd95cf9007616f6954",
       "route": "hcm/salary-corrections/cases",
       "methods": [
         {
           "name": "GET",
-          "line": 45,
+          "line": 46,
           "status": "COVERED",
           "reason": "Two MFA-verified owners list their own persisted correction case 200 without the victim-only case; forged victim organizationId 403; victim cases unchanged.",
           "testedBy": {
@@ -13535,7 +13535,7 @@
         },
         {
           "name": "PATCH",
-          "line": 95,
+          "line": 96,
           "status": "COVERED",
           "reason": "Two MFA-verified owners PATCH their own case run 200 with a persisted decision; victim employer PATCH 403 and victim case ID inside own employer 404; victim cases, runs and audit unchanged.",
           "testedBy": {
@@ -13549,7 +13549,7 @@
         },
         {
           "name": "POST",
-          "line": 77,
+          "line": 78,
           "status": "COVERED",
           "reason": "Two MFA-verified owners POST an owned case 201 snapshotting their own Released run; victim employer POST 403 and victim worker inside own employer 404; victim cases, runs and audit unchanged.",
           "testedBy": {
@@ -13571,39 +13571,39 @@
       },
       "guards": [
         {
-          "line": 47,
+          "line": 48,
           "token": "getSessionUser"
         },
         {
-          "line": 51,
+          "line": 52,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 54,
+          "line": 55,
           "token": "getAccess"
         },
         {
-          "line": 60,
+          "line": 61,
           "token": "getSessionUser"
         },
         {
-          "line": 64,
+          "line": 65,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 66,
+          "line": 67,
           "token": "getAccess"
         },
         {
-          "line": 68,
+          "line": 69,
           "token": "requireSensitiveActionMfa"
         },
         {
-          "line": 79,
+          "line": 80,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 97,
+          "line": 98,
           "token": "enforceSameOriginMutation"
         }
       ]
