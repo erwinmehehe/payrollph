@@ -56,3 +56,35 @@ test("real PostgreSQL unchanged-victim snapshot and both independent attacker se
   assert.ok(harness.includes('verifyManifestDrivenStatutoryBatch(f, { request, expectStatus })'));
   assert.ok(src.includes('process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only"'));
 });
+
+test("any DL-01 evidence method promoted to COVERED must pin all four exercised proof lines", () => {
+  const lines = src.split("\n");
+  for (const [index, key] of targets.entries()) {
+    const record = routeIndex.get(key);
+    if (record.status === "GAP") {
+      assert.equal(record.testedBy, null, key + ": pending real HTTP evidence is not certified");
+      continue;
+    }
+    assert.equal(record.status, "COVERED");
+    const proof = record.testedBy;
+    assert.equal(proof?.file, "scripts/qa/tenant-manifest-driven-http.mjs");
+    const lineOf = (field) => {
+      const number = proof[field];
+      assert.ok(Number.isInteger(number) && number > 0 && number <= lines.length,
+        key + ": missing real line for " + field);
+      return lines[number - 1];
+    };
+    assert.ok(lineOf("line").includes('"' + key + '": {'), key + ": adapter identifier absent");
+    assert.ok(lineOf("ownPositiveLine").includes("const own = expectStatus(await request(urls.own"),
+      key + ": actual positive request required");
+    assert.ok(lineOf("foreignDenialLine").includes("const foreign = expectStatus(await request(urls.foreign"),
+      key + ": actual victim denial request required");
+    assert.ok(lineOf("forgedSelectorLine").includes(index === 0 ?
+      "const crossId = expectStatus(await request(" : "const filtered = expectStatus(await request("),
+      key + ": method-specific forged victim selector required");
+    assert.ok(lineOf("unchangedDbLine").includes("assert.deepEqual(after, before"),
+      key + ": victim DB snapshot must remain equal");
+    assert.ok((proof.scope ?? "").includes("independent attacker employers"),
+      key + ": both authentic attacker employers must be part of the same proof suite");
+  }
+});
