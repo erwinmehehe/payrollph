@@ -90,8 +90,8 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(payExplain?.status, "COVERED");
   assert.equal(payExplain?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs",
     "Keep the newer source-matched own/foreign real-HTTP pay-explanation proof");
-  assert.equal(manifest.metrics.coveredAfter, 93, "91 covered methods inherited from main plus two DL-01 payment-evidence GETs");
-  assert.equal(manifest.metrics.gap, 390, "390 unverified methods remain GAP; no new DL-01 runtime credit");
+  assert.equal(manifest.metrics.coveredAfter, 96, "Retain 93 earlier proofs plus three reviewed real HTTP file/history methods");
+  assert.equal(manifest.metrics.gap, 387, "387 unverified methods remain GAP; three executed DL-01 proofs now linked");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
   assert.match(source, /assert\.equal\(passed\.size, 36/);
