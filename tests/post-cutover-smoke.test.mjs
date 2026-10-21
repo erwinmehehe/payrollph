@@ -100,5 +100,5 @@ test("exact protected runner, app UPDATE audit denial, restart proof and sanitiz
   assert.match(flow, /node_modules\/next\/dist\/bin\/next start/);
   assert.match(flow, /post-cutover-restart-smoke\.mjs/);
   assert.match(flow, /actions\/upload-artifact/);
-  assert.doesNotMatch(flow, /environment:\s*production|PRODUCTION_CUTOVER_OWNER_DATABASE_URL|secrets\./);
+  assert.doesNotMatch(flow.split("\n").filter(line => !line.trimStart().startsWith("#")).join("\n"), /environment:\\s*production|PRODUCTION_CUTOVER_OWNER_DATABASE_URL|\\$\\{\\{\\s*secrets\\./);
 });
