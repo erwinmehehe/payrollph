@@ -6350,12 +6350,12 @@
           "reason": "Verified fictional signed-in owners download own exact PDF bytes (hash and disposition); both attackers are denied the real later-seeded victim-only evidence ID with HTTP 403, and a victim ID forged under an allowed own organization returns exact 404; real victim PostgreSQL snapshot unchanged.",
           "testedBy": {
             "file": "scripts/qa/tenant-manifest-driven-http.mjs",
-            "ownPositiveLine": 250,
-            "foreignDenialLine": 253,
-            "unchangedDbLine": 281,
+            "ownPositiveLine": 299,
+            "foreignDenialLine": 302,
+            "unchangedDbLine": 342,
             "scope": "Two independent attacker employers and a real victim-only PostgreSQL evidence row seeded after both attacker records; each authentic attacker succeeds on the owned populated response, is denied on the selected higher victim ID with exact status, and the victim database snapshot remains unchanged. The forged selector line points to the method-specific rejection or ignored victim identifier.",
             "line": 36,
-            "forgedSelectorLine": 264
+            "forgedSelectorLine": 313
           }
         }
       ],
@@ -6440,12 +6440,12 @@
           "reason": "Verified own nonempty evidence list includes actual own row and excludes victim; two attackers GET the existing later-seeded victim batch with victim employer and receive exact 403; own organization with forged victim batch returns an empty filtered list after the owned positive; victim PostgreSQL snapshot unchanged.",
           "testedBy": {
             "file": "scripts/qa/tenant-manifest-driven-http.mjs",
-            "ownPositiveLine": 250,
-            "foreignDenialLine": 253,
-            "unchangedDbLine": 281,
+            "ownPositiveLine": 299,
+            "foreignDenialLine": 302,
+            "unchangedDbLine": 342,
             "scope": "Two independent attacker employers and a real victim-only PostgreSQL evidence row seeded after both attacker records; each authentic attacker succeeds on the owned populated response, is denied on the selected higher victim ID with exact status, and the victim database snapshot remains unchanged. The forged selector line points to the method-specific rejection or ignored victim identifier.",
             "line": 51,
-            "forgedSelectorLine": 271
+            "forgedSelectorLine": 320
           }
         },
         {
