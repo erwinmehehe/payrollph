@@ -16,6 +16,7 @@ import {
   statutoryRemittancePaymentEvidence,
   statutoryPostingEvidenceArtifacts,
 } from "@/db/schema";
+import { assertMembership } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { compareFilingToRemittance } from "@/lib/filing-remittance-snapshot";
@@ -67,6 +68,10 @@ export async function GET(request: Request) {
     .where(eq(employees.id, user.employeeId))
     .limit(1);
   if (!employee) return Response.json({ error: "Employee record not found." }, { status: 404 });
+  // A linked employee record is not an active employer grant: a former
+  // employee must not export that employer's payroll and remittance evidence.
+  const membershipDenied = await assertMembership(user.id, employee.organizationId);
+  if (membershipDenied) return membershipDenied;
   if (!employee.legalEntityId) {
     return Response.json({ error: "Your employee record has no legal employer. Contact payroll before exporting contribution evidence." }, { status: 409 });
   }
