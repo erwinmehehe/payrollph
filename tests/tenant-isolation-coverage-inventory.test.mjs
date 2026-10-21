@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 390, "Retain high-risk GET, HCM, loan, salary and single-employer DOLE proofs; unverified methods stay GAP");
-  assert.equal(manifest.metrics.coveredAfter, 95, "Retain 76 baseline methods, twelve high-risk GET, three salary, two loan and two DOLE proofs");
+  assert.equal(manifest.metrics.gap, 386, "386 methods remain GAP after retaining DL-01, government-loan and legacy DOLE proofs");
+  assert.equal(manifest.metrics.coveredAfter, 97, "95 covered methods from the integrated loan branch plus two legacy DOLE GET/POST proofs");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -498,9 +498,53 @@ test("all credited proof links point to the claimed route and every recertified 
         "scripts/qa/salary-correction-case-tenant-proof.mjs",
         "scripts/qa/workforce-attendance-sweep-http.mjs",
         "scripts/qa/hcm-work-queue-http.mjs", "scripts/qa/tenant-high-risk-01-http.mjs",
-        "scripts/qa/government-loan-read-http.mjs",
+        "scripts/qa/tenant-manifest-driven-http.mjs", "scripts/qa/government-loan-read-http.mjs",
         "scripts/qa/dole-13th-month-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
+      if (proof.file === "scripts/qa/tenant-manifest-driven-http.mjs") {
+        // The manifest-driven runner uses shared request(urls.own/foreign) lines:
+        // those lines do not repeat literal /api paths. Validate the *specific*
+        // route adapter and its executable real-HTTP proof instead of relaxing
+        // the generic guard for ordinary source-pinned method assertions.
+        const key = method.name + " " + entry.route;
+        assert.ok(new Set([
+          "GET compliance/statutory-remittances/payment-evidence/[id]",
+          "GET compliance/statutory-remittances/payment-evidence",
+        ]).has(key), path + " " + method.name + ": unreviewed table-driven credit");
+        const suite = readFileSync(proof.file, "utf8");
+        const runner = source.join("\n");
+        assert.match(runner,
+          /await \(await import\("\.\/tenant-manifest-driven-http\.mjs"\)\)\.verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus \}\)/,
+          key + ": proof must execute inside the isolated PostgreSQL HTTP harness");
+        assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+        const adapter = evidenceLine(proof.file, proof.line, key + " adapter");
+        assert.ok(adapter.includes(JSON.stringify(key) + ": {"),
+          key + ": pinned case does not match credited method");
+        const start = suite.indexOf(adapter);
+        const next = suite.indexOf("\n  \"GET ", start + adapter.length);
+        const caseSource = suite.slice(start, next < 0 ? undefined : next);
+        const urlPath = "/api/" + entry.route.replace(/\[[^\]]+\]/g, "");
+        assert.equal(caseSource.split(urlPath).length - 1, 2,
+          key + ": adapter must name actual own and victim HTTP paths");
+        assert.match(caseSource, /denial: 403/,
+          key + ": foreign employer denial must be exact 403");
+        assert.match(evidenceLine(proof.file, proof.ownPositiveLine, key + " own"),
+          /const own = expectStatus\(await request\(urls\.own, \{ cookie \}\), 200,/);
+        assert.match(evidenceLine(proof.file, proof.foreignDenialLine, key + " victim"),
+          /const foreign = expectStatus\(await request\(urls\.foreign, \{ cookie \}\), adapter\.denial,/);
+        const forged = evidenceLine(proof.file, proof.forgedSelectorLine, key + " forged selector");
+        assert.ok(forged.includes(key.endsWith("/[id]")
+          ? "const crossId = expectStatus(await request("
+          : "const filtered = expectStatus(await request("),
+          key + ": real foreign identifier must be tested under own employer");
+        assert.match(evidenceLine(proof.file, proof.unchangedDbLine, key + " victim unchanged"),
+          /assert\.deepEqual\(after, before,/);
+        assert.match(suite, /for \(const idx of \[1, 2\]\)/,
+          key + ": both independent attacker sessions required");
+        assert.match(suite, /const before = await snapshotVictim\(victimOrg\.id\)/);
+        assert.match(suite, /const after = await snapshotVictim\(victimOrg\.id\)/);
+        continue;
+      }
       if (proof.file === "scripts/qa/salary-correction-case-tenant-proof.mjs") {
         assert.equal(path, "src/app/api/hcm/salary-corrections/cases/route.ts",
           path + ": only the #641 cases endpoint may cite this source");
