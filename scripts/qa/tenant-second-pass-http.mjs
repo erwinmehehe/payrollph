@@ -142,7 +142,7 @@ async function makeFixture() {
     employeeNo: "A-" + nonce + "-" + idx, firstName: "OwnEmployee" + idx,
     lastName: "Synthetic", title: "Attacker own employee", avatarInitials: "OS",
     basicRate: "18000.00", startDate: "2026-10-01",
-  }))).returning({ id: employees.id });
+  }))).returning({ id: employees.id, employeeNo: employees.employeeNo });
   // Isolated per-tenant resource fixtures: always seed the victim first so
   // direct-object attempts exercise real high IDs rather than guessed 1..6.
   const syntheticAssets = await db.insert(assets).values([
