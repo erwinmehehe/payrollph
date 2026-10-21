@@ -129,3 +129,25 @@ test("successful password sign-in records a scoped real append-only audit before
     /password:|token:|cookie:|totpCode:|backupCode:|ip:/,
     "Audit metadata may never retain passwords, session tokens, TOTP/backup codes or IPs");
 });
+
+test("real monthly BIR 1601-C draft fixture has a complete cutoff and no invented prior payroll", () => {
+  const smoke = readFileSync("scripts/qa/post-cutover-ci-smoke.mjs", "utf8");
+  const exporter = readFileSync("src/lib/exporters.ts", "utf8");
+  const run = smoke.match(/body: \{ organizationId: state\.a, periodStart: "(\d{4}-\d{2}-\d{2})",\s*periodEnd: "(\d{4}-\d{2}-\d{2})", payDate: "(\d{4}-\d{2}-\d{2})", processNow: false \}/);
+  assert.ok(run, "The journey must exercise an actual submitted payroll, not a fabricated government draft");
+  const [, firstDay, lastDay, payDate] = run;
+  assert.ok(firstDay <= lastDay && lastDay <= payDate, "Payroll dates must be chronologically valid");
+  const nextDay = new Date(lastDay + "T00:00:00Z");
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+  assert.notEqual(nextDay.toISOString().slice(0, 7), lastDay.slice(0, 7),
+    "BIR Form 1601-C is monthly: its source payroll must end on the final day of its month");
+  const hire = smoke.match(/startDate: "(\d{4}-\d{2}-\d{2})", employeeNo: `SMOKE-\$\{index\}`/);
+  assert.ok(hire && hire[1] >= firstDay,
+    "Without an earlier released payroll in this clean baseline, final-cutoff workers must be actual new hires");
+  assert.match(smoke, /kind=government&template=bir-1601c/);
+  assert.match(smoke, /statutory\.status, 200, "STATUTORY_DRAFT_MUST_SUCCEED"/,
+    "Do not weaken the real HTTP export assertion");
+  assert.match(smoke, /"DRAFT-NOT-CERTIFIED", "STATUTORY_DRAFT_MUST_NOT_CLAIM_FILING"/);
+  assert.match(exporter, /if \(kind === "bir-1601c"\) \{\s*if \(!isFinalCutoffOfMonth\)/,
+    "The exporter must continue rejecting an incomplete monthly worksheet");
+});
