@@ -7,8 +7,9 @@ import assert from "node:assert/strict";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
-  doleReportingProfiles, doleComplianceSubmissions, employeeLoans,
+  auditEvents, doleReportingProfiles, doleComplianceSubmissions, employeeLoans,
   governmentLoanRemittanceBatches, governmentLoanRemittanceMembers,
+  statutoryRemittanceBatches, statutoryRemittancePaymentEvidence,
 } from "../../src/db/schema";
 
 export async function verifyComplianceReadSweep(f, { request, expectStatus }) {
@@ -141,4 +142,115 @@ export async function verifyComplianceReadSweep(f, { request, expectStatus }) {
     "Denied loan POST must not change victim batch balances or status");
   assert.deepEqual(victimMembersAfter, victimMembersBefore,
     "Denied loan POST must not change victim posting evidence");
+  await verifyBirAndPaymentProof(f, { request, expectStatus });
+}
+
+async function verifyBirAndPaymentProof(f, { request, expectStatus }) {
+  const victim = f.orgs[0];
+  const taxYear = 2026;
+  const officialVictimAuditsBefore = await db.select().from(auditEvents)
+    .where(eq(auditEvents.organizationId, victim.id));
+  const storedVictimProofBefore = await db.select().from(statutoryRemittancePaymentEvidence)
+    .where(eq(statutoryRemittancePaymentEvidence.organizationId, victim.id));
+  const proofRows = [];
+  for (let idx = 0; idx < 3; idx++) {
+    const [batch] = await db.select().from(statutoryRemittanceBatches)
+      .where(and(
+        eq(statutoryRemittanceBatches.organizationId, f.orgs[idx].id),
+        eq(statutoryRemittanceBatches.status, "open"),
+      )).limit(1);
+    assert.ok(batch?.id > 0, "Synthetic security smoke must have a persisted open statutory batch");
+    const [stored] = await db.select().from(statutoryRemittancePaymentEvidence)
+      .where(and(
+        eq(statutoryRemittancePaymentEvidence.organizationId, f.orgs[idx].id),
+        eq(statutoryRemittancePaymentEvidence.batchId, batch.id),
+      )).limit(1);
+    assert.ok(stored?.id > 0, "Own stored payment proof must be real before API test");
+    proofRows.push({ batch, stored });
+  }
+  const testPdf = "%PDF-1.4\\nFICTIONAL PAYROLLPH TENANT SCOPE PROOF\\n%%EOF\\n";
+  function proofForm(organizationId, batchId) {
+    const form = new FormData();
+    form.set("organizationId", String(organizationId));
+    form.set("batchId", String(batchId));
+    form.set("replacementReason", "Fictional replacement in disposable security acceptance, no payment");
+    form.set("file", new File([testPdf], "fictional-tenant-proof.pdf", { type: "application/pdf" }));
+    return form;
+  }
+  for (const idx of [1, 2]) {
+    const own = f.orgs[idx], cookie = f.ownerSessions[idx].cookie;
+    const ownModule = expectStatus(await request(
+      "/api/bir/annual-employer/module-evidence?organizationId=" + own.id +
+      "&legalEntityId=" + f.entities[idx].id + "&taxYear=" + taxYear,
+      { cookie }), 200, "Owned BIR module evidence GET must return real source digest");
+    assert.equal(ownModule.json?.organizationId, own.id);
+    assert.equal(ownModule.json?.legalEntityId, f.entities[idx].id);
+    assert.equal(ownModule.json?.taxYear, taxYear);
+    assert.match(ownModule.json?.sourceDigest, /^[a-f0-9]{64}$/);
+    expectStatus(await request(
+      "/api/bir/annual-employer/module-evidence?organizationId=" + victim.id +
+      "&legalEntityId=" + f.entities[0].id + "&taxYear=" + taxYear,
+      { cookie }), 403, "Unrelated employer cannot view victim BIR module evidence");
+
+    // Fake a prior *candidate download audit* only in isolated PostgreSQL.
+    // This is not validator acceptance and never denotes BIR filing.
+    const fileSha256 = "b".repeat(64);
+    await db.insert(auditEvents).values({
+      organizationId: own.id,
+      actor: "Fictional independent CI fixture",
+      action: "bir1604c.candidate.downloaded",
+      resource: "legal-entity:" + f.entities[idx].id + ":year:" + taxYear,
+      metadata: { sourceDigest: ownModule.json.sourceDigest, fileSha256 },
+    });
+    const observed = expectStatus(await request("/api/bir/annual-employer/module-evidence", {
+      method: "POST", cookie,
+      body: { organizationId: own.id, legalEntityId: f.entities[idx].id, taxYear,
+        mode: "observe", moduleVersion: "7.0", fileSha256,
+        sourceDigest: ownModule.json.sourceDigest, outcome: "fail",
+        validatedOn: "2026-10-19",
+        evidenceReference: "CI-FICTIONAL-NONFILING-VALIDATOR-LOG" },
+    }), 200, "Own fictitious BIR module observation must record pending review only");
+    assert.ok(observed.json?.observationId > 0);
+    assert.equal(observed.json?.status, "not run");
+    expectStatus(await request("/api/bir/annual-employer/module-evidence", {
+      method: "POST", cookie,
+      body: { organizationId: victim.id, legalEntityId: f.entities[0].id,
+        taxYear, mode: "observe", moduleVersion: "7.0",
+        fileSha256, sourceDigest: ownModule.json.sourceDigest,
+        outcome: "pass", validatedOn: "2026-10-19",
+        evidenceReference: "FORGED-VICTIM-OBSERVATION" },
+    }), 403, "Foreign BIR observation must deny actual victim employer");
+
+    const ownProof = expectStatus(await request(
+      "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
+      own.id + "&batchId=" + proofRows[idx].batch.id,
+      { cookie }), 200, "Own synthetic payment-proof GET must show real recorded proof");
+    assert.equal(ownProof.json?.organizationId, own.id);
+    assert.equal(ownProof.json?.batchId, proofRows[idx].batch.id);
+    assert.ok(ownProof.json?.evidence?.some(row => row.id === proofRows[idx].stored.id));
+    expectStatus(await request(
+      "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
+      victim.id + "&batchId=" + proofRows[0].batch.id,
+      { cookie }), 403, "Foreign statutory proof GET must deny real victim record");
+
+    const newProof = expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
+      method: "POST", cookie, form: proofForm(own.id, proofRows[idx].batch.id),
+    }), 201, "Owned known synthetic PDF upload must succeed with test-only scanner");
+    assert.ok(newProof.json?.evidence?.id > 0);
+    const [persistedProof] = await db.select().from(statutoryRemittancePaymentEvidence)
+      .where(eq(statutoryRemittancePaymentEvidence.id, newProof.json.evidence.id));
+    assert.equal(persistedProof?.organizationId, own.id);
+    assert.equal(persistedProof?.batchId, proofRows[idx].batch.id);
+    expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
+      method: "POST", cookie, form: proofForm(victim.id, proofRows[0].batch.id),
+    }), 403, "Foreign statutory proof POST must not change actual victim batch");
+  }
+  const officialVictimAuditsAfter = await db.select().from(auditEvents)
+    .where(eq(auditEvents.organizationId, victim.id));
+  assert.deepEqual(officialVictimAuditsAfter, officialVictimAuditsBefore,
+    "Denied victim BIR observation leaves all victim audit events untouched");
+  const storedVictimProofAfter = await db.select().from(statutoryRemittancePaymentEvidence)
+    .where(eq(statutoryRemittancePaymentEvidence.organizationId, victim.id));
+  assert.deepEqual(storedVictimProofAfter, storedVictimProofBefore,
+    "Denied victim payment-proof uploads leave original evidence unchanged");
 }
