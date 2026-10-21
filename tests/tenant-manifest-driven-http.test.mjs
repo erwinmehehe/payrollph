@@ -14,9 +14,9 @@ const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 493);
-  assert.equal(manifest.metrics.gap, 394, "Attendance, HCM and twelve Batch-01 GET proofs leave 394 API method GAPs");
-  assert.equal(manifest.metrics.coveredAfter, 91, "76 earlier methods, twelve high-risk GETs and three #641 correction-case proofs");
+  assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
+  assert.equal(manifest.metrics.gap, 390, "390 unverified methods remain GAP; no new DL-01 runtime credit");
+  assert.equal(manifest.metrics.coveredAfter, 93, "91 covered methods inherited from main plus two DL-01 payment-evidence GETs");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -48,14 +48,14 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
     info.methods.map((m) => [m.name + " " + info.route, { path, ...m }])));
-  assert.equal(specs.length, 6);
+  assert.equal(specs.length, 7);
   assert.equal(new Set(specs).size, specs.length);
   for (const spec of specs) {
     const method = registry.get(spec);
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 4);
+  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 3);
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
   assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);

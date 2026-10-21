@@ -51,8 +51,10 @@ export function runRegressionShard(index, total) {
   const tsxBin = join(root, "node_modules", ".bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
   // Preserve shared-DB isolation inside the shard; the four jobs have
   // independent PostgreSQL containers and deliberately independent keys.
-  const tsOk = ts.length === 0 || runBinary(tsxBin, ["--test", "--test-concurrency=1", ...ts]);
-  const mjsOk = mjs.length === 0 || runBinary(process.execPath, ["--test", "--test-concurrency=1", ...mjs]);
+  // Compact reporting keeps assertion details readable in CI log clients;
+  // it changes neither the selected inventory nor the child exit status.
+  const tsOk = ts.length === 0 || runBinary(tsxBin, ["--test", "--test-concurrency=1", "--test-reporter=spec", ...ts]);
+  const mjsOk = mjs.length === 0 || runBinary(process.execPath, ["--test", "--test-concurrency=1", "--test-reporter=spec", ...mjs]);
   return tsOk && mjsOk;
 }
 
