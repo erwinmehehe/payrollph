@@ -47,7 +47,7 @@ jobs:
       READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
       SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
       TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
-      MALWARE_SCAN_URL: https://scanner.invalid/scan
+      MALWARE_SCAN_URL: https://127.0.0.1:8443/scan
       MALWARE_SCAN_TOKEN: ci-malware-token-0000000000000000000000000000
       REQUIRE_PRIVILEGED_MFA: "true"
     services:
@@ -85,10 +85,34 @@ jobs:
           SALARY_CORRECTION_CASES_POSTGRES_QA: "true"
         run: npx tsx --test tests/hcm-salary-correction-cases-postgres.test.ts
       - run: npm run build
+      # The compliance sweep runs as part of this shared tenant harness. Its
+      # successful proof upload must be inspected by a known-file TLS scanner.
+      # No external scanner, agency or payment service is contacted.
+      - name: Start synthetic known-file TLS scanner (disposable CI only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/tenant-scanner-key.pem"
+          crt="$RUNNER_TEMP/tenant-scanner-cert.pem"
+          openssl req -x509 -nodes -newkey rsa:2048 -keyout "$key" -out "$crt" -days 1 -subj "/CN=127.0.0.1" -addext "subjectAltName=IP:127.0.0.1" >/dev/null 2>&1
+          export TENANT_SCANNER_KEY="$key" TENANT_SCANNER_CERT="$crt" NODE_EXTRA_CA_CERTS="$crt"
+          echo "TENANT_SCANNER_KEY=$key" >> "$GITHUB_ENV"
+          echo "TENANT_SCANNER_CERT=$crt" >> "$GITHUB_ENV"
+          echo "NODE_EXTRA_CA_CERTS=$crt" >> "$GITHUB_ENV"
+          nohup node scripts/qa/tenant-read-sweep-scanner.mjs > /tmp/tenant-read-scanner.log 2>&1 &
+          for attempt in {1..20}; do
+            if curl -fsSk https://127.0.0.1:8443/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/tenant-read-scanner.log
+          exit 1
       - name: Start isolated production-mode localhost server
         shell: bash
         env:
           HCM_SALARY_CORRECTION_CASES_ENABLED: "true"
+          BIR_1604C_DAT_CANDIDATE_ENABLED: "true"
           PUBLIC_API_V1_EXTENDED_ENABLED: "true"
           API_V1_EXTENDED_READS_ENABLED: "true"
           EMPLOYEE_HR_CASES_ENABLED: "true"
