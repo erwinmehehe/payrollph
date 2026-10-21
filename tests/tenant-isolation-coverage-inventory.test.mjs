@@ -264,7 +264,7 @@ test("#641 correction cases prove own success, victim denial and unchanged victi
   assert.match(lines.join("\n"), /assert\.deepEqual\(victimAuditAfter, victimAuditBefore/);
 });
 
-test("DL-02 proofs use real own success, exact victim denial and unchanged victim rows", () => {
+test("DL-02 proofs distinguish cross-tenant denials from employee membership revocation", () => {
   const workflow = readFileSync(".github/workflows/tenant-dl02-qa.yml", "utf8");
   const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
   const file = "scripts/qa/tenant-dl02-http.mjs";
@@ -280,6 +280,13 @@ test("DL-02 proofs use real own success, exact victim denial and unchanged victi
   // Revoked-membership denials must follow a real own success with the same session.
   assert.ok(source.indexOf("const ownPhotoGet = expectStatus") < source.indexOf("set({ active: false })") &&
     source.indexOf("set({ active: false })") < source.indexOf("Former employee photo GET denied"));
+  const revokedOnly = new Set([
+    "src/app/api/self/contribution-evidence/route.ts GET",
+    "src/app/api/self/photo/route.ts GET",
+    "src/app/api/self/photo/route.ts HEAD",
+    "src/app/api/self/photo/route.ts DELETE",
+  ]);
+  let revokedCount = 0;
   let count = 0;
   for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
     for (const method of record.methods) {
@@ -296,6 +303,18 @@ test("DL-02 proofs use real own success, exact victim denial and unchanged victi
       assert.match(lines[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\("\/api\//, key + ": denial must be a real request");
       assert.ok(/\), 40[34],/.test(deniedSpan), key + ": denial must assert exact 403 or 404");
       assert.ok(/victim\.|Former employee/.test(deniedSpan), key + ": denial must name a real victim object or revoked membership");
+      if (revokedOnly.has(key)) {
+        revokedCount++;
+        assert.equal(method.testedBy.denialKind, "same-session-revoked-membership",
+          key + ": label same-session revocation instead of claiming a forged victim ID");
+        assert.match(method.reason, /same signed-in session receives 403 after that employee's active employer membership is revoked/,
+          key + ": the reason must describe the real route-specific denial");
+        assert.match(deniedSpan, /Former employee/,
+          key + ": the negative HTTP request must be the revoked employee's own session");
+      } else {
+        assert.equal(method.testedBy.denialKind, undefined,
+          key + ": ordinary foreign-employer/object proof must not be labeled session revocation");
+      }
       if (["POST", "PATCH", "PUT", "DELETE", "HEAD"].includes(method.name)) {
         assert.ok(ownSpan.includes('method: "' + method.name + '"') && deniedSpan.includes('method: "' + method.name + '"'),
           key + ": proof must use the claimed method");
@@ -305,6 +324,7 @@ test("DL-02 proofs use real own success, exact victim denial and unchanged victi
       }
     }
   }
+  assert.equal(revokedCount, 4, "Four self-service methods prove same-session membership revocation");
   assert.equal(count, 19, "Nineteen DL-02 part-1 methods are credited; the rest stay GAP");
 });
 

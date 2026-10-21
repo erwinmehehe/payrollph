@@ -24048,13 +24048,14 @@
           "name": "GET",
           "line": 48,
           "status": "COVERED",
-          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "reason": "DL-02: each of two independent linked employee accounts returns real own-employer HTTP 200, then the same signed-in session receives 403 after that employee's active employer membership is revoked. No foreign victim ID is supplied to this self-service endpoint; separate victim-employer PostgreSQL records remain unchanged. Current-head CI required.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
             "line": 199,
             "ownPositiveLine": 183,
             "foreignDenialLine": 199,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "denialKind": "same-session-revoked-membership",
+            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only)."
           }
         }
       ],
@@ -25114,26 +25115,28 @@
           "name": "GET",
           "line": 59,
           "status": "COVERED",
-          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "reason": "DL-02: each of two independent linked employee accounts returns real own-employer HTTP 200, then the same signed-in session receives 403 after that employee's active employer membership is revoked. No foreign victim ID is supplied to this self-service endpoint; separate victim-employer PostgreSQL records remain unchanged. Current-head CI required.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
             "line": 196,
             "ownPositiveLine": 178,
             "foreignDenialLine": 196,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "denialKind": "same-session-revoked-membership",
+            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only)."
           }
         },
         {
           "name": "HEAD",
           "line": 62,
           "status": "COVERED",
-          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "reason": "DL-02: each of two independent linked employee accounts returns real own-employer HTTP 200, then the same signed-in session receives 403 after that employee's active employer membership is revoked. No foreign victim ID is supplied to this self-service endpoint; separate victim-employer PostgreSQL records remain unchanged. Current-head CI required.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
             "line": 197,
             "ownPositiveLine": 181,
             "foreignDenialLine": 197,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "denialKind": "same-session-revoked-membership",
+            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only)."
           }
         },
         {
@@ -25147,14 +25150,15 @@
           "name": "DELETE",
           "line": 136,
           "status": "COVERED",
-          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "reason": "DL-02: each of two independent linked employee accounts returns real own-employer HTTP 200, then the same signed-in session receives 403 after that employee's active employer membership is revoked. No foreign victim ID is supplied to this self-service endpoint; separate victim-employer PostgreSQL records remain unchanged. Current-head CI required.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
             "line": 198,
             "ownPositiveLine": 190,
             "foreignDenialLine": 198,
+            "denialKind": "same-session-revoked-membership",
             "unchangedDbLine": 214,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only)."
           }
         }
       ],

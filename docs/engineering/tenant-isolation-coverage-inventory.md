@@ -30,7 +30,7 @@ The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested
 
 ## Source-pinned counts
 
-Current branch adds twelve provisional Batch-01 GET proofs (88 COVERED / 394 GAP); exact-head HTTP CI remains mandatory. The frozen closure queue retains its original 406 methods. Baseline counts were reconciled against [`main@28e1224448342c34a4899fb67660b3da504530c1`](https://github.com/erwinmehehe/payrollph/commit/28e1224448342c34a4899fb67660b3da504530c1) on 2026-10-21. See the [method-by-method closure plan](tenant-isolation-closure-plan.md) for 12 prioritized batches; older counts in the historical audit narrative below document earlier snapshots and are **not** current status.
+**Current #1328 DL-02 batch:** 19 newly source-pinned real-HTTP method proofs bring this inventory to **110 COVERED / 8 PUBLIC-BY-DESIGN / 375 GAP** among **493 API methods**, plus **20 page/action GAPs**. Session-derived photo and contribution-evidence methods specifically prove same-session denial after revoked active employer membership; the other DL-02 methods prove foreign-employer/object 403/404 denials. Any new head must pass its applicable exact-head CI; these partial proofs do **not** certify full tenant isolation. The frozen original closure queue retains its 406-method baseline, reconciled against [`main@28e1224448342c34a4899fb67660b3da504530c1`](https://github.com/erwinmehehe/payrollph/commit/28e1224448342c34a4899fb67660b3da504530c1). See the [method-by-method closure plan](tenant-isolation-closure-plan.md). Historical lower counts remain historical, not current.
 
 | Metric | Count |
 |---|---:|
