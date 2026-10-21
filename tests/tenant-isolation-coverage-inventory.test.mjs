@@ -199,8 +199,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 415);
-  assert.equal(manifest.metrics.coveredAfter, 67);
+  assert.equal(manifest.metrics.gap, 410, "Five additional attendance methods have source-pinned HTTP proof");
+  assert.equal(manifest.metrics.coveredAfter, 72, "Retain first-payroll evidence plus five attendance methods");
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
