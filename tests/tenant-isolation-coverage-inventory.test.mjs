@@ -582,7 +582,7 @@ test("all credited proof links point to the claimed route and every recertified 
           suite.includes("for (const idx of [1, 2])") &&
           suite.includes("const before = await victimSnapshot(victimOrg.id)") &&
           suite.includes("const after = await victimSnapshot(victimOrg.id)") &&
-          suite.includes("assert.equal(receipts.length, 2)"), key + ": guarded real HTTP harness required");
+          suite.includes('assert.equal(receipts.length, 2, "Both independent attackers must execute every real method")'), key + ": guarded real HTTP harness required");
         assert.ok(source.join("\n").includes('verifyDl01Batch2(f, { request, expectStatus })'),
           key + ": method-specific source must run inside existing protected HTTP runner");
         if (method.name === "POST") {
