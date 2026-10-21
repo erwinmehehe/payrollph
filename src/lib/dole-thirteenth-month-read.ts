@@ -58,8 +58,9 @@ function employee(value: unknown): value is { employeeNo: string; employeeName: 
   return record(value) && text(value.employeeNo) && text(value.employeeName) && amount(value.amountGranted);
 }
 function reviewRow(value: unknown): boolean {
-  return employee(value) && record(value) &&
-    amount(value.screeningEntitlement) && amount(value.screeningShortfall);
+  if (!employee(value)) return false;
+  const fields = value as unknown as Record<string, unknown>;
+  return amount(fields.screeningEntitlement) && amount(fields.screeningShortfall);
 }
 function submission(value: unknown, withId: boolean): boolean {
   return record(value) && (!withId || id(value.id)) && hash(value.reportHash) &&
@@ -101,8 +102,8 @@ export function isVerifiedDole13thRead(
   const grantedCents = employees.reduce((sum, row) => sum + Math.round(row.amountGranted * 100), 0);
   if (Math.round((report.totalBenefitsGranted as number) * 100) !== grantedCents) return false;
   const complete = value.profile !== null &&
-    ["establishmentAddress", "principalBusiness", "contactName", "contactPosition",
-      "contactPhone"].every(field => Boolean((value.profile as DoleProfile)[field].trim()));
+    (["establishmentAddress", "principalBusiness", "contactName", "contactPosition",
+      "contactPhone"] as const).every(field => Boolean((value.profile as DoleProfile)[field].trim()));
   if (value.profileComplete !== complete ||
       value.readyToSubmit !== (complete && employees.length > 0)) return false;
   if (value.submissionCurrent !== (value.currentSubmission !== null)) return false;
