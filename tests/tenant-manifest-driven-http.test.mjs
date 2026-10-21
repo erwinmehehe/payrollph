@@ -55,7 +55,25 @@ test("single table-driven test reads ALL 490 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 4);
+  // The baseline had four adapter GAPs. Only the government-loan and
+  // payment-evidence index GETs can leave that group after their own real,
+  // two-attacker compliance HTTP suite is source-pinned and wired into CI.
+  const newlySourcePinned = [
+    "GET compliance/government-loan-remittances",
+    "GET compliance/statutory-remittances/payment-evidence",
+  ];
+  for (const spec of newlySourcePinned) {
+    const method = registry.get(spec);
+    assert.equal(method?.status, "COVERED",
+      spec + ": the real own-employer HTTP success and victim denial must be retained");
+    assert.equal(method.testedBy?.file, "scripts/qa/compliance-read-sweep-http.mjs",
+      spec + ": anonymous or unrelated proof cannot close a GAP");
+    assert.ok(harness.includes("verifyComplianceReadSweep(f, { request, expectStatus })"),
+      spec + ": new HTTP proof must actually execute in the disposable PostgreSQL runner");
+  }
+  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length +
+    newlySourcePinned.length, 4,
+    "The original four adapter GAPs can only shrink by the two source-pinned compliance reads");
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
   assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);
