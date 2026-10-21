@@ -142,6 +142,7 @@ export async function GET(request: Request) {
 
   const packet = await loadProbationReviewPacket({ organizationId, employmentTermId });
   return Response.json({
+    organizationId,
     review: packet?.review ?? null,
     acknowledgment: packet?.acknowledgment ?? null,
     events: packet?.events ?? [],
