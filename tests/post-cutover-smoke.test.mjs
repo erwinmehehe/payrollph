@@ -85,6 +85,7 @@ test("row alteration, missing persisted head and deleted sealed tail are detecte
 test("exact protected runner, app UPDATE audit denial, restart proof and sanitized reports are all wired", () => {
   const ci = readFileSync("scripts/qa/post-cutover-ci-smoke.mjs", "utf8");
   const live = readFileSync("scripts/qa/post-cutover-live-smoke.mjs", "utf8");
+  const restart = readFileSync("scripts/qa/post-cutover-restart-smoke.mjs", "utf8");
   const flow = readFileSync(".github/workflows/post-cutover-real-role-smoke.yml", "utf8");
   assert.match(ci, /UPDATE public.audit_events SET actor='tamper'/);
   assert.match(ci, /assert\.ok\(code === "42501"/);
@@ -99,6 +100,8 @@ test("exact protected runner, app UPDATE audit denial, restart proof and sanitiz
   assert.match(flow, /run-clean-baseline-cutover\.mjs --apply/);
   assert.match(flow, /node_modules\/next\/dist\/bin\/next start/);
   assert.match(flow, /post-cutover-restart-smoke\.mjs/);
+  assert.match(restart, /dispatchAuditSealing/);
+  assert.match(restart, /RESTART_LOGIN_LEFT_UNSEALED_TAIL/);
   assert.match(flow, /actions\/upload-artifact/);
   assert.doesNotMatch(flow.split("\n").filter(line => !line.trimStart().startsWith("#")).join("\n"), /environment:\s*production|PRODUCTION_CUTOVER_OWNER_DATABASE_URL|secrets\.\w/);
 });
