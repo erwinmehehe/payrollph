@@ -22,7 +22,9 @@ test("foreign employer HTML must continue to reject real victim markers", () => 
   assert.match(probe, /assert\.ok\(!foreignRes\.text\.includes\(victimPrivateEmployeeMarker\)/);
   assert.match(probe, /assert\.ok\(!foreignRes\.text\.includes\("VictimExclusive7"\)/);
   assert.match(probe, /victimEmployeeAndPayrollUnchanged: true/);
-  assert.match(probe, /outstandingPageOrActionGaps: pages\.length, pageGapsReclassified: 0/);
+  assert.match(probe, /const pageGaps = pages\.filter\(\(page\) => page\.status === "GAP"\);/);
+  assert.match(probe, /assert\.equal\(pageGaps\.length, 19,/);
+  assert.match(probe, /outstandingPageOrActionGaps: pageGaps\.length, pageGapsReclassified: 0/);
 });
 
 test("undefined is NEVER acceptable as a sensitive marker", () => {
