@@ -46,7 +46,7 @@ export async function verifyTenantIndependentImportTemplate(f, { request, expect
     const own = expectStatus(await request(
       "/api/compliance/statutory-remittances/posting-import", options), 200,
     "Anonymous or signed-in caller receives the same static statutory posting template");
-    assert.match(own.headers.get("content-type") ?? "", /^text\\/csv/i);
+    assert.match(own.headers.get("content-type") ?? "", /^text\/csv/i);
     assert.match(own.headers.get("content-disposition") ?? "", /^attachment;/);
     assert.ok(own.text.length > 20);
     const forged = expectStatus(await request(
