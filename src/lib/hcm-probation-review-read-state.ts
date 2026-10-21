@@ -73,7 +73,7 @@ export function isScopedProbationReviewEnvelope(
       || packet.term.employeeId !== employeeId || packet.term.organizationId !== organizationId
       || packet.term.termKind !== "probationary") return false;
   if (packet.review === null) {
-    return packet.acknowledgment === null && packet.events.length === 0 && packet.mutable === true;
+    return packet.acknowledgment === null && packet.events.length === 0;
   }
   const review = packet.review;
   if (!isObject(review) || !id(review.id)
@@ -89,7 +89,7 @@ export function isScopedProbationReviewEnvelope(
         (key) => optionalString(review[key]))
       || typeof review.reviewerName !== "string"
       || !(review.submittedAt === null || reviewDate(review.submittedAt))
-      || packet.mutable !== (review.status === "draft")) return false;
+      || (review.status === "submitted" && packet.mutable !== false)) return false;
   if (review.status === "submitted" &&
       (review.submittedAt === null || review.recommendation === null ||
        ["overallRating", "roleExpectationsRating", "workQualityRating",
