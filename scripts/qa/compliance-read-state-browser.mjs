@@ -87,7 +87,10 @@ mkdirSync("qa-artifacts",{recursive:true});
 const report={sha:process.env.PR_HEAD_SHA??"local",baselineSha,screenWidths:[1280,390],
   modes:["loading","error","empty"],variants:["legacy","off","on"],
   checks:[],flagOffMatchesLegacy:false,synthetic:true};
-const browser=await chromium.launch({headless:true});
+const browser=await chromium.launch({headless:true,
+  ...(process.env.QA_CHROMIUM_EXECUTABLE
+    ? {executablePath:process.env.QA_CHROMIUM_EXECUTABLE} : {}),
+});
 try {
   for(const width of report.screenWidths) for(const mode of report.modes){
     const html={};
