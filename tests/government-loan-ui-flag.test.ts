@@ -16,8 +16,8 @@ test("government loan UI defaults to byte-identical legacy markup and exact-true
     }
     process.env.NEXT_PUBLIC_GOVERNMENT_LOAN_REMITTANCE_UI_ENABLED = "true";
     const markup = renderToStaticMarkup(createElement(GovernmentLoanRemittancePanel, props));
-    assert.match(markup, /Verifying employer-scoped remittance and member evidence/);
-    assert.match(markup, /disabled=""/);
+    assert.match(markup, /Checking authorized legal employers/);
+    assert.doesNotMatch(markup, /Open SSS loan remittance/);
     assert.doesNotMatch(markup, /No remittance batch is recorded/);
   } finally {
     if (previous === undefined) delete process.env.NEXT_PUBLIC_GOVERNMENT_LOAN_REMITTANCE_UI_ENABLED;

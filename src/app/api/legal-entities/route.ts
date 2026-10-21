@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
@@ -121,8 +121,10 @@ export async function GET(request: Request) {
       .where(and(
         eq(legalEntities.organizationId, organizationId),
         eq(legalEntities.active, true),
-        scope.context.enabled && scope.context.legalEntityId !== null
-          ? eq(legalEntities.id, scope.context.legalEntityId) : undefined,
+        // Only explicitly permitted active legal employers are listed.
+        scope.context.enabled
+          ? inArray(legalEntities.id, scope.context.entities.map(entity => entity.id))
+          : undefined,
       ))
       .orderBy(asc(legalEntities.id));
     return Response.json({ organizationId, legalEntities: entities });

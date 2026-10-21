@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
-  assert.equal(manifest.metrics.gap, 386, "386 methods remain GAP after retaining DL-01, government-loan and legacy DOLE proofs");
-  assert.equal(manifest.metrics.coveredAfter, 97, "95 covered methods from the integrated loan branch plus two legacy DOLE GET/POST proofs");
+  assert.equal(manifest.metrics.gap, 383, "383 unverified methods remain GAP after retaining main, loan and DOLE proofs");
+  assert.equal(manifest.metrics.coveredAfter, 100, "98 integrated loan/main proofs plus two legacy DOLE methods");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -55,20 +55,17 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  // Payment-evidence and government-loan GETs retain separate executed proofs.
-  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), [
-    "GET compliance/remittance-actions",
-    "GET compliance/statutory-remittances/posting-evidence/[id]",
-  ]);
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), ["GET compliance/remittance-actions"]);
   const expectedCovered = [
     "GET compliance/bir-1601c-remittances",
     "GET compliance/government-loan-remittances",
     "GET compliance/statutory-remittances",
     "GET compliance/statutory-remittances/payment-evidence",
     "GET compliance/statutory-remittances/payment-evidence/[id]",
+    "GET compliance/statutory-remittances/posting-evidence/[id]",
   ];
   assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "COVERED").sort(),
-    expectedCovered.sort(), "Preserve all five independently verified HTTP GET adapters");
+    expectedCovered.sort(), "Preserve all six independently verified HTTP GET adapters");
   for (const spec of expectedCovered) {
     const proof = registry.get(spec).testedBy;
     assert.ok(proof?.file && proof.ownPositiveLine && proof.foreignDenialLine,

@@ -7,6 +7,7 @@ on:
       - "src/components/government-loan-remittance-panel.tsx"
       - "src/components/government-loan-remittance-panel-legacy.tsx"
       - "src/lib/government-loan-remittance-read.ts"
+      - "src/lib/government-loan-employer-scope.ts"
       - "src/lib/critical-release-flags.ts"
       - "scripts/qa/government-loan-ui-browser.mjs"
       - ".github/workflows/government-loan-ui-browser.yml"

@@ -21,6 +21,7 @@ import { RoleOverviewV2 } from "./role-overview-v2";
 import { CleanRoleDashboard } from "./clean-role-dashboard";
 import { PremiumDashboard } from "./premium-dashboard";
 import { buildPayrollHandoff, payrollHandoffRank, type PayrollHandoffStage } from "@/lib/payroll-handoff";
+import { verifiedDashboardAmount } from "@/lib/dashboard-presentation";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
   Avatar,
@@ -570,12 +571,12 @@ function CheckerDashboard(props: RoleDashboardProps) {
 
   const checkerExceptions = data.payrollEntries.filter((entry) => entry.status === "Exception").length;
   const previousReleasedRun = data.payrollRuns.find((run) => run.id !== currentRun?.id && run.status === "Released");
-  const currentNet = Number(currentRun?.netPay ?? 0);
-  const previousNet = Number(previousReleasedRun?.netPay ?? 0);
-  const netDelta = currentNet - previousNet;
-  const comparison = previousReleasedRun
+  const currentNet = verifiedDashboardAmount(currentRun?.netPay);
+  const previousNet = verifiedDashboardAmount(previousReleasedRun?.netPay);
+  const netDelta = currentNet === null || previousNet === null ? null : currentNet - previousNet;
+  const comparison = previousReleasedRun && netDelta !== null
     ? `${netDelta >= 0 ? "+" : ""}${shortMoney(netDelta)} vs ${previousReleasedRun.periodLabel}`
-    : "No previous released payroll";
+    : previousReleasedRun ? "Comparison unavailable" : "No previous released payroll";
   const checkerAlertItems: DashboardAlertItem[] = [];
   if (pendingTasks.length) checkerAlertItems.push({ id: "approval", label: `${pendingTasks.length} payroll run${pendingTasks.length === 1 ? "" : "s"} need your approval`, tone: "warning" });
   if (checkerExceptions) checkerAlertItems.push({ id: "exceptions", label: `${checkerExceptions} payroll exception${checkerExceptions === 1 ? "" : "s"} remain visible`, tone: "danger" });

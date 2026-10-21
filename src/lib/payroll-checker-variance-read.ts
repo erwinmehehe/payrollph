@@ -58,6 +58,36 @@ export type PayrollVarianceExpectedRun = {
   ruleVersion: string;
 };
 
+/**
+ * Cache identity for verified checker evidence. Recalculation can modify
+ * source money, a payroll entry, or the run scope without changing run status.
+ * A previously verified comparison is valid only for the same source snapshot.
+ */
+export function checkerVarianceSourceKey(
+  organizationId: number,
+  run: (PayrollVarianceExpectedRun & {
+    exceptions?: number; totalChunks?: number | null; processedChunks?: number | null;
+  }) | undefined,
+  entries: ReadonlyArray<{
+    id: number; employeeId: number; status: string;
+    grossPay: string; deductions: string; netPay: string;
+    lineItems?: unknown; trace?: unknown;
+  }>,
+): string | null {
+  if (!id(organizationId) || !run || !id(run.id)) return null;
+  return JSON.stringify([
+    organizationId, run.id, run.legalEntityId ?? null,
+    run.scopeOrgUnitId ?? null, run.periodLabel, run.periodStart,
+    run.periodEnd, run.payDate, run.status, run.employeeCount,
+    run.exceptions ?? null, run.grossPay, run.netPay, run.ruleVersion,
+    run.totalChunks ?? null, run.processedChunks ?? null,
+    entries.map((entry) => [
+      entry.id, entry.employeeId, entry.status, entry.grossPay,
+      entry.deductions, entry.netPay, entry.lineItems, entry.trace,
+    ]),
+  ]);
+}
+
 export const CHECKER_VARIANCE_CATEGORIES = [
   "exception", "salary_change", "overtime_spike", "retro", "new_hire",
   "new_to_run", "separation", "missing_from_run", "bank_details",

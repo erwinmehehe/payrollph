@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 386, "386 methods remain GAP after retaining DL-01, government-loan and legacy DOLE proofs");
-  assert.equal(manifest.metrics.coveredAfter, 97, "95 covered methods from the integrated loan branch plus two legacy DOLE GET/POST proofs");
+  assert.equal(manifest.metrics.gap, 383, "383 unverified methods remain GAP after retaining main, loan and DOLE proofs");
+  assert.equal(manifest.metrics.coveredAfter, 100, "98 integrated loan/main proofs plus two legacy DOLE methods");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -497,10 +497,51 @@ test("all credited proof links point to the claimed route and every recertified 
         "scripts/qa/pr-1302-tenant-proof.mjs",
         "scripts/qa/salary-correction-case-tenant-proof.mjs",
         "scripts/qa/workforce-attendance-sweep-http.mjs",
-        "scripts/qa/hcm-work-queue-http.mjs", "scripts/qa/tenant-high-risk-01-http.mjs",
-        "scripts/qa/tenant-manifest-driven-http.mjs", "scripts/qa/government-loan-read-http.mjs",
-        "scripts/qa/dole-13th-month-http.mjs"].includes(proof?.file),
+        "scripts/qa/hcm-work-queue-http.mjs",
+        "scripts/qa/tenant-manifest-driven-http.mjs", "scripts/qa/tenant-high-risk-01-http.mjs",
+        "scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs", "scripts/qa/government-loan-read-http.mjs", "scripts/qa/dole-13th-month-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
+      if (["scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs"].includes(proof.file)) {
+        const history = proof.file.endsWith("tenant-dl01-import-history-http.mjs");
+        const route = history ? "employees/import" : "compliance/filing-validations/[id]/file";
+        const key = "GET " + route;
+        assert.equal(path, "src/app/api/" + route + "/route.ts", "No unrelated method may borrow DL-01 proof");
+        assert.equal(method.name, "GET", "Read proof cannot certify a mutation");
+        const declaration = history ? 'export const IMPORT_HISTORY_METHOD = "GET employees/import";' : 'export const FILING_FILE_METHOD = "GET compliance/filing-validations/[id]/file";';
+        const suite = readFileSync(proof.file, "utf8");
+        const lines = suite.split("\n");
+        const pins = {
+          line: declaration,
+          ownPositiveLine: "const own = expectStatus(await request(",
+          foreignDenialLine: "const foreign = expectStatus(await request(",
+          forgedSelectorLine: history ? "const ignored = expectStatus(await request(" : "const forged = expectStatus(await request(",
+          unchangedDbLine: "assert.deepEqual(after, before,",
+          victimExistsLine: "assert.equal(persistedVictim?.organizationId, victimOrg.id)",
+          victimIdOrderingLine: history ? "assert.ok(victim.id > 6 && victim.id > rows[8].id && victim.id > rows[9].id)" : "assert.ok(victim.record.id > 6 && victim.record.id > fixtures[7].record.id && victim.record.id > fixtures[8].record.id)",
+        };
+        for (const [field, fragment] of Object.entries(pins)) {
+          assert.ok(evidenceLine(proof.file, proof[field], key + " " + field).trimStart().startsWith(fragment), key + " incorrect " + field);
+        }
+        const span = field => lines.slice(proof[field] - 1, proof[field] + 3).join("\n");
+        assert.ok(span("ownPositiveLine").includes("), 200,"));
+        assert.ok(span("foreignDenialLine").includes("), 403,"));
+        assert.ok(proof.ownPositiveLine < proof.foreignDenialLine && proof.foreignDenialLine < proof.forgedSelectorLine);
+        assert.ok(proof.forgedSelectorLine < proof.unchangedDbLine);
+        assert.ok(suite.includes(history ? "assertOwnHistory(own, ownOrg.id, owned, victim)" : "assertOwnedFilingBytes(own, owned)"));
+        assert.ok(suite.includes(history ? "assertOwnHistory(ignored, ownOrg.id, owned, victim)" : "assertOwnedFilingBytes(forged, owned)"));
+        const snapshot = history ? "snapshotVictimImportHistory" : "snapshotVictimFilings";
+        assert.ok(suite.includes("const before = await " + snapshot + "(victimOrg.id)"));
+        assert.ok(suite.includes("const after = await " + snapshot + "(victimOrg.id)"));
+        assert.ok(suite.includes('process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only"'));
+        assert.ok(suite.includes('process.env.SECURITY_SMOKE_URL, "http://127.0.0.1:3000"'));
+        assert.ok(suite.includes("for (const idx of [1, 2])"));
+        assert.ok(suite.includes("assert.equal(receipts.length, 2)"));
+        const hook = readFileSync("scripts/qa/tenant-static-template-http.mjs", "utf8");
+        const fn = history ? "verifyTenantImportHistory" : "verifyTenantFilingFile";
+        assert.ok(hook.includes("await " + fn + "(f, { request, expectStatus });"));
+        assert.ok(source.join("\n").includes("verifyTenantIndependentImportTemplate(f, { request, expectStatus })"));
+        continue;
+      }
       if (proof.file === "scripts/qa/tenant-manifest-driven-http.mjs") {
         // The manifest-driven runner uses shared request(urls.own/foreign) lines:
         // those lines do not repeat literal /api paths. Validate the *specific*
@@ -510,6 +551,7 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.ok(new Set([
           "GET compliance/statutory-remittances/payment-evidence/[id]",
           "GET compliance/statutory-remittances/payment-evidence",
+          "GET compliance/statutory-remittances/posting-evidence/[id]",
         ]).has(key), path + " " + method.name + ": unreviewed table-driven credit");
         const suite = readFileSync(proof.file, "utf8");
         const runner = source.join("\n");
@@ -522,7 +564,9 @@ test("all credited proof links point to the claimed route and every recertified 
           key + ": pinned case does not match credited method");
         const start = suite.indexOf(adapter);
         const next = suite.indexOf("\n  \"GET ", start + adapter.length);
-        const caseSource = suite.slice(start, next < 0 ? undefined : next);
+        const registryEnd = suite.indexOf("\n});\nexport const FIRST_ADAPTED_METHODS", start);
+        assert.ok(registryEnd > start, key + ": registry boundary missing");
+        const caseSource = suite.slice(start, next < 0 ? registryEnd : next);
         const urlPath = "/api/" + entry.route.replace(/\[[^\]]+\]/g, "");
         assert.equal(caseSource.split(urlPath).length - 1, 2,
           key + ": adapter must name actual own and victim HTTP paths");
@@ -533,9 +577,12 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(evidenceLine(proof.file, proof.foreignDenialLine, key + " victim"),
           /const foreign = expectStatus\(await request\(urls\.foreign, \{ cookie \}\), adapter\.denial,/);
         const forged = evidenceLine(proof.file, proof.forgedSelectorLine, key + " forged selector");
-        assert.ok(forged.includes(key.endsWith("/[id]")
-          ? "const crossId = expectStatus(await request("
-          : "const filtered = expectStatus(await request("),
+        const forgedByKey = {
+          "GET compliance/statutory-remittances/payment-evidence/[id]": "const crossId = expectStatus(await request(",
+          "GET compliance/statutory-remittances/payment-evidence": "const filtered = expectStatus(await request(",
+          "GET compliance/statutory-remittances/posting-evidence/[id]": "const forged = expectStatus(await request(",
+        };
+        assert.ok(forged.trimStart().startsWith(forgedByKey[key]),
           key + ": real foreign identifier must be tested under own employer");
         assert.match(evidenceLine(proof.file, proof.unchangedDbLine, key + " victim unchanged"),
           /assert\.deepEqual\(after, before,/);
