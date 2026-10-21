@@ -14,9 +14,9 @@ const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 493);
-  assert.equal(manifest.metrics.gap, 392, "Attendance, HCM, twelve high-risk GET and two statutory GET/POST proofs leave 392 open methods");
-  assert.equal(manifest.metrics.coveredAfter, 93, "Retain twelve high-risk GET, three salary-correction and two statutory real-HTTP proof methods");
+  assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
+  assert.equal(manifest.metrics.gap, 389, "One new secured proof POST preserves 389 remaining method GAPs");
+  assert.equal(manifest.metrics.coveredAfter, 94, "Merged own/foreign DL-01 GETs plus statutory proof POST");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -48,7 +48,7 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
     info.methods.map((m) => [m.name + " " + info.route, { path, ...m }])));
-  assert.equal(specs.length, 6);
+  assert.equal(specs.length, 7);
   assert.equal(new Set(specs).size, specs.length);
   for (const spec of specs) {
     const method = registry.get(spec);

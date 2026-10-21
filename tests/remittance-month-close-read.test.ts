@@ -101,9 +101,12 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
-  assert.equal(manifest.metrics.methods, 493);
-  assert.equal(manifest.metrics.coveredAfter, 93, "Preserve salary-correction, high-risk GET and two statutory payment-evidence source proofs");
-  assert.equal(manifest.metrics.gap, 392, "Payout provider POST and 391 other unverified methods remain GAPs");
+  assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
+  // Pin the DL-01 ledger exactly; retain the endpoint-specific HTTP proofs below.
+  assert.equal(manifest.metrics.coveredAfter, 94, "Merged receipt POST plus DL-01 GET receipts; all counts provisional");
+  assert.equal(manifest.metrics.publicByDesign, 10, "Eight inherited public dispositions plus two DL-01 fixed templates");
+  assert.equal(manifest.metrics.gap, 389, "389 other methods still need own/victim evidence");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);

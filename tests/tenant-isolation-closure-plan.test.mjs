@@ -115,3 +115,36 @@ test("all preexisting COVERED references have real, checked-in own/victim and wr
     }
   }
 });
+
+
+// This is a bookkeeping guard, never a substitute for HTTP/DB proof.
+function assertCurrentAcceptanceCounts(value) {
+  const methods = Object.values(value.allApiRouteFiles).flatMap(route => route.methods);
+  const gap = methods.filter(method => method.status === "GAP").length;
+  const pages = value.scopedPages.filter(page => page.status === "GAP").length;
+  const heading = /^NOT ACCEPTED: ([0-9]+) API methods and ([0-9]+) page\/action GAPs remain\./.exec(value.acceptanceStatus);
+  assert.ok(heading, "Acceptance header must stay NOT ACCEPTED and include exact counts");
+  assert.equal(value.metrics.gap, gap, "Actual method gaps differ from metric");
+  assert.equal(Number(heading[1]), gap, "Acceptance text has a stale API GAP count");
+  assert.equal(Number(heading[2]), pages, "Acceptance text has a stale page/action GAP count");
+}
+
+test("acceptance header matches actual method and page GAPs, not historical totals", () => {
+  assertCurrentAcceptanceCounts(manifest);
+});
+
+test("acceptance guard rejects stale counts and never accepts an accepted label", () => {
+  const gap = manifest.metrics.gap;
+  const pages = manifest.scopedPages.filter(page => page.status === "GAP").length;
+  for (const text of [
+    "NOT ACCEPTED: " + (gap + 1) + " API methods and " + pages + " page/action GAPs remain.",
+    "NOT ACCEPTED: " + gap + " API methods and " + (pages + 1) + " page/action GAPs remain.",
+    "ACCEPTED: " + gap + " API methods and " + pages + " page/action GAPs remain.",
+    "NOT ACCEPTED",
+  ]) {
+    assert.throws(() => assertCurrentAcceptanceCounts({ ...manifest, acceptanceStatus: text }));
+  }
+  assert.throws(() => assertCurrentAcceptanceCounts({
+    ...manifest, metrics: { ...manifest.metrics, gap: gap + 1 },
+  }));
+});
