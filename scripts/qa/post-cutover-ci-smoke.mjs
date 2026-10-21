@@ -326,8 +326,10 @@ try {
     const before = await auditCount(state.a);
     const result = await http("/api/payroll-runs", { method: "POST",
       cookie: state.ownerCookie,
-      body: { organizationId: state.a, periodStart: "2026-09-01",
-        periodEnd: "2026-09-15", payDate: "2026-09-16", processNow: false } });
+      // A BIR 1601-C draft is monthly and must come from the final payroll
+      // cutoff; keep the fictional journey canonical and filing-eligible.
+      body: { organizationId: state.a, periodStart: "2026-09-16",
+        periodEnd: "2026-09-30", payDate: "2026-09-30", processNow: false } });
     const draft = expectStatus(result, 201, "PAYROLL_DRAFT");
     state.run = draft.run.id;
     assert.equal(draft.run.status, "Draft", "PAYROLL_DRAFT_STATE");
