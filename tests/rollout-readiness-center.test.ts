@@ -4,13 +4,14 @@ import test from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("rollout readiness is authenticated and does not expose deployment secrets or global counts", () => {
+test("workspace readiness is authenticated and rejects unscoped platform diagnostics", () => {
   const route = read("src/app/api/readiness/workspace/route.ts");
   assert.ok(route.includes("getSessionUser"));
   assert.ok(route.includes("ORG_ADMIN_ROLES"));
   assert.ok(route.includes("company-wide access"));
-  assert.ok(route.includes("buildReadinessPayload"));
-  assert.ok(route.includes("manualWorkaround"));
+  assert.ok(route.includes("tenantReadinessUnavailable(organizationId)"));
+  assert.equal(route.includes("buildReadinessPayload"), false);
+  assert.equal(route.includes("manualWorkaround"), false);
   assert.equal(route.includes("counts:"), false);
   assert.equal(route.includes("READINESS_TOKEN"), false);
   assert.equal(route.includes("TOTP_ENCRYPTION_KEY"), false);

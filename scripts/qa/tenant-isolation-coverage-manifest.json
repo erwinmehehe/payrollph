@@ -2,7 +2,7 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 410 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. An additional five workforce attendance GET/POST methods have synthetic own/foreign tenant evidence with unchanged victim database assertions. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required.",
+  "acceptanceStatus": "NOT ACCEPTED: 410 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required.",
   "metrics": {
     "routeFiles": 289,
     "methods": 490,
@@ -22449,15 +22449,24 @@
       "businessIds": []
     },
     "src/app/api/readiness/workspace/route.ts": {
-      "gitBlobSha": "0d70753b2bc9b455ee256bae57633fd662b7a242",
+      "gitBlobSha": "10121c3378f2e4ee983ab9b9551498a6f8dccdfd",
       "route": "readiness/workspace",
       "methods": [
         {
           "name": "GET",
           "line": 7,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Own authenticated GET deliberately refuses unscoped platform readiness with HTTP 503; foreign employer GET is denied 403. Containment is not a positive, tenant-safe readiness source; remains GAP until functional employer-bound verification is implemented.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "routeBlobSha": "10121c3378f2e4ee983ab9b9551498a6f8dccdfd",
+            "file": "scripts/qa/workspace-readiness-http.mjs",
+            "ownPositiveLine": 26,
+            "foreignDenialLine": 31,
+            "ownStatus": 503,
+            "foreignStatus": 403,
+            "scope": "Synthetic isolated three-employer fail-closed containment only; 503 own is NOT successful readiness verification"
+          }
         }
       ],
       "employerSources": {

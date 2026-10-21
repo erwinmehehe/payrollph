@@ -104,6 +104,34 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(method.testedBy, null, "Payout POST remains uncertified, never COVERED");
     return;
   }
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/readiness/workspace/route.ts GET") {
+    // A 503 own read is NOT a successful readiness read. The sole approved
+    // exception is a SHA-pinned deny-by-default endpoint and executable,
+    // independent foreign-denial proof; the method stays GAP.
+    const proof = method.reviewedUncertified;
+    assert.equal(currentBlob, "10121c3378f2e4ee983ab9b9551498a6f8dccdfd",
+      "Changes to the readiness route must renew containment review");
+    assert.equal(proof?.routeBlobSha, currentBlob);
+    assert.equal(proof?.file, "scripts/qa/workspace-readiness-http.mjs");
+    assert.equal(proof?.ownStatus, 503);
+    assert.equal(proof?.foreignStatus, 403);
+    const own = evidenceLine(proof.file, proof.ownPositiveLine, key + " own 503");
+    const foreign = evidenceLine(proof.file, proof.foreignDenialLine, key + " foreign 403");
+    const lines = readableLines(proof.file);
+    const ownSpan = lines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 3).join("\n");
+    assert.match(own, /const ownReadinessUnavailable = expectStatus\(await request\(/);
+    assert.match(ownSpan, /\), 503,/);
+    assert.match(foreign, /expectStatus\(await request\(/);
+    assert.match(foreign, /\), 403,/);
+    assert.match(lines.join("\n"), /TENANT_SECOND_PASS_MODE/);
+    assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),
+      /verifyWorkspaceReadinessIsolation\(f, \{ request, expectStatus \}\)/);
+    assert.match(readFileSync("src/app/api/readiness/workspace/route.ts", "utf8"),
+      /return tenantReadinessUnavailable\(organizationId\)/);
+    assert.equal(method.testedBy, null, "No successful owned readiness read: keep GAP");
+    return;
+  }
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
