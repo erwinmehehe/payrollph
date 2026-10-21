@@ -219,7 +219,7 @@ function getManifest(projectHistoricalMarketingIndexes = false) {
       throw Error("HISTORICAL_1031_ACTIVE_PROOF_INDEX_MODEL_DRIFT");
     const reviewedIndex = reviewedIndexes[0];
     const normalizedPredicate = String(reviewedIndex.predicate ?? "")
-      .replaceAll('"', "").replace(/\\s+/g, " ").trim();
+      .replaceAll('"', "").replace(/\s+/g, " ").trim();
     if (reviewedIndex.unique !== true || reviewedIndex.method !== "btree" ||
         reviewedIndex.keys.length !== 1 || reviewedIndex.keys[0] !== "batch_id" ||
         normalizedPredicate !== "statutory_remittance_payment_evidence.status = 'active'")
