@@ -133,7 +133,9 @@ test("successful password sign-in records a scoped real append-only audit before
 test("real monthly BIR 1601-C draft fixture has a complete cutoff and no invented prior payroll", () => {
   const smoke = readFileSync("scripts/qa/post-cutover-ci-smoke.mjs", "utf8");
   const exporter = readFileSync("src/lib/exporters.ts", "utf8");
-  const run = smoke.match(/body: \{ organizationId: state\.a, periodStart: "(\d{4}-\d{2}-\d{2})",\s*periodEnd: "(\d{4}-\d{2}-\d{2})", payDate: "(\d{4}-\d{2}-\d{2})", processNow: false \}/);
+  const draftCheck = smoke.split('await check("create payroll draft and ensure audit receipt"')[1]?.split('await check("failed payroll processing leaves no partial entries"')[0];
+  assert.ok(draftCheck, "Missing the real payroll draft HTTP step");
+  const run = draftCheck.match(/body: \{ organizationId: state\.a, periodStart: "(\d{4}-\d{2}-\d{2})",\s*periodEnd: "(\d{4}-\d{2}-\d{2})", payDate: "(\d{4}-\d{2}-\d{2})", processNow: false \}/);
   assert.ok(run, "The journey must exercise an actual submitted payroll, not a fabricated government draft");
   const [, firstDay, lastDay, payDate] = run;
   assert.ok(firstDay <= lastDay && lastDay <= payDate, "Payroll dates must be chronologically valid");
@@ -141,7 +143,9 @@ test("real monthly BIR 1601-C draft fixture has a complete cutoff and no invente
   nextDay.setUTCDate(nextDay.getUTCDate() + 1);
   assert.notEqual(nextDay.toISOString().slice(0, 7), lastDay.slice(0, 7),
     "BIR Form 1601-C is monthly: its source payroll must end on the final day of its month");
-  const hire = smoke.match(/startDate: "(\d{4}-\d{2}-\d{2})", employeeNo: `SMOKE-\$\{index\}`/);
+  const onboarding = smoke.split('await check("employee onboarding through real HTTP"')[1]?.split('await check("two-employer high-risk HTTP read/write isolation"')[0];
+  assert.ok(onboarding, "Missing the real two-worker onboarding HTTP step");
+  const hire = onboarding.match(/startDate: "(\d{4}-\d{2}-\d{2})", employeeNo: `SMOKE-\$\{index\}`/);
   assert.ok(hire && hire[1] >= firstDay,
     "Without an earlier released payroll in this clean baseline, final-cutoff workers must be actual new hires");
   assert.match(smoke, /kind=government&template=bir-1601c/);
