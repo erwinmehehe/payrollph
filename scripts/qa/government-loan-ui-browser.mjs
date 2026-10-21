@@ -29,6 +29,13 @@ for (const variant of ["legacy", "off", "on"]) {
       const failed = mode === 'error' || (mode === 'retry' && loanCalls === 1);
       const foreign = mode === 'foreign';
       const selected = Number(new URL(url,'http://fixture.test').searchParams.get('legalEntityId') || 0);
+      if (mode === 'multi' && selected === 18 && window.__qaHoldLoanRead) {
+        // Transport deliberately ignores AbortSignal: a late old-employer error
+        // must not poison the currently selected employer's verified evidence.
+        return new Promise(resolve => { window.__qaReleaseLoanRead = () => resolve({
+          ok:false, status:503, json:async()=>({})
+        }); });
+      }
       return {ok: !failed && mode !== 'denied', status: mode === 'denied' ? 403 : failed ? 503 : 200,
         json: async () => ({organizationId: foreign ? 99 : 7, legalEntityId: selected,
           today:'2026-10-21', legalEntity:{id:selected, code:null, displayName:'Fictional Employer'}, batches:[],members:[]})};
@@ -106,6 +113,17 @@ if (!process.argv.includes("--serve")) {
             const reads = await page.evaluate(()=>window.__qaRequests.filter(call=>call.url.includes('/government-loan-remittances') && call.method === 'GET'));
             assert.ok(reads.some(call=>call.url.includes('legalEntityId=18')));
             assert.ok(reads.some(call=>call.url.includes('legalEntityId=19')));
+            await select.selectOption("18");
+            await page.getByText(/No remittance batch is recorded/).waitFor();
+            await page.evaluate(()=>{window.__qaHoldLoanRead=true;});
+            await page.getByRole("button",{name:"Refresh",exact:true}).click();
+            await page.waitForFunction(()=>typeof window.__qaReleaseLoanRead === 'function');
+            await select.selectOption("19");
+            await page.getByText(/No remittance batch is recorded/).waitFor();
+            await page.evaluate(()=>{window.__qaHoldLoanRead=false;window.__qaReleaseLoanRead();});
+            await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+            assert.equal(await page.getByRole("button",{name:"Open SSS loan remittance",exact:true}).isEnabled(),true);
+            assert.equal(await page.getByRole("alert").count(),0,"Late old-employer errors cannot replace the new employer's verified read");
           }
         }
         assert.deepEqual(errors,[]);
