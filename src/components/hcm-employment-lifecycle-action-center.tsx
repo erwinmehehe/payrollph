@@ -85,8 +85,14 @@ function ScopedHcmEmploymentLifecycleActionCenter({
       );
       const data: unknown = await response.json().catch(() => null);
       if (controller.signal.aborted) return;
+      if (!response.ok) {
+        const serverError = data && typeof data === "object" && !Array.isArray(data)
+          ? (data as Record<string, unknown>).error : null;
+        throw new Error(typeof serverError === "string" && serverError.trim()
+          ? serverError : "Could not load employment lifecycle readiness.");
+      }
       if (!hcmResponseMatchesReadScope(data, selection)) {
-        throw new Error("Employment lifecycle returned another tenant or legal employer.");
+        throw new Error("Employment lifecycle returned an unexpected tenant or legal employer.");
       }
       const verified = readVerifiedLifecycleResponse(response.ok, data, selection);
       if (!verified) throw new Error("Employment lifecycle source unavailable or not verified for the selected employer.");
