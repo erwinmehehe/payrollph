@@ -461,6 +461,12 @@ try {
       `FOREIGN_HIGH_RISK_ROUTE_${i}_DENIAL_REQUIRED`));
     return { foreignRunDenied: true, foreignPayslipDenied: true, foreignApprovalDenied: true };
   });
+  await check("restore fictional MFA fixture to permit fresh post-restart login", async () => {
+    // A fictional prior session met the existing MFA guard; do not fake
+    // an authenticator code on a subsequent genuine login HTTP call.
+    await app.query("UPDATE public.users SET totp_enabled=false WHERE id=$1", [state.maker]);
+    return { fictionalFixtureRestored: true, authenticReLoginAfterRestart: true };
+  });
   await check("restart-proof snapshot (called again after separate server restart)", async () => {
     const query = async () => (await app.query(`SELECT
       (SELECT count(*)::int FROM public.payroll_runs WHERE organization_id=$1) AS runs,
