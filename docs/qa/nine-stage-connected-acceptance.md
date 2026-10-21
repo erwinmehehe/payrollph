@@ -1,5 +1,31 @@
 # #853 — Connected nine-stage first-payroll development acceptance
 
+## First-payroll verification scope — October 20, 2026
+
+For the owner first-payroll check, rerun this existing workflow on the reviewed
+source commit rather than using the production owner's practice workspace.
+Require all four matrix cases: PG16 direct, PG16 governed, PG18 governed and
+PG16 governed year-end. Each case must preserve maker/checker segregation,
+two-employer isolation and the no-money/provider-key guards below.
+
+Accept only same-commit artifacts showing both employers complete attendance
+capture/correction, separate time approval, calculation, separate payroll review,
+record release, and reconciled payslip/PDF/journal outputs. Retain denied
+self-approval, denied checker release, duplicate-release and post-release source
+rewrite evidence. The direct case also verifies ten fictional workers over two
+cutoffs. A green component preview alone is insufficient.
+
+Keep the evidence boundaries explicit: payroll lifecycle mutations execute
+through authenticated real HTTP against disposable PostgreSQL; the desktop and
+375px/390px browser checks exercise actual application rendering, role and
+employer switching, failed-read recovery, saved-run resume and employee access.
+Those browser checks do not claim that every lifecycle mutation was clicked in
+the UI. Record any uncovered UI action as remaining work, not a browser pass.
+
+The production owner's MFA enrollment, bank details and checker invitations are
+outside this synthetic run. No production settings, credentials, business rows,
+payments or backups are changed by running this verification.
+
 This workflow tests **two separate fictional employers** in one disposable PostgreSQL database. Each has its **own fictional worker and the same *simulated* Manila calendar day** for actual
 Web Bundy capture, independently reviewed source correction, WFM timecard, calculated
 payroll, record release and four draft filing worksheets. It must never pass because

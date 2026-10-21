@@ -502,12 +502,12 @@ export function PeopleView({
       )}
 
       {canManageLifecycle && (
-        <HcmBusinessProcessAdmin key={data.selectedOrganization.id} organizationId={data.selectedOrganization.id} />
+        <HcmBusinessProcessAdmin key={`hcm-bp-admin:${data.selectedOrganization.id}`} organizationId={data.selectedOrganization.id} />
       )}
 
       {canViewLifecycleNotifications && (
         <HcmBusinessProcessInbox
-          key={data.selectedOrganization.id}
+          key={`hcm-bp-inbox:${data.selectedOrganization.id}`}
           organizationId={data.selectedOrganization.id}
           onChanged={onRefresh}
         />

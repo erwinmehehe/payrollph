@@ -1,6 +1,6 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { cookies } from "next/headers";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, userOrganizations, users } from "@/db/schema";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
@@ -10,6 +10,7 @@ import { DEMO_MODE, ensureSeedData } from "@/db/seed";
 import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { publicDemoRequestAllowed } from "@/lib/demo-host";
+import { productionDemoEmployerBoundary, attestedProductionDemoOrganizationId } from "@/lib/demo-provisioning-boundary";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 import { operationalSecret } from "@/lib/operational-secret";
@@ -108,6 +109,13 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number, scope
   }
 
   let [user] = await db.select().from(users).where(eq(users.email, account.email)).limit(1);
+  if (user && process.env.NODE_ENV === "production") {
+    const existingMemberships = await db.select({ organizationId: userOrganizations.organizationId })
+      .from(userOrganizations).where(eq(userOrganizations.userId, user.id));
+    if (existingMemberships.some((membership) => membership.organizationId !== organizationId)) {
+      throw new Error("PUBLIC_DEMO_IDENTITY_BELONGS_TO_ANOTHER_EMPLOYER");
+    }
+  }
   if (!user) {
     [user] = await db
       .insert(users)
@@ -217,13 +225,11 @@ export async function POST(request: Request) {
   // The public sandbox must never provision fixed demo identities on a
   // production database that already holds a real employer workspace.
   if (process.env.NODE_ENV === "production") {
-    try {
-      const [realEmployer] = await db.select({ id: organizations.id }).from(organizations)
-        .where(ne(organizations.name, "Loom & Local")).limit(1);
-      if (realEmployer) {
-        return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
-      }
-    } catch {
+    const boundary = await productionDemoEmployerBoundary();
+    if (boundary === "blocked_non_demo_employer") {
+      return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
+    }
+    if (boundary !== "demo_only") {
       return Response.json({ error: "Demo environment could not be verified." }, { status: 503 });
     }
   }
@@ -244,10 +250,20 @@ export async function POST(request: Request) {
     );
   }
 
+  // A same-name customer must never win a name-based lookup after seeding.
+  // Re-attest immediately before the account/session write path.
+  const productionFixture = process.env.NODE_ENV === "production"
+    ? attestedProductionDemoOrganizationId() : null;
+  if (process.env.NODE_ENV === "production" &&
+      (productionFixture === null || await productionDemoEmployerBoundary() !== "demo_only")) {
+    return Response.json({ error: "Demo environment could not be verified." }, { status: 503 });
+  }
   const [loom] = await db
     .select()
     .from(organizations)
-    .where(eq(organizations.name, "Loom & Local"))
+    .where(productionFixture === null
+      ? eq(organizations.name, "Loom & Local")
+      : eq(organizations.id, productionFixture))
     .limit(1);
 
   if (!loom) {
