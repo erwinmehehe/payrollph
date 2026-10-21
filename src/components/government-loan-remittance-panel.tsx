@@ -2,36 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
+import { readVerifiedGovernmentLoanRemittances, type VerifiedGovernmentLoanBatch, type VerifiedGovernmentLoanMember } from "@/lib/government-loan-remittance-read";
 
 type Agency = "SSS" | "Pag-IBIG";
 
-type Batch = {
-  id: number;
-  agency: Agency;
-  applicableMonth: string;
-  dueDate: string;
-  status: string;
-  displayStatus: string;
-  employeeCount: number;
-  loanCount: number;
-  expectedTotal: string;
-  amountPaid: string | null;
-  pendingPostingCount: number;
-  exceptionCount: number;
-};
-
-type Member = {
-  id: number;
-  batchId: number;
-  employeeNo: string;
-  loanType: string;
-  loanReferenceNo: string;
-  deductedAmount: string;
-  postingStatus: string;
-  postedAmount: string | null;
-  postingReference: string | null;
-  exceptionNote: string | null;
-};
+type Batch = VerifiedGovernmentLoanBatch;
+type Member = VerifiedGovernmentLoanMember;
 
 const peso = (value: string | number) =>
   `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -62,7 +38,8 @@ function GovernmentLoanRemittancePanelContent({
   const [members, setMembers] = useState<Member[]>([]);
   const [month, setMonth] = useState(previousMonth());
   const [busy, setBusy] = useState<string | null>(null);
-  const [forbidden, setForbidden] = useState(false);
+  const [readPhase, setReadPhase] = useState<"loading" | "verified" | "unavailable">("loading");
+  const [readError, setReadError] = useState("");
   const [paymentBatchId, setPaymentBatchId] = useState<number | null>(null);
   const [amountPaid, setAmountPaid] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
@@ -74,20 +51,25 @@ function GovernmentLoanRemittancePanelContent({
   const [exceptionNote, setExceptionNote] = useState("");
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    const response = await fetch(
-      `/api/compliance/government-loan-remittances?organizationId=${organizationId}`,
-      { cache: "no-store", signal },
-    );
-    const body = await response.json().catch(() => ({}));
-    if (signal?.aborted) return;
-    if (response.status === 403) {
-      setForbidden(true);
-      return;
+    setReadPhase("loading");
+    setReadError("");
+    setBatches([]);
+    setMembers([]);
+    try {
+      const verified = await readVerifiedGovernmentLoanRemittances(organizationId, fetch, signal);
+      if (signal?.aborted) return;
+      setBatches(verified.batches);
+      setMembers(verified.members);
+      setReadPhase("verified");
+    } catch (caught) {
+      if (!signal?.aborted) {
+        setBatches([]);
+        setMembers([]);
+        setReadPhase("unavailable");
+        setReadError(caught instanceof Error ? caught.message : "Loan remittance evidence unavailable.");
+      }
+      throw caught;
     }
-    if (!response.ok) throw new Error(body.error ?? "Could not load government loan remittances.");
-    setForbidden(false);
-    setBatches(Array.isArray(body.batches) ? body.batches : []);
-    setMembers(Array.isArray(body.members) ? body.members : []);
   }, [organizationId]);
 
   useEffect(() => {
@@ -110,6 +92,10 @@ function GovernmentLoanRemittancePanelContent({
   );
 
   async function mutate(action: string, payload: Record<string, unknown>, success: string) {
+    if (readPhase !== "verified" || busy !== null) {
+      setNotice("Loan remittance controls are unavailable until the employer evidence read is verified.");
+      return false;
+    }
     setBusy(action);
     try {
       const response = await fetch("/api/compliance/government-loan-remittances", {
@@ -119,8 +105,8 @@ function GovernmentLoanRemittancePanelContent({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Government loan remittance action failed.");
-      setNotice(success);
       await load();
+      setNotice(success);
       return true;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Government loan remittance action failed.");
@@ -182,7 +168,15 @@ function GovernmentLoanRemittancePanelContent({
     }
   }
 
-  if (forbidden) return null;
+  if (readPhase !== "verified") return (
+    <article className="card" style={{ marginTop: 18 }} data-government-loan-remittance>
+      <div className="notice notice-amber" role={readPhase === "unavailable" ? "alert" : "status"}>
+        <AlertTriangle size={15} />
+        <span>{readPhase === "loading" ? "Verifying government loan remittance evidence…" : "Government loan remittance controls unavailable. " + readError + " No payment or posting action is permitted."}</span>
+        {readPhase === "unavailable" && <button type="button" className="secondary-button" onClick={() => void load().catch(() => undefined)}>Retry remittance evidence</button>}
+      </div>
+    </article>
+  );
 
   return (
     <article className="card" style={{ marginTop: 18 }} data-government-loan-remittance>
