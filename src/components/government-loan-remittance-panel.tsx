@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
-import { isVerifiedGovernmentLoanRemittanceRead, type GovernmentLoanRead } from "@/lib/government-loan-remittance-read";
+import { isConfirmedGovernmentLoanMutation, isVerifiedGovernmentLoanRemittanceRead, type GovernmentLoanRead } from "@/lib/government-loan-remittance-read";
 
 type Agency = "SSS" | "Pag-IBIG";
 
@@ -76,7 +76,7 @@ function GovernmentLoanRemittancePanelContent({
   const [postingReference, setPostingReference] = useState("");
   const [exceptionNote, setExceptionNote] = useState("");
 
-  const load = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
+  const load = useCallback(async (signal?: AbortSignal): Promise<GovernmentLoanRead | null> => {
     setReading(true);
     setSnapshot(null);
     setReadError("");
@@ -85,24 +85,24 @@ function GovernmentLoanRemittancePanelContent({
         `/api/compliance/government-loan-remittances?organizationId=${organizationId}`,
         { cache: "no-store", signal },
       );
-      if (signal?.aborted) return false;
+      if (signal?.aborted) return null;
       if (response.status === 403) {
         setForbidden(true);
         setReadError("Access to this employer's government loan records is unavailable.");
-        return false;
+        return null;
       }
       if (!response.ok) throw new Error("Government loan remittances are unavailable.");
       const body: unknown = await response.json();
       if (!isVerifiedGovernmentLoanRemittanceRead(body, organizationId)) {
         throw new Error("Government loan totals or member records are incomplete or from another employer.");
       }
-      if (signal?.aborted) return false;
+      if (signal?.aborted) return null;
       setForbidden(false);
       setSnapshot(body);
-      return true;
+      return body;
     } catch {
       if (!signal?.aborted) setReadError("Government loan evidence is unavailable or could not be verified. Retry before taking action.");
-      return false;
+      return null;
     } finally {
       if (!signal?.aborted) setReading(false);
     }
@@ -135,7 +135,16 @@ function GovernmentLoanRemittancePanelContent({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Government loan remittance action failed.");
-      if (!await load()) return false;
+      // A successful POST may have committed even if the next GET is stale or
+      // unavailable. Never report success until its exact row/revision appears.
+      const refreshed = await load();
+      if (!refreshed || !isConfirmedGovernmentLoanMutation(action, payload, body, refreshed)) {
+        const uncertain = "This action may already have been recorded, but the updated employer record could not be confirmed. Check the current batch and agency posting evidence before retrying.";
+        setSnapshot(null);
+        setReadError(uncertain);
+        setNotice(uncertain);
+        return false;
+      }
       setNotice(success);
       return true;
     } catch (error) {
@@ -199,8 +208,10 @@ function GovernmentLoanRemittancePanelContent({
   }
 
   if (forbidden) return (
-    <div role="alert" className="notice notice-amber">
+    <div role="alert" className="notice notice-amber" style={{ display: "grid", gap: 8 }}>
       Government loan records are unavailable for this employer. No status or payment actions can be shown.
+      <button type="button" className="secondary-button" disabled={reading || busy !== null}
+        onClick={() => void load()}>Retry employer access</button>
     </div>
   );
 
@@ -214,7 +225,7 @@ function GovernmentLoanRemittancePanelContent({
             Reconcile SSS Salary/Calamity Loans and Pag-IBIG MPL/Calamity Loans from released payroll to employer payment and member posting.
           </p>
         </div>
-        <button className="secondary-button" onClick={() => void load()} disabled={busy !== null}>
+        <button className="secondary-button" onClick={() => void load()} disabled={busy !== null || reading}>
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
@@ -223,7 +234,7 @@ function GovernmentLoanRemittancePanelContent({
         {reading && <p role="status">Verifying employer-scoped remittance and member evidence…</p>}
         {readError && <div role="alert" className="notice notice-amber">
           <AlertTriangle size={15} /> {readError}
-          <button className="secondary-button" type="button" onClick={() => void load()}>Retry evidence read</button>
+          <button className="secondary-button" type="button" disabled={reading || busy !== null} onClick={() => void load()}>Retry evidence read</button>
         </div>}
         {snapshot && monthBatches.length === 0 && (
           <p role="status">No remittance batch is recorded for this month. This is not proof that loan liabilities are zero.</p>
