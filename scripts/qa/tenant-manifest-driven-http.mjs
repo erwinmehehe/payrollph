@@ -210,6 +210,16 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   const victimEvidence = fixtures.evidence[10];
   const victimBatch = fixtures.batches[10];
   const victimTask = fixtures.tasks[10];
+  const [persistedVictimEvidence] = await db.select().from(statutoryRemittancePaymentEvidence)
+    .where(eq(statutoryRemittancePaymentEvidence.id, victimEvidence.id)).limit(1);
+  const [persistedVictimBatch] = await db.select().from(statutoryRemittanceBatches)
+    .where(eq(statutoryRemittanceBatches.id, victimBatch.id)).limit(1);
+  assert.equal(persistedVictimEvidence?.organizationId, victimOrg.id,
+    "Actual victim-only proof must exist in PostgreSQL and belong only to the victim");
+  assert.equal(persistedVictimEvidence?.batchId, victimBatch.id,
+    "Existing victim-only proof must refer to the actual victim remittance batch");
+  assert.equal(persistedVictimBatch?.organizationId, victimOrg.id,
+    "Actual victim remittance batch must exist and be scoped to victim employer");
   const before = await snapshotVictim(victimOrg.id);
   const observations = [];
   for (const idx of [1, 2]) {
@@ -219,6 +229,11 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
     const ownedEvidence = fixtures.evidence[7 + idx];
     const ownedTask = fixtures.tasks[7 + idx];
     const ownBytes = fixtures.bytes[7 + idx];
+    assert.equal(ownedEvidence.organizationId, ownOrg.id);
+    assert.equal(ownedEvidence.batchId, ownedBatch.id);
+    assert.equal(ownedBatch.organizationId, ownOrg.id);
+    assert.equal(victimEvidence.organizationId, victimOrg.id);
+    assert.equal(victimBatch.organizationId, victimOrg.id);
     assert.ok(victimEvidence.id > ownedEvidence.id && victimBatch.id > ownedBatch.id &&
       victimTask.id > ownedTask.id, "Victim-only IDs must exceed this attacker-owned object's IDs");
     const actor = { ownOrg, ownEntity, ownedBatch, ownedEvidence, ownedTask, ownBytes,
