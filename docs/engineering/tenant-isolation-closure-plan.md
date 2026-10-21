@@ -184,7 +184,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 - `POST /api/compliance/filing-validations` — [source](../../src/app/api/compliance/filing-validations/route.ts#L65)
 - `PATCH /api/compliance/filing-validations/[id]` — [source](../../src/app/api/compliance/filing-validations/[id]/route.ts#L21)
 - `GET /api/compliance/government-loan-remittances` — [source](../../src/app/api/compliance/government-loan-remittances/route.ts#L59)
-- `POST /api/compliance/government-loan-remittances` — [source](../../src/app/api/compliance/government-loan-remittances/route.ts#L124)
+- `POST /api/compliance/government-loan-remittances` — [source](../../src/app/api/compliance/government-loan-remittances/route.ts#L130)
 - `GET /api/compliance/labor-inspection` — [source](../../src/app/api/compliance/labor-inspection/route.ts#L32)
 - `POST /api/compliance/labor-inspection` — [source](../../src/app/api/compliance/labor-inspection/route.ts#L47)
 - `GET /api/compliance/labor-inspection/drills` — [source](../../src/app/api/compliance/labor-inspection/drills/route.ts#L48)
