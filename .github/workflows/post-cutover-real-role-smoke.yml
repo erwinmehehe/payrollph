@@ -38,11 +38,13 @@ jobs:
       NINE_STAGE_PG_MAJOR: "18"
       EXPECTED_DATABASE_NAME: payrollph_clean_baseline
       CUTOVER_ISOLATED_TEST: "true"
+      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+      FAIL_CLOSED_GUARD_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       SECURITY_SMOKE_URL: http://127.0.0.1:3000
       APP_BASE_URL: https://postcutover.example.invalid
-      REQUEST_SCHEMA_READONLY_ENABLED: "true"
-      CORE_SCHEMA_COMPATIBILITY_MODE: read-only
+      # Legacy regression inventory retains its own per-test schema modes.
+      # Enable the mandatory read-only cutover mode ONLY after npm test.
       AUDIT_ROLE_ISOLATION_PROOF_ENABLED: "true"
       REQUIRE_PRIVILEGED_MFA: "true"
       PUBLIC_SIGNUP_MODE: pilot
@@ -73,6 +75,9 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Legacy guards require HEAD^ and the exact historical payroll comparison;
+          # a shallow one-commit checkout makes valid regression assertions fail.
+          fetch-depth: 0
       - name: Node 22
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -102,9 +107,25 @@ jobs:
           docker exec "$PG_CONTAINER" pg_dump -U postgres -d app_db --schema-only --schema=public \
             --no-owner --no-privileges --no-tablespaces --no-security-labels > cutover-artifact/schema-only.sql
           test -s cutover-artifact/schema-only.sql
+      - name: Isolated regression-only encryption keys (masked; not production values)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          printf 'BANK_DATA_ENCRYPTION_KEY=%s\n' "$bank_key" >> "$GITHUB_ENV"
+          printf 'PII_ENCRYPTION_KEY=%s\n' "$pii_key" >> "$GITHUB_ENV"
       - name: npm test against original disposable source schema
         id: npm_test
         run: npm test
+      - name: Require production-style read-only schema guards after legacy regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'REQUEST_SCHEMA_READONLY_ENABLED=true' >> "$GITHUB_ENV"
+          echo 'CORE_SCHEMA_COMPATIBILITY_MODE=read-only' >> "$GITHUB_ENV"
       - name: Simulate Neon owner and independent DML-only app, planner and sealer logins
         run: node scripts/qa/provision-cutover-test-target.mjs
       - name: Apply EXACT protected cutover runner (isolated PG18 only)
