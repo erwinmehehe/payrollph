@@ -35,7 +35,7 @@ async function compile(variant){
   ].join("\n");
   const output=await build({
     stdin:{contents:entry,sourcefile:"qa-dole.tsx",resolveDir:process.cwd(),loader:"tsx"},
-    bundle:true,platform:"browser",format:"iife",write:false,logLevel:"warning",plugins:[plugin],
+    bundle:true,platform:"browser",format:"iife",jsx:"automatic",write:false,logLevel:"warning",plugins:[plugin],
     define:{"process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED":variant==="on"?'"true"':'"false"'},
   });
   return output.outputFiles.find(x=>x.path.endsWith(".js"))?.text??output.outputFiles[0].text;
@@ -96,7 +96,10 @@ try{
       const page=await browser.newPage({viewport:{width,height:900},timezoneId:"Asia/Manila"});
       const errors=[];page.on("pageerror",e=>errors.push(e.message));
       await page.goto(base+"/?mode="+mode+"&variant="+variant,{waitUntil:"load"});
-      await page.locator("[data-dole-13th-month-report]").waitFor();
+      await page.locator("[data-dole-13th-month-report]").waitFor().catch(error => {
+        assert.deepEqual(errors, [], width+"px "+mode+" "+variant+" React runtime errors");
+        throw error;
+      });
       if(mode==="blocked")await page.getByRole("button",{name:"Retry verified report"}).waitFor();
       if(mode==="valid")await page.getByText("Fictional Worker").waitFor();
       markup[variant]=await page.locator("#root").innerHTML();
