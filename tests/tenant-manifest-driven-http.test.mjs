@@ -13,10 +13,10 @@ const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
-test("single table-driven test reads ALL 489 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 489);
-  assert.equal(manifest.metrics.gap, 418, "Newly covered attendance APIs require own-victim HTTP evidence; remaining 418 methods stay open");
-  assert.equal(manifest.metrics.coveredAfter, 65, "HCM and five attendance methods have actual independently seeded tenant HTTP proof");
+test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
+  assert.equal(manifest.metrics.methods, 490);
+  assert.equal(manifest.metrics.gap, 410, "Five attendance HTTP proofs further reduce open methods to 410");
+  assert.equal(manifest.metrics.coveredAfter, 72, "Five attendance methods supplement the prior 67 covered methods");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -26,16 +26,13 @@ test("single table-driven test reads ALL 489 methods without claiming precovered
     const sourceMethods = manifest.allApiRouteFiles[route]?.methods ?? [];
     for (const name of methods) {
       const method = sourceMethods.find((value) => value.name === name);
-      assert.equal(method?.status, "COVERED", route + " " + name + " must retain real independent tenant proof");
+      assert.equal(method?.status, "COVERED", route + " " + name + " requires real independent tenant proof");
       assert.equal(method?.testedBy?.file, "scripts/qa/workforce-attendance-sweep-http.mjs");
-      const own = workforceProof[method.testedBy.ownPositiveLine - 1];
-      const denied = workforceProof[method.testedBy.foreignDenialLine - 1];
-      assert.match(own, /expectStatus\(await request\(/);
-      assert.match(denied, /expectStatus\(await request\(/);
-      assert.match(denied, /403/);
-      if (name === "POST") {
+      assert.match(workforceProof[method.testedBy.ownPositiveLine - 1], /expectStatus\(await request\(/);
+      assert.match(workforceProof[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\(/);
+      assert.match(workforceProof[method.testedBy.foreignDenialLine - 1], /403/);
+      if (name === "POST")
         assert.match(workforceProof[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(/);
-      }
     }
   }
   const governanceMethod = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
@@ -45,8 +42,8 @@ test("single table-driven test reads ALL 489 methods without claiming precovered
   assert.match(proofLines[governanceMethod.testedBy.ownPositiveLine - 1], /\/api\/hcm\/governance-readiness.*\), 200,/);
   assert.match(proofLines[governanceMethod.testedBy.foreignDenialLine - 1], /\/api\/hcm\/governance-readiness.*victim\.id.*\), 403,/);
   assert.match(harness, /await verifyGovernanceTenantRead\(f\)/);
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 489,
-    "No method may disappear from the audited 489-route-method inventory");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 490,
+    "No method may disappear from the audited 490-route-method inventory");
   assert.equal(manifest.sourceTraceCandidates.length, 34);
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>

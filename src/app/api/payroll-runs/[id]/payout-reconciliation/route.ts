@@ -173,13 +173,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .where(eq(auditEvents.organizationId, run.organizationId))
     .orderBy(desc(auditEvents.id));
   const state = derivePayrollPayoutState(events, run.id);
-  if (state.reconciliation.provider !== "PayMongo") {
+  const { searchParams } = new URL(request.url);
+  // Existing provider-specific GET and CSV behavior remains unchanged. The
+  // additive payout view certifies a non-provider payout without inventing zeros.
+  if (state.reconciliation.provider !== "PayMongo" && searchParams.get("view") !== "payout") {
     return Response.json({ error: "No PayMongo payout reconciliation exists for this payroll run." }, { status: 409 });
   }
-
-  const { searchParams } = new URL(request.url);
   if (searchParams.get("format") !== "csv") {
-    return Response.json({ runId: run.id, periodLabel: run.periodLabel, payout: state.payout, reconciliation: state.reconciliation });
+    return Response.json({ organizationId: run.organizationId, runId: run.id,
+      runNetPay: run.netPay, runEmployeeCount: run.employeeCount,
+      periodLabel: run.periodLabel, ...state });
   }
 
   const rows = [
@@ -302,7 +305,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
 
   if (action === "reconcile") {
-    return Response.json({ reconciliation, checkedAt });
+    return Response.json({ organizationId: run.organizationId, runId: run.id, reconciliation, checkedAt });
   }
 
   if (body.confirm !== true) {
@@ -457,6 +460,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
 
     return Response.json({
+      organizationId: run.organizationId,
+      runId: run.id,
       retried: true,
       failedOnly: true,
       retry: result.retry,
