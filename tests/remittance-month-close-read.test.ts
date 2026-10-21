@@ -101,11 +101,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
-  assert.equal(manifest.metrics.methods, 489);
-  // Previously audited 60 method proofs, plus exactly 4 source-pinned method proofs in PR #1306.
-  // This is intentionally an exact count, not a blanket approval of unrelated GAPs.
-  assert.equal(manifest.metrics.coveredAfter, 64);
-  assert.equal(manifest.metrics.gap, 419);
+  assert.equal(manifest.metrics.methods, 490);
+  assert.equal(manifest.metrics.coveredAfter, 71, "Retain first-payroll proof and four independently exercised HCM methods");
+  assert.equal(manifest.metrics.gap, 411, "Payout provider POST and other untested methods remain GAPs");
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);

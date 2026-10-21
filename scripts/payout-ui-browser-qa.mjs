@@ -53,13 +53,30 @@ const results = [];
 try {
   for (const width of [1440, 390]) {
     const page = await browser.newPage({ viewport: { width, height: 1000 } });
-    let mode = "ready", xenditGets = 0, releaseLoading = null;
+    let mode = "ready", payoutMode = "verified", xenditGets = 0, releaseLoading = null;
     const posts = [], errors = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.route("**/api/**", async route => {
       const req = route.request();
       assert.ok(req.url().startsWith(base), "No external provider request allowed");
       if (req.method() !== "GET") { posts.push(req.postDataJSON()); await route.fulfill({ status: 503, json: { error: "Synthetic QA never sends money" } }); return; }
+      if (req.url().includes("/payout-reconciliation")) {
+        const verified = {
+          organizationId: payoutMode === "foreign" ? 2 : 1,
+          runId: 1, runNetPay: "8000.00", runEmployeeCount: 1,
+          periodLabel: "October 1–15, 2026",
+          release: { done: true, at: null },
+          bankFile: { status: "waiting", filename: null, template: null, generatedAt: null },
+          payout: { status: "awaiting-preflight", label: "Synthetic preflight pending",
+            reference: null, method: null, completedAt: null },
+          reconciliation: { provider: null, status: "not-applicable",
+            batchIds: [], total: 0, succeeded: 0, pending: 0, failed: 0,
+            unknown: 0, checkedAt: null, canRetryFailed: false,
+            settlementRegressed: false, transfers: [] },
+        };
+        await route.fulfill({ json: verified });
+        return;
+      }
       if (req.url().includes("/xendit-payout")) {
         xenditGets++;
         if (mode === "loading") { await new Promise(resolve => { releaseLoading = resolve; }); }
@@ -103,12 +120,23 @@ try {
     await page.getByText(/Synthetic provider disabled/).waitFor();
     assert.equal(await page.getByRole("button", { name: "Submit / continue Xendit payroll" }).isDisabled(), true);
     await page.screenshot({ path: resolve(artifacts, `after-on-empty-${width}.png`), fullPage: true });
+    // A cross-employer HTTP 200 is still untrusted. Never show payout
+    // controls, monetary totals, or provider actions before verification.
+    payoutMode = "foreign";
+    await page.goto(`${base}/?enabled=off`);
+    await page.getByRole("button", { name: "Retry payout reconciliation" }).waitFor();
+    assert.equal(await page.locator("[data-payout-operations]").count(), 0);
+    assert.equal(await page.locator("[data-paymongo-primary-actions]").count(), 0);
+    await page.screenshot({ path: resolve(artifacts, `after-foreign-payout-rejected-${width}.png`), fullPage: true });
+    payoutMode = "verified";
+    await page.getByRole("button", { name: "Retry payout reconciliation" }).click();
+    await page.getByText("Primary payout: PayMongo", { exact: true }).waitFor();
     await page.goto(`${base}/?enabled=on&role=hr`);
     await page.getByRole("heading", { name: "Files that leave a paper trail." }).waitFor();
     assert.equal(await page.locator("[data-xendit-payout-panel]").count(), 0);
     assert.equal(posts.length, 0, "No submission performed in UI acceptance");
     assert.deepEqual(errors, []);
-    results.push({ width, flagOffLegacyControls: true, loadingErrorRetry: true, hrDeniedPanel: true, externalPayments: 0 });
+    results.push({ width, verifiedPayoutControls: true, foreignPayoutRejected: true, loadingErrorRetry: true, hrDeniedPanel: true, externalPayments: 0 });
     await page.close();
   }
   await writeFile(resolve(artifacts, "receipt.json"), JSON.stringify({ scope: "Actual React components with synthetic intercepted local API responses; not deployed authentication or live payout acceptance", results }, null, 2));

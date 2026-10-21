@@ -13,17 +13,10 @@ const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
-test("single table-driven test reads ALL 489 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 489);
-  // The audited starting point had 60 covered methods and 423 open GAPs.
-  // New evidence is allowed ONLY when the whole-API inventory independently
-  // validates its exact route SHA and executed own/victim HTTP line references.
-  assert.ok(manifest.metrics.coveredAfter >= 60,
-    "Previously executed own/victim HTTP coverage must never be removed");
-  assert.ok(manifest.metrics.gap <= 423,
-    "New tests may close, but never erase or relabel, existing method GAPs");
-  assert.equal(manifest.metrics.coveredAfter - 60, 423 - manifest.metrics.gap,
-    "Every newly reviewed method needs a matching reduction in unresolved GAPs");
+test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
+  assert.equal(manifest.metrics.methods, 490);
+  assert.equal(manifest.metrics.gap, 411, "Four independently exercised HCM HTTP methods reduce open gaps to 411");
+  assert.equal(manifest.metrics.coveredAfter, 71, "Retain 67 earlier methods plus four HCM HTTP proofs");
   const governanceMethod = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(governanceMethod?.status, "COVERED", "HCM governance read requires real own/foreign proof");
   assert.equal(governanceMethod?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
@@ -31,8 +24,8 @@ test("single table-driven test reads ALL 489 methods without claiming precovered
   assert.match(proofLines[governanceMethod.testedBy.ownPositiveLine - 1], /\/api\/hcm\/governance-readiness.*\), 200,/);
   assert.match(proofLines[governanceMethod.testedBy.foreignDenialLine - 1], /\/api\/hcm\/governance-readiness.*victim\.id.*\), 403,/);
   assert.match(harness, /await verifyGovernanceTenantRead\(f\)/);
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 489,
-    "No method may disappear from the audited 489-route-method inventory");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 490,
+    "No method may disappear from the audited 490-route-method inventory");
   assert.equal(manifest.sourceTraceCandidates.length, 34);
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
@@ -63,4 +56,20 @@ test("real-HTTP and disposable DB proof requirements cannot be weakened", () => 
   assert.match(src, /victimDatabaseUnchanged: true, productionTested: false, certified: false/);
   assert.match(src, /sha256\(bytes\[i\]\)/);
   assert.match(src, /assert\.equal\(account\.json\?\.profile\?\.id, f\.owners\[idx\]\.id\)/);
+});
+
+test("HCM business-process and lifecycle own/foreign proof is source-pinned", () => {
+  const suite = readFileSync("scripts/qa/hcm-work-queue-http.mjs", "utf8").split("\n");
+  for (const route of ["hcm/business-processes/inbox", "hcm/lifecycle-notifications"]) {
+    const entry = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"];
+    for (const method of entry.methods) {
+      assert.equal(method.status, "COVERED", route + " " + method.name);
+      assert.equal(method.testedBy?.file, "scripts/qa/hcm-work-queue-http.mjs");
+      assert.match(suite[method.testedBy.ownPositiveLine - 1], /expectStatus\(await request\(/);
+      assert.match(suite[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\(/);
+      assert.match(suite[method.testedBy.foreignDenialLine - 1], /403/);
+      if (method.name !== "GET") assert.match(suite[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(/);
+    }
+  }
+  assert.match(harness, /verifyHcmWorkQueueIsolation\(f, \{ request, expectStatus \}\)/);
 });

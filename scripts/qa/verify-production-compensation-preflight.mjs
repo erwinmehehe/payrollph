@@ -17,13 +17,18 @@ export function verifyProductionCompensationPreflight(payload, expected) {
       payload.evidenceScope !== "PRIVATE_RUNTIME_SESSION_IDENTITY_ONLY_NOT_MIGRATION_APPROVAL" ||
       payload.deploymentSha !== expected.sha ||
       payload.deploymentEnvironment !== "production") fail("WRONG_DEPLOYMENT_OR_RESPONSE");
-  if (!/^[0-9a-f]{40}$/.test(String(expected.sha ?? "")) ||
-      database.projectId !== expected.projectId ||
-      database.branchId !== expected.branchId ||
-      database.endpointId !== expected.endpointId ||
-      database.databaseName !== expected.databaseName ||
-      !/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(String(database.roleName ?? "")) ||
-      database.inRecovery !== false) fail("WRONG_DATABASE_TARGET");
+  // Only static field labels may appear in CI. Never echo the protected
+  // response or actual database IDs, role name, connection URL, or credentials.
+  // A wrong target MUST remain a hard failure, even when all tables exist.
+  const mismatches = [];
+  if (!/^[0-9a-f]{40}$/.test(String(expected.sha ?? ""))) mismatches.push("EXPECTED_SHA");
+  if (database.projectId !== expected.projectId) mismatches.push("PROJECT");
+  if (database.branchId !== expected.branchId) mismatches.push("BRANCH");
+  if (database.endpointId !== expected.endpointId) mismatches.push("ENDPOINT");
+  if (database.databaseName !== expected.databaseName) mismatches.push("DATABASE");
+  if (!/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(String(database.roleName ?? ""))) mismatches.push("ROLE_FORMAT");
+  if (database.inRecovery !== false) mismatches.push("RECOVERY");
+  if (mismatches.length > 0) fail("WRONG_DATABASE_TARGET_" + mismatches.join("_"));
   if (schema.evidenceScope !== "CATALOG_TABLE_PRESENCE_ONLY_NOT_MIGRATION_APPROVAL" ||
       schema.compensationTablesExpected !== 6 ||
       schema.migrationLedgerTablesExpected !== 3 ||

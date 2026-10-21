@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   authorizedReportBuilderSelection, tenantReportPreviewKey,
+  verifyReportBuilderCapabilities, verifyReportBuilderCsvResponse, verifyReportBuilderPreview,
   type ReportBuilderCapabilities, type ReportBuilderDataset,
 } from "@/lib/tenant-report-builder-client";
 
@@ -12,8 +13,15 @@ const DEFAULT_FIELDS: Record<ReportBuilderDataset, string[]> = {
 };
 type Preview = { key: string; columns: string[]; rows: string[][] };
 
+// Employer changes must create a new stateful view; otherwise an A→B→A
+// switch can reuse a previously authorized preview with an identical key.
 export function TenantReportBuilder({ organizationId }: { organizationId: number }) {
-  const [capabilities, setCapabilities] = useState<ReportBuilderCapabilities | null>(null);
+  return <ScopedTenantReportBuilder key={organizationId} organizationId={organizationId} />;
+}
+
+function ScopedTenantReportBuilder({ organizationId }: { organizationId: number }) {
+  const [capabilities, setCapabilities] = useState<{ scope: string; value: ReportBuilderCapabilities } | null>(null);
+  const [capabilityRetry, setCapabilityRetry] = useState(0);
   const [dataset, setDataset] = useState<ReportBuilderDataset>("people");
   const [fields, setFields] = useState<string[]>(DEFAULT_FIELDS.people);
   const [groupBy, setGroupBy] = useState("department");
@@ -23,47 +31,50 @@ export function TenantReportBuilder({ organizationId }: { organizationId: number
   const [notice, setNotice] = useState<{ key: string; message: string } | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const generation = useRef(0);
-  const capabilityErrorKey = "capabilities:" + organizationId;
+  const capabilityScope = organizationId + ":" + capabilityRetry;
+  const capabilityErrorKey = "capabilities:" + capabilityScope;
+  const verifiedCapabilities = capabilities?.scope === capabilityScope ? capabilities.value : null;
   const selected = authorizedReportBuilderSelection(
-    organizationId, dataset, fields, groupBy, capabilities,
+    organizationId, dataset, fields, groupBy, verifiedCapabilities,
   );
-  const activeCapabilities = capabilities?.organizationId === organizationId
-    ? capabilities.fields : null;
+  const activeCapabilities = verifiedCapabilities?.fields ?? null;
   const key = tenantReportPreviewKey({
     organizationId, dataset, fields: selected.fields,
     groupBy: selected.groupBy, startDate, endDate,
   });
-  const visiblePreview = preview?.key === key ? preview : null;
+  const visiblePreview = activeCapabilities && preview?.key === key ? preview : null;
   const busy = busyKey === key;
   const error = notice?.key === key || notice?.key === capabilityErrorKey
     ? notice.message : "";
+  const capabilityError = notice?.key === capabilityErrorKey;
 
   useEffect(() => {
     const controller = new AbortController();
     const scope = organizationId;
-    // Only the finished asynchronous request may update capabilities. Old
-    // employers are never displayed because every result carries its org ID.
+    const requestScope = capabilityScope;
+    // Only the active employer AND load attempt may authorize report controls.
     void fetch("/api/reports/builder?organizationId=" + scope, {
       signal: controller.signal, cache: "no-store",
     }).then(async response => {
       if (!response.ok) throw Error("This report builder is unavailable for your role.");
-      const data = await response.json() as { fields: ReportBuilderCapabilities["fields"] };
-      if (!data || typeof data.fields !== "object" || !data.fields) {
-        throw Error("Approved report fields are unavailable.");
-      }
+      const body: unknown = await response.json();
+      const verified = verifyReportBuilderCapabilities(body, scope);
       if (!controller.signal.aborted) {
-        setCapabilities({ organizationId: scope, fields: data.fields });
+        setCapabilities({ scope: requestScope, value: verified });
+        setNotice(current => current?.key === "capabilities:" + requestScope ? null : current);
       }
     }).catch(() => {
       if (!controller.signal.aborted) {
-        setNotice({ key: "capabilities:" + scope, message: "Report fields are unavailable." });
+        setCapabilities(null);
+        setPreview(null);
+        setNotice({ key: "capabilities:" + requestScope, message: "Report fields are unavailable." });
       }
     });
     return () => {
       controller.abort();
       generation.current += 1;
     };
-  }, [organizationId]);
+  }, [organizationId, capabilityScope]);
 
   function invalidate() {
     generation.current += 1;
@@ -88,6 +99,7 @@ export function TenantReportBuilder({ organizationId }: { organizationId: number
     const request = ++generation.current;
     setBusyKey(key);
     setNotice(null);
+    if (format === "json") setPreview(null);
     try {
       const response = await fetch("/api/reports/builder", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -101,7 +113,9 @@ export function TenantReportBuilder({ organizationId }: { organizationId: number
         throw Error(typeof data.error === "string" ? data.error : "Report request failed.");
       }
       if (format === "csv") {
+        verifyReportBuilderCsvResponse(response);
         const csv = await response.blob();
+        if (!csv.size) throw Error("Report export returned an empty document.");
         if (generation.current !== request) return;
         const href = URL.createObjectURL(csv);
         const link = document.createElement("a");
@@ -110,15 +124,14 @@ export function TenantReportBuilder({ organizationId }: { organizationId: number
         link.click();
         URL.revokeObjectURL(href);
       } else {
-        const data = await response.json() as { columns: string[]; rows: string[][] };
+        const data: unknown = await response.json();
         if (generation.current !== request) return;
-        if (!Array.isArray(data.columns) || !Array.isArray(data.rows)) {
-          throw Error("Report preview is malformed.");
-        }
-        setPreview({ key, columns: data.columns, rows: data.rows });
+        const verified = verifyReportBuilderPreview(data, dataset, selected.fields);
+        setPreview({ key, ...verified });
       }
     } catch (reason) {
       if (generation.current === request) {
+        setPreview(null);
         setNotice({ key, message: reason instanceof Error ? reason.message : "Report failed." });
       }
     } finally {
@@ -173,6 +186,12 @@ export function TenantReportBuilder({ organizationId }: { organizationId: number
     </div>
     {busy && <p role="status">Preparing report…</p>}
     {error && <p role="alert">{error}</p>}
+    {capabilityError && <button type="button" className="rounded border px-4 py-2"
+      onClick={() => {
+        invalidate();
+        setCapabilities(null);
+        setCapabilityRetry(current => current + 1);
+      }}>Retry report fields</button>}
     {visiblePreview && <div className="overflow-auto">
       {visiblePreview.rows.length === 0 && <p role="status">No results for this selection.</p>}
       <table className="w-full border-collapse text-sm">
