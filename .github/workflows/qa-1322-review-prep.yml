@@ -6,10 +6,15 @@ on:
     paths:
       - '.github/workflows/qa-1322-review-prep.yml'
       - 'scripts/qa/prepare-1322-review.mjs'
+      - 'scripts/qa/extend-1322-review.mjs'
       - 'scripts/qa/1322-review-guard-source.mjs'
 
 permissions:
   contents: read
+
+concurrency:
+  group: pr1322-review-preparation
+  cancel-in-progress: true
 
 jobs:
   prepare:
@@ -45,7 +50,9 @@ jobs:
       - name: Prepare exact reviewed links and remove retired diagnostics
         env:
           REVIEW_GUARD_SOURCE: '../prep/scripts/qa/1322-review-guard-source.mjs'
-        run: node ../prep/scripts/qa/prepare-1322-review.mjs prepare
+        run: |
+          node ../prep/scripts/qa/prepare-1322-review.mjs prepare
+          node ../prep/scripts/qa/extend-1322-review.mjs prepare
       - name: Source size and no-whitespace-error check
         run: git diff --cached --check
       - name: All remittance regression tests
@@ -62,6 +69,7 @@ jobs:
           tests/tenant-dl01-import-history-http.test.mjs
           tests/tenant-dl01-session-control.test.mjs
           tests/hcm-salary-correction-cases-workflow.test.mjs
+          tests/tenant-high-risk-batch-01.test.mjs
           tests/tenant-dl01-reviewed-proof-links.test.mjs
       - name: TypeScript
         run: npx tsc --noEmit
@@ -70,4 +78,4 @@ jobs:
       - name: Store tested blobs and tree without changing a branch
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node ../prep/scripts/qa/prepare-1322-review.mjs publish-tree
+        run: node ../prep/scripts/qa/extend-1322-review.mjs publish-tree
