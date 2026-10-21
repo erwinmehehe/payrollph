@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   hcmReadScopeKey, hcmReadScopeParams, hcmReadScopeValid,
-  type HcmReadScope,
+  hcmResponseMatchesReadScope, type HcmReadScope,
 } from "@/lib/hcm-client-employer-scope";
 import { AlertTriangle, CalendarClock, CheckCircle2, RefreshCw, UserRoundCog } from "lucide-react";
 import { readVerifiedLifecycleResponse, type VerifiedLifecyclePayload as LifecyclePayload, type VerifiedLifecycleRow as LifecycleRow } from "@/lib/hcm-employment-lifecycle-read";
@@ -85,6 +85,9 @@ function ScopedHcmEmploymentLifecycleActionCenter({
       );
       const data: unknown = await response.json().catch(() => null);
       if (controller.signal.aborted) return;
+      if (!hcmResponseMatchesReadScope(data, selection)) {
+        throw new Error("Employment lifecycle returned another tenant or legal employer.");
+      }
       const verified = readVerifiedLifecycleResponse(response.ok, data, selection);
       if (!verified) throw new Error("Employment lifecycle source unavailable or not verified for the selected employer.");
       setPayload(verified);
