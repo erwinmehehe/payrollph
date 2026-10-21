@@ -281,6 +281,41 @@ try {
     assert.equal(foreignPayroll.status, 403, "B_MUST_NOT_CREATE_A_PAYROLL");
     return { deniedReads: 2, deniedWrites: 2 };
   });
+  await check("mid-transaction payroll failure rolls back draft and partial entry", async () => {
+    const before = (await app.query(
+      "SELECT count(*)::int AS n FROM public.payroll_runs WHERE organization_id=$1",
+      [state.a])).rows[0].n;
+    const employee = (await app.query(
+      "SELECT id FROM public.employees WHERE organization_id=$1 ORDER BY id LIMIT 1",
+      [state.a])).rows[0];
+    assert.ok(employee?.id, "TRANSACTION_ROLLBACK_EMPLOYEE_FIXTURE_REQUIRED");
+    let attemptedRun;
+    await app.query("BEGIN");
+    try {
+      attemptedRun = (await app.query(`INSERT INTO public.payroll_runs
+        (organization_id, period_label, period_start, period_end, pay_date, status)
+        VALUES ($1,'FICTIONAL ROLLBACK ONLY','2026-08-16','2026-08-31','2026-09-01','Draft')
+        RETURNING id`, [state.a])).rows[0].id;
+      await app.query(`INSERT INTO public.payroll_entries
+        (payroll_run_id, employee_id, gross_pay, deductions, net_pay)
+        VALUES ($1,$2,100,10,90)`, [attemptedRun, employee.id]);
+      let sqlstate = "UNEXPECTED_SUCCESS";
+      try { await app.query("SELECT 1/0"); } catch (error) { sqlstate = error?.code ?? "UNKNOWN"; }
+      assert.equal(sqlstate, "22012", "FICTIONAL_MID_RUN_SQL_FAILURE_MUST_OCCUR");
+    } finally {
+      await app.query("ROLLBACK");
+    }
+    const runAfter = (await app.query(
+      "SELECT count(*)::int AS n FROM public.payroll_runs WHERE organization_id=$1",
+      [state.a])).rows[0].n;
+    const entriesAfter = (await app.query(`SELECT count(*)::int AS n
+      FROM public.payroll_entries e JOIN public.payroll_runs r ON r.id=e.payroll_run_id
+      WHERE r.organization_id=$1`, [state.a])).rows[0].n;
+    assert.equal(runAfter, before, "MID_TRANSACTION_FAILURE_LEFT_PARTIAL_RUN");
+    assert.equal(entriesAfter, 0, "MID_TRANSACTION_FAILURE_LEFT_PARTIAL_PAYROLL_ENTRY");
+    return { failedInsideTransaction: true, sqlstate: "22012",
+      partialRuns: 0, partialEntries: 0 };
+  });
   await check("create payroll draft and ensure audit receipt", async () => {
     const before = await auditCount(state.a);
     const result = await http("/api/payroll-runs", { method: "POST",
