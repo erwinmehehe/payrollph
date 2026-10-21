@@ -1095,6 +1095,7 @@ async function main() {
     await (await import("./pr-1302-tenant-proof.mjs")).verifyFirstPayrollTenantRead(f, { request, expectStatus });
   }
   await (await import("./pr-1302-tenant-proof.mjs")).verifyLegalEmployerTenantMutations(f, { request, expectStatus });
+  await (await import("./hcm-probation-sweep-http.mjs")).verifyHcmProbationSweep(f, { request, expectStatus });
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
     result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,
