@@ -13,6 +13,11 @@ import {
 import type { Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
 import { isVerifiedDoleThirteenthRead } from "@/lib/dole-thirteenth-read";
+ 
+// A display-only rollout. Legal-employer source attribution always fails
+// closed on the server in multi-entity mode, even when this flag is OFF.
+const doleAttributionStateUiEnabled =
+  process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED === "true";
 
 type State = {
   profile: {
@@ -243,6 +248,12 @@ function ScopedDoleThirteenthMonthReportPanel({
         <div className="card-body" style={{ paddingTop: 0 }}>
           <div className="notice notice-red" style={{ margin: 0 }}>
             <ShieldAlert size={15} /><span>{error}</span>
+            {doleAttributionStateUiEnabled &&
+              error.includes("until historical payroll") && (
+                <span role="status" style={{ display: "block", overflowWrap: "anywhere" }}>
+                  Legal-employer attribution is required before the DOLE report, CSV download, profile changes or portal submission evidence can be used. Nothing has been submitted or approved.
+                </span>
+              )}
             <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>
               <RefreshCcw size={14} /> Retry verified report
             </button>

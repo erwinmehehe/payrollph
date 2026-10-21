@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  doleAttributionStateUi: {
+    env: "NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED",
+    owner: "Security / Philippine Payroll Compliance / Product",
+    risk: "Opt-in legal-employer source-attribution explanation in DOLE reporting UI; multi-entity GET/POST/CSV and builder deny without this flag",
+    approval: "Exact flag-off visual parity, multi-entity 503 and untouched victim data, real desktop/390px component browser, independent statutory/payroll acceptance",
+  },
   firstPayrollConnected: {
     env: "FIRST_PAYROLL_CONNECTED_ENABLED",
     owner: "Payroll / Onboarding",

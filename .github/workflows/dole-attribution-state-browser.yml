@@ -1,0 +1,48 @@
+name: DOLE attribution state default-OFF and responsive QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/components/workspace/dole-thirteenth-month-report-panel.tsx"
+      - "src/lib/dole-reporting-entity-boundary.ts"
+      - "src/lib/critical-release-flags.ts"
+      - "scripts/qa/dole-attribution-state-browser.mjs"
+      - ".github/workflows/dole-attribution-state-browser.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dole-attribution-ui-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  desktop-and-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - name: Prove default-OFF parity and desktop/390px denied/valid/loading
+        run: node scripts/qa/dole-attribution-state-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dole-attribution-state-${{ github.sha }}
+          path: |
+            qa-artifacts/dole-state-*.png
+            qa-artifacts/dole-attribution-state-browser-report.json
+          if-no-files-found: warn
