@@ -47,16 +47,17 @@ function requireDisposable() {
   }
 }
 
-async function request(path, { method = "GET", bearer, cookie, scim, body, headers = {} } = {}) {
+async function request(path, { method = "GET", bearer, cookie, scim, body, form, headers = {} } = {}) {
   const h = { ...headers };
   if (bearer || scim) h.authorization = "Bearer " + (bearer ?? scim);
   if (cookie) h.cookie = cookie;
   if (method !== "GET") Object.assign(h, ORIGIN);
+  if (form !== undefined && body !== undefined) throw Error("HTTP fixture accepts JSON or FormData, never both");
   if (body !== undefined) h["content-type"] = "application/json";
   const response = await fetch(new URL(path, BASE), {
     method,
     headers: h,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: form !== undefined ? form : body === undefined ? undefined : JSON.stringify(body),
     redirect: "manual",
     cache: "no-store",
   });
