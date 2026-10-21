@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { parseVerifiedComplianceCalendar, readVerifiedComplianceCalendar } from "../src/lib/compliance-calendar-read";
-const item = { id: "bir-oct", agency: "BIR", obligation: "Withholding", applicableMonth: "2026-10", dueDate: "2026-11-10",
+// The source-issued monthly BIR identifier is required by the fail-closed parser.
+const item = { id: "BIR-1601C-2026-10", agency: "BIR", obligation: "Withholding", applicableMonth: "2026-10", dueDate: "2026-11-10",
   status: "complete", detail: "Evidence confirmed", sourceLabel: "Source", sourceUrl: "/api/x", exactness: "nominal" };
 const watch = { family: "BIR", label: "Tax tables", status: "current", currentVersion: "2026",
   sourceDocument: null, lastVerifiedOn: null, detail: "Verified" };
