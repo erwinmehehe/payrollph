@@ -50,7 +50,11 @@ const server=createServer((req,res)=>{
     res.end(bundles[address.searchParams.get("variant")]??"");return;
   }
   res.setHeader("Content-Type","text/html; charset=utf-8");
-  const mode=JSON.stringify(address.searchParams.get("mode")??"blocked");
+  // Never interpolate an untrusted query value into an inline <script>.
+  // These three literal script strings are the only accepted fixture modes.
+  const requestedMode=address.searchParams.get("mode");
+  const mode=requestedMode==="loading" ? '"loading"'
+    : requestedMode==="valid" ? '"valid"' : '"blocked"';
   const init='<script>window.fetch=async function(){'
     +'const mode='+mode+';'
     +'if(mode==="loading")return new Promise(()=>{});'
@@ -70,16 +74,21 @@ const server=createServer((req,res)=>{
     +'submissionHistory:[],officialSource:{label:"DOLE Online Compliance Portal",url:"https://reports.dole.gov.ph/",deadline:due}};'
     +'return new Response(JSON.stringify(body),{status:200,headers:{"Content-Type":"application/json"}});'
     +'};</script>';
+  const requestedVariant=address.searchParams.get("variant");
+  const variant=requestedVariant==="legacy" ? "legacy" : requestedVariant==="on" ? "on" : "off";
   res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
     +'<style>'+css+'</style></head><body><div id="root"></div>'+init
-    +'<script src="/test.js?variant='+encodeURIComponent(address.searchParams.get("variant")??"off")+'"></script></body></html>');
+    +'<script src="/test.js?variant='+variant+'"></script></body></html>');
 });
 await new Promise(r=>server.listen(0,"127.0.0.1",r));
 const base="http://127.0.0.1:"+server.address().port;
 mkdirSync("qa-artifacts",{recursive:true});
 const results={head:process.env.PR_HEAD_SHA??"local",baselineSha,synthetic:true,
   widths:[1280,390],modes:["blocked","valid","loading"],variants:["legacy","off","on"],checks:[],flagOffParity:false};
-const browser=await chromium.launch({headless:true});
+const browser=await chromium.launch({headless:true,
+  ...(process.env.QA_CHROMIUM_EXECUTABLE
+    ? {executablePath:process.env.QA_CHROMIUM_EXECUTABLE} : {}),
+});
 try{
   for(const width of results.widths)for(const mode of results.modes){
     const markup={};
