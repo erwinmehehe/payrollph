@@ -1085,7 +1085,7 @@ async function main() {
   await verifyGovernanceTenantRead(f); await verifyCrossTenant(f);
   await verifyRevokedEmployerPayslipAccess(f);
   await verifySensitiveTenantDownloadsAndRoles(f);
-  await verifyNewMainRouteIsolation(f);
+  await verifyNewMainRouteIsolation(f); await (await import("./workspace-readiness-http.mjs")).verifyWorkspaceReadinessIsolation(f, { request, expectStatus });
   await (await import("./tenant-high-risk-01-http.mjs")).verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });
   await verifyRemittanceMonthCloseTenantProof(f); await (await import("./bank-tenant-http.mjs")).verifyBankTenantIsolation(f, { request, expectStatus, makeSession }); await (await import("./owner-practice-http.mjs")).verifyOwnerPracticeHttp(f, { request, expectStatus });
   await (await import("./payroll-read-sweep-http.mjs")).verifyPayrollReadSweep(f, { request, expectStatus });

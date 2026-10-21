@@ -1262,14 +1262,26 @@ jobs:
 
           async function notificationText(page) {
             const bell = page.getByRole("button", { name: /^Notifications/ }).first();
+            const tray = page.getByRole("dialog", { name: "Notifications" });
             await bell.waitFor({ state: "visible", timeout: 45000 });
             check((await bell.count()) === 1, "Lifecycle: notification bell is missing");
-            await bell.click();
-            const tray = page.getByRole("dialog", { name: "Notifications" });
-            await tray.waitFor({ state: "visible", timeout: 15000 });
+            // A DOMContentLoaded reload can expose the server-rendered bell
+            // before React hydrates its click handler. Require the real tray,
+            // and retry a missed click without accepting missing notifications.
+            for (let attempt = 0; attempt < 3 && !(await tray.isVisible()); attempt++) {
+              if ((await bell.getAttribute("aria-expanded")) !== "true") await bell.click();
+              try {
+                await tray.waitFor({ state: "visible", timeout: 5000 });
+              } catch (error) {
+                if (attempt === 2 || !/Timeout/i.test(String(error))) throw error;
+              }
+            }
+            check((await bell.getAttribute("aria-expanded")) === "true",
+              "Lifecycle: notification bell never expanded after hydration");
             check((await tray.count()) === 1, "Lifecycle: notification tray did not open");
             const text = await tray.innerText();
             await bell.click();
+            await tray.waitFor({ state: "hidden", timeout: 5000 });
             return text;
           }
 
@@ -1358,8 +1370,12 @@ jobs:
             const runButton = page.locator("button.run-item").filter({ hasText: period }).first();
             check((await runButton.count()) === 1, "Lifecycle: released run is missing from payroll history");
             await runButton.click();
-            await page.waitForTimeout(150);
+            // Selecting another run triggers an authenticated, tenant-verified
+            // payroll register request before its persisted release receipt may
+            // render. Wait for that actual verified state, never a fixed 150ms
+            // timer that races a real CI PostgreSQL/Next.js response.
             const receipt = page.locator("[data-release-receipt]");
+            await receipt.waitFor({ state: "visible", timeout: 45000 });
             check((await receipt.count()) === 1, "Lifecycle: persistent owner release receipt is missing");
             const receiptText = (await receipt.innerText()).toLowerCase();
             check(receiptText.includes("total net payroll"), "Lifecycle: release receipt does not show net payroll");
