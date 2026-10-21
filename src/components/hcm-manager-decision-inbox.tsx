@@ -8,7 +8,7 @@ import {
   UsersRound, Workflow,
 } from "lucide-react";
 import type {
-  DecisionSource, ManagerDecisionPage, ManagerDecisionItem,
+  DecisionSource, ManagerDecisionPage, ManagerDecisionItem, ManagerDecisionScope,
 } from "@/lib/hcm-manager-decision-contract";
 import { nextManagerDecisionTab } from "@/lib/hcm-manager-decision-tabs";
 import { readVerifiedManagerDecisionPage } from "@/lib/hcm-manager-decision-read";
@@ -59,14 +59,17 @@ function dueTone(item: ManagerDecisionItem) {
  * Read-only, request-scoped data. This page NEVER calls a decision endpoint:
  * the owning approval routes enforce fresh identity, scope and maker/checker.
  */
-export function HcmManagerDecisionInbox({ organizationId }: { organizationId: number }) {
+export function HcmManagerDecisionInbox({
+  organizationId, expectedScope,
+}: { organizationId: number; expectedScope: ManagerDecisionScope }) {
   const [source, setSource] = useState<DecisionSource>("hcm");
   const [cursors, setCursors] = useState<Array<number | null>>([null]);
   const [refresh, setRefresh] = useState(0);
   const [loaded, setLoaded] = useState<LoadState | null>(null);
 
   const beforeId = cursors[cursors.length - 1] ?? null;
-  const requestKey = [organizationId, source, beforeId ?? "first", refresh].join(":");
+  const scopeKey = [expectedScope.kind, expectedScope.orgUnitId ?? "company"].join(":");
+  const requestKey = [organizationId, scopeKey, source, beforeId ?? "first", refresh].join(":");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -80,7 +83,9 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
     }).then(async (response) => {
       const data: unknown = await response.json().catch(() => null);
       if (controller.signal.aborted) return;
-      const payload = readVerifiedManagerDecisionPage(response.ok, data, organizationId, source, beforeId);
+      const payload = readVerifiedManagerDecisionPage(
+        response.ok, data, organizationId, source, beforeId, expectedScope,
+      );
       if (!payload || payload.organizationId !== organizationId || payload.source !== source) {
         throw new Error("The decision source returned unverified or wrong-employer data.");
       }
@@ -91,7 +96,7 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
       }
     });
     return () => controller.abort();
-  }, [organizationId, source, beforeId, requestKey]);
+  }, [organizationId, expectedScope, source, beforeId, requestKey]);
 
   const active = loaded?.key === requestKey ? loaded : null;
   const page = active?.status === "ready" ? active.payload : null;

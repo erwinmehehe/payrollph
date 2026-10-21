@@ -1,5 +1,5 @@
 import type {
-  ManagerDecisionPage, ManagerDecisionItem, DecisionSource,
+  ManagerDecisionPage, ManagerDecisionItem, DecisionSource, ManagerDecisionScope,
 } from "@/lib/hcm-manager-decision-contract";
 
 const sources = ["hcm", "leave", "overtime"];
@@ -36,25 +36,34 @@ function verifiedItem(value: unknown, source: DecisionSource, cursor: number | n
 /** Proof for a bounded, pre-authorized preview only; it never authorizes mutation. */
 export function readVerifiedManagerDecisionPage(
   ok: boolean, payload: unknown, employer: number, source: DecisionSource,
-  beforeId: number | null,
+  beforeId: number | null, expectedScope: ManagerDecisionScope,
 ): ManagerDecisionPage | null {
-  if (!ok || !positive(employer) || !sources.includes(source) || !object(payload)
+  if (!ok || !positive(employer) || (beforeId !== null && !positive(beforeId))
+      || !sources.includes(source) || !object(payload)
       || payload.organizationId !== employer || payload.source !== source
       || !object(payload.scope) || !object(payload.page) || !object(payload.totals)
       || !timestamp(payload.observedAt) || typeof payload.notice !== "string") return null;
   const scope = payload.scope;
   if (!((scope.kind === "company" && scope.orgUnitId === null)
       || (scope.kind === "unit" && positive(scope.orgUnitId)))) return null;
+  if (!object(expectedScope) ||
+      !((expectedScope.kind === "company" && expectedScope.orgUnitId === null)
+        || (expectedScope.kind === "unit" && positive(expectedScope.orgUnitId))) ||
+      scope.kind !== expectedScope.kind || scope.orgUnitId !== expectedScope.orgUnitId) return null;
   const page = payload.page;
   if (page.size !== 20 || typeof page.hasMore !== "boolean"
       || !Array.isArray(payload.items) || payload.items.length > 20
       || !payload.items.every((item) => verifiedItem(item, source, beforeId))) return null;
+  const ids = payload.items.map((item: ManagerDecisionItem) => item.id);
+  if (new Set(ids).size !== ids.length ||
+      ids.some((id, index) => index > 0 && id >= ids[index - 1])) return null;
+  // Pagination scans raw candidates before assignment filtering; a page can
+  // have zero visible rows and still have older candidates to fetch.
   if (page.hasMore) {
     if (!positive(page.nextCursor) ||
-        (beforeId !== null && page.nextCursor >= beforeId)) return null;
+        (beforeId !== null && page.nextCursor >= beforeId) ||
+        (ids.length > 0 && page.nextCursor > ids[ids.length - 1])) return null;
   } else if (page.nextCursor !== null) return null;
-  const ids = payload.items.map((item: ManagerDecisionItem) => item.id);
-  if (new Set(ids).size !== ids.length) return null;
   if (payload.totals.assignedItemsThisPage !== payload.items.length
       || payload.totals.overdueItemsThisPage !== payload.items.filter(
         (item: ManagerDecisionItem) => item.dueState === "overdue",
