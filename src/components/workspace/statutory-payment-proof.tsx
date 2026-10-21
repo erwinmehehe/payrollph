@@ -4,19 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { FileCheck2, UploadCloud } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner } from "./ui";
+import { readVerifiedPaymentProof, type VerifiedPaymentProofRow } from "@/lib/statutory-payment-proof-read";
 
-type EvidenceRow = {
-  id: number;
-  fileName: string;
-  mimeType: string;
-  byteSize: number;
-  fileSha256: string;
-  status: string;
-  replacementReason: string | null;
-  uploadedByName: string;
-  uploadedAt: string;
-  supersededAt: string | null;
-};
+type EvidenceRow = VerifiedPaymentProofRow;
 
 type PaymentProofProps = {
   organizationId: number;
@@ -41,22 +31,30 @@ function StatutoryPaymentProofContent({
   const [file, setFile] = useState<File | null>(null);
   const [replacementReason, setReplacementReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [readPhase, setReadPhase] = useState<"loading" | "verified" | "unavailable">("loading");
+  const [readError, setReadError] = useState("");
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    const response = await fetch(
-      "/api/compliance/statutory-remittances/payment-evidence?organizationId="
-      + organizationId
-      + "&batchId="
-      + batchId,
-      { cache: "no-store", signal },
-    );
-    const body = await response.json().catch(() => ({}));
-    if (signal?.aborted) return;
-    if (!response.ok) throw new Error(body.error ?? "Could not load payment proof.");
-    const nextRows = Array.isArray(body.evidence) ? body.evidence : [];
-    const nextActive = body.active ?? null;
-    setRows(nextRows);
-    setActive(nextActive);
+    // Evidence and upload eligibility are invalid during every new read.
+    setReadPhase("loading");
+    setReadError("");
+    setRows([]);
+    setActive(null);
+    try {
+      const verified = await readVerifiedPaymentProof(organizationId, batchId, fetch, signal);
+      if (signal?.aborted) return;
+      setRows(verified.evidence);
+      setActive(verified.active);
+      setReadPhase("verified");
+    } catch (caught) {
+      if (!signal?.aborted) {
+        setRows([]);
+        setActive(null);
+        setReadPhase("unavailable");
+        setReadError(caught instanceof Error ? caught.message : "Payment proof unavailable.");
+      }
+      throw caught;
+    }
   }, [batchId, organizationId]);
 
   useEffect(() => {
@@ -74,6 +72,10 @@ function StatutoryPaymentProofContent({
   }, [load, notify]);
 
   async function upload() {
+    if (busy || readPhase !== "verified") {
+      notify("Payment proof is unavailable until the employer and batch evidence are verified. Retry.", "err");
+      return;
+    }
     if (!file) {
       notify("Choose a PDF, JPEG or PNG payment receipt first.", "err");
       return;
@@ -101,10 +103,10 @@ function StatutoryPaymentProofContent({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Payment proof could not be uploaded.");
+      await load();
       notify(active ? "Payment proof replaced with audit history preserved." : "Payment proof uploaded and hashed.", "ok");
       setFile(null);
       setReplacementReason("");
-      await load();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Payment proof could not be uploaded.", "err");
     } finally {
@@ -114,6 +116,12 @@ function StatutoryPaymentProofContent({
 
   return (
     <div style={{ display: "grid", gap: 8 }} data-statutory-payment-proof>
+      {readPhase !== "verified" ? (
+        <div className="notice notice-amber" role={readPhase === "unavailable" ? "alert" : "status"}>
+          <span>{readPhase === "loading" ? "Verifying payment proof for this employer and batch…" : "Payment proof unavailable. " + readError + " No receipt recording is permitted."}</span>
+          {readPhase === "unavailable" && <button type="button" className="secondary-button" onClick={() => void load().catch(() => undefined)}>Retry payment proof</button>}
+        </div>
+      ) : <>
       {active ? (
         <div className="notice notice-green" style={{ margin: 0 }}>
           <FileCheck2 size={15} />
@@ -160,7 +168,7 @@ function StatutoryPaymentProofContent({
             </label>
           )}
           <div style={{ alignSelf: "end" }}>
-            <button className="secondary-button" disabled={busy || !file} onClick={() => void upload()}>
+            <button className="secondary-button" disabled={busy || !file || readPhase !== "verified"} onClick={() => void upload()}>
               {busy ? <Spinner label="Uploading" /> : <UploadCloud size={14} />}
               {active ? "Replace proof" : batchStatus === "open" ? "Upload proof" : "Backfill proof"}
             </button>
@@ -185,6 +193,7 @@ function StatutoryPaymentProofContent({
           </div>
         </details>
       )}
+      </>}
     </div>
   );
 }
