@@ -96,6 +96,25 @@ try {
       "RESTART_HTTP_PAYROLL_ID_CHANGED");
     return { persistedHttpSession: true, noDuplicateRuns: true };
   });
+  await check("post-restart local login audit is sealed and chain remains complete", async () => {
+    // The fresh login above genuinely appends a new audit event. Do not
+    // report a clean chain based on the snapshot taken before that login:
+    // seal its new tail with the separate restricted sealer login first.
+    const { dispatchAuditSealing } = await import(
+      "../../src/lib/audit-sealer-connection.ts");
+    const sealed = await dispatchAuditSealing(
+      async () => { throw new Error("SMOKE_LEGACY_SEALING_FORBIDDEN"); },
+      config => new pg.Client(config), 10000, env,
+    );
+    assert.ok(Number.isSafeInteger(sealed) && sealed >= 1,
+      "RESTART_LOGIN_AUDIT_MUST_BE_SEALED");
+    const chain = await readAuditChain(client);
+    assert.equal(chain.verified, true,
+      "RESTART_POST_LOGIN_AUDIT_CHAIN_BREAK_" + chain.breaks.join("_"));
+    assert.equal(chain.pendingEvents, 0, "RESTART_LOGIN_LEFT_UNSEALED_TAIL");
+    return { freshLoginAudited: true, sealedEvents: sealed,
+      chainIntact: true, pendingEvents: 0 };
+  }, { fatal: true });
 } catch {
   stoppedEarly = true;
 } finally {
