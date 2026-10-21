@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { confirmsStoredPaymentProof, parseVerifiedPaymentProof, readVerifiedPaymentProof } from "../src/lib/statutory-payment-proof-read";
 const row = { id: 10, batchId: 22, fileName: "receipt.pdf", mimeType: "application/pdf",
-  byteSize: 1234, fileSha256: "a".repeat(64), status: "active", replacementReason: null,
+  byteSize: 1234, fileSha256: "a".repeat(64), status: "active" as const, replacementReason: null,
   uploadedByName: "Test Operator", uploadedAt: "2026-10-20T00:00:00Z", supersededAt: null };
 const proof = { organizationId: 41, batchId: 22, evidence: [row], active: row };
 test("statutory proof binds exact employer/batch, rows, active and genuine empty", () => {
@@ -49,7 +49,7 @@ test("proof uploader cannot act on an unverified read and explicitly offers retr
   const api = readFileSync("src/app/api/compliance/statutory-remittances/payment-evidence/route.ts", "utf8");
   assert.match(ui, /if \(!proof\)/);
   assert.match(ui, /Retry payment proof/);
-  assert.match(ui, /const refreshed = await reload\(\)/);
+  assert.match(ui, /const refreshed = await reloadWithOutcome\(\)/);
   assert.match(ui, /confirmsStoredPaymentProof\(refreshed\?\.data/);
   assert.match(api, /organizationId,\s+batchId,\s+evidence: rows/);
   assert.match(api, /const \[ownedBatch\] = await db\.select/);
