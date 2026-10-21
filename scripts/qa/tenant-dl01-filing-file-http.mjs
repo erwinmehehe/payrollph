@@ -1,6 +1,6 @@
 /** Synthetic filing-file downloads only: never submit a return or call a provider. */
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../src/db/index.ts";
 import { auditLogs, employees, governmentFilingValidations, payrollEntries, payrollRuns } from "../../src/db/schema.ts";
@@ -50,12 +50,25 @@ export async function verifyTenantFilingFile(f, { request, expectStatus }) {
   const definition = FILING_FORMS.find(form => form.kind === "bir-1601c");
   assert.ok(definition, "Use the existing local worksheet generator, never invented file bytes");
   const fixtures = [];
-  const ordered = [
-    ...f.victimRuns.slice(0, 7).map(run => ({ orgIndex: 0, run })),
-    { orgIndex: 1, run: f.ownRuns[1] },
-    { orgIndex: 2, run: f.ownRuns[2] },
-    { orgIndex: 0, run: f.victimRuns[7] },
-  ];
+  const ordered = [];
+  const nonce = randomUUID();
+  // This generator requires a final-month cutoff. Use dedicated synthetic runs,
+  // and finish ALL payroll fixture inserts before recording immutable hashes.
+  for (const orgIndex of [0, 0, 0, 0, 0, 0, 0, 1, 2, 0]) {
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: f.orgs[orgIndex].id, legalEntityId: f.entities[orgIndex].id,
+      periodLabel: "Fictional DL01 final cutoff " + nonce + "-" + ordered.length,
+      periodStart: "2026-10-16", periodEnd: "2026-10-31", payDate: "2026-10-31",
+      status: "Released", employeeCount: 1,
+    }).returning();
+    const employeeId = orgIndex === 0 ? f.victimEmployee.id : f.ownedEmployees[orgIndex - 1].id;
+    await db.insert(payrollEntries).values({
+      payrollRunId: run.id, employeeId,
+      grossPay: "5000.00", deductions: "500.00", netPay: "4500.00",
+    });
+    ordered.push({ orgIndex, run });
+  }
+  assert.equal(ordered.length, 10);
   for (const { orgIndex, run } of ordered) {
     const fixture = await recordGeneratedFiling({
       organizationId: f.orgs[orgIndex].id, runId: run.id, definition,
@@ -72,7 +85,7 @@ export async function verifyTenantFilingFile(f, { request, expectStatus }) {
   const [persistedVictim] = await db.select().from(governmentFilingValidations)
     .where(eq(governmentFilingValidations.id, victim.record.id));
   assert.equal(persistedVictim?.organizationId, victimOrg.id);
-  assert.equal(persistedVictim?.payrollRunId, f.victimRuns[7].id);
+  assert.equal(persistedVictim?.payrollRunId, ordered[9].run.id);
   assert.ok(victim.record.id > 6 && victim.record.id > fixtures[7].record.id && victim.record.id > fixtures[8].record.id);
   const before = await snapshotVictimFilings(victimOrg.id);
   const receipts = [];
