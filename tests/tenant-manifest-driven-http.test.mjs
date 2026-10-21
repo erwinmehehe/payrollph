@@ -48,14 +48,14 @@ test("single table-driven test reads ALL 490 methods without claiming precovered
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
     info.methods.map((m) => [m.name + " " + info.route, { path, ...m }])));
-  assert.equal(specs.length, 6);
+  assert.equal(specs.length, 7);
   assert.equal(new Set(specs).size, specs.length);
   for (const spec of specs) {
     const method = registry.get(spec);
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 3);
+  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 4);
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
   assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);
