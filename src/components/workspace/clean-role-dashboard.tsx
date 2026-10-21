@@ -24,6 +24,7 @@ import {
 } from "@/lib/dashboard-presentation";
 import type { DashboardData, PayrollRun } from "./types";
 import { isPreliminaryPayroll } from "@/lib/payroll-period-ui";
+import { readVerifiedPayrollCheckerVariance, type VerifiedVariancePayload } from "@/lib/payroll-checker-variance-read";
 import { Status } from "./ui";
 import { StatutoryRemittanceWatch } from "./statutory-remittance-watch";
 
@@ -161,7 +162,7 @@ export function CleanRoleDashboard({
           </p>
         </section>
       ) : (
-        <CheckerHome run={run} onPage={onPage} />
+        <CheckerHome run={run} organizationId={data.selectedOrganization.id} onPage={onPage} />
       )}
       {role !== "checker" && (
         <PayrollHistory
@@ -379,7 +380,7 @@ function PayrollHome({
           />
           <ActionRow
             icon={<ClipboardCheck size={19} />}
-            tone={exceptions ? "amber" : "green"}
+            tone={exceptions === null ? "blue" : exceptions > 0 ? "amber" : "green"}
             title={
               exceptions
                 ? `${exceptions} payroll exceptions to review`
@@ -439,45 +440,51 @@ type VarianceSummary = {
   summary: {
     exceptionCount: number;
     changedEmployees: number;
-    categoryCounts: Record<string, number>;
+    categoryCounts: VerifiedVariancePayload["summary"]["categoryCounts"];
   };
 };
 function CheckerHome({
   run,
+  organizationId,
   onPage,
 }: {
   run?: PayrollRun;
+  organizationId: number;
   onPage: Props["onPage"];
 }) {
   const [result, setResult] = useState<VarianceSummary | null>(null);
   const [failure, setFailure] = useState<number | null>(null);
   const [tab, setTab] = useState("changes");
+  const [revision, setRevision] = useState(0);
   const runId = run?.id;
   const runStatus = run?.status;
   useEffect(() => {
-    if (!runId) return;
+    if (!run) return;
     const controller = new AbortController();
-    fetch(`/api/payroll-runs/${runId}/variance`, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Variance unavailable");
-        const body = await response.json();
-        if (!controller.signal.aborted)
-          setResult({ runId, runStatus, summary: body.summary });
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setFailure(runId);
-      });
+    // Never infer no changes on a failed or foreign-employer variance read.
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+      void readVerifiedPayrollCheckerVariance(organizationId, run, fetch, controller.signal)
+        .then((payload) => {
+          if (controller.signal.aborted) return;
+          setFailure(null);
+          setResult({
+            runId: run.id, runStatus: run.status,
+            summary: payload.summary,
+          });
+        })
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          setResult(null);
+          setFailure(run.id);
+        });
+    });
     return () => controller.abort();
-  }, [runId, runStatus]);
-  const loaded =
-    result?.runId === run?.id && result?.runStatus === run?.status
-      ? result
-      : null;
+  }, [organizationId, run, runId, runStatus, revision]);
+  const loaded = result?.runId === run?.id && result?.runStatus === run?.status
+    ? result : null;
   const counts = loaded?.summary.categoryCounts;
-  const exceptions = loaded?.summary.exceptionCount ?? run?.exceptions ?? 0;
+  const exceptions: number | null = loaded?.summary.exceptionCount ?? null;
   const categories = [
     ["salary_change", "Salary changes"],
     ["new_hire", "New hires"],
@@ -512,7 +519,7 @@ function CheckerHome({
       >
         {[
           ["changes", `Changes${total === null ? "" : ` (${total})`}`],
-          ["exceptions", `Exceptions (${exceptions})`],
+          ["exceptions", `Exceptions${exceptions === null ? " (Unavailable)" : ` (${exceptions})`}`],
           ["summary", "Summary"],
         ].map(([id, label]) => (
           <button
@@ -553,17 +560,18 @@ function CheckerHome({
             {run && !loaded && (
               <p className="clean-muted" role="status">
                 {failure === run.id
-                  ? "Comparison unavailable. Open payroll review to try again."
+                  ? "Comparison unavailable or not scoped to this employer. Retry before trusting exception counts."
                   : "Loading the stored payroll comparison…"}
               </p>
             )}
+            {failure === run?.id && <button type="button" className="clean-link" onClick={() => { setResult(null); setFailure(null); setRevision((r) => r + 1); }}>Retry verified comparison</button>}
             {categories.map(([key, label]) => (
               <ActionRow
                 key={key}
                 icon={<FileText size={18} />}
                 title={label}
                 detail={
-                  counts ? `${counts[key] ?? 0} employees` : "Unavailable"
+                  counts ? `${counts[key as keyof typeof counts]} employees` : "Unavailable"
                 }
                 onClick={() => onPage("Payroll")}
               />
@@ -574,11 +582,11 @@ function CheckerHome({
             icon={<AlertCircle size={20} />}
             tone={exceptions ? "amber" : "green"}
             title={
-              exceptions
-                ? `${exceptions} exceptions need review`
-                : run
-                  ? "No flagged payroll exceptions"
-                  : "No payroll available"
+              exceptions === null
+                ? "Verified exception evidence unavailable"
+                : exceptions > 0
+                  ? `${exceptions} exceptions need review`
+                  : "No flagged payroll exceptions"
             }
             detail="Open the payroll workspace to inspect entries and validation checks."
             onClick={() => onPage("Payroll")}
@@ -595,12 +603,12 @@ function CheckerHome({
             />
             <SummaryMetric
               label="Employees"
-              value={String(run?.employeeCount ?? 0)}
+              value={run ? String(run.employeeCount) : "Unavailable"}
             />
           </div>
         )}
       </div>
-      {exceptions > 0 && (
+      {exceptions !== null && exceptions > 0 && (
         <div className="clean-notice">
           <AlertCircle size={20} />
           <div>
@@ -625,7 +633,7 @@ function CheckerHome({
           disabled={!run}
           onClick={() => onPage("Payroll")}
         >
-          {exceptions ? "Review exceptions" : "Review payroll"}
+          {exceptions === null ? "Review unavailable evidence" : exceptions > 0 ? "Review exceptions" : "Review payroll"}
           <ArrowRight size={16} />
         </button>
       </div>
