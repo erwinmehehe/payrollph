@@ -43,7 +43,7 @@ function sha256(value) {
 
 async function victimSnapshot(organizationId) {
   const filter = (table) => eq(table.organizationId, organizationId);
-  const [batches, members, posting, cases, events, audit, runs] = await Promise.all([
+  const [batches, members, posting, cases, events, audit, runs, staff] = await Promise.all([
     db.select().from(statutoryRemittanceBatches).where(filter(statutoryRemittanceBatches)).orderBy(statutoryRemittanceBatches.id),
     db.select().from(statutoryRemittanceMembers).where(filter(statutoryRemittanceMembers)).orderBy(statutoryRemittanceMembers.id),
     db.select().from(statutoryPostingEvidenceArtifacts).where(filter(statutoryPostingEvidenceArtifacts)).orderBy(statutoryPostingEvidenceArtifacts.id),
@@ -51,8 +51,9 @@ async function victimSnapshot(organizationId) {
     db.select().from(statutoryContributionIssueEvents).where(filter(statutoryContributionIssueEvents)).orderBy(statutoryContributionIssueEvents.id),
     db.select().from(auditEvents).where(filter(auditEvents)).orderBy(auditEvents.id),
     db.select().from(payrollRuns).where(filter(payrollRuns)).orderBy(payrollRuns.id),
+    db.select().from(employees).where(filter(employees)).orderBy(employees.id),
   ]);
-  return { batches, members, posting, cases, events, audit, runs };
+  return { batches, members, posting, cases, events, audit, runs, staff };
 }
 
 async function seedPostingAndCases(f) {
@@ -103,6 +104,32 @@ async function seedPostingAndCases(f) {
   })));
 
   const victimOrg = f.orgs[0];
+  // Both victim-only export targets are inserted AFTER each attacker's
+  // existing employee/payroll IDs. A low-ID victim can mask enumeration bugs.
+  const [victimExportWorker] = await db.insert(employees).values({
+    organizationId: victimOrg.id, legalEntityId: f.entities[0].id,
+    employeeNo: "VICTIM-HIGH-ID-" + nonce, firstName: "LaterVictim",
+    lastName: "Only", title: "Disposable QA worker", avatarInitials: "LV",
+    basicRate: "21000.00", startDate: "2026-10-01",
+  }).returning();
+  const [victimBiRun] = await db.insert(payrollRuns).values({
+    organizationId: victimOrg.id, legalEntityId: f.entities[0].id,
+    periodLabel: "VICTIM-ONLY-BI-" + nonce,
+    periodStart: "2026-10-01", periodEnd: "2026-10-15",
+    payDate: "2026-10-16", status: "Released",
+  }).returning();
+  const [persistedVictimWorker] = await db.select().from(employees)
+    .where(eq(employees.id, victimExportWorker.id)).limit(1);
+  const [persistedVictimBiRun] = await db.select().from(payrollRuns)
+    .where(eq(payrollRuns.id, victimBiRun.id)).limit(1);
+  assert.equal(persistedVictimWorker?.organizationId, victimOrg.id);
+  assert.equal(persistedVictimBiRun?.organizationId, victimOrg.id);
+  assert.ok(victimExportWorker.id > f.ownedEmployees[0].id &&
+    victimExportWorker.id > f.ownedEmployees[1].id && victimExportWorker.id > 6,
+    "The real victim-only worker must be higher-ID than both attackers' workers");
+  assert.ok(victimBiRun.id > f.ownRuns[1].id &&
+    victimBiRun.id > f.ownRuns[2].id && victimBiRun.id > 6,
+    "The real victim-only BI payroll run must be higher-ID than both attackers' runs");
   const victimBatch = batches[10];
   const victimMember = members[10];
   const victimCase = cases[10];
@@ -120,7 +147,8 @@ async function seedPostingAndCases(f) {
       && victimCase.id > cases[idx].id && victimBatch.id > 6 && victimCase.id > 6,
     "Victim-only target IDs must be real later-created PostgreSQL rows");
   }
-  return { nonce, owners, batches, members, cases, victimBatch, victimMember, victimCase };
+  return { nonce, owners, batches, members, cases, victimBatch, victimMember, victimCase,
+    victimExportWorker, victimBiRun };
 }
 
 function postingCsv(employeeNo, nonce, idx) {
@@ -148,6 +176,8 @@ export async function verifyDl01Batch2(f, { request, expectStatus }) {
     assert.equal(ownedBatch.organizationId, ownOrg.id);
     assert.equal(ownedMember.organizationId, ownOrg.id);
     assert.equal(ownedCase.organizationId, ownOrg.id);
+    assert.ok(fixture.victimExportWorker.id > worker.id);
+    assert.ok(fixture.victimBiRun.id > f.ownRuns[idx].id);
 
     const account = expectStatus(await request("/api/account", { cookie }), 200,
       "Authenticated independent DL-01 attacker session");
@@ -209,13 +239,13 @@ export async function verifyDl01Batch2(f, { request, expectStatus }) {
     assert.match(ownExport.headers.get("content-disposition") ?? "", /attachment/i);
     assert.ok(ownExport.text.includes(worker.employeeNo) && ownExport.text.includes(worker.firstName),
       "Own export must include the real seeded employee, not just a CSV header");
-    assert.ok(!ownExport.text.includes(f.victimEmployee.employeeNo));
+    assert.ok(!ownExport.text.includes(fixture.victimExportWorker.employeeNo));
     const foreignExport = expectStatus(await request("/api/exports?organizationId=" + victimOrg.id +
       "&kind=employees", { cookie }), 403, "DL-01 foreign employer employee CSV export forbidden");
-    assert.ok(!foreignExport.text.includes(f.victimEmployee.employeeNo));
+    assert.ok(!foreignExport.text.includes(fixture.victimExportWorker.employeeNo));
     const forgedExport = expectStatus(await request("/api/exports?organizationId=" + ownOrg.id +
-      "&kind=employees&employeeId=" + f.victimEmployee.id + "&legalEntityId=" +
-      f.entities[0].id + "&runId=" + f.victimRun.id, { cookie }), 200,
+      "&kind=employees&employeeId=" + fixture.victimExportWorker.id + "&legalEntityId=" +
+      f.entities[0].id + "&runId=" + fixture.victimBiRun.id, { cookie }), 200,
     "DL-01 forged victim selectors cannot change own employee export");
     assert.equal(forgedExport.text, ownExport.text);
 
@@ -226,14 +256,15 @@ export async function verifyDl01Batch2(f, { request, expectStatus }) {
     assert.match(ownBi.headers.get("content-type") ?? "", /text\/csv/i);
     assert.ok(ownBi.text.includes(String(f.ownRuns[idx].id)) &&
       ownBi.text.includes("ATTACKER-"), "BI file must contain an existing own payroll run");
-    assert.ok(!ownBi.text.includes("VICTIM-ONLY-"));
+    assert.ok(!ownBi.text.includes(fixture.victimBiRun.periodLabel));
     const foreignBi = expectStatus(await request(biUrl.replace("organizationId=" + ownOrg.id,
       "organizationId=" + victimOrg.id), { cookie }), 403,
       "DL-01 foreign employer BI payroll-run export denied");
-    assert.ok(!foreignBi.text.includes("VICTIM-ONLY-"));
-    const forgedBi = expectStatus(await request(biUrl + "&legalEntityId=" + f.entities[0].id,
+    assert.ok(!foreignBi.text.includes(fixture.victimBiRun.periodLabel));
+    const forgedBi = expectStatus(await request(biUrl + "&legalEntityId=" + f.entities[0].id +
+      "&runId=" + fixture.victimBiRun.id,
       { cookie }), 400, "DL-01 own BI export with real victim legal entity rejected");
-    assert.ok(!forgedBi.text.includes("VICTIM-ONLY-"));
+    assert.ok(!forgedBi.text.includes(fixture.victimBiRun.periodLabel));
 
     const ownCase = expectStatus(await request("/api/compliance/contribution-issues/evidence?organizationId=" +
       ownOrg.id + "&caseId=" + ownedCase.id, { cookie }), 200,
@@ -266,14 +297,14 @@ export async function verifyDl01Batch2(f, { request, expectStatus }) {
     assert.ok(ownInspection.json?.sections?.workerRoster?.rowCount > 0);
     assert.ok(ownInspection.json.sections.workerRoster.rows.some(row => row.employeeNo === worker.employeeNo),
       "Own inspection pack must include a real PostgreSQL worker, not an empty report");
-    assert.ok(!ownInspection.text.includes(f.victimEmployee.employeeNo));
+    assert.ok(!ownInspection.text.includes(fixture.victimExportWorker.employeeNo));
     assert.match(ownInspection.headers.get("content-disposition") ?? "", /^attachment;/);
     assert.equal(ownInspection.headers.get("x-payrollph-evidence-sha256"), ownInspection.json?.snapshot?.sha256);
     const foreignInspection = expectStatus(await request("/api/compliance/labor-inspection/evidence-pack?organizationId=" +
       victimOrg.id, { cookie }), 403, "DL-01 other employer labor inspection pack forbidden");
-    assert.ok(!foreignInspection.text.includes(f.victimEmployee.employeeNo));
+    assert.ok(!foreignInspection.text.includes(fixture.victimExportWorker.employeeNo));
     const forgedInspection = expectStatus(await request("/api/compliance/labor-inspection/evidence-pack?organizationId=" +
-      ownOrg.id + "&employeeId=" + f.victimEmployee.id + "&legalEntityId=" +
+      ownOrg.id + "&employeeId=" + fixture.victimExportWorker.id + "&legalEntityId=" +
       f.entities[0].id + "&caseId=" + fixture.victimCase.id, { cookie }), 200,
     "DL-01 real victim selectors must not change own inspection pack");
     assert.equal(forgedInspection.json?.organization?.id, ownOrg.id);
