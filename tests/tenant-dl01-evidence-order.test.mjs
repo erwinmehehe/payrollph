@@ -13,6 +13,7 @@ const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-m
 const targets = [
   "GET compliance/statutory-remittances/payment-evidence/[id]",
   "GET compliance/statutory-remittances/payment-evidence",
+  "GET compliance/statutory-remittances/posting-evidence/[id]",
 ];
 const routeIndex = new Map(Object.values(manifest.allApiRouteFiles).flatMap((route) =>
   route.methods.map((method) => [method.name + " " + route.route, method])));
@@ -79,12 +80,28 @@ test("any DL-01 evidence method promoted to COVERED must pin all four exercised 
       key + ": actual positive request required");
     assert.ok(lineOf("foreignDenialLine").includes("const foreign = expectStatus(await request(urls.foreign"),
       key + ": actual victim denial request required");
-    assert.ok(lineOf("forgedSelectorLine").includes(index === 0 ?
-      "const crossId = expectStatus(await request(" : "const filtered = expectStatus(await request("),
+    const forgedSelectors = ["const crossId = expectStatus(await request(",
+      "const filtered = expectStatus(await request(", "const forged = expectStatus(await request("];
+    assert.ok(lineOf("forgedSelectorLine").includes(forgedSelectors[index]),
       key + ": method-specific forged victim selector required");
     assert.ok(lineOf("unchangedDbLine").includes("assert.deepEqual(after, before"),
       key + ": victim DB snapshot must remain equal");
     assert.ok((proof.scope ?? "").includes("independent attacker employers"),
       key + ": both authentic attacker employers must be part of the same proof suite");
   }
+});
+
+test("posting-source download adapter uses real high-ID PostgreSQL CSV and unchanged victim snapshot", () => {
+  assert.ok(src.includes('"GET compliance/statutory-remittances/posting-evidence/[id]": {'));
+  assert.ok(src.includes('db.insert(statutoryPostingEvidenceArtifacts)'));
+  assert.ok(src.includes('posting[10].id > posting[9].id'));
+  assert.ok(src.includes('persistedVictimPosting?.organizationId, victimOrg.id'));
+  assert.ok(src.includes('victimPosting.id > ownedPosting.id'));
+  assert.ok(src.includes('assert.equal(sha256(Buffer.from(r.text, "utf8")), ownedPosting.contentSha256'));
+  assert.ok(src.includes('assert.equal(forged.text, ownPostingBytes.toString("utf8"))'));
+  assert.ok(src.includes('"?organizationId=" + victimOrg.id + "&batchId=" + victimBatch.id'));
+  assert.ok(src.includes('"?organizationId=" + ownOrg.id, { cookie }), 403'));
+  assert.ok(src.includes('db.select().from(statutoryPostingEvidenceArtifacts)'));
+  assert.ok(src.includes('const after = await snapshotVictim(victimOrg.id)'));
+  assert.ok(src.includes('assert.deepEqual(after, before'));
 });
