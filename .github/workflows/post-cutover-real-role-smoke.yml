@@ -79,12 +79,15 @@ jobs:
           node-version: "22"
           cache: npm
       - name: npm ci
+        id: npm_ci
         run: npm ci
       - name: Static post-cutover guard and tamper contract
         run: node --test tests/post-cutover-smoke.test.mjs
       - name: TypeScript noEmit
+        id: tsc
         run: npx tsc --noEmit
       - name: Lint
+        id: lint
         run: npm run lint
       - name: Build disposable source schema artifact exactly like protected runner
         env:
@@ -100,10 +103,12 @@ jobs:
             --no-owner --no-privileges --no-tablespaces --no-security-labels > cutover-artifact/schema-only.sql
           test -s cutover-artifact/schema-only.sql
       - name: npm test against original disposable source schema
+        id: npm_test
         run: npm test
       - name: Simulate Neon owner and independent DML-only app, planner and sealer logins
         run: node scripts/qa/provision-cutover-test-target.mjs
       - name: Apply EXACT protected cutover runner (isolated PG18 only)
+        id: cutover
         shell: bash
         run: |
           set -euo pipefail
@@ -136,6 +141,7 @@ jobs:
           echo "HTTP_BOOT_FAILED: inspect the failed action privately; server log not uploaded."
           exit 1
       - name: Role-adversarial proofs, real fictional HTTP payroll and audit chain
+        id: journey
         shell: bash
         run: |
           set -euo pipefail
@@ -161,11 +167,23 @@ jobs:
           echo "HTTP_RESTART_FAILED: no logs or credentials uploaded."
           exit 1
       - name: Verify persistence, audit chain, no duplicated runs or payslips
+        id: restart
         shell: bash
         run: |
           set -euo pipefail
           DATABASE_URL="$SIM_APP_URL" AUDIT_SEALER_DATABASE_URL="$SIM_SEALER_URL" \
             npx tsx scripts/qa/post-cutover-restart-smoke.mjs
+      - name: Always summarize actual npm/typecheck/lint/test and smoke stage outcomes
+        if: always()
+        env:
+          SMOKE_STEP_NPM_CI: ${{ steps.npm_ci.outcome }}
+          SMOKE_STEP_TSC: ${{ steps.tsc.outcome }}
+          SMOKE_STEP_LINT: ${{ steps.lint.outcome }}
+          SMOKE_STEP_NPM_TEST: ${{ steps.npm_test.outcome }}
+          SMOKE_STEP_CUTOVER: ${{ steps.cutover.outcome }}
+          SMOKE_STEP_JOURNEY: ${{ steps.journey.outcome }}
+          SMOKE_STEP_RESTART: ${{ steps.restart.outcome }}
+        run: node scripts/qa/post-cutover-ci-finalize.mjs
       - name: Upload sanitized PASS/FAIL reports (no URLs or secrets)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
