@@ -1,6 +1,6 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 403 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 402 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -10,7 +10,7 @@
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified authorization defect fixed on main, 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 403 method gaps and 20 page/action gaps. #1260 is merged. New evidence remains provisional until its exact-head CI passes. Source merge of this inventory does not constitute tenant-isolation certification.
+**Disposition:** 1 source-identified authorization defect fixed on main, 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 402 method gaps and 20 page/action gaps. #1260 is merged. New evidence remains provisional until its exact-head CI passes. Source merge of this inventory does not constitute tenant-isolation certification.
 
 ## Approved-exit Separation evidence
 
@@ -30,7 +30,7 @@ The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested
 
 ## Source-pinned counts
 
-Active classification on DL-01 proof branch (pending its final exact-head CI): **78 COVERED / 9 PUBLIC-BY-DESIGN / 403 GAP**. Two payment-evidence GET methods have existing real HTTP + disposable PostgreSQL own/foreign+forged-identifier+unchanged-victim proof, strengthened to select victim IDs above both attacker-owned IDs. The authenticated import CSV template is a tenant-independent fixed schema, not an employer data export. Previous counts below this section are archival historical narrative; none are security acceptance. See [closure plan PR #1321](https://github.com/erwinmehehe/payrollph/pull/1321).
+Active classification on DL-01 proof branch (pending its final exact-head CI): **78 COVERED / 10 PUBLIC-BY-DESIGN / 402 GAP**. Two payment-evidence GET methods have existing real HTTP + disposable PostgreSQL own/foreign+forged-identifier+unchanged-victim proof, strengthened to select victim IDs above both attacker-owned IDs. The authenticated import CSV template is a tenant-independent fixed schema, not an employer data export. Previous counts below this section are archival historical narrative; none are security acceptance. See [closure plan PR #1321](https://github.com/erwinmehehe/payrollph/pull/1321).
 
 | Metric | Count |
 |---|---:|
@@ -38,8 +38,8 @@ Active classification on DL-01 proof branch (pending its final exact-head CI): *
 | methods | 490 |
 | coveredBefore | 20 |
 | coveredAfter | 78 |
-| publicByDesign | 9 |
-| gap | 403 |
+| publicByDesign | 10 |
+| gap | 402 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -237,7 +237,7 @@ Every one of the 289 route files and 490 exported handlers is in the following s
 | [`compliance/statutory-remittances/payment-evidence` GET](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L57) | session, query, body | getAccess L8, getSessionUser L10, enforceSameOriginMutation L13, getAccess L23 | searchParams.get("organizationId") L62 | [Real HTTP+PG nonempty list+victim+forged-batch+unchanged DB L250–L281](../../scripts/qa/tenant-manifest-driven-http.mjs#L250) | **COVERED** |
 | [`compliance/statutory-remittances/payment-evidence` POST](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L95) | session, query, body | getAccess L8, getSessionUser L10, enforceSameOriginMutation L13, getAccess L23 | searchParams.get("organizationId") L62 | NO VALID METHOD PROOF | **GAP** |
 | [`compliance/statutory-remittances/posting-evidence/[id]` GET](../../src/app/api/compliance/statutory-remittances/posting-evidence/[id]/route.ts#L22) | session | getAccess L5, getSessionUser L6, getSessionUser L26, getAccess L40 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`compliance/statutory-remittances/posting-import` GET](../../src/app/api/compliance/statutory-remittances/posting-import/route.ts#L41) | session, body | getAccess L11, getSessionUser L13, enforceSameOriginMutation L24, getAccess L32 | body.organizationId L60 | NO VALID METHOD PROOF | **GAP** |
+| [`compliance/statutory-remittances/posting-import` GET](../../src/app/api/compliance/statutory-remittances/posting-import/route.ts#L41) | session, body | getAccess L11, getSessionUser L13, enforceSameOriginMutation L24, getAccess L32 | body.organizationId L60 | [Public inert CSV GET, three-tenant+anonymous bytes](../../scripts/qa/tenant-static-template-http.mjs) | **PUBLIC-BY-DESIGN** |
 | [`compliance/statutory-remittances/posting-import` POST](../../src/app/api/compliance/statutory-remittances/posting-import/route.ts#L52) | session, body | getAccess L11, getSessionUser L13, enforceSameOriginMutation L24, getAccess L32 | body.organizationId L60 | NO VALID METHOD PROOF | **GAP** |
 | [`compliance/statutory-remittances` GET](../../src/app/api/compliance/statutory-remittances/route.ts#L64) | session, query, body | getAccess L12, getSessionUser L14, enforceSameOriginMutation L27, getAccess L46 | searchParams.get("organizationId") L69, searchParams.get("legalEntityId") L70, body.organizationId L111 | NO VALID METHOD PROOF | **GAP** |
 | [`compliance/statutory-remittances` POST](../../src/app/api/compliance/statutory-remittances/route.ts#L103) | session, query, body | getAccess L12, getSessionUser L14, enforceSameOriginMutation L27, getAccess L46 | searchParams.get("organizationId") L69, searchParams.get("legalEntityId") L70, body.organizationId L111 | NO VALID METHOD PROOF | **GAP** |
