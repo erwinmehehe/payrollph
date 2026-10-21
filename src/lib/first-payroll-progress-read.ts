@@ -27,8 +27,9 @@ function validDate(value: unknown): value is string {
  * empty, completed or authorized payroll setup. Employer isolation is owned
  * by the authenticated endpoint and the consuming view's request scope.
  */
-export function parseFirstPayrollProgressRead(value: unknown): SavedFirstPayrollProgress | null {
-  if (!isRecord(value) || !Object.hasOwn(value, "progress")) {
+export function parseFirstPayrollProgressRead(value: unknown, organizationId: number): SavedFirstPayrollProgress | null {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 || !isRecord(value) ||
+      value.organizationId !== organizationId || !Object.hasOwn(value, "progress")) {
     throw readError();
   }
   if (value.progress === null) return null;
@@ -65,4 +66,17 @@ export function parseFirstPayrollProgressRead(value: unknown): SavedFirstPayroll
     };
   }
   return { stepOwners, completedSteps };
+}
+
+/** A verified null/empty progress is legitimate; missing or foreign evidence is not. */
+export async function readVerifiedFirstPayrollProgress(
+  organizationId: number, fetcher: typeof fetch = fetch, signal?: AbortSignal,
+): Promise<SavedFirstPayrollProgress | null> {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) throw readError();
+  const response = await fetcher("/api/first-payroll/progress?organizationId=" + organizationId,
+    { cache: "no-store", signal });
+  if (!response.ok) throw readError();
+  let body: unknown;
+  try { body = await response.json(); } catch { throw readError(); }
+  return parseFirstPayrollProgressRead(body, organizationId);
 }
