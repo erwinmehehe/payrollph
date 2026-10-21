@@ -20,3 +20,19 @@ Component fixtures do not establish authenticated role or live agency/payment ac
 Rollback: remove the variable or set it to `false`, then rebuild/redeploy. No schema or
 data rollback is necessary. Keep server scoping enabled. Do not remove the legacy
 component until a separately reviewed change explicitly retires this flag.
+
+## Multiple legal employers and authorization
+
+The enhanced panel must first fetch `/api/legal-entities?mode=selector` using
+authenticated no-store transport, validate the organization and active legal
+employers, and select a single legal employer. With multiple authorized
+employers, a user must explicitly choose one. Without verified scope there
+are no batch/member reads, posting actions or payment controls.
+
+The selected `legalEntityId` is sent in every GET and POST. Switching
+employers remounts the scoped panel and clears the previous employer's
+evidence and unsubmitted drafts. Employer switching is disabled while a
+mutation is pending. Both server methods independently check legal employer
+grants with `resolveMultiEntityContext` and `assertEntityResource`. The
+selector may expose only active employers authorized by the user's grants.
+These security controls do not turn the UI release flag on.
