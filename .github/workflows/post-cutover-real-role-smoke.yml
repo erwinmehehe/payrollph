@@ -1,0 +1,182 @@
+name: Post-Cutover Real-Role Smoke (Disposable Only)
+
+# Never attach a production environment, Neon credentials or production secrets.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/post-cutover-real-role-smoke.yml"
+      - "scripts/qa/post-cutover-*.mjs"
+      - "scripts/qa/provision-cutover-test-target.mjs"
+      - "tests/post-cutover-smoke.test.mjs"
+      - "docs/engineering/post-cutover-smoke.md"
+      - "scripts/run-clean-baseline-cutover.mjs"
+      - "scripts/verify-clean-baseline-cutover.mjs"
+      - "scripts/lib/clean-baseline-cutover.mjs"
+      - "src/**"
+      - "drizzle/**"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: post-cutover-real-role-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  cutover-real-role-smoke:
+    name: Post-cutover payroll journey as restricted roles (PostgreSQL 18)
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      NINE_STAGE_PG_MAJOR: "18"
+      EXPECTED_DATABASE_NAME: payrollph_clean_baseline
+      CUTOVER_ISOLATED_TEST: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      APP_BASE_URL: https://postcutover.example.invalid
+      REQUEST_SCHEMA_READONLY_ENABLED: "true"
+      CORE_SCHEMA_COMPATIBILITY_MODE: read-only
+      AUDIT_ROLE_ISOLATION_PROOF_ENABLED: "true"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      PUBLIC_SIGNUP_MODE: pilot
+      PRIVATE_PILOT_INVITE_ENABLED: "true"
+      DEMO_MODE: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout precise source without persisting GitHub credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: npm ci
+        run: npm ci
+      - name: Static post-cutover guard and tamper contract
+        run: node --test tests/post-cutover-smoke.test.mjs
+      - name: TypeScript noEmit
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Build disposable source schema artifact exactly like protected runner
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run db:push
+          node scripts/qa/apply-audit-0109-isolated.mjs
+          node scripts/qa/apply-source-baseline-supplement.mjs
+          mkdir -p cutover-artifact
+          docker exec "$PG_CONTAINER" pg_dump -U postgres -d app_db --schema-only --schema=public \
+            --no-owner --no-privileges --no-tablespaces --no-security-labels > cutover-artifact/schema-only.sql
+          test -s cutover-artifact/schema-only.sql
+      - name: npm test against original disposable source schema
+        run: npm test
+      - name: Simulate Neon owner and independent DML-only app, planner and sealer logins
+        run: node scripts/qa/provision-cutover-test-target.mjs
+      - name: Apply EXACT protected cutover runner (isolated PG18 only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CUTOVER_TARGET_DATABASE_URL="$SIM_OWNER_URL"
+          node scripts/run-clean-baseline-cutover.mjs --dry-run --artifact cutover-artifact/schema-only.sql
+          node scripts/run-clean-baseline-cutover.mjs --apply --artifact cutover-artifact/schema-only.sql
+      - name: Verify cutover migration control as actual read-only planner
+        run: PLANNER_DATABASE_URL="$SIM_PLANNER_URL" node scripts/verify-clean-baseline-cutover.mjs
+      - name: Create ephemeral masked fictional login/keys (disposable only)
+        run: node scripts/qa/post-cutover-ci-fixture-env.mjs
+      - name: Build Next.js production app with restricted cutover login
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DATABASE_URL="$SIM_APP_URL"
+          export AUDIT_SEALER_DATABASE_URL="$SIM_SEALER_URL"
+          npm run build
+      - name: Start real production-mode app as restricted app/sealer
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DATABASE_URL="$SIM_APP_URL"
+          export AUDIT_SEALER_DATABASE_URL="$SIM_SEALER_URL"
+          node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000 > /tmp/post-cutover-app.log 2>&1 &
+          echo "$!" > /tmp/post-cutover-app.pid
+          for attempt in {1..60}; do
+            if curl -fsS "http://127.0.0.1:3000/api/health" > /dev/null 2>&1; then exit 0; fi
+            sleep 2
+          done
+          echo "HTTP_BOOT_FAILED: inspect the failed action privately; server log not uploaded."
+          exit 1
+      - name: Role-adversarial proofs, real fictional HTTP payroll and audit chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATABASE_URL="$SIM_APP_URL" AUDIT_SEALER_DATABASE_URL="$SIM_SEALER_URL" \
+            npx tsx scripts/qa/post-cutover-ci-smoke.mjs
+      - name: Restart production-mode app without resetting database
+        shell: bash
+        run: |
+          set -euo pipefail
+          kill "$(cat /tmp/post-cutover-app.pid)"
+          for attempt in {1..30}; do
+            if ! kill -0 "$(cat /tmp/post-cutover-app.pid)" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          export DATABASE_URL="$SIM_APP_URL"
+          export AUDIT_SEALER_DATABASE_URL="$SIM_SEALER_URL"
+          node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000 > /tmp/post-cutover-restarted.log 2>&1 &
+          echo "$!" > /tmp/post-cutover-app.pid
+          for attempt in {1..60}; do
+            if curl -fsS "http://127.0.0.1:3000/api/health" > /dev/null 2>&1; then exit 0; fi
+            sleep 2
+          done
+          echo "HTTP_RESTART_FAILED: no logs or credentials uploaded."
+          exit 1
+      - name: Verify persistence, audit chain, no duplicated runs or payslips
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATABASE_URL="$SIM_APP_URL" AUDIT_SEALER_DATABASE_URL="$SIM_SEALER_URL" \
+            npx tsx scripts/qa/post-cutover-restart-smoke.mjs
+      - name: Upload sanitized PASS/FAIL reports (no URLs or secrets)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: post-cutover-real-role-smoke
+          path: qa-artifacts/post-cutover-smoke/*.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Keep operational boundary clear
+        if: always()
+        run: |
+          echo 'This job used only a disposable GitHub Actions PostgreSQL 18 service.'
+          echo 'No Neon management API, production database, deployment environment, provider or money movement was used.'
+          echo 'Passing this job is not live approval or proof of real human MFA.'
