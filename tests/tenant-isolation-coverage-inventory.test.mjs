@@ -500,7 +500,7 @@ test("all credited proof links point to the claimed route and every recertified 
           const requestStart = searchStart + offset;
           const statusEnd = proofLines.findIndex((line, i) =>
             i >= requestStart && i <= requestStart + 15 &&
-            /\)\s*,\s*\d{3}\s*,/.test(line));
+            /(?:\)\s*,\s*|^\s*)\d{3}\s*,/.test(line));
           assert.ok(statusEnd >= requestStart,
             path + ": " + expectedLabel + " must assert a real HTTP status");
           if (expectedLabel === "foreign-denial") {
@@ -520,7 +520,7 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(own.start, /expectStatus\s*\(\s*await request(?:Multipart)?\s*\(/);
         assert.match(proofLines[proof.ownPositiveLine - 1], /expectStatus\s*\(\s*await request(?:Multipart)?\s*\(/,
           path + ": ownPositiveLine must be the request itself, never a nearby assertion");
-        assert.match(proofLines[proof.foreignDenialLine - 1], /\)\s*,\s*403\s*,/,
+        assert.match(proofLines[proof.foreignDenialLine - 1], /(?:\)\s*,\s*|^\s*)403\s*,/,
           path + ": foreignDenialLine must assert an actual forbidden response");
         const isMultipart = path ===
           "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts" &&
@@ -544,7 +544,7 @@ test("all credited proof links point to the claimed route and every recertified 
         }
         const ownStatus = path === "src/app/api/hcm/probation-reviews/route.ts" &&
           method.name === "POST" || isMultipart ? 201 : 200;
-        const assertedOwnStatus = own.throughStatus.match(/\)\s*,\s*(\d{3})\s*,/);
+        const assertedOwnStatus = own.throughStatus.match(/(?:\)\s*,\s*|^\s*)(\d{3})\s*,/m);
         assert.equal(Number(assertedOwnStatus?.[1]), ownStatus,
           path + ": valid own-employer HTTP success is mandatory");
         assert.match(own.throughStatus, /own\.id/,
