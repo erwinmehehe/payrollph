@@ -81,9 +81,9 @@ test("BI and labor download use existing HIGHER-ID victim-only DB records", () =
   ]) assert.ok(src.includes(fragment), "Real higher-ID victim-only export proof missing: " + fragment);
 });
 
-function overviewHasLink(route, line) {
+function overviewHasLink(route, method, line) {
   const inventory = readFileSync("docs/engineering/tenant-isolation-coverage-inventory.md", "utf8");
-  const row = inventory.split("\n").find(value => value.startsWith("| [`" + route + "` "));
+  const row = inventory.split("\n").find(value => value.startsWith("| [`" + route + "` " + method + "]"));
   return Boolean(row && row.includes("tenant-dl01-batch2-http.mjs#L" + line) && row.endsWith("**COVERED** |"));
 }
 
@@ -129,7 +129,7 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
     assert.ok(proof.ownPositiveLine < proof.foreignDenialLine &&
       proof.foreignDenialLine < proof.forgedSelectorLine &&
       proof.forgedSelectorLine < proof.unchangedDbLine);
-    assert.ok(overviewHasLink(spec.route, proof.ownPositiveLine),
+    assert.ok(overviewHasLink(spec.route, spec.method, proof.ownPositiveLine),
       spec.route + ": client-facing inventory lacks exact method proof");
   }
   assert.equal(manifest.metrics.methods, 493);
