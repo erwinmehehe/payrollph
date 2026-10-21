@@ -118,6 +118,8 @@ export async function GET(request: Request) {
 
   return Response.json({
     ...state,
+    organizationId,
+    taxYear,
     officialSource: {
       label: "DOLE Online Compliance Portal",
       url: "https://reports.dole.gov.ph/",
