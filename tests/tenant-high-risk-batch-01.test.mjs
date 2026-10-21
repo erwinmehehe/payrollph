@@ -90,8 +90,78 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(payExplain?.status, "COVERED");
   assert.equal(payExplain?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs",
     "Keep the newer source-matched own/foreign real-HTTP pay-explanation proof");
-  assert.equal(manifest.metrics.coveredAfter, 88);
-  assert.equal(manifest.metrics.gap, 394);
+  // Preserve all 88 previously accepted main-branch method receipts. Newly
+  // credited routes may only add to this historical count when their specific
+  // isolated two-attacker HTTP suite is wired into the real PG16 harness.
+  // Never "fix" this gate by substituting a new total without proof.
+  const additionalSuites = [
+    {
+      file: "scripts/qa/compliance-read-sweep-http.mjs",
+      entrypoint: "verifyComplianceReadSweep",
+      methods: [
+        "GET bir/annual-employer/module-evidence",
+        "POST bir/annual-employer/module-evidence",
+        "GET compliance/dole-13th-month",
+        "POST compliance/dole-13th-month",
+        "GET compliance/government-loan-remittances",
+        "POST compliance/government-loan-remittances",
+        "GET compliance/statutory-remittances/payment-evidence",
+        "POST compliance/statutory-remittances/payment-evidence",
+      ],
+    },
+    {
+      file: "scripts/qa/hcm-probation-sweep-http.mjs",
+      entrypoint: "verifyHcmProbationSweep",
+      methods: [
+        "GET hcm/probation-reviews",
+        "POST hcm/probation-reviews",
+        "PATCH hcm/probation-reviews",
+      ],
+    },
+  ];
+  const methodsByKey = new Map(Object.values(manifest.allApiRouteFiles).flatMap((route) =>
+    route.methods.map((method) => [method.name + " " + route.route, method])));
+  let additionalSourcePinnedMethods = 0;
+  for (const suite of additionalSuites) {
+    const statuses = suite.methods.map((key) => {
+      const method = methodsByKey.get(key);
+      assert.ok(method, key + ": reviewed route and method must still exist");
+      assert.ok(method.status === "GAP" ||
+        (method.status === "COVERED" && method.testedBy?.file === suite.file),
+        key + ": a historical GAP can only close with its reviewed own/victim HTTP evidence");
+      if (method.status === "GAP") assert.equal(method.testedBy, null);
+      return method.status;
+    });
+    const added = statuses.filter((status) => status === "COVERED").length;
+    assert.ok(added === 0 || added === suite.methods.length,
+      suite.file + ": an incomplete/partial proof suite cannot silently receive credit");
+    if (!added) continue;
+    const runner = readFileSync(suite.file, "utf8");
+    assert.ok(harness.includes(suite.entrypoint + "(f, { request, expectStatus })"),
+      suite.file + ": actual disposable HTTP/PG16 harness must execute the suite");
+    assert.match(runner, /process\.env\.TENANT_SECOND_PASS_MODE/);
+    assert.match(runner, /for \(const idx of \[1, 2\]\)/);
+    const proofLines = runner.split("\n");
+    for (const key of suite.methods) {
+      const method = methodsByKey.get(key);
+      assert.equal(method.testedBy.file, suite.file);
+      const { ownPositiveLine, foreignDenialLine, unchangedDbLine } = method.testedBy;
+      assert.match(proofLines[ownPositiveLine - 1] ?? "",
+        /expectStatus\(await request(?:Multipart)?\(/,
+        key + ": source-pinned authenticated own-employer HTTP success is required");
+      assert.match(proofLines[foreignDenialLine - 1] ?? "", /403\s*,/,
+        key + ": source-pinned real victim-employer HTTP denial is required");
+      if (!key.startsWith("GET ")) {
+        assert.match(proofLines[unchangedDbLine - 1] ?? "", /assert\.deepEqual\(/,
+          key + ": denied writes must leave victim PostgreSQL rows unchanged");
+      }
+    }
+    additionalSourcePinnedMethods += added;
+  }
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 88,
+    "All 88 historical covered methods must remain, excluding only source-pinned additions");
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 394,
+    "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
   assert.match(source, /assert\.equal\(passed\.size, 36/);
