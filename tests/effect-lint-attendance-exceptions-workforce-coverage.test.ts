@@ -28,13 +28,13 @@ test("attendance effect retires initial Strict Mode work and cancels any former 
 test("attendance separate analysis and operational SLA services keep partial-failure behavior", () => {
   const source = read(attendancePath);
   assert.match(source, /Promise\.allSettled\(\[/);
-  for (const route of [
-    "/api/workforce/attendance-exceptions?",
-    "/api/workforce/attendance-exception-events?",
-  ]) assert.ok(source.includes(route), route);
-  assert.match(source, /readScopedJson<ResponsePayload>/);
-  assert.match(source, /readScopedJson<OperationsPayload>/);
-  assert.match(source, /fetch\(url, \{ cache: "no-store", signal \}\)/);
+  const verified = read("src/lib/attendance-exception-read.ts");
+  assert.match(source, /readVerifiedAttendanceAnalysis\(organizationId, startDate, endDate, fetch, controller\.signal\)/);
+  assert.match(source, /readVerifiedAttendanceOperations\(organizationId, startDate, endDate, fetch, controller\.signal\)/);
+  assert.match(verified, /fetchVerified\("attendance-exceptions",org,start,end,parseAttendanceAnalysisRead,fetcher,signal\)/);
+  assert.match(verified, /fetchVerified\("attendance-exception-events",org,start,end,parseAttendanceOperationsRead,fetcher,signal\)/);
+  assert.match(verified, /fetcher\("\/api\/workforce\/"\+path\+"\?"\+search\.toString\(\),\{cache:"no-store",signal\}\)/);
+  assert.match(verified, /if\(!verified\)throw Error\(/, "Unverified attendance evidence must fail closed");
   assert.match(source, /if \(analysis\.status === "fulfilled"\)/);
   assert.match(source, /if \(events\.status === "fulfilled"\)/);
   assert.match(source, /Attendance exception analysis unavailable/);

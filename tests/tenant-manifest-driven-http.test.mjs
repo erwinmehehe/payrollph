@@ -15,8 +15,26 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.gap, 415, "Five first-payroll/legal-employer HTTP proofs reduce open method gaps to 415");
-  assert.equal(manifest.metrics.coveredAfter, 67, "Five new method-level own/foreign HTTP controls raise covered methods to 67");
+  assert.equal(manifest.metrics.gap, 410, "Five attendance HTTP proofs further reduce open methods to 410");
+  assert.equal(manifest.metrics.coveredAfter, 72, "Five attendance methods supplement the prior 67 covered methods");
+  const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
+  for (const [route, methods] of [
+    ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
+    ["src/app/api/workforce/attendance-exceptions/route.ts", ["GET"]],
+    ["src/app/api/workforce/attendance-locks/route.ts", ["GET","POST"]],
+  ]) {
+    const sourceMethods = manifest.allApiRouteFiles[route]?.methods ?? [];
+    for (const name of methods) {
+      const method = sourceMethods.find((value) => value.name === name);
+      assert.equal(method?.status, "COVERED", route + " " + name + " requires real independent tenant proof");
+      assert.equal(method?.testedBy?.file, "scripts/qa/workforce-attendance-sweep-http.mjs");
+      assert.match(workforceProof[method.testedBy.ownPositiveLine - 1], /expectStatus\(await request\(/);
+      assert.match(workforceProof[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\(/);
+      assert.match(workforceProof[method.testedBy.foreignDenialLine - 1], /403/);
+      if (name === "POST")
+        assert.match(workforceProof[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(/);
+    }
+  }
   const governanceMethod = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(governanceMethod?.status, "COVERED", "HCM governance read requires real own/foreign proof");
   assert.equal(governanceMethod?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");

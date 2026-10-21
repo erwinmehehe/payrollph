@@ -5,23 +5,7 @@ import { LockKeyhole, ShieldCheck, UnlockKeyhole } from "lucide-react";
 import type { Notify } from "./types";
 import { ErrorState, Spinner, Status } from "./ui";
 import { useScopedAsyncResource } from "./use-scoped-async-resource";
-
-type LockRow = {
-  id: number;
-  periodStart: string;
-  periodEnd: string;
-  lockType: "attendance" | "payroll_cutoff";
-  status: "locked" | "unlocked";
-  reason: string;
-  lockedBy: string;
-  lockedAt: string;
-};
-
-type LockPayload = {
-  canManage: boolean;
-  policy: { requirePayrollCutoffLock: boolean };
-  locks: LockRow[];
-};
+import { readVerifiedAttendanceLocks, type AttendanceLockRow as LockRow } from "@/lib/attendance-lock-read";
 
 export function AttendanceLockControl({
   organizationId,
@@ -37,15 +21,8 @@ export function AttendanceLockControl({
   const [reason, setReason] = useState("Attendance cutoff review complete");
   const [busy, setBusy] = useState(false);
 
-  const fetchLocks = useCallback(async (signal: AbortSignal) => {
-    const response = await fetch(
-      `/api/workforce/attendance-locks?organizationId=${organizationId}`,
-      { cache: "no-store", signal },
-    );
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error ?? "Could not load attendance locks.");
-    return body as LockPayload;
-  }, [organizationId]);
+  const fetchLocks = useCallback((signal: AbortSignal) =>
+    readVerifiedAttendanceLocks(organizationId, fetch, signal), [organizationId]);
   const { data: payload, error: loadError, loading, reload: load } =
     useScopedAsyncResource(String(organizationId), fetchLocks);
 
@@ -71,7 +48,7 @@ export function AttendanceLockControl({
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error ?? "Attendance lock update failed.");
       await load();
-      notify("Attendance control updated.", "ok");
+      notify("Attendance change was accepted. Review the refreshed lock state before taking further action.", "info");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Attendance lock update failed.", "err");
     } finally {
@@ -90,13 +67,13 @@ export function AttendanceLockControl({
           </div>
         </div>
         <div className="toolbar-spacer" />
-        <Status value={loading ? "Loading locks" : loadError ? "Lock status unavailable" : cutoffLock ? "Payroll cutoff locked" : attendanceLock ? "Capture locked" : "Open"} />
+        <Status value={loading ? "Loading locks" : !payload || loadError ? "Lock status unavailable" : cutoffLock ? "Payroll cutoff locked" : attendanceLock ? "Capture locked" : "Open"} />
       </div>
 
-      {loadError && (
+      {!loading && !payload && (
         <ErrorState
           title="Attendance lock status unavailable"
-          detail="Period lock settings could not be loaded. No locks were changed."
+          detail="Period lock settings could not be verified. No locks were changed."
           onRetry={() => void load()}
         />
       )}
