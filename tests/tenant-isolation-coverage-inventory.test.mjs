@@ -275,8 +275,30 @@ test("DL-02 proofs distinguish cross-tenant denials from employee membership rev
   assert.match(harness, /if \(process\.env\.TENANT_DL02_PROOF === "isolated-ci-only"\) await \(await import\("\.\/tenant-dl02-http\.mjs"\)\)\.verifyDl02TenantIsolation\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
-  assert.match(source, /Victim-only DL02 ID must really exist and exceed 6/);
+  assert.match(source, /Victim-only DL02 ID must really exist and exceed 6 and both attacker object IDs/);
   assert.match(source, /assert\.deepEqual\(victimAfter, victimBefore/);
+  // Do not revert to VICTIM-first fixtures: the real seeded victim target IDs
+  // must exceed BOTH attacker-owned IDs, not merely a fixed sequence floor.
+  const attackerSeed = source.indexOf('for (const label of ["ATTA", "ATTB"])');
+  const actualOwnPost = source.indexOf("const ownSavedPost = expectStatus");
+  const victimSeed = source.indexOf('const victim = await seedEmployer("VICTIM"');
+  assert.ok(attackerSeed >= 0 && attackerSeed < actualOwnPost && actualOwnPost < victimSeed,
+    "Both attacker employers and real own saved-report POSTs must precede the victim");
+  assert.match(source, /attackerIds\.every\(\(ownId\) => Number\.isSafeInteger\(ownId\) && victimId > ownId\)/);
+  assert.match(source, /persisted, \{ id: victimId, organizationId: victim\.org\.id \}/);
+  for (const type of ["decisions", "terms", "employees", "payrollRuns",
+    "payrollEntries", "performanceCycles", "performanceReviews"]) {
+    assert.ok(source.includes(type + ": await db.select"),
+      "Victim snapshot must include persisted " + type + " state");
+  }
+  assert.match(source, /const ownPeople = await db\.select/);
+  assert.match(source, /assert\.notEqual\(ownHeadcount, victimHeadcount/);
+  assert.match(source, /HCM report output must match real seeded own-employer employees/);
+  assert.match(source, /Report builder must return all actual own employees in ID order/);
+  assert.match(source, /performanceCycle\.id/);
+  assert.match(source, /performanceReview\.id/);
+  assert.match(source, /Export evidence identity hash must match actual content/);
+  assert.match(source, /The download SHA256 response header must match real exported evidence/);
   // Revoked-membership denials must follow a real own success with the same session.
   assert.ok(source.indexOf("const ownPhotoGet = expectStatus") < source.indexOf("set({ active: false })") &&
     source.indexOf("set({ active: false })") < source.indexOf("Former employee photo GET denied"));
@@ -314,6 +336,31 @@ test("DL-02 proofs distinguish cross-tenant denials from employee membership rev
       } else {
         assert.equal(method.testedBy.denialKind, undefined,
           key + ": ordinary foreign-employer/object proof must not be labeled session revocation");
+        const ordering = method.testedBy.victimIdOrderingLine;
+        assert.ok(Number.isSafeInteger(ordering), key + ": missing real victim-versus-attacker ordering line");
+        assert.match(lines[ordering - 1],
+          /Victim-only DL02 ID must really exist and exceed 6 and both attacker object IDs/,
+          key + ": victim ID ordering must compare both actual attackers");
+      }
+      if (new Set(["hcm-report-builder GET", "reports/builder GET"]).has(record.route + " " + method.name)) {
+        assert.equal(method.testedBy.positiveKind, "authorized-tenant-gated-field-catalog",
+          key + ": do not mislabel GET field metadata as owned rows");
+        assert.match(lines[method.testedBy.catalogAssertionLine - 1], /headcount/,
+          key + ": require nonempty authorized field catalog assertion");
+      }
+      if (new Set(["hcm-report-builder POST", "reports/builder POST"]).has(record.route + " " + method.name)) {
+        assert.equal(method.testedBy.positiveKind, "owned-nonempty-employee-report",
+          key + ": require real seeded own-employee data");
+        assert.match(lines[method.testedBy.contentAssertionLine - 1],
+          /HCM report output must match real seeded own-employer employees|Report builder must return all actual own employees in ID order/,
+          key + ": positive report must check real owned content, not merely column names");
+      }
+      if (record.route === "performance/evidence" && method.name === "GET") {
+        assert.equal(method.testedBy.positiveKind, "scoped-json-download-verified-hashes",
+          key + ": performance download must validate real own JSON and hashes");
+        assert.match(lines[method.testedBy.contentAssertionLine - 1],
+          /Export evidence identity hash must match actual content/,
+          key + ": verify actual downloaded evidence identity hash");
       }
       if (["POST", "PATCH", "PUT", "DELETE", "HEAD"].includes(method.name)) {
         assert.ok(ownSpan.includes('method: "' + method.name + '"') && deniedSpan.includes('method: "' + method.name + '"'),

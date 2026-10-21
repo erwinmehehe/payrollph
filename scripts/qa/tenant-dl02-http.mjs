@@ -12,7 +12,7 @@ import { db } from "../../src/db";
 import {
   auditEvents, employees, hcmEmploymentDecisionNotes, hcmEmploymentTermDecisions, hcmEmploymentTerms,
   hcmPolicyAssignments, hcmPolicyVersions, legalEntities, organizations, payrollEntries, payrollRuns,
-  savedReportDefinitions, sessions, userOrganizations, users,
+  performanceCycles, performanceReviews, savedReportDefinitions, sessions, userOrganizations, users,
 } from "../../src/db/schema";
 import { essEmployeePhotos } from "../../src/lib/ess-profile-schema";
 import { encryptProfilePhoto } from "../../src/lib/ess-photo-crypto";
@@ -32,7 +32,11 @@ async function seedEmployer(label, nonce, makeSession) {
   const ownerSession = await makeSession(owner.id);
   // Only fictional fixture sessions receive a verified MFA timestamp.
   await db.update(sessions).set({ mfaVerifiedAt: new Date() }).where(eq(sessions.id, ownerSession.id));
-  const [worker, linkTarget] = await db.insert(employees).values(["W", "L"].map((suffix) => ({
+  // Distinct employer sizes make wrongly scoped/empty report responses observable:
+  // ATTA=2, ATTB=3, VICTIM=4 real employee rows.
+  const employeeSuffixes = label === "VICTIM" ? ["W", "L", "X", "Y"]
+    : label === "ATTB" ? ["W", "L", "X"] : ["W", "L"];
+  const [worker, linkTarget] = await db.insert(employees).values(employeeSuffixes.map((suffix) => ({
     organizationId: org.id, legalEntityId: entity.id, employeeNo: "DL02-" + label + "-" + suffix + "-" + nonce,
     firstName: "DL02" + label + suffix, lastName: "Synthetic", title: "Fictional", avatarInitials: "DS",
     basicRate: "20000.00", startDate: "2026-01-05",
@@ -56,10 +60,20 @@ async function seedEmployer(label, nonce, makeSession) {
   const [decision] = await db.insert(hcmEmploymentTermDecisions).values({ organizationId: org.id, employeeId: worker.id,
     employmentTermId: term.id, decisionKind: "regularize", effectiveDate: "2026-07-05", reason: "Fictional DL02 decision",
     requestedByUserId: owner.id, requestedBy: owner.name }).returning();
+  const [performanceCycle] = await db.insert(performanceCycles).values({
+    organizationId: org.id, name: "DL02 " + label + " " + nonce + " review",
+    startDate: "2026-01-01", endDate: "2026-12-31", status: "active",
+    createdByUserId: owner.id, createdBy: owner.name,
+  }).returning();
+  const [performanceReview] = await db.insert(performanceReviews).values({
+    organizationId: org.id, employeeId: worker.id, cycleId: performanceCycle.id,
+    reviewerUserId: owner.id, status: "draft", managerSummary: "Synthetic review for " + worker.employeeNo,
+  }).returning();
   await db.insert(essEmployeePhotos).values({ employeeId: worker.id, organizationId: org.id, mimeType: "image/png",
     byteSize: PNG.length, sealedPhoto: encryptProfilePhoto(PNG), contentSha256: sha256(PNG) });
   return { org, entity, owner, ownerCookie: ownerSession.cookie, worker, linkTarget, ess, essCookie: (await makeSession(ess.id)).cookie,
-    unlinked, unlinkedCookie: (await makeSession(unlinked.id)).cookie, policy, assignment, decision };
+    unlinked, unlinkedCookie: (await makeSession(unlinked.id)).cookie,
+    policy, assignment, decision, performanceCycle, performanceReview };
 }
 
 async function victimSnapshot(victim) {
@@ -69,6 +83,14 @@ async function victimSnapshot(victim) {
     policies: await db.select().from(hcmPolicyVersions).where(eq(hcmPolicyVersions.organizationId, org)),
     assignments: await db.select().from(hcmPolicyAssignments).where(eq(hcmPolicyAssignments.organizationId, org)),
     notes: await db.select().from(hcmEmploymentDecisionNotes).where(eq(hcmEmploymentDecisionNotes.organizationId, org)),
+    decisions: await db.select().from(hcmEmploymentTermDecisions).where(eq(hcmEmploymentTermDecisions.organizationId, org)),
+    terms: await db.select().from(hcmEmploymentTerms).where(eq(hcmEmploymentTerms.organizationId, org)),
+    employees: await db.select().from(employees).where(eq(employees.organizationId, org)),
+    payrollRuns: await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, org)),
+    payrollEntries: await db.select().from(payrollEntries).innerJoin(payrollRuns,
+      eq(payrollEntries.payrollRunId, payrollRuns.id)).where(eq(payrollRuns.organizationId, org)),
+    performanceCycles: await db.select().from(performanceCycles).where(eq(performanceCycles.organizationId, org)),
+    performanceReviews: await db.select().from(performanceReviews).where(eq(performanceReviews.organizationId, org)),
     photos: await db.select().from(essEmployeePhotos).where(eq(essEmployeePhotos.organizationId, org)),
     links: await db.select({ id: users.id, employeeId: users.employeeId }).from(users)
       .where(inArray(users.id, [victim.ess.id, victim.unlinked.id])),
@@ -81,15 +103,52 @@ export async function verifyDl02TenantIsolation(f, { request, expectStatus, make
   assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only");
   assert.equal(process.env.TENANT_DL02_PROOF, "isolated-ci-only");
   const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
-  const employers = []; await reserveHighSyntheticIds();
-  for (const label of ["VICTIM", "ATTA", "ATTB"]) employers.push(await seedEmployer(label, nonce, makeSession));
-  const victim = employers[0];
-  const [victimReport] = await db.insert(savedReportDefinitions).values({ organizationId: victim.org.id, userId: victim.owner.id,
-    name: "Victim-only saved report", reportKey: "headcount", selectedFields: ["department"] }).returning();
-  for (const id of [victimReport.id, victim.policy.id, victim.assignment.id, victim.decision.id, victim.worker.id]) {
-    assert.ok(Number.isSafeInteger(id) && id > 6, "Victim-only DL02 ID must really exist and exceed 6: " + id);
+  await reserveHighSyntheticIds();
+  // Build BOTH attacker-employer control rows before assigning victim IDs.
+  const attackers = [];
+  for (const label of ["ATTA", "ATTB"]) attackers.push(await seedEmployer(label, nonce, makeSession));
+  const savedReportIds = new Map();
+  for (const own of attackers) {
+    const cookie = own.ownerCookie;
+    const org = own.org;
+    const ownSavedPost = expectStatus(await request("/api/report-builder/saved", { method: "POST", cookie,
+      body: { organizationId: org.id, name: "Own DL02 report", reportKey: "headcount",
+        selectedFields: ["department"], rowFilters: [] } }), 201, "Own saved report is created");
+    const savedId = ownSavedPost.json?.report?.id;
+    assert.ok(Number.isSafeInteger(savedId), "Actual own saved-report POST must return its persisted ID");
+    assert.equal(ownSavedPost.json?.report?.organizationId, org.id);
+    savedReportIds.set(org.id, savedId);
+  }
+
+  // The victim-exclusive records are inserted AFTER both sets of real attacker
+  // rows; high sequence values alone cannot prove victim > attacker objects.
+  const victim = await seedEmployer("VICTIM", nonce, makeSession);
+  const employers = [victim, ...attackers];
+  const [victimReport] = await db.insert(savedReportDefinitions).values({ organizationId: victim.org.id,
+    userId: victim.owner.id, name: "Victim-only saved report",
+    reportKey: "headcount", selectedFields: ["department"] }).returning();
+  for (const [label, table, victimId, attackerIds] of [
+    ["saved report", savedReportDefinitions, victimReport.id, attackers.map((own) => savedReportIds.get(own.org.id))],
+    ["policy", hcmPolicyVersions, victim.policy.id, attackers.map((own) => own.policy.id)],
+    ["policy assignment", hcmPolicyAssignments, victim.assignment.id, attackers.map((own) => own.assignment.id)],
+    ["decision", hcmEmploymentTermDecisions, victim.decision.id, attackers.map((own) => own.decision.id)],
+    ["worker", employees, victim.worker.id, attackers.flatMap((own) => [own.worker.id, own.linkTarget.id])],
+    ["link target", employees, victim.linkTarget.id, attackers.flatMap((own) => [own.worker.id, own.linkTarget.id])],
+  ]) {
+    const [persisted] = await db.select({ id: table.id, organizationId: table.organizationId })
+      .from(table).where(eq(table.id, victimId)).limit(1);
+    assert.deepEqual(persisted, { id: victimId, organizationId: victim.org.id },
+      label + ": victim-only object must exist in the real victim employer DB");
+    assert.ok(Number.isSafeInteger(victimId) && victimId > 6
+      && attackerIds.every((ownId) => Number.isSafeInteger(ownId) && victimId > ownId),
+      "Victim-only DL02 ID must really exist and exceed 6 and both attacker object IDs: " + label);
   }
   const victimBefore = await victimSnapshot(victim);
+  const victimPeople = await db.select({ status: employees.status }).from(employees)
+    .where(eq(employees.organizationId, victim.org.id));
+  const victimHeadcount = victimPeople.filter((person) =>
+    ["Active", "On Leave", "Separating"].includes(person.status)).length;
+  assert.equal(victimHeadcount, 4, "Victim-only headcount must differ from BOTH attacker employers");
   const dates = { startDate: "2026-09-01", endDate: "2026-09-30" };
 
   for (const idx of [1, 2]) {
@@ -98,10 +157,9 @@ export async function verifyDl02TenantIsolation(f, { request, expectStatus, make
     const cookie = own.ownerCookie;
 
     // Saved report definitions: create, list, edit, delete own; victim employer and victim row denied.
-    const ownSavedPost = expectStatus(await request("/api/report-builder/saved", { method: "POST", cookie,
-      body: { organizationId: org.id, name: "Own DL02 report", reportKey: "headcount", selectedFields: ["department"], rowFilters: [] } }), 201, "Own saved report is created");
-    const savedId = ownSavedPost.json?.report?.id;
-    assert.equal(ownSavedPost.json?.report?.organizationId, org.id);
+    const savedId = savedReportIds.get(org.id);
+    assert.ok(Number.isSafeInteger(savedId) && savedId < victimReport.id,
+      "Attacker's actual saved-report object must predate the larger victim-exclusive ID");
     expectStatus(await request("/api/report-builder/saved", { method: "POST", cookie,
       body: { organizationId: victim.org.id, name: "Forged victim report", reportKey: "headcount", selectedFields: [], rowFilters: [] } }), 403, "Victim employer saved report POST is denied");
     const ownSavedGet = expectStatus(await request("/api/report-builder/saved?organizationId=" + org.id, { cookie }), 200, "Own saved reports are listed");
@@ -124,26 +182,80 @@ export async function verifyDl02TenantIsolation(f, { request, expectStatus, make
       body: { organizationId: org.id, id: victimReport.id } }), 404, "Victim saved report ID cannot be deleted from own employer");
 
     // Workforce report builders (single verified legal employer).
+    const ownPeople = await db.select({ id: employees.id, employeeNo: employees.employeeNo,
+      status: employees.status }).from(employees).where(eq(employees.organizationId, org.id))
+      .orderBy(employees.id);
+    const ownHeadcount = ownPeople.filter((person) =>
+      ["Active", "On Leave", "Separating"].includes(person.status)).length;
+    assert.equal(ownPeople.length, idx === 1 ? 2 : 3, "Each employer has a distinct nonempty own-employee population");
+    assert.notEqual(ownHeadcount, victimHeadcount, "A victim-employer report must not match the own positive");
+    assert.ok(ownPeople.some((person) => person.employeeNo === own.worker.employeeNo)
+      && ownPeople.every((person) => person.employeeNo !== victim.worker.employeeNo),
+      "Report controls must refer to persisted own employees, not victim records");
+
+    // Field catalogs return role/tenant-gated metadata, NOT seeded employee rows.
+    // Their route-specific positive is an authorized nonempty catalog, paired with a foreign 403.
     const ownHcmReportGet = expectStatus(await request("/api/hcm-report-builder?organizationId=" + org.id, { cookie }), 200, "Own HCM report catalog");
-    assert.ok(Array.isArray(ownHcmReportGet.json?.fields) && ownHcmReportGet.json.fields.length > 0);
+    assert.ok(Array.isArray(ownHcmReportGet.json?.fields)
+      && ownHcmReportGet.json.fields.some((field) => field.dataset === "people" && field.key === "headcount"));
+    assert.match(ownHcmReportGet.headers.get("cache-control") ?? "", /no-store/);
     expectStatus(await request("/api/hcm-report-builder?organizationId=" + victim.org.id, { cookie }), 403, "Victim HCM report catalog denied");
     const ownHcmReportPost = expectStatus(await request("/api/hcm-report-builder", { method: "POST", cookie,
       body: { organizationId: org.id, format: "json", dataset: "people", fields: ["headcount"], ...dates } }), 200, "Own HCM report runs");
     assert.deepEqual(ownHcmReportPost.json?.columns, ["headcount"]);
+    assert.equal(ownHcmReportPost.json?.rowCount, 1, "An actual employer headcount aggregate is required");
+    assert.deepEqual(ownHcmReportPost.json?.rows, [{ headcount: ownHeadcount }],
+      "HCM report output must match real seeded own-employer employees, not empty or victim data");
     expectStatus(await request("/api/hcm-report-builder", { method: "POST", cookie,
       body: { organizationId: victim.org.id, format: "json", dataset: "people", fields: ["headcount"], ...dates } }), 403, "Victim HCM report POST denied");
+
     const ownBuilderGet = expectStatus(await request("/api/reports/builder?organizationId=" + org.id, { cookie }), 200, "Own tenant report catalog");
-    assert.ok(Array.isArray(ownBuilderGet.json?.fields?.people));
+    assert.ok(Array.isArray(ownBuilderGet.json?.fields?.people)
+      && ownBuilderGet.json.fields.people.includes("headcount"));
+    assert.match(ownBuilderGet.headers.get("cache-control") ?? "", /no-store/);
     expectStatus(await request("/api/reports/builder?organizationId=" + victim.org.id, { cookie }), 403, "Victim tenant report catalog denied");
     const ownBuilderPost = expectStatus(await request("/api/reports/builder", { method: "POST", cookie,
       body: { organizationId: org.id, format: "json", spec: { dataset: "people", fields: ["headcount"] }, ...dates } }), 200, "Own tenant report runs");
     assert.equal(ownBuilderPost.json?.source, "people");
+    assert.deepEqual(ownBuilderPost.json?.columns, ["headcount"]);
+    assert.deepEqual(ownBuilderPost.json?.rows,
+      ownPeople.map((person) => [person.status === "Active" ? "1" : "0"]),
+      "Report builder must return all actual own employees in ID order, not victim or empty rows");
     expectStatus(await request("/api/reports/builder", { method: "POST", cookie,
       body: { organizationId: victim.org.id, format: "json", spec: { dataset: "people", fields: ["headcount"] }, ...dates } }), 403, "Victim tenant report POST denied");
 
     // Performance evidence package export.
     const ownPerformanceEvidence = expectStatus(await request("/api/performance/evidence?organizationId=" + org.id + "&employeeId=" + own.worker.id, { cookie }), 200, "Own performance evidence exports");
     assert.match(ownPerformanceEvidence.headers.get("content-disposition") ?? "", new RegExp("performance-evidence-" + own.worker.id));
+    assert.match(ownPerformanceEvidence.headers.get("content-type") ?? "", /^application\/json\b/);
+    assert.ok(ownPerformanceEvidence.text.length > 300, "Downloaded export must contain real JSON evidence bytes");
+    const pack = ownPerformanceEvidence.json;
+    assert.equal(pack?.schemaVersion, "performance-evidence-v1");
+    assert.equal(pack?.organizationId, org.id);
+    assert.equal(pack?.filters?.employeeId, own.worker.id);
+    assert.equal(pack?.filters?.cycleId, null);
+    assert.equal(pack?.employee?.id, own.worker.id);
+    assert.equal(pack?.employee?.firstName, own.worker.firstName);
+    assert.equal(pack?.generatedBy, own.owner.name);
+    assert.deepEqual(pack?.sections?.cycles?.rows.map((row) => row.id), [own.performanceCycle.id]);
+    assert.deepEqual(pack?.sections?.reviews?.rows.map((row) => row.id), [own.performanceReview.id]);
+    assert.ok(pack.sections.cycles.rows.every((row) => row.organizationId === org.id
+      && row.id !== victim.performanceCycle.id));
+    assert.ok(pack.sections.reviews.rows.every((row) => row.organizationId === org.id
+      && row.employeeId === own.worker.id && row.id !== victim.performanceReview.id));
+    for (const [sectionName, section] of Object.entries(pack.sections)) {
+      assert.ok(Array.isArray(section.rows), "Evidence section must contain a real row collection: " + sectionName);
+      assert.equal(section.rowCount, section.rows.length, "Evidence rowCount must match export content");
+      assert.equal(pack.snapshot.sectionHashes[sectionName], sha256(Buffer.from(JSON.stringify(section.rows))),
+        "Export section digest must match actual JSON rows");
+    }
+    const identity = { schemaVersion: pack.schemaVersion, organizationId: org.id,
+      employeeId: own.worker.id, cycleId: null, employee: pack.employee,
+      sectionHashes: pack.snapshot.sectionHashes };
+    const digest = sha256(Buffer.from(JSON.stringify(identity)));
+    assert.equal(pack.snapshot.sha256, digest, "Export evidence identity hash must match actual content");
+    assert.equal(ownPerformanceEvidence.headers.get("x-linaw-performance-evidence-sha256"), digest,
+      "The download SHA256 response header must match real exported evidence");
     expectStatus(await request("/api/performance/evidence?organizationId=" + victim.org.id + "&employeeId=" + victim.worker.id, { cookie }), 403, "Victim performance evidence denied");
     expectStatus(await request("/api/performance/evidence?organizationId=" + org.id + "&employeeId=" + victim.worker.id, { cookie }), 422, "Victim worker cannot be exported through own employer");
 

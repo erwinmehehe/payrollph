@@ -10739,27 +10739,33 @@
           "name": "GET",
           "line": 43,
           "status": "COVERED",
-          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "reason": "DL-02: two independent signed-in employers receive a real nonempty authorized field catalog (metadata, not an own-object export) and foreign-employer HTTP 403. Separate POST report proof validates persisted owned rows. Victim DB remains unchanged.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 129,
-            "ownPositiveLine": 127,
-            "foreignDenialLine": 129,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 202,
+            "ownPositiveLine": 198,
+            "foreignDenialLine": 202,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144,
+            "positiveKind": "authorized-tenant-gated-field-catalog",
+            "catalogAssertionLine": 200
           }
         },
         {
           "name": "POST",
           "line": 61,
           "status": "COVERED",
-          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "reason": "DL-02: owner report POST returns actual seeded own-worker rows/counts for two distinct attacker employers (2 and 3 employees vs victim's 4); exact foreign-org 403 and unchanged victim PostgreSQL snapshot are tested.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 133,
-            "ownPositiveLine": 130,
-            "foreignDenialLine": 133,
-            "unchangedDbLine": 214,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 209,
+            "ownPositiveLine": 203,
+            "foreignDenialLine": 209,
+            "unchangedDbLine": 326,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144,
+            "positiveKind": "owned-nonempty-employee-report",
+            "contentAssertionLine": 208
           }
         }
       ],
@@ -11352,10 +11358,11 @@
           "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 153,
-            "ownPositiveLine": 151,
-            "foreignDenialLine": 153,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 265,
+            "ownPositiveLine": 263,
+            "foreignDenialLine": 265,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144
           }
         },
         {
@@ -11365,11 +11372,12 @@
           "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 158,
-            "ownPositiveLine": 154,
-            "foreignDenialLine": 158,
-            "unchangedDbLine": 214,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 270,
+            "ownPositiveLine": 266,
+            "foreignDenialLine": 270,
+            "unchangedDbLine": 326,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144
           }
         }
       ],
@@ -11694,10 +11702,11 @@
           "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 168,
-            "ownPositiveLine": 166,
-            "foreignDenialLine": 168,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 280,
+            "ownPositiveLine": 278,
+            "foreignDenialLine": 280,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144
           }
         },
         {
@@ -11707,11 +11716,12 @@
           "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 173,
-            "ownPositiveLine": 170,
-            "foreignDenialLine": 173,
-            "unchangedDbLine": 214,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 285,
+            "ownPositiveLine": 282,
+            "foreignDenialLine": 285,
+            "unchangedDbLine": 326,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144
           }
         }
       ],
@@ -21851,13 +21861,16 @@
           "name": "GET",
           "line": 16,
           "status": "COVERED",
-          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "reason": "DL-02: nonempty own-employee performance-cycle/review JSON download verifies employee/employer IDs, section row hashes and full snapshot SHA256 header; foreign-org 403 and unchanged victim DB are tested.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 147,
-            "ownPositiveLine": 145,
-            "foreignDenialLine": 147,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 259,
+            "ownPositiveLine": 228,
+            "foreignDenialLine": 259,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144,
+            "positiveKind": "scoped-json-download-verified-hashes",
+            "contentAssertionLine": 256
           }
         }
       ],
@@ -23298,10 +23311,11 @@
           "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 109,
-            "ownPositiveLine": 107,
-            "foreignDenialLine": 109,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 167,
+            "ownPositiveLine": 165,
+            "foreignDenialLine": 167,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144
           }
         },
         {
@@ -23311,11 +23325,12 @@
           "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 105,
-            "ownPositiveLine": 101,
-            "foreignDenialLine": 105,
-            "unchangedDbLine": 214,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 163,
+            "ownPositiveLine": 114,
+            "foreignDenialLine": 163,
+            "unchangedDbLine": 326,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144
           }
         },
         {
@@ -23325,11 +23340,12 @@
           "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 113,
-            "ownPositiveLine": 110,
-            "foreignDenialLine": 113,
-            "unchangedDbLine": 214,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 171,
+            "ownPositiveLine": 168,
+            "foreignDenialLine": 171,
+            "unchangedDbLine": 326,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144
           }
         },
         {
@@ -23339,11 +23355,12 @@
           "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 121,
-            "ownPositiveLine": 117,
-            "foreignDenialLine": 121,
-            "unchangedDbLine": 214,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 179,
+            "ownPositiveLine": 175,
+            "foreignDenialLine": 179,
+            "unchangedDbLine": 326,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144
           }
         }
       ],
@@ -23481,27 +23498,33 @@
           "name": "GET",
           "line": 69,
           "status": "COVERED",
-          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "reason": "DL-02: two independent signed-in employers receive a real nonempty authorized field catalog (metadata, not an own-object export) and foreign-employer HTTP 403. Separate POST report proof validates persisted owned rows. Victim DB remains unchanged.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 137,
-            "ownPositiveLine": 135,
-            "foreignDenialLine": 137,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 216,
+            "ownPositiveLine": 212,
+            "foreignDenialLine": 216,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144,
+            "positiveKind": "authorized-tenant-gated-field-catalog",
+            "catalogAssertionLine": 214
           }
         },
         {
           "name": "POST",
           "line": 80,
           "status": "COVERED",
-          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "reason": "DL-02: owner report POST returns actual seeded own-worker rows/counts for two distinct attacker employers (2 and 3 employees vs victim's 4); exact foreign-org 403 and unchanged victim PostgreSQL snapshot are tested.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 141,
-            "ownPositiveLine": 138,
-            "foreignDenialLine": 141,
-            "unchangedDbLine": 214,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 224,
+            "ownPositiveLine": 217,
+            "foreignDenialLine": 224,
+            "unchangedDbLine": 326,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144,
+            "positiveKind": "owned-nonempty-employee-report",
+            "contentAssertionLine": 223
           }
         }
       ],
@@ -24097,11 +24120,11 @@
           "reason": "DL-02: each of two independent linked employee accounts returns real own-employer HTTP 200, then the same signed-in session receives 403 after that employee's active employer membership is revoked. No foreign victim ID is supplied to this self-service endpoint; separate victim-employer PostgreSQL records remain unchanged. Current-head CI required.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 199,
-            "ownPositiveLine": 183,
-            "foreignDenialLine": 199,
+            "line": 311,
+            "ownPositiveLine": 295,
+            "foreignDenialLine": 311,
             "denialKind": "same-session-revoked-membership",
-            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only)."
+            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence."
           }
         }
       ],
@@ -24320,11 +24343,12 @@
           "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 188,
-            "ownPositiveLine": 185,
-            "foreignDenialLine": 188,
-            "unchangedDbLine": 214,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 300,
+            "ownPositiveLine": 297,
+            "foreignDenialLine": 300,
+            "unchangedDbLine": 326,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144
           }
         }
       ],
@@ -24717,11 +24741,12 @@
           "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 204,
-            "ownPositiveLine": 206,
-            "foreignDenialLine": 204,
-            "unchangedDbLine": 214,
-            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+            "line": 316,
+            "ownPositiveLine": 318,
+            "foreignDenialLine": 316,
+            "unchangedDbLine": 326,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+            "victimIdOrderingLine": 144
           }
         }
       ],
@@ -25164,11 +25189,11 @@
           "reason": "DL-02: each of two independent linked employee accounts returns real own-employer HTTP 200, then the same signed-in session receives 403 after that employee's active employer membership is revoked. No foreign victim ID is supplied to this self-service endpoint; separate victim-employer PostgreSQL records remain unchanged. Current-head CI required.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 196,
-            "ownPositiveLine": 178,
-            "foreignDenialLine": 196,
+            "line": 308,
+            "ownPositiveLine": 290,
+            "foreignDenialLine": 308,
             "denialKind": "same-session-revoked-membership",
-            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only)."
+            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence."
           }
         },
         {
@@ -25178,11 +25203,11 @@
           "reason": "DL-02: each of two independent linked employee accounts returns real own-employer HTTP 200, then the same signed-in session receives 403 after that employee's active employer membership is revoked. No foreign victim ID is supplied to this self-service endpoint; separate victim-employer PostgreSQL records remain unchanged. Current-head CI required.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 197,
-            "ownPositiveLine": 181,
-            "foreignDenialLine": 197,
+            "line": 309,
+            "ownPositiveLine": 293,
+            "foreignDenialLine": 309,
             "denialKind": "same-session-revoked-membership",
-            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only)."
+            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence."
           }
         },
         {
@@ -25199,12 +25224,12 @@
           "reason": "DL-02: each of two independent linked employee accounts returns real own-employer HTTP 200, then the same signed-in session receives 403 after that employee's active employer membership is revoked. No foreign victim ID is supplied to this self-service endpoint; separate victim-employer PostgreSQL records remain unchanged. Current-head CI required.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
-            "line": 198,
-            "ownPositiveLine": 190,
-            "foreignDenialLine": 198,
+            "line": 310,
+            "ownPositiveLine": 302,
+            "foreignDenialLine": 310,
             "denialKind": "same-session-revoked-membership",
-            "unchangedDbLine": 214,
-            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only)."
+            "unchangedDbLine": 326,
+            "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence."
           }
         }
       ],
@@ -37231,7 +37256,7 @@
     }
   ],
   "proofPolicy": {
-    "covered": "Successful same-method own HTTP 200/201 with nonempty owned evidence; existing victim-only PostgreSQL target ID greater than each attacker-owned object; exact expected 403/404, unchanged real victim database for writes, and tested forged organizationId/employeeId/runId or equivalent victim selector. Never infer from invented IDs, 401, empty primary result, 429, 501, static reading or helper names. For session-derived own-employee endpoints with no caller-selectable employer or foreign resource ID, the route-specific alternative requires two independently successful own HTTP controls, the same signed-in account denied 403 after real DB membership revocation, and a separately seeded victim employer's PostgreSQL snapshot unchanged; do not report this as a foreign-ID attempt.",
+    "covered": "Successful same-method own HTTP 200/201 with nonempty owned evidence; existing victim-only PostgreSQL target ID greater than each attacker-owned object; exact expected 403/404, unchanged real victim database for writes, and tested forged organizationId/employeeId/runId or equivalent victim selector. Never infer from invented IDs, 401, empty primary result, 429, 501, static reading or helper names. For session-derived own-employee endpoints with no caller-selectable employer or foreign resource ID, the route-specific alternative requires two independently successful own HTTP controls, the same signed-in account denied 403 after real DB membership revocation, and a separately seeded victim employer's PostgreSQL snapshot unchanged; do not report this as a foreign-ID attempt. On selector-based routes, actual victim IDs must be read back from real PG and exceed both persisted attacker-owned comparator IDs; >6 alone is inadequate. Static GET catalogs must be explicitly labeled tenant-gated metadata, while exports validate seeded owned content, response bytes and integrity hashes when available.",
     "public": "reviewed public-no-tenant-resource reason",
     "gap": "not evidence of safety; invalid unauthenticated 401/invented 404/empty/429 never pass",
     "newMethod": "new methods cannot be classified GAP when adding to manifest; must bring method-specific proof or public rationale"
