@@ -279,7 +279,12 @@ try {
       cookie: state.bCookie, body: { organizationId: state.a, periodStart: "2026-09-16",
         periodEnd: "2026-09-30", payDate: "2026-09-30", processNow: false } });
     assert.equal(foreignPayroll.status, 403, "B_MUST_NOT_CREATE_A_PAYROLL");
-    return { deniedReads: 2, deniedWrites: 2 };
+    const reverseWrite = await http("/api/employees", { method: "POST",
+      cookie: state.ownerCookie,
+      body: { organizationId: state.b, firstName: "Forbidden",
+        lastName: "OtherEmployer", startDate: "2026-01-01", rateAmount: 22000 } });
+    assert.equal(reverseWrite.status, 403, "A_MUST_NOT_WRITE_B_EMPLOYEES");
+    return { deniedReads: 2, deniedWrites: 3 };
   });
   await check("mid-transaction payroll failure rolls back draft and partial entry", async () => {
     const before = (await app.query(
