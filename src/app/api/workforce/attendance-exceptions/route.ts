@@ -115,6 +115,7 @@ export async function GET(request: Request) {
   const employeeIds = visibleEmployees.map((employee) => employee.id);
   if (employeeIds.length === 0) {
     return Response.json({
+      organizationId,
       range: { startDate, endDate, days: dates.length },
       summary: { blockers: 0, warnings: 0, info: 0, employeesAffected: 0 },
       days: [],
@@ -356,6 +357,7 @@ export async function GET(request: Request) {
   );
 
   return Response.json({
+    organizationId,
     range: { startDate, endDate, days: dates.length },
     summary: {
       blockers: exceptions.filter((row) => row.severity === "blocker").length,

@@ -79,7 +79,10 @@ export function LaunchReadinessPanel({ organizationId }: { organizationId: numbe
       {error && (
         <div className="notice notice-red" style={{ marginBottom: 16 }}>
           <AlertTriangle size={15} />
-          <span>{error}</span>
+          <span><strong>Workspace readiness unavailable.</strong> {error}</span>
+          <button className="secondary-button" type="button" onClick={() => void reload()} disabled={loading}>
+            <RefreshCw size={14} /> Retry readiness check
+          </button>
         </div>
       )}
 

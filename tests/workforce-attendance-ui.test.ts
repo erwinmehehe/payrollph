@@ -10,11 +10,15 @@ test("time workspace surfaces the attendance exception center", () => {
   assert.ok(time.includes("organizationId={data.selectedOrganization.id}"));
 });
 
-test("attendance exception center calls the scoped workforce API", () => {
-  assert.ok(panel.includes("/api/workforce/attendance-exceptions"));
-  assert.ok(panel.includes("organizationId: String(organizationId)"));
-  assert.ok(panel.includes("startDate"));
-  assert.ok(panel.includes("endDate"));
+test("attendance exception center calls verified employer- and range-bound workforce APIs", () => {
+  const source = readFileSync("src/lib/attendance-exception-read.ts", "utf8");
+  assert.ok(panel.includes("readVerifiedAttendanceAnalysis(organizationId, startDate, endDate"));
+  assert.ok(panel.includes("readVerifiedAttendanceOperations(organizationId, startDate, endDate"));
+  assert.ok(source.includes('fetcher("/api/workforce/"+path+"?"+search.toString()'));
+  assert.ok(source.includes("organizationId:String(org),startDate:start,endDate:end"));
+  assert.ok(source.includes('fetchVerified("attendance-exceptions"'));
+  assert.ok(source.includes('fetchVerified("attendance-exception-events"'));
+  assert.ok(source.includes('if(!verified)throw Error('));
 });
 
 test("attendance UI distinguishes blocking review from informational signals", () => {
