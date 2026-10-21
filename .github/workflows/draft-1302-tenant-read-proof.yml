@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/draft-1302-tenant-read-proof.yml'
       - 'scripts/qa/tenant-second-pass-http.mjs'
+      - 'scripts/qa/pr-1302-tenant-proof.mjs'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'scripts/qa/tenant-manifest-driven-http.mjs'
       - 'src/app/api/**'
@@ -76,6 +77,7 @@ jobs:
           EMPLOYEE_HR_CASES_ENABLED: "true"
           OWNER_PRACTICE_PAYROLL_ENABLED: "true"
           HCM_GOVERNANCE_READINESS_ENABLED: "true"
+          FIRST_PAYROLL_INLINE_ENABLED: "true"
           PAYMONGO_WEBHOOK_SECRET: ci-fake-paymongo-webhook-signing-secret
           XENDIT_PAYOUT_CALLBACK_TOKEN: ci-fake-xendit-payout-callback
           XENDIT_CALLBACK_TOKEN: ci-fake-xendit-subscription-callback
@@ -98,6 +100,8 @@ jobs:
       - name: Exercise real signed-in employer ownership and foreign-denial HTTP
         env:
           TENANT_SECOND_PASS_MODE: isolated-ci-only
+          TENANT_1302_FIRST_PAYROLL_PROOF: isolated-ci-only
+          FIRST_PAYROLL_INLINE_ENABLED: "true"
         run: npx tsx scripts/qa/tenant-second-pass-http.mjs
       - name: Show isolated server log on failure
         if: failure()

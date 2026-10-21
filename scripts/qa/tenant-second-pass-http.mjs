@@ -1091,6 +1091,10 @@ async function main() {
   await (await import("./payroll-read-sweep-http.mjs")).verifyPayrollReadSweep(f, { request, expectStatus });
   await (await import("./tenant-manifest-driven-http.mjs")).verifyManifestDrivenStatutoryBatch(f, { request, expectStatus }); await verifySelfExplanationTenantRead(f); await verifyPayoutStatusTenantRead(f);
   await (await import("./tenant-scoped-page-probes.mjs")).probeManifestBusinessPages(f, { request, makeSession, expectStatus });
+  if (process.env.TENANT_1302_FIRST_PAYROLL_PROOF === "isolated-ci-only") {
+    await (await import("./pr-1302-tenant-proof.mjs")).verifyFirstPayrollTenantRead(f, { request, expectStatus });
+  }
+  await (await import("./pr-1302-tenant-proof.mjs")).verifyLegalEmployerTenantMutations(f, { request, expectStatus });
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
     result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,
@@ -1311,8 +1315,13 @@ async function verifyPayoutStatusTenantRead(f) {
     const foreignPayout = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/payout-reconciliation?view=payout", { cookie: session }), 403,
       "Actual victim-only payroll payout state must not be available to another owner");
     assert.ok(!foreignPayout.text.includes("VICTIM-ONLY"), "Victim payroll evidence must not leak");
-    // Without synthetic provider credentials, POST must fail closed before any
-    // provider action. This is a negative control, not POST certification.
+    // Owned POST reaches the provider-disabled 501 boundary; victim POST is
+    // 403. Neither proves successful external reconciliation or money movement.
+    assert.ok(!process.env.PAYMONGO_SECRET_KEY, "Provider secret prohibited for isolated proof");
+    const ownDisabledPayoutPost = expectStatus(await request("/api/payroll-runs/" + run.id + "/payout-reconciliation", {
+      cookie: session, method: "POST", body: { action: "reconcile" },
+    }), 501, "Owned payout POST must stop before any provider action");
+    assert.match(ownDisabledPayoutPost.text, /credentials are not configured/i);
     expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/payout-reconciliation", {
       cookie: session, method: "POST", body: { action: "reconcile" },
     }), 403, "Payout reconciliation POST for a victim-only run must be forbidden");

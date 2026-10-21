@@ -102,8 +102,8 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.coveredAfter, 62, "60 previously evidenced methods plus owned payout GET and employee explanation GET");
-  assert.equal(manifest.metrics.gap, 420, "Two further GET methods have independent real-HTTP tenant proof; 420 GAPs remain");
+  assert.equal(manifest.metrics.coveredAfter, 67, "First-payroll and legal-employer own/foreign proofs raise coverage to 67 methods");
+  assert.equal(manifest.metrics.gap, 415, "Payout provider POST and remaining untested methods are still GAPs");
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);
