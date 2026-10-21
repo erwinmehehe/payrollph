@@ -81,6 +81,9 @@ export async function GET(request: Request) {
   if (!source) return Response.json({ error: "Legal employer not found." }, { status: 404, headers: PRIVATE });
   const audits = await loadAudits(scope);
   return Response.json({
+    organizationId: scope.organizationId,
+    legalEntityId: scope.legalEntityId,
+    taxYear: scope.taxYear,
     moduleV70: birModuleEvidenceStatus(audits, source.reconciliation.sourceDigest, "7.0"),
     moduleV74: birModuleEvidenceStatus(audits, source.reconciliation.sourceDigest, "7.4"),
     sourceDigest: source.reconciliation.sourceDigest,
