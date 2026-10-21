@@ -87,6 +87,8 @@ export async function GET(request: Request) {
     .orderBy(desc(statutoryRemittancePaymentEvidence.uploadedAt), desc(statutoryRemittancePaymentEvidence.id));
 
   return Response.json({
+    organizationId,
+    batchId,
     evidence: rows,
     active: rows.find((row) => row.status === "active") ?? null,
   });
