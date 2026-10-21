@@ -1,4 +1,5 @@
 import type { DashboardData } from "@/components/workspace/types";
+import { verifiedDashboardAmount } from "@/lib/dashboard-presentation";
 
 /** Source-only dashboard GET classification. Never display a server error body or treat a failed read as empty. */
 export type DashboardReadFailureKind =
@@ -13,15 +14,69 @@ export class DashboardReadError extends Error {
 
 type DashboardFetch = (url: string, options: { cache: "no-store" }) => Promise<Response>;
 
-function isValidDashboardSnapshot(value: unknown, organizationId: number): value is DashboardData {
-  if (!value || typeof value !== "object") return false;
-  const record = value as Record<string, unknown>;
-  const selected = record.selectedOrganization;
-  if (!selected || typeof selected !== "object" ||
-      (selected as Record<string, unknown>).id !== organizationId) return false;
-  // Do not silently coerce missing source collections into empty employee, task or payroll lists.
-  return Array.isArray(record.employees) && Array.isArray(record.organizations) &&
-    Array.isArray(record.tasks) && Array.isArray(record.payrollRuns);
+function object(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function positive(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+function natural(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+function matchingOrgRow(value: unknown, organizationId: number): value is Record<string, unknown> {
+  return object(value) && value.organizationId === organizationId;
+}
+function validPayrollRun(value: unknown, organizationId: number): boolean {
+  return matchingOrgRow(value, organizationId) && positive(value.id) &&
+    typeof value.periodLabel === "string" && typeof value.status === "string" &&
+    natural(value.employeeCount) && natural(value.exceptions) &&
+    verifiedDashboardAmount(value.grossPay) !== null &&
+    verifiedDashboardAmount(value.netPay) !== null;
+}
+function validPayrollEntry(value: unknown): boolean {
+  // Employer proof is completed below using both the payroll run and the
+  // associated employee from this selected employer's validated records.
+  return object(value) && positive(value.id) &&
+    positive(value.employeeId) && typeof value.status === "string" &&
+    verifiedDashboardAmount(value.grossPay) !== null &&
+    verifiedDashboardAmount(value.deductions) !== null &&
+    verifiedDashboardAmount(value.netPay) !== null;
+}
+
+/** Validates a complete employer-scoped dashboard source, not only its top-level array names. */
+export function isValidDashboardSnapshot(value: unknown, organizationId: number): value is DashboardData {
+  if (!positive(organizationId) || !object(value)) return false;
+  const selected = value.selectedOrganization;
+  if (!object(selected) || selected.id !== organizationId ||
+      typeof selected.name !== "string" || typeof selected.legalName !== "string") return false;
+
+  const names = [
+    "organizations", "employees", "tasks", "payrollRuns", "payrollEntries",
+    "auditEvents", "plans", "templates", "advisories", "punches", "leaveRequests",
+    "provisioning", "retroAdjustments",
+  ];
+  if (names.some((name) => !Array.isArray(value[name]))) return false;
+  if (!(value.organizations as unknown[]).some((org) => object(org) && org.id === organizationId)) return false;
+  const employees = value.employees as unknown[];
+  const runs = value.payrollRuns as unknown[];
+  const entries = value.payrollEntries as unknown[];
+  if (!employees.every((employee) => matchingOrgRow(employee, organizationId) &&
+      positive(employee.id) && typeof employee.status === "string")) return false;
+  if (!runs.every((run) => validPayrollRun(run, organizationId))) return false;
+  if (!entries.every((entry) => validPayrollEntry(entry))) return false;
+  const ids = runs.map((run) => (run as Record<string, unknown>).id);
+  if (new Set(ids).size !== ids.length) return false;
+  const runIds = new Set(ids);
+  const employeeIds = new Set(employees.map((employee) =>
+    (employee as Record<string, unknown>).id));
+  // payroll_entries has separate run/employee FKs and no organizationId.
+  // Both referenced parents must belong to this selected employer.
+  if (entries.some((entry) => {
+    const row = entry as Record<string, unknown>;
+    return !positive(row.payrollRunId) || !runIds.has(row.payrollRunId) ||
+      !positive(row.employeeId) || !employeeIds.has(row.employeeId);
+  })) return false;
+  return true;
 }
 
 export async function readAuthorizedDashboard(

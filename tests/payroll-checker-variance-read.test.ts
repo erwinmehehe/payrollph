@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
-  CHECKER_VARIANCE_CATEGORIES, isVerifiedPayrollCheckerVariance,
+  CHECKER_VARIANCE_CATEGORIES, checkerVarianceSourceKey, isVerifiedPayrollCheckerVariance,
   readVerifiedPayrollCheckerVariance,
 } from "../src/lib/payroll-checker-variance-read";
 
@@ -37,6 +37,46 @@ const valid = {
 };
 const mock = (payload: unknown, status=200): typeof fetch =>
   (async () => Response.json(payload, { status })) as typeof fetch;
+
+test("checker source identity rejects stale same-status runs and revised employee lines", () => {
+  const current = { ...expected, exceptions: 1, totalChunks: 2, processedChunks: 2 };
+  const entries = [{
+    id: 51, employeeId: 21, status: "Exception",
+    grossPay: "20000.00", deductions: "2000.00", netPay: "18000.00",
+    lineItems: [{ code: "BASIC", amount: "20000.00" }],
+  }];
+  const first = checkerVarianceSourceKey(11, current, entries);
+  assert.ok(first);
+  assert.equal(checkerVarianceSourceKey(11, current, entries), first);
+  for (const changed of [
+    { ...current, grossPay: "50100.00" },
+    { ...current, netPay: "40001.00" },
+    { ...current, employeeCount: 3 },
+    { ...current, exceptions: 0 },
+    { ...current, ruleVersion: "PH-2026.11" },
+    { ...current, legalEntityId: 222 },
+    { ...current, scopeOrgUnitId: 14 },
+    { ...current, processedChunks: 1 },
+  ]) {
+    assert.notEqual(checkerVarianceSourceKey(11, changed, entries), first,
+      "Any modified run input must hide old verified variance counts");
+  }
+  assert.notEqual(checkerVarianceSourceKey(12, current, entries), first);
+  assert.notEqual(checkerVarianceSourceKey(11, current, [
+    { ...entries[0], netPay: "18100.00" },
+  ]), first, "A recalculated employee net amount invalidates same-total run evidence");
+  assert.notEqual(checkerVarianceSourceKey(11, current, [
+    { ...entries[0], lineItems: [{ code: "OT", amount: "20000.00" }] },
+  ]), first, "Modified pay codes invalidate cached checker categories");
+  assert.equal(checkerVarianceSourceKey(0, current, entries), null);
+  assert.equal(checkerVarianceSourceKey(11, undefined, entries), null);
+
+  const ui = readFileSync("src/components/workspace/clean-role-dashboard.tsx", "utf8");
+  assert.ok(ui.includes("entries={data.payrollEntries}"));
+  assert.ok(ui.includes("result?.sourceKey === sourceKey"));
+  assert.ok(ui.includes("failure === sourceKey"));
+  assert.ok(ui.includes("if (!run || sourceKey === null) return"));
+});
 
 test("fully verified current-tenant payroll variance may display checker evidence", () => {
   assert.equal(isVerifiedPayrollCheckerVariance(valid, 11, expected), true);

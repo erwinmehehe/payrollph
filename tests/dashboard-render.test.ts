@@ -3,6 +3,8 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CleanRoleDashboard } from "../src/components/workspace/clean-role-dashboard";
+import { RoleOverviewV2 } from "../src/components/workspace/role-overview-v2";
+import { readFileSync } from "node:fs";
 import { EmployeeHomeDashboard } from "../src/components/employee-home-dashboard";
 import {
   dashboardFixture,
@@ -54,6 +56,27 @@ test("checker never fabricates previous employee pay or offers approval with exc
   assert.doesNotMatch(markup, /Approve payroll/);
   assert.match(markup, /role="tablist"/);
 });
+test("secondary checker cannot invent a prior employee amount, variance, or approval outcome", () => {
+  const checkerData = {
+    ...dashboardFixture,
+    payrollEntries: [{
+      id: 42, employeeId: 1, status: "Exception",
+      grossPay: "120.00", deductions: "20.00", netPay: "100.00", trace: {},
+    }],
+  };
+  const markup = renderToStaticMarkup(createElement(RoleOverviewV2, {
+    data: checkerData, currentRun: sampleRun, role: "checker",
+    onPage: noop, onNewRun: noop,
+  }));
+  assert.match(markup, /Current register entries to inspect/);
+  assert.match(markup, /Unavailable/);
+  assert.match(markup, /Open approval review/);
+  assert.doesNotMatch(markup, /changes reviewed|Looks okay|Approve payroll/);
+  const source = readFileSync("src/components/workspace/role-overview-v2.tsx", "utf8");
+  assert.ok(!source.includes("Number(entry.netPay) * .95"));
+  assert.ok(!source.includes("Number(entry.netPay) * .08"));
+});
+
 test("employee sees only released pay and separate leave balances", () => {
   const markup = renderToStaticMarkup(
     createElement(EmployeeHomeDashboard, {

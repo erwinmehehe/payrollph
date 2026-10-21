@@ -1,28 +1,22 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
+import { parseAuthorizedLegalEmployers } from "../src/lib/government-loan-employer-scope";
 
-const panel = readFileSync("src/components/government-loan-remittance-panel.tsx", "utf8");
-const route = readFileSync("src/app/api/compliance/government-loan-remittances/route.ts", "utf8");
-const selector = readFileSync("src/app/api/legal-entities/route.ts", "utf8");
+const entity = { id: 18, code: "PRIMARY", displayName: "Fictional employer", active: true, primaryEntity: true };
+const directory = { organizationId: 7, legalEntities: [entity] };
 
-test("UI requires authorized active legal employers before any loan read", () => {
-  assert.match(panel, /mode=selector/);
-  assert.match(panel, /parseAuthorizedLegalEmployers/);
-  assert.match(panel, /selectedLegalEntityId === null/);
-  assert.match(panel, /entries.length === 1 \? entries\[0\].id : null/);
-  assert.match(panel, /key=\{organizationId \+ ":" \+ selectedLegalEntityId\}/);
-  assert.match(panel, /disabled=\{mutationBusy\}/);
-  assert.match(panel, /body\.legalEntityId !== legalEntityId/);
-  assert.match(panel, /"&legalEntityId=" \+ legalEntityId/);
-  assert.match(panel, /JSON\.stringify\(\{ organizationId, legalEntityId, action/);
+test("authorized directory preserves only validated active legal employers", () => {
+  assert.deepEqual(parseAuthorizedLegalEmployers(directory, 7), [entity]);
+  assert.deepEqual(parseAuthorizedLegalEmployers({ ...directory, legalEntities: [entity, { ...entity, id: 19, primaryEntity: false }] }, 7)?.map(x => x.id), [18, 19]);
+  assert.deepEqual(parseAuthorizedLegalEmployers({ ...directory, legalEntities: [] }, 7), []);
 });
 
-test("server enforces grants on GET, POST and authorized selector", () => {
-  assert.match(route, /resolveMultiEntityContext\(/);
-  assert.match(route, /assertEntityResource\(scope\.context, legalEntityId\)/);
-  assert.equal((route.match(/requireLegalEmployerGrant\(user\.id, organizationId, legalEntity\.id, request\)/g) ?? []).length, 2);
-  assert.match(selector, /inArray\(legalEntities\.id, scope\.context\.entities\.map\(entity => entity\.id\)\)/);
-  assert.match(selector, /eq\(legalEntities\.organizationId, organizationId\)/);
-  assert.match(selector, /eq\(legalEntities\.active, true\)/);
+test("foreign, duplicate, inactive and partial directories cannot establish scope", () => {
+  for (const input of [null, [], {}, { ...directory, organizationId: 99 },
+    { ...directory, legalEntities: [entity, entity] },
+    { ...directory, legalEntities: Array(1001).fill(entity) },
+    ...[0, -1, 1.5, "18", NaN].map(id => ({ ...directory, legalEntities: [{ ...entity, id }] })),
+    ...[{ active: false }, { active: undefined }, { displayName: " " }, { code: 1 }, { primaryEntity: "true" }]
+      .map(change => ({ ...directory, legalEntities: [{ ...entity, ...change }] })),
+  ]) assert.equal(parseAuthorizedLegalEmployers(input, 7), null);
 });
