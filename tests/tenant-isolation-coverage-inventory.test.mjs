@@ -806,8 +806,23 @@ test("page and server-action inventory cannot silently omit new or changed busin
       if (entry.status === "COVERED") {
         const proof = entry.testedBy;
         assert.ok(proof, path + ": page COVERED needs actual browser/HTTP proof");
-        evidenceLine(proof.file, proof.ownPositiveLine, path + " own session");
-        evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign session");
+        const own = evidenceLine(proof.file, proof.ownPositiveLine, path + " own session");
+        const foreign = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign session");
+        if (path === "src/app/hcm/manager-decision-inbox/page.tsx") {
+          assert.equal(proof.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
+          assert.match(own, /const ownPage = await requestOn\(/);
+          assert.match(foreign, /const foreignPage = await requestOn\(/);
+          const proofSource = readFileSync(proof.file, "utf8");
+          const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+          assert.match(proofSource, /HCM_MANAGER_DECISION_INBOX_ENABLED: "true"/);
+          assert.match(proofSource, /HCM_MANAGER_DECISION_INBOX_ORG_IDS: f\.orgs\.map/);
+          assert.match(proofSource, /for \(const idx of \[1, 2\]\)/);
+          assert.match(proofSource, /assert\.equal\(ownPage\.status, 200/);
+          assert.match(proofSource, /assert\.equal\(foreignPage\.status, 404/);
+          assert.match(proofSource, /assert\.equal\(foreignApi\.status, 403/);
+          assert.match(proofSource, /assert\.deepEqual\(await db\.select\(\)\.from\(payrollRuns\)/);
+          assert.match(runner, /verifyHcmManagerInboxPage\(f\)/);
+        }
       } else {
         assert.ok(typeof entry.reason === "string" && entry.reason.trim().length >= 20,
           path + ": public-by-design requires a reviewed reason");

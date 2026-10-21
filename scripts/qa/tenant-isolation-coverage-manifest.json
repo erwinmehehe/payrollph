@@ -2,7 +2,7 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-21",
-  "acceptanceStatus": "NOT ACCEPTED: 387 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET only is intentionally unauthenticated fixed-template PUBLIC-BY-DESIGN; its POST remains GAP. PR #1326 contributes three candidate HCM probation GET/POST/PATCH synthetic tenant method proofs; exact-head CI, independent review and release-owner acceptance remain outstanding.",
+  "acceptanceStatus": "NOT ACCEPTED: 387 API methods and 19 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET only is intentionally unauthenticated fixed-template PUBLIC-BY-DESIGN; its POST remains GAP. PR #1326 contributes three candidate HCM probation GET/POST/PATCH synthetic tenant method proofs; exact-head CI, independent review and release-owner acceptance remain outstanding.",
   "metrics": {
     "routeFiles": 290,
     "methods": 493,
@@ -35226,7 +35226,7 @@
     },
     {
       "path": "src/app/hcm/manager-decision-inbox/page.tsx",
-      "blob": "b610d07c3af0103f8e94fa4ceb6b0813c5ba42cf",
+      "blob": "e57bd9c8b53af17ddf9c65a4f22d4e7ef3e51103",
       "ids": [
         {
           "line": 22,
@@ -35351,8 +35351,16 @@
         }
       ],
       "hasAction": false,
-      "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "status": "COVERED",
+      "reason": "Own company-wide owner renders 200; two signed-in foreign owners each receive 404 for a real, enabled victim employer. Same-tenant read API 200; foreign API 403; victim employee and payroll records remain unchanged.",
+      "testedBy": {
+        "file": "scripts/qa/hcm-manager-inbox-page-http.mjs",
+        "line": 44,
+        "ownPositiveLine": 99,
+        "foreignDenialLine": 106,
+        "unchangedDbLine": 130,
+        "scope": "Actual feature-ON SSR and client GET over localhost Next.js/PG16; two owners with own-worker fixtures, real victim employer denial, unchanged victim DB. Flag is on only in a separately spawned disposable localhost server."
+      }
     },
     {
       "path": "src/app/hcm/my-team/page.tsx",

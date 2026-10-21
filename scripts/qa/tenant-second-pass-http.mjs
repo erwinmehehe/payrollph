@@ -1091,6 +1091,7 @@ async function main() {
   await (await import("./payroll-read-sweep-http.mjs")).verifyPayrollReadSweep(f, { request, expectStatus });
   await (await import("./tenant-manifest-driven-http.mjs")).verifyManifestDrivenStatutoryBatch(f, { request, expectStatus }); await verifySelfExplanationTenantRead(f); await verifyPayoutStatusTenantRead(f); await (await import("./tenant-static-template-http.mjs")).verifyTenantIndependentImportTemplate(f, { request, expectStatus });
   await (await import("./tenant-scoped-page-probes.mjs")).probeManifestBusinessPages(f, { request, makeSession, expectStatus });
+  await (await import("./hcm-manager-inbox-page-http.mjs")).verifyHcmManagerInboxPage(f);
   if (process.env.TENANT_1302_FIRST_PAYROLL_PROOF === "isolated-ci-only") {
     await (await import("./pr-1302-tenant-proof.mjs")).verifyFirstPayrollTenantRead(f, { request, expectStatus });
   }
