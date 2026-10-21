@@ -85,3 +85,7 @@ The live run is intentionally narrower than CI: **no signup, no synthetic test e
 - The negative unapproved release is a financial **preflight** check. A separate controlled app-role transaction deliberately fails after a payroll draft and first entry insert, confirming atomic rollback with no partial rows. Neither substitutes for injecting an exception into the actual payroll calculation worker; doing that would require separately reviewed disposable-only instrumentation.
 - Business route audit completeness is tested rather than assumed; missing events, incorrect states or schema mismatches are findings, not expected skips.
 - Do not run this owner-only live script from any GitHub Actions job. Its built-in `CI` and `GITHUB_ACTIONS` guards reject doing so.
+
+## Source review follow-up
+
+Successful local-login audit writes are gated by `LOCAL_LOGIN_AUDIT_ENABLED`, registered default-off in the critical release inventory. Missing, false and non-exact values preserve the prior login path without opening an audit transaction. The isolated Security HTTP Smoke and post-cutover workflows explicitly enable the flag; enabled writes still must succeed before the cookie is delivered. Production activation is separate and has not been performed. The flag-off/no-transaction, sanitized write and rejected-write behavior is executed in `tests/local-login-audit-flag.test.ts`. Existing real PostgreSQL HTTP coverage remains required for active-membership isolation, session containment and restart sealing.

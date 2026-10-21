@@ -382,6 +382,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Public demo entrypoint redirects to the isolated fictional workspace",
     approval: "Verified hosted role permissions and desktop/390px navigation; default-off parity",
   },
+  localLoginAudit: {
+    env: "LOCAL_LOGIN_AUDIT_ENABLED",
+    owner: "Security / Authentication",
+    risk: "Successful password login audit writes and failure containment before cookie delivery",
+    approval: "Executed default-off no-write parity, own-employer audit isolation and restricted-role restart smoke; production activation separate",
+  },
 } as const;
 
 export type CriticalReleaseFlag = keyof typeof CRITICAL_RELEASE_FLAGS;

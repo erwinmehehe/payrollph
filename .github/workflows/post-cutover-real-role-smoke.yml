@@ -33,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
+      LOCAL_LOGIN_AUDIT_ENABLED: "true"
       CI: "true"
       TZ: Asia/Manila
       NINE_STAGE_PG_MAJOR: "18"

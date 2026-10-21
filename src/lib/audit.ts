@@ -1,3 +1,4 @@
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, userOrganizations } from "@/db/schema";
@@ -42,6 +43,7 @@ export async function recordSuccessfulLocalLogin(input: {
   actor: string;
   mfaVerified: boolean;
 }): Promise<number> {
+  if (!criticalReleaseFlagEnabled("localLoginAudit")) return 0;
   return db.transaction(async (tx) => {
     const memberships = await tx.select({
       organizationId: userOrganizations.organizationId,
