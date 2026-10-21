@@ -1,0 +1,124 @@
+name: DL-01 source-only reconciliation preparation
+
+on:
+  push:
+    branches: [qa/tenant-isolation-dl01-evidence-20261021]
+    paths: [.github/workflows/qa-dl01-source-preparation.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: github.repository == 'erwinmehehe/payrollph' && github.ref == 'refs/heads/qa/tenant-isolation-dl01-evidence-20261021'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Prepare exact count reconciliation without changing classifications
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const path = 'scripts/qa/tenant-isolation-coverage-manifest.json';
+          const raw = readFileSync(path, 'utf8');
+          const m = JSON.parse(raw);
+          const methods = Object.values(m.allApiRouteFiles).flatMap(r => r.methods);
+          const count = status => methods.filter(x => x.status === status).length;
+          assert.deepEqual([methods.length, count('COVERED'), count('PUBLIC-BY-DESIGN'), count('GAP')], [490, 90, 10, 390]);
+          const pageGaps = m.scopedPages.filter(p => p.status === 'GAP').length;
+          assert.equal(pageGaps, 20);
+          const old = 'NOT ACCEPTED: 402 API methods and 20 page/action GAPs remain.';
+          assert.ok(m.acceptanceStatus.startsWith(old));
+          const replacement = `NOT ACCEPTED: ${count('GAP')} API methods and ${pageGaps} page/action GAPs remain.`;
+          const fixed = raw.replace(old, replacement);
+          const parsed = JSON.parse(fixed);
+          assert.deepEqual({ ...parsed, acceptanceStatus: m.acceptanceStatus }, m, 'Only the stale text may change');
+          writeFileSync(path, fixed);
+          console.log('COUNTS_UNCHANGED', JSON.stringify(m.metrics));
+          const plan = readFileSync('docs/engineering/tenant-isolation-closure-plan.md', 'utf8');
+          const batch = plan.split('### Batch DL-01')[1].split('### Batch DL-02')[0];
+          for (const match of batch.matchAll(/^- `([A-Z]+) \/api\/([^`]+)`/gm)) {
+            const record = Object.values(m.allApiRouteFiles).find(r => r.route === match[2]);
+            const method = record?.methods.find(x => x.name === match[1]);
+            assert.ok(method, 'Missing batch method ' + match[0]);
+            console.log('DL01', match[1], match[2], method.status);
+          }
+          const guardPath = 'tests/tenant-isolation-closure-plan.test.mjs';
+          const guard = readFileSync(guardPath, 'utf8');
+          assert.ok(!guard.includes('function assertCurrentAcceptanceCounts('));
+          const addition = String.raw`
+
+          // This is a bookkeeping guard, never a substitute for HTTP/DB proof.
+          function assertCurrentAcceptanceCounts(value) {
+            const methods = Object.values(value.allApiRouteFiles).flatMap(route => route.methods);
+            const gap = methods.filter(method => method.status === "GAP").length;
+            const pages = value.scopedPages.filter(page => page.status === "GAP").length;
+            const heading = /^NOT ACCEPTED: ([0-9]+) API methods and ([0-9]+) page\/action GAPs remain\./.exec(value.acceptanceStatus);
+            assert.ok(heading, "Acceptance header must stay NOT ACCEPTED and include exact counts");
+            assert.equal(value.metrics.gap, gap, "Actual method gaps differ from metric");
+            assert.equal(Number(heading[1]), gap, "Acceptance text has a stale API GAP count");
+            assert.equal(Number(heading[2]), pages, "Acceptance text has a stale page/action GAP count");
+          }
+
+          test("acceptance header matches actual method and page GAPs, not historical totals", () => {
+            assertCurrentAcceptanceCounts(manifest);
+          });
+
+          test("acceptance guard rejects stale counts and never accepts an accepted label", () => {
+            const gap = manifest.metrics.gap;
+            const pages = manifest.scopedPages.filter(page => page.status === "GAP").length;
+            for (const text of [
+              "NOT ACCEPTED: " + (gap + 1) + " API methods and " + pages + " page/action GAPs remain.",
+              "NOT ACCEPTED: " + gap + " API methods and " + (pages + 1) + " page/action GAPs remain.",
+              "ACCEPTED: " + gap + " API methods and " + pages + " page/action GAPs remain.",
+              "NOT ACCEPTED",
+            ]) {
+              assert.throws(() => assertCurrentAcceptanceCounts({ ...manifest, acceptanceStatus: text }));
+            }
+            assert.throws(() => assertCurrentAcceptanceCounts({
+              ...manifest, metrics: { ...manifest.metrics, gap: gap + 1 },
+            }));
+          });
+          `;
+          writeFileSync(guardPath, guard + addition.replace(/^          /gm, ''));
+          JS
+      - name: Run existing inventory and new negative anti-drift tests
+        run: >-
+          node --test --test-reporter=spec
+          tests/tenant-isolation-closure-plan.test.mjs
+          tests/tenant-isolation-coverage-inventory.test.mjs
+          tests/tenant-dl01-evidence-order.test.mjs
+          tests/tenant-manifest-driven-http.test.mjs
+          tests/tenant-static-import-template.test.mjs
+      - name: Store reviewed text blobs only; do not commit or push a ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const paths = ['scripts/qa/tenant-isolation-coverage-manifest.json', 'tests/tenant-isolation-closure-plan.test.mjs'];
+          for (const path of paths) {
+            const response = await fetch('https://api.github.com/repos/' + process.env.GITHUB_REPOSITORY + '/git/blobs', {
+              method: 'POST', headers: { Authorization: 'Bearer ' + process.env.GH_TOKEN, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content: readFileSync(path, 'utf8'), encoding: 'utf-8' }),
+            });
+            assert.equal(response.status, 201, 'Could not store prepared text blob');
+            const result = await response.json();
+            assert.match(result.sha, /^[0-9a-f]{40}$/);
+            console.log('PREPARED_BLOB', JSON.stringify({ path, sha: result.sha, inputCommit: process.env.GITHUB_SHA }));
+          }
+          JS
