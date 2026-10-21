@@ -432,7 +432,8 @@ test("all credited proof links point to the claimed route and every recertified 
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
-        "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs"].includes(proof?.file),
+        "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
+        "scripts/qa/pr-1302-tenant-proof.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
