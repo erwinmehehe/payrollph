@@ -13,10 +13,10 @@ const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
-test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.gap, 390, "Merged high-risk GET, HCM, loan and single-employer DOLE proofs leave 390 GAPs");
-  assert.equal(manifest.metrics.coveredAfter, 92, "Retain 88 main proofs plus two loan and two single-employer DOLE methods");
+test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
+  assert.equal(manifest.metrics.methods, 493);
+  assert.equal(manifest.metrics.gap, 390, "Retain HCM, high-risk GET, salary, government-loan and single-employer DOLE proven methods");
+  assert.equal(manifest.metrics.coveredAfter, 95, "Retain 93 previously source-pinned methods plus two DOLE legacy positive GET/POST proofs");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -42,8 +42,8 @@ test("single table-driven test reads ALL 490 methods without claiming precovered
   assert.match(proofLines[governanceMethod.testedBy.ownPositiveLine - 1], /\/api\/hcm\/governance-readiness.*\), 200,/);
   assert.match(proofLines[governanceMethod.testedBy.foreignDenialLine - 1], /\/api\/hcm\/governance-readiness.*victim\.id.*\), 403,/);
   assert.match(harness, /await verifyGovernanceTenantRead\(f\)/);
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 490,
-    "No method may disappear from the audited 490-route-method inventory");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493,
+    "No method may disappear from the audited 493-route-method inventory");
   assert.equal(manifest.sourceTraceCandidates.length, 34);
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
@@ -55,27 +55,25 @@ test("single table-driven test reads ALL 490 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  // Do not re-count proven GETs as GAPs or silently certify an untested adapter.
-  // The statutory, BIR and government-loan GETs have independent source-pinned
-  // PG16 own/foreign HTTP proof; the remaining three have no such accepted proof.
-  const expectedGaps = [
+  // Of the six adapter GETs, BIR, statutory-remittances and government-loan
+  // now have independently source-pinned proof. Three other GETs remain GAP;
+  // do not turn missing payment evidence into a fictitious positive read.
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), [
     "GET compliance/statutory-remittances/payment-evidence/[id]",
     "GET compliance/statutory-remittances/payment-evidence",
     "GET compliance/remittance-actions",
-  ];
+  ]);
   const expectedCovered = [
     "GET compliance/bir-1601c-remittances",
     "GET compliance/government-loan-remittances",
     "GET compliance/statutory-remittances",
   ];
-  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP").sort(),
-    expectedGaps.sort(), "Every unverified adapter must remain an explicit GAP");
   assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "COVERED").sort(),
-    expectedCovered.sort(), "Do not silently downgrade or double-credit verified HTTP GETs");
+    expectedCovered.sort(), "Preserve the three independently verified HTTP GET adapters");
   for (const spec of expectedCovered) {
     const proof = registry.get(spec).testedBy;
     assert.ok(proof?.file && proof.ownPositiveLine && proof.foreignDenialLine,
-      spec + ": COVERED requires source-pinned own success and victim denial");
+      spec + ": source-pinned independent own and victim evidence is mandatory");
   }
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);

@@ -203,6 +203,8 @@
 "provider_events","drizzle/0110_provider_events_inbox.sql | drizzle/0123_multi_entity_forward_schema_repair.sql","no","","","numbered source definition(s) only - application unproven",""
 "provisioning_tasks","","yes - source snapshot only","","","defined only in schema.ts / no migration creates it",""
 "rate_limit_hits","","yes - source snapshot only","","","defined only in schema.ts / no migration creates it",""
+"salary_correction_case_runs","drizzle/0135_salary_correction_cases.sql","no","","","numbered source definition(s) only - application unproven",""
+"salary_correction_cases","drizzle/0135_salary_correction_cases.sql","no","","","numbered source definition(s) only - application unproven",""
 "saml_login_states","drizzle/0075_saml_enterprise_identity_foundation.sql","yes - source snapshot only","","","numbered source definition(s) only - application unproven",""
 "saved_report_definitions","","no","","","defined only in schema.ts / no migration creates it",""
 "schedule_overrides","drizzle/0015_workforce_scheduling.sql","no","src/lib/core-schema-compat.ts","","numbered source definition(s) only - application unproven",""

@@ -33,6 +33,24 @@ export function reconstructPinnedSchemaText(currentSource) {
      'index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt.desc())'],
   ];
   let historical = currentSource;
+  // Reviewed purely additive source blocks added after the pin. Each is removed
+  // only if it appears once and its exact bytes match the reviewed SHA-256, so
+  // any later edit to the block stops this analysis instead of being absorbed.
+  const reviewedAdditions = [
+    { // #641 salary_correction_cases + salary_correction_case_runs (drizzle/0135)
+      start: "/**\n * #641 governed backdated salary correction case.",
+      end: "export const minWageOrders = pgTable(",
+      sha256: "0ea39d85fd6a2aee4d442a56fcb127b1a92a514dc9b5122b7af5a94d54977a87",
+    },
+  ];
+  for (const addition of reviewedAdditions) {
+    const from = historical.indexOf(addition.start);
+    const to = historical.indexOf(addition.end);
+    if (from < 0) continue;
+    if (historical.split(addition.start).length !== 2 || to < from || hash(historical.slice(from, to)) !== addition.sha256)
+      throw Error("HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE");
+    historical = historical.slice(0, from) + historical.slice(to);
+  }
   for (const [newer, historicalText] of reviewed) {
     if (historical.split(newer).length !== 2)
       throw Error("HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE");

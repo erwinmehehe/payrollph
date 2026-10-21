@@ -6,12 +6,6 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
-  doleAttributionStateUi: {
-    env: "NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED",
-    owner: "Security / Philippine Payroll Compliance / Product",
-    risk: "Opt-in legal-employer source-attribution explanation in DOLE reporting UI; multi-entity GET/POST/CSV and builder deny without this flag",
-    approval: "Exact flag-off visual parity, multi-entity 503 and untouched victim data, real desktop/390px component browser, independent statutory/payroll acceptance",
-  },
   firstPayrollConnected: {
     env: "FIRST_PAYROLL_CONNECTED_ENABLED",
     owner: "Payroll / Onboarding",
@@ -296,6 +290,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 historical wage-discrepancy investigation requiring sensitive source evidence",
     approval: "Independent finance review, tenant isolation, data minimization and default-off regression; no money-moving permission",
   },
+  hcmSalaryCorrectionCases: {
+    env: "HCM_SALARY_CORRECTION_CASES_ENABLED",
+    owner: "Philippine Payroll / HR Operations",
+    risk: "P1 backdated salary correction cases linking Released runs to reviewed underpayment requests; no money computed or moved",
+    approval: "Migration 0135 applied via reviewed workflow, PostgreSQL and two-employer HTTP tests, PH payroll/tax review of back-pay treatment and a no-money pilot",
+  },
   tenantReportBuilder: {
     env: "TENANT_REPORT_BUILDER_ENABLED",
     owner: "People Analytics",
@@ -387,6 +387,18 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Product / Onboarding",
     risk: "Public demo entrypoint redirects to the isolated fictional workspace",
     approval: "Verified hosted role permissions and desktop/390px navigation; default-off parity",
+  },
+  localLoginAudit: {
+    env: "LOCAL_LOGIN_AUDIT_ENABLED",
+    owner: "Security / Authentication",
+    risk: "Successful password login audit writes and failure containment before cookie delivery",
+    approval: "Executed default-off no-write parity, own-employer audit isolation and restricted-role restart smoke; production activation separate",
+  },
+  doleAttributionStateUi: {
+    env: "NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED",
+    owner: "Security / Philippine Payroll Compliance / Product",
+    risk: "Opt-in legal-employer source-attribution explanation in DOLE reporting UI; multi-entity GET/POST/CSV and builder deny regardless of this flag",
+    approval: "Exact flag-off visual parity, multi-entity 503 and untouched victim data, real desktop/390px component browser, independent statutory/payroll acceptance",
   },
 } as const;
 
