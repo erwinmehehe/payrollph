@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 493);
-  assert.equal(manifest.metrics.gap, 406, "Five attendance and four HCM proofs reduce open gaps to 406");
-  assert.equal(manifest.metrics.coveredAfter, 79, "Retain previous 76 methods plus three new #641 correction-case HTTP proofs");
+  assert.equal(manifest.metrics.gap, 394, "Attendance, HCM and twelve Batch-01 GET proofs leave 394 API method GAPs");
+  assert.equal(manifest.metrics.coveredAfter, 91, "76 earlier methods, twelve high-risk GETs and three #641 correction-case proofs");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -55,7 +55,7 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 5);
+  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 4);
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
   assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);
