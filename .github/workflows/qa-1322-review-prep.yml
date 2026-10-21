@@ -7,6 +7,7 @@ on:
       - '.github/workflows/qa-1322-review-prep.yml'
       - 'scripts/qa/prepare-1322-review.mjs'
       - 'scripts/qa/extend-1322-review.mjs'
+      - 'scripts/qa/rebase-1322-closeout.mjs'
       - 'scripts/qa/1322-review-guard-source.mjs'
 
 permissions:
@@ -53,7 +54,9 @@ jobs:
         run: |
           node ../prep/scripts/qa/prepare-1322-review.mjs prepare
           node ../prep/scripts/qa/extend-1322-review.mjs prepare
-      - name: Source size and no-whitespace-error check
+      - name: Apply only reviewed patch to actual merged main and reject unrelated changes
+        run: node ../prep/scripts/qa/rebase-1322-closeout.mjs rebase
+      - name: No whitespace errors in the current-main patch
         run: git diff --cached --check
       - name: All remittance regression tests
         run: npx --no-install tsx --test --test-concurrency=1 --test-reporter=spec tests/remittance-month-close-read.test.ts
@@ -75,7 +78,7 @@ jobs:
         run: npx tsc --noEmit
       - name: Lint
         run: npm run lint
-      - name: Store tested blobs and tree without changing a branch
+      - name: Store tested current-main blobs and tree without changing a branch
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node ../prep/scripts/qa/extend-1322-review.mjs publish-tree
+        run: node ../prep/scripts/qa/rebase-1322-closeout.mjs publish-tree
