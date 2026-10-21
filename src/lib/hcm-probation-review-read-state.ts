@@ -65,16 +65,17 @@ export function isScopedProbationReviewEnvelope(
 ): boolean {
   if (!id(organizationId) || !id(employeeId) || !id(employmentTermId) ||
       !isProbationReviewReadEnvelope(value) || !isObject(value)) return false;
-  if (value.organizationId !== organizationId || value.canManage !== true
-      || typeof value.guardrail !== "string" || !Array.isArray(value.events)
-      || !isObject(value.employee) || value.employee.id !== employeeId
-      || !isObject(value.term) || value.term.id !== employmentTermId
-      || value.term.employeeId !== employeeId || value.term.organizationId !== organizationId
-      || value.term.termKind !== "probationary") return false;
-  if (value.review === null) {
-    return value.acknowledgment === null && value.events.length === 0 && value.mutable === true;
+  const packet = value as unknown as Record<string, unknown>;
+  if (packet.organizationId !== organizationId || packet.canManage !== true
+      || typeof packet.guardrail !== "string" || !Array.isArray(packet.events)
+      || !isObject(packet.employee) || packet.employee.id !== employeeId
+      || !isObject(packet.term) || packet.term.id !== employmentTermId
+      || packet.term.employeeId !== employeeId || packet.term.organizationId !== organizationId
+      || packet.term.termKind !== "probationary") return false;
+  if (packet.review === null) {
+    return packet.acknowledgment === null && packet.events.length === 0 && packet.mutable === true;
   }
-  const review = value.review;
+  const review = packet.review;
   if (!isObject(review) || !id(review.id)
       || review.organizationId !== organizationId || review.employeeId !== employeeId
       || review.employmentTermId !== employmentTermId
@@ -88,19 +89,19 @@ export function isScopedProbationReviewEnvelope(
         (key) => optionalString(review[key]))
       || typeof review.reviewerName !== "string"
       || !(review.submittedAt === null || reviewDate(review.submittedAt))
-      || value.mutable !== (review.status === "draft")) return false;
+      || packet.mutable !== (review.status === "draft")) return false;
   if (review.status === "submitted" &&
       (review.submittedAt === null || review.recommendation === null ||
        ["overallRating", "roleExpectationsRating", "workQualityRating",
          "reliabilityRating", "conductCollaborationRating"].some(
          (key) => review[key] === null))) return false;
-  if (value.acknowledgment !== null) {
-    const a = value.acknowledgment;
+  if (packet.acknowledgment !== null) {
+    const a = packet.acknowledgment;
     if (!isObject(a) || !id(a.id) || a.reviewId !== review.id
         || typeof a.response !== "string" || !optionalString(a.employeeComment)
         || typeof a.acknowledgedByName !== "string" || !reviewDate(a.createdAt)) return false;
   }
-  return value.events.every((event: unknown) =>
+  return packet.events.every((event: unknown) =>
     isObject(event) && event.organizationId === organizationId
       && event.employeeId === employeeId && event.reviewId === review.id && id(event.id));
 }
