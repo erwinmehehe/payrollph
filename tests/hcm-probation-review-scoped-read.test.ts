@@ -42,7 +42,9 @@ test("locked probation reads remain verified but never show write actions", () =
   assert.equal(emptyActions.canEdit, false);
   const lockedDraft = { ...empty, review, mutable: false };
   assert.equal(isScopedProbationReviewEnvelope(lockedDraft, 4, 9, 22), true);
-  const draftActions = probationReviewReadActions("ready", lockedDraft);
+  const draftActions = probationReviewReadActions("ready", {
+    review: { status: "draft" }, canManage: true, mutable: false,
+  });
   assert.equal(draftActions.canOpen, false);
   assert.equal(draftActions.canEdit, false);
   assert.equal(draftActions.showReadOnlyDraft, true);
