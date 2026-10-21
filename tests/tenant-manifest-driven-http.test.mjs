@@ -15,7 +15,7 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.gap, 403, "Two independently verified evidence GET downloads plus static tenant-independent CSV reduce gaps to 403");
+  assert.equal(manifest.metrics.gap, 402, "Two independently verified evidence GET downloads plus static tenant-independent CSV reduce gaps to 403");
   assert.equal(manifest.metrics.coveredAfter, 78, "Retain prior 76 plus two real-own and high-ID victim-denial evidence downloads");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
