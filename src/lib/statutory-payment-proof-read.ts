@@ -43,6 +43,18 @@ export function parseVerifiedPaymentProof(
     return null;
   return value as VerifiedPaymentProof;
 }
+/** A POST is confirmed only when refreshed evidence contains its sole active receipt. */
+export function confirmsStoredPaymentProof(
+  verified: VerifiedPaymentProof | null, organizationId: number, batchId: number,
+  uploaded: { id: number; fileSha256: string },
+): boolean {
+  return verified !== null && verified.organizationId === organizationId &&
+    verified.batchId === batchId && verified.active?.id === uploaded.id &&
+    verified.active.fileSha256 === uploaded.fileSha256 &&
+    verified.evidence.filter(row => row.status === "active").length === 1 &&
+    verified.evidence.some(row => row.id === uploaded.id && row.status === "active" &&
+      row.fileSha256 === uploaded.fileSha256);
+}
 export async function readVerifiedPaymentProof(
   organizationId: number, batchId: number,
   fetcher: typeof fetch = fetch, signal?: AbortSignal,

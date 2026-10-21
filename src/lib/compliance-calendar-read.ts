@@ -14,6 +14,7 @@ export type RuleWatchItem = {
 };
 export type CalendarPayload = {
   organizationId: number; today: string; applicableMonths: string[];
+  contributionMonths: string[]; birPayMonths: string[];
   items: CalendarItem[]; ruleWatch: RuleWatchItem[]; note: string;
 };
 const record = (v: unknown): v is Record<string, unknown> =>
@@ -54,6 +55,8 @@ export function parseVerifiedComplianceCalendar(value: unknown, organizationId: 
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
       !record(value) || value.organizationId !== organizationId || !isoDay(value.today) ||
       !Array.isArray(value.applicableMonths) || !value.applicableMonths.every(isoMonth) ||
+      !Array.isArray(value.contributionMonths) || !value.contributionMonths.every(isoMonth) ||
+      !Array.isArray(value.birPayMonths) || !value.birPayMonths.every(isoMonth) ||
       !Array.isArray(value.items) || !value.items.every(calendarItem) ||
       !Array.isArray(value.ruleWatch) || !value.ruleWatch.every(watchItem) ||
       !text(value.note)) return null;
@@ -70,20 +73,36 @@ export function parseVerifiedComplianceCalendar(value: unknown, organizationId: 
   if (!requiredFamilies.every(family => watch.some(entry => entry.family === family)))
     return null;
 
-  // A nonempty payroll month cannot become "no obligations" by dropping items.
-  // Payroll periods can differ from BIR pay months: each listed month must
-  // contain either its BIR monthly filing, or all three contribution items.
+  // Server-issued source months are distinct: a BIR entry cannot excuse
+  // missing SSS, PhilHealth or Pag-IBIG items for a payroll-period month.
   const months = value.applicableMonths as string[];
-  if (new Set(months).size !== months.length) return null;
-  for (const m of months) {
-    const monthly = items.filter(item => item.applicableMonth === m);
-    const monthlyContributionAgencies = ["SSS", "PhilHealth", "Pag-IBIG"];
-    const presentContributions = monthlyContributionAgencies.filter(agency =>
-      monthly.some(item => item.agency === agency));
-    if (presentContributions.length !== 0 && presentContributions.length !== 3)
-      return null;
-    const hasBirMonthly = monthly.some(item => item.id === "BIR-1601C-" + m && item.agency === "BIR");
-    if (!hasBirMonthly && presentContributions.length !== 3) return null;
+  const contributionMonths = value.contributionMonths as string[];
+  const birPayMonths = value.birPayMonths as string[];
+  const union = new Set([...contributionMonths, ...birPayMonths]);
+  if (new Set(months).size !== months.length ||
+      new Set(contributionMonths).size !== contributionMonths.length ||
+      new Set(birPayMonths).size !== birPayMonths.length ||
+      months.length !== union.size || months.some(month => !union.has(month)) ||
+      (months.length === 0 && items.length !== 0)) return null;
+
+  const contributionAgencies = ["SSS", "PhilHealth", "Pag-IBIG"] as const;
+  for (const month of contributionMonths) {
+    for (const agency of contributionAgencies) {
+      if (!items.some(item => item.id === agency + "-" + month &&
+          item.agency === agency && item.applicableMonth === month)) return null;
+    }
+  }
+  for (const month of birPayMonths) {
+    if (!items.some(item => item.id === "BIR-1601C-" + month &&
+        item.agency === "BIR" && item.applicableMonth === month)) return null;
+  }
+  // Reject orphan and misbound monthly entries; annual BIR items remain valid.
+  for (const item of items) {
+    if (item.agency !== "BIR" && (!contributionMonths.includes(item.applicableMonth) ||
+        item.id !== item.agency + "-" + item.applicableMonth)) return null;
+    if (item.id.startsWith("BIR-1601C-") &&
+        (!birPayMonths.includes(item.applicableMonth) ||
+         item.id !== "BIR-1601C-" + item.applicableMonth || item.agency !== "BIR")) return null;
   }
   return value as CalendarPayload;
 }

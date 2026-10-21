@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { parseVerifiedPaymentProof, readVerifiedPaymentProof } from "../src/lib/statutory-payment-proof-read";
+import { confirmsStoredPaymentProof, parseVerifiedPaymentProof, readVerifiedPaymentProof } from "../src/lib/statutory-payment-proof-read";
 const row = { id: 10, batchId: 22, fileName: "receipt.pdf", mimeType: "application/pdf",
   byteSize: 1234, fileSha256: "a".repeat(64), status: "active", replacementReason: null,
   uploadedByName: "Test Operator", uploadedAt: "2026-10-20T00:00:00Z", supersededAt: null };
@@ -17,6 +17,17 @@ test("statutory proof binds exact employer/batch, rows, active and genuine empty
     { ...proof, active: { ...row, fileName: "another-receipt.pdf" } },
     { ...proof, active: { ...row, uploadedByName: "Different operator" } }])
     assert.equal(parseVerifiedPaymentProof(v, 41, 22), null);
+});
+test("POST 201 cannot confirm receipt without a matching verified refresh", () => {
+  const uploaded = { id: row.id, fileSha256: row.fileSha256 };
+  assert.equal(confirmsStoredPaymentProof(proof, 41, 22, uploaded), true);
+  assert.equal(confirmsStoredPaymentProof(null, 41, 22, uploaded), false);
+  assert.equal(confirmsStoredPaymentProof(proof, 42, 22, uploaded), false);
+  assert.equal(confirmsStoredPaymentProof(proof, 41, 23, uploaded), false);
+  assert.equal(confirmsStoredPaymentProof(proof, 41, 22, { ...uploaded, id: 99 }), false);
+  assert.equal(confirmsStoredPaymentProof(proof, 41, 22, { ...uploaded, fileSha256: "b".repeat(64) }), false);
+  assert.equal(confirmsStoredPaymentProof({ ...proof, evidence: [] }, 41, 22, uploaded), false);
+  assert.equal(confirmsStoredPaymentProof({ ...proof, active: null }, 41, 22, uploaded), false);
 });
 test("statutory proof non-OK/JSON/foreign/partial always unavailable until successful retry", async () => {
   let status = 502, invalid = false, payload: unknown = proof, requests = 0;
@@ -38,6 +49,8 @@ test("proof uploader cannot act on an unverified read and explicitly offers retr
   const api = readFileSync("src/app/api/compliance/statutory-remittances/payment-evidence/route.ts", "utf8");
   assert.match(ui, /if \(!proof\)/);
   assert.match(ui, /Retry payment proof/);
+  assert.match(ui, /const refreshed = await reload\(\)/);
+  assert.match(ui, /confirmsStoredPaymentProof\(refreshed\?\.data/);
   assert.match(api, /organizationId,\s+batchId,\s+evidence: rows/);
   assert.match(api, /const \[ownedBatch\] = await db\.select/);
   assert.match(api, /if \(!ownedBatch\) return Response\.json\(\{ error: "Remittance batch not found\." \}, \{ status: 404 \}\)/);

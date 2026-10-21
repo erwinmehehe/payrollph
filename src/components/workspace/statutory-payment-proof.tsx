@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { readVerifiedPaymentProof } from "@/lib/statutory-payment-proof-read";
+import { confirmsStoredPaymentProof, readVerifiedPaymentProof } from "@/lib/statutory-payment-proof-read";
 import { useScopedAsyncResource } from "./use-scoped-async-resource";
 import { FileCheck2, UploadCloud } from "lucide-react";
 import type { Notify } from "./types";
@@ -36,7 +36,7 @@ function StatutoryPaymentProofContent({
   const load = useCallback((signal: AbortSignal) =>
     readVerifiedPaymentProof(organizationId, batchId, fetch, signal),
   [organizationId, batchId]);
-  const { data: proof, loading, error, reload } = useScopedAsyncResource(
+  const { data: proof, loading, error, reload, isCurrent } = useScopedAsyncResource(
     "statutory-payment-proof:" + organizationId + ":" + batchId, load,
   );
   const rows = proof?.evidence ?? [];
@@ -81,8 +81,13 @@ function StatutoryPaymentProofContent({
       }
       setFile(null);
       setReplacementReason("");
-      await reload();
-      notify("Payment proof request accepted. Review refreshed evidence to confirm it.", "info");
+      const refreshed = await reload();
+      if (!isCurrent()) return; // A retired employer/batch must not emit a new result.
+      if (!confirmsStoredPaymentProof(refreshed?.data ?? null, organizationId, batchId, body.evidence)) {
+        notify("Payment proof may be stored, but the refreshed evidence was not verified. Retry payment proof to confirm before another upload.", "err");
+        return;
+      }
+      notify("Payment proof stored and verified in refreshed evidence.", "ok");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Payment proof could not be uploaded.", "err");
     } finally {
