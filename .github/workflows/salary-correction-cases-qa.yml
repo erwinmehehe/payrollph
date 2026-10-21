@@ -30,9 +30,6 @@ jobs:
     timeout-minutes: 30
     env:
       CI: "true"
-      # Shared real-HTTP tenant harness requires persisted own-employer login audit.
-      # Enable only in this disposable PostgreSQL CI job; production stays off.
-      LOCAL_LOGIN_AUDIT_ENABLED: "true"
       TZ: Asia/Manila
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       APP_BASE_URL: http://127.0.0.1:3000
