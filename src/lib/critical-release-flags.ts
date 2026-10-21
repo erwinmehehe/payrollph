@@ -6,12 +6,6 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
-  complianceReadStateUi: {
-    env: "NEXT_PUBLIC_COMPLIANCE_READ_STATE_UI_ENABLED",
-    owner: "Security / Philippine Payroll Compliance / Product",
-    risk: "Opt-in explanatory UI for fail-closed statutory calendar and payment-proof unavailable states; authorization and source validation remain unconditional",
-    approval: "Default-off parity on desktop and 390px, fail-closed wrong-employer/partial reads, source-pinned PG16 test, independent security and payroll acceptance",
-  },
   firstPayrollConnected: {
     env: "FIRST_PAYROLL_CONNECTED_ENABLED",
     owner: "Payroll / Onboarding",
@@ -381,6 +375,18 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Payroll / Onboarding",
     risk: "Owner-only fictional calculation and sample payslip UI; no payroll writes or payment authority",
     approval: "Executed canonical fixture, owner/tenant gates, default-off parity and desktop/390px browser tests; production activation separate",
+  },
+  hostedDemoNavigation: {
+    env: "HOSTED_DEMO_NAVIGATION_ENABLED",
+    owner: "Product / Onboarding",
+    risk: "Public demo entrypoint redirects to the isolated fictional workspace",
+    approval: "Verified hosted role permissions and desktop/390px navigation; default-off parity",
+  },
+  complianceReadStateUi: {
+    env: "NEXT_PUBLIC_COMPLIANCE_READ_STATE_UI_ENABLED",
+    owner: "Security / Philippine Payroll Compliance / Product",
+    risk: "Opt-in explanatory UI for fail-closed statutory calendar and payment-proof unavailable states; authorization and source validation remain unconditional",
+    approval: "Default-off parity on desktop and 390px, fail-closed wrong-employer/partial reads, source-pinned PG16 test, independent security and payroll acceptance",
   },
 } as const;
 
