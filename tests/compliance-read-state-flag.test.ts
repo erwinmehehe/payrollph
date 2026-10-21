@@ -29,8 +29,8 @@ test("flag-OFF keeps existing strict read and upload denial; flag is UI-only", (
       "Feature flag must not weaken server source checks or authorization");
   }
   assert.match(parser, /const requiredFamilies = \["sss", "philhealth", "pagibig", "bir-withholding", "wage-orders"\]/);
-  assert.match(parser, /for \\(const month of contributionMonths\\)/);
-  assert.match(parser, /for \\(const month of birPayMonths\\)/);
+  assert.match(parser, /for \(const month of contributionMonths\)/);
+  assert.match(parser, /for \(const month of birPayMonths\)/);
 });
 
 test("desktop and 390px snapshots use actual components and compare default-OFF HTML with pre-flag commit", () => {
