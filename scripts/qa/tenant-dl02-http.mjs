@@ -7,7 +7,7 @@
  */
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
   auditEvents, employees, hcmEmploymentDecisionNotes, hcmEmploymentTermDecisions, hcmEmploymentTerms,
@@ -81,7 +81,7 @@ export async function verifyDl02TenantIsolation(f, { request, expectStatus, make
   assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only");
   assert.equal(process.env.TENANT_DL02_PROOF, "isolated-ci-only");
   const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
-  const employers = [];
+  const employers = []; await reserveHighSyntheticIds();
   for (const label of ["VICTIM", "ATTA", "ATTB"]) employers.push(await seedEmployer(label, nonce, makeSession));
   const victim = employers[0];
   const [victimReport] = await db.insert(savedReportDefinitions).values({ organizationId: victim.org.id, userId: victim.owner.id,
@@ -212,4 +212,27 @@ export async function verifyDl02TenantIsolation(f, { request, expectStatus, make
 
   const victimAfter = await victimSnapshot(victim);
   assert.deepEqual(victimAfter, victimBefore, "Denied DL02 requests leave victim reports, policies, notes, photos, links and audit unchanged");
+}
+
+// Reserve nontrivial *real* victim row IDs on a disposable localhost CI database.
+// PostgreSQL sequences in previously unused tables otherwise produce id=1;
+// never weaken the victim-ID assertions or forge non-existent identifiers.
+async function reserveHighSyntheticIds() {
+  assert.equal(new URL(process.env.DATABASE_URL).hostname, "127.0.0.1");
+  assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
+  await db.execute(sql`SELECT setval(pg_get_serial_sequence('saved_report_definitions', 'id')::regclass,
+    GREATEST(6, COALESCE((SELECT MAX(id) FROM saved_report_definitions), 0),
+      nextval(pg_get_serial_sequence('saved_report_definitions', 'id')::regclass)), true)`);
+  await db.execute(sql`SELECT setval(pg_get_serial_sequence('hcm_policy_versions', 'id')::regclass,
+    GREATEST(6, COALESCE((SELECT MAX(id) FROM hcm_policy_versions), 0),
+      nextval(pg_get_serial_sequence('hcm_policy_versions', 'id')::regclass)), true)`);
+  await db.execute(sql`SELECT setval(pg_get_serial_sequence('hcm_policy_assignments', 'id')::regclass,
+    GREATEST(6, COALESCE((SELECT MAX(id) FROM hcm_policy_assignments), 0),
+      nextval(pg_get_serial_sequence('hcm_policy_assignments', 'id')::regclass)), true)`);
+  await db.execute(sql`SELECT setval(pg_get_serial_sequence('hcm_employment_term_decisions', 'id')::regclass,
+    GREATEST(6, COALESCE((SELECT MAX(id) FROM hcm_employment_term_decisions), 0),
+      nextval(pg_get_serial_sequence('hcm_employment_term_decisions', 'id')::regclass)), true)`);
+  await db.execute(sql`SELECT setval(pg_get_serial_sequence('employees', 'id')::regclass,
+    GREATEST(6, COALESCE((SELECT MAX(id) FROM employees), 0),
+      nextval(pg_get_serial_sequence('employees', 'id')::regclass)), true)`);
 }
