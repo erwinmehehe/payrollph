@@ -720,7 +720,7 @@ test("real-HTTP login audit for the public credential exchange cannot target a f
   const suite = readFileSync(proof.file, "utf8");
   const runner = readFileSync(proof.harness, "utf8");
   assert.match(runner, /verifyTenantLoginAuditIsolation\(\s*f,\s*\{\s*request,\s*expectStatus\s*\}\s*\)/);
-  assert.match(runner, /if \\(process\\.env\\.LOCAL_LOGIN_AUDIT_ENABLED === "true"\\) await/,
+  assert.ok(runner.includes('if (process.env.LOCAL_LOGIN_AUDIT_ENABLED === "true") await'),
     "Do not require audit receipts while the opt-in feature is disabled");
   const smokeWorkflow = readFileSync(".github/workflows/security-http-smoke.yml", "utf8");
   assert.match(smokeWorkflow, /LOCAL_LOGIN_AUDIT_ENABLED: "true"/,
