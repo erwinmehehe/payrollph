@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.gap, 409, "Thirteen additional provisionally evidenced high-risk GETs leave 409 GAPs");
-  assert.equal(manifest.metrics.coveredAfter, 73, "Thirteen exact-source Batch 01 GET evidence mappings supplement 60 previously covered methods");
+  assert.equal(manifest.metrics.gap, 403, "Seven current-main gains and twelve Batch-01 GETs leave 403 method GAPs");
+  assert.equal(manifest.metrics.coveredAfter, 79, "Preserve the 67 current-main covered methods and credit only twelve net-new GETs");
   const governanceMethod = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(governanceMethod?.status, "COVERED", "HCM governance read requires real own/foreign proof");
   assert.equal(governanceMethod?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");

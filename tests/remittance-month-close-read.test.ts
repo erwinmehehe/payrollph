@@ -102,13 +102,10 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.coveredAfter, 73, "60 prior covered methods plus 13 provisionally evidenced Batch 01 GETs");
-  assert.equal(manifest.metrics.gap, 409, "13 newly evidenced GET methods move from GAP to provisional COVERED");
-  assert.equal(
-    manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap,
-    manifest.metrics.methods,
-    "All API methods must remain accounted for in the tenant isolation manifest",
-  );
+  assert.equal(manifest.metrics.coveredAfter, 79, "Seven current-main proofs plus 12 newly reconciled Batch-01 GET methods leave 79 covered");
+  assert.equal(manifest.metrics.gap, 403, "Payout provider POST and 402 other unverified methods must remain GAPs");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap,
+    manifest.metrics.methods, "Method accounting must preserve all 490 API methods");
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);

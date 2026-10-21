@@ -165,8 +165,8 @@ test("employee pay screen exposes Explain My Pay on latest and historical releas
   const portal = read("src/components/self-service-portal.tsx");
   const component = read("src/components/employee-explain-pay.tsx");
   assert.ok(portal.includes('import { EmployeeExplainPay } from "@/components/employee-explain-pay";'));
-  assert.match(portal, /<EmployeeExplainPay entryId=\{latestPayslip\.entryId\} period=\{latestPayslip\.period\} language=\{language\} \/>/);
-  assert.match(portal, /<EmployeeExplainPay entryId=\{slip\.entryId\} period=\{slip\.period\} language=\{language\} \/>/);
+  assert.match(portal, /<EmployeeExplainPay entryId=\{latestPayslip\.entryId\} period=\{latestPayslip\.period\} organizationId=\{data\.employer\?\.id \?\? 0\} employeeId=\{data\.employee\.id\} language=\{language\} \/>/);
+  assert.match(portal, /<EmployeeExplainPay entryId=\{slip\.entryId\} period=\{slip\.period\} organizationId=\{data\.employer\?\.id \?\? 0\} employeeId=\{data\.employee\.id\} language=\{language\} \/>/);
   assert.ok(component.includes("Why did my pay change?"));
   assert.ok(component.includes("previous released cutoff"));
   assert.ok(component.includes("effect on net"));

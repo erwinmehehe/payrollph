@@ -7,7 +7,7 @@ import { FirstPayrollInlinePanel } from "./first-payroll-inline-panel";
 import { useCallback, useState } from "react";
 import type { DashboardData, Notify } from "./types";
 import { firstPayrollRunHref } from "@/lib/first-payroll-run-navigation";
-import { parseFirstPayrollProgressRead } from "@/lib/first-payroll-progress-read";
+import { readVerifiedFirstPayrollProgress } from "@/lib/first-payroll-progress-read";
 import { useScopedAsyncResource } from "./use-scoped-async-resource";
 
 export function FirstPayrollReadinessCard({
@@ -49,9 +49,7 @@ export function FirstPayrollReadinessCard({
   ]);
   const loadProgress=useCallback(async (signal:AbortSignal)=>{
     if(!organizationId)throw new Error("Select an employer to load first-payroll progress.");
-    const response=await fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store",signal});
-    if(!response.ok)throw new Error("Saved first-payroll progress could not be verified.");
-    return parseFirstPayrollProgressRead(await response.json());
+    return readVerifiedFirstPayrollProgress(organizationId, fetch, signal);
   },[organizationId]);
   const {data:progress,error:progressError,loading:progressLoading,reload:reloadProgress}=
     useScopedAsyncResource(scopeKey,loadProgress,undefined,guided&&inlineEnabled&&Boolean(organizationId));

@@ -60,7 +60,7 @@ test("self-service routes use real employee sessions and revoke real memberships
   assert.match(source, /"GET self\/documents"/);
 });
 
-test("13 new Batch 01 high-risk GET receipts map each real route to executed two-attacker proof", () => {
+test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant proofs", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const cases = [...source.matchAll(/^\s+"(GET [^"]+)",$/gm)].map((m) => m[1]);
   assert.equal(cases.length, 16, "Never silently narrow the tested Batch 01 method set");
@@ -84,9 +84,14 @@ test("13 new Batch 01 high-risk GET receipts map each real route to executed two
     assert.match(method.reason, /^Provisional:/);
     assert.match(proof.scope, /independent|Two independent/);
   }
-  assert.equal(pendingReview.length, 13, "Only the thirteen previously uncredited GET methods were remapped");
-  assert.equal(manifest.metrics.coveredAfter, 73);
-  assert.equal(manifest.metrics.gap, 409);
+  assert.equal(pendingReview.length, 12, "The thirteenth GET has newer independent current-main proof; never double-credit it");
+  const payExplain = manifest.allApiRouteFiles["src/app/api/self/payslips/[id]/explain/route.ts"]
+    ?.methods.find((m) => m.name === "GET");
+  assert.equal(payExplain?.status, "COVERED");
+  assert.equal(payExplain?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs",
+    "Keep the newer source-matched own/foreign real-HTTP pay-explanation proof");
+  assert.equal(manifest.metrics.coveredAfter, 79);
+  assert.equal(manifest.metrics.gap, 403);
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
   assert.match(source, /assert\.equal\(passed\.size, 36/);

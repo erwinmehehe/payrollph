@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { parseFirstPayrollProgressRead } from "../src/lib/first-payroll-progress-read";
+import { parseFirstPayrollProgressRead, readVerifiedFirstPayrollProgress } from "../src/lib/first-payroll-progress-read";
 import { activeAsyncResult, createScopedRequestOwner, type ScopedAsyncResult } from "../src/lib/scoped-async-request";
 
 const sample = {
+  organizationId: 41,
   progress: {
     stepOwners: { company: "owner", time: "hr", approval: "checker" },
     completedSteps: {
@@ -15,11 +16,11 @@ const sample = {
 };
 
 test("saved first-payroll progress accepts empty and sourced completion evidence", () => {
-  assert.equal(parseFirstPayrollProgressRead({ progress: null }), null);
-  assert.deepEqual(parseFirstPayrollProgressRead(sample), sample.progress);
+  assert.equal(parseFirstPayrollProgressRead({ organizationId: 41, progress: null }, 41), null);
+  assert.deepEqual(parseFirstPayrollProgressRead(sample, 41), sample.progress);
   assert.deepEqual(parseFirstPayrollProgressRead({
-    progress: { stepOwners: {}, completedSteps: {} },
-  }), { stepOwners: {}, completedSteps: {} });
+    organizationId: 41, progress: { stepOwners: {}, completedSteps: {} },
+  }, 41), { stepOwners: {}, completedSteps: {} });
 });
 
 test("malformed successful reads and incomplete completion records fail closed", () => {
@@ -27,6 +28,8 @@ test("malformed successful reads and incomplete completion records fail closed",
     null,
     {},
     { organizationId: 41 },
+    { ...sample, organizationId: 42 },
+    { ...sample, organizationId: undefined },
     { progress: undefined },
     { progress: {} },
     { progress: { stepOwners: [], completedSteps: {} } },
@@ -40,7 +43,7 @@ test("malformed successful reads and incomplete completion records fail closed",
     { progress: { stepOwners: {}, completedSteps: { company: { byUserId: 11, at: "2026-10-19T09:00:00.000Z", periodStart: "2026-10-01", periodEnd: "2026-10-15" } } } },
   ];
   for (const value of cases) {
-    assert.throws(() => parseFirstPayrollProgressRead(value), /could not be verified/, JSON.stringify(value));
+    assert.throws(() => parseFirstPayrollProgressRead(value, 41), /could not be verified/, JSON.stringify(value));
   }
 });
 
@@ -53,12 +56,12 @@ test("a late employer A response cannot mark employer B's first-payroll steps co
   const commits: Array<ScopedAsyncResult<object, ReturnType<typeof parseFirstPayrollProgressRead>>> = [];
   owner.activate(aKey);
   const requestA = owner.run(aKey,
-    async () => parseFirstPayrollProgressRead(await oldResponse),
+    async () => parseFirstPayrollProgressRead(await oldResponse, 41),
     result => { commits.push({ key: aKey, ...result }); });
   owner.activate(bKey);
   assert.equal(activeAsyncResult(commits.at(-1) ?? null, bKey, true), null);
   const requestB = owner.run(bKey,
-    async () => parseFirstPayrollProgressRead({ progress: null }),
+    async () => parseFirstPayrollProgressRead({ organizationId: 42, progress: null }, 42),
     result => { commits.push({ key: bKey, ...result }); });
   await requestB;
   finishA(sample);
@@ -73,7 +76,7 @@ test("first-payroll UI scopes reads, fails closed and offers explicit retry with
   const panel = readFileSync("src/components/workspace/first-payroll-inline-panel.tsx", "utf8");
   const api = readFileSync("src/app/api/first-payroll/progress/route.ts", "utf8");
   assert.match(card, /useScopedAsyncResource\(scopeKey,loadProgress/);
-  assert.match(card, /parseFirstPayrollProgressRead\(await response\.json\(\)\)/);
+  assert.match(card, /readVerifiedFirstPayrollProgress\(organizationId, fetch, signal\)/);
   assert.match(card, /data\?\.user\?\.id/);
   assert.match(card, /data\?\.access\?\.role/);
   assert.match(card, /key=\{JSON\.stringify\(\[data\.selectedOrganization\.id,data\.user\?\.id/);
@@ -82,8 +85,37 @@ test("first-payroll UI scopes reads, fails closed and offers explicit retry with
   assert.match(card, /Assignment not verified/);
   assert.match(card, /Retry saved progress/);
   assert.doesNotMatch(card, /setProgress\(/);
-  assert.match(panel, /parseFirstPayrollProgressRead\(x\)/);
-  assert.match(panel, /parseFirstPayrollProgressRead\(result\)/);
+  assert.match(panel, /readVerifiedFirstPayrollProgress\(organizationId, fetch\)/);
+  assert.match(panel, /parseFirstPayrollProgressRead\(result, organizationId\)/);
   assert.match(api, /assertMembership\(user\.id, organizationId\)/);
-  assert.match(api, /return Response\.json\(\{progress:await readJourneyProgress\(organizationId\)\}\);/);
+  assert.match(api, /return Response\.json\(\{organizationId,progress:await readJourneyProgress\(organizationId\)\}\);/);
+});
+
+
+test("first-payroll progress: non-OK, malformed, missing, wrong org, verified empty and retry", async () => {
+  let body: unknown = { organizationId: 41, progress: null };
+  let status = 503;
+  let malformed = false;
+  let requests = 0;
+  const fetcher = (async () => {
+    requests++;
+    return { ok: status >= 200 && status < 300, json: async () => {
+      if (malformed) throw new SyntaxError("fictional invalid JSON");
+      return body;
+    } } as Response;
+  }) as typeof fetch;
+  await assert.rejects(() => readVerifiedFirstPayrollProgress(41, fetcher), /could not be verified/);
+  status = 200;
+  malformed = true;
+  await assert.rejects(() => readVerifiedFirstPayrollProgress(41, fetcher), /could not be verified/);
+  malformed = false;
+  for (body of [{}, { organizationId: 42, progress: null }, { organizationId: 41 },
+    { organizationId: 41, progress: { stepOwners: {}, completedSteps: null } }]) {
+    await assert.rejects(() => readVerifiedFirstPayrollProgress(41, fetcher), /could not be verified/);
+  }
+  body = { organizationId: 41, progress: null };
+  assert.equal(await readVerifiedFirstPayrollProgress(41, fetcher), null);
+  body = { organizationId: 41, progress: { stepOwners: {}, completedSteps: {} } };
+  assert.deepEqual(await readVerifiedFirstPayrollProgress(41, fetcher), { stepOwners: {}, completedSteps: {} });
+  assert.equal(requests, 8, "retry issues a new HTTP request, not the failed response");
 });

@@ -58,6 +58,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     : [];
 
   return Response.json({
+    organizationId: employee.organizationId,
+    employeeId: session.employeeId,
+    entryId,
     run: {
       id: run.id,
       periodLabel: run.periodLabel,
