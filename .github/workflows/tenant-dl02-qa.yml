@@ -49,6 +49,7 @@ jobs:
       MALWARE_SCAN_URL: https://scanner.invalid/scan
       MALWARE_SCAN_TOKEN: ci-malware-token-0000000000000000000000000000
       REQUIRE_PRIVILEGED_MFA: "true"
+      LOCAL_LOGIN_AUDIT_ENABLED: "true"
     services:
       postgres:
         image: postgres:16

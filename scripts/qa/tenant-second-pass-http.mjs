@@ -1073,7 +1073,7 @@ async function verifyNewMainRouteIsolation(f) {
 
 async function main() {
   requireDisposable();
-  const f = await makeFixture();
+  const f = await makeFixture(); await (await import("./tenant-login-audit-http.mjs")).verifyTenantLoginAuditIsolation(f, { request, expectStatus });
   const victim = f.orgs[0];
   const beforeWebhookProbe = (await db.select().from(providerEvents)
     .where(eq(providerEvents.organizationId, f.orgs[0].id))).map((e) => e.id).sort((a,b) => a-b);

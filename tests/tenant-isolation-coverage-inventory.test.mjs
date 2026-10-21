@@ -736,3 +736,41 @@ test("original three-employer HTTP hard-refuse and anti-false-pass guards remain
   assert.match(workflow, /node --test tests\/tenant-second-pass-inventory\.test\.mjs tests\/tenant-isolation-coverage-inventory\.test\.mjs/,
     "security smoke must invoke the original test alongside the full-surface drift guard");
 });
+
+test("real-HTTP login audit for the public credential exchange cannot target a forged employer", () => {
+  const path = "src/app/api/auth/login/route.ts";
+  const route = readFileSync(path, "utf8");
+  const writer = readFileSync("src/lib/audit.ts", "utf8");
+  const entry = manifest.allApiRouteFiles[path];
+  const method = entry.methods.find(item => item.name === "POST");
+  assert.equal(method?.status, "PUBLIC-BY-DESIGN");
+  assert.match(method.reason, /server-derived active membership/);
+  const proof = method.reviewedPublicProof;
+  assert.equal(proof?.file, "scripts/qa/tenant-login-audit-http.mjs");
+  assert.equal(proof?.harness, "scripts/qa/tenant-second-pass-http.mjs");
+  const suite = readFileSync(proof.file, "utf8");
+  const runner = readFileSync(proof.harness, "utf8");
+  assert.match(runner, /verifyTenantLoginAuditIsolation\(\s*f,\s*\{\s*request,\s*expectStatus\s*\}\s*\)/);
+  assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+  assert.match(suite, /for \(const idx of \[1, 2\]\)/);
+  assert.match(suite, /hashPassword\(fictionalPassword\)/);
+  assert.match(suite, /organizationId: victimOrg\.id, userId: f\.owners\[0\]\.id/);
+  assert.match(evidenceLine(proof.file, proof.ownPositiveLine, "local login own HTTP"),
+    /const own = expectStatus\(await request\(loginPath,/);
+  assert.match(evidenceLine(proof.file, proof.invalidCredentialsLine, "local login 401"),
+    /const invalid = expectStatus\(await request\(loginPath,/);
+  assert.match(evidenceLine(proof.file, proof.foreignIsolationLine, "victim unchanged"),
+    /assert\.deepEqual\(victimAfter, victimBefore,/);
+  assert.match(evidenceLine(proof.file, proof.unchangedDbLine, "victim audit invariant"),
+    /assert\.deepEqual\(victimAfter, victimBefore,/);
+  assert.match(suite, /assert\.equal\(ownAfter\.length, ownBefore\.length \+ 1,/);
+  assert.match(suite, /assert\.equal\(receipt\.organizationId, ownOrg\.id\)/);
+  assert.match(suite, /assert\.deepEqual\(await tenantAuditRows\(victimOrg\.id\), victimBefore,/);
+  assert.match(writer, /eq\(userOrganizations\.active, true\)/);
+  assert.match(writer, /await tx\.insert\(auditEvents\)\.values\(memberships\.map\(/);
+  const audit = route.indexOf("await recordSuccessfulLocalLogin({");
+  const cookie = route.indexOf("jar.set(SESSION_COOKIE, session.token");
+  assert.ok(audit > 0 && cookie > audit,
+    "Sign-in audit must commit before browser session delivery");
+  assert.match(route, /await revokeSession\(session\.token\)\.catch\(\(\) => \{\}\)/);
+});

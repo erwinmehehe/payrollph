@@ -1,5 +1,7 @@
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents } from "@/db/schema";
+import { auditEvents, userOrganizations } from "@/db/schema";
 
 /**
  * Single audit writer used by every mutating route, so actor / timestamp / rule
@@ -27,4 +29,41 @@ export async function recordAuditEvent(input: {
     metadata: input.metadata ?? {},
   }).returning();
   return row;
+}
+
+/**
+ * A successful local login has no selected workspace yet. Write one audit
+ * receipt for each ACTIVE employer membership, not an arbitrary company.
+ * The insert batch is atomic so a multi-employer login cannot be partially
+ * certified as audited. Never store passwords, TOTP/backup codes, session
+ * tokens, cookies or request IPs in login audit metadata.
+ */
+export async function recordSuccessfulLocalLogin(input: {
+  userId: number;
+  actor: string;
+  mfaVerified: boolean;
+}): Promise<number> {
+  if (!criticalReleaseFlagEnabled("localLoginAudit")) return 0;
+  return db.transaction(async (tx) => {
+    const memberships = await tx.select({
+      organizationId: userOrganizations.organizationId,
+    }).from(userOrganizations).where(and(
+      eq(userOrganizations.userId, input.userId),
+      eq(userOrganizations.active, true),
+    ));
+    if (memberships.length === 0) return 0;
+
+    await tx.insert(auditEvents).values(memberships.map(({ organizationId }) => ({
+      organizationId,
+      actor: input.actor,
+      action: "Successful local password sign-in",
+      resource: "Account authentication",
+      metadata: {
+        userId: input.userId,
+        authMethod: "local",
+        mfaVerified: input.mfaVerified,
+      },
+    })));
+    return memberships.length;
+  });
 }

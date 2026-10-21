@@ -1032,15 +1032,24 @@
       "businessIds": []
     },
     "src/app/api/auth/login/route.ts": {
-      "gitBlobSha": "2c7ba0211d04d018c73eefe31a69f36d66aeec80",
+      "gitBlobSha": "288799f300fb4d2853fa850ff15ba8444e3762c8",
       "route": "auth/login",
       "methods": [
         {
           "name": "POST",
-          "line": 18,
+          "line": 19,
           "status": "PUBLIC-BY-DESIGN",
-          "reason": "Public credential exchange; no cross-employer data lookup",
-          "testedBy": null
+          "reason": "The public sign-in endpoint exchanges credentials without a client-selected employer. Successful login audits only the authenticated user's server-derived active membership(s); two real isolated HTTP attacker logins prove forged victim selectors never write victim audit history.",
+          "testedBy": null,
+          "reviewedPublicProof": {
+            "file": "scripts/qa/tenant-login-audit-http.mjs",
+            "ownPositiveLine": 54,
+            "foreignIsolationLine": 78,
+            "invalidCredentialsLine": 81,
+            "unchangedDbLine": 78,
+            "harness": "scripts/qa/tenant-second-pass-http.mjs",
+            "scope": "Real PG16 HTTP 200 for two independent attacker accounts, validated own audit INSERT and cookie, forged victim selectors, own invalid-credential 401, real victim audit snapshot unchanged. Public credential exchange is not certification of every tenant route."
+          }
         }
       ],
       "employerSources": {
@@ -1052,11 +1061,11 @@
       },
       "guards": [
         {
-          "line": 12,
+          "line": 13,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 19,
+          "line": 20,
           "token": "enforceSameOriginMutation"
         }
       ],
