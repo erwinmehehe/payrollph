@@ -98,7 +98,7 @@ function StatutoryPaymentProofContent({
         <span role="status" style={{ overflowWrap: "anywhere" }}>
           Payment evidence cannot be accepted as filed or uploaded until this employer and batch have a verified source read.
         </span>
-      )
+      )}
       {!loading && <button className="secondary-button" type="button" onClick={() => void reload()}>Retry payment proof</button>}
     </div>
   );
