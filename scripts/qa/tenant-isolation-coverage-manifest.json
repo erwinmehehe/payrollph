@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 403 API methods and 20 page/action GAPs remain. Twelve distinct additional high-risk GETs (13 Batch-01 cases, including self/pay-explain already separately covered on current main) were provisionally linked to source-matched disposable-PG16, two-attacker own/foreign HTTP and unchanged populated victim rows. Preserve the seven earlier current-main tenant-proof gains for first-payroll, legal-entity, self/pay-explain and payout-reconciliation GET; payout reconciliation POST remains GAP (provider-disabled own 501 is not proof of completed reconciliation). No real-money payouts, production tenant certification, production database or provider secrets. Exact merged-head CI, Security HTTP Smoke, source evidence review and maintainer acceptance required. Preserve #1305 workspace-readiness no-store 503 and authenticated foreign 403 containment as an uncertified GAP; do not restore platform-wide readiness exposure.",
+  "acceptanceStatus": "NOT ACCEPTED: 406 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required.",
   "metrics": {
     "routeFiles": 289,
     "methods": 490,
     "coveredBefore": 20,
-    "coveredAfter": 79,
+    "coveredAfter": 88,
     "publicByDesign": 8,
-    "gap": 403,
+    "gap": 394,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -10951,22 +10951,39 @@
       ]
     },
     "src/app/api/hcm/business-processes/inbox/route.ts": {
-      "gitBlobSha": "215ea98cdace04e3f91269957dc8849d89c449e2",
+      "gitBlobSha": "6b63b60bdc16607d538e77a188a88b8dde4fd96e",
       "route": "hcm/business-processes/inbox",
       "methods": [
         {
           "name": "GET",
           "line": 34,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Synthetic PG16 own employer GET 200 with genuine seeded source rows and other employer victim-only GET 403; no cross-employer records",
+          "testedBy": {
+            "file": "scripts/qa/hcm-work-queue-http.mjs",
+            "line": 53,
+            "ownPositiveLine": 48,
+            "foreignDenialLine": 53,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Synthetic three-organization PG16 real HTTP; protected actor session; independent owner approvals and persisted victim work/notification rows"
+          }
         },
         {
           "name": "POST",
-          "line": 177,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 178,
+          "status": "COVERED",
+          "reason": "Synthetic PG16 own employer task decision success 200 and other employer victim task request 403; victim DB unchanged",
+          "testedBy": {
+            "file": "scripts/qa/hcm-work-queue-http.mjs",
+            "line": 59,
+            "ownPositiveLine": 55,
+            "foreignDenialLine": 59,
+            "unchangedDbLine": 84,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Synthetic three-organization PG16 real HTTP; protected actor session; independent owner approvals and persisted victim work/notification rows"
+          }
         }
       ],
       "employerSources": {
@@ -12443,22 +12460,39 @@
       ]
     },
     "src/app/api/hcm/lifecycle-notifications/route.ts": {
-      "gitBlobSha": "f42f3a2fdaeb16ccb0f96cbcfa1586cfd77afc48",
+      "gitBlobSha": "313428af8364c07b38010b5871a5b7f1d5246511",
       "route": "hcm/lifecycle-notifications",
       "methods": [
         {
           "name": "GET",
           "line": 71,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Synthetic PG16 own employer GET 200 with genuine seeded source rows and other employer victim-only GET 403; no cross-employer records",
+          "testedBy": {
+            "file": "scripts/qa/hcm-work-queue-http.mjs",
+            "line": 67,
+            "ownPositiveLine": 62,
+            "foreignDenialLine": 67,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Synthetic three-organization PG16 real HTTP; protected actor session; independent owner approvals and persisted victim work/notification rows"
+          }
         },
         {
           "name": "PATCH",
-          "line": 120,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 121,
+          "status": "COVERED",
+          "reason": "Synthetic PG16 own employer task decision success 200 and other employer victim task request 403; victim DB unchanged",
+          "testedBy": {
+            "file": "scripts/qa/hcm-work-queue-http.mjs",
+            "line": 75,
+            "ownPositiveLine": 69,
+            "foreignDenialLine": 75,
+            "unchangedDbLine": 85,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Synthetic three-organization PG16 real HTTP; protected actor session; independent owner approvals and persisted victim work/notification rows"
+          }
         }
       ],
       "employerSources": {
@@ -29537,22 +29571,39 @@
       ]
     },
     "src/app/api/workforce/attendance-exception-events/route.ts": {
-      "gitBlobSha": "061b529b01159e16b267fd94a51b24da8030bcea",
+      "gitBlobSha": "b31b086aeed713b6e3bc7915ca74e74a65e2254f",
       "route": "workforce/attendance-exception-events",
       "methods": [
         {
           "name": "GET",
           "line": 43,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Executed synthetic disposable PG16 employer-owned GET success, independently authenticated victim-org 403 and unchanged stored victim attendance evidence; source-pinned method proof, no production data.",
+          "testedBy": {
+            "file": "scripts/qa/workforce-attendance-sweep-http.mjs",
+            "line": 65,
+            "ownPositiveLine": 61,
+            "foreignDenialLine": 65,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "One victim with real exception+cutoff policy/lock and two attacker owner sessions; identity-bound GET/POST and unchanged victim database assertions"
+          }
         },
         {
           "name": "POST",
-          "line": 153,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 157,
+          "status": "COVERED",
+          "reason": "Executed synthetic disposable PG16 employer-owned POST success, independently authenticated victim-org 403 and unchanged stored victim attendance evidence; source-pinned method proof, no production data.",
+          "testedBy": {
+            "file": "scripts/qa/workforce-attendance-sweep-http.mjs",
+            "line": 69,
+            "ownPositiveLine": 66,
+            "foreignDenialLine": 69,
+            "unchangedDbLine": 77,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "One victim with real exception+cutoff policy/lock and two attacker owner sessions; identity-bound GET/POST and unchanged victim database assertions"
+          }
         }
       ],
       "employerSources": {
@@ -29690,15 +29741,23 @@
       ]
     },
     "src/app/api/workforce/attendance-exceptions/route.ts": {
-      "gitBlobSha": "bc4aa1a3bc5f5b9e941393d819df909368af13fd",
+      "gitBlobSha": "8bb8d5ecade8f03efa181fdc16fe79b242f16855",
       "route": "workforce/attendance-exceptions",
       "methods": [
         {
           "name": "GET",
           "line": 59,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Executed synthetic disposable PG16 employer-owned GET success, independently authenticated victim-org 403 and unchanged stored victim attendance evidence; source-pinned method proof, no production data.",
+          "testedBy": {
+            "file": "scripts/qa/workforce-attendance-sweep-http.mjs",
+            "line": 60,
+            "ownPositiveLine": 56,
+            "foreignDenialLine": 60,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "One victim with real exception+cutoff policy/lock and two attacker owner sessions; identity-bound GET/POST and unchanged victim database assertions"
+          }
         }
       ],
       "employerSources": {
@@ -29816,22 +29875,39 @@
       ]
     },
     "src/app/api/workforce/attendance-locks/route.ts": {
-      "gitBlobSha": "97d88e319232c4facb1a5aa119197714ed613c95",
+      "gitBlobSha": "704227f5c1b311a004d1a5d04992cea74544aa9e",
       "route": "workforce/attendance-locks",
       "methods": [
         {
           "name": "GET",
           "line": 55,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Executed synthetic disposable PG16 employer-owned GET success, independently authenticated victim-org 403 and unchanged stored victim attendance evidence; source-pinned method proof, no production data.",
+          "testedBy": {
+            "file": "scripts/qa/workforce-attendance-sweep-http.mjs",
+            "line": 52,
+            "ownPositiveLine": 49,
+            "foreignDenialLine": 52,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "One victim with real exception+cutoff policy/lock and two attacker owner sessions; identity-bound GET/POST and unchanged victim database assertions"
+          }
         },
         {
           "name": "POST",
-          "line": 95,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 96,
+          "status": "COVERED",
+          "reason": "Executed synthetic disposable PG16 employer-owned POST success, independently authenticated victim-org 403 and unchanged stored victim attendance evidence; source-pinned method proof, no production data.",
+          "testedBy": {
+            "file": "scripts/qa/workforce-attendance-sweep-http.mjs",
+            "line": 55,
+            "ownPositiveLine": 53,
+            "foreignDenialLine": 55,
+            "unchangedDbLine": 78,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "One victim with real exception+cutoff policy/lock and two attacker owner sessions; identity-bound GET/POST and unchanged victim database assertions"
+          }
         }
       ],
       "employerSources": {

@@ -15,8 +15,26 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.gap, 403, "Seven current-main gains and twelve Batch-01 GETs leave 403 method GAPs");
-  assert.equal(manifest.metrics.coveredAfter, 79, "Preserve the 67 current-main covered methods and credit only twelve net-new GETs");
+  assert.equal(manifest.metrics.gap, 394, "Attendance, HCM and twelve Batch-01 GET proofs leave 394 API method GAPs");
+  assert.equal(manifest.metrics.coveredAfter, 88, "Preserve 76 current-main methods and add only twelve source-pinned high-risk GETs");
+  const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
+  for (const [route, methods] of [
+    ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
+    ["src/app/api/workforce/attendance-exceptions/route.ts", ["GET"]],
+    ["src/app/api/workforce/attendance-locks/route.ts", ["GET","POST"]],
+  ]) {
+    const sourceMethods = manifest.allApiRouteFiles[route]?.methods ?? [];
+    for (const name of methods) {
+      const method = sourceMethods.find((value) => value.name === name);
+      assert.equal(method?.status, "COVERED", route + " " + name + " requires real independent tenant proof");
+      assert.equal(method?.testedBy?.file, "scripts/qa/workforce-attendance-sweep-http.mjs");
+      assert.match(workforceProof[method.testedBy.ownPositiveLine - 1], /expectStatus\(await request\(/);
+      assert.match(workforceProof[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\(/);
+      assert.match(workforceProof[method.testedBy.foreignDenialLine - 1], /403/);
+      if (name === "POST")
+        assert.match(workforceProof[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(/);
+    }
+  }
   const governanceMethod = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(governanceMethod?.status, "COVERED", "HCM governance read requires real own/foreign proof");
   assert.equal(governanceMethod?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
@@ -70,4 +88,23 @@ test("workspace readiness 503 containment remains a GAP until a positive tenant-
   assert.match(proof, /WORKSPACE_READINESS_UNAVAILABLE/);
   assert.match(proof, /\), 503,/);
   assert.match(proof, /\), 403,/);
+});
+
+test("HCM business-process and lifecycle own/foreign proof is source-pinned", () => {
+  const suite = readFileSync("scripts/qa/hcm-work-queue-http.mjs", "utf8").split("\n");
+  for (const route of ["hcm/business-processes/inbox", "hcm/lifecycle-notifications"]) {
+    const entry = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"];
+    for (const method of entry.methods) {
+      assert.equal(method.status, "COVERED", route + " " + method.name);
+      assert.equal(method.testedBy?.file, "scripts/qa/hcm-work-queue-http.mjs");
+      assert.match(suite[method.testedBy.ownPositiveLine - 1], /expectStatus\(await request\(/);
+      assert.match(suite[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\(/);
+      const foreignSpan = suite.slice(method.testedBy.foreignDenialLine - 1,
+        method.testedBy.foreignDenialLine + 5).join("\n");
+      assert.match(foreignSpan, /\), 403,/,
+        "The source-pinned victim-only request must assert HTTP 403");
+      if (method.name !== "GET") assert.match(suite[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(/);
+    }
+  }
+  assert.match(harness, /verifyHcmWorkQueueIsolation\(f, \{ request, expectStatus \}\)/);
 });

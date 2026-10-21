@@ -4,83 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarRange, CheckCircle2, Clock3, RefreshCcw, ShieldAlert, UserRoundCheck } from "lucide-react";
 import type { Notify } from "./types";
 import { AttendanceLockControl } from "./attendance-lock-control";
+import { readVerifiedAttendanceAnalysis, readVerifiedAttendanceOperations, type AttendanceAnalysisRead as ResponsePayload, type AttendanceOperationsRead as OperationsPayload } from "@/lib/attendance-exception-read";
 import { EmptyState, ErrorState, Metric, Segmented, Spinner, Status } from "./ui";
-
-type ExceptionItem = {
-  kind: string;
-  severity: "info" | "warning" | "blocker";
-  message: string;
-  punchId?: number;
-  minutes?: number;
-};
-
-type AttendanceRow = {
-  employee: {
-    id: number;
-    employeeNo: string;
-    name: string;
-    orgUnitId: number | null;
-  };
-  analysis: {
-    date: string;
-    source: "pattern" | "override" | "unassigned";
-    isRestDay: boolean;
-    scheduledSegments: number;
-    punchCount: number;
-    workedMinutes: number;
-    overtimeMinutes: number;
-    tardinessMinutes: number;
-    undertimeMinutes: number;
-    reviewRequired: boolean;
-    exceptions: ExceptionItem[];
-  };
-};
-
-type ResponsePayload = {
-  range: { startDate: string; endDate: string; days: number };
-  summary: { blockers: number; warnings: number; info: number; employeesAffected: number };
-  days: AttendanceRow[];
-};
-
-type OperationalException = {
-  id: number;
-  employeeId: number;
-  workDate: string;
-  exceptionKind: string;
-  severity: "info" | "warning" | "blocker";
-  message: string;
-  status: "open" | "resolved";
-  ownerUserId: number | null;
-  ownerName: string | null;
-  slaDueAt: string | null;
-  ageHours: number | null;
-  slaStatus: "resolved" | "on_track" | "overdue" | "untracked";
-  resolvedAt: string | null;
-  resolutionNote: string | null;
-  resolvedByName: string | null;
-  resolutionRecordedAt: string | null;
-  employee: {
-    id: number;
-    employeeNo: string;
-    firstName: string;
-    lastName: string;
-    orgUnitId: number | null;
-  } | null;
-};
-
-type OwnerCandidate = {
-  userId: number;
-  role: string;
-  orgUnitId: number | null;
-  name: string;
-  email: string;
-};
-
-type OperationsPayload = {
-  summary: { open: number; overdue: number; unassigned: number; resolved: number };
-  exceptions: OperationalException[];
-  ownerCandidates: OwnerCandidate[];
-};
 
 function localToday() {
   const now = new Date();
@@ -99,18 +24,6 @@ function minutesLabel(minutes: number) {
   const rest = minutes % 60;
   if (!hours) return `${rest}m`;
   return rest ? `${hours}h ${rest}m` : `${hours}h`;
-}
-
-async function readScopedJson<T>(url: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(url, { cache: "no-store", signal });
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const error = body && typeof body === "object" && "error" in body
-      && typeof body.error === "string" ? body.error : "Service unavailable.";
-    throw new Error(error);
-  }
-  if (!body || typeof body !== "object") throw new Error("Invalid response.");
-  return body as T;
 }
 
 function readFailureMessage(error: unknown, fallback: string) {
@@ -182,20 +95,11 @@ function ScopedAttendanceExceptionsPanel({
     setOperationsError(null);
 
     try {
-      const params = new URLSearchParams({
-        organizationId: String(organizationId),
-        startDate,
-        endDate,
-      });
       // Keep attendance analysis available even if the separate persisted
       // exception-operations service is unavailable (e.g. schema not migrated).
       const [analysis, events] = await Promise.allSettled([
-        readScopedJson<ResponsePayload>(
-          `/api/workforce/attendance-exceptions?${params.toString()}`, controller.signal,
-        ),
-        readScopedJson<OperationsPayload>(
-          `/api/workforce/attendance-exception-events?${params.toString()}`, controller.signal,
-        ),
+        readVerifiedAttendanceAnalysis(organizationId, startDate, endDate, fetch, controller.signal),
+        readVerifiedAttendanceOperations(organizationId, startDate, endDate, fetch, controller.signal),
       ]);
       if (!isCurrent()) return;
 
@@ -258,6 +162,10 @@ function ScopedAttendanceExceptionsPanel({
       const body = await response.json().catch(() => ({}));
       if (!isCurrentMutation()) return;
       if (!response.ok) throw new Error(body.error ?? "Could not update attendance exception operations.");
+      if (body.organizationId !== organizationId || body.eventId !== eventId ||
+          !body.exception || body.exception.id !== eventId) {
+        throw new Error("Attendance exception action response could not be verified. Refresh before retrying.");
+      }
       if (action === "record_resolution") {
         setResolutionDrafts((current) => {
           const next = { ...current };
