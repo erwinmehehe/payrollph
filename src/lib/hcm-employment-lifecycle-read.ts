@@ -114,6 +114,7 @@ export function readVerifiedLifecycleResponse(
     unconfigured: rows.filter((row) => row.state === "unconfigured").length,
     handoffReady: rows.filter((row) => row.action === "start_separation").length,
   };
-  if (Object.entries(expected).some(([key, amount]) => body.summary[key] !== amount)) return null;
+  const summary = body.summary as Record<string, unknown>;
+  if (Object.entries(expected).some(([key, amount]) => summary[key] !== amount)) return null;
   return body as VerifiedLifecyclePayload;
 }
