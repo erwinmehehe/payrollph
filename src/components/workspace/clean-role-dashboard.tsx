@@ -633,7 +633,7 @@ function CheckerHome({
           disabled={!run}
           onClick={() => onPage("Payroll")}
         >
-          {exceptions === null ? "Review unavailable evidence" : exceptions > 0 ? "Review exceptions" : "Review payroll"}
+          {exceptions === null ? "Review exceptions in Payroll" : exceptions > 0 ? "Review exceptions" : "Review payroll"}
           <ArrowRight size={16} />
         </button>
       </div>
