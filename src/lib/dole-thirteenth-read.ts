@@ -82,10 +82,21 @@ export function isVerifiedDoleThirteenthRead(
   const complete = Boolean(p && fields.every(key => p[key].trim().length > 0));
   if (v.profileComplete !== complete || v.readyToSubmit !== (complete && r.totalEmployment > 0)) return false;
   if (fields.some(key => r[key] !== (p?.[key] ?? ""))) return false;
-  if (!v.reviewRows.every((e: unknown) => employee(e) && obj(e) &&
-      nos.has(e.employeeNo as string) && amount(e.screeningEntitlement) && amount(e.screeningShortfall))) return false;
-  if (!v.incompleteBasicRows.every((e: unknown) => obj(e) &&
-      text(e.employeeNo) && nos.has(e.employeeNo) && text(e.employeeName))) return false;
+  const byEmployee = new Map(r.employees.map(e => [e.employeeNo, e]));
+  const reviewSeen = new Set<string>();
+  for (const row of v.reviewRows) {
+    if (!employee(row) || !obj(row) || !amount(row.screeningEntitlement) || !amount(row.screeningShortfall)) return false;
+    const match = byEmployee.get(row.employeeNo as string);
+    if (!match || match.employeeName !== row.employeeName || match.amountGranted !== row.amountGranted || reviewSeen.has(row.employeeNo as string)) return false;
+    reviewSeen.add(row.employeeNo as string);
+  }
+  const incompleteSeen = new Set<string>();
+  for (const row of v.incompleteBasicRows) {
+    if (!obj(row) || !text(row.employeeNo) || !text(row.employeeName)) return false;
+    const match = byEmployee.get(row.employeeNo);
+    if (!match || match.employeeName !== row.employeeName || reviewSeen.has(row.employeeNo) || incompleteSeen.has(row.employeeNo)) return false;
+    incompleteSeen.add(row.employeeNo);
+  }
   if (!v.submissionHistory.every((e: unknown) => submission(e, organizationId))) return false;
   const history = v.submissionHistory as DoleSubmission[];
   if (new Set(history.map(e => e.id)).size !== history.length) return false;
