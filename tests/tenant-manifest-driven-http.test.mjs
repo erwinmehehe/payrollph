@@ -13,8 +13,8 @@ const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
-test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 490);
+test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
+  assert.equal(manifest.metrics.methods, 493);
   assert.equal(manifest.metrics.gap, 391, "Attendance, HCM and twelve Batch-01 GET proofs leave 394 API method GAPs");
   assert.equal(manifest.metrics.coveredAfter, 91, "Preserve 76 current-main methods and add only twelve source-pinned high-risk GETs");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
@@ -42,8 +42,8 @@ test("single table-driven test reads ALL 490 methods without claiming precovered
   assert.match(proofLines[governanceMethod.testedBy.ownPositiveLine - 1], /\/api\/hcm\/governance-readiness.*\), 200,/);
   assert.match(proofLines[governanceMethod.testedBy.foreignDenialLine - 1], /\/api\/hcm\/governance-readiness.*victim\.id.*\), 403,/);
   assert.match(harness, /await verifyGovernanceTenantRead\(f\)/);
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 490,
-    "No method may disappear from the audited 490-route-method inventory");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493,
+    "No method may disappear from the audited 493-route-method inventory");
   assert.equal(manifest.sourceTraceCandidates.length, 34);
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>

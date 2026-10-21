@@ -86,6 +86,10 @@ jobs:
           # A PR's default checkout is refs/pull/N/merge, which is NOT its head.
           # The schema, all shards, and called journey must all test one exact SHA.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Fetch exact comparison base for history-based guards
+        env:
+          COMPARISON_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: git fetch --no-tags --depth=1 origin "$COMPARISON_BASE"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
@@ -161,6 +165,9 @@ jobs:
         shard: [0, 1, 2, 3]
     env:
       CI: "true"
+      # Same exact comparison base as ci.yml for history-based guards
+      # (fail-closed client reads, flag-off payroll engine parity).
+      FAIL_CLOSED_GUARD_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
       FRESH_PG18_DEV_REHEARSAL: disposable-ci-only
       # Fault injection is restricted to the disposable, locally hosted PG18 CI service.
       # The scheduler guard independently checks CI, credentials, and database identity.
@@ -198,6 +205,10 @@ jobs:
           # A PR's default checkout is refs/pull/N/merge, which is NOT its head.
           # The schema, all shards, and called journey must all test one exact SHA.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Fetch exact comparison base for history-based guards
+        env:
+          COMPARISON_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: git fetch --no-tags --depth=1 origin "$COMPARISON_BASE"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"

@@ -55,7 +55,8 @@ function schemaTables() {
     ts.forEachChild(node, visit);
   }
   visit(sf);
-  if (names.size !== 271) throw Error("EXPECTED_271_SOURCE_TABLES_FOUND_" + names.size);
+  // 271 at the original inventory, plus the two #641 tables created by drizzle/0135.
+  if (names.size !== 273) throw Error("EXPECTED_273_SOURCE_TABLES_FOUND_" + names.size);
   return sort(names);
 }
 
@@ -94,7 +95,7 @@ function fileSources() {
   });
   // Forward-only sources 0128 through 0134
   // extend the pinned SOURCE inventory; never use this count as a receipt.
-  if (files.length !== 150) throw Error("EXPECTED_150_DRIZZLE_FILES_FOUND_" + files.length);
+  if (files.length !== 151) throw Error("EXPECTED_151_DRIZZLE_FILES_FOUND_" + files.length);
   for (const pathSuffix of [
     "drizzle/0128_recovery_foreign_key_names_forward.sql",
     "drizzle/0129_non_recovery_fk_names_forward.sql",

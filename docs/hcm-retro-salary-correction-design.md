@@ -19,12 +19,19 @@ it. Never treats this as retro wages or computes net payable amounts.
 Missing revision history, changed pay basis and capped periods are labelled
 uncertain/partial rather than shown as zero or all-clear. No table writes.
 
+## Governed correction cases (built, flag OFF)
+
+The case record, versioned source proof, idempotency, maker/checker,
+cancellation and reconciliation are implemented as a wrapper that computes no
+money. See `docs/hcm-salary-correction-cases.md`
+(`HCM_SALARY_CORRECTION_CASES_ENABLED`, default OFF; migration 0135).
+
 ## Required next implementation (still BLOCKED)
 
-- Persist an immutable correction case with idempotency key, minimal protected
-  evidence reference, legal employer and versioned source proof.
-- Enforce maker/checker separation at transactional decision time, custom
-  permissions, MWE, effective-date locks and correction cancellation/reversal.
+- Done as a case wrapper (see above): immutable case with idempotency key,
+  evidence reference, legal employer and versioned source proof; maker/checker
+  at decision time; cancellation. Still open: custom permission mapping, MWE
+  handling and negative deltas (overpayments are out of scope for cases).
 - Payroll engine must recompute each impacted period with applicable pay,
   attendance, rest-day, holidays/night/OT, social contributions, tax and loans.
 - Post distinct supplemental or next-cycle accounting movements, never update
