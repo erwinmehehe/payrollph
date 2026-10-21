@@ -102,3 +102,27 @@ test("exact protected runner, app UPDATE audit denial, restart proof and sanitiz
   assert.match(flow, /actions\/upload-artifact/);
   assert.doesNotMatch(flow.split("\n").filter(line => !line.trimStart().startsWith("#")).join("\n"), /environment:\s*production|PRODUCTION_CUTOVER_OWNER_DATABASE_URL|secrets\.\w/);
 });
+
+test("successful password sign-in records a scoped real append-only audit before issuing a cookie", () => {
+  const route = readFileSync("src/app/api/auth/login/route.ts", "utf8");
+  const writer = readFileSync("src/lib/audit.ts", "utf8");
+  const session = route.indexOf("const session = await createSession(");
+  const audited = route.indexOf("await recordSuccessfulLocalLogin({");
+  const delivered = route.indexOf("jar.set(SESSION_COOKIE, session.token");
+  assert.ok(session > 0 && audited > session && delivered > audited,
+    "An HTTP login must append the audit after authentication but before cookie issuance");
+  assert.match(route, /await revokeSession\(session\.token\)\.catch\(\(\) => \{\}\)/,
+    "Audit failure must revoke the undelivered session; never fail open");
+  assert.match(writer, /eq\(userOrganizations\.active, true\)/,
+    "Never attribute login to a revoked or arbitrary employer membership");
+  assert.match(writer, /return db\.transaction\(async \(tx\) => \{/,
+    "Multi-tenant audit receipts must commit atomically");
+  assert.match(writer, /await tx\.insert\(auditEvents\)\.values\(memberships\.map\(/,
+    "Use actual PostgreSQL audit INSERTs, not a fabricated test-only receipt");
+  const metadata = writer.slice(writer.indexOf("action: \"Successful local password sign-in\""));
+  assert.match(metadata, /authMethod: "local"/);
+  assert.match(metadata, /mfaVerified: input\.mfaVerified/);
+  assert.doesNotMatch(metadata.slice(0, metadata.indexOf("return memberships.length")),
+    /password:|token:|cookie:|totpCode:|backupCode:|ip:/,
+    "Audit metadata may never retain passwords, session tokens, TOTP/backup codes or IPs");
+});
