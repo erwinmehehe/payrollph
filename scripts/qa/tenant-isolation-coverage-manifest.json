@@ -22457,7 +22457,16 @@
           "line": 7,
           "status": "GAP",
           "reason": "Own authenticated GET deliberately refuses unscoped platform readiness with HTTP 503; foreign employer GET is denied 403. Containment is not a positive, tenant-safe readiness source; remains GAP until functional employer-bound verification is implemented.",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "routeBlobSha": "10121c3378f2e4ee983ab9b9551498a6f8dccdfd",
+            "file": "scripts/qa/workspace-readiness-http.mjs",
+            "ownPositiveLine": 26,
+            "foreignDenialLine": 31,
+            "ownStatus": 503,
+            "foreignStatus": 403,
+            "scope": "Synthetic isolated three-employer fail-closed containment only; 503 own is NOT successful readiness verification"
+          }
         }
       ],
       "employerSources": {

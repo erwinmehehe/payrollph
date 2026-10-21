@@ -62,6 +62,8 @@ test("workspace readiness 503 containment remains a GAP until a positive tenant-
   const method = manifest.allApiRouteFiles["src/app/api/readiness/workspace/route.ts"]?.methods.find((m) => m.name === "GET");
   assert.equal(method?.status, "GAP", "503 own is not successful readiness evidence");
   assert.equal(method?.testedBy, null, "Foreign denial alone must not certify a method");
+  assert.equal(method?.reviewedUncertified?.routeBlobSha, "10121c3378f2e4ee983ab9b9551498a6f8dccdfd");
+  assert.equal(method?.reviewedUncertified?.ownStatus, 503);
   assert.match(harness, /verifyWorkspaceReadinessIsolation\(f, \{ request, expectStatus \}\)/);
   const proof = readFileSync("scripts/qa/workspace-readiness-http.mjs", "utf8");
   assert.match(proof, /process\.env\.TENANT_SECOND_PASS_MODE/);
