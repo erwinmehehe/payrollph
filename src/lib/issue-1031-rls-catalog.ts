@@ -30,8 +30,13 @@ type Policy = {
   withCheck: string | null;
 };
 
+// Catalog names are already parsed PostgreSQL identifiers, not SQL tokens.
+// Quoted table/policy/role names may contain whitespace, punctuation or UTF-8.
+// PostgreSQL's standard identifier limit is 63 UTF-8 bytes; NUL is forbidden.
+// Never interpolate these values into SQL or print policy/role identifiers.
 const validName = (name: unknown): name is string =>
-  typeof name === "string" && /^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(name);
+  typeof name === "string" && name.length > 0 &&
+  !name.includes("\0") && Buffer.byteLength(name, "utf8") <= 63;
 function requireEvidence(condition: unknown): asserts condition {
   if (!condition) throw new Error("ISSUE1031_INVALID_RLS_CATALOG_EVIDENCE");
 }

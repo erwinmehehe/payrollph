@@ -63,7 +63,12 @@ test("#1031 malformed, duplicate and cross-table contradictory catalog metadata 
     [policy(), policy()],
     [policy(), policy({ rls_enabled: false, policy_name: "other" })],
     [policy({ policy_command: "invalid" })],
-    [policy({ policy_roles: ["unsafe role"] })],
+    [policy({ policy_roles: [""] })],
+    [policy({ policy_roles: ["role\0name"] })],
+    [policy({ policy_roles: ["é".repeat(32)] })],
+    [policy({ policy_name: "" })],
+    [policy({ policy_name: "a".repeat(64) })],
+    [policy({ table_name: "" })],
     [policy({ using_expression: 1 as unknown as string })],
     [empty("employees"), policy()],
   ]) {
@@ -82,4 +87,35 @@ test("#1031 protected catalog-only report does not expose policy SQL or authoriz
   assert.match(script, /pg_catalog\.pg_policy/);
   assert.match(script, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY/);
   assert.match(script, /policyParityVerified:false/);
+});
+
+test("#1031 PostgreSQL quoted names, dollar signs and UTF-8 are catalog evidence, not invalid SQL", () => {
+  const source = "payroll$ledger";
+  const longestUtf8 = "é".repeat(31) + "a"; // exactly 63 bytes
+  assert.equal(Buffer.byteLength(longestUtf8, "utf8"), 63);
+  const observed = summarizeRlsPolicyCoverage(
+    [source, longestUtf8, "Legal Employer"],
+    [
+      policy({
+        table_name: source, policy_name: 'read-only "payroll" policy',
+        policy_roles: ["PH Payroll Reviewers", "finance$auditor"],
+        using_expression: "organization_id = 43",
+      }),
+      empty(longestUtf8),
+      empty("Legal Employer"),
+    ],
+  );
+  assert.equal(observed.expectedSourceTables, 3);
+  assert.equal(observed.missingSourceTables, 0);
+  assert.equal(observed.extraCatalogTables, 0);
+  assert.equal(observed.tables.find((t) => t.table === source)?.policyCount, 1);
+  assert.match(observed.tables.find((t) => t.table === source)?.policyDigest ?? "", /^[0-9a-f]{64}$/);
+  assert.equal(observed.policyParityVerified, false);
+  assert.equal(observed.tables.every((t) => t.coverage === RLS_UNMODELED), true);
+  const published = JSON.stringify(observed);
+  assert.doesNotMatch(published, /read-only "payroll" policy|PH Payroll Reviewers|finance\$auditor|organization_id = 43/);
+  for (const invalid of ["", "x".repeat(64), "é".repeat(32), "nul\0name"]) {
+    assert.throws(() => summarizeRlsPolicyCoverage([invalid], [empty(invalid)]),
+      /ISSUE1031_INVALID_RLS_CATALOG_EVIDENCE/);
+  }
 });
