@@ -227,7 +227,7 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 403, "Retain real proof for HCM and attendance plus two higher-ID evidence downloads and static CSV classification");
+  assert.equal(manifest.metrics.gap, 402, "Retain real proof for HCM and attendance plus two higher-ID evidence downloads and static CSV classification");
   assert.equal(manifest.metrics.coveredAfter, 78, "Retain 76 previous HTTP proofs plus two evidence download methods");
 });
 
