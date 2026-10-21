@@ -382,6 +382,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Owner-only fictional calculation and sample payslip UI; no payroll writes or payment authority",
     approval: "Executed canonical fixture, owner/tenant gates, default-off parity and desktop/390px browser tests; production activation separate",
   },
+  hostedDemoNavigation: {
+    env: "HOSTED_DEMO_NAVIGATION_ENABLED",
+    owner: "Product / Onboarding",
+    risk: "Public demo entrypoint redirects to the isolated fictional workspace",
+    approval: "Verified hosted role permissions and desktop/390px navigation; default-off parity",
+  },
 } as const;
 
 export type CriticalReleaseFlag = keyof typeof CRITICAL_RELEASE_FLAGS;
