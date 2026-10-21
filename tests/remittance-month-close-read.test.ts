@@ -104,6 +104,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   assert.equal(manifest.metrics.methods, 490);
   assert.equal(manifest.metrics.coveredAfter, 92, "Retain merged Batch-01 high-risk GET plus government-loan and single-employer DOLE proofs");
   assert.equal(manifest.metrics.gap, 390, "Payout provider POST and 389 other untested methods remain GAPs");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 490);
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);
