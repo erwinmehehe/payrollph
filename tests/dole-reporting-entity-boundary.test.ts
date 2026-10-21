@@ -55,3 +55,41 @@ test("legacy 200 requires correct employer/year, amounts and real source/submiss
     {...valid,submissionCurrent:true},{...valid,submissionHistory:undefined},
   ]) assert.equal(isVerifiedDoleThirteenthRead(bad,31,2026),false);
 });
+
+test("DOLE advisory rows reject duplicate or mismatched employee data", () => {
+  const sample = {
+    organizationId: 31, legalEntityId: null,
+    organization: { id: 31, name: "Fictional", legalName: "Fictional" },
+    profile: null,
+    report: { reportType: "13th_month_pay", taxYear: 2026, dueDate: "2027-01-15",
+      establishmentName: "Fictional", establishmentAddress: "", principalBusiness: "",
+      totalEmployment: 1, workersBenefited: 1, totalBenefitsGranted: 100,
+      contactName: "", contactPosition: "", contactPhone: "",
+      employees: [{employeeNo:"E1", employeeName:"Worker", amountGranted:100}] },
+    reportHash:"a".repeat(64), profileComplete:false, readyToSubmit:false,
+    reviewRows:[], incompleteBasicRows:[], sourceNote:"Fictional",
+    submissionCurrent:false, currentSubmission:null, latestSubmission:null, submissionHistory:[],
+    officialSource:{label:"DOLE Online Compliance Portal",url:"https://reports.dole.gov.ph/",deadline:"2027-01-15"},
+  };
+  const review = { employeeNo:"E1", employeeName:"Worker", amountGranted:100,
+    screeningEntitlement:120, screeningShortfall:20 };
+  assert.equal(isVerifiedDoleThirteenthRead({...sample,reviewRows:[review]},31,2026),true);
+  for (const bad of [
+    {...sample,reviewRows:[review,review]},
+    {...sample,reviewRows:[{...review,employeeName:"Different"}]},
+    {...sample,reviewRows:[{...review,amountGranted:99}]},
+    {...sample,incompleteBasicRows:[{employeeNo:"E1",employeeName:"Wrong"}]},
+    {...sample,incompleteBasicRows:[{employeeNo:"E1",employeeName:"Worker"},{employeeNo:"E1",employeeName:"Worker"}]},
+    {...sample,reviewRows:[review],incompleteBasicRows:[{employeeNo:"E1",employeeName:"Worker"}]},
+  ]) assert.equal(isVerifiedDoleThirteenthRead(bad,31,2026),false);
+});
+
+test("DOLE mutation confirmation requires matching post-write source state", () => {
+  const component = readFileSync("src/components/workspace/dole-thirteenth-month-report-panel.tsx","utf8");
+  assert.match(component,/const refreshed = await load\(\(fresh\) =>/);
+  assert.match(component,/saved\.organizationId === organizationId/);
+  assert.match(component,/fresh\.submissionHistory\.some\(row => row\.id === saved\.id/);
+  assert.match(component,/row\.portalReference === saved\.portalReference/);
+  assert.match(component,/if \(!refreshed\) \{/);
+  assert.match(component,/may have been recorded, but its current state could not be verified/);
+});
