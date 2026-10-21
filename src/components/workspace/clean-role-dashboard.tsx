@@ -435,6 +435,7 @@ function PayrollHome({
 }
 
 type VarianceSummary = {
+  organizationId: number;
   runId: number;
   runStatus?: string;
   summary: {
@@ -469,7 +470,7 @@ function CheckerHome({
           if (controller.signal.aborted) return;
           setFailure(null);
           setResult({
-            runId: run.id, runStatus: run.status,
+            organizationId, runId: run.id, runStatus: run.status,
             summary: payload.summary,
           });
         })
@@ -481,7 +482,8 @@ function CheckerHome({
     });
     return () => controller.abort();
   }, [organizationId, run, runId, runStatus, revision]);
-  const loaded = result?.runId === run?.id && result?.runStatus === run?.status
+  const loaded = result?.organizationId === organizationId &&
+    result?.runId === run?.id && result?.runStatus === run?.status
     ? result : null;
   const counts = loaded?.summary.categoryCounts;
   const exceptions: number | null = loaded?.summary.exceptionCount ?? null;
