@@ -61,7 +61,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch DL-02 — Self-service files, HR evidence, photos, report exports and workforce evidence (26 methods; phase 1)
 
-**Shared fixture:** employee principal, HR document, photo bytes, workforce evidence, report config and nonempty export. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** employee principal, HR document, photo bytes, workforce evidence, report config and nonempty export. **Status:** part 1 in progress: 19 methods proven by `scripts/qa/tenant-dl02-http.mjs`; `GET /api/reports` and `GET /api/self/documents` are credited by #1318; `GET /api/multi-entity/reports`, `POST /api/self/photo`, `GET`/`POST /api/web-bundy/evidence` and `POST /api/workforce/demand-observations/import` remain GAP (need a multi-entity server, an HTTPS test scanner and per-employer allowlists). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
 
 - `GET /api/hcm-report-builder` — [source](../../src/app/api/hcm-report-builder/route.ts#L43)
 - `POST /api/hcm-report-builder` — [source](../../src/app/api/hcm-report-builder/route.ts#L61)
@@ -78,7 +78,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 - `GET /api/reports` — [source](../../src/app/api/reports/route.ts#L13)
 - `GET /api/reports/builder` — [source](../../src/app/api/reports/builder/route.ts#L69)
 - `POST /api/reports/builder` — [source](../../src/app/api/reports/builder/route.ts#L80)
-- `GET /api/self/contribution-evidence` — [source](../../src/app/api/self/contribution-evidence/route.ts#L47)
+- `GET /api/self/contribution-evidence` — [source](../../src/app/api/self/contribution-evidence/route.ts#L48)
 - `GET /api/self/documents` — [source](../../src/app/api/self/documents/route.ts#L47)
 - `POST /api/self/documents` — [source](../../src/app/api/self/documents/route.ts#L147)
 - `POST /api/self/payslips` — [source](../../src/app/api/self/payslips/route.ts#L371)

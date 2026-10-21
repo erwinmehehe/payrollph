@@ -227,8 +227,52 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 406, "Five attendance plus four HCM methods have real source-pinned HTTP proof");
-  assert.equal(manifest.metrics.coveredAfter, 76, "Retain 72 earlier methods plus four HCM methods");
+  assert.equal(manifest.metrics.gap, 387, "Attendance, HCM and nineteen DL-02 methods have real source-pinned HTTP proof");
+  assert.equal(manifest.metrics.coveredAfter, 95, "Retain 76 earlier methods plus nineteen DL-02 methods");
+});
+
+test("DL-02 proofs use real own success, exact victim denial and unchanged victim rows", () => {
+  const workflow = readFileSync(".github/workflows/tenant-dl02-qa.yml", "utf8");
+  const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+  const file = "scripts/qa/tenant-dl02-http.mjs";
+  const source = readFileSync(file, "utf8");
+  const lines = source.split("\n");
+  assert.match(workflow, /TENANT_DL02_PROOF: isolated-ci-only/);
+  assert.match(workflow, /MULTI_ENTITY_ENABLED: "false"/);
+  assert.match(harness, /if \(process\.env\.TENANT_DL02_PROOF === "isolated-ci-only"\) await \(await import\("\.\/tenant-dl02-http\.mjs"\)\)\.verifyDl02TenantIsolation\(f, \{ request, expectStatus, makeSession \}\)/);
+  assert.match(source, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+  assert.match(source, /for \(const idx of \[1, 2\]\)/);
+  assert.match(source, /Victim-only DL02 ID must really exist and exceed 6/);
+  assert.match(source, /assert\.deepEqual\(victimAfter, victimBefore/);
+  // Revoked-membership denials must follow a real own success with the same session.
+  assert.ok(source.indexOf("const ownPhotoGet = expectStatus") < source.indexOf("set({ active: false })") &&
+    source.indexOf("set({ active: false })") < source.indexOf("Former employee photo GET denied"));
+  let count = 0;
+  for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
+    for (const method of record.methods) {
+      if (method.testedBy?.file !== file) continue;
+      count += 1;
+      const key = path + " " + method.name;
+      assert.equal(method.status, "COVERED", key);
+      const own = lines[method.testedBy.ownPositiveLine - 1] ?? "";
+      const ownSpan = lines.slice(method.testedBy.ownPositiveLine - 1, method.testedBy.ownPositiveLine + 3).join("\n");
+      const deniedSpan = lines.slice(method.testedBy.foreignDenialLine - 1, method.testedBy.foreignDenialLine + 3).join("\n");
+      assert.match(own, /const own[A-Za-z]+ = expectStatus\(await request\("\/api\//, key + ": own positive must be a real request");
+      assert.ok(own.includes("/api/" + record.route.split("/[")[0]), key + ": own positive must target the claimed route");
+      assert.match(ownSpan, /\), 20[01],/, key + ": own positive must assert success");
+      assert.match(lines[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\("\/api\//, key + ": denial must be a real request");
+      assert.ok(/\), 40[34],/.test(deniedSpan), key + ": denial must assert exact 403 or 404");
+      assert.ok(/victim\.|Former employee/.test(deniedSpan), key + ": denial must name a real victim object or revoked membership");
+      if (["POST", "PATCH", "PUT", "DELETE", "HEAD"].includes(method.name)) {
+        assert.ok(ownSpan.includes('method: "' + method.name + '"') && deniedSpan.includes('method: "' + method.name + '"'),
+          key + ": proof must use the claimed method");
+      }
+      if (["POST", "PATCH", "PUT", "DELETE"].includes(method.name)) {
+        assert.match(lines[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(victimAfter, victimBefore/);
+      }
+    }
+  }
+  assert.equal(count, 19, "Nineteen DL-02 part-1 methods are credited; the rest stay GAP");
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
@@ -463,7 +507,7 @@ test("all credited proof links point to the claimed route and every recertified 
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
         "scripts/qa/workforce-attendance-sweep-http.mjs",
-        "scripts/qa/hcm-work-queue-http.mjs"].includes(proof?.file),
+        "scripts/qa/hcm-work-queue-http.mjs", "scripts/qa/tenant-dl02-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");

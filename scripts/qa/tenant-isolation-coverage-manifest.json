@@ -7,9 +7,9 @@
     "routeFiles": 289,
     "methods": 490,
     "coveredBefore": 20,
-    "coveredAfter": 76,
+    "coveredAfter": 95,
     "publicByDesign": 8,
-    "gap": 406,
+    "gap": 387,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -10651,16 +10651,29 @@
         {
           "name": "GET",
           "line": 43,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 129,
+            "ownPositiveLine": 127,
+            "foreignDenialLine": 129,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         },
         {
           "name": "POST",
           "line": 61,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 133,
+            "ownPositiveLine": 130,
+            "foreignDenialLine": 133,
+            "unchangedDbLine": 214,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         }
       ],
       "employerSources": {
@@ -11248,16 +11261,29 @@
         {
           "name": "GET",
           "line": 59,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 153,
+            "ownPositiveLine": 151,
+            "foreignDenialLine": 153,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         },
         {
           "name": "POST",
           "line": 248,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 158,
+            "ownPositiveLine": 154,
+            "foreignDenialLine": 158,
+            "unchangedDbLine": 214,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         }
       ],
       "employerSources": {
@@ -11577,16 +11603,29 @@
         {
           "name": "GET",
           "line": 100,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 168,
+            "ownPositiveLine": 166,
+            "foreignDenialLine": 168,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         },
         {
           "name": "POST",
           "line": 136,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 173,
+            "ownPositiveLine": 170,
+            "foreignDenialLine": 173,
+            "unchangedDbLine": 214,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         }
       ],
       "employerSources": {
@@ -21584,9 +21623,15 @@
         {
           "name": "GET",
           "line": 16,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 147,
+            "ownPositiveLine": 145,
+            "foreignDenialLine": 147,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         }
       ],
       "employerSources": {
@@ -23022,30 +23067,57 @@
         {
           "name": "GET",
           "line": 35,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 109,
+            "ownPositiveLine": 107,
+            "foreignDenialLine": 109,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         },
         {
           "name": "POST",
           "line": 48,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 105,
+            "ownPositiveLine": 101,
+            "foreignDenialLine": 105,
+            "unchangedDbLine": 214,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         },
         {
           "name": "PATCH",
           "line": 74,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 113,
+            "ownPositiveLine": 110,
+            "foreignDenialLine": 113,
+            "unchangedDbLine": 214,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         },
         {
           "name": "DELETE",
           "line": 102,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 121,
+            "ownPositiveLine": 117,
+            "foreignDenialLine": 121,
+            "unchangedDbLine": 214,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         }
       ],
       "employerSources": {
@@ -23181,16 +23253,29 @@
         {
           "name": "GET",
           "line": 69,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 137,
+            "ownPositiveLine": 135,
+            "foreignDenialLine": 137,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         },
         {
           "name": "POST",
           "line": 80,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 141,
+            "ownPositiveLine": 138,
+            "foreignDenialLine": 141,
+            "unchangedDbLine": 214,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         }
       ],
       "employerSources": {
@@ -23767,15 +23852,21 @@
       ]
     },
     "src/app/api/self/contribution-evidence/route.ts": {
-      "gitBlobSha": "16d7e0c049d948f9c34b627e4c8ba05169f12f7e",
+      "gitBlobSha": "ee69893285e43cf519b6afdde5d28e739581a1c2",
       "route": "self/contribution-evidence",
       "methods": [
         {
           "name": "GET",
-          "line": 47,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 48,
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 199,
+            "ownPositiveLine": 183,
+            "foreignDenialLine": 199,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         }
       ],
       "employerSources": {
@@ -23981,9 +24072,16 @@
         {
           "name": "POST",
           "line": 147,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 188,
+            "ownPositiveLine": 185,
+            "foreignDenialLine": 188,
+            "unchangedDbLine": 214,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         }
       ],
       "employerSources": {
@@ -24371,9 +24469,16 @@
         {
           "name": "POST",
           "line": 371,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 204,
+            "ownPositiveLine": 206,
+            "foreignDenialLine": 204,
+            "unchangedDbLine": 214,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         }
       ],
       "employerSources": {
@@ -24811,16 +24916,28 @@
         {
           "name": "GET",
           "line": 59,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 196,
+            "ownPositiveLine": 178,
+            "foreignDenialLine": 196,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         },
         {
           "name": "HEAD",
           "line": 62,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 197,
+            "ownPositiveLine": 181,
+            "foreignDenialLine": 197,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         },
         {
           "name": "POST",
@@ -24832,9 +24949,16 @@
         {
           "name": "DELETE",
           "line": 136,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "DL-02: two independent attacker employers get a real own success and an exact victim denial for this method; victim rows unchanged. Provisional until exact-head CI passes.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-dl02-http.mjs",
+            "line": 198,
+            "ownPositiveLine": 190,
+            "foreignDenialLine": 198,
+            "unchangedDbLine": 214,
+            "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only)."
+          }
         }
       ],
       "employerSources": {
