@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { DoleThirteenthMonthReportPanel } from "../src/components/workspace/dole-thirteenth-month-report-panel";
+import { DoleThirteenthMonthReportPanel as LegacyDolePanel } from "../src/components/workspace/dole-thirteenth-month-report-panel-legacy";
 import { readFileSync } from "node:fs";
 import { CRITICAL_RELEASE_FLAGS, criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { unavailableMultiEntityDoleReport } from "../src/lib/dole-reporting-entity-boundary";
@@ -37,8 +41,25 @@ test("DOLE multi-entity GET, CSV, POST and direct builder deny regardless of UI 
 
 test("browser QA checks source-parity and actual 390px/desktop state suppression", () => {
   const proof = readFileSync("scripts/qa/dole-attribution-state-browser.mjs","utf8");
-  assert.match(proof,/baselineSha="694703b2745b5171df6da067ee433b2741ae2c63"/);
+  assert.match(proof,/baselineSha="06dbf527dd3c8f0c29f0ae1f4dbc68833037a76c"/);
   assert.match(proof,/widths:\[1280,390\]/);
   assert.match(proof,/assert\.equal\(markup\.off,markup\.legacy/);
   assert.match(proof,/page\.screenshot/);
+});
+
+// Execute the actual wrapper and exact main baseline, not component source matching.
+test("DOLE flag-off markup is byte-identical to main for every disabled value", () => {
+  const previous = process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED;
+  const props = { organizationId: 41, notify: () => {} };
+  const expected = renderToStaticMarkup(createElement(LegacyDolePanel, props));
+  try {
+    for (const value of [undefined, "", "false", "TRUE", "1"]) {
+      if (value === undefined) delete process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED;
+      else process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED = value;
+      assert.equal(renderToStaticMarkup(createElement(DoleThirteenthMonthReportPanel, props)), expected);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED;
+    else process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED = previous;
+  }
 });

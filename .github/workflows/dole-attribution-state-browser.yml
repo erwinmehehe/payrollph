@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "src/components/workspace/dole-thirteenth-month-report-panel.tsx"
+      - "src/components/workspace/dole-thirteenth-month-report-panel-legacy.tsx"
       - "src/lib/dole-reporting-entity-boundary.ts"
       - "src/lib/critical-release-flags.ts"
       - "scripts/qa/dole-attribution-state-browser.mjs"

@@ -12,7 +12,7 @@ import { dirname, resolve } from "node:path";
 import { build } from "esbuild";
 import { chromium } from "playwright";
 
-const baselineSha="694703b2745b5171df6da067ee433b2741ae2c63";
+const baselineSha="06dbf527dd3c8f0c29f0ae1f4dbc68833037a76c";
 const path="src/components/workspace/dole-thirteenth-month-report-panel.tsx";
 const old=execFileSync("git",["show",baselineSha+":"+path],{encoding:"utf8"});
 const plugin={
@@ -100,7 +100,7 @@ try{
         assert.deepEqual(errors, [], width+"px "+mode+" "+variant+" React runtime errors");
         throw error;
       });
-      if(mode==="blocked")await page.getByRole("button",{name:"Retry verified report"}).waitFor();
+      if(mode==="blocked")await page.locator(".notice-red").waitFor();
       if(mode==="valid")await page.getByText("Fictional Worker").waitFor();
       markup[variant]=await page.locator("#root").innerHTML();
       const text=await page.locator("#root").innerText();

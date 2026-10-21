@@ -13,6 +13,8 @@ import {
 import type { Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
 import { isVerifiedDoleThirteenthRead } from "@/lib/dole-thirteenth-read";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { DoleThirteenthMonthReportPanel as LegacyDolePanel } from "./dole-thirteenth-month-report-panel-legacy";
  
 // A display-only rollout. Legal-employer source attribution always fails
 // closed on the server in multi-entity mode, even when this flag is OFF.
@@ -98,6 +100,10 @@ type DoleThirteenthMonthReportProps = {
 // Submission evidence, payroll aggregates and contact details are private
 // to a particular legal employer, not the parent workspace.
 export function DoleThirteenthMonthReportPanel(props: DoleThirteenthMonthReportProps) {
+  if (!criticalReleaseFlagEnabled("doleAttributionStateUi", {
+    NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED:
+      process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED,
+  })) return <LegacyDolePanel {...props} />;
   return <ScopedDoleThirteenthMonthReportPanel key={props.organizationId} {...props} />;
 }
 
