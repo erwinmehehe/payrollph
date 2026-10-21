@@ -38,7 +38,17 @@ test("both initial loads defer effect-phase state work and cancel all retired re
     assert.match(source, /loadControllerRef\.current\?\.abort\(\)/, path);
     assert.match(source, /const revision = \+\+loadRevisionRef\.current/);
     assert.match(source, /const isCurrent = \(\) =>\s*mountedRef\.current && !controller\.signal\.aborted && revision === loadRevisionRef\.current/);
-    assert.match(source, /cache: "no-store", signal: controller\.signal/);
+    if (path === dolePath) {
+      // DOLE delegates GET to a pure scope validator; verify the abortable
+      // request contract in both the caller and the reader, not stale syntax.
+      const reader = read("src/lib/dole-thirteenth-month-read.ts");
+      assert.match(source, /readVerifiedDole13th\(organizationId, taxYear, fetch, controller\.signal\)/);
+      assert.match(reader, /cache: "no-store", signal/);
+      assert.match(reader, /if \(!response\.ok\) throw/);
+      assert.match(reader, /isVerifiedDole13thRead\(value, organizationId, taxYear\)/);
+    } else {
+      assert.match(source, /cache: "no-store", signal: controller\.signal/);
+    }
     assert.match(source, /if \(!isCurrent\(\)\) return false;/);
     assert.match(source, /if \(isCurrent\(\)\) setLoading\(false\)/);
   }
