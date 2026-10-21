@@ -38,6 +38,8 @@ function validPayrollEntry(value: unknown): boolean {
   // authorized payrollRunId that belongs to this selected employer.
   return object(value) && positive(value.id) &&
     positive(value.employeeId) && typeof value.status === "string" &&
+    verifiedDashboardAmount(value.grossPay) !== null &&
+    verifiedDashboardAmount(value.deductions) !== null &&
     verifiedDashboardAmount(value.netPay) !== null;
 }
 

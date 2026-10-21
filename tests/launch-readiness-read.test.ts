@@ -6,13 +6,17 @@ const empty = {
   organizationId: 13, status: "launch-ready", launchBlockersRemaining: 0,
   scaleGapsRemaining: 0, summary: "All gates verified",
   manualLaunch: { ready: true, summary: "Verified" }, generatedAt: "2026-10-21T00:00:00Z",
-  gates: [],
+  gates: [{ key: "launch-evidence", label: "Launch acceptance", ready: true,
+    detail: "Verified fictional gate", blocks: "launch", manualWorkaround: null }],
 };
 test("launch readiness never shows clear for non-OK, partial or wrong employer", () => {
   assert.deepEqual(readVerifiedLaunchReadiness(true, empty, 13), empty);
   assert.equal(readVerifiedLaunchReadiness(false, empty, 13), null);
   assert.equal(readVerifiedLaunchReadiness(true, empty, 14), null);
-  for (const v of [{}, { ...empty, gates: undefined }, { ...empty, manualLaunch: undefined },
+  for (const v of [{}, { ...empty, gates: undefined }, { ...empty, gates: [] },
+    { ...empty, gates: [{ key: "scale-only", label: "Scale", ready: true,
+      detail: "Not launch evidence", blocks: "scale", manualWorkaround: null }] },
+    { ...empty, manualLaunch: undefined },
     { ...empty, launchBlockersRemaining: undefined }, { ...empty, summary: undefined }]) {
     assert.equal(readVerifiedLaunchReadiness(true, v, 13), null);
   }

@@ -106,7 +106,8 @@ test("payroll monetary amounts and entries must be scoped through complete paren
     id: 11, organizationId: 7, periodLabel: "October", status: "Ready for release",
     employeeCount: 1, exceptions: 0, grossPay: "100.00", netPay: "90.00",
   };
-  const entry = { id: 15, payrollRunId: 11, employeeId: 9, status: "Ready", netPay: "90.00" };
+  const entry = { id: 15, payrollRunId: 11, employeeId: 9, status: "Ready",
+    grossPay: "100.00", deductions: "10.00", netPay: "90.00" };
   const full = { ...authorized, payrollRuns: [run], payrollEntries: [entry] };
   assert.equal((await readAuthorizedDashboard(7, respond(200, full))).payrollRuns.length, 1);
   for (const bad of [
@@ -116,6 +117,9 @@ test("payroll monetary amounts and entries must be scoped through complete paren
     { ...full, payrollRuns: [{ ...run, exceptions: undefined }] },
     { ...full, payrollEntries: [{ ...entry, payrollRunId: 99 }] },
     { ...full, payrollEntries: [{ ...entry, netPay: null }] },
+    { ...full, payrollEntries: [{ ...entry, grossPay: undefined }] },
+    { ...full, payrollEntries: [{ ...entry, deductions: "" }] },
+    { ...full, payrollEntries: [{ ...entry, grossPay: "not money" }] },
   ]) {
     await assert.rejects(readAuthorizedDashboard(7, respond(200, bad)),
       (error: unknown) => error instanceof DashboardReadError && error.kind === "scope");

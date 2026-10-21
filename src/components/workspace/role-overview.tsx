@@ -576,7 +576,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
   const netDelta = currentNet === null || previousNet === null ? null : currentNet - previousNet;
   const comparison = previousReleasedRun && netDelta !== null
     ? `${netDelta >= 0 ? "+" : ""}${shortMoney(netDelta)} vs ${previousReleasedRun.periodLabel}`
-    : "No previous released payroll";
+    : previousReleasedRun ? "Comparison unavailable" : "No previous released payroll";
   const checkerAlertItems: DashboardAlertItem[] = [];
   if (pendingTasks.length) checkerAlertItems.push({ id: "approval", label: `${pendingTasks.length} payroll run${pendingTasks.length === 1 ? "" : "s"} need your approval`, tone: "warning" });
   if (checkerExceptions) checkerAlertItems.push({ id: "exceptions", label: `${checkerExceptions} payroll exception${checkerExceptions === 1 ? "" : "s"} remain visible`, tone: "danger" });

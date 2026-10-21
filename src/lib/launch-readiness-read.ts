@@ -31,8 +31,11 @@ export function readVerifiedLaunchReadiness(
       !text(value.summary) || !record(value.manualLaunch) ||
       typeof value.manualLaunch.ready !== "boolean" ||
       !text(value.manualLaunch.summary) || !text(value.generatedAt) ||
-      !Array.isArray(value.gates) || !value.gates.every(validGate)) return null;
+      !Array.isArray(value.gates) || value.gates.length === 0 ||
+      !value.gates.every(validGate)) return null;
   const gates = value.gates as VerifiedLaunchGate[];
+  // An empty or scale-only list cannot certify launch readiness.
+  if (!gates.some((gate) => gate.blocks === "launch")) return null;
   if (new Set(gates.map((gate) => gate.key)).size !== gates.length) return null;
   const blockers = gates.filter((gate) => gate.blocks === "launch" && !gate.ready).length;
   const gaps = gates.filter((gate) => gate.blocks === "scale" && !gate.ready).length;

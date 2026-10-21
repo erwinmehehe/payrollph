@@ -582,7 +582,7 @@ function CheckerHome({
         ) : tab === "exceptions" ? (
           <ActionRow
             icon={<AlertCircle size={20} />}
-            tone={exceptions ? "amber" : "green"}
+            tone={exceptions === null ? "blue" : exceptions > 0 ? "amber" : "green"}
             title={
               exceptions === null
                 ? "Verified exception evidence unavailable"
