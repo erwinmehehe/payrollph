@@ -4,11 +4,12 @@ import test from "node:test";
 import { DashboardReadError, readAuthorizedDashboard } from "../src/lib/dashboard-read-recovery";
 
 const authorized = {
-  selectedOrganization: { id: 7 },
+  selectedOrganization: { id: 7, name: "Employer", legalName: "Employer" },
   organizations: [{ id: 7 }],
-  employees: [{ id: 9 }],
-  tasks: [],
-  payrollRuns: [],
+  employees: [{ id: 9, organizationId: 7, status: "Active" }],
+  tasks: [], payrollRuns: [], payrollEntries: [], auditEvents: [], plans: [],
+  templates: [], advisories: [], punches: [], leaveRequests: [],
+  provisioning: [], retroAdjustments: [],
 };
 
 function respond(status: number, body: unknown) {
@@ -82,4 +83,44 @@ test("workspace exposes a GET-only retry and prevents late reads overwriting new
   assert.ok(!source.includes('fetch(`/api/dashboard?organizationId=${organizationId}`'));
   assert.ok(!hook.includes("method: \"POST\""));
   assert.ok(!hook.includes("method: \"PATCH\""));
+});
+
+
+test("verified empty is distinct from incomplete collections and wrong-employer people", async () => {
+  const valid = await readAuthorizedDashboard(7, respond(200, authorized));
+  assert.deepEqual(valid.payrollRuns, []);
+  assert.deepEqual(valid.payrollEntries, []);
+  for (const value of [
+    { ...authorized, payrollEntries: undefined },
+    { ...authorized, auditEvents: undefined },
+    { ...authorized, selectedOrganization: { id: 7 } },
+    { ...authorized, employees: [{ id: 9, organizationId: 8, status: "Active" }] },
+    { ...authorized, payrollRuns: [{ id: 4 }] },
+  ]) {
+    await assert.rejects(readAuthorizedDashboard(7, respond(200, value)),
+      (error: unknown) => error instanceof DashboardReadError && error.kind === "scope");
+  }
+});
+test("payroll monetary amounts and entries must be scoped through complete parent run", async () => {
+  const run = {
+    id: 11, organizationId: 7, periodLabel: "October", status: "Ready for release",
+    employeeCount: 1, exceptions: 0, grossPay: "100.00", netPay: "90.00",
+  };
+  const entry = { id: 15, payrollRunId: 11, employeeId: 9, status: "Ready", netPay: "90.00" };
+  const full = { ...authorized, payrollRuns: [run], payrollEntries: [entry] };
+  assert.equal((await readAuthorizedDashboard(7, respond(200, full))).payrollRuns.length, 1);
+  for (const bad of [
+    { ...full, payrollRuns: [{ ...run, organizationId: 999 }] },
+    { ...full, payrollRuns: [{ ...run, netPay: undefined }] },
+    { ...full, payrollRuns: [{ ...run, grossPay: "" }] },
+    { ...full, payrollRuns: [{ ...run, exceptions: undefined }] },
+    { ...full, payrollEntries: [{ ...entry, payrollRunId: 99 }] },
+    { ...full, payrollEntries: [{ ...entry, netPay: null }] },
+  ]) {
+    await assert.rejects(readAuthorizedDashboard(7, respond(200, bad)),
+      (error: unknown) => error instanceof DashboardReadError && error.kind === "scope");
+  }
+  // Retried verified source replaces a previously unavailable snapshot.
+  await assert.rejects(readAuthorizedDashboard(7, respond(503, {})), DashboardReadError);
+  assert.equal((await readAuthorizedDashboard(7, respond(200, full))).payrollRuns.length, 1);
 });
