@@ -1,15 +1,15 @@
 {
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
-  "generated": "2026-10-20",
-  "acceptanceStatus": "NOT ACCEPTED: 392 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. Twelve Batch-01 high-risk GET proofs, three salary-correction GET/POST/PATCH proofs and two government-loan GET/POST proofs are provisional and preserve actual fictional PG16 own/victim evidence and unchanged-victim records; the original 406-method closure queue is a frozen audit snapshot, not the live GAP count. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required.",
+  "generated": "2026-10-21",
+  "acceptanceStatus": "NOT ACCEPTED: 388 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET only is intentionally unauthenticated fixed-template PUBLIC-BY-DESIGN; its POST remains GAP. Government-loan GET/POST source-pinned own/foreign evidence is retained alongside the merged DL-01 proofs; no blanket certification.",
   "metrics": {
     "routeFiles": 290,
     "methods": 493,
     "coveredBefore": 20,
-    "coveredAfter": 93,
-    "publicByDesign": 8,
-    "gap": 392,
+    "coveredAfter": 95,
+    "publicByDesign": 10,
+    "gap": 388,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -6388,9 +6388,17 @@
         {
           "name": "GET",
           "line": 11,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Verified fictional signed-in owners download own exact PDF bytes (hash and disposition); both attackers are denied the real later-seeded victim-only evidence ID with HTTP 403, and a victim ID forged under an allowed own organization returns exact 404; real victim PostgreSQL snapshot unchanged.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-manifest-driven-http.mjs",
+            "ownPositiveLine": 299,
+            "foreignDenialLine": 302,
+            "unchangedDbLine": 342,
+            "scope": "Two independent attacker employers and a real victim-only PostgreSQL evidence row seeded after both attacker records; each authentic attacker succeeds on the owned populated response, is denied on the selected higher victim ID with exact status, and the victim database snapshot remains unchanged. The forged selector line points to the method-specific rejection or ignored victim identifier.",
+            "line": 36,
+            "forgedSelectorLine": 313
+          }
         }
       ],
       "employerSources": {
@@ -6470,9 +6478,17 @@
         {
           "name": "GET",
           "line": 57,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Verified own nonempty evidence list includes actual own row and excludes victim; two attackers GET the existing later-seeded victim batch with victim employer and receive exact 403; own organization with forged victim batch returns an empty filtered list after the owned positive; victim PostgreSQL snapshot unchanged.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-manifest-driven-http.mjs",
+            "ownPositiveLine": 299,
+            "foreignDenialLine": 302,
+            "unchangedDbLine": 342,
+            "scope": "Two independent attacker employers and a real victim-only PostgreSQL evidence row seeded after both attacker records; each authentic attacker succeeds on the owned populated response, is denied on the selected higher victim ID with exact status, and the victim database snapshot remains unchanged. The forged selector line points to the method-specific rejection or ignored victim identifier.",
+            "line": 51,
+            "forgedSelectorLine": 320
+          }
         },
         {
           "name": "POST",
@@ -6652,8 +6668,8 @@
         {
           "name": "GET",
           "line": 41,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
+          "status": "PUBLIC-BY-DESIGN",
+          "reason": "Intentionally unauthenticated public static statutory posting CSV schema template, returned verbatim by GET without looking up any organization, employee, remittance batch or stored evidence, with no request/tenant selectors. The isolated three-employer HTTP test confirms anonymous and signed-in callers receive identical synthetic template bytes despite forged organizationId/employeeId/batchId. Separate authenticated POST remains tenant-scoped GAP and is not public.",
           "testedBy": null
         },
         {
@@ -9490,8 +9506,8 @@
         {
           "name": "GET",
           "line": 14,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
+          "status": "PUBLIC-BY-DESIGN",
+          "reason": "Authenticated but tenant-independent static CSV import schema and fictional sample rows. Session authentication is required, does not accept or use tenant selectors, does not query employer or employee data, and returns the same inert template to all three authenticated fictional employers even when organizationId/employeeId/runId are forged; this is not the tenant-scoped employee import or import history.",
           "testedBy": null
         }
       ],
@@ -37074,7 +37090,7 @@
     }
   ],
   "proofPolicy": {
-    "covered": "own access 200/201 + high existing victim ID + exact expected foreign denial + unchanged database for writes",
+    "covered": "Successful same-method own HTTP 200/201 with nonempty owned evidence; existing victim-only PostgreSQL target ID greater than each attacker-owned object; exact expected 403/404, unchanged real victim database for writes, and tested forged organizationId/employeeId/runId or equivalent victim selector. Never infer from invented IDs, 401, empty primary result, 429, 501, static reading or helper names.",
     "public": "reviewed public-no-tenant-resource reason",
     "gap": "not evidence of safety; invalid unauthenticated 401/invented 404/empty/429 never pass",
     "newMethod": "new methods cannot be classified GAP when adding to manifest; must bring method-specific proof or public rationale"

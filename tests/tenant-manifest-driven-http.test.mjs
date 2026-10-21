@@ -14,9 +14,9 @@ const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 493);
-  assert.equal(manifest.metrics.gap, 392, "Attendance, HCM, twelve Batch-01 GETs and two loan proofs leave 392 API method GAPs");
-  assert.equal(manifest.metrics.coveredAfter, 93, "Preserve 76 earlier methods, twelve Batch-01 GET, three salary cases and two government-loan proofs");
+  assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
+  assert.equal(manifest.metrics.gap, 388, "388 methods remain GAP after retaining DL-01 and two government-loan proofs");
+  assert.equal(manifest.metrics.coveredAfter, 95, "93 covered methods from merged main plus two government-loan GET/POST proofs");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -48,20 +48,17 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
     info.methods.map((m) => [m.name + " " + info.route, { path, ...m }])));
-  assert.equal(specs.length, 6);
+  assert.equal(specs.length, 7);
   assert.equal(new Set(specs).size, specs.length);
   for (const spec of specs) {
     const method = registry.get(spec);
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  // Of the six adapter GETs, BIR, statutory-remittances and government-loan
-  // now have independently source-pinned proof. Three other GETs remain GAP;
-  // do not turn missing payment evidence into a fictitious positive read.
+  // Payment-evidence and government-loan GETs retain separate executed proofs.
   assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), [
-    "GET compliance/statutory-remittances/payment-evidence/[id]",
-    "GET compliance/statutory-remittances/payment-evidence",
     "GET compliance/remittance-actions",
+    "GET compliance/statutory-remittances/posting-evidence/[id]",
   ]);
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
