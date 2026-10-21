@@ -102,7 +102,8 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 493);
-  // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
+  assert.equal(manifest.metrics.publicByDesign, 10, "Preserve ten main-classified public methods");
+  // Preserve the 93 pre-probation proofs, not an obsolete total. New suites
   // can only close GAPs if every method cites the corresponding isolated HTTP
   // suite, executed for both attacker employers against real victim rows.
   const newSuites = [
@@ -112,7 +113,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
         "GET bir/annual-employer/module-evidence", "POST bir/annual-employer/module-evidence",
         "GET compliance/dole-13th-month", "POST compliance/dole-13th-month",
         "GET compliance/government-loan-remittances", "POST compliance/government-loan-remittances",
-        "GET compliance/statutory-remittances/payment-evidence",
+        // GET payment-evidence is already source-pinned on main; do not recertify it here.
         "POST compliance/statutory-remittances/payment-evidence",
       ] },
     { file: "scripts/qa/hcm-probation-sweep-http.mjs",
@@ -157,9 +158,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     }
     newlySourcePinned += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 91,
-    "Keep 91 historical COVERED methods; add only proven HCM/compliance methods");
-  assert.equal(manifest.metrics.gap + newlySourcePinned, 394,
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 93,
+    "Keep 93 main COVERED methods; add only separately proven HCM/compliance methods");
+  assert.equal(manifest.metrics.gap + newlySourcePinned, 390,
     "Never close a historical GAP without its source-linked HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {

@@ -90,7 +90,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(payExplain?.status, "COVERED");
   assert.equal(payExplain?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs",
     "Keep the newer source-matched own/foreign real-HTTP pay-explanation proof");
-  // Preserve all 88 previously accepted main-branch method receipts. Newly
+  // Preserve all main-credited receipts, including the two DL-01 GETs. Newly
   // credited routes may only add to this historical count when their specific
   // isolated two-attacker HTTP suite is wired into the real PG16 harness.
   // Never "fix" this gate by substituting a new total without proof.
@@ -105,7 +105,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
         "POST compliance/dole-13th-month",
         "GET compliance/government-loan-remittances",
         "POST compliance/government-loan-remittances",
-        "GET compliance/statutory-remittances/payment-evidence",
+        // GET is already main-credited by the separate manifest-driven HTTP source.
         "POST compliance/statutory-remittances/payment-evidence",
       ],
     },
@@ -158,9 +158,9 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     }
     additionalSourcePinnedMethods += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 91,
-    "All 91 historical covered methods must remain, excluding only source-pinned additions");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 394,
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 93,
+    "All 93 main covered methods remain, excluding new probation/compliance additions");
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 390,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
