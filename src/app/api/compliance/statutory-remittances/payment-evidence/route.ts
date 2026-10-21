@@ -182,38 +182,49 @@ export async function POST(request: Request) {
   const fileDataBase64 = Buffer.from(bytes).toString("base64");
   const fileName = safeFileName(file.name);
 
-  const existing = await db.select().from(statutoryRemittancePaymentEvidence).where(and(
-    eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
-    eq(statutoryRemittancePaymentEvidence.batchId, batchId),
-  )).orderBy(desc(statutoryRemittancePaymentEvidence.uploadedAt), desc(statutoryRemittancePaymentEvidence.id));
-  const active = existing.find((row) => row.status === "active") ?? null;
+  // Lock the owned parent batch inside the transaction. Same-batch writers
+  // serialize here; a partial unique index protects against other DB writers.
+  const outcome = await db.transaction(async (tx) => {
+    const [lockedBatch] = await tx.select().from(statutoryRemittanceBatches)
+      .where(and(
+        eq(statutoryRemittanceBatches.id, batchId),
+        eq(statutoryRemittanceBatches.organizationId, organizationId),
+      )).for("update");
+    if (!lockedBatch) return {
+      kind: "rejected" as const, status: 404 as const, error: "Remittance batch not found.",
+    };
 
-  if (batch.status !== "open") {
-    if (active) {
-      return Response.json({
+    const existing = await tx.select().from(statutoryRemittancePaymentEvidence).where(and(
+      eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
+      eq(statutoryRemittancePaymentEvidence.batchId, batchId),
+    )).orderBy(desc(statutoryRemittancePaymentEvidence.uploadedAt), desc(statutoryRemittancePaymentEvidence.id));
+    const activeRows = existing.filter(row => row.status === "active");
+    if (activeRows.length > 1) return {
+      kind: "rejected" as const, status: 409 as const,
+      error: "Multiple active payment proofs require an administrator integrity review.",
+    };
+    const active = activeRows[0] ?? null;
+
+    if (lockedBatch.status !== "open") {
+      if (active) return {
+        kind: "rejected" as const, status: 409 as const,
         error: "Payment proof is immutable once payment has been recorded.",
-      }, { status: 409 });
-    }
-    if (!replacementReason || replacementReason.length < 8) {
-      return Response.json({
+      };
+      if (!replacementReason || replacementReason.length < 8) return {
+        kind: "rejected" as const, status: 409 as const,
         error: "Historical payment proof backfill requires an explanation of at least 8 characters.",
-      }, { status: 409 });
+      };
     }
-  }
-
-  if (active && !replacementReason) {
-    return Response.json({
+    if (active && !replacementReason) return {
+      kind: "rejected" as const, status: 409 as const,
       error: "An active payment proof already exists. Explain why it is being replaced.",
-    }, { status: 409 });
-  }
-  if (existing.some((row) => row.fileSha256 === fileSha256)) {
-    return Response.json({
+    };
+    if (existing.some(row => row.fileSha256 === fileSha256)) return {
+      kind: "rejected" as const, status: 409 as const,
       error: "This exact payment proof file is already stored for the batch.",
-    }, { status: 409 });
-  }
+    };
 
-  const now = new Date();
-  const created = await db.transaction(async (tx) => {
+    const now = new Date();
     if (active) {
       await tx.update(statutoryRemittancePaymentEvidence).set({
         status: "superseded",
@@ -222,10 +233,10 @@ export async function POST(request: Request) {
       }).where(and(
         eq(statutoryRemittancePaymentEvidence.id, active.id),
         eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
+        eq(statutoryRemittancePaymentEvidence.batchId, batchId),
       ));
     }
-
-    const [row] = await tx.insert(statutoryRemittancePaymentEvidence).values({
+    const [created] = await tx.insert(statutoryRemittancePaymentEvidence).values({
       organizationId,
       batchId,
       fileName,
@@ -247,18 +258,23 @@ export async function POST(request: Request) {
       uploadedByName: statutoryRemittancePaymentEvidence.uploadedByName,
       uploadedAt: statutoryRemittancePaymentEvidence.uploadedAt,
     });
-    return row;
+    return { kind: "created" as const, created, active, lockedBatch };
   });
+
+  if (outcome.kind === "rejected") {
+    return Response.json({ error: outcome.error }, { status: outcome.status });
+  }
+  const { created, active, lockedBatch } = outcome;
 
   await recordAuditEvent({
     organizationId,
     actor: user.name,
     action: active
       ? "Statutory remittance payment proof replaced"
-      : batch.status === "open"
+      : lockedBatch.status === "open"
         ? "Statutory remittance payment proof uploaded"
         : "Historical statutory remittance payment proof backfilled",
-    resource: batch.agency + " · " + batch.applicableMonth,
+    resource: lockedBatch.agency + " · " + lockedBatch.applicableMonth,
     metadata: {
       batchId,
       evidenceId: created.id,
@@ -271,8 +287,8 @@ export async function POST(request: Request) {
       malwareScanNote: scan.note,
       replacedEvidenceId: active?.id ?? null,
       replacementReason,
-      batchStatusAtUpload: batch.status,
-      historicalBackfill: batch.status !== "open",
+      batchStatusAtUpload: lockedBatch.status,
+      historicalBackfill: lockedBatch.status !== "open",
     },
   });
 

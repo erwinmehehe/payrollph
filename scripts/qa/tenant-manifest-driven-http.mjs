@@ -262,13 +262,13 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
     // disposable-PG16 batch and a narrowly scoped CI-only TLS scan stub.
     // It never reaches a provider or proves production malware acceptance.
     const privileged = await makeSession(f.owners[idx].id, { privileged: true });
-    const syntheticBytes = Buffer.from("%PDF-1.4\nSYNTHETIC-PROOF-TENANT-QA:" + fixtures.nonce + ":" + idx + "\n%%EOF\n");
-    function proofForm(orgId, batchId) {
+    const bytesFor = (tag) => Buffer.from("%PDF-1.4\nSYNTHETIC-PROOF-TENANT-QA:" + fixtures.nonce + ":" + idx + ":" + tag + "\n%%EOF\n");
+    function proofForm(orgId, batchId, tag = "initial") {
       const form = new FormData();
       form.append("organizationId", String(orgId));
       form.append("batchId", String(batchId));
       form.append("replacementReason", "Synthetic CI replacement; no real statutory payment");
-      form.append("file", new File([syntheticBytes], "synthetic-proof-" + idx + ".pdf", { type: "application/pdf" }));
+      form.append("file", new File([bytesFor(tag)], "synthetic-proof-" + idx + "-" + tag + ".pdf", { type: "application/pdf" }));
       return form;
     }
     const ownUpload = expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
@@ -284,6 +284,30 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
     expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
       method: "POST", cookie: privileged.cookie, form: proofForm(ownOrg.id, victimBatch.id),
     }), 404, "A real victim batch ID must not be writable under the attacker's organization");
+    // Concurrent own-batch replacements must never create two active records.
+    const contenders = await Promise.all(["race-a", "race-b", "race-c", "race-d"].map(tag =>
+      request("/api/compliance/statutory-remittances/payment-evidence", {
+        method: "POST", cookie: privileged.cookie, form: proofForm(ownOrg.id, ownedBatch.id, tag),
+      })));
+    assert.ok(contenders.some(result => result.status === 201),
+      "At least one parallel valid replacement must succeed");
+    for (const attempt of contenders) {
+      assert.ok(attempt.status === 201 || attempt.status === 409,
+        "Parallel replacements must serialize or fail closed: " + attempt.status + " " + attempt.text.slice(0, 120));
+      if (attempt.status === 201) {
+        assert.equal(attempt.json?.organizationId, ownOrg.id);
+        assert.equal(attempt.json?.batchId, ownedBatch.id);
+      }
+    }
+    const indexAfterRace = expectStatus(await request(
+      "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
+      ownOrg.id + "&batchId=" + ownedBatch.id, { cookie: privileged.cookie }), 200,
+      "Concurrent replacements must preserve a verified owned-batch index");
+    const activeAfterRace = indexAfterRace.json?.evidence?.filter(row => row.status === "active") ?? [];
+    assert.equal(activeAfterRace.length, 1,
+      "Concurrent distinct-file replacements must leave exactly one active record");
+    assert.equal(indexAfterRace.json?.active?.id, activeAfterRace[0].id,
+      "The active metadata must identify the sole active receipt");
   }
   const after = await snapshotVictim(victimOrg.id);
   assert.deepEqual(after, before,
