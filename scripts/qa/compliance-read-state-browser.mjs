@@ -65,6 +65,9 @@ async function bundle(variant) {
   const result=await build({
     stdin:{contents:entry,sourcefile:"qa-compliance.tsx",resolveDir:process.cwd(),loader:"tsx"},
     bundle:true,platform:"browser",format:"iife",write:false,
+    // Next/React components use the automatic JSX runtime and intentionally
+    // don't import React as a default binding.
+    jsx:"automatic",
     define:{"process.env.NEXT_PUBLIC_COMPLIANCE_READ_STATE_UI_ENABLED":variant==="on"?'"true"':'"false"'},
     plugins:[plugin],logLevel:"warning",
   });
@@ -98,8 +101,18 @@ try {
       const page=await browser.newPage({viewport:{width,height:900}});
       const errors=[];page.on("pageerror",e=>errors.push(e.message));
       await page.goto(url+"/?mode="+mode+"&variant="+variant,{waitUntil:"load"});
-      await page.locator("[data-compliance-calendar]").waitFor();
-      await page.locator("[data-statutory-payment-proof]").waitFor();
+      try {
+        await page.locator("[data-compliance-calendar]").waitFor({ timeout: 8000 });
+        await page.locator("[data-statutory-payment-proof]").waitFor({ timeout: 8000 });
+      } catch (cause) {
+        const screenshot="qa-artifacts/compliance-read-unrendered-"+mode+"-"+variant+"-"+width+".png";
+        await page.screenshot({path:screenshot,fullPage:true}).catch(()=>{});
+        const html=await page.content().catch(()=>"<unavailable>");
+        const diagnostics={variant,width,mode,errors,html:html.slice(0,1200),
+          scripts:await page.locator("script").count()};
+        console.error("COMPONENT_BROWSER_RENDER_FAILURE",JSON.stringify(diagnostics));
+        throw cause;
+      }
       html[variant]=await page.locator("#root").innerHTML();
       const txt=await page.locator("#root").innerText();
       assert.deepEqual(errors,[],variant+" "+width+"px "+mode+" page errors");
