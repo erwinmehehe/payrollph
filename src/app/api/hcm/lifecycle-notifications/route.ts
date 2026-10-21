@@ -107,6 +107,7 @@ export async function GET(request: Request) {
     : [];
 
   return Response.json({
+    organizationId,
     tasks: visible.map((row) => ({
       ...row.task,
       employeeNo: row.employeeNo,

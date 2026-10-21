@@ -1,4 +1,4 @@
-import { buildReadinessPayload } from "@/lib/operational-readiness";
+import { tenantReadinessUnavailable } from "@/lib/workspace-readiness-boundary";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "Cache-Control": "no-store" } });
 
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
-  if (!Number.isInteger(organizationId)) {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) {
     return Response.json({ error: "organizationId is required." }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
 
@@ -26,24 +26,8 @@ export async function GET(request: Request) {
     return Response.json({ error: "Rollout readiness requires company-wide access." }, { status: 403, headers: { "Cache-Control": "no-store" } });
   }
 
-  const payload = await buildReadinessPayload();
-
-  return Response.json({
-    status: payload.status,
-    launchBlockersRemaining: payload.launchBlockersRemaining,
-    scaleGapsRemaining: payload.scaleGapsRemaining,
-    summary: payload.summary,
-    manualLaunch: payload.manualLaunch,
-    generatedAt: payload.generatedAt,
-    gates: payload.gates.map((gate) => ({
-      key: gate.key,
-      label: gate.label,
-      ready: gate.ready,
-      detail: gate.detail,
-      blocks: gate.blocks,
-      manualWorkaround: gate.manualWorkaround ?? null,
-    })),
-  }, {
-    headers: { "Cache-Control": "no-store" },
-  });
+  // Tenant-selected authorization does not grant access to platform-wide
+  // operational evidence. Refuse a success state until an isolated,
+  // employer-verified readiness loader exists for this workspace.
+  return tenantReadinessUnavailable(organizationId);
 }

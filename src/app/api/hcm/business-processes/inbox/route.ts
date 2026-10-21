@@ -162,6 +162,7 @@ export async function GET(request: Request) {
     : submittedRows;
 
   return Response.json({
+    organizationId,
     myWork,
     submitted: submittedRows.slice(0, HCM_BP_HISTORY_LIMIT).map(projectHcmProcessSummary),
     recent: recentRows.slice(0, HCM_BP_HISTORY_LIMIT).map(projectHcmProcessSummary),
