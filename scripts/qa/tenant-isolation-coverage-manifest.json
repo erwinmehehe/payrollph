@@ -9457,7 +9457,7 @@
           "name": "GET",
           "line": 14,
           "status": "PUBLIC-BY-DESIGN",
-          "reason": "Authenticated but tenant-independent static CSV import schema and fictional sample rows. Requires an existing session, does not accept or use tenant selectors, does not query employer or employee data, and returns the same inert template to all three authenticated fictional employers even when organizationId/employeeId/runId are forged; this is not the tenant-scoped employee import or import history.",
+          "reason": "Authenticated but tenant-independent static CSV import schema and fictional sample rows. Session authentication is required, does not accept or use tenant selectors, does not query employer or employee data, and returns the same inert template to all three authenticated fictional employers even when organizationId/employeeId/runId are forged; this is not the tenant-scoped employee import or import history.",
           "testedBy": null
         }
       ],
