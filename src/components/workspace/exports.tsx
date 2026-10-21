@@ -71,6 +71,10 @@ export function ExportsView({
 
   const run = runs.find((item) => item.id === runId) ?? runs[0];
   const organizationId = data.selectedOrganization.id;
+  const selectedRunId = run?.id;
+  const selectedRunNetPay = run?.netPay;
+  const selectedRunEmployeeCount = run?.employeeCount;
+  const selectedRunStatus = run?.status;
   const xenditEnabled = data.xenditPayoutsEnabled === true;
   // Every employer/run/money-action change invalidates the previous snapshot
   // synchronously during render, before any effect can serve a stale result.
@@ -116,11 +120,13 @@ export function ExportsView({
   const employeeByNo = new Map(data.employees.map((employee) => [employee.employeeNo, employee]));
 
   useEffect(() => {
-    if (!run || run.status !== "Released" || payoutBusy) return;
+    if (selectedRunId == null || selectedRunStatus !== "Released" || payoutBusy ||
+        selectedRunNetPay == null || selectedRunEmployeeCount == null) return;
     const controller = new AbortController();
     const scope = payoutScope;
     void readVerifiedPayout({
-      organizationId, runId: run.id, netPay: run.netPay, employeeCount: run.employeeCount,
+      organizationId, runId: selectedRunId, netPay: selectedRunNetPay,
+      employeeCount: selectedRunEmployeeCount,
     }, fetch, controller.signal)
       .then(data => {
         if (!controller.signal.aborted) setPayoutObservation({ scope, data, error: null });
@@ -132,7 +138,7 @@ export function ExportsView({
         });
       });
     return () => controller.abort();
-  }, [payoutScope, organizationId, run?.id, run?.netPay, run?.employeeCount, run?.status, payoutBusy]);
+  }, [payoutScope, organizationId, selectedRunId, selectedRunNetPay, selectedRunEmployeeCount, selectedRunStatus, payoutBusy]);
 
   useEffect(() => {
     if (!treasuryStatusEligible) return;

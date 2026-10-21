@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -36,6 +36,12 @@ const WORKFLOW_STAGES = [
   { label: "Bank payout", detail: "Submit funds separately" },
 ] as const;
 
+// useSyncExternalStore renders the stable server date during SSR and hydration,
+// then reads the client snapshot for relative timestamps without an effect write.
+const subscribeHydration = () => () => {};
+const browserHydrated = () => true;
+const serverHydrated = () => false;
+
 /**
  * An overview of actual stored workspace data, not a transaction screen.
  * All irreversible payroll actions remain inside the existing guarded flows.
@@ -43,8 +49,7 @@ const WORKFLOW_STAGES = [
 export function PremiumDashboard({ data, currentRun: run, role, onPage, onNewRun }: Props) {
   // Relative timestamps depend on wall time and can cross minute boundaries between SSR and hydration.
   // Render a stable UTC date until the browser has hydrated, then show relative time.
-  const [clientTimeReady, setClientTimeReady] = useState(false);
-  useEffect(() => { setClientTimeReady(true); }, []);
+  const clientTimeReady = useSyncExternalStore(subscribeHydration, browserHydrated, serverHydrated);
   const view = buildPremiumDashboardModel(data, run);
   const firstName = data.user?.name?.trim().split(/\s+/)[0] || "there";
   const released = run?.status === "Released";

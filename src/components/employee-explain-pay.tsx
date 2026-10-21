@@ -39,7 +39,6 @@ export function EmployeeExplainPay({
     if (!open) return;
     const controller = new AbortController();
     const observedScope = scope;
-    setObservation({ scope: observedScope, payload: null, error: "", loading: true });
     void readVerifiedSelfExplainPay({ organizationId, employeeId, entryId, periodLabel: period },
       fetch, controller.signal)
       .then(value => {
@@ -58,6 +57,9 @@ export function EmployeeExplainPay({
   }, [open, scope, organizationId, employeeId, entryId, period]);
 
   function toggle() {
+    // Every reopening starts a new scoped request. The previous explanation
+    // must never flash while its fresh employer/employee proof is pending.
+    if (!open) setRevision(value => value + 1);
     setOpen(value => !value);
     setShowAll(false);
   }

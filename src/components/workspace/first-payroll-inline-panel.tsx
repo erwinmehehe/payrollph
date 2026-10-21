@@ -22,14 +22,28 @@ type Progress = SavedFirstPayrollProgress;
 type PreviewRow = { employeeId:number;name:string;gross:number|null;sss:number|null;philHealth:number|null;pagIbig:number|null;withholding:number|null;net:number|null;blockers:string[] };
 type Preview = { rows:PreviewRow[];blockers:string[];warnings?:string[];previewReady:boolean;dryRun:true };
 type LegalEmployer = { id:number;primaryEntity:boolean;active:boolean;legalName:string;payrollCalendarMode:string;birTin?:string|null;sssEmployerNo?:string|null;philHealthEmployerNo?:string|null;pagIbigEmployerNo?:string|null };
-export function FirstPayrollInlinePanel({
- step, data, onRefresh, onProgressUpdate, onDecide, canDecide = false, canManageDelegations = false, notify = () => {},
-}: {
+type InlinePanelProps = {
  step:FirstPayrollKey;data:DashboardData;onRefresh:()=>Promise<void>;
  onProgressUpdate?:()=>Promise<void>;
  onDecide?:(id:number,status:"Approved"|"Declined")=>Promise<void>;
  canDecide?:boolean;canManageDelegations?:boolean;notify?:Notify;
-}) {
+};
+
+// Remount rather than copy stale tenant/role state when the workspace changes.
+// Loading defaults are fail-closed; retry resets are initiated by a user event,
+// not by a synchronous setState inside the fetch effect.
+export function FirstPayrollInlinePanel(props: InlinePanelProps) {
+ const { data, step } = props;
+ const scope = JSON.stringify([
+   data.selectedOrganization.id, data.user?.id ?? null, data.access?.role ?? null,
+   data.access?.companyWide === true, step,
+ ]);
+ return <ScopedFirstPayrollInlinePanel key={scope} {...props} />;
+}
+
+function ScopedFirstPayrollInlinePanel({
+ step, data, onRefresh, onProgressUpdate, onDecide, canDecide = false, canManageDelegations = false, notify = () => {},
+}: InlinePanelProps) {
  const organizationId=data.selectedOrganization.id;
  const defaultOwner=firstPayrollStep(step).owner;
  const permittedOwners: readonly string[]=firstPayrollStep(step).allowedOwners;
@@ -57,7 +71,6 @@ export function FirstPayrollInlinePanel({
  const [draftId,setDraftId]=useState<number|null>(null);
  useEffect(()=>{
   let cancelled=false;
-  setProgressLoading(true);setProgressVerified(false);setProgress(null);
   void readVerifiedFirstPayrollProgress(organizationId, fetch)
    .then(p=>{if(cancelled)return;setProgress(p);setProgressVerified(true);
       const reviewed=p?.completedSteps?.time;
@@ -71,7 +84,6 @@ export function FirstPayrollInlinePanel({
  useEffect(()=>{
   if(step!=="company")return;
   let cancelled=false;
-  setCompanyLoading(true);setCompanyUnavailable(false);setEmployer(null);
   void readVerifiedFirstPayrollLegalEmployer(organizationId,fetch)
    .then(entries=>{if(cancelled)return;
      const selected=entries.find(e=>e.active&&e.primaryEntity)??null;
@@ -80,6 +92,21 @@ export function FirstPayrollInlinePanel({
    .finally(()=>{if(!cancelled)setCompanyLoading(false);});
   return ()=>{cancelled=true;};
  },[step,organizationId,companyRevision]);
+
+ function retryProgress() {
+  setProgressLoading(true);
+  setProgressVerified(false);
+  setProgress(null);
+  setError("");
+  setProgressRevision(value => value + 1);
+ }
+ function retryCompany() {
+  setCompanyLoading(true);
+  setCompanyUnavailable(false);
+  setEmployer(null);
+  setError("");
+  setCompanyRevision(value => value + 1);
+ }
 
  async function send(url:string,method:string,body:Record<string,unknown>,message:string) {
   if(!progressVerified){setError("Saved progress unavailable. Retry before acting.");return false;}
@@ -151,9 +178,9 @@ export function FirstPayrollInlinePanel({
    aria-busy={progressLoading||companyLoading||busy}>
    {(progressLoading||companyLoading)&&<p role="status">Loading saved employer setup…</p>}
    {busy&&<p role="status">Processing this step…</p>}
-   {error&&<p role="alert">{error}</p>}{!progressLoading&&!progressVerified&&<button type="button" className="secondary-button" onClick={()=>setProgressRevision(x=>x+1)}>Retry saved progress</button>}{notice&&<p role="status">{notice}</p>}
+   {error&&<p role="alert">{error}</p>}{!progressLoading&&!progressVerified&&<button type="button" className="secondary-button" onClick={retryProgress}>Retry saved progress</button>}{notice&&<p role="status">{notice}</p>}
    {step==="company"&&<div className="grid gap-3">
-     {companyUnavailable&&<p role="alert">Legal employer details unavailable. <button type="button" className="secondary-button" onClick={()=>setCompanyRevision(x=>x+1)}>Retry legal employer</button></p>}
+     {companyUnavailable&&<p role="alert">Legal employer details unavailable. <button type="button" className="secondary-button" onClick={retryCompany}>Retry legal employer</button></p>}
      <p>Update the primary legal employer. Its calendar, not the legacy organization projection, governs payroll.</p>
      <label>Legal employer name<input value={company} onChange={e=>setCompany(e.target.value)}/></label>
      <label>Employer BIR TIN<input value={registrations.birTin} inputMode="numeric" maxLength={9} pattern="[0-9]{9}" onChange={e=>setRegistrations(p=>({...p,birTin:e.target.value.replace(/\D/g,"")}))}/></label>
