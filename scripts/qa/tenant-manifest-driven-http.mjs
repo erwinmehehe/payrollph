@@ -188,8 +188,8 @@ async function seedStatutoryFixtures(f) {
       organizationId: statutoryRemittancePaymentEvidence.organizationId,
       batchId: statutoryRemittancePaymentEvidence.batchId,
       fileSha256: statutoryRemittancePaymentEvidence.fileSha256 });
-  const postingBytes = rows.map((row, i) => Buffer.from("Employee No,Posted Amount,Reference\\n" +
-    "FICTIONAL-" + row.orgIndex + "-" + nonce + "-" + i + ",0.00,CI-ONLY\\n"));
+  const postingBytes = rows.map((row, i) => Buffer.from("Employee No,Posted Amount,Reference\n" +
+    "FICTIONAL-" + row.orgIndex + "-" + nonce + "-" + i + ",0.00,CI-ONLY\n"));
   const posting = await db.insert(statutoryPostingEvidenceArtifacts)
     .values(rows.map((row, i) => ({
       organizationId: f.orgs[row.orgIndex].id, batchId: batches[i].id,
