@@ -37,4 +37,25 @@ export async function verifyTenantIndependentImportTemplate(f, { request, expect
       "Same static template must be identical across all three independent employers");
   }
   console.log("PASS tenant-independent employee import CSV: three fictional employer sessions, real HTTP 200, identical bytes, forged victim selectors ignored; no private tenant data");
+
+  // The statutory posting GET has NO authentication gate or tenant selector:
+  // it serves only a fixed CSV schema; the POST is a separate protected API.
+  let postingTemplate = null;
+  for (const idx of [null, 0, 1, 2]) {
+    const options = idx === null ? {} : { cookie: f.ownerSessions[idx].cookie };
+    const own = expectStatus(await request(
+      "/api/compliance/statutory-remittances/posting-import", options), 200,
+    "Anonymous or signed-in caller receives the same static statutory posting template");
+    assert.match(own.headers.get("content-type") ?? "", /^text\\/csv/i);
+    assert.match(own.headers.get("content-disposition") ?? "", /^attachment;/);
+    assert.ok(own.text.length > 20);
+    const forged = expectStatus(await request(
+      "/api/compliance/statutory-remittances/posting-import?organizationId=" + f.orgs[0].id +
+      "&employeeId=" + f.victimEmployee.id + "&batchId=" + f.victimRun.id,
+      options), 200, "Static posting GET cannot read a forged employer batch or employee");
+    assert.equal(forged.text, own.text);
+    if (postingTemplate === null) postingTemplate = own.text;
+    else assert.equal(own.text, postingTemplate, "Fixed statutory template differs by employer session");
+  }
+  console.log("PASS public statutory posting import CSV: anonymous plus three fictional employer sessions, identical nonempty template bytes and forged selectors ignored");
 }
