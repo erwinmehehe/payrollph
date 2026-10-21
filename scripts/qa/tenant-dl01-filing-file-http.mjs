@@ -38,7 +38,7 @@ function assertOwnedFilingBytes(response, fixture) {
   assert.equal(response.headers.get("x-filing-sha256"), fixture.record.fileSha256);
   assert.equal(digest(Buffer.from(response.text, "utf8")), fixture.record.fileSha256);
   assert.equal(response.headers.get("content-type"), fixture.file.contentType);
-  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("cache-control"), "no-store, max-age=0"); // Global API policy in next.config.ts.
   assert.equal(response.headers.get("content-disposition"), 'attachment; filename="' + fixture.file.filename + '"');
   assert.ok(response.text.includes("# payrollRun=" + fixture.record.payrollRunId));
 }

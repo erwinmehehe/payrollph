@@ -5,6 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
 const accountRoute = readFileSync("src/app/api/account/route.ts", "utf8");
@@ -75,3 +76,56 @@ for (const file of files) {
     }
   });
 }
+
+// Exercise the real file-response assertions too, without pretending these
+// in-memory bytes or headers are a substitute for the disposable HTTP probes.
+const filingSource = readFileSync(files[1], "utf8");
+const fileAssertion = filingSource.match(/^function assertOwnedFilingBytes\(response, fixture\) \{([\s\S]*?)^\}/m);
+assert.ok(fileAssertion, "Keep the complete owned-file assertion function");
+const verifyFile = new Function("assert", "digest", "Buffer", "response", "fixture", fileAssertion[1]);
+const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
+function ownedFile() {
+  const body = "# payrollRun=19\n" + "Fictional unit-test worksheet; no actual filing.\n".repeat(4);
+  const fixture = {
+    file: { body, contentType: "text/csv; charset=utf-8", filename: "fictional-unit.csv" },
+    record: { payrollRunId: 19, fileSha256: sha256(Buffer.from(body, "utf8")) },
+  };
+  const response = { text: body, headers: new Headers({
+    "x-filing-sha256": fixture.record.fileSha256,
+    "content-type": fixture.file.contentType,
+    "content-disposition": 'attachment; filename="fictional-unit.csv"',
+    "cache-control": "no-store, max-age=0",
+  }) };
+  return { fixture, response };
+}
+
+test("filing response matches the existing global API cache policy", () => {
+  const config = readFileSync("next.config.ts", "utf8");
+  assert.match(config, /source: "\/api\/:path\*",\s*headers:\s*\[\s*\{ key: "Cache-Control", value: "no-store, max-age=0" \}/);
+  const { fixture, response } = ownedFile();
+  verifyFile(assert, sha256, Buffer, response, fixture);
+});
+
+test("filing response rejects missing, partial or cacheable replacement policies", () => {
+  for (const cache of [null, "no-store", "no-cache", "private, max-age=0",
+    "public, max-age=3600", "no-store, max-age=3600"]) {
+    const { fixture, response } = ownedFile();
+    if (cache === null) response.headers.delete("cache-control");
+    else response.headers.set("cache-control", cache);
+    assert.throws(() => verifyFile(assert, sha256, Buffer, response, fixture),
+      error => error.code === "ERR_ASSERTION" && error.expected === "no-store, max-age=0");
+  }
+});
+
+test("filing response still rejects changed bytes, digest, content type and download name", () => {
+  for (const mutate of [
+    response => { response.text = "different fictional employer's file"; },
+    response => response.headers.set("x-filing-sha256", "0".repeat(64)),
+    response => response.headers.set("content-type", "text/html"),
+    response => response.headers.set("content-disposition", 'attachment; filename="other-employer.csv"'),
+  ]) {
+    const { fixture, response } = ownedFile();
+    mutate(response);
+    assert.throws(() => verifyFile(assert, sha256, Buffer, response, fixture), { code: "ERR_ASSERTION" });
+  }
+});
