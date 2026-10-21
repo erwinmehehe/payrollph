@@ -1,6 +1,6 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 406 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 403 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -10,7 +10,7 @@
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified authorization defect fixed on main, 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 406 method gaps and 20 page/action gaps. #1260 is merged. New evidence remains provisional until its exact-head CI passes. Source merge of this inventory does not constitute tenant-isolation certification.
+**Disposition:** 1 source-identified authorization defect fixed on main, 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 403 method gaps and 20 page/action gaps. #1260 is merged. New evidence remains provisional until its exact-head CI passes. Source merge of this inventory does not constitute tenant-isolation certification.
 
 ## Approved-exit Separation evidence
 
@@ -30,16 +30,16 @@ The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested
 
 ## Source-pinned counts
 
-Current method-level counts reconciled against [`main@28e1224448342c34a4899fb67660b3da504530c1`](https://github.com/erwinmehehe/payrollph/commit/28e1224448342c34a4899fb67660b3da504530c1) on 2026-10-21. See the [method-by-method closure plan](tenant-isolation-closure-plan.md) for 12 prioritized batches; older counts in the historical audit narrative below document earlier snapshots and are **not** current status.
+PR #1326 candidate includes new disposable own/foreign HCM probation GET/POST/PATCH evidence. Counts below are **provisional pending exact-head CI**; this is not tenant-wide certification. Current method-level counts are based on [`main@28e1224448342c34a4899fb67660b3da504530c1`](https://github.com/erwinmehehe/payrollph/commit/28e1224448342c34a4899fb67660b3da504530c1) on 2026-10-21. See the [method-by-method closure plan](tenant-isolation-closure-plan.md) for 12 prioritized batches; older counts in the historical audit narrative below document earlier snapshots and are **not** current status.
 
 | Metric | Count |
 |---|---:|
 | routeFiles | 289 |
 | methods | 490 |
 | coveredBefore | 20 |
-| coveredAfter | 76 |
+| coveredAfter | 79 |
 | publicByDesign | 8 |
-| gap | 406 |
+| gap | 403 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -331,9 +331,9 @@ Every one of the 289 route files and 490 exported handlers is in the following s
 | [`hcm/org-explorer` GET](../../src/app/api/hcm/org-explorer/route.ts#L11) | session, query | getSessionUser L1, getSessionUser L15 | searchParams.get("organizationId") L19 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/people-operations-inbox` GET](../../src/app/api/hcm/people-operations-inbox/route.ts#L19) | session, query | assertOrganizationRole L2, getAccess L3, getSessionUser L6, getSessionUser L26 | params.get("organizationId") L30 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/position-history` GET](../../src/app/api/hcm/position-history/route.ts#L11) | session, query | getSessionUser L1, getSessionUser L15 | params.get("organizationId") L19 | NO VALID METHOD PROOF | **GAP** |
-| [`hcm/probation-reviews` GET](../../src/app/api/hcm/probation-reviews/route.ts#L126) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L19, enforceSameOriginMutation L27 | searchParams.get("organizationId") L131, searchParams.get("employeeId") L132, body.organizationId L164 | NO VALID METHOD PROOF | **GAP** |
-| [`hcm/probation-reviews` POST](../../src/app/api/hcm/probation-reviews/route.ts#L156) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L19, enforceSameOriginMutation L27 | searchParams.get("organizationId") L131, searchParams.get("employeeId") L132, body.organizationId L164 | NO VALID METHOD PROOF | **GAP** |
-| [`hcm/probation-reviews` PATCH](../../src/app/api/hcm/probation-reviews/route.ts#L234) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L19, enforceSameOriginMutation L27 | searchParams.get("organizationId") L131, searchParams.get("employeeId") L132, body.organizationId L164 | NO VALID METHOD PROOF | **GAP** |
+| [`hcm/probation-reviews` GET](../../src/app/api/hcm/probation-reviews/route.ts#L126) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L19, enforceSameOriginMutation L27 | searchParams.get("organizationId") L131, searchParams.get("employeeId") L132, body.organizationId L164 | synthetic real own/victim HTTP proof: scripts/qa/hcm-probation-sweep-http.mjs | **COVERED (CI pending)** |
+| [`hcm/probation-reviews` POST](../../src/app/api/hcm/probation-reviews/route.ts#L157) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L19, enforceSameOriginMutation L27 | searchParams.get("organizationId") L131, searchParams.get("employeeId") L132, body.organizationId L164 | synthetic real own/victim HTTP proof: scripts/qa/hcm-probation-sweep-http.mjs | **COVERED (CI pending)** |
+| [`hcm/probation-reviews` PATCH](../../src/app/api/hcm/probation-reviews/route.ts#L235) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L19, enforceSameOriginMutation L27 | searchParams.get("organizationId") L131, searchParams.get("employeeId") L132, body.organizationId L164 | synthetic real own/victim HTTP proof: scripts/qa/hcm-probation-sweep-http.mjs | **COVERED (CI pending)** |
 | [`hcm/process-monitor` GET](../../src/app/api/hcm/process-monitor/route.ts#L20) | session, query | assertOrganizationRole L1, getAccess L1, getSessionUser L2, getSessionUser L26 | params.get("organizationId") L22 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/salary-corrections/preview` POST](../../src/app/api/hcm/salary-corrections/preview/route.ts#L24) | session, body | assertOrganizationRole L4, getAccess L4, getSessionUser L5, enforceSameOriginMutation L8 | body.organizationId L40, body.employeeId L41, body.legalEntityId L42 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/team-leave-calendar` GET](../../src/app/api/hcm/team-leave-calendar/route.ts#L23) | session, query | assertOrganizationRole L1, getAccess L1, getSessionUser L2, getSessionUser L27 | params.get("organizationId") L31 | NO VALID METHOD PROOF | **GAP** |
