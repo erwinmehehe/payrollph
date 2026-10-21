@@ -66,7 +66,10 @@ test("government-loan GET and POST must retain real own/foreign PG16 proof", () 
     assert.equal(method.testedBy?.file, "scripts/qa/government-loan-read-http.mjs");
     assert.match(suite[method.testedBy.ownPositiveLine - 1], /expectStatus\(await request\(/);
     assert.match(suite[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\(/);
-    assert.match(suite[method.testedBy.foreignDenialLine - 1], /403/);
+    const foreignSpan = suite.slice(method.testedBy.foreignDenialLine - 1,
+      method.testedBy.foreignDenialLine + 7).join("\n");
+    assert.match(foreignSpan, /\), 403,/,
+      "The exact source-pinned foreign request must assert HTTP 403");
     if (method.name === "POST") assert.match(suite[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(/);
   }
   assert.match(harness, /verifyGovernmentLoanRemittanceIsolation\(f, \{ request, expectStatus \}\)/);
