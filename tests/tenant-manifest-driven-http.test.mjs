@@ -55,7 +55,28 @@ test("single table-driven test reads ALL 490 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 4);
+  // Do not re-count proven GETs as GAPs or silently certify an untested adapter.
+  // The statutory, BIR and government-loan GETs have independent source-pinned
+  // PG16 own/foreign HTTP proof; the remaining three have no such accepted proof.
+  const expectedGaps = [
+    "GET compliance/statutory-remittances/payment-evidence/[id]",
+    "GET compliance/statutory-remittances/payment-evidence",
+    "GET compliance/remittance-actions",
+  ];
+  const expectedCovered = [
+    "GET compliance/bir-1601c-remittances",
+    "GET compliance/government-loan-remittances",
+    "GET compliance/statutory-remittances",
+  ];
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP").sort(),
+    expectedGaps.sort(), "Every unverified adapter must remain an explicit GAP");
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "COVERED").sort(),
+    expectedCovered.sort(), "Do not silently downgrade or double-credit verified HTTP GETs");
+  for (const spec of expectedCovered) {
+    const proof = registry.get(spec).testedBy;
+    assert.ok(proof?.file && proof.ownPositiveLine && proof.foreignDenialLine,
+      spec + ": COVERED requires source-pinned own success and victim denial");
+  }
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
   assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);
