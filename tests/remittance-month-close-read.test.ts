@@ -102,10 +102,66 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 493);
-  assert.equal(manifest.metrics.coveredAfter, 91, "Attendance, HCM, twelve high-risk GETs and three #641 correction-case methods");
-  assert.equal(manifest.metrics.gap, 394, "Payout provider POST and 393 other unverified methods remain GAPs");
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
+  // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
+  // can only close GAPs if every method cites the corresponding isolated HTTP
+  // suite, executed for both attacker employers against real victim rows.
+  const newSuites = [
+    { file: "scripts/qa/compliance-read-sweep-http.mjs",
+      entry: "verifyComplianceReadSweep",
+      keys: [
+        "GET bir/annual-employer/module-evidence", "POST bir/annual-employer/module-evidence",
+        "GET compliance/dole-13th-month", "POST compliance/dole-13th-month",
+        "GET compliance/government-loan-remittances", "POST compliance/government-loan-remittances",
+        "GET compliance/statutory-remittances/payment-evidence",
+        "POST compliance/statutory-remittances/payment-evidence",
+      ] },
+    { file: "scripts/qa/hcm-probation-sweep-http.mjs",
+      entry: "verifyHcmProbationSweep",
+      keys: [
+        "GET hcm/probation-reviews", "POST hcm/probation-reviews",
+        "PATCH hcm/probation-reviews",
+      ] },
+  ];
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
+  let newlySourcePinned = 0;
+  for (const suite of newSuites) {
+    const methods = suite.keys.map((key) => {
+      const [name, route] = key.split(" ");
+      const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]
+        ?.methods.find((entry: { name: string }) => entry.name === name);
+      assert.ok(method, key + ": method must exist");
+      assert.ok(method.status === "GAP" ||
+        (method.status === "COVERED" && method.testedBy?.file === suite.file),
+        key + ": only actual source-pinned own/victim HTTP tests may close a GAP");
+      if (method.status === "GAP") assert.equal(method.testedBy, null);
+      return method;
+    });
+    const added = methods.filter((method) => method.status === "COVERED").length;
+    assert.ok(added === 0 || added === suite.keys.length,
+      suite.file + ": partial HTTP suites cannot receive method-level credit");
+    if (!added) continue;
+    assert.ok(harnessLines.some(line => line.includes(suite.entry + "(f, { request, expectStatus })")),
+      suite.file + ": proof must run in the guarded PG16 second-pass HTTP job");
+    const source = readFileSync(suite.file, "utf8").split("\n");
+    assert.ok(source.some(line => line.includes("for (const idx of [1, 2])")),
+      suite.file + ": exercise two independent attackers");
+    for (const method of methods) {
+      const { ownPositiveLine, foreignDenialLine, unchangedDbLine } = method.testedBy;
+      assert.match(source[ownPositiveLine - 1] ?? "", /expectStatus\(await request(?:Multipart)?\(/,
+        method.name + ": authenticated own-employer success required");
+      assert.match(source[foreignDenialLine - 1] ?? "", /403\s*,/,
+        method.name + ": foreign-employer 403 required");
+      if (method.name !== "GET") assert.match(source[unchangedDbLine - 1] ?? "",
+        /assert\.deepEqual\(/,
+        method.name + ": denied mutation must leave victim rows unchanged");
+    }
+    newlySourcePinned += added;
+  }
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 91,
+    "Keep 91 historical COVERED methods; add only proven HCM/compliance methods");
+  assert.equal(manifest.metrics.gap + newlySourcePinned, 394,
+    "Never close a historical GAP without its source-linked HTTP proof");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);
     return harnessLines[number - 1];
