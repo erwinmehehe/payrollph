@@ -90,7 +90,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(payExplain?.status, "COVERED");
   assert.equal(payExplain?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs",
     "Keep the newer source-matched own/foreign real-HTTP pay-explanation proof");
-  assert.equal(manifest.metrics.coveredAfter, 88);
+  assert.equal(manifest.metrics.coveredAfter, 91, "88 after Batch 01 plus three #641 correction-case methods");
   assert.equal(manifest.metrics.gap, 394);
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
