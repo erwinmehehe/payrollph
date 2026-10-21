@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 493);
-  assert.equal(manifest.metrics.gap, 383, "383 methods remain uncertified after independent statutory and compliance HTTP proofs");
-  assert.equal(manifest.metrics.coveredAfter, 100, "100 unioned methods, with shared payment-evidence GET counted once");
+  assert.equal(manifest.metrics.gap, 380, "383 methods remain uncertified after independent statutory and compliance HTTP proofs");
+  assert.equal(manifest.metrics.coveredAfter, 103, "100 unioned methods, with shared payment-evidence GET counted once");
   assert.equal(manifest.metrics.publicByDesign, 10, "Retain two independently reviewed inert template methods");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
@@ -82,7 +82,7 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
       method.testedBy?.forgedSelectorLine && method.testedBy?.unchangedDbLine,
       spec + ": proof requires own response, foreign denial, forged selector and unchanged victim DB");
   }
-  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 2,
+  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 1,
     "Only remittance-actions and posting-evidence GET remain unproven table-driven adapters");
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);

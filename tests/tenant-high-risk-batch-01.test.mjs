@@ -168,9 +168,9 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     }
     additionalSourcePinnedMethods += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 93,
-    "All 93 source-validated main methods must remain, plus seven nonduplicate compliance proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 390,
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 96,
+    "All 96 source-validated main methods must remain, plus seven nonduplicate compliance proofs");
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 387,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
