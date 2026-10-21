@@ -231,7 +231,8 @@ export async function inspectExtension(client) {
 }
 
 export function reportWriter(kind, path) {
-  const report = { kind, version: 1, checks: [], safe: true, databaseWrites: kind === "ci",
+  const ci = kind === "ci" || kind.includes("ci-smoke");
+  const report = { kind, version: 1, checks: [], safe: true, databaseWrites: ci,
     productionReleaseApproved: false };
   const check = async (name, run, options = {}) => {
     try {
@@ -255,7 +256,7 @@ export function reportWriter(kind, path) {
     Object.assign(report, extra);
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify(report, null, 2) + "\n", { mode: 0o600 });
-    if (process.env.GITHUB_STEP_SUMMARY && kind === "ci") {
+    if (process.env.GITHUB_STEP_SUMMARY && ci) {
       const summary = [
         "## Post-cutover smoke (disposable, no Neon)",
         "",
