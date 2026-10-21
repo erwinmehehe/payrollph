@@ -50,7 +50,7 @@ if (!process.argv.includes("--serve")) {
         const page = await browser.newPage({viewport:{width,height:900}});
         const errors=[];page.on("pageerror",e=>errors.push(e.message));
         await page.goto(url+"/?variant="+variant+"&mode="+mode);
-        await page.locator("#root main").waitFor();
+        await page.locator("#root main").waitFor({state:"attached"});
         if (mode !== "loading") {
           // Wait for the component's async read rather than an arbitrary delay.
           if (variant === "on") await page.getByRole(mode === "empty" ? "status" : "alert").first().waitFor();
