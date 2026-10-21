@@ -4,10 +4,10 @@
   "generated": "2026-10-20",
   "acceptanceStatus": "NOT ACCEPTED: 406 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required.",
   "metrics": {
-    "routeFiles": 289,
-    "methods": 490,
+    "routeFiles": 290,
+    "methods": 493,
     "coveredBefore": 20,
-    "coveredAfter": 76,
+    "coveredAfter": 79,
     "publicByDesign": 8,
     "gap": 406,
     "scopedPagesAndActions": 20,
@@ -13513,6 +13513,98 @@
         {
           "line": 50,
           "token": "organizationId"
+        }
+      ]
+    },
+    "src/app/api/hcm/salary-corrections/cases/route.ts": {
+      "gitBlobSha": "f1fd558aabe78b0899b91b00d38b43b09e1d2a67",
+      "route": "hcm/salary-corrections/cases",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 45,
+          "status": "COVERED",
+          "reason": "Two MFA-verified owners list their own persisted correction case 200 without the victim-only case; forged victim organizationId 403; victim cases unchanged.",
+          "testedBy": {
+            "file": "scripts/qa/salary-correction-case-tenant-proof.mjs",
+            "line": 84,
+            "ownPositiveLine": 81,
+            "foreignDenialLine": 84,
+            "scope": "Synthetic MFA-verified owners in two employers; real own HTTP success, real victim-only case/employer denial, disposable PG16, flag-on isolated server, no money, provider or production approval"
+          }
+        },
+        {
+          "name": "PATCH",
+          "line": 95,
+          "status": "COVERED",
+          "reason": "Two MFA-verified owners PATCH their own case run 200 with a persisted decision; victim employer PATCH 403 and victim case ID inside own employer 404; victim cases, runs and audit unchanged.",
+          "testedBy": {
+            "file": "scripts/qa/salary-correction-case-tenant-proof.mjs",
+            "line": 92,
+            "ownPositiveLine": 86,
+            "foreignDenialLine": 92,
+            "unchangedDbLine": 100,
+            "scope": "Synthetic MFA-verified owners in two employers; real own HTTP success, real victim-only case/employer denial, disposable PG16, flag-on isolated server, no money, provider or production approval"
+          }
+        },
+        {
+          "name": "POST",
+          "line": 77,
+          "status": "COVERED",
+          "reason": "Two MFA-verified owners POST an owned case 201 snapshotting their own Released run; victim employer POST 403 and victim worker inside own employer 404; victim cases, runs and audit unchanged.",
+          "testedBy": {
+            "file": "scripts/qa/salary-correction-case-tenant-proof.mjs",
+            "line": 76,
+            "ownPositiveLine": 71,
+            "foreignDenialLine": 76,
+            "unchangedDbLine": 100,
+            "scope": "Synthetic MFA-verified owners in two employers; real own HTTP success, real victim-only case/employer denial, disposable PG16, flag-on isolated server, no money, provider or production approval"
+          }
+        }
+      ],
+      "employerSources": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      },
+      "guards": [
+        {
+          "line": 47,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 51,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 54,
+          "token": "getAccess"
+        },
+        {
+          "line": 60,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 64,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 66,
+          "token": "getAccess"
+        },
+        {
+          "line": 68,
+          "token": "requireSensitiveActionMfa"
+        },
+        {
+          "line": 79,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 97,
+          "token": "enforceSameOriginMutation"
         }
       ]
     },

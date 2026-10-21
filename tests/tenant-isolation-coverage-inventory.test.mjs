@@ -228,7 +228,40 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
   assert.equal(manifest.metrics.gap, 406, "Five attendance plus four HCM methods have real source-pinned HTTP proof");
-  assert.equal(manifest.metrics.coveredAfter, 76, "Retain 72 earlier methods plus four HCM methods");
+  assert.equal(manifest.metrics.coveredAfter, 79, "Retain 76 earlier methods plus three #641 correction-case methods");
+});
+
+test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
+  const workflow = readFileSync(".github/workflows/salary-correction-cases-qa.yml", "utf8");
+  const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+  const file = "scripts/qa/salary-correction-case-tenant-proof.mjs";
+  const lines = readFileSync(file, "utf8").split("\n");
+  assert.match(workflow, /HCM_SALARY_CORRECTION_CASES_ENABLED: "true"/);
+  assert.match(workflow, /TENANT_641_SALARY_CORRECTION_CASE_PROOF: isolated-ci-only/);
+  assert.match(workflow, /PAYROLL_UNDERPAYMENT_POSTING_ENABLED: "false"/);
+  assert.match(harness, /if \(process\.env\.TENANT_641_SALARY_CORRECTION_CASE_PROOF === "isolated-ci-only"\) await/);
+  assert.match(harness, /verifySalaryCorrectionCaseTenantIsolation\(f, \{ request, expectStatus \}\)/);
+  assert.match(lines.join("\n"), /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+  assert.match(lines.join("\n"), /for \(const idx of \[1, 2\]\)/);
+  const record = manifest.allApiRouteFiles["src/app/api/hcm/salary-corrections/cases/route.ts"];
+  for (const [name, ownStatus] of [["GET", 200], ["POST", 201], ["PATCH", 200]]) {
+    const method = record.methods.find((item) => item.name === name);
+    assert.equal(method?.status, "COVERED");
+    assert.equal(method.testedBy?.file, file);
+    const ownSpan = lines.slice(method.testedBy.ownPositiveLine - 1, method.testedBy.ownPositiveLine + 2).join("\n");
+    const deniedSpan = lines.slice(method.testedBy.foreignDenialLine - 1, method.testedBy.foreignDenialLine + 3).join("\n");
+    assert.ok(ownSpan.includes("expectStatus(await request(\"/api/hcm/salary-corrections/cases") && ownSpan.includes("), " + ownStatus + ","),
+      name + ": positive must be a successful request to the claimed route");
+    assert.ok(deniedSpan.includes("expectStatus(await request(\"/api/hcm/salary-corrections/cases") && deniedSpan.includes("victim.id") &&
+      deniedSpan.includes("), 403,"), name + ": denial must name the real victim employer and assert 403");
+    if (name !== "GET") {
+      assert.ok(ownSpan.includes('method: "' + name + '"') && deniedSpan.includes('method: "' + name + '"'),
+        "Mutation proof must use the claimed method");
+      assert.match(lines[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(victimCasesAfter, victimCasesBefore/);
+    }
+  }
+  assert.match(lines.join("\n"), /assert\.deepEqual\(victimCaseRunsAfter, victimCaseRunsBefore/);
+  assert.match(lines.join("\n"), /assert\.deepEqual\(victimAuditAfter, victimAuditBefore/);
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
@@ -462,9 +495,14 @@ test("all credited proof links point to the claimed route and every recertified 
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
+        "scripts/qa/salary-correction-case-tenant-proof.mjs",
         "scripts/qa/workforce-attendance-sweep-http.mjs",
         "scripts/qa/hcm-work-queue-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
+      if (proof.file === "scripts/qa/salary-correction-case-tenant-proof.mjs") {
+        assert.equal(path, "src/app/api/hcm/salary-corrections/cases/route.ts",
+          path + ": only the #641 cases endpoint may cite this source");
+      }
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
         const integration = readFileSync(proof.file, "utf8");

@@ -101,8 +101,8 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
-  assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.coveredAfter, 76, "Retain five attendance and add four HCM proof methods");
+  assert.equal(manifest.metrics.methods, 493);
+  assert.equal(manifest.metrics.coveredAfter, 79, "Retain earlier proofs and add three #641 correction-case methods");
   assert.equal(manifest.metrics.gap, 406, "Payout provider POST and 405 other untested methods remain GAPs");
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {

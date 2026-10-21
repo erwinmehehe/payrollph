@@ -19,6 +19,11 @@ const currentBytes = readFileSync("src/db/schema.ts");
 const currentSourceBlob = createHash("sha1")
   .update("blob " + currentBytes.byteLength + "\0")
   .update(currentBytes).digest("hex");
+// Reviewed source tables added after the capture, each created by a numbered migration.
+const ADDED_SINCE_CAPTURE = [
+  "salary_correction_case_runs", // drizzle/0135_salary_correction_cases.sql (#641)
+  "salary_correction_cases", // drizzle/0135_salary_correction_cases.sql (#641)
+];
 const compareCurrent = (catalog: CatalogInventory = baseline,
   manifest = source) => planRecoveredSchema(catalog, manifest, "current-source-advisory");
 
@@ -75,8 +80,12 @@ test("the advisory comparison counts current missing tables without mutating his
     "compensation_automation_intents"]?.includes(
       "drizzle/0100_compensation_automation_intents.sql"));
   assert.equal(report.historicalCreatorCoverage.appliedMigrationsVerified, false);
-  assert.deepEqual(report.sourceComparison.addedSourceTablesSinceCapture, []);
+  assert.deepEqual(report.sourceComparison.addedSourceTablesSinceCapture, ADDED_SINCE_CAPTURE);
   assert.deepEqual(report.sourceComparison.removedSourceTablesSinceCapture, []);
+  for (const name of ADDED_SINCE_CAPTURE) {
+    assert.ok(report.historicalCreatorCoverage.historicalFileCandidatesByTable[name]?.includes(
+      "drizzle/0135_salary_correction_cases.sql"), name + ": added table needs a numbered creator migration");
+  }
 });
 
 test("all missing source tables are ordered or explicitly unresolved", () => {
@@ -136,7 +145,7 @@ test("future source tables cannot rewrite historical source gap results", () => 
   assert.equal(report.summary.missingDeclaredTables,
     source.tables.filter(t => !baseline.tables.includes(t.name)).length + 1);
   assert.deepEqual(report.sourceComparison.addedSourceTablesSinceCapture,
-    ["zz_future_source_relation"]);
+    [...ADDED_SINCE_CAPTURE, "zz_future_source_relation"]);
   assert.ok(report.missingDeclaredTables.includes("zz_future_source_relation"));
   assert.equal(report.productionReleaseApproved, false);
 });

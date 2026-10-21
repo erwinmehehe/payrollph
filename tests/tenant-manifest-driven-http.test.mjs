@@ -13,10 +13,10 @@ const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
-test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 490);
+test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
+  assert.equal(manifest.metrics.methods, 493);
   assert.equal(manifest.metrics.gap, 406, "Five attendance and four HCM proofs reduce open gaps to 406");
-  assert.equal(manifest.metrics.coveredAfter, 76, "Retain previous 72 methods plus four independently exercised HCM HTTP proofs");
+  assert.equal(manifest.metrics.coveredAfter, 79, "Retain previous 76 methods plus three new #641 correction-case HTTP proofs");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -42,8 +42,8 @@ test("single table-driven test reads ALL 490 methods without claiming precovered
   assert.match(proofLines[governanceMethod.testedBy.ownPositiveLine - 1], /\/api\/hcm\/governance-readiness.*\), 200,/);
   assert.match(proofLines[governanceMethod.testedBy.foreignDenialLine - 1], /\/api\/hcm\/governance-readiness.*victim\.id.*\), 403,/);
   assert.match(harness, /await verifyGovernanceTenantRead\(f\)/);
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 490,
-    "No method may disappear from the audited 490-route-method inventory");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493,
+    "No method may disappear from the audited 493-route-method inventory");
   assert.equal(manifest.sourceTraceCandidates.length, 34);
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
