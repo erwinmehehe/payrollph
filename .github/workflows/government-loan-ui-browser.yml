@@ -1,0 +1,66 @@
+name: Government loan flag OFF/ON desktop and 390px QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/components/government-loan-remittance-panel.tsx"
+      - "src/components/government-loan-remittance-panel-legacy.tsx"
+      - "src/lib/government-loan-remittance-read.ts"
+      - "src/lib/critical-release-flags.ts"
+      - "scripts/qa/government-loan-ui-browser.mjs"
+      - ".github/workflows/government-loan-ui-browser.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: government-loan-ui-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  desktop-and-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.55.0
+      - name: Use installed Chrome/Chromium or install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser=""
+          for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              browser=$(command -v "$candidate")
+              break
+            fi
+          done
+          if [ -n "$browser" ]; then
+            echo "QA_CHROMIUM_EXECUTABLE=$browser" >> "$GITHUB_ENV"
+            echo "Using installed runner browser: $browser"
+          else
+            echo "Runner browser unavailable; installing Playwright's pinned Chromium."
+            npx playwright install --with-deps chromium
+          fi
+      - name: Verify flag-off DOM parity and actual responsive UI states
+        run: node scripts/qa/government-loan-ui-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: government-loan-ui-${{ github.sha }}
+          path: |
+            qa-artifacts/government-loan-*.png
+            qa-artifacts/government-loan-browser-report.json
+          if-no-files-found: warn

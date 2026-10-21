@@ -1,5 +1,7 @@
 "use client";
 
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { GovernmentLoanRemittancePanel as LegacyPanel } from "./government-loan-remittance-panel-legacy";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
 import { isConfirmedGovernmentLoanMutation, isVerifiedGovernmentLoanRemittanceRead, type GovernmentLoanRead } from "@/lib/government-loan-remittance-read";
@@ -47,6 +49,10 @@ export function GovernmentLoanRemittancePanel(props: {
   organizationId: number;
   setNotice: (message: string) => void;
 }) {
+  if (!criticalReleaseFlagEnabled("governmentLoanRemittanceUi", {
+    NEXT_PUBLIC_GOVERNMENT_LOAN_REMITTANCE_UI_ENABLED:
+      process.env.NEXT_PUBLIC_GOVERNMENT_LOAN_REMITTANCE_UI_ENABLED,
+  })) return <LegacyPanel {...props} />;
   // Employer scope is tenant-private. Remount on a new organizationId so no
   // batch, member or posting state from the previous employer can render.
   return <GovernmentLoanRemittancePanelContent key={props.organizationId} {...props} />;
