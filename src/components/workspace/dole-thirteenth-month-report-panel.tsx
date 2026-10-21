@@ -125,7 +125,7 @@ function ScopedDoleThirteenthMonthReportPanel({
   const loadControllerRef = useRef<AbortController | null>(null);
   const mutationRevisionRef = useRef(0);
 
-  const load = useCallback(async (): Promise<boolean> => {
+  const load = useCallback(async (expected?: (value: State) => boolean): Promise<boolean> => {
     if (!mountedRef.current) return false;
     loadControllerRef.current?.abort();
     const controller = new AbortController();
@@ -158,6 +158,7 @@ function ScopedDoleThirteenthMonthReportPanel({
       if (!isVerifiedDoleThirteenthRead(body, organizationId, taxYear)) {
         throw new Error("DOLE report identity, totals or submission evidence could not be verified. Retry.");
       }
+      if (expected && !expected(body)) throw new Error("Updated DOLE record not confirmed by fresh read.");
       setState(body);
       setProfile({
         establishmentAddress: body.profile?.establishmentAddress ?? "",
@@ -205,8 +206,26 @@ function ScopedDoleThirteenthMonthReportPanel({
       const body = await response.json().catch(() => ({}));
       if (!isCurrentMutation()) return;
       if (!response.ok) throw new Error(body.error ?? "DOLE reporting update failed.");
-      const refreshed = await load();
-      if (!mountedRef.current || !refreshed) return;
+      const refreshed = await load((fresh) => {
+        if (action === "save_profile") {
+          const saved = body?.profile;
+          return saved?.organizationId === organizationId && fresh.profile !== null &&
+            ["establishmentAddress", "principalBusiness", "contactName", "contactPosition", "contactPhone"]
+              .every(key => fresh.profile?.[key as keyof NonNullable<State["profile"]>] === saved?.[key]);
+        }
+        const saved = body?.submission;
+        return Number.isSafeInteger(saved?.id) && saved.id > 0 &&
+          saved.organizationId === organizationId && saved.reportHash === body?.reportHash &&
+          fresh.reportHash === body.reportHash && fresh.submissionCurrent &&
+          fresh.submissionHistory.some(row => row.id === saved.id &&
+            row.reportHash === saved.reportHash && row.portalReference === saved.portalReference &&
+            row.submittedAt === saved.submittedAt);
+      });
+      if (!mountedRef.current) return;
+      if (!refreshed) {
+        notify("The DOLE update may have been recorded, but its current state could not be verified. Inspect the report before retrying.", "err");
+        return;
+      }
       notify(
         action === "save_profile"
           ? "DOLE reporting profile saved."
