@@ -82,7 +82,7 @@ export async function verifyComplianceReadSweep(f, { request, expectStatus }) {
       "&taxYear=" + year, { cookie }), 200,
       "Actual owned 13th-month report must load");
     assert.equal(ownDole.json?.organizationId, own.id);
-    assert.equal(ownDole.json?.taxYear, year);
+    assert.equal(ownDole.json?.taxYear, year); assert.ok((await import("../../src/lib/dole-thirteenth-month-read")).isVerifiedDole13thRead(ownDole.json, own.id, year), "Actual DOLE API payload must pass the client fail-closed contract");
     assert.equal(ownDole.json?.profileComplete, true);
     assert.ok(ownDole.json?.report?.employees?.length > 0,
       "Positive DOLE GET needs real seeded released payroll employees");
@@ -104,7 +104,7 @@ export async function verifyComplianceReadSweep(f, { request, expectStatus }) {
       "Authorized employer reads its real synthetic SSS loan batch");
     assert.equal(ownLoanRead.json?.organizationId, own.id);
     assert.ok(ownLoanRead.json?.batches?.some(x => x.id === loanSeed[idx].batch.id));
-    assert.ok(ownLoanRead.json?.members?.some(x => x.id === loanSeed[idx].member.id));
+    assert.ok(ownLoanRead.json?.members?.some(x => x.id === loanSeed[idx].member.id)); assert.ok((await import("../../src/lib/government-loan-remittance-read")).isVerifiedGovernmentLoanRead(ownLoanRead.json, own.id), "Actual loan remittance API must satisfy scoped client validation");
     expectStatus(await request(
       "/api/compliance/government-loan-remittances?organizationId=" + victim.id +
       "&legalEntityId=" + f.entities[0].id, { cookie }), 403,
@@ -186,7 +186,7 @@ async function verifyBirAndPaymentProof(f, { request, expectStatus }) {
     assert.equal(ownModule.json?.organizationId, own.id);
     assert.equal(ownModule.json?.legalEntityId, f.entities[idx].id);
     assert.equal(ownModule.json?.taxYear, taxYear);
-    assert.match(ownModule.json?.sourceDigest, /^[a-f0-9]{64}$/);
+    assert.match(ownModule.json?.sourceDigest, /^[a-f0-9]{64}$/); assert.ok((await import("../../src/lib/bir-1604c-module-read")).isVerifiedBirModuleEvidence(ownModule.json, { organizationId: own.id, legalEntityId: f.entities[idx].id, taxYear, sourceDigest: null }), "Actual BIR module API must satisfy client validation");
     expectStatus(await request(
       "/api/bir/annual-employer/module-evidence?organizationId=" + victim.id +
       "&legalEntityId=" + f.entities[0].id + "&taxYear=" + taxYear,
@@ -227,7 +227,7 @@ async function verifyBirAndPaymentProof(f, { request, expectStatus }) {
       { cookie }), 200, "Own synthetic payment-proof GET must show real recorded proof");
     assert.equal(ownProof.json?.organizationId, own.id);
     assert.equal(ownProof.json?.batchId, proofRows[idx].batch.id);
-    assert.ok(ownProof.json?.evidence?.some(row => row.id === proofRows[idx].stored.id));
+    assert.ok(ownProof.json?.evidence?.some(row => row.id === proofRows[idx].stored.id)); assert.ok((await import("../../src/lib/statutory-payment-proof-read")).isVerifiedPaymentProofRead(ownProof.json, own.id, proofRows[idx].batch.id), "Actual payment proof index must satisfy scoped client contract");
     expectStatus(await request(
       "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
       victim.id + "&batchId=" + proofRows[0].batch.id,
