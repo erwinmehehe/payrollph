@@ -104,6 +104,34 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(method.testedBy, null, "Payout POST remains uncertified, never COVERED");
     return;
   }
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/readiness/workspace/route.ts GET") {
+    // A 503 own read is NOT a successful readiness read. The sole approved
+    // exception is a SHA-pinned deny-by-default endpoint and executable,
+    // independent foreign-denial proof; the method stays GAP.
+    const proof = method.reviewedUncertified;
+    assert.equal(currentBlob, "10121c3378f2e4ee983ab9b9551498a6f8dccdfd",
+      "Changes to the readiness route must renew containment review");
+    assert.equal(proof?.routeBlobSha, currentBlob);
+    assert.equal(proof?.file, "scripts/qa/workspace-readiness-http.mjs");
+    assert.equal(proof?.ownStatus, 503);
+    assert.equal(proof?.foreignStatus, 403);
+    const own = evidenceLine(proof.file, proof.ownPositiveLine, key + " own 503");
+    const foreign = evidenceLine(proof.file, proof.foreignDenialLine, key + " foreign 403");
+    const lines = readableLines(proof.file);
+    const ownSpan = lines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 3).join("\n");
+    assert.match(own, /const ownReadinessUnavailable = expectStatus\(await request\(/);
+    assert.match(ownSpan, /\), 503,/);
+    assert.match(foreign, /expectStatus\(await request\(/);
+    assert.match(foreign, /\), 403,/);
+    assert.match(lines.join("\n"), /TENANT_SECOND_PASS_MODE/);
+    assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),
+      /verifyWorkspaceReadinessIsolation\(f, \{ request, expectStatus \}\)/);
+    assert.match(readFileSync("src/app/api/readiness/workspace/route.ts", "utf8"),
+      /return tenantReadinessUnavailable\(organizationId\)/);
+    assert.equal(method.testedBy, null, "No successful owned readiness read: keep GAP");
+    return;
+  }
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
@@ -199,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 413, "Two statutory methods add real own/foreign evidence");
-  assert.equal(manifest.metrics.coveredAfter, 69, "Retain #1302 proofs and two statutory methods");
+  assert.equal(manifest.metrics.gap, 408, "Five attendance and two statutory payment-proof methods have source-pinned HTTP evidence");
+  assert.equal(manifest.metrics.coveredAfter, 74, "Preserve the five workforce attendance and two payment-proof method gains");
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
@@ -440,8 +468,8 @@ test("all credited proof links point to the claimed route and every recertified 
         ["GET", "POST"].includes(method.name);
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
-        "scripts/qa/pr-1302-tenant-proof.mjs"].includes(proof?.file)
-        || statutoryManifestProof,
+        "scripts/qa/pr-1302-tenant-proof.mjs",
+        "scripts/qa/workforce-attendance-sweep-http.mjs"].includes(proof?.file) || statutoryManifestProof,
         path + " " + method.name + ": unsupported evidence source");
       if (statutoryManifestProof) {
         const harness = source.join("\n");
@@ -499,6 +527,16 @@ test("all credited proof links point to the claimed route and every recertified 
           path + ": denied requests must leave real victim data unchanged");
         assert.match(integration, /process\.env\.TENANT_SECOND_PASS_MODE/,
           path + ": isolated-only guard is mandatory");
+      }
+      if (proof.file === "scripts/qa/workforce-attendance-sweep-http.mjs") {
+        const runner=readFileSync("scripts/qa/tenant-second-pass-http.mjs","utf8");
+        const suite=readFileSync(proof.file,"utf8");
+        assert.match(runner,/verifyWorkforceAttendanceSweep\(f,\{request,expectStatus\}\)/,
+          "Attendance proof must execute from protected real-HTTP PostgreSQL16 harness");
+        assert.match(suite,/process\.env\.TENANT_SECOND_PASS_MODE/);
+        assert.match(suite,/assert\.deepEqual\(victimEventsAfter,victimEventsBefore/);
+        assert.match(suite,/assert\.deepEqual\(victimPoliciesAfter,victimPoliciesBefore/);
+        assert.match(suite,/assert\.deepEqual\(victimLocksAfter,victimLocksBefore/);
       }
       if (proof.file === "scripts/qa/bank-tenant-http.mjs") {
         assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),

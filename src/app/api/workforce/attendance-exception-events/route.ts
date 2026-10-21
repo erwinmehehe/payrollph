@@ -104,6 +104,8 @@ export async function GET(request: Request) {
 
   if (employeeIds.length === 0) {
     return Response.json({
+      organizationId,
+      range: { startDate, endDate },
       summary: { open: 0, overdue: 0, unassigned: 0, resolved: 0 },
       exceptions: [],
       ownerCandidates: [],
@@ -135,6 +137,8 @@ export async function GET(request: Request) {
   }));
 
   return Response.json({
+    organizationId,
+    range: { startDate, endDate },
     summary: {
       open: exceptions.filter((row) => row.status === "open").length,
       overdue: exceptions.filter((row) => row.status === "open" && row.slaStatus === "overdue").length,
@@ -267,7 +271,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return Response.json({ exception: operationalView(updated, new Date()) });
+    return Response.json({ organizationId, eventId, exception: operationalView(updated, new Date()) });
   }
 
   if (action === "record_resolution") {
@@ -311,7 +315,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return Response.json({ exception: operationalView(updated, now) });
+    return Response.json({ organizationId, eventId, exception: operationalView(updated, now) });
   }
 
   return Response.json({
