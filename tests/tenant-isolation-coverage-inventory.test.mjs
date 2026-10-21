@@ -498,10 +498,21 @@ test("all credited proof links point to the claimed route and every recertified 
             /expectStatus\s*\(\s*await request(?:Multipart)?\s*\(/.test(line));
           assert.ok(offset >= 0, path + ": missing actual " + expectedLabel + " HTTP call");
           const requestStart = searchStart + offset;
+          const statusEnd = proofLines.findIndex((line, i) =>
+            i >= requestStart && i <= requestStart + 15 &&
+            /\)\s*,\s*\d{3}\s*,/.test(line));
+          assert.ok(statusEnd >= requestStart,
+            path + ": " + expectedLabel + " must assert a real HTTP status");
+          if (expectedLabel === "foreign-denial") {
+            assert.equal(statusEnd, at,
+              path + ": foreign-denial pointer must be the exact status assertion");
+          } else {
+            assert.equal(requestStart, at,
+              path + ": own-positive pointer must be the exact request start");
+          }
           return {
             start: proofLines[requestStart],
-            throughStatus: proofLines.slice(requestStart, at + 1).join("\n"),
-            following: proofLines.slice(requestStart, Math.min(proofLines.length, at + 4)).join("\n"),
+            throughStatus: proofLines.slice(requestStart, statusEnd + 1).join("\n"),
           };
         }
         const own = completeRequest(proof.ownPositiveLine, "own-positive");
@@ -533,7 +544,7 @@ test("all credited proof links point to the claimed route and every recertified 
         }
         const ownStatus = path === "src/app/api/hcm/probation-reviews/route.ts" &&
           method.name === "POST" || isMultipart ? 201 : 200;
-        const assertedOwnStatus = own.following.match(/\)\s*,\s*(\d{3})\s*,/);
+        const assertedOwnStatus = own.throughStatus.match(/\)\s*,\s*(\d{3})\s*,/);
         assert.equal(Number(assertedOwnStatus?.[1]), ownStatus,
           path + ": valid own-employer HTTP success is mandatory");
         assert.match(own.throughStatus, /own\.id/,
