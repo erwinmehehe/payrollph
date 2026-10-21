@@ -80,7 +80,7 @@ export async function verifyTenantImportHistory(f, { request, expectStatus }) {
     assert.equal(owned.organizationId, ownOrg.id);
     assert.notEqual(ownOrg.id, persistedVictim.organizationId);
     assert.ok(victim.id > owned.id);
-    const account = expectStatus(await request("/api/account/profile", { cookie }), 200,
+    const account = expectStatus(await request("/api/account", { cookie }), 200,
       "The real attacker session must still be authenticated");
     assert.equal(account.json?.profile?.id, f.owners[idx].id);
 

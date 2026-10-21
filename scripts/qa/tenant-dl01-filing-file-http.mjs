@@ -97,7 +97,7 @@ export async function verifyTenantFilingFile(f, { request, expectStatus }) {
     assert.equal(owned.record.organizationId, ownOrg.id);
     assert.notEqual(persistedVictim.organizationId, ownOrg.id);
     assert.ok(victim.record.id > owned.record.id);
-    const account = expectStatus(await request("/api/account/profile", { cookie }), 200,
+    const account = expectStatus(await request("/api/account", { cookie }), 200,
       "The attacker remains signed in as its own fictional principal");
     assert.equal(account.json?.profile?.id, f.owners[idx].id);
     const ownUrl = "/api/compliance/filing-validations/" + owned.record.id + "/file?organizationId=" + ownOrg.id;
