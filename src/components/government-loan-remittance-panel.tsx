@@ -79,7 +79,7 @@ function GovernmentLoanRemittancePanelEmployerScope({
     setSelectedLegalEntityId(null);
     try {
       const response = await fetch(
-        "/api/legal-entities?organizationId=" + organizationId + "&mode=selector",
+        "/api/legal-entities?organizationId=" + organizationId + "&mode=selector&selection=granted",
         { cache: "no-store", signal },
       );
       if (signal?.aborted) return;

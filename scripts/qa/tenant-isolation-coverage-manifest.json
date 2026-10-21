@@ -16187,7 +16187,7 @@
       ]
     },
     "src/app/api/legal-entities/route.ts": {
-      "gitBlobSha": "270eb77dade63f8f7eb51a4e13750bcb58ba63b3",
+      "gitBlobSha": "c46b34066f707cea088fb7c7276ea2a8fd33b4ad",
       "route": "legal-entities",
       "methods": [
         {
@@ -16205,7 +16205,7 @@
         },
         {
           "name": "POST",
-          "line": 179,
+          "line": 183,
           "status": "COVERED",
           "reason": "Two MFA-verified owners POST owned fictional entity 201 with real persisted row; actual victim POST 403, victim legal registry and audit unchanged.",
           "testedBy": {
@@ -16219,7 +16219,7 @@
         },
         {
           "name": "PATCH",
-          "line": 281,
+          "line": 285,
           "status": "COVERED",
           "reason": "Two MFA-verified owners PATCH owned fictional entity 200 with persisted update; actual victim employer PATCH 403 plus victim entity by ID 404; victim legal registry and audit unchanged.",
           "testedBy": {

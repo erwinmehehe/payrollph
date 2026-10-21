@@ -121,9 +121,13 @@ export async function GET(request: Request) {
       .where(and(
         eq(legalEntities.organizationId, organizationId),
         eq(legalEntities.active, true),
-        // Only explicitly permitted active legal employers are listed.
+        // Existing payroll clients retain their selected employer. The loan
+        // picker explicitly requests the directory of all granted employers.
         scope.context.enabled
-          ? inArray(legalEntities.id, scope.context.entities.map(entity => entity.id))
+          ? url.searchParams.get("selection") === "granted"
+            ? inArray(legalEntities.id, scope.context.entities.map(entity => entity.id))
+            : scope.context.legalEntityId !== null
+              ? eq(legalEntities.id, scope.context.legalEntityId) : undefined
           : undefined,
       ))
       .orderBy(asc(legalEntities.id));
