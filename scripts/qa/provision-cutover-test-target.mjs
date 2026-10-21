@@ -40,5 +40,6 @@ appendFileSync(process.env.GITHUB_ENV, [
   `SIM_OWNER_URL=${ownerUrl}`,
   `SIM_PLANNER_URL=postgresql://payrollph_migration_planner:${pw.planner}@${HOST}/${databaseName}`,
   `SIM_APP_URL=postgresql://payrollph_app:${pw.app}@${HOST}/${databaseName}`,
+  `SIM_SEALER_URL=postgresql://payrollph_sealer_login:${pw.sealer}@${HOST}/${databaseName}`,
 ].join("\n") + "\n");
 console.log(`Provisioned the simulated Neon owner, an empty ${databaseName} and the payrollph_* roles.`);

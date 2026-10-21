@@ -30,14 +30,14 @@ The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested
 
 ## Source-pinned counts
 
-This candidate preserves twelve provisional Batch-01 high-risk GET proofs and adds two statutory payment-evidence GET/POST proofs (90 COVERED / 392 GAP). Exact-head CI, disposable PostgreSQL HTTP evidence, and independent security and Philippine payroll/compliance approval remain required; this is not production or global tenant-isolation certification. The frozen closure queue retains its original 406 methods. Baseline counts were reconciled against [`main@28e1224448342c34a4899fb67660b3da504530c1`](https://github.com/erwinmehehe/payrollph/commit/28e1224448342c34a4899fb67660b3da504530c1) on 2026-10-21. See the [method-by-method closure plan](tenant-isolation-closure-plan.md) for 12 prioritized batches; older counts in the historical audit narrative below document earlier snapshots and are **not** current status.
+Main retains twelve Batch-01 high-risk GET receipts and three salary-correction GET/POST/PATCH receipts; this PR adds two statutory payment-evidence GET/POST receipts (93 provisionally COVERED / 392 GAP). All 20 page/action gaps remain. Exact-head disposable PG16 HTTP CI and independent security/Philippine payroll review remain mandatory; the localhost synthetic scanner does not certify production malware clearance. The frozen closure queue retains its original 406 methods. Baseline counts were reconciled against [`main@28e1224448342c34a4899fb67660b3da504530c1`](https://github.com/erwinmehehe/payrollph/commit/28e1224448342c34a4899fb67660b3da504530c1) on 2026-10-21. See the [method-by-method closure plan](tenant-isolation-closure-plan.md) for 12 prioritized batches; older counts in the historical audit narrative below document earlier snapshots and are **not** current status.
 
 | Metric | Count |
 |---|---:|
-| routeFiles | 289 |
-| methods | 490 |
+| routeFiles | 290 |
+| methods | 493 |
 | coveredBefore | 20 |
-| coveredAfter | 90 |
+| coveredAfter | 93 |
 | publicByDesign | 8 |
 | gap | 392 |
 | scopedPagesAndActions | 20 |
@@ -132,7 +132,7 @@ Both independent attacker employers first receive real 200/201 own-record eviden
 
 ## Complete API method matrix
 
-Every one of the 289 route files and 490 exported handlers is in the following source-line tables. The JSON manifest stores git blob SHA, source signal, helper symbol, identifier reference, valid test location (where found), and per-method result.
+Every one of the 290 route files and 493 exported handlers is in the following source-line tables. The JSON manifest stores git blob SHA, source signal, helper symbol, identifier reference, valid test location (where found), and per-method result.
 
 <!-- Generated from source-pinned GitHub blob inspection; NOT isolation acceptance -->
 # API methods — inventory appendix A (partitions 00–10)
@@ -335,6 +335,9 @@ Every one of the 289 route files and 490 exported handlers is in the following s
 | [`hcm/probation-reviews` POST](../../src/app/api/hcm/probation-reviews/route.ts#L156) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L19, enforceSameOriginMutation L27 | searchParams.get("organizationId") L131, searchParams.get("employeeId") L132, body.organizationId L164 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/probation-reviews` PATCH](../../src/app/api/hcm/probation-reviews/route.ts#L234) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L19, enforceSameOriginMutation L27 | searchParams.get("organizationId") L131, searchParams.get("employeeId") L132, body.organizationId L164 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/process-monitor` GET](../../src/app/api/hcm/process-monitor/route.ts#L20) | session, query | assertOrganizationRole L1, getAccess L1, getSessionUser L2, getSessionUser L26 | params.get("organizationId") L22 | NO VALID METHOD PROOF | **GAP** |
+| [`hcm/salary-corrections/cases` GET](../../src/app/api/hcm/salary-corrections/cases/route.ts#L46) | session, query | getSessionUser, assertOrganizationRole, getAccess | searchParams.get("organizationId") | [own L81 / victim L84](../../scripts/qa/salary-correction-case-tenant-proof.mjs#L81) (#641, flag-on isolated CI) | **COVERED** |
+| [`hcm/salary-corrections/cases` POST](../../src/app/api/hcm/salary-corrections/cases/route.ts#L78) | session, body | enforceSameOriginMutation, getSessionUser, assertOrganizationRole, getAccess, requireSensitiveActionMfa | body.organizationId, body.legalEntityId, body.employeeId | [own L71 / victim L76 / unchanged L100](../../scripts/qa/salary-correction-case-tenant-proof.mjs#L71) (#641, flag-on isolated CI) | **COVERED** |
+| [`hcm/salary-corrections/cases` PATCH](../../src/app/api/hcm/salary-corrections/cases/route.ts#L96) | session, body | enforceSameOriginMutation, getSessionUser, assertOrganizationRole, getAccess, requireSensitiveActionMfa | body.organizationId, body.caseId | [own L86 / victim L92 / unchanged L100](../../scripts/qa/salary-correction-case-tenant-proof.mjs#L86) (#641, flag-on isolated CI) | **COVERED** |
 | [`hcm/salary-corrections/preview` POST](../../src/app/api/hcm/salary-corrections/preview/route.ts#L24) | session, body | assertOrganizationRole L4, getAccess L4, getSessionUser L5, enforceSameOriginMutation L8 | body.organizationId L40, body.employeeId L41, body.legalEntityId L42 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/team-leave-calendar` GET](../../src/app/api/hcm/team-leave-calendar/route.ts#L23) | session, query | assertOrganizationRole L1, getAccess L1, getSessionUser L2, getSessionUser L27 | params.get("organizationId") L31 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/work-items/escalate` POST](../../src/app/api/hcm/work-items/escalate/route.ts#L16) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
