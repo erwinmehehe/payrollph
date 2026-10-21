@@ -755,7 +755,7 @@ export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false
                 <PayLines title={t("Earnings")} rows={latestBreakdown.earnings} empty={t("No positive pay lines stored.")} />
                 <PayLines title={t("Deductions")} rows={latestBreakdown.deductions} empty={t("No deductions stored.")} deductions />
               </div>
-              <EmployeeExplainPay entryId={latestPayslip.entryId} period={latestPayslip.period} language={language} />
+              <EmployeeExplainPay entryId={latestPayslip.entryId} period={latestPayslip.period} organizationId={data.employer?.id ?? 0} employeeId={data.employee.id} language={language} />
               <div className="employee-rule-note"><ShieldCheck size={12} /> {t("Rule version")} {latestPayslip.ruleVersion}</div>
             </article>
           )}
@@ -999,7 +999,7 @@ export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false
                               {line.label || line.code}: {peso(line.amount ?? 0)}
                             </li>)}</ul>}
                       </div>}
-                      <EmployeeExplainPay entryId={slip.entryId} period={slip.period} language={language} />
+                      <EmployeeExplainPay entryId={slip.entryId} period={slip.period} organizationId={data.employer?.id ?? 0} employeeId={data.employee.id} language={language} />
                     </div>
                   )}
                 </div>

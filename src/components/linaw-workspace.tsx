@@ -528,7 +528,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
           <>
             {hrisShortcuts.length > 0 && (
               <HrisHomeShortcuts
-                key={data.selectedOrganization.id}
+                key={`hris-home:${data.selectedOrganization.id}`}
                 actions={hrisShortcuts}
                 reviewTeamHref={reviewTeamHref}
                 onPage={setPage}
@@ -559,7 +559,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
             {effectiveRole === "owner" && data.access?.companyWide && <PracticePayrollCard key={`practice:${data.selectedOrganization.id}`} payload={data.practicePayroll} />}
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
-                key={data.selectedOrganization.id}
+                key={`first-payroll-readiness:${data.selectedOrganization.id}`}
                 readiness={data.firstPayrollReadiness}
                 inlineEnabled={inlineFirstPayrollEnabled}
                 guided={isSelfServeCustomer}
@@ -722,7 +722,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
             {availablePages.includes("Recruitment") &&
               ["owner", "admin", "hr"].includes(effectiveRole ?? "") && (
                 <HrisOnboardingChecklist
-                  key={data.selectedOrganization.id}
+                  key={`hris-onboarding:${data.selectedOrganization.id}`}
                   organizationId={data.selectedOrganization.id}
                   employees={data.employees}
                   provisioning={data.provisioning}
@@ -735,7 +735,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
               )}
             <RecruitmentPanel
               everydayHrHireEnabled={data.everydayHrHireEnabled}
-              key={data.selectedOrganization.id}
+              key={`recruitment-panel:${data.selectedOrganization.id}`}
               organizationId={data.selectedOrganization.id}
               setNotice={noticeAdapter}
               onHired={async () => { await refresh(data.selectedOrganization.id); }}

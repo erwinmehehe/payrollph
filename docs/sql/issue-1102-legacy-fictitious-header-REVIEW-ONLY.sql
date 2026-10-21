@@ -48,6 +48,8 @@ DO $issue1102$
 DECLARE
  n integer;
  changed integer;
+ dependency record;
+ linked boolean;
 BEGIN
  PERFORM pg_advisory_xact_lock(hashtext('payrollph-issue-1102-fictitious-historical-header-correction'));
 
@@ -83,24 +85,33 @@ BEGIN
      WHERE source_payroll_run_id IN(1,2,3) OR settled_payroll_run_id IN(1,2,3))
    OR EXISTS(SELECT 1 FROM public.payslips
      WHERE payroll_entry_id IN (SELECT id FROM public.payroll_entries WHERE payroll_run_id IN(1,2,3)))
-   -- Refuse any linked payout, provider, compensation, workforce or adjustment history.
-   -- Even a PREPARED transfer is a dependency: never change its source run headers.
-   OR EXISTS(SELECT 1 FROM public.payout_batches WHERE payroll_run_id IN(1,2,3))
-   OR EXISTS(SELECT 1 FROM public.payout_transfers WHERE payroll_run_id IN(1,2,3))
-   OR EXISTS(SELECT 1 FROM public.provider_events WHERE payroll_run_id IN(1,2,3))
-   OR EXISTS(SELECT 1 FROM public.payroll_underpayment_requests WHERE source_payroll_run_id IN(1,2,3))
-   OR EXISTS(SELECT 1 FROM public.year_end_adjustments WHERE payroll_run_id IN(1,2,3))
-   OR EXISTS(SELECT 1 FROM public.supplementary_earnings WHERE payroll_run_id IN(1,2,3))
-   OR EXISTS(SELECT 1 FROM public.expense_claims WHERE payroll_run_id IN(1,2,3))
-   OR EXISTS(SELECT 1 FROM public.earned_wage_requests WHERE payroll_run_id IN(1,2,3))
-   OR EXISTS(SELECT 1 FROM public.loan_payments WHERE payroll_run_id IN(1,2,3))
-   OR EXISTS(SELECT 1 FROM public.leave_conversions WHERE payroll_run_id IN(1,2,3))
-   OR EXISTS(SELECT 1 FROM public.workforce_timesheet_expectations WHERE payroll_run_id IN(1,2,3))
-   OR EXISTS(SELECT 1 FROM public.attendance_correction_requests
-     WHERE invalidated_payroll_run_ids @> '[1]'::jsonb
-        OR invalidated_payroll_run_ids @> '[2]'::jsonb
-        OR invalidated_payroll_run_ids @> '[3]'::jsonb)
  THEN RAISE EXCEPTION 'ISSUE1102_RUN_HAS_CONNECTED_PAYROLL_OR_FINANCIAL_EVIDENCE'; END IF;
+
+ -- These later-generation tables may be absent on the pinned legacy target.
+ -- Existing relations are locked before querying; malformed schemas still fail closed.
+ FOR dependency IN SELECT * FROM (VALUES
+   ('payout_batches','SELECT EXISTS(SELECT 1 FROM public.payout_batches WHERE payroll_run_id IN(1,2,3))'),
+   ('payout_transfers','SELECT EXISTS(SELECT 1 FROM public.payout_transfers WHERE payroll_run_id IN(1,2,3))'),
+   ('provider_events','SELECT EXISTS(SELECT 1 FROM public.provider_events WHERE payroll_run_id IN(1,2,3))'),
+   ('payroll_underpayment_requests','SELECT EXISTS(SELECT 1 FROM public.payroll_underpayment_requests WHERE source_payroll_run_id IN(1,2,3))'),
+   ('year_end_adjustments','SELECT EXISTS(SELECT 1 FROM public.year_end_adjustments WHERE payroll_run_id IN(1,2,3))'),
+   ('supplementary_earnings','SELECT EXISTS(SELECT 1 FROM public.supplementary_earnings WHERE payroll_run_id IN(1,2,3))'),
+   ('expense_claims','SELECT EXISTS(SELECT 1 FROM public.expense_claims WHERE payroll_run_id IN(1,2,3))'),
+   ('earned_wage_requests','SELECT EXISTS(SELECT 1 FROM public.earned_wage_requests WHERE payroll_run_id IN(1,2,3))'),
+   ('loan_payments','SELECT EXISTS(SELECT 1 FROM public.loan_payments WHERE payroll_run_id IN(1,2,3))'),
+   ('leave_conversions','SELECT EXISTS(SELECT 1 FROM public.leave_conversions WHERE payroll_run_id IN(1,2,3))'),
+   ('workforce_timesheet_expectations','SELECT EXISTS(SELECT 1 FROM public.workforce_timesheet_expectations WHERE payroll_run_id IN(1,2,3))'),
+   ('attendance_correction_requests','SELECT EXISTS(SELECT 1 FROM public.attendance_correction_requests WHERE invalidated_payroll_run_ids @> ''[1]''::jsonb OR invalidated_payroll_run_ids @> ''[2]''::jsonb OR invalidated_payroll_run_ids @> ''[3]''::jsonb)')
+ ) AS checks(table_name,query_sql)
+ LOOP
+   IF to_regclass('public.' || dependency.table_name) IS NOT NULL THEN
+     EXECUTE format('LOCK TABLE public.%I IN SHARE MODE',dependency.table_name);
+     EXECUTE dependency.query_sql INTO linked;
+     IF linked THEN
+       RAISE EXCEPTION 'ISSUE1102_RUN_HAS_CONNECTED_PAYROLL_OR_FINANCIAL_EVIDENCE';
+     END IF;
+   END IF;
+ END LOOP;
 
  -- Immutable non-header before-image witnesses (change detection, not secrecy).
  IF (SELECT md5(coalesce(string_agg(row_to_json(e)::text,'|' ORDER BY e.id),''))
@@ -108,7 +119,7 @@ BEGIN
    OR (SELECT md5(coalesce(string_agg(row_to_json(e)::text,'|' ORDER BY e.id),''))
      FROM public.employees e) <> '3d061f144881d46c8ef4fba3d258ec78'
    OR (SELECT md5(coalesce(string_agg(row_to_json(e)::text,'|' ORDER BY e.id),''))
-     FROM public.audit_events e) <> '8a1ed09531b7621c30aee14793e28134'
+     FROM public.audit_events e) <> '2702a91b7425e5dd5164056c743420fd'
    OR (SELECT md5(coalesce(string_agg(row_to_json(e)::text,'|' ORDER BY e.id),''))
      FROM public.organizations e) <> '906294baa0f4469a704bd60b465677dd'
  THEN RAISE EXCEPTION 'ISSUE1102_NON_HEADER_DATA_CHANGED_SINCE_REVIEW'; END IF;

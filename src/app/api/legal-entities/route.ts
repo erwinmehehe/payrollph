@@ -125,7 +125,7 @@ export async function GET(request: Request) {
           ? eq(legalEntities.id, scope.context.legalEntityId) : undefined,
       ))
       .orderBy(asc(legalEntities.id));
-    return Response.json({ legalEntities: entities });
+    return Response.json({ organizationId, legalEntities: entities });
   }
 
   const denied = await requireAdmin(user.id, organizationId);
@@ -163,6 +163,7 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
+    organizationId,
     legalEntities: entities.map((entity) => ({
       ...entity,
       disbursementAccount: maskBankAccount(entity.disbursementAccount),

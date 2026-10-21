@@ -56,7 +56,7 @@ test("exported GET/POST aliases are resolved to the same scoped handler, not exe
   }
 });
 
-test("all 489 handlers reaching PostgreSQL have a gate or explicit source-pinned exception", () => {
+test("all 490 handlers reaching PostgreSQL have a gate or explicit source-pinned exception", () => {
   let methods = 0, hitsDb = 0, guarded = 0;
   const legacyGaps = [], explicitPublic = [], evidenced = [], noDbFound = [];
   for (const [file, data] of Object.entries(inventory)) {
@@ -93,7 +93,7 @@ test("all 489 handlers reaching PostgreSQL have a gate or explicit source-pinned
     }
   }
   assert.equal(methods, manifest.metrics.methods, "Structural scan must cover every exported HTTP method");
-  assert.equal(methods, 489, "Whole-route scope regression");
+  assert.equal(methods, 490, "Whole-route scope regression");
   assert.equal(hitsDb, guarded + legacyGaps.length + explicitPublic.length + evidenced.length);
   // No route is silently omitted or certified because DB code lives in a helper.
   console.log(JSON.stringify({ kind: "source-structural-guard-NOT-security-certification",

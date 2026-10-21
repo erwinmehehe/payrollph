@@ -55,7 +55,7 @@ function evidenceLine(path, number, subject) {
     subject + ": proof requires an existing file:line reference");
   return lines[number - 1];
 }
-function reviewedStatus(method, key, isNewOrChanged) {
+function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   assert.ok(["COVERED", "PUBLIC-BY-DESIGN", "GAP"].includes(method.status),
     key + ": invalid coverage status");
   if (method.status === "PUBLIC-BY-DESIGN") {
@@ -75,6 +75,34 @@ function reviewedStatus(method, key, isNewOrChanged) {
         evidenceLine(proof.file, proof.unchangedDbLine, key + " DB unchanged");
       }
     }
+  }
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts POST") {
+    // Sole SHA-pinned exclusion: a provider-disabled 501 is access-control
+    // evidence, never proof of a completed real payment or a safe retry.
+    // Changes to the payout route invalidate this review and re-block CI.
+    const proof = method.reviewedUncertified;
+    assert.equal(currentBlob, "4a0f56c5e22127a1d74dd63ef2963df53edb6060",
+      "New payout POST source requires renewed separate owner/provider review");
+    assert.equal(proof?.routeBlobSha, currentBlob);
+    assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs");
+    const own = evidenceLine(proof.file, proof.ownPositiveLine, key + " owned provider-disabled");
+    const foreign = evidenceLine(proof.file, proof.foreignDenialLine, key + " real victim denial");
+    const unchanged = evidenceLine(proof.file, proof.unchangedDbLine, key + " unchanged victim");
+    const lines = readableLines(proof.file);
+    const ownSpan = lines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 3).join("\n");
+    const foreignSpan = lines.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 3).join("\n");
+    assert.ok(own.includes('const ownDisabledPayoutPost = expectStatus') &&
+      own.includes('run.id + "/payout-reconciliation"') &&
+      ownSpan.includes('method: "POST"') && ownSpan.includes('}), 501,'),
+      "Owned payout operation must actually reach the provider-disabled 501 after authentication");
+    assert.ok(foreign.includes('f.victimRun.id + "/payout-reconciliation"') &&
+      foreignSpan.includes('method: "POST"') && foreignSpan.includes('}), 403,'),
+      "Real victim payroll reconciliation POST must be explicitly denied");
+    assert.match(unchanged, /assert\.deepEqual\(victimAfter, victimBefore/,
+      "Denied payout POST must leave actual victim payroll unchanged");
+    assert.equal(method.testedBy, null, "Payout POST remains uncertified, never COVERED");
+    return;
   }
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
@@ -109,7 +137,7 @@ test("whole API manifest inventories exactly every route, exported method, and o
       path + ": new or changed exported HTTP method must be inventoried");
     const changed = !baseline.api[path] || baseline.api[path] !== currentBlob;
     for (const method of record.methods) {
-      reviewedStatus(method, path + " " + method.name, changed);
+      reviewedStatus(method, path + " " + method.name, changed, currentBlob);
       covered += method.status === "COVERED" ? 1 : 0;
       publicByDesign += method.status === "PUBLIC-BY-DESIGN" ? 1 : 0;
       gaps += method.status === "GAP" ? 1 : 0;
@@ -124,6 +152,55 @@ test("whole API manifest inventories exactly every route, exported method, and o
   assert.equal(covered + publicByDesign + gaps, count);
   assert.equal(manifest.acceptanceStatus.startsWith("NOT ACCEPTED"), true,
     "existing uncovered methods must not be described as accepted");
+});
+
+test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP without certifying provider payout", () => {
+  const workflow = readFileSync(".github/workflows/draft-1302-tenant-read-proof.yml", "utf8");
+  const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+  const testSource = readFileSync("scripts/qa/pr-1302-tenant-proof.mjs", "utf8");
+  assert.match(workflow, /FIRST_PAYROLL_INLINE_ENABLED: "true"/);
+  assert.match(workflow, /TENANT_1302_FIRST_PAYROLL_PROOF: isolated-ci-only/);
+  assert.match(harness, /if \(process\.env\.TENANT_1302_FIRST_PAYROLL_PROOF === "isolated-ci-only"\)/);
+  assert.match(harness, /verifyFirstPayrollTenantRead\(f, \{ request, expectStatus \}\)/);
+  assert.match(harness, /verifyLegalEmployerTenantMutations\(f, \{ request, expectStatus \}\)/);
+  assert.match(testSource, /assert\.deepEqual\(victimProgressAfter, victimProgressBefore/);
+  assert.match(testSource, /assert\.deepEqual\(victimLegalAfter, victimLegalBefore/);
+  for (const [route, methods] of [
+    ["first-payroll/preview", ["GET"]],
+    ["first-payroll/progress", ["GET", "PATCH"]],
+    ["legal-entities", ["POST", "PATCH"]],
+  ]) {
+    const record = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"];
+    for (const name of methods) {
+      const method = record.methods.find((item) => item.name === name);
+      assert.equal(method?.status, "COVERED");
+      assert.equal(method.testedBy?.file, "scripts/qa/pr-1302-tenant-proof.mjs");
+      const own = evidenceLine(method.testedBy.file, method.testedBy.ownPositiveLine, route + " own");
+      const denied = evidenceLine(method.testedBy.file, method.testedBy.foreignDenialLine, route + " foreign");
+      assert.ok(own.includes("expectStatus(await request(") && own.includes("/api/" + route),
+        route + " " + name + ": positive must target a real owned route");
+      assert.ok(denied.includes("expectStatus(await request(") && denied.includes("/api/" + route),
+        route + " " + name + ": denial must target the same route");
+      const lines = testSource.split("\n");
+      const ownStatus = name === "POST" ? 201 : 200;
+      const ownSpan = lines.slice(method.testedBy.ownPositiveLine - 1, method.testedBy.ownPositiveLine + 5).join("\n");
+      const deniedSpan = lines.slice(method.testedBy.foreignDenialLine - 1, method.testedBy.foreignDenialLine + 5).join("\n");
+      assert.ok(ownSpan.includes("), " + ownStatus + ",") &&
+        deniedSpan.includes("), 403,"), route + " " + name + ": must assert successful own and forbidden foreign status");
+      if (name === "POST" || name === "PATCH") {
+        assert.ok(ownSpan.includes('method: "' + name + '"') &&
+          deniedSpan.includes('method: "' + name + '"'), "Mutation proof must use the claimed method");
+        const unchanged = evidenceLine(method.testedBy.file, method.testedBy.unchangedDbLine, route + " unchanged");
+        assert.match(unchanged, /assert\.deepEqual\(victim(?:Progress|Legal)After, victim(?:Progress|Legal)Before/);
+      }
+    }
+  }
+  const payout = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts"]
+    .methods.find((item) => item.name === "POST");
+  assert.equal(payout?.status, "GAP");
+  assert.equal(payout?.testedBy, null);
+  assert.equal(manifest.metrics.gap, 413, "Two government-loan methods have real own/foreign proof");
+  assert.equal(manifest.metrics.coveredAfter, 69, "Preserve first-payroll plus two remittance methods");
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
@@ -356,6 +433,7 @@ test("all credited proof links point to the claimed route and every recertified 
       const proof = method.testedBy;
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
+        "scripts/qa/pr-1302-tenant-proof.mjs",
         "scripts/qa/government-loan-read-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
@@ -369,13 +447,16 @@ test("all credited proof links point to the claimed route and every recertified 
           path + ": isolated-only guard is mandatory");
       }
       if (proof.file === "scripts/qa/government-loan-read-http.mjs") {
+        assert.equal(path, "src/app/api/compliance/government-loan-remittances/route.ts",
+          "Only the source-pinned government loan methods may use this proof");
         const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
         const suite = readFileSync(proof.file, "utf8");
-        assert.match(runner, /await \(await import\("\.\/government-loan-read-http\.mjs"\)\)\.verifyGovernmentLoanRemittanceIsolation\(f, \{ request, expectStatus \}\)/,
-          path + ": gov loan proof must run in guarded isolated PG16");
+        assert.match(runner, /verifyGovernmentLoanRemittanceIsolation\(f, \{ request, expectStatus \}\)/);
         assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE/);
         assert.match(suite, /assert\.deepEqual\(afterBatches,beforeBatches/);
         assert.match(suite, /assert\.deepEqual\(afterMembers,beforeMembers/);
+        assert.equal(proof.ownStatus, 200);
+        assert.equal(proof.foreignStatus, 403);
       }
       if (proof.file === "scripts/qa/bank-tenant-http.mjs") {
         assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),
