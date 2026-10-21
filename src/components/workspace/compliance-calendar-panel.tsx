@@ -11,47 +11,9 @@ import {
 } from "lucide-react";
 import { Status } from "@/components/workspace/ui";
 import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
+import { readVerifiedComplianceCalendar, type CalendarStatus, type RuleWatchItem, type VerifiedComplianceCalendar } from "@/lib/compliance-calendar-read";
 
-type CalendarStatus =
-  | "complete"
-  | "upcoming"
-  | "due-soon"
-  | "overdue"
-  | "posting-pending"
-  | "exception"
-  | "verification-required"
-  | "configuration-required";
-
-type CalendarItem = {
-  id: string;
-  agency: "BIR" | "SSS" | "PhilHealth" | "Pag-IBIG";
-  obligation: string;
-  applicableMonth: string;
-  dueDate: string | null;
-  status: CalendarStatus;
-  detail: string;
-  sourceLabel: string;
-  sourceUrl: string;
-  exactness: "nominal" | "conservative-target";
-};
-
-type RuleWatchItem = {
-  family: string;
-  label: string;
-  status: "current" | "review-due" | "verification-unrecorded" | "change-upcoming" | "update-overdue" | "coverage-ending" | "no-coverage";
-  currentVersion: string | null;
-  sourceDocument: string | null;
-  lastVerifiedOn: string | null;
-  detail: string;
-};
-
-type Payload = {
-  today: string;
-  applicableMonths: string[];
-  items: CalendarItem[];
-  ruleWatch?: RuleWatchItem[];
-  note: string;
-};
+type Payload = VerifiedComplianceCalendar;
 
 const RULE_WATCH_LABEL: Record<RuleWatchItem["status"], string> = {
   current: "Current",
@@ -96,25 +58,8 @@ function prettyDate(value: string | null) {
 
 export function ComplianceCalendarPanel({ organizationId }: { organizationId: number }) {
   const [attentionOnly, setAttentionOnly] = useState(true);
-  const fetchCalendar = useCallback(async (signal: AbortSignal): Promise<Payload> => {
-    let response: Response;
-    try {
-      response = await fetch("/api/compliance/calendar?organizationId=" + organizationId, {
-        cache: "no-store",
-        signal,
-      });
-    } catch {
-      throw new Error("Compliance calendar could not be loaded because the server could not be reached.");
-    }
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(typeof body?.error === "string" ? body.error : "Compliance calendar could not be loaded.");
-    }
-    if (!body || !Array.isArray(body.items) || !Array.isArray(body.applicableMonths) || typeof body.note !== "string") {
-      throw new Error("Compliance calendar returned an invalid response.");
-    }
-    return body as Payload;
-  }, [organizationId]);
+  const fetchCalendar = useCallback(async (signal: AbortSignal): Promise<Payload> =>
+    readVerifiedComplianceCalendar(organizationId, fetch, signal), [organizationId]);
 
   // Discard previous-employer data before paint and abort retired responses,
   // including errors that arrive after a fast A-to-B employer switch.
@@ -152,6 +97,7 @@ export function ComplianceCalendarPanel({ organizationId }: { organizationId: nu
           <div className="notice notice-red" style={{ margin: 0 }}>
             <AlertTriangle size={15} />
             <span><strong>Calendar unavailable.</strong> {error}</span>
+            <button className="secondary-button" type="button" onClick={() => void reload()} disabled={loading}>Retry calendar</button>
           </div>
         </div>
       ) : payload ? (
