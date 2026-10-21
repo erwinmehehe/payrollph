@@ -233,17 +233,17 @@ async function verifyBirAndPaymentProof(f, { request, expectStatus }) {
       victim.id + "&batchId=" + proofRows[0].batch.id,
       { cookie }), 403, "Foreign statutory proof GET must deny real victim record");
 
-    const newProof = expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
-      method: "POST", cookie, form: proofForm(own.id, proofRows[idx].batch.id),
-    }), 201, "Owned known synthetic PDF upload must succeed with test-only scanner");
+    const newProof = expectStatus(await requestMultipart(cookie,
+      proofForm(own.id, proofRows[idx].batch.id)),
+      201, "Owned known synthetic PDF upload must succeed with test-only scanner");
     assert.ok(newProof.json?.evidence?.id > 0);
     const [persistedProof] = await db.select().from(statutoryRemittancePaymentEvidence)
       .where(eq(statutoryRemittancePaymentEvidence.id, newProof.json.evidence.id));
     assert.equal(persistedProof?.organizationId, own.id);
     assert.equal(persistedProof?.batchId, proofRows[idx].batch.id);
-    expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
-      method: "POST", cookie, form: proofForm(victim.id, proofRows[0].batch.id),
-    }), 403, "Foreign statutory proof POST must not change actual victim batch");
+    expectStatus(await requestMultipart(cookie,
+      proofForm(victim.id, proofRows[0].batch.id)),
+      403, "Foreign statutory proof POST must not change actual victim batch");
   }
   const officialVictimAuditsAfter = await db.select().from(auditEvents)
     .where(eq(auditEvents.organizationId, victim.id));
@@ -253,4 +253,26 @@ async function verifyBirAndPaymentProof(f, { request, expectStatus }) {
     .where(eq(statutoryRemittancePaymentEvidence.organizationId, victim.id));
   assert.deepEqual(storedVictimProofAfter, storedVictimProofBefore,
     "Denied victim payment-proof uploads leave original evidence unchanged");
+}
+
+/** Multipart transport is private to the disposable test; do not alter the
+ * original request helper: other tenant proofs are pinned to its exact lines. */
+async function requestMultipart(cookie, form) {
+  const url = new URL("/api/compliance/statutory-remittances/payment-evidence",
+    process.env.SECURITY_SMOKE_URL);
+  const result = await fetch(url, {
+    method: "POST",
+    headers: {
+      cookie,
+      origin: process.env.SECURITY_SMOKE_URL,
+      "sec-fetch-site": "same-origin",
+    },
+    body: form,
+    cache: "no-store",
+    redirect: "manual",
+  });
+  const responseText = await result.text();
+  let json = null;
+  try { json = JSON.parse(responseText); } catch { /* invalid JSON is failure */ }
+  return { status: result.status, text: responseText, json, headers: result.headers };
 }
