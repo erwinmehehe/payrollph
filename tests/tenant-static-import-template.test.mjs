@@ -35,7 +35,7 @@ test("tenant-independent template is compared by real HTTP across 3 employers an
   assert.ok(runner.includes('verifyTenantIndependentImportTemplate(f, { request, expectStatus })'));
   assert.ok(live.includes("for (const idx of [0, 1, 2])"));
   assert.ok(live.includes('expectStatus(await request("/api/employees/import/template", { cookie }), 200'));
-  assert.ok(live.includes('"?organizationId=" + f.orgs[0].id'));
+  assert.ok(live.includes('"/api/employees/import/template?organizationId=" + f.orgs[0].id'));
   assert.ok(live.includes('"&employeeId=" + f.victimEmployee.id + "&runId=" + f.victimRun.id'));
   assert.ok(live.includes("assert.equal(forged.text, own.text"));
   assert.ok(live.includes("assert.equal(own.text, reference"));
