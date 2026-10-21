@@ -14,7 +14,6 @@ const keys = [
   ["POST", "compliance/statutory-remittances/posting-import"],
   ["GET", "compliance/contribution-issues/evidence"],
   ["GET", "compliance/labor-inspection/evidence-pack"],
-  ["GET", "exports"],
   ["GET", "bi-exports"],
 ];
 
@@ -86,4 +85,12 @@ test("new candidates remain provisional unless exact reviewed line references ex
     assert.ok(proof.foreignDenialLine < proof.forgedSelectorLine);
     assert.ok(proof.forgedSelectorLine < proof.unchangedDbLine);
   }
+});
+
+test("existing employee CSV export retains prior independent proof, not double-credited", () => {
+  const record = manifest.allApiRouteFiles["src/app/api/exports/route.ts"].methods.find(x => x.name === "GET");
+  assert.equal(record?.status, "COVERED");
+  assert.equal(record?.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  assert.ok(src.includes("const ownExport = expectStatus(await request("),
+    "Follow-on CSV case remains an additional regression, not a newly closed method");
 });
