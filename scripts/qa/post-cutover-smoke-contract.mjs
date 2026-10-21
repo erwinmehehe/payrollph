@@ -214,6 +214,11 @@ export async function inspectGrants(client) {
   }
   for (const role of [ROLES.app, ROLES.planner, ROLES.sealer]) {
     assert.equal((await client.query(
+      "SELECT pg_catalog.has_table_privilege($1,'pg_catalog.pg_authid','SELECT') AS allowed",
+      [role])).rows[0].allowed, false, `ROLE_CANNOT_READ_PASSWORD_CATALOG_${role}`);
+  }
+  for (const role of [ROLES.app, ROLES.planner, ROLES.sealer]) {
+    assert.equal((await client.query(
       "SELECT pg_catalog.has_database_privilege($1,current_database(),'CREATE') AS allowed",
       [role])).rows[0].allowed, false, `ROLE_NO_DATABASE_CREATE_${role}`);
     assert.equal((await client.query(
