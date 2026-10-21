@@ -572,10 +572,10 @@ function CheckerHome({
               <p className="clean-muted" role="status">
                 {failed
                   ? "Comparison unavailable or not scoped to this employer. Retry before trusting exception counts."
-                  : "Loading the stored payroll comparison…"
+                  : "Loading the stored payroll comparison…"}
               </p>
             )}
-            {failed && <button type="button" className="clean-link" onClick={() => { setResult(null); setFailure(null); setRevision((r) => r + 1); }}>Retry verified comparison</button>
+            {failed && <button type="button" className="clean-link" onClick={() => { setResult(null); setFailure(null); setRevision((r) => r + 1); }}>Retry verified comparison</button>}
             {categories.map(([key, label]) => (
               <ActionRow
                 key={key}
