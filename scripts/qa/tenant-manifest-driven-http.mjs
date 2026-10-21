@@ -230,7 +230,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  assert.equal(gaps.length, 389, "Two source-pinned statutory evidence GETs, verified statutory proof POST and two reviewed static templates leave 389 API method GAPs; payout provider POST remains GAP");
+  assert.equal(gaps.length, 386, "Retain PR #1303 statutory proof POST and three separately reviewed GET proofs; 386 methods remain GAP");
   const certifiedGovernance = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(certifiedGovernance?.status, "COVERED", "Closing a GAP requires independently exercised tenant-proof evidence");
   assert.equal(certifiedGovernance?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs", "HCM GET must retain the real authenticated own/foreign HTTP proof");

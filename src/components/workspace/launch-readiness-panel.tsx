@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 import { AlertTriangle, CheckCircle2, RefreshCw, Rocket, ServerCog, ShieldCheck } from "lucide-react";
 import { PageHeading, Status } from "@/components/workspace/ui";
 import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
+import { readVerifiedLaunchReadiness } from "@/lib/launch-readiness-read";
 
 type Gate = {
   key: string;
@@ -39,7 +40,9 @@ export function LaunchReadinessPanel({ organizationId }: { organizationId: numbe
     if (!response.ok) {
       throw new Error(typeof body.error === "string" ? body.error : "Rollout readiness could not be loaded.");
     }
-    return body as ReadinessPayload;
+    const verified = readVerifiedLaunchReadiness(response.ok, body, organizationId);
+    if (!verified) throw new Error("Readiness evidence is unavailable or not verified for this employer.");
+    return verified;
   }, [organizationId]);
 
   // Never show an old employer's launch/pilot status during an employer switch,
