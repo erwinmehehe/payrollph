@@ -1,6 +1,6 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 406 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 394 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -10,7 +10,7 @@
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified authorization defect fixed on main, 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 406 method gaps and 20 page/action gaps. #1260 is merged. New evidence remains provisional until its exact-head CI passes. Source merge of this inventory does not constitute tenant-isolation certification.
+**Disposition:** 1 source-identified authorization defect fixed on main, 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 394 method gaps and 20 page/action gaps. #1260 is merged. New evidence remains provisional until its exact-head CI passes. Source merge of this inventory does not constitute tenant-isolation certification.
 
 ## Approved-exit Separation evidence
 
@@ -30,16 +30,16 @@ The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested
 
 ## Source-pinned counts
 
-Current method-level counts reconciled against [`main@28e1224448342c34a4899fb67660b3da504530c1`](https://github.com/erwinmehehe/payrollph/commit/28e1224448342c34a4899fb67660b3da504530c1) on 2026-10-21. See the [method-by-method closure plan](tenant-isolation-closure-plan.md) for 12 prioritized batches; older counts in the historical audit narrative below document earlier snapshots and are **not** current status.
+Current branch adds twelve provisional Batch-01 GET proofs (88 COVERED / 394 GAP); exact-head HTTP CI remains mandatory. The frozen closure queue retains its original 406 methods. Baseline counts were reconciled against [`main@28e1224448342c34a4899fb67660b3da504530c1`](https://github.com/erwinmehehe/payrollph/commit/28e1224448342c34a4899fb67660b3da504530c1) on 2026-10-21. See the [method-by-method closure plan](tenant-isolation-closure-plan.md) for 12 prioritized batches; older counts in the historical audit narrative below document earlier snapshots and are **not** current status.
 
 | Metric | Count |
 |---|---:|
-| routeFiles | 289 |
-| methods | 490 |
+| routeFiles | 290 |
+| methods | 493 |
 | coveredBefore | 20 |
-| coveredAfter | 76 |
+| coveredAfter | 91 |
 | publicByDesign | 8 |
-| gap | 406 |
+| gap | 394 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -132,7 +132,7 @@ Both independent attacker employers first receive real 200/201 own-record eviden
 
 ## Complete API method matrix
 
-Every one of the 289 route files and 490 exported handlers is in the following source-line tables. The JSON manifest stores git blob SHA, source signal, helper symbol, identifier reference, valid test location (where found), and per-method result.
+Every one of the 290 route files and 493 exported handlers is in the following source-line tables. The JSON manifest stores git blob SHA, source signal, helper symbol, identifier reference, valid test location (where found), and per-method result.
 
 <!-- Generated from source-pinned GitHub blob inspection; NOT isolation acceptance -->
 # API methods — inventory appendix A (partitions 00–10)
@@ -335,6 +335,9 @@ Every one of the 289 route files and 490 exported handlers is in the following s
 | [`hcm/probation-reviews` POST](../../src/app/api/hcm/probation-reviews/route.ts#L156) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L19, enforceSameOriginMutation L27 | searchParams.get("organizationId") L131, searchParams.get("employeeId") L132, body.organizationId L164 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/probation-reviews` PATCH](../../src/app/api/hcm/probation-reviews/route.ts#L234) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L19, enforceSameOriginMutation L27 | searchParams.get("organizationId") L131, searchParams.get("employeeId") L132, body.organizationId L164 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/process-monitor` GET](../../src/app/api/hcm/process-monitor/route.ts#L20) | session, query | assertOrganizationRole L1, getAccess L1, getSessionUser L2, getSessionUser L26 | params.get("organizationId") L22 | NO VALID METHOD PROOF | **GAP** |
+| [`hcm/salary-corrections/cases` GET](../../src/app/api/hcm/salary-corrections/cases/route.ts#L46) | session, query | getSessionUser, assertOrganizationRole, getAccess | searchParams.get("organizationId") | [own L81 / victim L84](../../scripts/qa/salary-correction-case-tenant-proof.mjs#L81) (#641, flag-on isolated CI) | **COVERED** |
+| [`hcm/salary-corrections/cases` POST](../../src/app/api/hcm/salary-corrections/cases/route.ts#L78) | session, body | enforceSameOriginMutation, getSessionUser, assertOrganizationRole, getAccess, requireSensitiveActionMfa | body.organizationId, body.legalEntityId, body.employeeId | [own L71 / victim L76 / unchanged L100](../../scripts/qa/salary-correction-case-tenant-proof.mjs#L71) (#641, flag-on isolated CI) | **COVERED** |
+| [`hcm/salary-corrections/cases` PATCH](../../src/app/api/hcm/salary-corrections/cases/route.ts#L96) | session, body | enforceSameOriginMutation, getSessionUser, assertOrganizationRole, getAccess, requireSensitiveActionMfa | body.organizationId, body.caseId | [own L86 / victim L92 / unchanged L100](../../scripts/qa/salary-correction-case-tenant-proof.mjs#L86) (#641, flag-on isolated CI) | **COVERED** |
 | [`hcm/salary-corrections/preview` POST](../../src/app/api/hcm/salary-corrections/preview/route.ts#L24) | session, body | assertOrganizationRole L4, getAccess L4, getSessionUser L5, enforceSameOriginMutation L8 | body.organizationId L40, body.employeeId L41, body.legalEntityId L42 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/team-leave-calendar` GET](../../src/app/api/hcm/team-leave-calendar/route.ts#L23) | session, query | assertOrganizationRole L1, getAccess L1, getSessionUser L2, getSessionUser L27 | params.get("organizationId") L31 | NO VALID METHOD PROOF | **GAP** |
 | [`hcm/work-items/escalate` POST](../../src/app/api/hcm/work-items/escalate/route.ts#L16) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |

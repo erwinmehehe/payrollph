@@ -1919,6 +1919,96 @@ export const payrollUnderpaymentRequests = pgTable(
   ],
 );
 
+/**
+ * #641 governed backdated salary correction case. A wrapper that never moves
+ * money: back pay for each affected Released run goes only through a linked
+ * payroll_underpayment_requests row (its own maker-checker and posting gate);
+ * the forward rate goes only through the compensation approval flow.
+ * The case enforces completeness (every affected run decided), reconciliation
+ * (declared total = linked requests) and maker-checker at decision time.
+ */
+export const salaryCorrectionCases = pgTable(
+  "salary_correction_cases",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+    idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+    effectiveDate: date("effective_date").notNull(),
+    correctedPayBasis: varchar("corrected_pay_basis", { length: 16 }).notNull(),
+    correctedRateAmount: numeric("corrected_rate_amount", { precision: 12, scale: 2 }).notNull(),
+    // Versioned source proof: the latest pay revision when the case was opened.
+    baseRevisionId: integer("base_revision_id"),
+    evidenceReference: varchar("evidence_reference", { length: 200 }).notNull(),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    declaredTotal: numeric("declared_total", { precision: 12, scale: 2 }),
+    requestedByUserId: integer("requested_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    requestedBy: varchar("requested_by", { length: 120 }).notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+    reviewedBy: varchar("reviewed_by", { length: 120 }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewReason: varchar("review_reason", { length: 500 }),
+    cancelledByUserId: integer("cancelled_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: varchar("cancel_reason", { length: 500 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("salary_correction_case_idempotency_unique").on(table.organizationId, table.idempotencyKey),
+    uniqueIndex("salary_correction_case_one_active_unique").on(table.organizationId, table.employeeId)
+      .where(sql`${table.status} in ('draft','submitted','changes_requested')`),
+    index("salary_correction_case_org_status_idx").on(table.organizationId, table.status, table.createdAt),
+    check("salary_correction_case_status_check",
+      sql`${table.status} in ('draft','submitted','changes_requested','approved','cancelled')`),
+    check("salary_correction_case_basis_check", sql`${table.correctedPayBasis} in ('monthly','daily','hourly')`),
+    check("salary_correction_case_rate_check",
+      sql`${table.correctedRateAmount} > 0 and ${table.correctedRateAmount} <= 100000000`),
+    check("salary_correction_case_declared_total_check",
+      sql`${table.declaredTotal} is null or (${table.declaredTotal} >= 0 and ${table.declaredTotal} <= 100000000)`),
+    check("salary_correction_case_submitted_check",
+      sql`${table.status} not in ('submitted','approved') or (${table.submittedAt} is not null and ${table.declaredTotal} is not null)`),
+    check("salary_correction_case_review_check",
+      sql`${table.status} <> 'approved' or (${table.reviewedByUserId} is not null and ${table.reviewedByUserId} <> ${table.requestedByUserId})`),
+  ],
+);
+
+/** One row per affected Released run, snapshotted with its entry fingerprint when the case opens. */
+export const salaryCorrectionCaseRuns = pgTable(
+  "salary_correction_case_runs",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    caseId: integer("case_id").notNull().references(() => salaryCorrectionCases.id, { onDelete: "cascade" }),
+    payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "restrict" }),
+    payrollEntryId: integer("payroll_entry_id").notNull().references(() => payrollEntries.id, { onDelete: "restrict" }),
+    sourceEntryHash: varchar("source_entry_hash", { length: 64 }).notNull(),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    disposition: varchar("disposition", { length: 16 }).notNull().default("pending"),
+    underpaymentRequestId: integer("underpayment_request_id")
+      .references(() => payrollUnderpaymentRequests.id, { onDelete: "restrict" }),
+    noShortfallReason: varchar("no_shortfall_reason", { length: 500 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("salary_correction_case_run_unique").on(table.caseId, table.payrollRunId),
+    uniqueIndex("salary_correction_case_run_request_unique").on(table.underpaymentRequestId)
+      .where(sql`${table.underpaymentRequestId} is not null`),
+    index("salary_correction_case_runs_case_idx").on(table.caseId),
+    check("salary_correction_case_run_disposition_check",
+      sql`${table.disposition} in ('pending','underpayment','no_shortfall','withdrawn')`),
+    check("salary_correction_case_run_consistency_check",
+      sql`(${table.disposition} = 'underpayment' and ${table.underpaymentRequestId} is not null and ${table.noShortfallReason} is null)
+        or (${table.disposition} = 'no_shortfall' and ${table.underpaymentRequestId} is null
+          and char_length(${table.noShortfallReason}) between 20 and 500)
+        or (${table.disposition} in ('pending','withdrawn') and ${table.underpaymentRequestId} is null and ${table.noShortfallReason} is null)`),
+  ],
+);
+
 export const minWageOrders = pgTable("min_wage_orders", {
   id: serial("id").primaryKey(),
   region: varchar("region", { length: 32 }).notNull(),

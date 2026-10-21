@@ -1073,7 +1073,7 @@ async function verifyNewMainRouteIsolation(f) {
 
 async function main() {
   requireDisposable();
-  const f = await makeFixture();
+  const f = await makeFixture(); await (await import("./tenant-login-audit-http.mjs")).verifyTenantLoginAuditIsolation(f, { request, expectStatus });
   const victim = f.orgs[0];
   const beforeWebhookProbe = (await db.select().from(providerEvents)
     .where(eq(providerEvents.organizationId, f.orgs[0].id))).map((e) => e.id).sort((a,b) => a-b);
@@ -1094,7 +1094,7 @@ async function main() {
   if (process.env.TENANT_1302_FIRST_PAYROLL_PROOF === "isolated-ci-only") {
     await (await import("./pr-1302-tenant-proof.mjs")).verifyFirstPayrollTenantRead(f, { request, expectStatus });
   }
-  await (await import("./pr-1302-tenant-proof.mjs")).verifyLegalEmployerTenantMutations(f, { request, expectStatus });
+  await (await import("./pr-1302-tenant-proof.mjs")).verifyLegalEmployerTenantMutations(f, { request, expectStatus }); if (process.env.TENANT_641_SALARY_CORRECTION_CASE_PROOF === "isolated-ci-only") await (await import("./salary-correction-case-tenant-proof.mjs")).verifySalaryCorrectionCaseTenantIsolation(f, { request, expectStatus });
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
     result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,

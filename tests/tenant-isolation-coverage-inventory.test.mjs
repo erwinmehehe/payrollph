@@ -227,8 +227,41 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 406, "Five attendance plus four HCM methods have real source-pinned HTTP proof");
-  assert.equal(manifest.metrics.coveredAfter, 76, "Retain 72 earlier methods plus four HCM methods");
+  assert.equal(manifest.metrics.gap, 394, "Five attendance, four HCM and twelve Batch-01 GET methods have source-pinned HTTP proof");
+  assert.equal(manifest.metrics.coveredAfter, 91, "76 earlier methods, twelve Batch-01 GETs and three #641 correction-case methods");
+});
+
+test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
+  const workflow = readFileSync(".github/workflows/salary-correction-cases-qa.yml", "utf8");
+  const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+  const file = "scripts/qa/salary-correction-case-tenant-proof.mjs";
+  const lines = readFileSync(file, "utf8").split("\n");
+  assert.match(workflow, /HCM_SALARY_CORRECTION_CASES_ENABLED: "true"/);
+  assert.match(workflow, /TENANT_641_SALARY_CORRECTION_CASE_PROOF: isolated-ci-only/);
+  assert.match(workflow, /PAYROLL_UNDERPAYMENT_POSTING_ENABLED: "false"/);
+  assert.match(harness, /if \(process\.env\.TENANT_641_SALARY_CORRECTION_CASE_PROOF === "isolated-ci-only"\) await/);
+  assert.match(harness, /verifySalaryCorrectionCaseTenantIsolation\(f, \{ request, expectStatus \}\)/);
+  assert.match(lines.join("\n"), /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+  assert.match(lines.join("\n"), /for \(const idx of \[1, 2\]\)/);
+  const record = manifest.allApiRouteFiles["src/app/api/hcm/salary-corrections/cases/route.ts"];
+  for (const [name, ownStatus] of [["GET", 200], ["POST", 201], ["PATCH", 200]]) {
+    const method = record.methods.find((item) => item.name === name);
+    assert.equal(method?.status, "COVERED");
+    assert.equal(method.testedBy?.file, file);
+    const ownSpan = lines.slice(method.testedBy.ownPositiveLine - 1, method.testedBy.ownPositiveLine + 2).join("\n");
+    const deniedSpan = lines.slice(method.testedBy.foreignDenialLine - 1, method.testedBy.foreignDenialLine + 3).join("\n");
+    assert.ok(ownSpan.includes("expectStatus(await request(\"/api/hcm/salary-corrections/cases") && ownSpan.includes("), " + ownStatus + ","),
+      name + ": positive must be a successful request to the claimed route");
+    assert.ok(deniedSpan.includes("expectStatus(await request(\"/api/hcm/salary-corrections/cases") && deniedSpan.includes("victim.id") &&
+      deniedSpan.includes("), 403,"), name + ": denial must name the real victim employer and assert 403");
+    if (name !== "GET") {
+      assert.ok(ownSpan.includes('method: "' + name + '"') && deniedSpan.includes('method: "' + name + '"'),
+        "Mutation proof must use the claimed method");
+      assert.match(lines[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(victimCasesAfter, victimCasesBefore/);
+    }
+  }
+  assert.match(lines.join("\n"), /assert\.deepEqual\(victimCaseRunsAfter, victimCaseRunsBefore/);
+  assert.match(lines.join("\n"), /assert\.deepEqual\(victimAuditAfter, victimAuditBefore/);
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
@@ -462,9 +495,14 @@ test("all credited proof links point to the claimed route and every recertified 
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
+        "scripts/qa/salary-correction-case-tenant-proof.mjs",
         "scripts/qa/workforce-attendance-sweep-http.mjs",
-        "scripts/qa/hcm-work-queue-http.mjs"].includes(proof?.file),
+        "scripts/qa/hcm-work-queue-http.mjs", "scripts/qa/tenant-high-risk-01-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
+      if (proof.file === "scripts/qa/salary-correction-case-tenant-proof.mjs") {
+        assert.equal(path, "src/app/api/hcm/salary-corrections/cases/route.ts",
+          path + ": only the #641 cases endpoint may cite this source");
+      }
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
         const integration = readFileSync(proof.file, "utf8");
@@ -504,6 +542,50 @@ test("all credited proof links point to the claimed route and every recertified 
           "Bank proof must execute in the guarded real HTTP/PG harness");
         assert.match(readFileSync(proof.file, "utf8"), /assert\.deepEqual\(after, before/,
           "Victim bank records and audit must remain unchanged");
+      }
+      if (proof.file === "scripts/qa/tenant-high-risk-01-http.mjs") {
+        // Only an exact method-named, actually executed Batch 01 case may use
+        // request(item.own) rather than an inline literal route in the proof.
+        const evidence = readFileSync(proof.file, "utf8");
+        const evidenceLines = evidence.split("\n");
+        const spec = method.name + " " + entry.route;
+        const signature = evidenceLine(proof.file, proof.line, spec + " exact method case");
+        const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        assert.equal(method.name, "GET", spec + ": this does not authorize mutating methods");
+        assert.ok(signature.includes('key: "' + spec + '"') ||
+          signature.includes('await caseCheck("' + spec + '"'),
+          spec + ": must link a distinct exact-route high-risk test case");
+        assert.ok(harness.includes("verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });") &&
+          evidence.includes("for (const idx of [1, 2])") &&
+          evidence.includes("assert.equal(passed.size, 36") &&
+          evidence.includes("assert.deepEqual(victimAfter, victimBefore"),
+          spec + ": both attacker sessions and unchanged victim PostgreSQL rows required");
+        const positive = evidenceLine(proof.file, proof.ownPositiveLine, spec + " own 200");
+        const denial = evidenceLine(proof.file, proof.foreignDenialLine, spec + " denied");
+        const invariant = evidenceLine(proof.file, proof.unchangedDbLine, spec + " victim DB");
+        assert.match(invariant, /assert\.deepEqual\(victimAfter, victimBefore/);
+        if (spec === "GET self/documents") {
+          assert.ok(positive.includes('request("/api/self/documents"') &&
+            denial.includes("request(endpoint") && denial.includes("), 403,") &&
+            evidence.includes("victim.id +") && evidence.includes("cookie: employeeCookie"),
+            spec + ": forged selector and former-employer revocation require active employee session");
+        } else if (spec === "GET self/payslips/[id]/explain") {
+          assert.ok(positive.includes('request("/api/self/payslips/" + ownEntry.id') &&
+            denial.includes('request("/api/self/payslips/" + victimEntry.id') &&
+            evidence.includes("}), 404,") && evidence.includes("cookie: employeeCookie"),
+            spec + ": actual own Released payslip 200 and victim pay entry 404 required");
+        } else {
+          const caseSpan = evidenceLines.slice(proof.line - 1, proof.line + 13).join("\n");
+          assert.ok(caseSpan.includes('own: "/api/') &&
+            caseSpan.includes('foreign: "/api/') &&
+            (caseSpan.includes("victim.id") || caseSpan.includes("f.victimRun.id")),
+            spec + ": missing method-specific own and victim actual route selectors");
+          assert.ok(positive.includes("expectStatus(await request(item.own") &&
+            denial.includes("expectStatus(await request(item.foreign") &&
+            evidence.includes("), 403,"),
+            spec + ": authenticated own 200 and victim 403 HTTP pair required");
+        }
+        continue;
       }
       const ownLine = evidenceLine(proof.file, proof.ownPositiveLine, path + " own-positive");
       const negativeLine = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign denial");
@@ -609,4 +691,42 @@ test("original three-employer HTTP hard-refuse and anti-false-pass guards remain
     "existing real-HTTP three-employer fixture must remain in Security HTTP Smoke");
   assert.match(workflow, /node --test tests\/tenant-second-pass-inventory\.test\.mjs tests\/tenant-isolation-coverage-inventory\.test\.mjs/,
     "security smoke must invoke the original test alongside the full-surface drift guard");
+});
+
+test("real-HTTP login audit for the public credential exchange cannot target a forged employer", () => {
+  const path = "src/app/api/auth/login/route.ts";
+  const route = readFileSync(path, "utf8");
+  const writer = readFileSync("src/lib/audit.ts", "utf8");
+  const entry = manifest.allApiRouteFiles[path];
+  const method = entry.methods.find(item => item.name === "POST");
+  assert.equal(method?.status, "PUBLIC-BY-DESIGN");
+  assert.match(method.reason, /server-derived active membership/);
+  const proof = method.reviewedPublicProof;
+  assert.equal(proof?.file, "scripts/qa/tenant-login-audit-http.mjs");
+  assert.equal(proof?.harness, "scripts/qa/tenant-second-pass-http.mjs");
+  const suite = readFileSync(proof.file, "utf8");
+  const runner = readFileSync(proof.harness, "utf8");
+  assert.match(runner, /verifyTenantLoginAuditIsolation\(\s*f,\s*\{\s*request,\s*expectStatus\s*\}\s*\)/);
+  assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+  assert.match(suite, /for \(const idx of \[1, 2\]\)/);
+  assert.match(suite, /hashPassword\(fictionalPassword\)/);
+  assert.match(suite, /organizationId: victimOrg\.id, userId: f\.owners\[0\]\.id/);
+  assert.match(evidenceLine(proof.file, proof.ownPositiveLine, "local login own HTTP"),
+    /const own = expectStatus\(await request\(loginPath,/);
+  assert.match(evidenceLine(proof.file, proof.invalidCredentialsLine, "local login 401"),
+    /const invalid = expectStatus\(await request\(loginPath,/);
+  assert.match(evidenceLine(proof.file, proof.foreignIsolationLine, "victim unchanged"),
+    /assert\.deepEqual\(victimAfter, victimBefore,/);
+  assert.match(evidenceLine(proof.file, proof.unchangedDbLine, "victim audit invariant"),
+    /assert\.deepEqual\(victimAfter, victimBefore,/);
+  assert.match(suite, /assert\.equal\(ownAfter\.length, ownBefore\.length \+ 1,/);
+  assert.match(suite, /assert\.equal\(receipt\.organizationId, ownOrg\.id\)/);
+  assert.match(suite, /assert\.deepEqual\(await tenantAuditRows\(victimOrg\.id\), victimBefore,/);
+  assert.match(writer, /eq\(userOrganizations\.active, true\)/);
+  assert.match(writer, /await tx\.insert\(auditEvents\)\.values\(memberships\.map\(/);
+  const audit = route.indexOf("await recordSuccessfulLocalLogin({");
+  const cookie = route.indexOf("jar.set(SESSION_COOKIE, session.token");
+  assert.ok(audit > 0 && cookie > audit,
+    "Sign-in audit must commit before browser session delivery");
+  assert.match(route, /await revokeSession\(session\.token\)\.catch\(\(\) => \{\}\)/);
 });
