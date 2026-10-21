@@ -32,10 +32,14 @@ export function parseVerifiedPaymentProof(
   const rows = value.evidence as EvidenceRow[];
   const active = rows.filter(v => v.status === "active");
   const reportedActive = value.active;
+  // Keep the record-narrowing inside a stable helper; TypeScript cannot
+  // retain a preceding && guard inside the Object.entries callback.
+  const matchesActive = (candidate: unknown, row: EvidenceRow): boolean =>
+    record(candidate) &&
+    Object.entries(row).every(([key, field]) => candidate[key] === field);
   if (new Set(rows.map(v => v.id)).size !== rows.length || active.length > 1 ||
       (active.length === 0 ? reportedActive !== null :
-        !record(reportedActive) ||
-        Object.entries(active[0]).some(([key, field]) => reportedActive[key] !== field)))
+        !matchesActive(reportedActive, active[0])))
     return null;
   return value as VerifiedPaymentProof;
 }
