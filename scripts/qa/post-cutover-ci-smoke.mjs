@@ -87,6 +87,7 @@ async function negativeRoleProofs() {
     ["heads_update", "UPDATE public.audit_chain_heads SET last_seq=777"],
     ["sealer_call", "SELECT public.seal_audit_events(10)"],
     ["ledger_read", "SELECT * FROM public.payrollph_release_migration_receipts LIMIT 1"],
+    ["password_catalog_read", "SELECT rolpassword FROM pg_catalog.pg_authid LIMIT 1"],
   ];
   for (const [label, sql] of appDeny) await denied(app, sql, "APP_" + label);
   await denied(planner, "CREATE TABLE public.post_cutover_planner_escape (id integer)", "PLANNER_DDL");
@@ -428,12 +429,36 @@ try {
   await check("sealer login seals all events; anchored audit chain verifies", async () => {
     const sealed = await seal();
     assert.ok(Number.isSafeInteger(sealed) && sealed > 0, "REAL_SEALER_MUST_SEAL");
+    // Even after SET ROLE, the sealer is limited to narrowly scoped chain
+    // columns; an immutable sealed row may not be rewritten.
+    await sealer.query("BEGIN");
+    try {
+      await sealer.query("SET LOCAL ROLE payrollph_audit_sealing");
+      let actorEdit = "ALLOWED";
+      try { await sealer.query("UPDATE public.audit_events SET actor='tamper'"); }
+      catch (error) { actorEdit = error?.code ?? "DENIED"; }
+      assert.equal(actorEdit, "42501", "SEALER_GROUP_CANNOT_EDIT_ACTOR");
+    } finally {
+      await sealer.query("ROLLBACK");
+    }
+    await sealer.query("BEGIN");
+    try {
+      await sealer.query("SET LOCAL ROLE payrollph_audit_sealing");
+      let sealedMutation = "ALLOWED";
+      try { await sealer.query(
+        "UPDATE public.audit_events SET chain_seq=chain_seq WHERE chain_seq IS NOT NULL"); }
+      catch (error) { sealedMutation = error?.code ?? "DENIED"; }
+      assert.ok(["42501", "P0001"].includes(sealedMutation),
+        `SEALER_CANNOT_REWRITE_SEALED_HISTORY_${sealedMutation}`);
+    } finally {
+      await sealer.query("ROLLBACK");
+    }
     const verified = await readAuditChain(app);
     assert.equal(verified.verified, true, "AUDIT_CHAIN_BREAK_" + verified.breaks.join("_"));
     assert.equal(verified.pendingEvents, 0, "AUDIT_CHAIN_UNSEALED_TAIL");
     return { verified: true, sealedEvents: verified.sealedEvents,
       pendingEvents: 0, chains: verified.chainsChecked };
-  });
+ }, { fatal: true });
   await check("negative tamper and missing-tail detection (no DB mutation)", async () => {
     const rows = (await app.query(`SELECT organization_id, id, chain_seq, prev_hash, row_hash,
       CASE WHEN chain_seq IS NULL THEN NULL ELSE public.audit_event_row_hash(
