@@ -448,6 +448,6 @@ try {
   await Promise.all([app, planner, sealer].filter(Boolean).map(c => c.end().catch(() => {})));
   const result = finish({ stoppedEarly: stopped, commitSha: env.GITHUB_SHA ?? null,
     fictionalOnly: true, liveDatabaseTouched: false, providerCalls: 0,
-    productionFlagsChanged: false });
+    productionFlagsChanged: false, fictionalIds: Number.isSafeInteger(state.a) && Number.isSafeInteger(state.run) ? { organizationId: state.a, runId: state.run } : null });
   if (result.failed || stopped) process.exitCode = 1;
 }
