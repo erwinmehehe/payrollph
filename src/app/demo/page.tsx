@@ -1,4 +1,8 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { hostedDemoDestination } from "@/lib/hosted-demo-navigation";
+
+export const dynamic = "force-dynamic";
 import { DemoRolePicker } from "@/components/marketing/demo-role-picker";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { StructuredData } from "@/components/marketing/structured-data";
@@ -23,6 +27,8 @@ export const metadata: Metadata = {
 };
 
 export default function DemoPage() {
+  const destination = hostedDemoDestination();
+  if (destination) redirect(destination);
   return (
     <div className="site">
       <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "Live payroll demo", path: "/demo" }]} />
