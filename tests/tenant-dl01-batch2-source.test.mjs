@@ -81,30 +81,64 @@ test("BI and labor download use existing HIGHER-ID victim-only DB records", () =
   ]) assert.ok(src.includes(fragment), "Real higher-ID victim-only export proof missing: " + fragment);
 });
 
-test("new candidates remain provisional unless exact reviewed line references exist", () => {
-  const lines = src.split("\n");
-  for (const [method, route] of keys) {
-    const file = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"];
-    const record = file?.methods.find(x => x.name === method);
-    assert.ok(record, "Method must be in actual manifest: " + method + " " + route);
-    assert.ok(["GAP", "COVERED"].includes(record.status));
-    if (record.status === "GAP") {
-      assert.equal(record.testedBy, null, "No provisional method may be credited");
-      continue;
-    }
-    const proof = record.testedBy;
-    assert.equal(proof?.file, path);
-    for (const field of ["line","ownPositiveLine","foreignDenialLine","forgedSelectorLine","unchangedDbLine","victimExistsLine","victimIdOrderingLine"]) {
-      const n = proof[field];
-      assert.ok(Number.isSafeInteger(n) && n > 0 && n <= lines.length, route + ": missing " + field);
-      assert.ok(lines[n - 1].trim() && !lines[n - 1].trim().startsWith("//"), route + ": inactive " + field);
-    }
-    assert.ok(proof.ownPositiveLine < proof.foreignDenialLine);
-    assert.ok(proof.foreignDenialLine < proof.forgedSelectorLine);
-    assert.ok(proof.forgedSelectorLine < proof.unchangedDbLine);
-  }
-});
+function overviewHasLink(route, line) {
+  const inventory = readFileSync("docs/engineering/tenant-isolation-coverage-inventory.md", "utf8");
+  const row = inventory.split("\n").find(value => value.startsWith("| [`" + route + "` "));
+  return Boolean(row && row.includes("tenant-dl01-batch2-http.mjs#L" + line) && row.endsWith("**COVERED** |"));
+}
 
+test("four newly credited DL-01 methods have independently reviewable real HTTP/PG16 proof pins", () => {
+  const lines = src.split("\n");
+  const specs = [
+    { method: "POST", route: "compliance/statutory-remittances/posting-import", refs: [19, 188, 217, 226, 315, 142, 146], names: ["ownPosting", "foreignPosting", "forgedPosting"], exists: "persistedVictimBatch", order: "victimBatch.id > batches[idx].id", forgedStatus: 404 },
+    { method: "GET", route: "compliance/contribution-issues/evidence", refs: [20, 269, 279, 283, 315, 144, 146], names: ["ownCase", "foreignCase", "forgedCase"], exists: "persistedVictimCase", order: "victimCase.id > cases[idx].id", forgedStatus: 200 },
+    { method: "GET", route: "compliance/labor-inspection/evidence-pack", refs: [21, 294, 303, 306, 315, 125, 127], names: ["ownInspection", "foreignInspection", "forgedInspection"], exists: "persistedVictimWorker", order: "victimExportWorker.id > f.ownedEmployees[0].id", forgedStatus: 200 },
+    { method: "GET", route: "bi-exports", refs: [23, 254, 260, 264, 315, 126, 130], names: ["ownBi", "foreignBi", "forgedBi"], exists: "persistedVictimBiRun", order: "victimBiRun.id > f.ownRuns[1].id", forgedStatus: 400 },
+  ];
+  for (const spec of specs) {
+    const method = manifest.allApiRouteFiles["src/app/api/" + spec.route + "/route.ts"]
+      ?.methods.find(x => x.name === spec.method);
+    assert.equal(method?.status, "COVERED", spec.route + ": missing reviewed method classification");
+    const proof = method.testedBy;
+    assert.equal(proof?.file, path, spec.route + ": cannot borrow another proof module");
+    assert.deepEqual([
+      proof.line, proof.ownPositiveLine, proof.foreignDenialLine, proof.forgedSelectorLine,
+      proof.unchangedDbLine, proof.victimExistsLine, proof.victimIdOrderingLine,
+    ], spec.refs, spec.route + ": source pins changed without real renewed method review");
+    assert.ok(lines[proof.line - 1].includes(spec.method + " " + spec.route));
+    for (const [field, name] of [
+      ["ownPositiveLine", spec.names[0]],
+      ["foreignDenialLine", spec.names[1]],
+      ["forgedSelectorLine", spec.names[2]],
+    ]) {
+      assert.ok(lines[proof[field] - 1].includes("const " + name + " = expectStatus(await request("),
+        spec.route + ": exact live request missing at " + field);
+    }
+    assert.ok(lines[proof.victimExistsLine - 1].includes("assert.equal(" + spec.exists),
+      spec.route + ": persisted victim organization not verified");
+    assert.ok(lines[proof.victimIdOrderingLine - 1].trim().startsWith("assert.ok(") &&
+      lines.slice(proof.victimIdOrderingLine - 1, proof.victimIdOrderingLine + 2)
+        .join("\n").includes(spec.order), spec.route + ": real higher-ID victim ordering lost");
+    assert.ok(lines[proof.unchangedDbLine - 1].includes("assert.deepEqual(after, before,"),
+      spec.route + ": unchanged victim PG snapshot lost");
+    const span = (line) => lines.slice(line - 1, line + 12).join("\n");
+    assert.ok(span(proof.ownPositiveLine).includes("}), 200,"), spec.route + ": own HTTP 200 required");
+    assert.ok(span(proof.foreignDenialLine).includes("}), 403,"), spec.route + ": real victim HTTP 403 required");
+    assert.ok(span(proof.forgedSelectorLine).includes("}), " + spec.forgedStatus + ","),
+      spec.route + ": forged victim selector must return exact expected status");
+    assert.ok(proof.ownPositiveLine < proof.foreignDenialLine &&
+      proof.foreignDenialLine < proof.forgedSelectorLine &&
+      proof.forgedSelectorLine < proof.unchangedDbLine);
+    assert.ok(overviewHasLink(spec.route, proof.ownPositiveLine),
+      spec.route + ": client-facing inventory lacks exact method proof");
+  }
+  assert.equal(manifest.metrics.methods, 493);
+  assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
+    [100, 10, 383]);
+  assert.equal(manifest.scopedPages.length, 20);
+  assert.ok(manifest.scopedPages.every(x => x.status === "GAP"));
+  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: 383 API methods"));
+});
 test("existing employee CSV export retains prior independent proof, not double-credited", () => {
   const record = manifest.allApiRouteFiles["src/app/api/exports/route.ts"].methods.find(x => x.name === "GET");
   assert.equal(record?.status, "COVERED");

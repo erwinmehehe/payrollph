@@ -1,8 +1,8 @@
 /**
  * DL-01 follow-on real HTTP/PG16 proof. The application server and PostgreSQL
  * database are disposable localhost CI fixtures, never production resources.
- * The runner deliberately leaves every method GAP until exact-head CI is green
- * and its executable source lines are independently reviewed.
+ * Credit four method-specific proofs only after exact-head PG16 HTTP success,
+ * source-line reconciliation and renewed CI; no global tenant acceptance.
  */
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";

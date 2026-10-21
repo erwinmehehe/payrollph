@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 387, "387 unverified methods remain GAP; three executed DL-01 proofs now linked");
-  assert.equal(manifest.metrics.coveredAfter, 96, "Retain 93 earlier proofs plus three reviewed real HTTP file/history methods");
+  assert.equal(manifest.metrics.gap, 383, "383 unverified methods remain GAP after four DL-01 batch-2 proof links");
+  assert.equal(manifest.metrics.coveredAfter, 100, "Retain 96 prior proofs plus four real HTTP DL-01 batch-2 methods");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
