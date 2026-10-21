@@ -144,6 +144,8 @@ async function seedStatutoryFixtures(f) {
     ...Array.from({ length: 8 }, (_, i) => ({ orgIndex: 0, month: "2025-0" + (i + 1) })),
     { orgIndex: 1, month: "2025-09" },
     { orgIndex: 2, month: "2025-10" },
+    // Select the real victim-only target AFTER both attacker-owned objects.
+    { orgIndex: 0, month: "2025-11" },
   ];
   const batches = await db.insert(statutoryRemittanceBatches).values(rows.map((row, i) => ({
     organizationId: f.orgs[row.orgIndex].id,
@@ -175,6 +177,9 @@ async function seedStatutoryFixtures(f) {
   }))).returning({ id: complianceActionTasks.id, organizationId: complianceActionTasks.organizationId });
   assert.ok(batches[7].id > 6 && evidence[7].id > 6 && tasks[7].id > 6,
     "Real victim-only high IDs must exist in disposable PostgreSQL");
+  assert.ok(batches[10].id > batches[9].id && evidence[10].id > evidence[9].id &&
+    tasks[10].id > tasks[9].id,
+    "Selected existing victim-only object IDs must exceed both attacker objects");
   return { batches, evidence, tasks, bytes, nonce };
 }
 export async function verifyManifestDrivenStatutoryBatch(f, { request, expectStatus }) {
@@ -202,9 +207,9 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   const candidates = [...gaps, ...alreadyCoveredCases.map((key) => ({ key }))];
   const fixtures = await seedStatutoryFixtures(f);
   const victimOrg = f.orgs[0];
-  const victimEvidence = fixtures.evidence[7];
-  const victimBatch = fixtures.batches[7];
-  const victimTask = fixtures.tasks[7];
+  const victimEvidence = fixtures.evidence[10];
+  const victimBatch = fixtures.batches[10];
+  const victimTask = fixtures.tasks[10];
   const before = await snapshotVictim(victimOrg.id);
   const observations = [];
   for (const idx of [1, 2]) {
@@ -214,6 +219,8 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
     const ownedEvidence = fixtures.evidence[7 + idx];
     const ownedTask = fixtures.tasks[7 + idx];
     const ownBytes = fixtures.bytes[7 + idx];
+    assert.ok(victimEvidence.id > ownedEvidence.id && victimBatch.id > ownedBatch.id &&
+      victimTask.id > ownedTask.id, "Victim-only IDs must exceed this attacker-owned object's IDs");
     const actor = { ownOrg, ownEntity, ownedBatch, ownedEvidence, ownedTask, ownBytes,
       victimOrg, victimBatch, victimEvidence, victimTask, f };
     const cookie = f.ownerSessions[idx].cookie;
