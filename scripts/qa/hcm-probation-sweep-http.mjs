@@ -7,16 +7,28 @@
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { db } from "../../src/db";
-import { hcmEmploymentTerms, hcmProbationReviews } from "../../src/db/schema";
+import { employees as employeeTable, hcmEmploymentTerms, hcmProbationReviews } from "../../src/db/schema";
 
 export async function verifyHcmProbationSweep(f, { request, expectStatus }) {
   if (process.env.CI !== "true" ||
       process.env.TENANT_SECOND_PASS_MODE !== "isolated-ci-only") {
     throw Error("HCM probation tenant proof requires disposable CI.");
   }
-  const employees = [f.victimEmployee, ...f.ownedEmployees];
+  // Dedicated synthetic employees avoid changing existing workforce control fixtures
+  // and ensure no prior HCM test has an active term for these workers.
+  const employees = [];
   const terms = [];
   for (const idx of [0, 1, 2]) {
+    const [worker] = await db.insert(employeeTable).values({
+      organizationId: f.orgs[idx].id,
+      legalEntityId: f.entities[idx].id,
+      orgUnitId: f.ownedUnits[idx].id,
+      employeeNo: "QA-PROBATION-" + f.orgs[idx].id,
+      firstName: "FictionalProbation", lastName: "Employee" + idx,
+      title: "Synthetic HCM probation subject", avatarInitials: "FP",
+      basicRate: "20000.00", startDate: "2026-08-01",
+    }).returning();
+    employees.push(worker);
     const [term] = await db.insert(hcmEmploymentTerms).values({
       organizationId: f.orgs[idx].id,
       employeeId: employees[idx].id,
