@@ -11,6 +11,7 @@ import type {
   DecisionSource, ManagerDecisionPage, ManagerDecisionItem,
 } from "@/lib/hcm-manager-decision-contract";
 import { nextManagerDecisionTab } from "@/lib/hcm-manager-decision-tabs";
+import { readVerifiedManagerDecisionPage } from "@/lib/hcm-manager-decision-read";
 
 const SOURCES: Array<{
   key: DecisionSource; label: string; hint: string;
@@ -77,29 +78,10 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
     void fetch("/api/hcm/manager-decision-inbox?" + params.toString(), {
       cache: "no-store", signal: controller.signal,
     }).then(async (response) => {
-      if (!response.ok) throw new Error("Inbox source unavailable");
-      const payload = await response.json() as ManagerDecisionPage;
+      const data: unknown = await response.json().catch(() => null);
       if (controller.signal.aborted) return;
-      if (
-        payload.organizationId !== organizationId ||
-        payload.source !== source ||
-        !["company", "unit"].includes(payload.scope?.kind) ||
-        !Array.isArray(payload.items) || payload.items.length > 20 ||
-        payload.page?.size !== 20 ||
-        typeof payload.page.hasMore !== "boolean" ||
-        (payload.page.hasMore && (
-          typeof payload.page.nextCursor !== "number" ||
-          !Number.isSafeInteger(payload.page.nextCursor) ||
-          payload.page.nextCursor <= 0 ||
-          (beforeId !== null && payload.page.nextCursor >= beforeId)
-        )) ||
-        payload.items.some((item) =>
-          item.source !== source || item.status !== "pending" ||
-          !Number.isSafeInteger(item.id) || item.id <= 0 ||
-          (beforeId !== null && item.id >= beforeId))
-      ) {
-        throw new Error("The response did not match the requested source and employer.");
-      }
+      const payload = readVerifiedManagerDecisionPage(response.ok, data, organizationId, source, beforeId);
+      if (!payload) throw new Error("The decision source returned unverified or wrong-employer data.");
       setLoaded({ key: requestKey, status: "ready", payload });
     }).catch(() => {
       if (!controller.signal.aborted) {
@@ -207,7 +189,7 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
           {active?.status === "error" && (
             <div role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
               This source is unavailable or your access changed. Previously loaded records were cleared.
-              Refresh the view or return to the authoritative workspace.
+              <button type="button" className="ml-2 underline" onClick={() => setRefresh((current) => current + 1)}>Retry</button> or return to the authoritative workspace.
             </div>
           )}
 
