@@ -761,6 +761,11 @@ test("real-HTTP login audit for the public credential exchange cannot target a f
   const suite = readFileSync(proof.file, "utf8");
   const runner = readFileSync(proof.harness, "utf8");
   assert.match(runner, /verifyTenantLoginAuditIsolation\(\s*f,\s*\{\s*request,\s*expectStatus\s*\}\s*\)/);
+  assert.ok(runner.includes('if (process.env.LOCAL_LOGIN_AUDIT_ENABLED === "true") await'),
+    "A disabled login-audit feature must not require a fictional audit receipt");
+  const smokeWorkflow = readFileSync(".github/workflows/security-http-smoke.yml", "utf8");
+  assert.match(smokeWorkflow, /LOCAL_LOGIN_AUDIT_ENABLED: "true"/,
+    "Security HTTP Smoke must enable opt-in login-audit isolation proof");
   assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
   assert.match(suite, /for \(const idx of \[1, 2\]\)/);
   assert.match(suite, /hashPassword\(fictionalPassword\)/);
