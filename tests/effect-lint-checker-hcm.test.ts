@@ -31,8 +31,11 @@ test("lifecycle inbox uses abortable employer-owned reads; existing PATCH is unc
   assert.match(source, /"hcm-lifecycle-notifications:" \+ organizationId/);
   assert.match(source, /async \(signal: AbortSignal\): Promise<Payload>/);
   assert.match(source, /cache: "no-store", signal/);
-  assert.match(source, /Array\.isArray\(data\.tasks\)/);
-  assert.match(source, /Array\.isArray\(data\.owners\)/);
+  assert.match(source, /isVerifiedLifecycleNotificationQueue\(data, organizationId\)/);
+  const validator = read("src/lib/hcm-lifecycle-notification-read.ts");
+  assert.match(validator, /Array\.isArray\(v\.tasks\)/);
+  assert.match(validator, /Array\.isArray\(v\.owners\)/);
+  assert.match(source, /isVerifiedLifecycleNotificationReceipt\(data, organizationId, taskId, action, extra\)/);
   assert.match(source, /method: "PATCH"/);
   assert.match(source, /await reload\(\)/);
   assert.match(source, /onChanged=\{reload\}/);

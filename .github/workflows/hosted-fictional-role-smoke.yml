@@ -1,0 +1,34 @@
+name: Hosted Fictional QA Role Smoke
+on:
+  workflow_dispatch:
+    inputs:
+      deployed_sha:
+        description: Exact SHA already deployed to the separate fictional QA project
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: hosted-fictional-role-smoke
+  cancel-in-progress: false
+jobs:
+  verified-qa-roles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_QA_SHA: ${{ inputs.deployed_sha }}
+      FICTIONAL_QA_READINESS_TOKEN: ${{ secrets.FICTIONAL_QA_READINESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify exact hosted target before creating synthetic role sessions
+        run: node scripts/qa/hosted-fictional-role-smoke.cjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: hosted-fictional-role-receipt
+          path: qa-demo-hosted-role-receipt.json
+          retention-days: 7

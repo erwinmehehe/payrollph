@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 490 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 490);
-  assert.equal(manifest.metrics.gap, 408, "Five attendance plus two statutory methods reduce open method GAPs to 408");
-  assert.equal(manifest.metrics.coveredAfter, 74, "Retain 72 verified controls and add two statutory proof methods");
+  assert.equal(manifest.metrics.gap, 404, "Five attendance, four HCM and two statutory GET/POST proofs leave 404 open methods");
+  assert.equal(manifest.metrics.coveredAfter, 78, "Preserve 76 existing methods and credit two statutory real-HTTP proof methods");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -88,4 +88,23 @@ test("workspace readiness 503 containment remains a GAP until a positive tenant-
   assert.match(proof, /WORKSPACE_READINESS_UNAVAILABLE/);
   assert.match(proof, /\), 503,/);
   assert.match(proof, /\), 403,/);
+});
+
+test("HCM business-process and lifecycle own/foreign proof is source-pinned", () => {
+  const suite = readFileSync("scripts/qa/hcm-work-queue-http.mjs", "utf8").split("\n");
+  for (const route of ["hcm/business-processes/inbox", "hcm/lifecycle-notifications"]) {
+    const entry = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"];
+    for (const method of entry.methods) {
+      assert.equal(method.status, "COVERED", route + " " + method.name);
+      assert.equal(method.testedBy?.file, "scripts/qa/hcm-work-queue-http.mjs");
+      assert.match(suite[method.testedBy.ownPositiveLine - 1], /expectStatus\(await request\(/);
+      assert.match(suite[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\(/);
+      const foreignSpan = suite.slice(method.testedBy.foreignDenialLine - 1,
+        method.testedBy.foreignDenialLine + 5).join("\n");
+      assert.match(foreignSpan, /\), 403,/,
+        "The source-pinned victim-only request must assert HTTP 403");
+      if (method.name !== "GET") assert.match(suite[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(/);
+    }
+  }
+  assert.match(harness, /verifyHcmWorkQueueIsolation\(f, \{ request, expectStatus \}\)/);
 });

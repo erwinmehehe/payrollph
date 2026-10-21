@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 408, "Five attendance and two statutory payment-proof methods have source-pinned HTTP evidence");
-  assert.equal(manifest.metrics.coveredAfter, 74, "Preserve the five workforce attendance and two payment-proof method gains");
+  assert.equal(manifest.metrics.gap, 404, "Preserve five attendance, four HCM and two statutory proof methods");
+  assert.equal(manifest.metrics.coveredAfter, 78, "Retain 76 methods already on main and credit two statutory proof methods");
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
@@ -469,7 +469,8 @@ test("all credited proof links point to the claimed route and every recertified 
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
-        "scripts/qa/workforce-attendance-sweep-http.mjs"].includes(proof?.file) || statutoryManifestProof,
+        "scripts/qa/workforce-attendance-sweep-http.mjs",
+        "scripts/qa/hcm-work-queue-http.mjs"].includes(proof?.file) || statutoryManifestProof,
         path + " " + method.name + ": unsupported evidence source");
       if (statutoryManifestProof) {
         const harness = source.join("\n");
@@ -537,6 +538,19 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(suite,/assert\.deepEqual\(victimEventsAfter,victimEventsBefore/);
         assert.match(suite,/assert\.deepEqual\(victimPoliciesAfter,victimPoliciesBefore/);
         assert.match(suite,/assert\.deepEqual\(victimLocksAfter,victimLocksBefore/);
+      }
+      if (proof.file === "scripts/qa/hcm-work-queue-http.mjs") {
+        assert.ok(["src/app/api/hcm/business-processes/inbox/route.ts",
+          "src/app/api/hcm/lifecycle-notifications/route.ts"].includes(path),
+          path + ": only the two HCM endpoints with real proof may cite this source");
+        const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        const suite = readFileSync(proof.file, "utf8");
+        assert.match(runner, /verifyHcmWorkQueueIsolation\(f, \{ request, expectStatus \}\)/);
+        assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE/);
+        assert.match(suite, /assert\.deepEqual\(victimStepsAfter,victimStepsBefore/);
+        assert.match(suite, /assert\.deepEqual\(victimTasksAfter,victimTasksBefore/);
+        assert.equal(proof.ownStatus, 200);
+        assert.equal(proof.foreignStatus, 403);
       }
       if (proof.file === "scripts/qa/bank-tenant-http.mjs") {
         assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),

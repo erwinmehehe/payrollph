@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, CheckCircle2, Clock3, Inbox, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { reviewDeclineError } from "@/lib/hcm-action-center";
+import { readVerifiedHcmBusinessProcessInbox } from "@/lib/hcm-business-process-read";
 
 type WorkItem = {
   id: number;
@@ -92,16 +93,14 @@ function HcmBusinessProcessInboxContent({
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
     setLoading(true);
+    setPayload(null);
+    setDeclineStepId(null);
+    setDeclineNote("");
     setError("");
     try {
-      const response = await fetch(
-        "/api/hcm/business-processes/inbox?organizationId=" + organizationId,
-        { cache: "no-store" },
-      );
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? "Could not load the HCM Inbox.");
+      const verified = await readVerifiedHcmBusinessProcessInbox(organizationId, fetch);
       if (requestId !== requestSequence.current) return;
-      setPayload(data as InboxPayload);
+      setPayload(verified);
     } catch (caught) {
       if (requestId !== requestSequence.current) return;
       setPayload(null);
@@ -125,13 +124,13 @@ function HcmBusinessProcessInboxContent({
   }, [load]);
 
   const counts = {
-    work: payload?.myWork.length ?? 0,
-    submitted: payload?.submitted.filter(row => row.status === "in_progress").length ?? 0,
-    recent: payload?.recent.length ?? 0,
+    work: payload ? payload.myWork.length : "—",
+    submitted: payload ? payload.submitted.filter(row => row.status === "in_progress").length : "—",
+    recent: payload ? payload.recent.length : "—",
   };
 
   async function decide(item: WorkItem, decision: "Approved" | "Declined") {
-    if (!item.approvalTaskId || item.makerBlocked) return;
+    if (loading || !payload?.myWork.some((row) => row.id === item.id) || !item.approvalTaskId || item.makerBlocked) return;
     setBusyId(item.id);
     setError("");
     try {
@@ -152,7 +151,7 @@ function HcmBusinessProcessInboxContent({
   }
 
   async function complete(item: WorkItem, action: "complete" | "decline") {
-    if (item.makerBlocked) return;
+    if (loading || !payload?.myWork.some((row) => row.id === item.id) || item.makerBlocked) return;
     const reasonError = reviewDeclineError(
       action, item.stepType, declineStepId === item.id ? declineNote : null,
     );

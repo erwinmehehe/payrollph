@@ -4,6 +4,9 @@ import { useCallback, useState } from "react";
 import { AlertTriangle, BellRing, CheckCircle2, Clock3, RefreshCw, UserRoundCog } from "lucide-react";
 import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
 import { HcmEmploymentDecisionEvidence } from "@/components/hcm-employment-decision-evidence";
+import {
+  isVerifiedLifecycleNotificationQueue, isVerifiedLifecycleNotificationReceipt,
+} from "@/lib/hcm-lifecycle-notification-read";
 
 type LifecycleTask = {
   id: number;
@@ -76,8 +79,8 @@ function LifecycleNotificationContent({
     if (!response.ok) {
       throw new Error(typeof data?.error === "string" ? data.error : "Could not load lifecycle notifications.");
     }
-    if (!data || !Array.isArray(data.tasks) || !Array.isArray(data.owners) || typeof data.canAssign !== "boolean") {
-      throw new Error("Lifecycle notifications could not be verified.");
+    if (!isVerifiedLifecycleNotificationQueue(data, organizationId)) {
+      throw new Error("Lifecycle notifications could not be verified for the selected employer.");
     }
     return data as Payload;
   }, [organizationId]);
@@ -91,6 +94,7 @@ function LifecycleNotificationContent({
   const visibleError = error || loadError?.message || "";
 
   async function mutate(taskId: number, action: string, extra: Record<string, unknown> = {}) {
+    if (!payload?.tasks.some((task) => task.id === taskId)) return;
     setBusyId(taskId);
     setError("");
     try {
@@ -101,6 +105,9 @@ function LifecycleNotificationContent({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Could not update lifecycle notification.");
+      if (!isVerifiedLifecycleNotificationReceipt(data, organizationId, taskId, action, extra)) {
+        throw new Error("The lifecycle update response could not be verified. Refresh before taking another action.");
+      }
       await reload();
     } catch (mutationError) {
       setError(mutationError instanceof Error ? mutationError.message : "Could not update lifecycle notification.");
@@ -110,10 +117,10 @@ function LifecycleNotificationContent({
   }
 
   const tasks = payload?.tasks ?? [];
-  const urgent = tasks.filter((task) => task.status === "open" && task.severity === "blocker").length;
-  const unassigned = tasks.filter((task) => !task.ownerUserId).length;
-  const escalated = tasks.filter((task) => task.escalationStage >= 2 && task.status !== "resolved").length;
-  const snoozed = tasks.filter((task) => task.status === "snoozed").length;
+  const urgent = payload ? tasks.filter((task) => task.status === "open" && task.severity === "blocker").length : null;
+  const unassigned = payload ? tasks.filter((task) => !task.ownerUserId).length : null;
+  const escalated = payload ? tasks.filter((task) => task.escalationStage >= 2 && task.status !== "resolved").length : null;
+  const snoozed = payload ? tasks.filter((task) => task.status === "snoozed").length : null;
 
   return (
     <section className="card" style={{ marginBottom: 18 }}>
@@ -137,25 +144,25 @@ function LifecycleNotificationContent({
         <article className="stat-card">
           <div className="stat-icon orange"><BellRing size={18} /></div>
           <p>URGENT OPEN</p>
-          <h3>{urgent}</h3>
+          <h3>{urgent ?? "—"}</h3>
           <span>Due, overdue, or failed</span>
         </article>
         <article className="stat-card">
           <div className="stat-icon purple"><UserRoundCog size={18} /></div>
           <p>UNASSIGNED</p>
-          <h3>{unassigned}</h3>
+          <h3>{unassigned ?? "—"}</h3>
           <span>Needs an accountable owner</span>
         </article>
         <article className="stat-card">
           <div className="stat-icon orange"><AlertTriangle size={18} /></div>
           <p>ESCALATED</p>
-          <h3>{escalated}</h3>
+          <h3>{escalated ?? "—"}</h3>
           <span>Overdue lifecycle actions</span>
         </article>
         <article className="stat-card">
           <div className="stat-icon blue"><Clock3 size={18} /></div>
           <p>SNOOZED</p>
-          <h3>{snoozed}</h3>
+          <h3>{snoozed ?? "—"}</h3>
           <span>Reopens on expiry or stage change</span>
         </article>
       </div>
@@ -172,7 +179,7 @@ function LifecycleNotificationContent({
             </tr>
           </thead>
           <tbody>
-            {tasks.length === 0 && (
+            {payload && tasks.length === 0 && (
               <tr><td colSpan={5}><div className="empty-state">No active lifecycle notification tasks.</div></td></tr>
             )}
             {tasks.map((task) => (
