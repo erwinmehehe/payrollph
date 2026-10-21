@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 406, "Five attendance plus four HCM methods have real source-pinned HTTP proof");
-  assert.equal(manifest.metrics.coveredAfter, 76, "Retain 72 earlier methods plus four HCM methods");
+  assert.equal(manifest.metrics.gap, 403, "Existing tenant proofs plus three new probation methods remain source-pinned");
+  assert.equal(manifest.metrics.coveredAfter, 79, "Existing method proofs plus three probation GET/POST/PATCH methods");
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
