@@ -81,7 +81,9 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
       const data: unknown = await response.json().catch(() => null);
       if (controller.signal.aborted) return;
       const payload = readVerifiedManagerDecisionPage(response.ok, data, organizationId, source, beforeId);
-      if (!payload) throw new Error("The decision source returned unverified or wrong-employer data.");
+      if (!payload || payload.organizationId !== organizationId || payload.source !== source) {
+        throw new Error("The decision source returned unverified or wrong-employer data.");
+      }
       setLoaded({ key: requestKey, status: "ready", payload });
     }).catch(() => {
       if (!controller.signal.aborted) {
