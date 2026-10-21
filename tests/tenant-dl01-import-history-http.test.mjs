@@ -74,3 +74,40 @@ test("a credited import-history method must reference all exact executed proof l
     assert.ok(lines[number - 1].includes(required), field + " does not point to the live assertion");
   }
 });
+
+// Source guards catch missing named exports before the expensive HTTP job.
+// They do not execute a database query or confer tenant-isolation coverage.
+const schemaSource = readFileSync("src/db/schema.ts", "utf8");
+const schemaExports = new Set([...schemaSource.matchAll(/^export\s+const\s+([A-Za-z_$][\w$]*)\s*=/gm)]
+  .map(match => match[1]));
+
+function assertDl01SchemaImports(moduleSource, moduleFile) {
+  const declaration = moduleSource.match(/import\s*\{([^}]+)\}\s*from\s*"\.\.\/\.\.\/src\/db\/schema\.ts"/);
+  assert.ok(declaration, moduleFile + ": explicit named schema imports are required");
+  const names = declaration[1].split(",").map(name => name.trim()).filter(Boolean);
+  assert.ok(names.length > 0, moduleFile + ": schema imports must not be empty");
+  for (const name of names) {
+    assert.ok(schemaExports.has(name), moduleFile + ": schema.ts does not export " + name);
+  }
+  assert.ok(names.includes("auditEvents"), moduleFile + ": retain the real audit-event table");
+  assert.ok(moduleSource.includes(
+    "db.select().from(auditEvents).where(eq(auditEvents.organizationId, organizationId)).orderBy(auditEvents.id)"),
+  moduleFile + ": retain the organization-scoped, deterministic audit snapshot");
+}
+
+for (const moduleFile of [file, "scripts/qa/tenant-dl01-filing-file-http.mjs"]) {
+  const moduleSource = readFileSync(moduleFile, "utf8");
+  test(moduleFile + " imports real schema exports and retains victim audit snapshots", () => {
+    assertDl01SchemaImports(moduleSource, moduleFile);
+  });
+  test(moduleFile + " guard rejects the auditLogs missing-export regression", () => {
+    const broken = moduleSource.replace(/\bauditEvents\b/g, "auditLogs");
+    assert.notEqual(broken, moduleSource);
+    assert.throws(() => assertDl01SchemaImports(broken, moduleFile), /schema\.ts does not export auditLogs/);
+  });
+  test(moduleFile + " guard rejects removal of tenant-scoped audit snapshots", () => {
+    const broken = moduleSource.replace(".where(eq(auditEvents.organizationId, organizationId))", "");
+    assert.notEqual(broken, moduleSource);
+    assert.throws(() => assertDl01SchemaImports(broken, moduleFile), /organization-scoped, deterministic audit snapshot/);
+  });
+}

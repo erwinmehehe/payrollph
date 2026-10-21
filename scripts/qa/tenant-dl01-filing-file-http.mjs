@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../src/db/index.ts";
-import { auditLogs, employees, governmentFilingValidations, payrollEntries, payrollRuns } from "../../src/db/schema.ts";
+import { auditEvents, employees, governmentFilingValidations, payrollEntries, payrollRuns } from "../../src/db/schema.ts";
 import { recordGeneratedFiling } from "../../src/lib/filing-evidence-store.ts";
 import { FILING_FORMS } from "../../src/lib/filing-evidence.ts";
 
@@ -27,7 +27,7 @@ async function snapshotVictimFilings(organizationId) {
     db.select().from(governmentFilingValidations).where(eq(governmentFilingValidations.organizationId, organizationId)).orderBy(governmentFilingValidations.id),
     db.select().from(employees).where(eq(employees.organizationId, organizationId)).orderBy(employees.id),
     db.select().from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runs.map(run => run.id))).orderBy(payrollEntries.id),
-    db.select().from(auditLogs).where(eq(auditLogs.organizationId, organizationId)).orderBy(auditLogs.id),
+    db.select().from(auditEvents).where(eq(auditEvents.organizationId, organizationId)).orderBy(auditEvents.id),
   ]);
   return { runs, filings, staff, entries, audit };
 }

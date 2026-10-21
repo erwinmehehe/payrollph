@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "../../src/db/index.ts";
-import { auditLogs, employees, importBatches, payrollRuns } from "../../src/db/schema.ts";
+import { auditEvents, employees, importBatches, payrollRuns } from "../../src/db/schema.ts";
 
 export const IMPORT_HISTORY_METHOD = "GET employees/import";
 
@@ -22,7 +22,7 @@ async function snapshotVictimImportHistory(organizationId) {
     db.select().from(importBatches).where(eq(importBatches.organizationId, organizationId)).orderBy(importBatches.id),
     db.select().from(employees).where(eq(employees.organizationId, organizationId)).orderBy(employees.id),
     db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, organizationId)).orderBy(payrollRuns.id),
-    db.select().from(auditLogs).where(eq(auditLogs.organizationId, organizationId)).orderBy(auditLogs.id),
+    db.select().from(auditEvents).where(eq(auditEvents.organizationId, organizationId)).orderBy(auditEvents.id),
   ]);
   return { batches, staff, runs, audit };
 }
