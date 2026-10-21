@@ -103,7 +103,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 493);
   assert.equal(manifest.metrics.publicByDesign, 10, "Preserve ten main-classified public methods");
-  // Preserve the 93 pre-probation proofs, not an obsolete total. New suites
+  // Preserve all 96 main-credited proofs (including reviewed DL-01 receipts), not an obsolete total. New suites
   // can only close GAPs if every method cites the corresponding isolated HTTP
   // suite, executed for both attacker employers against real victim rows.
   const newSuites = [
@@ -158,9 +158,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     }
     newlySourcePinned += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 93,
-    "Keep 93 main COVERED methods; add only separately proven HCM/compliance methods");
-  assert.equal(manifest.metrics.gap + newlySourcePinned, 390,
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 96,
+    "Keep 96 main COVERED methods; add only separately proven HCM/compliance methods");
+  assert.equal(manifest.metrics.gap + newlySourcePinned, 387,
     "Never close a historical GAP without its source-linked HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
