@@ -59,3 +59,41 @@ test("self-service routes use real employee sessions and revoke real memberships
   assert.match(source, /"GET self\/payslips\/\[id\]\/explain"/);
   assert.match(source, /"GET self\/documents"/);
 });
+
+test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant proofs", () => {
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const cases = [...source.matchAll(/^\s+"(GET [^"]+)",$/gm)].map((m) => m[1]);
+  assert.equal(cases.length, 16, "Never silently narrow the tested Batch 01 method set");
+  assert.equal(new Set(cases).size, 16);
+  const pendingReview = [];
+  for (const spec of cases) {
+    const route = spec.slice("GET ".length);
+    const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]?.methods.find((m) => m.name === "GET");
+    assert.equal(method?.status, "COVERED", spec + " must have actual executed own/victim evidence");
+    if (method.testedBy.file !== "scripts/qa/tenant-high-risk-01-http.mjs") continue;
+    pendingReview.push(spec);
+    const proof = method.testedBy;
+    const lines = source.split("\n");
+    const signature = lines[proof.line - 1];
+    assert.ok(signature && (signature.includes('key: "' + spec + '"') ||
+      signature.includes('await caseCheck("' + spec + '"')),
+      spec + ": must link a unique route-specific case, not a generic handler");
+    assert.match(lines[proof.ownPositiveLine - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(lines[proof.foreignDenialLine - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(lines[proof.unchangedDbLine - 1] ?? "", /assert\.deepEqual\(victimAfter, victimBefore/);
+    assert.match(method.reason, /^Provisional:/);
+    assert.match(proof.scope, /independent|Two independent/);
+  }
+  assert.equal(pendingReview.length, 12, "The thirteenth GET has newer independent current-main proof; never double-credit it");
+  const payExplain = manifest.allApiRouteFiles["src/app/api/self/payslips/[id]/explain/route.ts"]
+    ?.methods.find((m) => m.name === "GET");
+  assert.equal(payExplain?.status, "COVERED");
+  assert.equal(payExplain?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs",
+    "Keep the newer source-matched own/foreign real-HTTP pay-explanation proof");
+  assert.equal(manifest.metrics.coveredAfter, 90);
+  assert.equal(manifest.metrics.gap, 390);
+  assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
+  assert.match(source, /for \(const idx of \[1, 2\]\)/);
+  assert.match(source, /assert\.equal\(passed\.size, 36/);
+  assert.match(source, /assert\.deepEqual\(victimAfter, victimBefore/);
+});

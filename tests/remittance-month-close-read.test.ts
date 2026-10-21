@@ -103,9 +103,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 490);
   // Pin the DL-01 ledger exactly; retain the endpoint-specific HTTP proofs below.
-  assert.equal(manifest.metrics.coveredAfter, 78, "Retain 76 existing covered methods and two DL-01 payment-evidence GET proofs");
+  assert.equal(manifest.metrics.coveredAfter, 90, "Retain 76 existing covered methods and two DL-01 payment-evidence GET proofs");
   assert.equal(manifest.metrics.publicByDesign, 10, "Retain eight public dispositions and two DL-01 fixed-template dispositions");
-  assert.equal(manifest.metrics.gap, 402, "The 402 remaining untested methods, including payout provider POST, remain GAPs");
+  assert.equal(manifest.metrics.gap, 390, "The 402 remaining untested methods, including payout provider POST, remain GAPs");
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);
