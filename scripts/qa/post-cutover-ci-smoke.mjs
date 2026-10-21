@@ -276,8 +276,8 @@ try {
         startDate: "2026-01-01", rateAmount: 22000 } });
     assert.equal(mutation.status, 403, "B_MUST_NOT_WRITE_A_EMPLOYEES");
     const foreignPayroll = await http("/api/payroll-runs", { method: "POST",
-      cookie: state.bCookie, body: { organizationId: state.a, periodStart: "2026-09-01",
-        periodEnd: "2026-09-15", payDate: "2026-09-16", processNow: false } });
+      cookie: state.bCookie, body: { organizationId: state.a, periodStart: "2026-09-16",
+        periodEnd: "2026-09-30", payDate: "2026-09-30", processNow: false } });
     assert.equal(foreignPayroll.status, 403, "B_MUST_NOT_CREATE_A_PAYROLL");
     return { deniedReads: 2, deniedWrites: 2 };
   });
