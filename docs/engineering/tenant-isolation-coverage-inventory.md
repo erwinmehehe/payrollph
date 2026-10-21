@@ -30,7 +30,7 @@ The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested
 
 ## Source-pinned counts
 
-Current branch adds twelve provisional Batch-01 GET proofs (88 COVERED / 394 GAP); exact-head HTTP CI remains mandatory. The frozen closure queue retains its original 406 methods. Baseline counts were reconciled against [`main@28e1224448342c34a4899fb67660b3da504530c1`](https://github.com/erwinmehehe/payrollph/commit/28e1224448342c34a4899fb67660b3da504530c1) on 2026-10-21. See the [method-by-method closure plan](tenant-isolation-closure-plan.md) for 12 prioritized batches; older counts in the historical audit narrative below document earlier snapshots and are **not** current status.
+This candidate preserves twelve provisional Batch-01 high-risk GET proofs and adds two statutory payment-evidence GET/POST proofs (90 COVERED / 392 GAP). Exact-head CI, disposable PostgreSQL HTTP evidence, and independent security and Philippine payroll/compliance approval remain required; this is not production or global tenant-isolation certification. The frozen closure queue retains its original 406 methods. Baseline counts were reconciled against [`main@28e1224448342c34a4899fb67660b3da504530c1`](https://github.com/erwinmehehe/payrollph/commit/28e1224448342c34a4899fb67660b3da504530c1) on 2026-10-21. See the [method-by-method closure plan](tenant-isolation-closure-plan.md) for 12 prioritized batches; older counts in the historical audit narrative below document earlier snapshots and are **not** current status.
 
 | Metric | Count |
 |---|---:|

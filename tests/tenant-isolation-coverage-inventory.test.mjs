@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 392, "Preserve five attendance, four HCM and two statutory proof methods");
-  assert.equal(manifest.metrics.coveredAfter, 90, "Retain 76 methods already on main and credit two statutory proof methods");
+  assert.equal(manifest.metrics.gap, 392, "Preserve attendance, HCM, twelve high-risk GET and two statutory proof methods");
+  assert.equal(manifest.metrics.coveredAfter, 90, "Retain 88 current-main methods and credit two statutory proof methods");
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
