@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 404, "Retain attendance/HCM plus two government-loan source-pinned HTTP proofs");
-  assert.equal(manifest.metrics.coveredAfter, 78, "Retain 76 earlier methods plus two government-loan proofs");
+  assert.equal(manifest.metrics.gap, 402, "Preserve earlier 78 methods plus two DOLE source-pinned own/foreign HTTP proofs");
+  assert.equal(manifest.metrics.coveredAfter, 80, "Preserve 78 earlier methods plus two DOLE single-employer proofs");
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
@@ -464,7 +464,8 @@ test("all credited proof links point to the claimed route and every recertified 
         "scripts/qa/pr-1302-tenant-proof.mjs",
         "scripts/qa/workforce-attendance-sweep-http.mjs",
         "scripts/qa/hcm-work-queue-http.mjs",
-        "scripts/qa/government-loan-read-http.mjs"].includes(proof?.file),
+        "scripts/qa/government-loan-read-http.mjs",
+        "scripts/qa/dole-13th-month-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (proof.file === "scripts/qa/payroll-read-sweep-http.mjs") {
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
@@ -510,6 +511,20 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(suite, /assert\.deepEqual\(afterMembers,beforeMembers/);
         assert.equal(proof.ownStatus, 200);
         assert.equal(proof.foreignStatus, 403);
+      }
+      if (proof.file === "scripts/qa/dole-13th-month-http.mjs") {
+        assert.equal(path, "src/app/api/compliance/dole-13th-month/route.ts",
+          "Only DOLE GET/POST methods have this narrow employer-owned evidence");
+        const suite = readFileSync(proof.file, "utf8");
+        assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),
+          /await \(await import\("\.\/dole-13th-month-http\.mjs"\)\)\.verifyDoleReportTenantIsolation\(f, \{ request, expectStatus \}\)/,
+          path + ": DOLE proof must run in real tenant HTTP harness");
+        assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE/,
+          path + ": isolated-only PostgreSQL guard is required");
+        assert.match(suite, /assert\.deepEqual\(victimProfilesAfter, victimProfilesBefore/,
+          path + ": foreign write must not modify victim profile");
+        assert.match(suite, /assert\.deepEqual\(victimSubmissionsAfter, victimSubmissionsBefore/,
+          path + ": foreign write must not modify victim submission evidence");
       }
       if (proof.file === "scripts/qa/bank-tenant-http.mjs") {
         assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),

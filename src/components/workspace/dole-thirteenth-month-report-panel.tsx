@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
+import { isVerifiedDoleThirteenthRead } from "@/lib/dole-thirteenth-read";
 
 type State = {
   profile: {
@@ -148,7 +149,10 @@ function ScopedDoleThirteenthMonthReportPanel({
       );
       const body = await response.json().catch(() => ({}));
       if (!isCurrent()) return false;
-      if (!response.ok) throw new Error(body.error ?? "DOLE 13th-month report could not be loaded.");
+      if (!response.ok) throw new Error(body?.error ?? "DOLE 13th-month report could not be loaded.");
+      if (!isVerifiedDoleThirteenthRead(body, organizationId, taxYear)) {
+        throw new Error("DOLE report identity, totals or submission evidence could not be verified. Retry.");
+      }
       setState(body);
       setProfile({
         establishmentAddress: body.profile?.establishmentAddress ?? "",
@@ -180,7 +184,7 @@ function ScopedDoleThirteenthMonthReportPanel({
   }, [load]);
 
   async function mutate(action: "save_profile" | "record_submission", extra: Record<string, unknown>) {
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || !state || loading || saving) return;
     const revision = ++mutationRevisionRef.current;
     const readRevision = loadRevisionRef.current;
     const isCurrentMutation = () =>
@@ -224,7 +228,7 @@ function ScopedDoleThirteenthMonthReportPanel({
           </p>
         </div>
         <div className="heading-actions">
-          <select value={taxYear} onChange={(event) => setTaxYear(Number(event.target.value))}>
+          <select value={taxYear} onChange={(event) => { setState(null); setTaxYear(Number(event.target.value)); }}>
             {[currentYear(), currentYear() - 1, currentYear() - 2].map((year) => (
               <option value={year} key={year}>{year}</option>
             ))}
@@ -239,6 +243,9 @@ function ScopedDoleThirteenthMonthReportPanel({
         <div className="card-body" style={{ paddingTop: 0 }}>
           <div className="notice notice-red" style={{ margin: 0 }}>
             <ShieldAlert size={15} /><span>{error}</span>
+            <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>
+              <RefreshCcw size={14} /> Retry verified report
+            </button>
           </div>
         </div>
       ) : state ? (

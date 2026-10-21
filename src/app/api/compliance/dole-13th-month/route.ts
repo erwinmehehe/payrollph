@@ -4,6 +4,8 @@ import { doleComplianceSubmissions, doleReportingProfiles } from "@/db/schema";
 import { ORG_ADMIN_ROLES, PAYROLL_OPERATOR_ROLES, assertOrganizationRole, getAccess } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { unavailableMultiEntityDoleReport } from "@/lib/dole-reporting-entity-boundary";
 import { toCsv } from "@/lib/csv";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { ensureDoleReportingSchema } from "@/lib/dole-reporting-schema";
@@ -38,7 +40,6 @@ function bounded(value: unknown, max: number) {
 }
 
 export async function GET(request: Request) {
-  await ensureDoleReportingSchema();
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
   const organizationId = Number(url.searchParams.get("organizationId"));
   const taxYear = Number(url.searchParams.get("taxYear"));
   const format = String(url.searchParams.get("format") ?? "json");
-  if (!Number.isInteger(organizationId) || !Number.isInteger(taxYear) || taxYear < 2000 || taxYear > 2200) {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 || !Number.isSafeInteger(taxYear) || taxYear < 2000 || taxYear > 2200) {
     return Response.json({ error: "organizationId and a valid taxYear are required." }, { status: 400 });
   }
 
@@ -57,6 +58,11 @@ export async function GET(request: Request) {
     "Only company-wide payroll operators can view the DOLE 13th-month compliance report.",
   );
   if (denied) return denied;
+  // These historic and submission tables have no legal-employer identity.
+  // A company-wide role is not authority to read every legal employer.
+  const scopeDenied = unavailableMultiEntityDoleReport(criticalReleaseFlagEnabled("multiEntity"));
+  if (scopeDenied) return scopeDenied;
+  await ensureDoleReportingSchema();
 
   const state = await buildDoleThirteenthMonthState(organizationId, taxYear);
   if (!state) return Response.json({ error: "Organization not found." }, { status: 404 });
@@ -118,16 +124,17 @@ export async function GET(request: Request) {
 
   return Response.json({
     ...state,
+    organizationId,
+    legalEntityId: null,
     officialSource: {
       label: "DOLE Online Compliance Portal",
       url: "https://reports.dole.gov.ph/",
       deadline: state.report.dueDate,
     },
-  }, { headers: { "Cache-Control": "no-store" } });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
-  await ensureDoleReportingSchema();
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
 
@@ -140,7 +147,7 @@ export async function POST(request: Request) {
   const organizationId = Number(body.organizationId);
   const taxYear = Number(body.taxYear);
   const action = String(body.action ?? "");
-  if (!Number.isInteger(organizationId) || !Number.isInteger(taxYear) || taxYear < 2000 || taxYear > 2200) {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 || !Number.isSafeInteger(taxYear) || taxYear < 2000 || taxYear > 2200) {
     return Response.json({ error: "organizationId and a valid taxYear are required." }, { status: 400 });
   }
 
@@ -151,6 +158,9 @@ export async function POST(request: Request) {
     "Only a company-wide Owner, Admin or Bookkeeper can manage DOLE report profile and submission evidence.",
   );
   if (denied) return denied;
+  const scopeDenied = unavailableMultiEntityDoleReport(criticalReleaseFlagEnabled("multiEntity"));
+  if (scopeDenied) return scopeDenied;
+  await ensureDoleReportingSchema();
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,
     action: `dole-13th-month-${action || "mutation"}`,
