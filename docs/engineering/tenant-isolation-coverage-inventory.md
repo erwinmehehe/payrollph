@@ -1,6 +1,6 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 366 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 364 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -10,7 +10,7 @@
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with an additional contribution-evidence active-membership authorization guard proposed in #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 366 method gaps and 20 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and new #1328 integration requires exact-head CI.
+**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with an additional contribution-evidence active-membership authorization guard proposed in #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 364 method gaps and 20 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and new #1328 integration requires exact-head CI.
 
 ## Approved-exit Separation evidence
 
@@ -30,7 +30,7 @@ The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested
 
 ## Source-pinned counts
 
-**Combined DL-01 (#1329), DL-02 (#1328) and government-loan current classification: 117 COVERED / 10 PUBLIC-BY-DESIGN / 366 GAP** among 493 API methods, plus 20 page/action GAPs.
+**Combined DL-01 (#1329), DL-02 (#1328) government-loan and legacy DOLE current classification: 119 COVERED / 10 PUBLIC-BY-DESIGN / 364 GAP** among 493 API methods, plus 20 page/action GAPs.
 
 **DL-02 proof-strengthening in #1328:** Attacker A and B now have persisted own-employer IDs and distinguishable populations (2 and 3 employees) before victim-only objects are inserted (4 employees). Victim ID/order assertions compare actual DB rows against **both** attacker-owned IDs, rather than only `id > 6`. HCM and tenant report POST positives validate real populated own counts/rows, while their catalog GETs are explicitly role/tenant-gated metadata, not employer-record exports. Performance evidence GET verifies real review/cycle JSON, own employee/organization identifiers, section digests, and download SHA256. Denied writes preserve a broader victim snapshot including term decisions, employees, payroll and review records. Coverage counts remain **provisional until the modified suite passes on the PR's current commit**; this is not global tenant-isolation acceptance.
 
@@ -43,9 +43,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 290 |
 | methods | 493 |
 | coveredBefore | 20 |
-| coveredAfter | 117 |
+| coveredAfter | 119 |
 | publicByDesign | 10 |
-| gap | 366 |
+| gap | 364 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |

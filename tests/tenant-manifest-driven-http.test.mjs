@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
-  assert.equal(manifest.metrics.gap, 366, "366 API method gaps remain after reviewed DL-01 plus DL-02 proofs");
-  assert.equal(manifest.metrics.coveredAfter, 117, "96 reviewed DL-01/main method controls plus nineteen DL-02 methods");
+  assert.equal(manifest.metrics.gap, 364, "364 API method gaps remain after reviewed DL-01 plus DL-02 proofs");
+  assert.equal(manifest.metrics.coveredAfter, 119, "96 reviewed DL-01/main method controls plus nineteen DL-02 methods");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -56,6 +56,21 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
       spec + " must map to a real manifest method, never an invented case");
   }
   assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), ["GET compliance/remittance-actions"]);
+  const expectedCovered = [
+    "GET compliance/bir-1601c-remittances",
+    "GET compliance/government-loan-remittances",
+    "GET compliance/statutory-remittances",
+    "GET compliance/statutory-remittances/payment-evidence",
+    "GET compliance/statutory-remittances/payment-evidence/[id]",
+    "GET compliance/statutory-remittances/posting-evidence/[id]",
+  ];
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "COVERED").sort(),
+    expectedCovered.sort(), "Preserve all six independently verified HTTP GET adapters");
+  for (const spec of expectedCovered) {
+    const proof = registry.get(spec).testedBy;
+    assert.ok(proof?.file && proof.ownPositiveLine && proof.foreignDenialLine,
+      spec + ": source-pinned independent own and victim evidence is mandatory");
+  }
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
   assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);
