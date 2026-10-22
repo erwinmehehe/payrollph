@@ -77,7 +77,7 @@ test("removing any scanner prerequisite makes the DL-02 contract fail", () => {
     "nohup node scripts/qa/tenant-ci-synthetic-proof-scanner.mjs",
     "curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health",
   ]) {
-    const broken = workflow.replace(required, "");
+    const broken = workflow.split(required).join("");
     assert.notEqual(broken, workflow);
     assert.throws(() => requireSafeScannerStartup(broken), /DL-02 scanner\/server setup is missing|Scanner must be healthy/);
   }
