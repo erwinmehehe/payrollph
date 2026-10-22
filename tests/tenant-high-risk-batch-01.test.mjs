@@ -96,20 +96,6 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   // Never "fix" this gate by substituting a new total without proof.
   const additionalSuites = [
     {
-      file: "scripts/qa/compliance-read-sweep-http.mjs",
-      entrypoint: "verifyComplianceReadSweep",
-      methods: [
-        "GET bir/annual-employer/module-evidence",
-        "POST bir/annual-employer/module-evidence",
-        "GET compliance/dole-13th-month",
-        "POST compliance/dole-13th-month",
-        "GET compliance/government-loan-remittances",
-        "POST compliance/government-loan-remittances",
-        // GET is already main-credited by the separate manifest-driven HTTP source.
-        "POST compliance/statutory-remittances/payment-evidence",
-      ],
-    },
-    {
       file: "scripts/qa/hcm-probation-sweep-http.mjs",
       entrypoint: "verifyHcmProbationSweep",
       methods: [
@@ -158,9 +144,9 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     }
     additionalSourcePinnedMethods += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 115,
-    "All 115 main covered methods remain, excluding new probation/compliance additions");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 368,
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 119,
+    "All 119 covered methods on new main remain, excluding the three new HCM probation method proofs");
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 364,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

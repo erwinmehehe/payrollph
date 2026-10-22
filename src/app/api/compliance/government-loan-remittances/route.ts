@@ -12,6 +12,7 @@ import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import {
   buildGovernmentLoanRemittanceSnapshot,
   canConfirmGovernmentLoanPosting,
@@ -56,6 +57,16 @@ async function requirePayrollOperator(userId: number, organizationId: number) {
   return null;
 }
 
+async function requireLegalEmployerGrant(userId: number, organizationId: number, legalEntityId: number, request: Request) {
+  // Company-wide membership alone is not a grant to every legal employer.
+  // This is enforced regardless of the client release flag.
+  const scope = await resolveMultiEntityContext({
+    userId, organizationId, request, requested: legalEntityId,
+  });
+  if (!scope.ok) return scope.response;
+  return assertEntityResource(scope.context, legalEntityId);
+}
+
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -79,6 +90,8 @@ export async function GET(request: Request) {
       error: error instanceof Error ? error.message : "Legal employer could not be resolved.",
     }, { status: 409 });
   }
+  const entityDenied = await requireLegalEmployerGrant(user.id, organizationId, legalEntity.id, request);
+  if (entityDenied) return entityDenied;
 
 
   const batches = await db.select().from(governmentLoanRemittanceBatches)
@@ -90,7 +103,11 @@ export async function GET(request: Request) {
   const batchIds = batches.map((batch) => batch.id);
   const members = batchIds.length
     ? await db.select().from(governmentLoanRemittanceMembers)
-        .where(inArray(governmentLoanRemittanceMembers.batchId, batchIds))
+        .where(and(
+          inArray(governmentLoanRemittanceMembers.batchId, batchIds),
+          eq(governmentLoanRemittanceMembers.organizationId, organizationId),
+          eq(governmentLoanRemittanceMembers.legalEntityId, legalEntity.id),
+        ))
         .orderBy(asc(governmentLoanRemittanceMembers.batchId), asc(governmentLoanRemittanceMembers.employeeNo))
     : [];
 
@@ -102,6 +119,8 @@ export async function GET(request: Request) {
   }).format(new Date());
 
   return Response.json({
+    organizationId,
+    legalEntityId: legalEntity.id,
     today,
     legalEntity: { id: legalEntity.id, code: legalEntity.code, displayName: legalEntity.displayName },
     batches: batches.map((batch) => ({
@@ -149,6 +168,8 @@ export async function POST(request: Request) {
       error: error instanceof Error ? error.message : "Legal employer could not be resolved.",
     }, { status: 409 });
   }
+  const entityDenied = await requireLegalEmployerGrant(user.id, organizationId, legalEntity.id, request);
+  if (entityDenied) return entityDenied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
