@@ -102,10 +102,22 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
-  // Pin the DL-01 ledger exactly; retain the endpoint-specific HTTP proofs below.
-  assert.equal(manifest.metrics.coveredAfter, 127, "Preserve source-pinned HCM and PR #1303 methods");
+  // Pin the current ledger exactly: the two DL-01 vault methods now have
+  // distinct synthetic PG16 proof links, but the other 354 methods remain GAP.
+  // This is provisional coverage; no production or global audit sign-off.
+  for (const [vaultRoute, vaultMethod] of [
+    ["src/app/api/employee-vault/route.ts", "GET"],
+    ["src/app/api/employee-vault/[id]/route.ts", "DELETE"],
+  ]) {
+    const method = manifest.allApiRouteFiles[vaultRoute]?.methods.find(
+      (item: { name: string }) => item.name === vaultMethod,
+    );
+    assert.equal(method?.status, "COVERED", vaultMethod + " vault requires distinct own/foreign HTTP proof");
+    assert.equal(method?.testedBy?.file, "scripts/qa/tenant-dl01-vault-http.mjs");
+  }
+  assert.equal(manifest.metrics.coveredAfter, 129, "Preserve source-pinned HCM, statutory and two DL-01 vault methods");
   assert.equal(manifest.metrics.publicByDesign, 10, "Eight inherited public dispositions plus two DL-01 fixed templates");
-  assert.equal(manifest.metrics.gap, 356, "Retain all unproven methods as GAP");
+  assert.equal(manifest.metrics.gap, 354, "Retain all unproven methods as GAP");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {
