@@ -11,8 +11,16 @@ export type CalendarItem = {
   status: CalendarStatus; detail: string; sourceLabel: string; sourceUrl: string;
   exactness: "nominal" | "conservative-target";
 };
+const REQUIRED_RULE_WATCH_LABELS = {
+  sss: "SSS contribution schedule",
+  philhealth: "PhilHealth premium schedule",
+  pagibig: "Pag-IBIG contribution rules",
+  "bir-withholding": "BIR withholding tax tables",
+  "wage-orders": "Regional minimum wage orders",
+} as const;
+export type RuleWatchFamily = keyof typeof REQUIRED_RULE_WATCH_LABELS;
 export type RuleWatchItem = {
-  family: string; label: string;
+  family: RuleWatchFamily; label: string;
   status: "current" | "review-due" | "verification-unrecorded" |
     "change-upcoming" | "update-overdue" | "coverage-ending" | "no-coverage";
   currentVersion: string | null; sourceDocument: string | null;
@@ -49,11 +57,18 @@ function item(x: unknown): x is CalendarItem {
 }
 function rule(x: unknown): x is RuleWatchItem {
   if (!record(x)) return false;
-  return text(x.family) && text(x.label) && text(x.detail) &&
+  return text(x.family) && Object.prototype.hasOwnProperty.call(REQUIRED_RULE_WATCH_LABELS, x.family) &&
+    text(x.label) && text(x.detail) &&
     ["current","review-due","verification-unrecorded","change-upcoming",
       "update-overdue","coverage-ending","no-coverage"].includes(String(x.status)) &&
     optionalText(x.currentVersion) && optionalText(x.sourceDocument) &&
     (x.lastVerifiedOn === null || date(x.lastVerifiedOn));
+}
+function completeRuleWatch(watch: RuleWatchItem[]): boolean {
+  const identities = new Set(watch.map(row => row.family + "|" + row.label));
+  return identities.size === watch.length &&
+    Object.entries(REQUIRED_RULE_WATCH_LABELS).every(([family, label]) =>
+      watch.some(row => row.family === family && row.label === label));
 }
 function completeObligations(calendar: VerifiedComplianceCalendar): boolean {
   const { applicableMonths, payrollMonths, birMonths, annualTaxYears, today, items } = calendar;
@@ -98,7 +113,8 @@ export function isVerifiedComplianceCalendar(
       !Array.isArray(x.items) || !x.items.every(item) ||
       !Array.isArray(x.ruleWatch) || !x.ruleWatch.every(rule)) return false;
   return new Set((x.items as CalendarItem[]).map(row => row.id)).size === x.items.length &&
-    completeObligations(x as VerifiedComplianceCalendar);
+    completeObligations(x as VerifiedComplianceCalendar) &&
+    completeRuleWatch(x.ruleWatch as RuleWatchItem[]);
 }
 export async function readVerifiedComplianceCalendar(
   organizationId: number, fetcher: typeof fetch = fetch, signal?: AbortSignal,

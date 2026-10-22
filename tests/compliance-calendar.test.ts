@@ -156,3 +156,63 @@ test("BIR follows pay month independently from contribution month", () => {
   assert.equal(items.find((item) => item.agency === "SSS")?.applicableMonth, "2026-09");
   assert.equal(items.some((item) => item.agency === "BIR" && item.applicableMonth === "2026-09"), false);
 });
+
+test("company-wide remittance cannot be marked reconciled by just one legal employer", async () => {
+  const { aggregateEmployerRemittanceBatches } = await import("../src/lib/compliance-calendar-server");
+  const runs = [
+    { periodEnd: "2026-09-15", legalEntityId: 101 },
+    { periodEnd: "2026-09-30", legalEntityId: 202 },
+  ];
+  const batch = (legalEntityId: number, status: string, pendingPostingCount = 0, exceptionCount = 0) => ({
+    legalEntityId, agency: "SSS", applicableMonth: "2026-09",
+    dueDate: "2026-10-31", status, pendingPostingCount, exceptionCount,
+  });
+  const month = ["2026-09"];
+  const statusFor = (rows: ReturnType<typeof aggregateEmployerRemittanceBatches>) =>
+    buildComplianceCalendar({
+      today: "2026-11-02", currentMonth: "2026-11",
+      applicableMonths: month, legalName: "Example Inc.",
+      philHealthEmployerNo: "00123456789",
+      batches: rows,
+    }).find(item => item.id === "SSS-2026-09")?.status;
+
+  assert.equal(statusFor(aggregateEmployerRemittanceBatches(runs,
+    [batch(101, "open"), batch(202, "reconciled")], month)), "overdue",
+    "A reconciled last row must not mask the first employer's open liability");
+  assert.equal(statusFor(aggregateEmployerRemittanceBatches(runs,
+    [batch(202, "reconciled"), batch(101, "open")], month)), "overdue",
+    "Calendar status cannot depend on result-row order");
+  assert.equal(statusFor(aggregateEmployerRemittanceBatches(runs,
+    [batch(101, "reconciled")], month)), "verification-required",
+    "Missing employer batch must not be presented as a company-wide clearance");
+  assert.equal(statusFor(aggregateEmployerRemittanceBatches(runs,
+    [batch(101, "reconciled"), batch(202, "reconciled")], month)), "complete");
+  assert.equal(statusFor(aggregateEmployerRemittanceBatches([
+    ...runs, { periodEnd: "2026-09-30", legalEntityId: null },
+  ], [batch(101, "reconciled"), batch(202, "reconciled")], month)), "verification-required",
+  "Legacy unscoped payroll must never inherit another employer's cleared batch");
+  assert.equal(statusFor(aggregateEmployerRemittanceBatches(runs,
+    [batch(101, "reconciled"), batch(202, "exception", 0, 1)], month)), "exception");
+  assert.equal(statusFor(aggregateEmployerRemittanceBatches(runs,
+    [batch(101, "reconciled"), batch(202, "paid", 1)], month)), "posting-pending");
+});
+
+test("monthly BIR 1601-C clearance requires accepted evidence for every legal employer", async () => {
+  const { fullyConfirmedBirMonths } = await import("../src/lib/compliance-calendar-server");
+  const runs = [
+    { payDate: "2026-09-15", legalEntityId: 101 },
+    { payDate: "2026-09-30", legalEntityId: 202 },
+  ];
+  const month = ["2026-09"];
+  const good = (legalEntityId: number, payrollRunLegalEntityId: number | null = legalEntityId) => ({
+    payDate: "2026-09-15", legalEntityId, payrollRunLegalEntityId,
+  });
+  assert.deepEqual(fullyConfirmedBirMonths(runs, [good(101)], month), [],
+    "One employer's BIR filing cannot close another employer's annualized monthly obligation");
+  assert.deepEqual(fullyConfirmedBirMonths(runs, [good(101), good(202)], month), month);
+  assert.deepEqual(fullyConfirmedBirMonths(runs, [good(101), good(202, 101)], month), [],
+    "Cross-entity run linkage must never count as a valid filing receipt");
+  assert.deepEqual(fullyConfirmedBirMonths([...runs, { payDate: "2026-09-30", legalEntityId: null }],
+    [good(101), good(202)], month), [],
+    "Unscoped historic runs cannot be cleared by known employer filings");
+});

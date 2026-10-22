@@ -6,10 +6,21 @@ import {
 } from "@/lib/compliance-calendar-read";
 
 const org = 101;
+const verifiedRuleWatch: VerifiedComplianceCalendar["ruleWatch"] = ([
+  ["sss", "SSS contribution schedule"],
+  ["philhealth", "PhilHealth premium schedule"],
+  ["pagibig", "Pag-IBIG contribution rules"],
+  ["bir-withholding", "BIR withholding tax tables"],
+  ["wage-orders", "Regional minimum wage orders"],
+] as const).map(([family, label]) => ({
+  family, label, status: "verification-unrecorded",
+  currentVersion: null, sourceDocument: null, lastVerifiedOn: null,
+  detail: "Fictional verification is unrecorded.",
+}));
 const empty: VerifiedComplianceCalendar = {
   organizationId: org, today: "2026-10-21", applicableMonths: [],
   payrollMonths: [], birMonths: [], annualTaxYears: [],
-  items: [], ruleWatch: [], note: "No fictional payroll periods exist.",
+  items: [], ruleWatch: verifiedRuleWatch, note: "No fictional payroll periods exist.",
 };
 const sample = {
   ...empty, applicableMonths: ["2026-10"], payrollMonths: ["2026-10"],
@@ -49,6 +60,12 @@ test("calendar: reject wrong employer, missing evidence arrays and malformed cou
     { ...sample, items: sample.items.map((row) => row.agency === "SSS" ? { ...row, agency: "BIR" } : row) },
     { ...sample, applicableMonths: ["2026-09"] },
     { ...empty, items: undefined }, { ...empty, ruleWatch: undefined },
+    { ...empty, ruleWatch: [] },
+    { ...empty, ruleWatch: verifiedRuleWatch.slice(0, -1) },
+    { ...empty, ruleWatch: [...verifiedRuleWatch, verifiedRuleWatch[0]] },
+    { ...empty, ruleWatch: verifiedRuleWatch.map(row =>
+      row.family === "wage-orders" ? { ...row, label: "Only a regional wage-order alert" } : row) },
+    { ...empty, ruleWatch: [...verifiedRuleWatch, { ...verifiedRuleWatch[0], family: "unknown" }] },
     { ...empty, today: undefined },
     { ...sample, items: [{ ...sample.items[0], status: undefined }] },
     { ...sample, items: [{ ...sample.items[0], dueDate: "bogus" }] },
@@ -81,4 +98,14 @@ test("calendar: retry performs a second read, never caches unavailable as empty"
   await assert.rejects(readVerifiedComplianceCalendar(org, fetcher));
   assert.deepEqual(await readVerifiedComplianceCalendar(org, fetcher), empty);
   assert.equal(count, 2);
+});
+
+test("calendar: additional scoped wage-order alerts retain complete statutory base coverage", () => {
+  assert.equal(isVerifiedComplianceCalendar({
+    ...empty,
+    ruleWatch: [...verifiedRuleWatch, {
+      ...verifiedRuleWatch[4], label: "Regional minimum wage orders · Region VII",
+      status: "change-upcoming",
+    }],
+  }, org), true);
 });
