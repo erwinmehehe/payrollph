@@ -7,6 +7,7 @@
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { basename } from "node:path";
 
 export const PINNED_HOSTED_DEMO_URL = "https://payrollph-fictional-demo-qa-three.vercel.app/demo";
 const LOCAL_DEMO_HEADING = "See Linaw from the seat you actually use";
@@ -17,7 +18,7 @@ const destinationSource = readFileSync(
   new URL("../../src/lib/hosted-demo-navigation.ts", import.meta.url), "utf8",
 );
 assert.match(destinationSource,
-  /export const HOSTED_DEMO_ORIGIN = "https:\/\/payrollph-fictional-demo-qa-three\.vercel\.app";/,
+  /^export const HOSTED_DEMO_ORIGIN = "https:\/\/payrollph-fictional-demo-qa-three\.vercel\.app";$/m,
   "The application hosted-demo origin differs from the reviewed CI destination");
 
 export function verifyProductionDemoEntrypoint({ status, responseHeaders, responseBody, boundaryMode }) {
@@ -46,7 +47,7 @@ export function verifyProductionDemoEntrypoint({ status, responseHeaders, respon
   throw new Error("Production demo entrypoint did not return approved local HTML or pinned redirect");
 }
 
-if (process.argv[1]?.endsWith("/verify-production-demo-entrypoint.mjs")) {
+if (process.argv[1] && basename(process.argv[1]) === "verify-production-demo-entrypoint.mjs") {
   try {
     assert.equal(process.argv.length, 6, "Expected status, header file, body file and protected boundary mode");
     const [status, headersPath, bodyPath, boundaryMode] = process.argv.slice(2);
