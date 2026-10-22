@@ -171,12 +171,14 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
         /assert\.deepEqual\(/,
         method.name + ": denied mutation must leave victim rows unchanged");
     }
-    newlySourcePinned += added;
+    // The HCM probation methods are inherited from main/#1326: validate their
+    // own/foreign evidence above, but do not subtract them as newly added here.
+    if (suite.entry === "verifyComplianceReadSweep") newlySourcePinned += added;
   }
   assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 126,
-    "Keep all 123 independently source-pinned methods from main after #1330 and only add new compliance methods");
+    "Keep all 126 independently source-pinned methods from current main, including HCM/#1326");
   assert.equal(manifest.metrics.gap + newlySourcePinned, 357,
-    "Never reduce main’s 360 open method GAPs without new source-linked real HTTP proof");
+    "Never reduce main’s 357 open method GAPs without new source-linked real HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);
