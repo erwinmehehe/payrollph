@@ -55,3 +55,15 @@ test("proof uploader cannot act on an unverified read and explicitly offers retr
   assert.match(api, /const \[ownedBatch\] = await db\.select/);
   assert.match(api, /if \(!ownedBatch\) return Response\.json\(\{ error: "Remittance batch not found\." \}, \{ status: 404 \}\)/);
 });
+
+test("retired employer or batch cannot publish an upload result; uncertain 2xx writes force a scoped read", () => {
+  const ui = readFileSync("src/components/workspace/statutory-payment-proof.tsx", "utf8");
+  assert.match(ui, /const body = await response\.json\(\)\.catch\(\(\) => \(\{\}\)\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*if \(!isCurrent\(\)\) return;/,
+    "A late POST response must not affect a retired employer view");
+  assert.match(ui, /response\.status !== 201[\s\S]*?const refreshed = await reloadWithOutcome\(\);\s*if \(!isCurrent\(\)\) return;/,
+    "Unexpected 2xx evidence must reload the source before another upload");
+  assert.match(ui, /\} catch \(error\) \{\s*if \(isCurrent\(\)\) \{\s*notify\(/,
+    "A late rejected upload must not notify the next employer");
+  assert.match(ui, /\} finally \{\s*if \(isCurrent\(\)\) setBusy\(false\);/,
+    "A retired upload must not change the active view's busy state");
+});
