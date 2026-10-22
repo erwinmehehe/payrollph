@@ -18,15 +18,8 @@ test("probation review panel remounts by employment term and loads asynchronousl
   assert.ok(source.includes("onClick={() => void load()}"));
 });
 
-test("government loan remittance panel remounts by employer and loads asynchronously", () => {
-  const source = read(LOAN);
-  assert.match(source, /GovernmentLoanRemittancePanelContent key=\{props\.organizationId\}/);
-  assert.match(source, /const load = useCallback\(async \(signal\?: AbortSignal\) => \{/);
-  assert.match(source, /new AbortController\(\)/);
-  assert.match(source, /queueMicrotask\(\(\) => \{\s*if \(controller\.signal\.aborted\) return;\s*void load\(controller\.signal\)\.catch/);
-  assert.match(source, /return \(\) => controller\.abort\(\)/);
-  assert.match(source, /if \(signal\?\.aborted\) return/);
-});
+// Loan loading, employer switching, ignored-abort late responses and mutation
+// confirmation execute in government-loan-ui-browser.mjs and the focused read tests.
 
 test("only resolved per-file React effect allowances are removed", () => {
   const baseline = JSON.parse(read("eslint-suppressions.json")) as Record<string, unknown>;

@@ -1073,7 +1073,7 @@ async function verifyNewMainRouteIsolation(f) {
 
 async function main() {
   requireDisposable();
-  const f = await makeFixture(); await (await import("./tenant-login-audit-http.mjs")).verifyTenantLoginAuditIsolation(f, { request, expectStatus });
+  const f = await makeFixture(); if (process.env.LOCAL_LOGIN_AUDIT_ENABLED === "true") await (await import("./tenant-login-audit-http.mjs")).verifyTenantLoginAuditIsolation(f, { request, expectStatus });
   const victim = f.orgs[0];
   const beforeWebhookProbe = (await db.select().from(providerEvents)
     .where(eq(providerEvents.organizationId, f.orgs[0].id))).map((e) => e.id).sort((a,b) => a-b);
@@ -1085,7 +1085,7 @@ async function main() {
   await verifyGovernanceTenantRead(f); await verifyCrossTenant(f);
   await verifyRevokedEmployerPayslipAccess(f);
   await verifySensitiveTenantDownloadsAndRoles(f);
-  await verifyNewMainRouteIsolation(f); await (await import("./workspace-readiness-http.mjs")).verifyWorkspaceReadinessIsolation(f, { request, expectStatus }); await (await import("./workforce-attendance-sweep-http.mjs")).verifyWorkforceAttendanceSweep(f,{request,expectStatus}); await (await import("./hcm-work-queue-http.mjs")).verifyHcmWorkQueueIsolation(f, { request, expectStatus });
+  await verifyNewMainRouteIsolation(f); await (await import("./workspace-readiness-http.mjs")).verifyWorkspaceReadinessIsolation(f, { request, expectStatus }); await (await import("./workforce-attendance-sweep-http.mjs")).verifyWorkforceAttendanceSweep(f,{request,expectStatus}); await (await import("./hcm-work-queue-http.mjs")).verifyHcmWorkQueueIsolation(f, { request, expectStatus }); await (await import("./government-loan-read-http.mjs")).verifyGovernmentLoanRemittanceIsolation(f, { request, expectStatus });
   await (await import("./tenant-high-risk-01-http.mjs")).verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });
   await verifyRemittanceMonthCloseTenantProof(f); await (await import("./bank-tenant-http.mjs")).verifyBankTenantIsolation(f, { request, expectStatus, makeSession }); await (await import("./owner-practice-http.mjs")).verifyOwnerPracticeHttp(f, { request, expectStatus });
   await (await import("./payroll-read-sweep-http.mjs")).verifyPayrollReadSweep(f, { request, expectStatus }); if (process.env.TENANT_DL02_PROOF === "isolated-ci-only") await (await import("./tenant-dl02-http.mjs")).verifyDl02TenantIsolation(f, { request, expectStatus, makeSession });

@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-21",
-  "acceptanceStatus": "NOT ACCEPTED: 368 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET only is intentionally unauthenticated fixed-template PUBLIC-BY-DESIGN; its POST remains GAP. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation.",
+  "acceptanceStatus": "NOT ACCEPTED: 366 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET only is intentionally unauthenticated fixed-template PUBLIC-BY-DESIGN; its POST remains GAP. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification.",
   "metrics": {
     "routeFiles": 290,
     "methods": 493,
     "coveredBefore": 20,
-    "coveredAfter": 115,
+    "coveredAfter": 117,
     "publicByDesign": 10,
-    "gap": 368,
+    "gap": 366,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -5192,22 +5192,39 @@
       ]
     },
     "src/app/api/compliance/government-loan-remittances/route.ts": {
-      "gitBlobSha": "6e828574796960775bd5fa0cd589fb903a5dd6f4",
+      "gitBlobSha": "dcc987b3a33b4211f51436c59ad4bffb3f17f47c",
       "route": "compliance/government-loan-remittances",
       "methods": [
         {
           "name": "GET",
-          "line": 59,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 70,
+          "status": "COVERED",
+          "reason": "Disposable real HTTP/PG16 with seeded government-loan batch and member, owned GET 200 for two independently authorized employers, real victim records denied GET 403",
+          "testedBy": {
+            "file": "scripts/qa/government-loan-read-http.mjs",
+            "line": 57,
+            "ownPositiveLine": 49,
+            "foreignDenialLine": 57,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three seeded legal employers; real synthetic employee-loan FK and remittance/member rows; safe local PostgreSQL16 only"
+          }
         },
         {
           "name": "POST",
-          "line": 124,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 143,
+          "status": "COVERED",
+          "reason": "Disposable real HTTP/PG16 synthetic loan posting exception POST 200, victim member POST 403, verified unchanged victim batch and member DB records",
+          "testedBy": {
+            "file": "scripts/qa/government-loan-read-http.mjs",
+            "line": 68,
+            "ownPositiveLine": 60,
+            "foreignDenialLine": 68,
+            "unchangedDbLine": 79,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three seeded legal employers; real synthetic employee-loan FK and remittance/member rows; safe local PostgreSQL16 only"
+          }
         }
       ],
       "employerSources": {
@@ -16219,7 +16236,7 @@
       ]
     },
     "src/app/api/legal-entities/route.ts": {
-      "gitBlobSha": "4bcc6994bcb59321618308a3c3bb890cbddd4bf2",
+      "gitBlobSha": "c46b34066f707cea088fb7c7276ea2a8fd33b4ad",
       "route": "legal-entities",
       "methods": [
         {
@@ -16237,7 +16254,7 @@
         },
         {
           "name": "POST",
-          "line": 176,
+          "line": 183,
           "status": "COVERED",
           "reason": "Two MFA-verified owners POST owned fictional entity 201 with real persisted row; actual victim POST 403, victim legal registry and audit unchanged.",
           "testedBy": {
@@ -16251,7 +16268,7 @@
         },
         {
           "name": "PATCH",
-          "line": 278,
+          "line": 285,
           "status": "COVERED",
           "reason": "Two MFA-verified owners PATCH owned fictional entity 200 with persisted update; actual victim employer PATCH 403 plus victim entity by ID 404; victim legal registry and audit unchanged.",
           "testedBy": {
