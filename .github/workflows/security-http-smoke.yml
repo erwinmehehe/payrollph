@@ -140,6 +140,7 @@ jobs:
         env:
           CI: "true"
           TENANT_SECOND_PASS_MODE: isolated-ci-only
+          TENANT_DL01_VAULT_PROOF: isolated-ci-only
           EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
         run: npx tsx scripts/qa/tenant-second-pass-http.mjs
 
