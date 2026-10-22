@@ -2,6 +2,8 @@
 
 > **RELEASE BLOCKER:** 359 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
+> **NOT ACCEPTED**: 359 method gaps and 20 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
 ## Merged security fix — former-employer payslip PDF authorization (#1283)
@@ -10,13 +12,13 @@
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 363 method gaps and 20 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
+**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 359 method gaps and 20 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
 
 ## Approved-exit Separation evidence
 
 PR #1280 changes the Separation route; GET, POST and PATCH are bound to the dedicated real HTTP/PG approved-exit test, with own success and explicit foreign-employer rejection plus unchanged victim row. It seeds prior termination-intent approval and executes actual financial checker decisions; it does not claim human intent approval or ordinary-payroll HTTP checker acceptance. Remaining method/page gaps stay open.
 
-**#1303 provisional-only note:** The extra statutory payment-evidence POST requires a signed-in privileged synthetic own 201, real foreign-employer 403, forged victim batch 404, one-active-row concurrency, and unchanged victim PostgreSQL. Its TLS test double is *not* production malware scanning. Migration 0136 is protected and unapplied. All 20 remaining page/action GAPs and 363 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
+**#1303 provisional-only note:** The extra statutory payment-evidence POST requires a signed-in privileged synthetic own 201, real foreign-employer 403, forged victim batch 404, one-active-row concurrency, and unchanged victim PostgreSQL. Its TLS test double is *not* production malware scanning. Migration 0136 is protected and unapplied. All 20 remaining page/action GAPs and 359 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
 
 ## Latest-main integration
 
