@@ -313,6 +313,36 @@ export async function verifyDl01Batch2(f, { request, expectStatus }) {
 
     const after = await victimSnapshot(victimOrg.id);
     assert.deepEqual(after, before, "DL-01 write/read/forged attempts must leave actual victim batches, members, artifacts, cases, timeline, payroll and audit unchanged");
+    // Exclude only fields regenerated for each request; compare every other
+    // contribution evidence field, including timelines, payroll and remittances.
+    const withoutContributionDownloadVolatiles = (pack) => {
+      const { generatedAt: _generatedAt, evidenceHashSha256: _evidenceHashSha256, ...stableFields } = pack;
+      return stableFields;
+    };
+    assert.deepEqual(
+      withoutContributionDownloadVolatiles(forgedCase.json),
+      withoutContributionDownloadVolatiles(ownCase.json),
+      "Forged selectors cannot change any stable contribution-case evidence field",
+    );
+    assert.match(forgedCase.json?.evidenceHashSha256 ?? "", /^[a-f0-9]{64}$/,
+      "Forged case response must still contain a valid evidence hash");
+
+    // The labor pack timestamp is per request; all 13 sections, section hashes,
+    // organization, range, boundaries and aggregate snapshot must be identical.
+    const withoutLaborDownloadTimestamp = (pack) => {
+      const { generatedAt: _generatedAt, ...stableFields } = pack;
+      return stableFields;
+    };
+    assert.deepEqual(
+      withoutLaborDownloadTimestamp(forgedInspection.json),
+      withoutLaborDownloadTimestamp(ownInspection.json),
+      "Forged selectors cannot change any stable labor inspection evidence field",
+    );
+    assert.equal(
+      forgedInspection.headers.get("x-payrollph-evidence-sha256"),
+      ownInspection.headers.get("x-payrollph-evidence-sha256"),
+      "Forged inspection response must preserve the complete snapshot hash header",
+    );
     receipts.push({
       attacker: idx, actorUserId: f.owners[idx].id, ownBatchId: ownedBatch.id,
       ownMemberId: ownedMember.id, ownCaseId: ownedCase.id,

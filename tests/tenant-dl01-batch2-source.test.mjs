@@ -146,3 +146,15 @@ test("existing employee CSV export retains prior independent proof, not double-c
   assert.ok(src.includes("const ownExport = expectStatus(await request("),
     "Follow-on CSV case remains an additional regression, not a newly closed method");
 });
+
+test("forged selectors preserve every stable contribution and labor evidence field", () => {
+  // These guards prevent removing the full-payload checks from the real
+  // two-attacker HTTP/PG16 run; static tests alone are not tenant proof.
+  assert.ok(src.includes("const { generatedAt: _generatedAt, evidenceHashSha256: _evidenceHashSha256, ...stableFields } = pack;"));
+  assert.ok(src.includes("const { generatedAt: _generatedAt, ...stableFields } = pack;"));
+  assert.match(src, /assert\.deepEqual\(\s*withoutContributionDownloadVolatiles\(forgedCase\.json\),\s*withoutContributionDownloadVolatiles\(ownCase\.json\)/);
+  assert.match(src, /assert\.deepEqual\(\s*withoutLaborDownloadTimestamp\(forgedInspection\.json\),\s*withoutLaborDownloadTimestamp\(ownInspection\.json\)/);
+  assert.ok(src.includes('forgedInspection.headers.get("x-payrollph-evidence-sha256")'));
+  assert.ok(src.includes('ownInspection.headers.get("x-payrollph-evidence-sha256")'));
+  assert.ok(src.includes("assert.match(forgedCase.json?.evidenceHashSha256"));
+});
