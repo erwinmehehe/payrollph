@@ -73,11 +73,22 @@ function StatutoryPaymentProofContent({
         body: form,
       });
       const body = await response.json().catch(() => ({}));
+      // A POST already sent to the server cannot safely be assumed cancelled.
+      // After any awaited response, suppress all results for a retired scope.
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(body.error ?? "Payment proof could not be uploaded.");
-      if (body.organizationId !== organizationId || body.batchId !== batchId ||
+      if (response.status !== 201 ||
+          body.organizationId !== organizationId || body.batchId !== batchId ||
           !Number.isSafeInteger(body.evidence?.id) || body.evidence.id <= 0 ||
           typeof body.evidence?.fileSha256 !== "string" || !/^[a-f0-9]{64}$/i.test(body.evidence.fileSha256)) {
-        throw new Error("Payment proof response could not be verified; refresh current evidence before retrying.");
+        // Even an invalid 2xx response may follow a committed write. Refresh
+        // the source before offering another upload, never claim failure/success.
+        const refreshed = await reloadWithOutcome();
+        if (!isCurrent()) return;
+        notify(refreshed?.data
+          ? "Upload response could not be verified. Review refreshed payment proof before another upload."
+          : "Upload may be stored, but confirmation is pending. Retry payment proof before another upload.", "err");
+        return;
       }
       setFile(null);
       setReplacementReason("");
@@ -89,9 +100,11 @@ function StatutoryPaymentProofContent({
       }
       notify("Payment proof stored and verified in refreshed evidence.", "ok");
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Payment proof could not be uploaded.", "err");
+      if (isCurrent()) {
+        notify(error instanceof Error ? error.message : "Payment proof could not be uploaded.", "err");
+      }
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   }
 
