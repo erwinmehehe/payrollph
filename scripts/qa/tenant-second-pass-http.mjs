@@ -1127,7 +1127,7 @@ async function verifyRemittanceMonthCloseTenantProof(f) {
     await import("../../src/db/schema");
   const { statutoryRemittanceSnapshotHash } = await import("../../src/lib/statutory-remittance");
   const orgs = f.orgs;
-  const period = "2026-09";
+  const period = "2026-01";
   const seed = [];
   for (let idx = 0; idx < 3; idx++) {
     const org = orgs[idx];
@@ -1138,8 +1138,8 @@ async function verifyRemittanceMonthCloseTenantProof(f) {
     const [run] = await db.insert(payrollRuns).values({
       organizationId: org.id, legalEntityId: f.entities[idx].id,
       periodLabel: "Synthetic SSS security proof " + period + "-" + idx,
-      periodStart: "2026-09-01", periodEnd: "2026-09-15",
-      payDate: "2026-09-16", status: "Released",
+      periodStart: period + "-01", periodEnd: period + "-15",
+      payDate: period + "-16", status: "Released",
     }).returning({ id: payrollRuns.id, organizationId: payrollRuns.organizationId });
     // Actual SSS liability and a reconciled fictional batch are needed for
     // the positive certification; a zero-liability month is rightly blocked.
@@ -1155,7 +1155,7 @@ async function verifyRemittanceMonthCloseTenantProof(f) {
     });
     const [batch] = await db.insert(statutoryRemittanceBatches).values({
       organizationId: org.id, legalEntityId: f.entities[idx].id,
-      agency: "SSS", applicableMonth: period, dueDate: "2026-10-15",
+      agency: "SSS", applicableMonth: period, dueDate: "2026-02-15",
       status: "reconciled", employeeCount: 1,
       expectedEmployeeShare: "100.00", expectedEmployerShare: "0.00",
       expectedTotal: "100.00", amountPaid: "100.00",
