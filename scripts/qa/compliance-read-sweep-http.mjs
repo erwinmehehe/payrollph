@@ -168,7 +168,7 @@ async function verifyBirAndPaymentProof(f, { request, expectStatus }) {
     assert.ok(stored?.id > 0, "Own stored payment proof must be real before API test");
     proofRows.push({ batch, stored });
   }
-  const testPdf = "%PDF-1.4\nFICTIONAL PAYROLLPH TENANT SCOPE PROOF\n%%EOF\n";
+  const testPdf = "%PDF-1.4\nSYNTHETIC-PROOF-TENANT-QA:COMPLIANCE-READ-SWEEP-OWN-POST\n%%EOF\n";
   function proofForm(organizationId, batchId) {
     const form = new FormData();
     form.set("organizationId", String(organizationId));
