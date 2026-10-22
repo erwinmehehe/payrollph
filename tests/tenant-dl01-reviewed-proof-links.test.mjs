@@ -77,20 +77,26 @@ for (const spec of specs) {
   });
 }
 
-test('DL-01 reviewed proofs remain intact with DL-02; no page or write gap is waived', () => {
+test('DL-01, DL-02 and HCM method proofs remain intact with one guarded scoped page', () => {
   const methods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods);
   assert.equal(methods.length, 493);
-  // Main's reviewed DL-01 baseline was 96/10/387. DL-02 adds 19 source-pinned
-  // methods; loan and DOLE add four, and #1303 adds a tested statutory POST. All other GAPs remain.
-  const expectedCurrent = [124, 10, 359];
-  assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), expectedCurrent);
-  assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], expectedCurrent);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 359 API methods and 20 page\/action GAPs remain\./);
+  assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), [127,10,356]);
+  assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], [127,10,356]);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 356 API methods and 19 page\/action GAPs remain\./);
   assert.equal(manifest.scopedPages.length, 20);
-  assert.ok(manifest.scopedPages.every(p => p.status === 'GAP'));
+  const coveredPage = manifest.scopedPages.find(p =>
+    p.path === 'src/app/hcm/manager-decision-inbox/page.tsx');
+  assert.equal(coveredPage.status, 'COVERED');
+  assert.equal(coveredPage.testedBy?.file, 'scripts/qa/hcm-manager-inbox-page-http.mjs');
+  assert.equal(manifest.scopedPages.filter(p => p.status === 'GAP').length, 19);
+  const probation = manifest.allApiRouteFiles['src/app/api/hcm/probation-reviews/route.ts'].methods;
+  assert.deepEqual(probation.map(method => method.name), ['GET','POST','PATCH']);
+  assert.ok(probation.every(method =>
+    method.status === 'COVERED' &&
+    method.testedBy?.file === 'scripts/qa/hcm-probation-sweep-http.mjs'));
   const importPost = manifest.allApiRouteFiles['src/app/api/employees/import/route.ts'].methods.find(m => m.name === 'POST');
   assert.equal(importPost.status, 'GAP', 'GET proof cannot cover the import write');
   assert.equal(importPost.testedBy, null);
-  assert.ok(overview.includes('| coveredAfter | 124 |'));
-  assert.ok(overview.includes('| gap | 359 |'));
+  assert.ok(overview.includes('| coveredAfter | 127 |'));
+  assert.ok(overview.includes('| gap | 356 |'));
 });

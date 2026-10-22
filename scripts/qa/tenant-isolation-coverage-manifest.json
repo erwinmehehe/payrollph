@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-21",
-  "acceptanceStatus": "NOT ACCEPTED: 359 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET only is intentionally unauthenticated fixed-template PUBLIC-BY-DESIGN; its POST remains GAP. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1303 additionally claims one provisional MFA-gated statutory payment-evidence POST proof on synthetic PG16 with real employer/batch checks, foreign-employer denials, one-active concurrency and unchanged victim rows; protected SQL 0136 remains unapproved for production. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 124 COVERED / 10 PUBLIC-BY-DESIGN / 359 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED.",
+  "acceptanceStatus": "NOT ACCEPTED: 356 API methods and 19 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 127 COVERED / 10 PUBLIC-BY-DESIGN / 356 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED.",
   "metrics": {
     "routeFiles": 290,
     "methods": 493,
     "coveredBefore": 20,
-    "coveredAfter": 124,
+    "coveredAfter": 127,
     "publicByDesign": 10,
-    "gap": 359,
+    "gap": 356,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -4196,7 +4196,7 @@
       ]
     },
     "src/app/api/compliance/calendar/route.ts": {
-      "gitBlobSha": "23de9e07cdccd6c7ae1eb66976b4da83a1548f9e",
+      "gitBlobSha": "646cb631195e918491908c9c34c696cd1f22b31a",
       "route": "compliance/calendar",
       "methods": [
         {
@@ -6162,10 +6162,10 @@
           "reason": "Provisional: production-mode localhost real HTTP and disposable PG16 two-independent-attacker employer proof; own GET 200 with real SSS reconciled month, victim employer GET 403 with matching valid fictional IDs, victim closure/batches/evidence unchanged. No provider calls or actual money. Requires exact-head CI and human signoff.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1194,
-            "ownPositiveLine": 1194,
-            "foreignDenialLine": 1201,
-            "unchangedDbLine": 1222,
+            "line": 1195,
+            "ownPositiveLine": 1195,
+            "foreignDenialLine": 1202,
+            "unchangedDbLine": 1223,
             "ownStatus": 200,
             "foreignStatus": 403,
             "scope": "Existing victim (A) plus two separately authenticated owner attackers (B/C); real Sept 2026 synthetic SSS payroll, reconciled batch, posting and hashed proof; independent owner MFA for POST.",
@@ -6179,10 +6179,10 @@
           "reason": "Provisional: production-mode localhost real HTTP and disposable PG16 two-independent-attacker employer proof; own POST 200 with real SSS reconciled month, victim employer POST 403 with matching valid fictional IDs, victim closure/batches/evidence unchanged. No provider calls or actual money. Requires exact-head CI and human signoff.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1202,
-            "ownPositiveLine": 1202,
-            "foreignDenialLine": 1213,
-            "unchangedDbLine": 1222,
+            "line": 1203,
+            "ownPositiveLine": 1203,
+            "foreignDenialLine": 1214,
+            "unchangedDbLine": 1223,
             "ownStatus": 200,
             "foreignStatus": 403,
             "scope": "Existing victim (A) plus two separately authenticated owner attackers (B/C); real Sept 2026 synthetic SSS payroll, reconciled batch, posting and hashed proof; independent owner MFA for POST.",
@@ -6552,7 +6552,7 @@
       ]
     },
     "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts": {
-      "gitBlobSha": "889b81433bc981e1731589202fc808e1da5e35ed",
+      "gitBlobSha": "37a901c394f02ffc1a2d5bf1c034c40ac9d4fd51",
       "route": "compliance/statutory-remittances/payment-evidence",
       "methods": [
         {
@@ -6614,11 +6614,11 @@
           "token": "getSessionUser"
         },
         {
-          "line": 109,
+          "line": 96,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 112,
+          "line": 99,
           "token": "getSessionUser"
         }
       ],
@@ -12580,9 +12580,9 @@
           "status": "COVERED",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1249,
-            "ownPositiveLine": 1249,
-            "foreignDenialLine": 1253,
+            "line": 1250,
+            "ownPositiveLine": 1250,
+            "foreignDenialLine": 1254,
             "ownStatus": 200,
             "foreignStatus": 403,
             "scope": "Three real fictional employer records and independently authenticated owner sessions in isolated localhost PostgreSQL; HCM feature enabled only in CI",
@@ -13504,29 +13504,50 @@
       ]
     },
     "src/app/api/hcm/probation-reviews/route.ts": {
-      "gitBlobSha": "9f061158bfc7081955ddbd7ff675c2bf66eb6061",
+      "gitBlobSha": "e6f24dd4b20cc138ca28c14a49a2f30489b06bbf",
       "route": "hcm/probation-reviews",
       "methods": [
         {
           "name": "GET",
           "line": 126,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Fictional real own employer GET positive, foreign real victim denied and PostgreSQL victim unchanged in isolated CI HTTP proof",
+          "testedBy": {
+            "file": "scripts/qa/hcm-probation-sweep-http.mjs",
+            "line": 80,
+            "ownPositiveLine": 68,
+            "foreignDenialLine": 80,
+            "unchangedDbLine": 101,
+            "scope": "Two independent signed-in owners, actual own and victim synthetic employees, real review and term rows, unchanged victim DB"
+          }
         },
         {
           "name": "POST",
-          "line": 156,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 158,
+          "status": "COVERED",
+          "reason": "Fictional real own employer POST positive, foreign real victim denied and PostgreSQL victim unchanged in isolated CI HTTP proof",
+          "testedBy": {
+            "file": "scripts/qa/hcm-probation-sweep-http.mjs",
+            "line": 92,
+            "ownPositiveLine": 60,
+            "foreignDenialLine": 92,
+            "unchangedDbLine": 101,
+            "scope": "Two independent signed-in owners, actual own and victim synthetic employees, real review and term rows, unchanged victim DB"
+          }
         },
         {
           "name": "PATCH",
-          "line": 234,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 236,
+          "status": "COVERED",
+          "reason": "Fictional real own employer PATCH positive, foreign real victim denied and PostgreSQL victim unchanged in isolated CI HTTP proof",
+          "testedBy": {
+            "file": "scripts/qa/hcm-probation-sweep-http.mjs",
+            "line": 97,
+            "ownPositiveLine": 81,
+            "foreignDenialLine": 97,
+            "unchangedDbLine": 101,
+            "scope": "Two independent signed-in owners, actual own and victim synthetic employees, real review and term rows, unchanged victim DB"
+          }
         }
       ],
       "employerSources": {
@@ -13570,19 +13591,19 @@
           "token": "getSessionUser"
         },
         {
-          "line": 157,
+          "line": 159,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 160,
+          "line": 162,
           "token": "getSessionUser"
         },
         {
-          "line": 235,
+          "line": 237,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 238,
+          "line": 240,
           "token": "getSessionUser"
         }
       ],
@@ -13596,15 +13617,15 @@
           "token": "searchParams.get(\"employeeId\")"
         },
         {
-          "line": 164,
+          "line": 166,
           "token": "body.organizationId"
         },
         {
-          "line": 165,
+          "line": 167,
           "token": "body.employeeId"
         },
         {
-          "line": 242,
+          "line": 244,
           "token": "body.organizationId"
         }
       ],
@@ -19587,10 +19608,10 @@
           "reason": "Two fictional authorized owners read their own released run payout state over production-mode localhost HTTP 200, foreign actual released payroll run GET 403 and POST 403, unchanged victim payroll. Provider transfers unconfigured and not attempted.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1310,
-            "ownPositiveLine": 1310,
-            "foreignDenialLine": 1315,
-            "unchangedDbLine": 1331,
+            "line": 1311,
+            "ownPositiveLine": 1311,
+            "foreignDenialLine": 1316,
+            "unchangedDbLine": 1332,
             "scope": "Disposable PG16 actual seeded payroll runs, two signed-in employer owners, read-only view=payout, foreign existing run denied and unchanged victim DB"
           }
         },
@@ -19603,9 +19624,9 @@
           "reviewedUncertified": {
             "routeBlobSha": "4a0f56c5e22127a1d74dd63ef2963df53edb6060",
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "ownPositiveLine": 1321,
-            "foreignDenialLine": 1325,
-            "unchangedDbLine": 1331
+            "ownPositiveLine": 1322,
+            "foreignDenialLine": 1326,
+            "unchangedDbLine": 1332
           }
         }
       ],
@@ -24665,11 +24686,11 @@
           "reason": "Disposable-PG16 authenticated synthetic employee own payroll explanation GET 200, real victim-only released entry GET 404 for two independent employer sessions and unchanged victim payroll",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1259,
-            "ownPositiveLine": 1285,
-            "foreignDenialLine": 1290,
+            "line": 1260,
+            "ownPositiveLine": 1286,
+            "foreignDenialLine": 1291,
             "scope": "Real synthetic released-pay rows, signed-in company employees, two employers, exact own employer/employee/entry echo, existing victim entry denied, victim database unchanged",
-            "unchangedDbLine": 1296
+            "unchangedDbLine": 1297
           }
         }
       ],
@@ -35493,7 +35514,7 @@
     },
     {
       "path": "src/app/hcm/manager-decision-inbox/page.tsx",
-      "blob": "b610d07c3af0103f8e94fa4ceb6b0813c5ba42cf",
+      "blob": "e57bd9c8b53af17ddf9c65a4f22d4e7ef3e51103",
       "ids": [
         {
           "line": 22,
@@ -35618,8 +35639,16 @@
         }
       ],
       "hasAction": false,
-      "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "status": "COVERED",
+      "reason": "Own company-wide owner renders 200; two signed-in foreign owners each receive 404 for a real, enabled victim employer. Same-tenant read API 200; foreign API 403; victim employee and payroll records remain unchanged.",
+      "testedBy": {
+        "file": "scripts/qa/hcm-manager-inbox-page-http.mjs",
+        "line": 44,
+        "ownPositiveLine": 99,
+        "foreignDenialLine": 106,
+        "unchangedDbLine": 130,
+        "scope": "Actual feature-ON SSR and client GET over localhost Next.js/PG16; two owners with own-worker fixtures, real victim employer denial, unchanged victim DB. Flag is on only in a separately spawned disposable localhost server."
+      }
     },
     {
       "path": "src/app/hcm/my-team/page.tsx",

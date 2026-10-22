@@ -102,6 +102,7 @@ test("API and page require explicit tenant, default-off flag and workforce role"
   assert.ok(!route.includes("export async function PATCH"));
   assert.ok(!route.includes("export async function DELETE"));
   assert.match(page, /key=\{organizationId\}/);
+  assert.match(page, /expectedScope=\{scope\}/);
 });
 
 test("all decision source reads constrain BOTH sides of joins to the tenant", () => {
@@ -142,6 +143,7 @@ test("client is read-only and rejects stale source/tenant responses", () => {
   assert.match(ui, /controller\.abort\(\)/);
   assert.match(ui, /payload\.organizationId !== organizationId/);
   assert.match(ui, /payload\.source !== source/);
+  assert.match(ui, /expectedScope/);
   assert.match(ui, /loaded\?\.key === requestKey/);
   assert.match(ui, /page\.page\.nextCursor/);
   assert.match(navigation, /NEXT_PUBLIC_HCM_MANAGER_DECISION_INBOX_ENABLED === "true"/);
