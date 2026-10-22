@@ -319,9 +319,9 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
       if (item.key === "GET compliance/statutory-remittances/payment-evidence") {
         const filtered = expectStatus(await request(
           "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
-          ownOrg.id + "&batchId=" + victimBatch.id, { cookie }), 200,
-        "Legitimate own-employer filter with another employer's batch ID");
-        assert.deepEqual(filtered.json?.evidence, [],
+          ownOrg.id + "&batchId=" + victimBatch.id, { cookie }), 404,
+        "An existing foreign batch ID must be denied, not returned as verified empty");
+        assert.equal(filtered.json?.evidence, undefined,
           "Foreign batch must not enumerate victim proof bytes or metadata");
       }
       if (item.key === "GET compliance/statutory-remittances/posting-evidence/[id]") {
