@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  confirmedGovernmentLoanMutation,
   isVerifiedGovernmentLoanRead, readVerifiedGovernmentLoanRemittances,
   type VerifiedGovernmentLoanRead,
 } from "@/lib/government-loan-remittance-read";
@@ -23,7 +24,8 @@ const batch = {
   agency: "SSS" as const, applicableMonth: "2026-09", dueDate: "2026-10-31",
   status: "open" as const, displayStatus: "open" as const,
   employeeCount: 1, loanCount: 1, expectedTotal: "100.00",
-  amountPaid: null, pendingPostingCount: 1, exceptionCount: 0,
+  amountPaid: null, paymentReference: null, agencyAcknowledgementReference: null,
+  pendingPostingCount: 1, exceptionCount: 0,
 };
 const json = (body: unknown, status = 200): typeof fetch =>
   (async () => new Response(JSON.stringify(body), { status })) as typeof fetch;
@@ -80,4 +82,28 @@ test("government loan: explicit retry refetches after failure, never caches synt
   await assert.rejects(readVerifiedGovernmentLoanRemittances(org, entity, fetcher));
   assert.deepEqual(await readVerifiedGovernmentLoanRemittances(org, entity, fetcher), empty);
   assert.equal(attempts, 2);
+});
+
+test("government loan: a schema-valid stale GET must never confirm a POST receipt", () => {
+  const before = { ...empty, batches: [batch], members: [member] };
+  const created = { batch: { ...batch, id: 33 } };
+  assert.equal(confirmedGovernmentLoanMutation("create_batch", created, before, org, entity), true);
+  assert.equal(confirmedGovernmentLoanMutation("create_batch", created, empty, org, entity), false);
+  const paid = { ...batch, status: "paid" as const, displayStatus: "paid" as const,
+    amountPaid: "100.00", paymentReference: "FICTIONAL-PAY-ABC",
+    agencyAcknowledgementReference: "FICTIONAL-ACK-DEF" };
+  const paidReceipt = { batch: paid };
+  assert.equal(confirmedGovernmentLoanMutation("record_payment", paidReceipt,
+    { ...empty, batches: [paid], members: [member] }, org, entity), true);
+  assert.equal(confirmedGovernmentLoanMutation("record_payment", paidReceipt,
+    before, org, entity), false);
+  const confirmed = { ...member, postingStatus: "confirmed" as const,
+    postedAmount: "100.00", postingReference: "FICTIONAL-POSTING" };
+  const confirmedBatch = { ...paid, pendingPostingCount: 0 };
+  assert.equal(confirmedGovernmentLoanMutation("confirm_member_posting", { member: confirmed },
+    { ...empty, batches: [confirmedBatch], members: [confirmed] }, org, entity), true);
+  assert.equal(confirmedGovernmentLoanMutation("confirm_member_posting", { member: confirmed },
+    { ...empty, batches: [confirmedBatch], members: [member] }, org, entity), false);
+  assert.equal(confirmedGovernmentLoanMutation("record_payment", paidReceipt,
+    { ...empty, organizationId: org + 1, batches: [paid], members: [member] }, org, entity), false);
 });

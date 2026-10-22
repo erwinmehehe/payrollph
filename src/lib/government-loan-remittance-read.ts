@@ -9,7 +9,9 @@ export type VerifiedGovernmentLoanBatch = {
   status: "open" | "paid" | "reconciled" | "exception";
   displayStatus: "open" | "paid" | "reconciled" | "exception" | "overdue";
   employeeCount: number; loanCount: number; expectedTotal: string;
-  amountPaid: string | null; pendingPostingCount: number; exceptionCount: number;
+  amountPaid: string | null; paymentReference: string | null;
+  agencyAcknowledgementReference: string | null;
+  pendingPostingCount: number; exceptionCount: number;
 };
 export type VerifiedGovernmentLoanMember = {
   id: number; batchId: number; organizationId: number; legalEntityId: number;
@@ -59,6 +61,8 @@ function validBatch(value: unknown, org: number, entity: number): value is Verif
     count(value.employeeCount) && count(value.loanCount) &&
     money(value.expectedTotal) &&
     (value.amountPaid === null || money(value.amountPaid)) &&
+    optionalText(value.paymentReference) &&
+    optionalText(value.agencyAcknowledgementReference) &&
     count(value.pendingPostingCount) && count(value.exceptionCount);
 }
 function validMember(value: unknown, org: number, entity: number): value is VerifiedGovernmentLoanMember {
@@ -123,4 +127,43 @@ export async function readVerifiedGovernmentLoanRemittances(
     throw Error("Government loan remittance evidence incomplete or for another employer. Retry.");
   }
   return value;
+}
+
+/**
+ * Confirm a write only when its actual POST receipt matches the exact saved
+ * record in a second authorized GET. A stale but schema-valid GET is not proof.
+ */
+export function confirmedGovernmentLoanMutation(
+  action: string, receipt: unknown, refreshed: VerifiedGovernmentLoanRead,
+  organizationId: number, legalEntityId: number,
+): boolean {
+  if (!record(receipt) ||
+      !isVerifiedGovernmentLoanRead(refreshed, organizationId, legalEntityId)) return false;
+  if (action === "create_batch" || action === "record_payment") {
+    const raw = receipt.batch;
+    if (!record(raw) || !id(raw.id) ||
+        raw.organizationId !== organizationId || raw.legalEntityId !== legalEntityId) return false;
+    const saved = refreshed.batches.find((batch) => batch.id === raw.id);
+    if (!saved || saved.agency !== raw.agency ||
+        saved.applicableMonth !== raw.applicableMonth ||
+        saved.expectedTotal !== raw.expectedTotal || saved.status !== raw.status) return false;
+    if (action === "create_batch") return raw.status === "open";
+    return raw.status === "paid" && saved.amountPaid === raw.amountPaid &&
+      saved.paymentReference === raw.paymentReference &&
+      saved.agencyAcknowledgementReference === raw.agencyAcknowledgementReference;
+  }
+  if (action === "confirm_member_posting" || action === "mark_member_exception") {
+    const raw = receipt.member;
+    if (!record(raw) || !id(raw.id) ||
+        raw.organizationId !== organizationId || raw.legalEntityId !== legalEntityId) return false;
+    const saved = refreshed.members.find((member) => member.id === raw.id);
+    if (!saved || saved.batchId !== raw.batchId ||
+        saved.postingStatus !== raw.postingStatus) return false;
+    return action === "confirm_member_posting"
+      ? raw.postingStatus === "confirmed" &&
+        saved.postedAmount === raw.postedAmount &&
+        saved.postingReference === raw.postingReference
+      : raw.postingStatus === "exception" && saved.exceptionNote === raw.exceptionNote;
+  }
+  return false;
 }
