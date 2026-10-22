@@ -104,9 +104,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
   // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
   // PR #1325 contributes three other real HTTP proofs; never double-credit these.
-  assert.equal(manifest.metrics.coveredAfter, 122);
+  assert.equal(manifest.metrics.coveredAfter, 126);
   assert.equal(manifest.metrics.publicByDesign, 10);
-  assert.equal(manifest.metrics.gap, 361);
+  assert.equal(manifest.metrics.gap, 357);
   // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
   // can only close GAPs if every method cites the corresponding isolated HTTP
   // suite, executed for both attacker employers against real victim rows.
