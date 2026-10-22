@@ -22,6 +22,7 @@ function requireDisposable() {
   const pg = new URL(process.env.DATABASE_URL ?? "");
   assert.equal(process.env.CI, "true");
   assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only");
+  assert.equal(process.env.TENANT_DL01_VAULT_PROOF, "isolated-ci-only");
   assert.equal(process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED, "true");
   assert.equal(app.href, "http://127.0.0.1:3000/");
   assert.equal(pg.protocol, "postgresql:");
