@@ -1091,10 +1091,11 @@ async function main() {
   await (await import("./payroll-read-sweep-http.mjs")).verifyPayrollReadSweep(f, { request, expectStatus }); if (process.env.TENANT_DL02_PROOF === "isolated-ci-only") await (await import("./tenant-dl02-http.mjs")).verifyDl02TenantIsolation(f, { request, expectStatus, makeSession });
   await (await import("./tenant-manifest-driven-http.mjs")).verifyManifestDrivenStatutoryBatch(f, { request, expectStatus }); await (await import("./tenant-dl01-batch2-http.mjs")).verifyDl01Batch2(f, { request, expectStatus }); await verifySelfExplanationTenantRead(f); await verifyPayoutStatusTenantRead(f); await (await import("./tenant-static-template-http.mjs")).verifyTenantIndependentImportTemplate(f, { request, expectStatus });
   await (await import("./tenant-scoped-page-probes.mjs")).probeManifestBusinessPages(f, { request, makeSession, expectStatus });
+  await (await import("./hcm-manager-inbox-page-http.mjs")).verifyHcmManagerInboxPage(f);
   if (process.env.TENANT_1302_FIRST_PAYROLL_PROOF === "isolated-ci-only") {
     await (await import("./pr-1302-tenant-proof.mjs")).verifyFirstPayrollTenantRead(f, { request, expectStatus });
   }
-  await (await import("./pr-1302-tenant-proof.mjs")).verifyLegalEmployerTenantMutations(f, { request, expectStatus }); await (await import("./compliance-read-sweep-http.mjs")).verifyComplianceReadSweep(f, { request, expectStatus }); if (process.env.TENANT_641_SALARY_CORRECTION_CASE_PROOF === "isolated-ci-only") await (await import("./salary-correction-case-tenant-proof.mjs")).verifySalaryCorrectionCaseTenantIsolation(f, { request, expectStatus });
+  await (await import("./pr-1302-tenant-proof.mjs")).verifyLegalEmployerTenantMutations(f, { request, expectStatus }); await (await import("./hcm-probation-sweep-http.mjs")).verifyHcmProbationSweep(f, { request, expectStatus }); await (await import("./compliance-read-sweep-http.mjs")).verifyComplianceReadSweep(f, { request, expectStatus }); if (process.env.TENANT_641_SALARY_CORRECTION_CASE_PROOF === "isolated-ci-only") await (await import("./salary-correction-case-tenant-proof.mjs")).verifySalaryCorrectionCaseTenantIsolation(f, { request, expectStatus });
   // Every record is fictional and written only to the isolated CI database.
   console.log(JSON.stringify({
     result: "PASS", kind: "SYNTHETIC_REAL_HTTP_ONLY", families: SECOND_PASS_FAMILIES,

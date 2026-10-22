@@ -35,8 +35,10 @@ export default async function HcmManagerDecisionInboxPage({
     "Manager or People oversight access is required.",
   );
   const access = denied ? null : await getAccess(user.id, organizationId);
-  if (denied || !deriveManagerDecisionScope(access)) notFound();
+  const scope = denied ? null : deriveManagerDecisionScope(access);
+  if (denied || !scope) notFound();
 
+  // SSR-derived scope is rechecked against each authenticated API response.
   // Key forces a complete query/filter reset on employer switches.
-  return <HcmManagerDecisionInbox key={organizationId} organizationId={organizationId} />;
+  return <HcmManagerDecisionInbox key={organizationId} organizationId={organizationId} expectedScope={scope} />;
 }

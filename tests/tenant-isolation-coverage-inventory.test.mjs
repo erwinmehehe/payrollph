@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 357, "361 API method gaps remain after DL-01 and DL-02");
-  assert.equal(manifest.metrics.coveredAfter, 126, "96 reviewed DL-01/main method controls and nineteen DL-02 methods");
+  assert.equal(manifest.metrics.gap, 354, "Keep 354 unverified method gaps after merged HCM and #1325 proofs");
+  assert.equal(manifest.metrics.coveredAfter, 129, "Count exact linked PG16 method proofs without treating GAPs as successes");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -1049,8 +1049,23 @@ test("page and server-action inventory cannot silently omit new or changed busin
       if (entry.status === "COVERED") {
         const proof = entry.testedBy;
         assert.ok(proof, path + ": page COVERED needs actual browser/HTTP proof");
-        evidenceLine(proof.file, proof.ownPositiveLine, path + " own session");
-        evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign session");
+        const own = evidenceLine(proof.file, proof.ownPositiveLine, path + " own session");
+        const foreign = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign session");
+        if (path === "src/app/hcm/manager-decision-inbox/page.tsx") {
+          assert.equal(proof.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
+          assert.match(own, /const ownPage = await requestOn\(/);
+          assert.match(foreign, /const foreignPage = await requestOn\(/);
+          const proofSource = readFileSync(proof.file, "utf8");
+          const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+          assert.match(proofSource, /HCM_MANAGER_DECISION_INBOX_ENABLED: "true"/);
+          assert.match(proofSource, /HCM_MANAGER_DECISION_INBOX_ORG_IDS: f\.orgs\.map/);
+          assert.match(proofSource, /for \(const idx of \[1, 2\]\)/);
+          assert.match(proofSource, /assert\.equal\(ownPage\.status, 200/);
+          assert.match(proofSource, /assert\.equal\(foreignPage\.status, 404/);
+          assert.match(proofSource, /assert\.equal\(foreignApi\.status, 403/);
+          assert.match(proofSource, /assert\.deepEqual\(await db\.select\(\)\.from\(payrollRuns\)/);
+          assert.match(runner, /verifyHcmManagerInboxPage\(f\)/);
+        }
       } else {
         assert.ok(typeof entry.reason === "string" && entry.reason.trim().length >= 20,
           path + ": public-by-design requires a reviewed reason");

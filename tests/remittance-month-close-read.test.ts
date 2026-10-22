@@ -104,9 +104,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
   // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
   // PR #1325 contributes three other real HTTP proofs; never double-credit these.
-  assert.equal(manifest.metrics.coveredAfter, 126);
+  assert.equal(manifest.metrics.coveredAfter, 129, "Preserve source-pinned HCM and PR #1325 methods");
   assert.equal(manifest.metrics.publicByDesign, 10);
-  assert.equal(manifest.metrics.gap, 357);
+  assert.equal(manifest.metrics.gap, 354, "Retain all unproven methods as GAP");
   // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
   // can only close GAPs if every method cites the corresponding isolated HTTP
   // suite, executed for both attacker employers against real victim rows.
@@ -173,9 +173,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     }
     newlySourcePinned += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 123,
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 126,
     "Keep all 123 independently source-pinned methods from main after #1330 and only add new compliance methods");
-  assert.equal(manifest.metrics.gap + newlySourcePinned, 360,
+  assert.equal(manifest.metrics.gap + newlySourcePinned, 357,
     "Never reduce main’s 360 open method GAPs without new source-linked real HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
