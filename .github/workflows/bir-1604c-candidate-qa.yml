@@ -109,6 +109,8 @@ jobs:
           echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Execute read-only 2316 ledger isolation and final-pay PostgreSQL acceptance
         run: npx tsx --test tests/bir-2316-withholding-postgres.test.ts tests/year-end-prior-evidence-postgres.test.ts
       - name: Generate and behavior-test the unsigned prescribed-template PDF

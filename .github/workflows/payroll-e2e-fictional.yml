@@ -91,6 +91,8 @@ jobs:
       - name: Apply existing CI-only PG16 audit guard to disposable PG
         if: matrix.postgres == 16
         run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Lint

@@ -57,6 +57,8 @@ jobs:
             echo "$key=$value" >> "$GITHUB_ENV"
           done
       - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - run: npx tsx --test --test-concurrency=1 tests/first-payroll-invited-pilot-postgres.test.ts tests/first-payroll-run-navigation.test.ts tests/critical-release-flags.test.ts
       - run: npm install --no-save --package-lock=false playwright@1.55.0
       - run: npx playwright install --with-deps chromium

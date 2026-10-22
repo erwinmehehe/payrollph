@@ -57,6 +57,8 @@ jobs:
           echo "PII_ENCRYPTION_KEY=$pii" >> "$GITHUB_ENV"
           echo "PUBLIC_INTAKE_PROOF_SECRET=$proof" >> "$GITHUB_ENV"
       - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Rehearse careers consent, isolated DDL rollback and two-employer HTTP (PG${{ matrix.postgres }})
         run: npx tsx --test --test-concurrency=1 tests/careers-http-postgres.test.ts
       - run: npm run build
