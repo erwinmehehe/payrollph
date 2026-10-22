@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 361, "Main 119 source-pinned methods plus three HCM probation methods leave 361 GAP");
-  assert.equal(manifest.metrics.coveredAfter, 122, "119 already covered methods from current main plus three HCM probation proofs");
+  assert.equal(manifest.metrics.gap, 357, "Main 119 source-pinned methods plus three HCM probation methods leave 361 GAP");
+  assert.equal(manifest.metrics.coveredAfter, 126, "119 already covered methods from current main plus three HCM probation proofs");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -711,7 +711,7 @@ test("all credited proof links point to the claimed route and every recertified 
         "scripts/qa/hcm-work-queue-http.mjs",
         "scripts/qa/tenant-manifest-driven-http.mjs", "scripts/qa/tenant-high-risk-01-http.mjs",
         "scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs",
-        "scripts/qa/tenant-dl02-http.mjs", "scripts/qa/government-loan-read-http.mjs", "scripts/qa/dole-13th-month-http.mjs"].includes(proof?.file),
+        "scripts/qa/tenant-dl02-http.mjs", "scripts/qa/government-loan-read-http.mjs", "scripts/qa/dole-13th-month-http.mjs", "scripts/qa/tenant-dl01-batch2-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (["scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs"].includes(proof.file)) {
         const history = proof.file.endsWith("tenant-dl01-import-history-http.mjs");
@@ -752,6 +752,55 @@ test("all credited proof links point to the claimed route and every recertified 
         const fn = history ? "verifyTenantImportHistory" : "verifyTenantFilingFile";
         assert.ok(hook.includes("await " + fn + "(f, { request, expectStatus });"));
         assert.ok(source.join("\n").includes("verifyTenantIndependentImportTemplate(f, { request, expectStatus })"));
+        continue;
+      }
+      if (proof.file === "scripts/qa/tenant-dl01-batch2-http.mjs") {
+        // Newly credited DL-01 batch 2 claims require distinct same-method
+        // live PG16/HTTP evidence, never a method name borrowed from a source
+        // guard, 401/404-only negative or a previously covered employee export.
+        const key = method.name + " " + entry.route;
+        const spec = {
+          "POST compliance/statutory-remittances/posting-import": ["ownPosting", "foreignPosting", "forgedPosting", "persistedVictimBatch", "victimBatch.id > batches[idx].id", 404],
+          "GET compliance/contribution-issues/evidence": ["ownCase", "foreignCase", "forgedCase", "persistedVictimCase", "victimCase.id > cases[idx].id", 200],
+          "GET compliance/labor-inspection/evidence-pack": ["ownInspection", "foreignInspection", "forgedInspection", "persistedVictimWorker", "victimExportWorker.id > f.ownedEmployees[0].id", 200],
+          "GET bi-exports": ["ownBi", "foreignBi", "forgedBi", "persistedVictimBiRun", "victimBiRun.id > f.ownRuns[1].id", 400],
+        }[key];
+        assert.ok(spec, key + ": no unreviewed method may borrow batch-2 proofs");
+        const [ownName, foreignName, forgedName, victimName, ordering, forgedStatus] = spec;
+        const suite = readFileSync(proof.file, "utf8");
+        const lines = suite.split("\n");
+        const actual = field => evidenceLine(proof.file, proof[field], key + " " + field);
+        const span = field => lines.slice(proof[field] - 1, proof[field] + 12).join("\n");
+        assert.ok(actual("line").includes('"' + key + '"'), key + ": wrong adapter declaration");
+        assert.ok(actual("ownPositiveLine").includes("const " + ownName + " = expectStatus(await request(") &&
+          span("ownPositiveLine").includes("}), 200,"), key + ": real populated own response required");
+        assert.ok(actual("foreignDenialLine").includes("const " + foreignName + " = expectStatus(await request(") &&
+          span("foreignDenialLine").includes("}), 403,"), key + ": real victim tenant 403 required");
+        assert.ok(actual("forgedSelectorLine").includes("const " + forgedName + " = expectStatus(await request(") &&
+          span("forgedSelectorLine").includes("}), " + forgedStatus + ","), key + ": forged victim selector is unverified");
+        assert.ok(actual("victimExistsLine").includes("assert.equal(" + victimName),
+          key + ": real persisted victim row must be checked");
+        assert.ok(actual("victimIdOrderingLine").trimStart().startsWith("assert.ok(") &&
+          span("victimIdOrderingLine").includes(ordering),
+          key + ": victim IDs must exceed real attacker-owned objects");
+        assert.match(actual("unchangedDbLine"), /assert\.deepEqual\(after, before,/);
+        assert.ok(proof.ownPositiveLine < proof.foreignDenialLine &&
+          proof.foreignDenialLine < proof.forgedSelectorLine &&
+          proof.forgedSelectorLine < proof.unchangedDbLine);
+        assert.ok(suite.includes('assert.equal(process.env.CI, "true")') &&
+          suite.includes('assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only")') &&
+          suite.includes('assert.equal(app.href, "http://127.0.0.1:3000/")') &&
+          suite.includes("for (const idx of [1, 2])") &&
+          suite.includes("const before = await victimSnapshot(victimOrg.id)") &&
+          suite.includes("const after = await victimSnapshot(victimOrg.id)") &&
+          suite.includes('assert.equal(receipts.length, 2, "Both independent attackers must execute every real method")'), key + ": guarded real HTTP harness required");
+        assert.ok(source.join("\n").includes('verifyDl01Batch2(f, { request, expectStatus })'),
+          key + ": method-specific source must run inside existing protected HTTP runner");
+        if (method.name === "POST") {
+          assert.match(suite, /assert\.equal\(ownPosting\.json\?\.applied, true\)/);
+          assert.match(suite, /assert\.equal\(artifact\?\.outcome, "applied"\)/);
+          assert.match(suite, /assert\.equal\(Buffer\.from\(artifact\.fileDataBase64, "base64"\)\.toString\("utf8"\), csv\)/);
+        }
         continue;
       }
       if (proof.file === "scripts/qa/tenant-manifest-driven-http.mjs") {

@@ -60,7 +60,26 @@ test("statutory posting GET serves a globally public static CSV, unlike the sepa
   assert.equal(getter?.status, "PUBLIC-BY-DESIGN");
   assert.ok(getter.reason.includes("unauthenticated"));
   assert.ok(getter.reason.includes("static"));
-  assert.equal(poster?.status, "GAP", "Statutory posting mutation POST cannot inherit GET public classification");
+  // Public template GET does not establish any authorization for POST. The
+  // private mutation earns provisional coverage only from its OWN runnable
+  // three-employer HTTP/PG16 case with persisted-victim and unchanged-DB proof.
+  assert.equal(getter?.testedBy, null, "Public template cannot borrow private write evidence");
+  assert.equal(poster?.status, "COVERED",
+    "Authenticated POST must have its own source-linked PG16/HTTP tenant proof, never inherited GET publicity");
+  assert.equal(poster?.testedBy?.file, "scripts/qa/tenant-dl01-batch2-http.mjs",
+    "Separate private mutation must not borrow the public CSV GET evidence");
+  const proof = poster.testedBy;
+  const postingLines = readFileSync(proof.file, "utf8").split("\n");
+  assert.ok(postingLines[proof.line - 1].includes("POST compliance/statutory-remittances/posting-import"));
+  assert.ok(postingLines[proof.ownPositiveLine - 1].includes("const ownPosting = expectStatus(await request("));
+  assert.ok(postingLines[proof.foreignDenialLine - 1].includes("const foreignPosting = expectStatus(await request("));
+  assert.ok(postingLines[proof.forgedSelectorLine - 1].includes("const forgedPosting = expectStatus(await request("));
+  assert.ok(postingLines[proof.unchangedDbLine - 1].includes("assert.deepEqual(after, before,"));
+  assert.ok(proof.ownPositiveLine < proof.foreignDenialLine &&
+    proof.foreignDenialLine < proof.forgedSelectorLine &&
+    proof.forgedSelectorLine < proof.unchangedDbLine, "Private write needs ordered independent evidence");
+  assert.ok(runner.includes('verifyDl01Batch2(f, { request, expectStatus })'),
+    "POST's independent proof must run on the isolated authenticated HTTP/PG16 harness");
   assert.ok(live.includes("for (const idx of [null, 0, 1, 2])"));
   assert.ok(live.includes('"/api/compliance/statutory-remittances/posting-import", options'));
   assert.ok(live.includes('"?organizationId=" + f.orgs[0].id') ||
