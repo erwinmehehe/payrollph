@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
-import { readVerifiedGovernmentLoanRemittances, type VerifiedGovernmentLoanBatch, type VerifiedGovernmentLoanMember } from "@/lib/government-loan-remittance-read";
+import { confirmedGovernmentLoanMutation, readVerifiedGovernmentLoanRemittances, type VerifiedGovernmentLoanBatch, type VerifiedGovernmentLoanMember } from "@/lib/government-loan-remittance-read";
 
 type Agency = "SSS" | "Pag-IBIG";
 
@@ -18,22 +18,115 @@ function previousMonth() {
   return month.toISOString().slice(0, 7);
 }
 
-export function GovernmentLoanRemittancePanel(props: {
+type PanelProps = {
   organizationId: number;
   setNotice: (message: string) => void;
-}) {
-  // Employer scope is tenant-private. Remount on a new organizationId so no
-  // batch, member or posting state from the previous employer can render.
-  return <GovernmentLoanRemittancePanelContent key={props.organizationId} {...props} />;
+};
+type LegalEmployerOption = { id: number; displayName: string; active: true };
+
+export function GovernmentLoanRemittancePanel(props: PanelProps) {
+  // Re-mount all evidence and draft actions when either employer identity changes.
+  return <GovernmentLoanLegalEmployerSelector key={props.organizationId} {...props} />;
+}
+
+function GovernmentLoanLegalEmployerSelector(props: PanelProps) {
+  const [options, setOptions] = useState<LegalEmployerOption[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [phase, setPhase] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [error, setError] = useState("");
+  const [mutationBusy, setMutationBusy] = useState(false);
+
+  const refreshSelector = useCallback(async (signal?: AbortSignal) => {
+    setPhase("loading");
+    setError("");
+    try {
+      const response = await fetch(
+        "/api/legal-entities?organizationId=" + props.organizationId + "&mode=selector",
+        { cache: "no-store", signal },
+      );
+      const data: unknown = await response.json().catch(() => null);
+      if (!response.ok || !data || typeof data !== "object" || Array.isArray(data))
+        throw Error("Legal-employer selector unavailable.");
+      const body = data as Record<string, unknown>;
+      if (body.organizationId !== props.organizationId ||
+          !Array.isArray(body.legalEntities) || body.legalEntities.length === 0 ||
+          body.legalEntities.length > 100 ||
+          !body.legalEntities.every((item: unknown) =>
+            item !== null && typeof item === "object" && !Array.isArray(item) &&
+            Number.isSafeInteger((item as LegalEmployerOption).id) &&
+            (item as LegalEmployerOption).id > 0 &&
+            (item as LegalEmployerOption).active === true &&
+            typeof (item as LegalEmployerOption).displayName === "string" &&
+            (item as LegalEmployerOption).displayName.trim().length > 0)) {
+        throw Error("Legal-employer selector returned an incomplete authorized scope.");
+      }
+      const entities = body.legalEntities as LegalEmployerOption[];
+      if (new Set(entities.map((item) => item.id)).size !== entities.length)
+        throw Error("Legal-employer selector returned duplicate IDs.");
+      if (signal?.aborted) return;
+      setOptions(entities);
+      setSelectedId(entities.length === 1 ? entities[0].id : null);
+      setPhase("ready");
+    } catch (caught) {
+      if (signal?.aborted) return;
+      setOptions([]);
+      setSelectedId(null);
+      setPhase("unavailable");
+      setError(caught instanceof Error ? caught.message : "Legal-employer selector unavailable.");
+    }
+  }, [props.organizationId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) void refreshSelector(controller.signal);
+    });
+    return () => controller.abort();
+  }, [refreshSelector]);
+
+  return (
+    <div data-government-loan-legal-employer>
+      {phase === "loading" && <div className="notice notice-amber" role="status">Verifying authorized legal employers…</div>}
+      {phase === "unavailable" && (
+        <div className="notice notice-amber" role="alert">
+          <AlertTriangle size={15} /> {error} No payment or posting action is permitted.
+          <button className="secondary-button" type="button" onClick={() => void refreshSelector()}>
+            Retry legal employers
+          </button>
+        </div>
+      )}
+      {phase === "ready" && (
+        <label className="field" style={{ display: "grid", maxWidth: 380, marginTop: 12 }}>
+          <span>Legal employer (required)</span>
+          <select aria-label="Government loan legal employer" value={selectedId ?? ""}
+            disabled={mutationBusy}
+            onChange={(event) => {
+              const id = Number(event.target.value);
+              setSelectedId(Number.isSafeInteger(id) && id > 0 &&
+                options.some((item) => item.id === id) ? id : null);
+            }}>
+            {options.length > 1 && <option value="">Select legal employer…</option>}
+            {options.map((item) => <option key={item.id} value={item.id}>{item.displayName}</option>)}
+          </select>
+        </label>
+      )}
+      {phase === "ready" && selectedId === null &&
+        <div className="notice notice-amber" role="status">
+          Select a legal employer before opening government loan remittances.
+        </div>}
+      {phase === "ready" && selectedId !== null &&
+        <GovernmentLoanRemittancePanelContent key={props.organizationId + ":" + selectedId}
+          {...props} legalEntityId={selectedId} onMutationBusy={setMutationBusy} />}
+    </div>
+  );
 }
 
 function GovernmentLoanRemittancePanelContent({
   organizationId,
+  legalEntityId,
   setNotice,
-}: {
-  organizationId: number;
-  setNotice: (message: string) => void;
-}) {
+  onMutationBusy,
+}: PanelProps & { legalEntityId: number; onMutationBusy: (busy: boolean) => void }) {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [month, setMonth] = useState(previousMonth());
@@ -56,11 +149,12 @@ function GovernmentLoanRemittancePanelContent({
     setBatches([]);
     setMembers([]);
     try {
-      const verified = await readVerifiedGovernmentLoanRemittances(organizationId, fetch, signal);
+      const verified = await readVerifiedGovernmentLoanRemittances(organizationId, legalEntityId, fetch, signal);
       if (signal?.aborted) return;
       setBatches(verified.batches);
       setMembers(verified.members);
       setReadPhase("verified");
+      return verified;
     } catch (caught) {
       if (!signal?.aborted) {
         setBatches([]);
@@ -70,7 +164,7 @@ function GovernmentLoanRemittancePanelContent({
       }
       throw caught;
     }
-  }, [organizationId]);
+  }, [organizationId, legalEntityId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -97,22 +191,33 @@ function GovernmentLoanRemittancePanelContent({
       return false;
     }
     setBusy(action);
+    onMutationBusy(true);
+    let postAccepted = false;
     try {
       const response = await fetch("/api/compliance/government-loan-remittances", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId, action, ...payload }),
+        body: JSON.stringify({ organizationId, legalEntityId, action, ...payload }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Government loan remittance action failed.");
-      await load();
+      postAccepted = true;
+      const refreshed = await load();
+      if (!refreshed ||
+          !confirmedGovernmentLoanMutation(action, body, refreshed, organizationId, legalEntityId)) {
+        throw Error("Saved receipt does not match the refreshed authorized record.");
+      }
       setNotice(success);
       return true;
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Government loan remittance action failed.");
+      const message = error instanceof Error ? error.message : "Government loan remittance action failed.";
+      setNotice(postAccepted
+        ? "This action may have been recorded; inspect the saved legal-employer batch or member posting before retrying. " + message
+        : message);
       return false;
     } finally {
       setBusy(null);
+      onMutationBusy(false);
     }
   }
 
