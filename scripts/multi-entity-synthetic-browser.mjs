@@ -280,6 +280,34 @@ try {
   await checkpoint("Entity-scoped run reads and wrong-entity creation are denied", async () => {
     const scopedPayroll = await newSyntheticContext();
     await login(scopedPayroll, on, "entity-payroll@example.test");
+    await checkpoint("Government-loan selector and GET/POST enforce explicit employer grants", async () => {
+      const selector = await request(scopedPayroll, on, "/api/legal-entities?organizationId=1&mode=selector&selection=granted");
+      assert.equal(selector.status, 200);
+      assert.deepEqual(selector.data.legalEntities.map(entity => entity.id), [employerA.id]);
+      const both = await request(owner, on, "/api/legal-entities?organizationId=1&mode=selector&selection=granted");
+      assert.equal(both.status, 200);
+      assert.deepEqual(both.data.legalEntities.map(entity => entity.id).sort(), [employerA.id, employerB.id].sort());
+      for (const context of [ungranted, foreign]) {
+        assert.equal((await request(context, on, "/api/legal-entities?organizationId=1&mode=selector&selection=granted")).status, 403);
+      }
+      const before = await request(owner, on, "/api/compliance/government-loan-remittances?organizationId=1&legalEntityId=" + employerB.id);
+      assert.equal(before.status, 200);
+      const own = await request(scopedPayroll, on, "/api/compliance/government-loan-remittances?organizationId=1&legalEntityId=" + employerA.id);
+      assert.equal(own.status, 200);
+      assert.equal(own.data.legalEntityId, employerA.id);
+      const denied = await request(scopedPayroll, on, "/api/compliance/government-loan-remittances?organizationId=1&legalEntityId=" + employerB.id);
+      assert.equal(denied.status, 403);
+      assert.equal(denied.data.code, "ENTITY_ACCESS_DENIED");
+      const deniedPost = await request(scopedPayroll, on, "/api/compliance/government-loan-remittances", "POST", {
+        organizationId: 1, legalEntityId: employerB.id, action: "create_batch", agency: "SSS", applicableMonth: "2026-10",
+      });
+      assert.equal(deniedPost.status, 403);
+      assert.equal(deniedPost.data.code, "ENTITY_ACCESS_DENIED");
+      const after = await request(owner, on, "/api/compliance/government-loan-remittances?organizationId=1&legalEntityId=" + employerB.id);
+      assert.equal(after.status, 200);
+      assert.deepEqual(after.data, before.data, "Rejected employer POST cannot change target batches/members");
+    });
+
     const alphaRuns = await request(scopedPayroll, on, "/api/payroll-runs?organizationId=1");
     assert.equal(alphaRuns.status, 200);
     assert.equal(alphaRuns.data?.runs?.length, 1);

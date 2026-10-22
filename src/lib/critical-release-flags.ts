@@ -394,6 +394,18 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Successful password login audit writes and failure containment before cookie delivery",
     approval: "Executed default-off no-write parity, own-employer audit isolation and restricted-role restart smoke; production activation separate",
   },
+  governmentLoanRemittanceUi: {
+    env: "NEXT_PUBLIC_GOVERNMENT_LOAN_REMITTANCE_UI_ENABLED",
+    owner: "Security / Payroll Compliance / Product",
+    risk: "Opt-in verified government-loan read, retry and mutation receipt UI; backend employer authorization remains unconditional",
+    approval: "Executed flag-off legacy parity, scoped read/receipt tests and desktop/390px UI acceptance; production activation separate",
+  },
+  doleAttributionStateUi: {
+    env: "NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED",
+    owner: "Security / Philippine Payroll Compliance / Product",
+    risk: "Opt-in verified DOLE report reads, fresh mutation confirmation and source-attribution UI; multi-entity GET/POST/CSV and builder deny regardless of this flag",
+    approval: "Exact flag-off visual parity, multi-entity 503 and untouched victim data, real desktop/390px component browser, independent statutory/payroll acceptance",
+  },
   complianceReadStateUi: {
     env: "NEXT_PUBLIC_COMPLIANCE_READ_STATE_UI_ENABLED",
     owner: "Security / Philippine Payroll Compliance / Product",

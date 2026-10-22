@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 367, "Retain #1328 DL-02 plus #1303 statutory POST: 367 methods still GAP");
-  assert.equal(manifest.metrics.coveredAfter, 116, "Preserve 115 method proofs on main plus #1303 statutory POST");
+  assert.equal(manifest.metrics.gap, 363, "Retain 115 DL-01/DL-02, four government-loan/DOLE, and one #1303 statutory POST: 363 GAP");
+  assert.equal(manifest.metrics.coveredAfter, 120, "Preserve 119 covered methods from new main plus #1303 statutory POST");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -612,7 +612,7 @@ test("all credited proof links point to the claimed route and every recertified 
         "scripts/qa/hcm-work-queue-http.mjs",
         "scripts/qa/tenant-manifest-driven-http.mjs", "scripts/qa/tenant-high-risk-01-http.mjs",
         "scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs",
-        "scripts/qa/tenant-dl02-http.mjs"].includes(proof?.file),
+        "scripts/qa/tenant-dl02-http.mjs", "scripts/qa/government-loan-read-http.mjs", "scripts/qa/dole-13th-month-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (["scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs"].includes(proof.file)) {
         const history = proof.file.endsWith("tenant-dl01-import-history-http.mjs");
@@ -760,6 +760,40 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(suite, /assert\.deepEqual\(victimTasksAfter,victimTasksBefore/);
         assert.equal(proof.ownStatus, 200);
         assert.equal(proof.foreignStatus, 403);
+      }
+      if (proof.file === "scripts/qa/government-loan-read-http.mjs") {
+        assert.equal(path, "src/app/api/compliance/government-loan-remittances/route.ts",
+          "Only the source-pinned government loan GET/POST methods may use this proof");
+        const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        const suite = readFileSync(proof.file, "utf8");
+        assert.match(runner, /verifyGovernmentLoanRemittanceIsolation\(f, \{ request, expectStatus \}\)/);
+        assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE/);
+        assert.match(suite, /assert\.deepEqual\(afterBatches,beforeBatches/);
+        assert.match(suite, /assert\.deepEqual\(afterMembers,beforeMembers/);
+        assert.equal(proof.ownStatus, 200);
+        assert.equal(proof.foreignStatus, 403);
+      }
+      if (proof.file === "scripts/qa/dole-13th-month-http.mjs") {
+        assert.equal(path, "src/app/api/compliance/dole-13th-month/route.ts",
+          "Only DOLE GET/POST may cite single-employer owned/foreign proof");
+        assert.ok(["GET", "POST"].includes(method.name));
+        const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        const suite = readFileSync(proof.file, "utf8");
+        const lines = suite.split("\n");
+        assert.match(runner, /verifyDoleReportTenantIsolation\(f, \{ request, expectStatus \}\)/,
+          "DOLE must execute within protected disposable real-HTTP harness");
+        assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE/);
+        assert.match(suite, /victimProfilesBefore\.length > 0 && victimSubmissionsBefore\.length > 0/,
+          "Victim evidence must be genuinely seeded and non-empty");
+        assert.match(lines[proof.ownPositiveLine - 1], /expectStatus\(await request\("\/api\/compliance\/dole-13th-month/);
+        assert.match(lines[proof.foreignDenialLine - 1], /expectStatus\(await request\(/);
+        const ownSpan = lines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 9).join("\n");
+        const foreignSpan = lines.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 10).join("\n");
+        assert.match(ownSpan, /\), 200,/, "The owned GET/POST must actually succeed");
+        assert.match(foreignSpan, /\), 403,/, "The actual victim GET/POST must deny");
+        if (method.name === "POST")
+          assert.match(lines[proof.unchangedDbLine - 1], /assert\.deepEqual\(victimProfilesAfter, victimProfilesBefore/);
+        assert.match(suite, /assert\.deepEqual\(victimSubmissionsAfter, victimSubmissionsBefore/);
       }
       if (proof.file === "scripts/qa/bank-tenant-http.mjs") {
         assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),

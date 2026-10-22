@@ -13,11 +13,15 @@ import {
 import { ensureDoleReportingSchema } from "@/lib/dole-reporting-schema";
 import { buildDoleThirteenthMonthReport } from "@/lib/dole-thirteenth-month-report";
 import { readBasicAndThirteenth } from "@/lib/final-pay";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { assertSingleEmployerDoleSource } from "@/lib/dole-reporting-entity-boundary";
 
 export async function buildDoleThirteenthMonthState(
   organizationId: number,
   taxYear: number,
 ) {
+  // Prevent internal callers from bypassing the HTTP tenant boundary.
+  assertSingleEmployerDoleSource(criticalReleaseFlagEnabled("multiEntity"));
   await ensureDoleReportingSchema();
 
   const [organization, profileRows, staff, runs, historical, separations, submissions] = await Promise.all([

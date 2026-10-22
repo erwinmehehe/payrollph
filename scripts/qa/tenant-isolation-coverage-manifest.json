@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-21",
-  "acceptanceStatus": "NOT ACCEPTED: 367 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET only is intentionally unauthenticated fixed-template PUBLIC-BY-DESIGN; its POST remains GAP. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. PR #1303 additionally proves MFA-gated statutory payment-evidence POST with synthetic own 201, real foreign-employer 403, forged victim batch 404, one-active-receipt concurrency, and unchanged victim PostgreSQL; only CI-local scanner is used. Protected SQL 0136 awaits separate DBA migration review and authorization. Exact-merge-head CI and human security/payroll review are required before source merge; no live payroll, provider or statutory filing is approved.",
+  "acceptanceStatus": "NOT ACCEPTED: 363 API methods and 20 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET only is intentionally unauthenticated fixed-template PUBLIC-BY-DESIGN; its POST remains GAP. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1303 additionally claims one provisional MFA-gated statutory payment-evidence POST proof on synthetic PG16 with real employer/batch checks, foreign-employer denials, one-active concurrency and unchanged victim rows; protected SQL 0136 remains unapproved for production. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED.",
   "metrics": {
     "routeFiles": 290,
     "methods": 493,
     "coveredBefore": 20,
-    "coveredAfter": 116,
+    "coveredAfter": 120,
     "publicByDesign": 10,
-    "gap": 367,
+    "gap": 363,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -4680,22 +4680,35 @@
       ]
     },
     "src/app/api/compliance/dole-13th-month/route.ts": {
-      "gitBlobSha": "0db61808f5012c5f2a4f0376e046ac72a566a816",
+      "gitBlobSha": "3929beac17b7e0353f8de13f5907de3e823981b0",
       "route": "compliance/dole-13th-month",
       "methods": [
         {
           "name": "GET",
-          "line": 40,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 42,
+          "status": "COVERED",
+          "reason": "Executed disposable-PG16 source report own-organization 200 for both attackers, real seeded victim 403 for JSON and CSV",
+          "testedBy": {
+            "file": "scripts/qa/dole-13th-month-http.mjs",
+            "line": 55,
+            "ownPositiveLine": 46,
+            "foreignDenialLine": 55,
+            "scope": "Two independently authenticated attacker organizations; seeded victim payroll, profile and portal-submission records; real HTTP and unchanged victim evidence assertions in disposable PostgreSQL"
+          }
         },
         {
           "name": "POST",
-          "line": 129,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 137,
+          "status": "COVERED",
+          "reason": "Executed disposable-PG16 own profile update 200, victim profile/attestation POST 403; stored victim profile and submission unchanged",
+          "testedBy": {
+            "file": "scripts/qa/dole-13th-month-http.mjs",
+            "line": 69,
+            "ownPositiveLine": 62,
+            "foreignDenialLine": 69,
+            "unchangedDbLine": 85,
+            "scope": "Two independently authenticated attacker organizations; seeded victim payroll, profile and portal-submission records; real HTTP and unchanged victim evidence assertions in disposable PostgreSQL"
+          }
         }
       ],
       "employerSources": {
@@ -4707,49 +4720,73 @@
       },
       "guards": [
         {
-          "line": 4,
-          "token": "assertOrganizationRole"
-        },
-        {
-          "line": 4,
-          "token": "getAccess"
-        },
-        {
           "line": 6,
           "token": "getSessionUser"
         },
         {
-          "line": 12,
-          "token": "enforceSameOriginMutation"
+          "line": 43,
+          "token": "getSessionUser"
         },
         {
-          "line": 25,
+          "line": 141,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 4,
           "token": "assertOrganizationRole"
         },
         {
           "line": 27,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
           "token": "getAccess"
         },
         {
-          "line": 42,
-          "token": "getSessionUser"
+          "line": 29,
+          "token": "getAccess"
         },
         {
-          "line": 131,
+          "line": 8,
+          "token": "unavailableMultiEntityDoleReport"
+        },
+        {
+          "line": 63,
+          "token": "unavailableMultiEntityDoleReport"
+        },
+        {
+          "line": 161,
+          "token": "unavailableMultiEntityDoleReport"
+        },
+        {
+          "line": 14,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 134,
-          "token": "getSessionUser"
+          "line": 138,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 16,
+          "token": "requireSensitiveActionMfa"
+        },
+        {
+          "line": 71,
+          "token": "requireSensitiveActionMfa"
+        },
+        {
+          "line": 212,
+          "token": "requireSensitiveActionMfa"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 46,
+          "line": 47,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 140,
+          "line": 147,
           "token": "body.organizationId"
         }
       ],
@@ -5192,22 +5229,39 @@
       ]
     },
     "src/app/api/compliance/government-loan-remittances/route.ts": {
-      "gitBlobSha": "6e828574796960775bd5fa0cd589fb903a5dd6f4",
+      "gitBlobSha": "dcc987b3a33b4211f51436c59ad4bffb3f17f47c",
       "route": "compliance/government-loan-remittances",
       "methods": [
         {
           "name": "GET",
-          "line": 59,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 70,
+          "status": "COVERED",
+          "reason": "Disposable real HTTP/PG16 with seeded government-loan batch and member, owned GET 200 for two independently authorized employers, real victim records denied GET 403",
+          "testedBy": {
+            "file": "scripts/qa/government-loan-read-http.mjs",
+            "line": 57,
+            "ownPositiveLine": 49,
+            "foreignDenialLine": 57,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three seeded legal employers; real synthetic employee-loan FK and remittance/member rows; safe local PostgreSQL16 only"
+          }
         },
         {
           "name": "POST",
-          "line": 124,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 143,
+          "status": "COVERED",
+          "reason": "Disposable real HTTP/PG16 synthetic loan posting exception POST 200, victim member POST 403, verified unchanged victim batch and member DB records",
+          "testedBy": {
+            "file": "scripts/qa/government-loan-read-http.mjs",
+            "line": 68,
+            "ownPositiveLine": 60,
+            "foreignDenialLine": 68,
+            "unchangedDbLine": 79,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three seeded legal employers; real synthetic employee-loan FK and remittance/member rows; safe local PostgreSQL16 only"
+          }
         }
       ],
       "employerSources": {
@@ -16226,7 +16280,7 @@
       ]
     },
     "src/app/api/legal-entities/route.ts": {
-      "gitBlobSha": "4bcc6994bcb59321618308a3c3bb890cbddd4bf2",
+      "gitBlobSha": "c46b34066f707cea088fb7c7276ea2a8fd33b4ad",
       "route": "legal-entities",
       "methods": [
         {
@@ -16244,7 +16298,7 @@
         },
         {
           "name": "POST",
-          "line": 176,
+          "line": 183,
           "status": "COVERED",
           "reason": "Two MFA-verified owners POST owned fictional entity 201 with real persisted row; actual victim POST 403, victim legal registry and audit unchanged.",
           "testedBy": {
@@ -16258,7 +16312,7 @@
         },
         {
           "name": "PATCH",
-          "line": 278,
+          "line": 285,
           "status": "COVERED",
           "reason": "Two MFA-verified owners PATCH owned fictional entity 200 with persisted update; actual victim employer PATCH 403 plus victim entity by ID 404; victim legal registry and audit unchanged.",
           "testedBy": {
