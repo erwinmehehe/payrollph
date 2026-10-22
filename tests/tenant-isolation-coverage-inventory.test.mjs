@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 383, "383 unverified methods remain GAP after four DL-01 batch-2 proof links");
-  assert.equal(manifest.metrics.coveredAfter, 100, "Retain 96 prior proofs plus four real HTTP DL-01 batch-2 methods");
+  assert.equal(manifest.metrics.gap, 364, "364 API method gaps remain after DL-01, DL-02 and four batch-2 proofs");
+  assert.equal(manifest.metrics.coveredAfter, 119, "96 prior methods, nineteen DL-02 and four DL-01 batch-2 proofs");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -262,6 +262,117 @@ test("#641 correction cases prove own success, victim denial and unchanged victi
   }
   assert.match(lines.join("\n"), /assert\.deepEqual\(victimCaseRunsAfter, victimCaseRunsBefore/);
   assert.match(lines.join("\n"), /assert\.deepEqual\(victimAuditAfter, victimAuditBefore/);
+});
+
+test("DL-02 proofs distinguish cross-tenant denials from employee membership revocation", () => {
+  const workflow = readFileSync(".github/workflows/tenant-dl02-qa.yml", "utf8");
+  const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+  const file = "scripts/qa/tenant-dl02-http.mjs";
+  const source = readFileSync(file, "utf8");
+  const lines = source.split("\n");
+  assert.match(workflow, /TENANT_DL02_PROOF: isolated-ci-only/);
+  assert.match(workflow, /MULTI_ENTITY_ENABLED: "false"/);
+  assert.match(harness, /if \(process\.env\.TENANT_DL02_PROOF === "isolated-ci-only"\) await \(await import\("\.\/tenant-dl02-http\.mjs"\)\)\.verifyDl02TenantIsolation\(f, \{ request, expectStatus, makeSession \}\)/);
+  assert.match(source, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+  assert.match(source, /for \(const idx of \[1, 2\]\)/);
+  assert.match(source, /Victim-only DL02 ID must really exist and exceed 6 and both attacker object IDs/);
+  assert.match(source, /assert\.deepEqual\(victimAfter, victimBefore/);
+  // Do not revert to VICTIM-first fixtures: the real seeded victim target IDs
+  // must exceed BOTH attacker-owned IDs, not merely a fixed sequence floor.
+  const attackerSeed = source.indexOf('for (const label of ["ATTA", "ATTB"])');
+  const actualOwnPost = source.indexOf("const ownSavedPost = expectStatus");
+  const victimSeed = source.indexOf('const victim = await seedEmployer("VICTIM"');
+  assert.ok(attackerSeed >= 0 && attackerSeed < actualOwnPost && actualOwnPost < victimSeed,
+    "Both attacker employers and real own saved-report POSTs must precede the victim");
+  assert.match(source, /attackerIds\.every\(\(ownId\) => Number\.isSafeInteger\(ownId\) && victimId > ownId\)/);
+  assert.match(source, /persisted, \{ id: victimId, organizationId: victim\.org\.id \}/);
+  for (const type of ["decisions", "terms", "employees", "payrollRuns",
+    "payrollEntries", "performanceCycles", "performanceReviews"]) {
+    assert.ok(source.includes(type + ": await db.select"),
+      "Victim snapshot must include persisted " + type + " state");
+  }
+  assert.match(source, /const ownPeople = await db\.select/);
+  assert.match(source, /assert\.notEqual\(ownHeadcount, victimHeadcount/);
+  assert.match(source, /HCM report output must match real seeded own-employer employees/);
+  assert.match(source, /Report builder must return all actual own employees in ID order/);
+  assert.match(source, /performanceCycle\.id/);
+  assert.match(source, /performanceReview\.id/);
+  assert.match(source, /Export evidence identity hash must match actual content/);
+  assert.match(source, /The download SHA256 response header must match real exported evidence/);
+  // Revoked-membership denials must follow a real own success with the same session.
+  assert.ok(source.indexOf("const ownPhotoGet = expectStatus") < source.indexOf("set({ active: false })") &&
+    source.indexOf("set({ active: false })") < source.indexOf("Former employee photo GET denied"));
+  const revokedOnly = new Set([
+    "src/app/api/self/contribution-evidence/route.ts GET",
+    "src/app/api/self/photo/route.ts GET",
+    "src/app/api/self/photo/route.ts HEAD",
+    "src/app/api/self/photo/route.ts DELETE",
+  ]);
+  let revokedCount = 0;
+  let count = 0;
+  for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
+    for (const method of record.methods) {
+      if (method.testedBy?.file !== file) continue;
+      count += 1;
+      const key = path + " " + method.name;
+      assert.equal(method.status, "COVERED", key);
+      const own = lines[method.testedBy.ownPositiveLine - 1] ?? "";
+      const ownSpan = lines.slice(method.testedBy.ownPositiveLine - 1, method.testedBy.ownPositiveLine + 3).join("\n");
+      const deniedSpan = lines.slice(method.testedBy.foreignDenialLine - 1, method.testedBy.foreignDenialLine + 3).join("\n");
+      assert.match(own, /const own[A-Za-z]+ = expectStatus\(await request\("\/api\//, key + ": own positive must be a real request");
+      assert.ok(own.includes("/api/" + record.route.split("/[")[0]), key + ": own positive must target the claimed route");
+      assert.match(ownSpan, /\), 20[01],/, key + ": own positive must assert success");
+      assert.match(lines[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\("\/api\//, key + ": denial must be a real request");
+      assert.ok(/\), 40[34],/.test(deniedSpan), key + ": denial must assert exact 403 or 404");
+      assert.ok(/victim\.|Former employee/.test(deniedSpan), key + ": denial must name a real victim object or revoked membership");
+      if (revokedOnly.has(key)) {
+        revokedCount++;
+        assert.equal(method.testedBy.denialKind, "same-session-revoked-membership",
+          key + ": label same-session revocation instead of claiming a forged victim ID");
+        assert.match(method.reason, /same signed-in session receives 403 after that employee's active employer membership is revoked/,
+          key + ": the reason must describe the real route-specific denial");
+        assert.match(deniedSpan, /Former employee/,
+          key + ": the negative HTTP request must be the revoked employee's own session");
+      } else {
+        assert.equal(method.testedBy.denialKind, undefined,
+          key + ": ordinary foreign-employer/object proof must not be labeled session revocation");
+        const ordering = method.testedBy.victimIdOrderingLine;
+        assert.ok(Number.isSafeInteger(ordering), key + ": missing real victim-versus-attacker ordering line");
+        assert.match(lines[ordering - 1],
+          /Victim-only DL02 ID must really exist and exceed 6 and both attacker object IDs/,
+          key + ": victim ID ordering must compare both actual attackers");
+      }
+      if (new Set(["hcm-report-builder GET", "reports/builder GET"]).has(record.route + " " + method.name)) {
+        assert.equal(method.testedBy.positiveKind, "authorized-tenant-gated-field-catalog",
+          key + ": do not mislabel GET field metadata as owned rows");
+        assert.match(lines[method.testedBy.catalogAssertionLine - 1], /headcount/,
+          key + ": require nonempty authorized field catalog assertion");
+      }
+      if (new Set(["hcm-report-builder POST", "reports/builder POST"]).has(record.route + " " + method.name)) {
+        assert.equal(method.testedBy.positiveKind, "owned-nonempty-employee-report",
+          key + ": require real seeded own-employee data");
+        assert.match(lines[method.testedBy.contentAssertionLine - 1],
+          /HCM report output must match real seeded own-employer employees|Report builder must return all actual own employees in ID order/,
+          key + ": positive report must check real owned content, not merely column names");
+      }
+      if (record.route === "performance/evidence" && method.name === "GET") {
+        assert.equal(method.testedBy.positiveKind, "scoped-json-download-verified-hashes",
+          key + ": performance download must validate real own JSON and hashes");
+        assert.match(lines[method.testedBy.contentAssertionLine - 1],
+          /Export evidence identity hash must match actual content/,
+          key + ": verify actual downloaded evidence identity hash");
+      }
+      if (["POST", "PATCH", "PUT", "DELETE", "HEAD"].includes(method.name)) {
+        assert.ok(ownSpan.includes('method: "' + method.name + '"') && deniedSpan.includes('method: "' + method.name + '"'),
+          key + ": proof must use the claimed method");
+      }
+      if (["POST", "PATCH", "PUT", "DELETE"].includes(method.name)) {
+        assert.match(lines[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(victimAfter, victimBefore/);
+      }
+    }
+  }
+  assert.equal(revokedCount, 4, "Four self-service methods prove same-session membership revocation");
+  assert.equal(count, 19, "Nineteen DL-02 part-1 methods are credited; the rest stay GAP");
 });
 
 test("new dashboard, employee-directory and payroll-list coverage cites executable own/foreign HTTP proof", () => {
@@ -500,7 +611,7 @@ test("all credited proof links point to the claimed route and every recertified 
         "scripts/qa/hcm-work-queue-http.mjs",
         "scripts/qa/tenant-manifest-driven-http.mjs", "scripts/qa/tenant-high-risk-01-http.mjs",
         "scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs",
-        "scripts/qa/tenant-dl01-batch2-http.mjs"].includes(proof?.file),
+        "scripts/qa/tenant-dl02-http.mjs", "scripts/qa/tenant-dl01-batch2-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (["scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs"].includes(proof.file)) {
         const history = proof.file.endsWith("tenant-dl01-import-history-http.mjs");

@@ -103,9 +103,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
   // Pin the DL-01 ledger exactly; retain the endpoint-specific HTTP proofs below.
-  assert.equal(manifest.metrics.coveredAfter, 100, "Retain 96 previously reviewed proofs plus four separately validated DL-01 batch-2 methods");
+  assert.equal(manifest.metrics.coveredAfter, 119, "Retain 96 prior methods, nineteen DL-02 and four separately proven DL-01 batch-2 methods");
   assert.equal(manifest.metrics.publicByDesign, 10, "Eight inherited public dispositions plus two DL-01 fixed templates");
-  assert.equal(manifest.metrics.gap, 383, "383 unverified methods remain GAP; four additional DL-01 batch-2 proofs now linked");
+  assert.equal(manifest.metrics.gap, 364, "364 API method gaps remain after reviewed DL-01, DL-02 and batch-2 proofs");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const readLine = (number: number) => {
