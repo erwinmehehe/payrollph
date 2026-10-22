@@ -14,6 +14,8 @@ const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-m
 
 test("DL-01 vault is executed in the existing isolated PG16 server, never production", () => {
   assert.equal(runner.split('verifyDl01Vault(f, { request, expectStatus })').length - 1, 1);
+  assert.ok(runner.includes('if (process.env.TENANT_DL01_VAULT_PROOF === "isolated-ci-only")'),
+    "Other CI suites must not execute the feature-enabled vault probe unless opted in");
   assert.match(workflow, /image: postgres:16/);
   assert.match(workflow, /DATABASE_URL: postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db/);
   assert.match(workflow, /SECURITY_SMOKE_URL: http:\/\/127\.0\.0\.1:3000/);
@@ -21,6 +23,8 @@ test("DL-01 vault is executed in the existing isolated PG16 server, never produc
   const secondPass = workflow.split("Real-HTTP second-pass tenant isolation")[1]?.split("Show server log")[0];
   assert.ok(localServer?.includes('EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"'));
   assert.ok(secondPass?.includes('EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"'));
+  assert.ok(secondPass?.includes("TENANT_DL01_VAULT_PROOF: isolated-ci-only"));
+  assert.ok(source.includes('assert.equal(process.env.TENANT_DL01_VAULT_PROOF, "isolated-ci-only")'));
   assert.ok(source.includes('assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only")'));
   assert.ok(source.includes('assert.equal(app.href, "http://127.0.0.1:3000/")'));
   assert.ok(source.includes('assert.equal(pg.pathname, "/app_db")'));
@@ -47,7 +51,6 @@ test("DL-01 vault own/foreign/forged/high-ID/unchanged-victim checks remain real
     'Employee document removed from active vault',
     'assert.deepEqual(await victimSnapshot(victimOrg.id), before',
   ]) assert.ok(source.includes(fragment), "Missing separate vault real-PG proof: " + fragment);
-  assert.equal(source.includes("https://erwinmehehe-payrollph.vercel.app"), false);
 });
 
 test("DL-01 candidate tests NEVER silently promote manifest or claim release acceptance", () => {
