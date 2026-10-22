@@ -36,6 +36,9 @@ jobs:
       # Offline claims must have real temporary PostgreSQL FK/CHECK acceptance.
       OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: "true"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      # The suite runs exactly like production after the clean-baseline cutover:
+      # no request-time DDL or backfills; schema comes only from the offline baseline.
+      REQUEST_SCHEMA_READONLY_ENABLED: "true"
     services:
       postgres:
         image: postgres:16
@@ -75,6 +78,8 @@ jobs:
           PAYMONGO_DISBURSEMENTS_ENABLED: "false"
           XENDIT_PAYOUTS_ENABLED: "false"
         run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Apply the reviewed source baseline supplement (same objects as the cutover)
+        run: node scripts/qa/apply-source-baseline-supplement.mjs
       - name: Execute complete regression inventory shard
         run: node scripts/run-sharded-tests.mjs ${{ matrix.shard }} 4
 
