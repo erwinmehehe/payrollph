@@ -16,6 +16,7 @@ import {
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
 import { settlePayrollRun } from "../src/lib/payroll-settlement";
 import { isCanonicalPhSemiMonthlyPeriod, phSemiMonthlyCutoff } from "../src/lib/payroll-calendar";
+import { seedMonthlyPayProfilesForRun } from "./helpers/pay-profiles";
 
 function line(entry: typeof payrollEntries.$inferSelect, code: string) {
   const rows = Array.isArray(entry.lineItems)
@@ -152,6 +153,8 @@ test("org-unit local holiday changes pay only for employees in that unit", async
       payDate: "2026-10-15",
     }).returning();
 
+    await seedMonthlyPayProfilesForRun(run.id);
+
     await enqueuePayrollRun(run.id);
     await drainPayrollQueue(10, run.id);
 
@@ -211,6 +214,8 @@ test("MWE commission is included in taxable supplementary compensation", async (
       payDate: "2026-10-15",
     }).returning();
 
+    await seedMonthlyPayProfilesForRun(run.id);
+
     await enqueuePayrollRun(run.id);
     await drainPayrollQueue(10, run.id);
 
@@ -268,6 +273,8 @@ test("supplementary earning settles atomically with payroll release", async () =
       status: "Draft",
       payDate: "2026-10-15",
     }).returning();
+
+    await seedMonthlyPayProfilesForRun(run.id);
 
     await enqueuePayrollRun(run.id);
     await drainPayrollQueue(10, run.id);
@@ -337,6 +344,8 @@ test("supplementary earning can affect SSS without changing Pag-IBIG base", asyn
       payDate: "2026-10-15",
     }).returning();
 
+    await seedMonthlyPayProfilesForRun(run.id);
+
     await enqueuePayrollRun(run.id);
     await drainPayrollQueue(10, run.id);
 
@@ -392,6 +401,8 @@ test("holiday calendar changes after calculation block payroll release", async (
       status: "Draft",
       payDate: "2026-10-15",
     }).returning();
+
+    await seedMonthlyPayProfilesForRun(run.id);
 
     await enqueuePayrollRun(run.id);
     await drainPayrollQueue(10, run.id);

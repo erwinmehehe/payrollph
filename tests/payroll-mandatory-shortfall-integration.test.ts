@@ -7,6 +7,7 @@ import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine"
 import { evaluatePayrollAssurance } from "../src/lib/payroll-assurance";
 import { buildPayrollAssurance } from "../src/lib/payroll-assurance-server";
 import { buildPayrollReleaseChecklist } from "../src/lib/payroll-release-checklist";
+import { seedMonthlyPayProfilesForRun } from "./helpers/pay-profiles";
 
 test("low-gross payroll prints actual collected deductions, keeps shortfall visible and blocks approval", async () => {
   const [org] = await db.insert(organizations).values({
@@ -34,6 +35,8 @@ test("low-gross payroll prints actual collected deductions, keeps shortfall visi
       status: "Draft",
       payDate: "2026-09-15",
     }).returning();
+
+    await seedMonthlyPayProfilesForRun(run.id);
 
     await enqueuePayrollRun(run.id);
     await drainPayrollQueue(10, run.id);
@@ -110,6 +113,7 @@ test("two isolated synthetic employers retain separate shortfall and release evi
       },
     ]).returning();
     for (const run of runs) {
+      await seedMonthlyPayProfilesForRun(run.id);
       await enqueuePayrollRun(run.id);
       await drainPayrollQueue(10, run.id);
     }
