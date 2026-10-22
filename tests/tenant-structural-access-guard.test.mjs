@@ -106,12 +106,45 @@ test("all 493 handlers reaching PostgreSQL have a gate or explicit source-pinned
     reminder: "HTTP proof required; no historical GAP is certified" }));
 });
 
-test("business-ID pages remain source-pinned and unverified pending real HTML/session proof", () => {
+test("all scoped pages stay source-pinned; only the exact independently probed inbox may be provisional", () => {
   assert.equal(manifest.scopedPages.length, 20);
+  const approvedPath = "src/app/hcm/manager-decision-inbox/page.tsx";
+  const evidenceFile = "scripts/qa/hcm-manager-inbox-page-http.mjs";
+  const covered = manifest.scopedPages.filter((page) => page.status === "COVERED");
+  assert.deepEqual(covered.map((page) => page.path), [approvedPath],
+    "Static route analysis cannot silently certify any additional page");
+  assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, 19,
+    "Other 19 employer-scoped page/action entries remain uncertified");
   for (const page of manifest.scopedPages) {
     const bytes = readFileSync(page.path);
-    assert.equal(blobSha(bytes), page.blob, page.path + ": page changed; rerun HTML tenant-isolation checks");
-    assert.equal(page.status, "GAP", "No pages silently credited from this structural-only guard");
+    assert.equal(blobSha(bytes), page.blob,
+      page.path + ": page changed; rerun authenticated HTML/tenant tests");
     assert.ok(page.business.length > 0 && page.reason.length > 22);
+    if (page.status === "GAP") {
+      assert.ok(!page.testedBy, page.path + ": a GAP must not claim accepted HTTP evidence");
+      continue;
+    }
+    assert.equal(page.path, approvedPath, "No blanket exception for changed pages");
+    const proof = page.testedBy;
+    assert.equal(proof?.file, evidenceFile,
+      "Only the separately feature-enabled, two-attacker HTTP suite can back this page");
+    const lines = readFileSync(evidenceFile, "utf8").split("\n");
+    assert.match(lines[proof.line - 1] ?? "", /export async function verifyHcmManagerInboxPage/);
+    assert.match(lines[proof.ownPositiveLine - 1] ?? "",
+      /const ownPage = await requestOn\(PAGE \+ "\?organizationId=" \+ own\.id, cookie\)/);
+    assert.match(lines[proof.foreignDenialLine - 1] ?? "",
+      /const foreignPage = await requestOn\(PAGE \+ "\?organizationId=" \+ victim\.id, cookie\)/);
+    assert.match(lines[proof.unchangedDbLine - 1] ?? "",
+      /victimWorkersBefore, "Denied page and API reads cannot change victim employees"/);
+    const suite = lines.join("\n");
+    const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+    assert.match(suite, /HCM_MANAGER_DECISION_INBOX_ENABLED: "true"/);
+    assert.match(suite, /HCM_MANAGER_DECISION_INBOX_ORG_IDS: f\.orgs\.map/);
+    assert.match(suite, /for \(const idx of \[1, 2\]\)/);
+    assert.match(suite, /assert\.equal\(ownPage\.status, 200/);
+    assert.match(suite, /assert\.equal\(foreignPage\.status, 404/);
+    assert.match(suite, /assert\.equal\(foreignApi\.status, 403/);
+    assert.match(runner,
+      /await \(await import\("\.\/hcm-manager-inbox-page-http\.mjs"\)\)\.verifyHcmManagerInboxPage\(f\)/);
   }
 });

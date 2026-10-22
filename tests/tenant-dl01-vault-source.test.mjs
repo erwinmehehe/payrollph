@@ -64,6 +64,8 @@ test("DL-01 candidate tests NEVER silently promote manifest or claim release acc
     assert.equal(entry?.testedBy, null);
   }
   assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [123, 10, 360]);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 360 API methods/);
+    [126, 10, 357]);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 357 API methods/);
+  assert.equal(manifest.scopedPages.length, 20);
+  assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 19);
 });

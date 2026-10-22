@@ -8,9 +8,10 @@ import {
   UsersRound, Workflow,
 } from "lucide-react";
 import type {
-  DecisionSource, ManagerDecisionPage, ManagerDecisionItem,
+  DecisionSource, ManagerDecisionPage, ManagerDecisionItem, ManagerDecisionScope,
 } from "@/lib/hcm-manager-decision-contract";
 import { nextManagerDecisionTab } from "@/lib/hcm-manager-decision-tabs";
+import { readVerifiedManagerDecisionPage } from "@/lib/hcm-manager-decision-read";
 
 const SOURCES: Array<{
   key: DecisionSource; label: string; hint: string;
@@ -58,14 +59,17 @@ function dueTone(item: ManagerDecisionItem) {
  * Read-only, request-scoped data. This page NEVER calls a decision endpoint:
  * the owning approval routes enforce fresh identity, scope and maker/checker.
  */
-export function HcmManagerDecisionInbox({ organizationId }: { organizationId: number }) {
+export function HcmManagerDecisionInbox({
+  organizationId, expectedScope,
+}: { organizationId: number; expectedScope: ManagerDecisionScope }) {
   const [source, setSource] = useState<DecisionSource>("hcm");
   const [cursors, setCursors] = useState<Array<number | null>>([null]);
   const [refresh, setRefresh] = useState(0);
   const [loaded, setLoaded] = useState<LoadState | null>(null);
 
   const beforeId = cursors[cursors.length - 1] ?? null;
-  const requestKey = [organizationId, source, beforeId ?? "first", refresh].join(":");
+  const scopeKey = [expectedScope.kind, expectedScope.orgUnitId ?? "company"].join(":");
+  const requestKey = [organizationId, scopeKey, source, beforeId ?? "first", refresh].join(":");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -77,28 +81,13 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
     void fetch("/api/hcm/manager-decision-inbox?" + params.toString(), {
       cache: "no-store", signal: controller.signal,
     }).then(async (response) => {
-      if (!response.ok) throw new Error("Inbox source unavailable");
-      const payload = await response.json() as ManagerDecisionPage;
+      const data: unknown = await response.json().catch(() => null);
       if (controller.signal.aborted) return;
-      if (
-        payload.organizationId !== organizationId ||
-        payload.source !== source ||
-        !["company", "unit"].includes(payload.scope?.kind) ||
-        !Array.isArray(payload.items) || payload.items.length > 20 ||
-        payload.page?.size !== 20 ||
-        typeof payload.page.hasMore !== "boolean" ||
-        (payload.page.hasMore && (
-          typeof payload.page.nextCursor !== "number" ||
-          !Number.isSafeInteger(payload.page.nextCursor) ||
-          payload.page.nextCursor <= 0 ||
-          (beforeId !== null && payload.page.nextCursor >= beforeId)
-        )) ||
-        payload.items.some((item) =>
-          item.source !== source || item.status !== "pending" ||
-          !Number.isSafeInteger(item.id) || item.id <= 0 ||
-          (beforeId !== null && item.id >= beforeId))
-      ) {
-        throw new Error("The response did not match the requested source and employer.");
+      const payload = readVerifiedManagerDecisionPage(
+        response.ok, data, organizationId, source, beforeId, expectedScope,
+      );
+      if (!payload || payload.organizationId !== organizationId || payload.source !== source) {
+        throw new Error("The decision source returned unverified or wrong-employer data.");
       }
       setLoaded({ key: requestKey, status: "ready", payload });
     }).catch(() => {
@@ -107,7 +96,7 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
       }
     });
     return () => controller.abort();
-  }, [organizationId, source, beforeId, requestKey]);
+  }, [organizationId, expectedScope, source, beforeId, requestKey]);
 
   const active = loaded?.key === requestKey ? loaded : null;
   const page = active?.status === "ready" ? active.payload : null;
@@ -207,7 +196,7 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
           {active?.status === "error" && (
             <div role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
               This source is unavailable or your access changed. Previously loaded records were cleared.
-              Refresh the view or return to the authoritative workspace.
+              <button type="button" className="ml-2 underline" onClick={() => setRefresh((current) => current + 1)}>Retry</button> or return to the authoritative workspace.
             </div>
           )}
 

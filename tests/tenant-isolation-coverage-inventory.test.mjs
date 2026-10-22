@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 360, "Retain 123 credited methods; 360 unverified method gaps remain");
-  assert.equal(manifest.metrics.coveredAfter, 123, "Retain 123 credited methods; 360 unverified method gaps remain");
+  assert.equal(manifest.metrics.gap, 357, "Main 119 source-pinned methods plus three HCM probation methods leave 361 GAP");
+  assert.equal(manifest.metrics.coveredAfter, 126, "119 already covered methods from current main plus three HCM probation proofs");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -603,6 +603,106 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      // New method credits must be bound to an explicitly reviewed endpoint,
+      // real two-attacker HTTP runner, exact request/status lines, and a
+      // persisted victim-before/after assertion for mutating methods. Do not
+      // generalize this exemption to arbitrary new test files or methods.
+      const newTenantProofTargets = {
+        "scripts/qa/compliance-read-sweep-http.mjs": new Set([
+          "src/app/api/bir/annual-employer/module-evidence/route.ts",
+          "src/app/api/compliance/dole-13th-month/route.ts",
+          "src/app/api/compliance/government-loan-remittances/route.ts",
+          "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts",
+        ]),
+        "scripts/qa/hcm-probation-sweep-http.mjs": new Set([
+          "src/app/api/hcm/probation-reviews/route.ts",
+        ]),
+      };
+      if (Object.hasOwn(newTenantProofTargets, proof?.file)) {
+        assert.ok(newTenantProofTargets[proof.file].has(path),
+          path + ": new proof source is restricted to its reviewed API routes");
+        const integration = readFileSync(proof.file, "utf8");
+        const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        const entrypoint = proof.file.includes("compliance-read")
+          ? "verifyComplianceReadSweep" : "verifyHcmProbationSweep";
+        assert.ok(runner.includes(entrypoint + "(f, { request, expectStatus })"),
+          path + ": new real-HTTP suite must execute inside the disposable guarded runner");
+        assert.match(integration, /process\.env\.CI\s*!==\s*"true"/);
+        assert.match(integration, /process\.env\.TENANT_SECOND_PASS_MODE/);
+        assert.match(integration, /for\s*\(\s*const idx of \[1,\s*2\]\s*\)/,
+          path + ": two independent real-employer attacker principals required");
+        const proofLines = integration.split("\n");
+        function completeRequest(lineNumber, expectedLabel) {
+          assert.ok(Number.isInteger(lineNumber) && lineNumber > 0 &&
+            lineNumber <= proofLines.length, path + ": invalid " + expectedLabel + " location");
+          const at = lineNumber - 1;
+          const searchStart = Math.max(0, at - 12);
+          const candidates = proofLines.slice(searchStart, at + 1);
+          const offset = candidates.findLastIndex((line) =>
+            /expectStatus\s*\(\s*await request(?:Multipart)?\s*\(/.test(line));
+          assert.ok(offset >= 0, path + ": missing actual " + expectedLabel + " HTTP call");
+          const requestStart = searchStart + offset;
+          const statusEnd = proofLines.findIndex((line, i) =>
+            i >= requestStart && i <= requestStart + 15 &&
+            /(?:\)\s*,\s*|^\s*)\d{3}\s*,/.test(line));
+          assert.ok(statusEnd >= requestStart,
+            path + ": " + expectedLabel + " must assert a real HTTP status");
+          if (expectedLabel === "foreign-denial") {
+            assert.equal(statusEnd, at,
+              path + ": foreign-denial pointer must be the exact status assertion");
+          } else {
+            assert.equal(requestStart, at,
+              path + ": own-positive pointer must be the exact request start");
+          }
+          return {
+            start: proofLines[requestStart],
+            throughStatus: proofLines.slice(requestStart, statusEnd + 1).join("\n"),
+          };
+        }
+        const own = completeRequest(proof.ownPositiveLine, "own-positive");
+        const foreign = completeRequest(proof.foreignDenialLine, "foreign-denial");
+        assert.match(own.start, /expectStatus\s*\(\s*await request(?:Multipart)?\s*\(/);
+        assert.match(proofLines[proof.ownPositiveLine - 1], /expectStatus\s*\(\s*await request(?:Multipart)?\s*\(/,
+          path + ": ownPositiveLine must be the request itself, never a nearby assertion");
+        assert.match(proofLines[proof.foreignDenialLine - 1], /(?:\)\s*,\s*|^\s*)403\s*,/,
+          path + ": foreignDenialLine must assert an actual forbidden response");
+        const isMultipart = path ===
+          "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts" &&
+          method.name === "POST";
+        const endpoint = "/api/" + entry.route;
+        if (isMultipart) {
+          assert.match(own.throughStatus, /requestMultipart\s*\(\s*cookie/);
+          assert.match(foreign.throughStatus, /requestMultipart\s*\(\s*cookie/);
+          assert.ok(integration.includes('new URL("' + endpoint + '"') &&
+            integration.includes('method: "POST"'),
+            path + ": multipart request must really POST to the tested route");
+        } else {
+          assert.ok(own.throughStatus.includes(endpoint) &&
+            foreign.throughStatus.includes(endpoint),
+            path + ": both signed-in proof calls must target the claimed endpoint");
+          if (method.name !== "GET") {
+            assert.ok(own.throughStatus.includes('method: "' + method.name + '"') &&
+              foreign.throughStatus.includes('method: "' + method.name + '"'),
+              path + ": positive and foreign denial must exercise the claimed method");
+          }
+        }
+        const ownStatus = path === "src/app/api/hcm/probation-reviews/route.ts" &&
+          method.name === "POST" || isMultipart ? 201 : 200;
+        const assertedOwnStatus = own.throughStatus.match(/(?:\)\s*,\s*|^\s*)(\d{3})\s*,/m);
+        assert.equal(Number(assertedOwnStatus?.[1]), ownStatus,
+          path + ": valid own-employer HTTP success is mandatory");
+        assert.match(own.throughStatus, /own\.id/,
+          path + ": positive request must select an actual own employer");
+        assert.match(foreign.throughStatus, /victim\.id/,
+          path + ": foreign denial must target real victim employer");
+        if (method.name !== "GET") {
+          const invariant = evidenceLine(proof.file, proof.unchangedDbLine,
+            path + " victim persistence invariant");
+          assert.match(invariant, /assert\.deepEqual\(\s*(?:victim|officialVictim|storedVictim)/,
+            path + ": an unchanged victim database snapshot is mandatory for writes");
+        }
+        continue;
+      }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
@@ -949,8 +1049,23 @@ test("page and server-action inventory cannot silently omit new or changed busin
       if (entry.status === "COVERED") {
         const proof = entry.testedBy;
         assert.ok(proof, path + ": page COVERED needs actual browser/HTTP proof");
-        evidenceLine(proof.file, proof.ownPositiveLine, path + " own session");
-        evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign session");
+        const own = evidenceLine(proof.file, proof.ownPositiveLine, path + " own session");
+        const foreign = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign session");
+        if (path === "src/app/hcm/manager-decision-inbox/page.tsx") {
+          assert.equal(proof.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
+          assert.match(own, /const ownPage = await requestOn\(/);
+          assert.match(foreign, /const foreignPage = await requestOn\(/);
+          const proofSource = readFileSync(proof.file, "utf8");
+          const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+          assert.match(proofSource, /HCM_MANAGER_DECISION_INBOX_ENABLED: "true"/);
+          assert.match(proofSource, /HCM_MANAGER_DECISION_INBOX_ORG_IDS: f\.orgs\.map/);
+          assert.match(proofSource, /for \(const idx of \[1, 2\]\)/);
+          assert.match(proofSource, /assert\.equal\(ownPage\.status, 200/);
+          assert.match(proofSource, /assert\.equal\(foreignPage\.status, 404/);
+          assert.match(proofSource, /assert\.equal\(foreignApi\.status, 403/);
+          assert.match(proofSource, /assert\.deepEqual\(await db\.select\(\)\.from\(payrollRuns\)/);
+          assert.match(runner, /verifyHcmManagerInboxPage\(f\)/);
+        }
       } else {
         assert.ok(typeof entry.reason === "string" && entry.reason.trim().length >= 20,
           path + ": public-by-design requires a reviewed reason");
