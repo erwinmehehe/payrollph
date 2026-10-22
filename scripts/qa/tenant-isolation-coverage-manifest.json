@@ -2910,7 +2910,7 @@
             "ownPositiveLine": 205,
             "foreignDenialLine": 222,
             "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only.",
-            "unchangedDbLine": 250
+            "unchangedDbLine": 258
           }
         }
       ],
