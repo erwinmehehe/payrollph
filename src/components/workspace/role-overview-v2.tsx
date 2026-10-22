@@ -16,6 +16,7 @@ import { readLineItems, type DashboardData, type PayrollRun } from "./types";
 import { StatutoryRemittanceWatch } from "./statutory-remittance-watch";
 import { Avatar, EmptyState, Status, moneyExact } from "./ui";
 import { summarizePeopleRecords, summarizeCloseEvidence } from "./record-summary";
+import { verifiedDashboardAmount } from "@/lib/dashboard-presentation";
 
 export type RoleOverviewV2Role = "owner" | "hr" | "payroll" | "checker" | "bookkeeper";
 
@@ -55,15 +56,16 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
   const missingBank = activePeople.filter((employee) => !employee.bankAccount || !employee.bankCode).length;
   const exceptions = data.payrollEntries.filter((entry) => entry.status === "Exception").length;
   const previous = data.payrollRuns.find((run) => run.id !== currentRun?.id && run.status === "Released");
-  const currentGross = Number(currentRun?.grossPay ?? 0);
-  const previousGross = Number(previous?.grossPay ?? 0);
-  const deltaPct = previousGross ? ((currentGross - previousGross) / previousGross) * 100 : 0;
+  const currentGross = verifiedDashboardAmount(currentRun?.grossPay);
+  const previousGross = verifiedDashboardAmount(previous?.grossPay);
+  const deltaPct = currentGross !== null && previousGross !== null && previousGross !== 0
+    ? ((currentGross - previousGross) / previousGross) * 100 : null;
   const readyForRelease = currentRun?.status === "Ready for release";
   const released = currentRun?.status === "Released";
   const checkerApproved = readyForRelease || released;
   const hardBlockers = missingBank + exceptions + (checkerApproved ? 0 : 1);
-  const net = Number(currentRun?.netPay ?? 0);
-  const deductions = Math.max(0, currentGross - net);
+  const net = verifiedDashboardAmount(currentRun?.netPay);
+  const deductions = currentGross === null || net === null ? null : Math.max(0, currentGross - net);
   const payChanges = (data.payRevisions ?? []).length;
   const retro = (data.retroAdjustments ?? []).filter((item) => item.status === "pending").length;
 
@@ -75,7 +77,7 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
       <section className="mockup-owner-release dashboard-alert-banner">
         <div className="mockup-owner-head">
           <div>
-            <strong>Payroll ready for release</strong>
+            <strong>Payroll release overview — verify checks before release</strong>
             <span>{currentRun?.periodLabel ?? "Next payroll"} · {currentRun?.employeeCount ?? activePeople.length} employees{currentRun?.payDate ? " · Pay date " + formatShortDate(currentRun.payDate) : ""}</span>
           </div>
           <Status value={currentRun?.status ?? "Not started"} />
@@ -86,7 +88,7 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
             <span className="mockup-big-money">{fullMoney(currentGross)}</span>
             <small>Total funding required</small>
           </div>
-          {previous && (
+          {previous && deltaPct !== null && (
             <div className="mockup-delta-badge">
               <strong>{deltaPct >= 0 ? "+" : ""}{deltaPct.toFixed(1)}%</strong>
               <span>from previous payroll</span>
@@ -101,7 +103,7 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
         </div>
 
         <button className="mockup-owner-release-button" type="button" onClick={currentRun ? () => onPage("Payroll") : onNewRun}>
-          {!currentRun ? "Create payroll" : readyForRelease ? "Release " + fullMoney(currentGross) + " payroll" : released ? "View released payroll" : "Continue payroll"}
+          {!currentRun ? "Create payroll" : readyForRelease ? "Review release checks" : released ? "View released payroll" : "Continue payroll"}
           <ArrowRight size={14} />
         </button>
 
@@ -145,9 +147,11 @@ function PayrollWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Com
   const issueEmployeeIds = new Set([...exceptions.map((entry) => entry.employeeId), ...attendanceIssues.map((punch) => punch.employeeId)]);
   const ready = Math.max(0, total - issueEmployeeIds.size);
   const percent = total ? Math.round((ready / total) * 100) : 0;
-  const calculated = Boolean(currentRun && data.payrollEntries.length);
+  const calculated = Boolean(currentRun && data.payrollEntries.length &&
+    verifiedDashboardAmount(currentRun.grossPay) !== null &&
+    verifiedDashboardAmount(currentRun.netPay) !== null);
   const canSubmit = calculated && exceptions.length === 0 && attendanceIssues.length === 0;
-  const totalCost = Number(currentRun?.grossPay ?? 0);
+  const totalCost = verifiedDashboardAmount(currentRun?.grossPay);
 
   const issues = [
     ...attendanceIssues.slice(0, 2).map((punch) => ({
@@ -213,7 +217,7 @@ function PayrollWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Com
 
       <section className="mockup-kpi-row mockup-kpi-four payroll-focus-summary">
         <MockKpi value={String(total)} label="Employees" />
-        <MockKpi value={fullMoney(currentRun?.netPay ?? 0)} label="Calculated net pay" />
+        <MockKpi value={fullMoney(currentRun?.netPay)} label="Calculated net pay" />
         <MockKpi value={fullMoney(totalCost)} label="Total cost" />
         <MockKpi value={String(issues.length + pendingRetro.length)} label="Issues to resolve" tone="rose" />
       </section>
@@ -242,7 +246,7 @@ function PayrollWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Com
         <div>
           <span>Calculation summary</span>
           <div className="mockup-summary-metrics">
-            <MockMetric label="Total net pay" value={fullMoney(currentRun?.netPay ?? 0)} />
+            <MockMetric label="Total net pay" value={fullMoney(currentRun?.netPay)} />
             <MockMetric label="Total cost" value={fullMoney(totalCost)} />
             <MockMetric label="Employees" value={String(total)} />
           </div>
@@ -254,11 +258,16 @@ function PayrollWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Com
 }
 
 function CheckerWorkspace({ data, currentRun, firstName, onPage }: CommonProps) {
-  const previous = data.payrollRuns.find((run) => run.id !== currentRun?.id && run.status === "Released");
-  const currentNet = Number(currentRun?.netPay ?? 0);
-  const previousNet = Number(previous?.netPay ?? 0);
-  const delta = currentNet - previousNet;
-  const deltaPct = previousNet ? (delta / previousNet) * 100 : 0;
+  const previous = currentRun ? data.payrollRuns.find((run) =>
+    run.id !== currentRun.id && run.status === "Released" &&
+    run.legalEntityId === currentRun.legalEntityId &&
+    run.scopeOrgUnitId === currentRun.scopeOrgUnitId &&
+    run.payDate < currentRun.payDate
+  ) : undefined;
+  const currentNet = verifiedDashboardAmount(currentRun?.netPay);
+  const previousNet = verifiedDashboardAmount(previous?.netPay);
+  const delta = currentNet === null || previousNet === null ? null : currentNet - previousNet;
+  const deltaPct = delta !== null && previousNet !== null && previousNet !== 0 ? (delta / previousNet) * 100 : null;
   const payChanges = (data.payRevisions ?? []).length;
   const retro = (data.retroAdjustments ?? []).filter((item) => item.status === "pending").length;
   const exceptions = data.payrollEntries.filter((entry) => entry.status === "Exception");
@@ -283,24 +292,24 @@ function CheckerWorkspace({ data, currentRun, firstName, onPage }: CommonProps) 
         <div className="mockup-checker-money">
           <strong>{fullMoney(currentNet)}</strong>
           <span>Net payroll</span>
-          <div><b>{delta >= 0 ? "+" : ""}{fullMoney(delta)}</b><em>{previous ? (deltaPct >= 0 ? "+" : "") + deltaPct.toFixed(1) + "%" : "No prior run"}</em></div>
+          <div><b>{delta !== null && delta >= 0 ? "+" : ""}{fullMoney(delta)}</b><em>{previous && deltaPct !== null ? (deltaPct >= 0 ? "+" : "") + deltaPct.toFixed(1) + "%" : previous ? "Comparison unavailable" : "No comparable prior run"}</em></div>
         </div>
         <div className="mockup-meaningful-card">
           <strong>{meaningful}</strong>
-          <span>Meaningful changes</span>
+          <span>Visible review signals</span>
           <div className="mockup-bars"><i /><i /><i /><i /><i /></div>
         </div>
       </section>
 
       <section className="mockup-change-cards payroll-focus-summary">
-        <ChangeCard value={payChanges} label="Salary changes" tone="orange" />
-        <ChangeCard value={Math.max(0, exceptions.length - retro)} label="Overtime spikes" tone="blue" />
-        <ChangeCard value={retro} label="Retro adjustment" tone="rose" />
-        <ChangeCard value={newHires} label="New hire" tone="green" />
+        <ChangeCard value={payChanges} label="Recorded pay revisions" tone="orange" />
+        <ChangeCard value={exceptions.length} label="Flagged entries" tone="blue" />
+        <ChangeCard value={retro} label="Pending retro adjustments" tone="rose" />
+        <ChangeCard value={newHires} label="Open onboarding items" tone="green" />
       </section>
 
       <section className="mockup-section checker-review-section">
-        <MockupSectionHeader title={"Changes to review (" + String(meaningful) + ")"} action="All changes" onAction={() => onPage("Approvals")} />
+        <MockupSectionHeader title={"Current register entries to inspect (" + String(data.payrollEntries.length) + ")"} action="Open payroll review" onAction={() => onPage("Approvals")} />
         <div className="mockup-table checker-mockup-table">
           <div className="mockup-table-head"><span>Employee</span><span>Previous</span><span>Current</span><span>Change</span><span>Reason</span><span>Status</span></div>
           {reviewRows.map((entry) => {
@@ -309,21 +318,21 @@ function CheckerWorkspace({ data, currentRun, firstName, onPage }: CommonProps) 
             return (
               <div className="mockup-table-row" key={entry.id}>
                 <PersonCell employee={employee} fallback={"Employee #" + String(entry.employeeId)} />
-                <span>{previous ? fullMoney(Math.max(0, Number(entry.netPay) * .95)) : "—"}</span>
+                <span>Unavailable</span>
                 <span>{fullMoney(entry.netPay)}</span>
-                <span className={isException ? "mockup-impact rose" : ""}>{isException ? "+" + fullMoney(Math.abs(Number(entry.netPay) * .08)) : "—"}</span>
-                <span>{isException ? "Payroll variance" : "—"}</span>
-                <span className={"mockup-review-status " + (isException ? "attention" : "ok")}>{isException ? "Needs attention" : "Looks okay"}</span>
+                <span className="mockup-impact">Unavailable</span>
+                <span>{isException ? "Flagged payroll entry" : "Not independently compared"}</span>
+                <span className={"mockup-review-status " + (isException ? "attention" : "pending")}>{isException ? "Needs attention" : "Open for review"}</span>
               </div>
             );
           })}
         </div>
 
         <div className="mockup-checker-footer">
-          <span>{meaningful} changes reviewed · {exceptions.length} unresolved</span>
+          <span>{reviewRows.length} of {data.payrollEntries.length} entries shown · {exceptions.length} flagged</span>
           <div>
             <button type="button" className="mockup-secondary-button" onClick={() => onPage("Approvals")}>Return to Payroll Officer</button>
-            <button type="button" className="mockup-primary-button" onClick={() => onPage("Approvals")}>Approve payroll</button>
+            <button type="button" className="mockup-primary-button" onClick={() => onPage("Approvals")}>Open approval review</button>
           </div>
         </div>
       </section>
@@ -569,8 +578,11 @@ function summarizeStatutoryLiabilities(data: DashboardData) {
   return totals;
 }
 
-function fullMoney(value: string | number) {
-  return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(Number(value || 0));
+function fullMoney(value: string | number | null | undefined) {
+  const amount = verifiedDashboardAmount(value);
+  return amount === null ? "Unavailable" : new Intl.NumberFormat("en-PH", {
+    style: "currency", currency: "PHP", maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 function formatShortDate(value: string) {
