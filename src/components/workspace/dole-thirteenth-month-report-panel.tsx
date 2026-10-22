@@ -12,6 +12,14 @@ import {
 } from "lucide-react";
 import type { Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
+import { isVerifiedDoleThirteenthRead } from "@/lib/dole-thirteenth-read";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { DoleThirteenthMonthReportPanel as LegacyDolePanel } from "./dole-thirteenth-month-report-panel-legacy";
+ 
+// A display-only rollout. Legal-employer source attribution always fails
+// closed on the server in multi-entity mode, even when this flag is OFF.
+const doleAttributionStateUiEnabled =
+  process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED === "true";
 
 type State = {
   profile: {
@@ -92,6 +100,10 @@ type DoleThirteenthMonthReportProps = {
 // Submission evidence, payroll aggregates and contact details are private
 // to a particular legal employer, not the parent workspace.
 export function DoleThirteenthMonthReportPanel(props: DoleThirteenthMonthReportProps) {
+  if (!criticalReleaseFlagEnabled("doleAttributionStateUi", {
+    NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED:
+      process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED,
+  })) return <LegacyDolePanel {...props} />;
   return <ScopedDoleThirteenthMonthReportPanel key={props.organizationId} {...props} />;
 }
 
@@ -119,7 +131,7 @@ function ScopedDoleThirteenthMonthReportPanel({
   const loadControllerRef = useRef<AbortController | null>(null);
   const mutationRevisionRef = useRef(0);
 
-  const load = useCallback(async (): Promise<boolean> => {
+  const load = useCallback(async (expected?: (value: State) => boolean): Promise<boolean> => {
     if (!mountedRef.current) return false;
     loadControllerRef.current?.abort();
     const controller = new AbortController();
@@ -148,7 +160,11 @@ function ScopedDoleThirteenthMonthReportPanel({
       );
       const body = await response.json().catch(() => ({}));
       if (!isCurrent()) return false;
-      if (!response.ok) throw new Error(body.error ?? "DOLE 13th-month report could not be loaded.");
+      if (!response.ok) throw new Error(body?.error ?? "DOLE 13th-month report could not be loaded.");
+      if (!isVerifiedDoleThirteenthRead(body, organizationId, taxYear)) {
+        throw new Error("DOLE report identity, totals or submission evidence could not be verified. Retry.");
+      }
+      if (expected && !expected(body)) throw new Error("Updated DOLE record not confirmed by fresh read.");
       setState(body);
       setProfile({
         establishmentAddress: body.profile?.establishmentAddress ?? "",
@@ -180,7 +196,7 @@ function ScopedDoleThirteenthMonthReportPanel({
   }, [load]);
 
   async function mutate(action: "save_profile" | "record_submission", extra: Record<string, unknown>) {
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || !state || loading || saving) return;
     const revision = ++mutationRevisionRef.current;
     const readRevision = loadRevisionRef.current;
     const isCurrentMutation = () =>
@@ -196,8 +212,26 @@ function ScopedDoleThirteenthMonthReportPanel({
       const body = await response.json().catch(() => ({}));
       if (!isCurrentMutation()) return;
       if (!response.ok) throw new Error(body.error ?? "DOLE reporting update failed.");
-      const refreshed = await load();
-      if (!mountedRef.current || !refreshed) return;
+      const refreshed = await load((fresh) => {
+        if (action === "save_profile") {
+          const saved = body?.profile;
+          return saved?.organizationId === organizationId && fresh.profile !== null &&
+            ["establishmentAddress", "principalBusiness", "contactName", "contactPosition", "contactPhone"]
+              .every(key => fresh.profile?.[key as keyof NonNullable<State["profile"]>] === saved?.[key]);
+        }
+        const saved = body?.submission;
+        return Number.isSafeInteger(saved?.id) && saved.id > 0 &&
+          saved.organizationId === organizationId && saved.reportHash === body?.reportHash &&
+          fresh.reportHash === body.reportHash && fresh.submissionCurrent &&
+          fresh.submissionHistory.some(row => row.id === saved.id &&
+            row.reportHash === saved.reportHash && row.portalReference === saved.portalReference &&
+            row.submittedAt === saved.submittedAt);
+      });
+      if (!mountedRef.current) return;
+      if (!refreshed) {
+        notify("The DOLE update may have been recorded, but its current state could not be verified. Inspect the report before retrying.", "err");
+        return;
+      }
       notify(
         action === "save_profile"
           ? "DOLE reporting profile saved."
@@ -212,6 +246,9 @@ function ScopedDoleThirteenthMonthReportPanel({
     }
   }
 
+  const showAttributionNotice = doleAttributionStateUiEnabled &&
+    error.includes("until historical payroll");
+
   return (
     <article className="card" data-dole-13th-month-report style={{ marginTop: 16 }}>
       <div className="card-header">
@@ -224,7 +261,7 @@ function ScopedDoleThirteenthMonthReportPanel({
           </p>
         </div>
         <div className="heading-actions">
-          <select value={taxYear} onChange={(event) => setTaxYear(Number(event.target.value))}>
+          <select value={taxYear} onChange={(event) => { setState(null); setTaxYear(Number(event.target.value)); }}>
             {[currentYear(), currentYear() - 1, currentYear() - 2].map((year) => (
               <option value={year} key={year}>{year}</option>
             ))}
@@ -237,8 +274,19 @@ function ScopedDoleThirteenthMonthReportPanel({
 
       {error ? (
         <div className="card-body" style={{ paddingTop: 0 }}>
-          <div className="notice notice-red" style={{ margin: 0 }}>
+          <div className="notice notice-red" style={{ margin: 0, ...(showAttributionNotice ? {
+            display: "grid", gridTemplateColumns: "15px minmax(0, 1fr)", alignItems: "start",
+          } : {}) }}>
             <ShieldAlert size={15} /><span>{error}</span>
+            {showAttributionNotice && (
+                <span role="status" style={{ display: "block", overflowWrap: "anywhere", gridColumn: 2 }}>
+                  Legal-employer attribution is required before the DOLE report, CSV download, profile changes or portal submission evidence can be used. Nothing has been submitted or approved.
+                </span>
+              )}
+            <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}
+              style={showAttributionNotice ? { gridColumn: 2, justifySelf: "start" } : undefined}>
+              <RefreshCcw size={14} /> Retry verified report
+            </button>
           </div>
         </div>
       ) : state ? (

@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
-  assert.equal(manifest.metrics.gap, 364, "364 API method gaps remain after reviewed DL-01, DL-02 and batch-2 proofs");
-  assert.equal(manifest.metrics.coveredAfter, 119, "96 prior methods plus nineteen DL-02 and four DL-01 batch-2 proofs");
+  assert.equal(manifest.metrics.gap, 360, "Retain 123 source-pinned methods and 360 unverified method gaps");
+  assert.equal(manifest.metrics.coveredAfter, 123, "Retain 123 source-pinned methods and 360 unverified method gaps");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -55,7 +55,22 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.equal(specs.filter((spec) => registry.get(spec).status === "GAP").length, 2);
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), ["GET compliance/remittance-actions"]);
+  const expectedCovered = [
+    "GET compliance/bir-1601c-remittances",
+    "GET compliance/government-loan-remittances",
+    "GET compliance/statutory-remittances",
+    "GET compliance/statutory-remittances/payment-evidence",
+    "GET compliance/statutory-remittances/payment-evidence/[id]",
+    "GET compliance/statutory-remittances/posting-evidence/[id]",
+  ];
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "COVERED").sort(),
+    expectedCovered.sort(), "Preserve all six independently verified HTTP GET adapters");
+  for (const spec of expectedCovered) {
+    const proof = registry.get(spec).testedBy;
+    assert.ok(proof?.file && proof.ownPositiveLine && proof.foreignDenialLine,
+      spec + ": source-pinned independent own and victim evidence is mandatory");
+  }
   assert.match(src, /const gaps = methodGaps\(\);/);
   assert.match(src, /for \(const item of candidates\)/);
   assert.match(src, /if \(!adapter\) continue; \/\/ GAP remains open;/);
@@ -107,4 +122,21 @@ test("HCM business-process and lifecycle own/foreign proof is source-pinned", ()
     }
   }
   assert.match(harness, /verifyHcmWorkQueueIsolation\(f, \{ request, expectStatus \}\)/);
+});
+
+test("government-loan GET and POST must retain real own/foreign PG16 proof", () => {
+  const entry = manifest.allApiRouteFiles["src/app/api/compliance/government-loan-remittances/route.ts"];
+  const suite = readFileSync("scripts/qa/government-loan-read-http.mjs", "utf8").split("\n");
+  for (const method of entry.methods) {
+    assert.equal(method.status, "COVERED");
+    assert.equal(method.testedBy?.file, "scripts/qa/government-loan-read-http.mjs");
+    assert.match(suite[method.testedBy.ownPositiveLine - 1], /expectStatus\(await request\(/);
+    assert.match(suite[method.testedBy.foreignDenialLine - 1], /expectStatus\(await request\(/);
+    const foreignSpan = suite.slice(method.testedBy.foreignDenialLine - 1,
+      method.testedBy.foreignDenialLine + 7).join("\n");
+    assert.match(foreignSpan, /\), 403,/,
+      "The exact source-pinned foreign request must assert HTTP 403");
+    if (method.name === "POST") assert.match(suite[method.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(/);
+  }
+  assert.match(harness, /verifyGovernmentLoanRemittanceIsolation\(f, \{ request, expectStatus \}\)/);
 });
