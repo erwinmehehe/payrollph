@@ -100,9 +100,16 @@ function StatutoryPaymentProofContent({
       }
       notify("Payment proof stored and verified in refreshed evidence.", "ok");
     } catch (error) {
-      if (isCurrent()) {
-        notify(error instanceof Error ? error.message : "Payment proof could not be uploaded.", "err");
-      }
+      if (!isCurrent()) return;
+      // The server may have committed a receipt before an HTTP/transport error.
+      // Refresh this exact employer/batch before presenting another upload.
+      const refreshed = await reloadWithOutcome();
+      if (!isCurrent()) return;
+      const message = error instanceof Error ? error.message : "Payment proof could not be uploaded.";
+      notify(refreshed?.data
+        ? `${message} Review refreshed payment proof before another upload.`
+        : `${message} Upload status cannot be confirmed. Retry payment proof before another upload.`,
+      "err");
     } finally {
       if (isCurrent()) setBusy(false);
     }
