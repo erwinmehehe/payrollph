@@ -53,18 +53,48 @@ test("DL-01 vault own/foreign/forged/high-ID/unchanged-victim checks remain real
   ]) assert.ok(source.includes(fragment), "Missing separate vault real-PG proof: " + fragment);
 });
 
-test("DL-01 candidate tests NEVER silently promote manifest or claim release acceptance", () => {
+test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP proof", () => {
   const expected = [
-    ["src/app/api/employee-vault/route.ts", "GET"],
-    ["src/app/api/employee-vault/[id]/route.ts", "DELETE"],
+    { path: "src/app/api/employee-vault/route.ts", method: "GET",
+      pins: { line: 128, ownPositiveLine: 128, foreignDenialLine: 132,
+        forgedSelectorLine: 138, unchangedDbLine: 173,
+        victimExistsLine: 110, victimIdOrderingLine: 104 },
+      ownStatus: 200, forgedStatus: 200 },
+    { path: "src/app/api/employee-vault/[id]/route.ts", method: "DELETE",
+      pins: { line: 148, ownPositiveLine: 148, foreignDenialLine: 144,
+        forgedSelectorLine: 160, unchangedDbLine: 173,
+        victimExistsLine: 110, victimIdOrderingLine: 104 },
+      ownStatus: 204, forgedStatus: 204 },
   ];
-  for (const [path, method] of expected) {
+  const lines = source.split("\n");
+  const span = number => lines.slice(number - 1, number + 4).join("\n");
+  for (const { path, method, pins, ownStatus, forgedStatus } of expected) {
     const entry = manifest.allApiRouteFiles[path]?.methods.find(row => row.name === method);
-    assert.equal(entry?.status, "GAP", method + " stays a GAP until completed PG16 proof + independent review");
-    assert.equal(entry?.testedBy, null);
+    assert.equal(entry?.status, "COVERED",
+      method + " requires a successful own request and a real foreign denial");
+    assert.equal(entry?.testedBy?.file, proofPath);
+    for (const [field, pinnedLine] of Object.entries(pins)) {
+      assert.equal(entry.testedBy[field], pinnedLine, method + " " + field + " must match reviewed source");
+      assert.ok(lines[pinnedLine - 1]?.trim() && !lines[pinnedLine - 1].trim().startsWith("//"));
+    }
+    assert.match(span(pins.ownPositiveLine), /expectStatus\(await request\(/);
+    assert.ok(span(pins.ownPositiveLine).includes("), " + ownStatus + ","));
+    assert.match(span(pins.foreignDenialLine), /expectStatus\(await request\(/);
+    assert.match(span(pins.foreignDenialLine), /\), 403,/);
+    assert.match(span(pins.forgedSelectorLine), /expectStatus\(await request\(/);
+    assert.ok(span(pins.forgedSelectorLine).includes("), " + forgedStatus + ","));
+    assert.match(lines[pins.victimExistsLine - 1], /persistedVictimDoc\?\.organizationId, victimOrg\.id/);
+    assert.match(span(pins.victimIdOrderingLine), /victimDoc\.id > created\[2\]\[1\]\.id/);
+    assert.match(lines[pins.unchangedDbLine - 1],
+      /assert\.deepEqual\(await victimSnapshot\(victimOrg\.id\), before/);
   }
-  // This PR adds one *provisional* statutory payment-evidence POST proof to
-  // main's counts. It must not silently promote either DL-01 vault method.
+  assert.match(source, /for \(const idx of \[1, 2\]\)/);
+  assert.match(source, /assertOwnList\(ownRead, ownPrimary\.id, victimDoc\.id/);
+  assert.match(source, /assertOwnList\(forged, ownPrimary\.id, victimDoc\.id/);
+  assert.match(source, /removed\?\.sourceKey\?\.startsWith\("vault-removed:"\)/);
+  assert.match(source, /Employee document removed from active vault/);
+  assert.match(source, /process\.env\.EMPLOYEE_DOCUMENT_VAULT_ENABLED, "true"/);
+  // The pre-existing #1303 provisional statutory payment POST must remain linked.
   const statutoryPost = manifest.allApiRouteFiles[
     "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts"
   ]?.methods.find(row => row.name === "POST");
@@ -76,9 +106,9 @@ test("DL-01 candidate tests NEVER silently promote manifest or claim release acc
       "Payment POST requires source-pinned own, foreign and unchanged-victim proof: " + key);
   }
   assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [129, 10, 354]);
+    [131, 10, 352]);
   assert.equal(manifest.metrics.methods, 493);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 354 API methods and 19 page\/action GAPs remain/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 352 API methods and 19 page\/action GAPs remain/);
   assert.equal(manifest.scopedPages.length, 20);
   assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 19);
 });

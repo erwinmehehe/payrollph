@@ -90,7 +90,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(payExplain?.status, "COVERED");
   assert.equal(payExplain?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs",
     "Keep the newer source-matched own/foreign real-HTTP pay-explanation proof");
-  // Preserve all 93 main-branch method receipts, including two payment-evidence GETs. Newly
+  // Preserve all inherited main-branch receipts, including payment-evidence and merged vault proofs. Newly
   // credited routes may only add to this historical count when their specific
   // isolated two-attacker HTTP suite is wired into the real PG16 harness.
   // Never "fix" this gate by substituting a new total without proof.
@@ -177,9 +177,38 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     }
     additionalSourcePinnedMethods += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 124,
-    "Main's already-proven statutory payment POST cannot be double-counted; only two new BIR proofs are unique");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 359,
+  // Account for the two newly credited vault methods only when their
+  // standalone, flag-scoped, two-attacker PG16 HTTP source proof remains linked.
+  // This is provisional evidence, NOT production or whole-system certification.
+  const vaultSourceFile = "scripts/qa/tenant-dl01-vault-http.mjs";
+  const vaultLines = readFileSync(vaultSourceFile, "utf8").split("\n");
+  assert.match(harness, /TENANT_DL01_VAULT_PROOF === "isolated-ci-only"/);
+  assert.match(harness, /verifyDl01Vault\(f, \{ request, expectStatus \}\)/);
+  let vaultSourcePinnedMethods = 0;
+  for (const [key, expectedStatus] of [
+    ["GET employee-vault", 200],
+    ["DELETE employee-vault/[id]", 204],
+  ]) {
+    const method = methodsByKey.get(key);
+    assert.equal(method?.status, "COVERED", key + ": provisional credit requires the live method proof");
+    assert.equal(method.testedBy?.file, vaultSourceFile, key + ": only its own suite can prove this method");
+    const proof = method.testedBy;
+    const own = vaultLines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 4).join("\n");
+    const foreign = vaultLines.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 4).join("\n");
+    assert.match(own, /expectStatus\(await request\(/);
+    assert.ok(own.includes("), " + expectedStatus + ","),
+      key + ": an actual own-employer HTTP success is required");
+    assert.match(foreign, /expectStatus\(await request\(/);
+    assert.match(foreign, /\), 403,/, key + ": a real victim-employer denial is required");
+    assert.match(vaultLines[proof.unchangedDbLine - 1] ?? "",
+      /assert\.deepEqual\(await victimSnapshot\(victimOrg\.id\), before/,
+      key + ": victim PostgreSQL records must remain unchanged");
+    vaultSourcePinnedMethods++;
+  }
+  assert.equal(vaultSourcePinnedMethods, 2, "No partial or double-credited vault closeout");
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods, 124,
+    "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

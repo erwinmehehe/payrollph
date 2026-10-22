@@ -102,11 +102,24 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
+  // Pin the current ledger exactly: the two DL-01 vault methods now have
+  // distinct synthetic PG16 proof links, but the other 352 methods remain GAP.
+  // This is provisional coverage; no production or global audit sign-off.
+  for (const [vaultRoute, vaultMethod] of [
+    ["src/app/api/employee-vault/route.ts", "GET"],
+    ["src/app/api/employee-vault/[id]/route.ts", "DELETE"],
+  ]) {
+    const method = manifest.allApiRouteFiles[vaultRoute]?.methods.find(
+      (item: { name: string }) => item.name === vaultMethod,
+    );
+    assert.equal(method?.status, "COVERED", vaultMethod + " vault requires distinct own/foreign HTTP proof");
+    assert.equal(method?.testedBy?.file, "scripts/qa/tenant-dl01-vault-http.mjs");
+  }
   // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
   // PR #1325 contributes three other real HTTP proofs; never double-credit these.
-  assert.equal(manifest.metrics.coveredAfter, 129, "Preserve source-pinned HCM and PR #1325 methods");
+  assert.equal(manifest.metrics.coveredAfter, 131, "Preserve source-pinned main, merged #1336 vault and PR #1325 BIR methods");
   assert.equal(manifest.metrics.publicByDesign, 10);
-  assert.equal(manifest.metrics.gap, 354, "Retain all unproven methods as GAP");
+  assert.equal(manifest.metrics.gap, 352, "Retain all unproven methods as GAP");
   // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
   // can only close GAPs if every method cites the corresponding isolated HTTP
   // suite, executed for both attacker employers against real victim rows.
@@ -176,10 +189,11 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     // own/foreign evidence above, but do not subtract them as newly added here.
     if (suite.entry === "verifyComplianceReadSweep") newlySourcePinned += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 127,
-    "Keep all 127 independently source-pinned methods from current main, including #1303");
-  assert.equal(manifest.metrics.gap + newlySourcePinned, 356,
-    "Never reduce main's 356 open method GAPs without new source-linked real HTTP proof");
+  assert.equal(newlySourcePinned, 2, "PR #1325 adds exactly the two BIR method proofs; other suites are inherited");
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 129,
+    "Keep all 129 independently source-pinned methods from current main including merged #1336 vault proofs");
+  assert.equal(manifest.metrics.gap + newlySourcePinned, 354,
+    "Never reduce merged-main's 354 open method GAPs without new source-linked real HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);

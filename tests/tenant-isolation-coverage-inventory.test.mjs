@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 354, "Keep 356 unverified method gaps after merged HCM and #1303 proofs");
-  assert.equal(manifest.metrics.coveredAfter, 129, "Count exact linked PG16 method proofs without treating GAPs as successes");
+  assert.equal(manifest.metrics.gap, 352, "Keep all 352 unverified API method gaps after separate BIR and vault proofs");
+  assert.equal(manifest.metrics.coveredAfter, 131, "Count exact linked PG16 BIR and vault method proofs without treating GAPs as successes");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -701,6 +701,41 @@ test("all credited proof links point to the claimed route and every recertified 
           assert.match(invariant, /assert\.deepEqual\(\s*(?:victim|officialVictim|storedVictim)/,
             path + ": an unchanged victim database snapshot is mandatory for writes");
         }
+        continue;
+      }
+      if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
+        const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
+          ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
+          : method.name === "DELETE" && path === "src/app/api/employee-vault/[id]/route.ts"
+            ? { own: 148, foreign: 144, forged: 160, ownStatus: 204, forgedStatus: 204 }
+            : null;
+        assert.ok(spec, path + ": no unrelated API may borrow provisional vault evidence");
+        const suite = readFileSync(proof.file, "utf8").split("\n");
+        const span = l => suite.slice(l - 1, l + 4).join("\n");
+        assert.equal(proof.line, spec.own);
+        assert.equal(proof.ownPositiveLine, spec.own);
+        assert.equal(proof.foreignDenialLine, spec.foreign);
+        assert.equal(proof.forgedSelectorLine, spec.forged);
+        assert.equal(proof.unchangedDbLine, 173);
+        assert.equal(proof.victimExistsLine, 110);
+        assert.equal(proof.victimIdOrderingLine, 104);
+        assert.match(span(spec.own), /expectStatus\(await request\(/);
+        assert.ok(span(spec.own).includes("), " + spec.ownStatus + ","));
+        assert.match(span(spec.foreign), /expectStatus\(await request\(/);
+        assert.match(span(spec.foreign), /\), 403,/);
+        assert.match(span(spec.forged), /expectStatus\(await request\(/);
+        assert.ok(span(spec.forged).includes("), " + spec.forgedStatus + ","));
+        assert.match(suite[109], /persistedVictimDoc\?\.organizationId, victimOrg\.id/);
+        assert.match(span(104), /victimDoc\.id > created\[2\]\[1\]\.id/);
+        assert.match(suite[172], /assert\.deepEqual\(await victimSnapshot\(victimOrg\.id\), before/);
+        assert.match(source.join("\n"), /verifyDl01Vault\(f, \{ request, expectStatus \}\)/);
+        assert.match(source.join("\n"), /TENANT_DL01_VAULT_PROOF === "isolated-ci-only"/);
+        assert.match(suite.join("\n"), /TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+        assert.match(suite.join("\n"), /for \(const idx of \[1, 2\]\)/);
+        assert.match(suite.join("\n"), /vault-removed:/);
+        const smoke = readFileSync(".github/workflows/security-http-smoke.yml", "utf8");
+        assert.match(smoke, /TENANT_DL01_VAULT_PROOF: isolated-ci-only/);
+        assert.match(smoke, /EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"/);
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
