@@ -132,6 +132,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   for (const suite of newSuites) {
     const inheritedMainProof = new Map([
       ["GET compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
+        ["POST compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
       ["GET compliance/dole-13th-month", "scripts/qa/dole-13th-month-http.mjs"],
       ["POST compliance/dole-13th-month", "scripts/qa/dole-13th-month-http.mjs"],
       ["GET compliance/government-loan-remittances", "scripts/qa/government-loan-read-http.mjs"],
@@ -175,10 +176,10 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     // own/foreign evidence above, but do not subtract them as newly added here.
     if (suite.entry === "verifyComplianceReadSweep") newlySourcePinned += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 126,
-    "Keep all 126 independently source-pinned methods from current main, including HCM/#1326");
-  assert.equal(manifest.metrics.gap + newlySourcePinned, 357,
-    "Never reduce main’s 357 open method GAPs without new source-linked real HTTP proof");
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 127,
+    "Keep all 127 independently source-pinned methods from current main, including #1303");
+  assert.equal(manifest.metrics.gap + newlySourcePinned, 356,
+    "Never reduce main's 356 open method GAPs without new source-linked real HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);

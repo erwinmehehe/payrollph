@@ -1,12 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { confirmsStoredPaymentProof, readVerifiedPaymentProof } from "@/lib/statutory-payment-proof-read";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
 import { FileCheck2, UploadCloud } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner } from "./ui";
-import { confirmedPaymentProofUpload, readVerifiedPaymentProof, type VerifiedPaymentProofRow } from "@/lib/statutory-payment-proof-read";
 
-type EvidenceRow = VerifiedPaymentProofRow;
+// Optional explanatory state only: failed/mismatched evidence reads block
+// upload unconditionally, regardless of this flag.
+const complianceReadStateUiEnabled =
+  process.env.NEXT_PUBLIC_COMPLIANCE_READ_STATE_UI_ENABLED === "true";
 
 type PaymentProofProps = {
   organizationId: number;
@@ -26,55 +30,21 @@ function StatutoryPaymentProofContent({
   batchStatus,
   notify,
 }: PaymentProofProps) {
-  const [rows, setRows] = useState<EvidenceRow[]>([]);
-  const [active, setActive] = useState<EvidenceRow | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [replacementReason, setReplacementReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const [readPhase, setReadPhase] = useState<"loading" | "verified" | "unavailable">("loading");
-  const [readError, setReadError] = useState("");
-
-  const load = useCallback(async (signal?: AbortSignal) => {
-    // Evidence and upload eligibility are invalid during every new read.
-    setReadPhase("loading");
-    setReadError("");
-    setRows([]);
-    setActive(null);
-    try {
-      const verified = await readVerifiedPaymentProof(organizationId, batchId, fetch, signal);
-      if (signal?.aborted) return;
-      setRows(verified.evidence);
-      setActive(verified.active);
-      setReadPhase("verified");
-      return verified;
-    } catch (caught) {
-      if (!signal?.aborted) {
-        setRows([]);
-        setActive(null);
-        setReadPhase("unavailable");
-        setReadError(caught instanceof Error ? caught.message : "Payment proof unavailable.");
-      }
-      throw caught;
-    }
-  }, [batchId, organizationId]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    // Schedule the initial read outside synchronous effect setup.
-    queueMicrotask(() => {
-      if (controller.signal.aborted) return;
-      void load(controller.signal).catch((error) => {
-        if (!controller.signal.aborted) {
-          notify(error instanceof Error ? error.message : "Could not load payment proof.", "err");
-        }
-      });
-    });
-    return () => controller.abort();
-  }, [load, notify]);
+  const load = useCallback((signal: AbortSignal) =>
+    readVerifiedPaymentProof(organizationId, batchId, fetch, signal),
+  [organizationId, batchId]);
+  const { data: proof, loading, error, reload, reloadWithOutcome, isCurrent } = useScopedAsyncResource(
+    "statutory-payment-proof:" + organizationId + ":" + batchId, load,
+  );
+  const rows = proof?.evidence ?? [];
+  const active = proof?.active ?? null;
 
   async function upload() {
-    if (busy || readPhase !== "verified") {
-      notify("Payment proof is unavailable until the employer and batch evidence are verified. Retry.", "err");
+    if (!proof) {
+      notify("Payment proof has not been verified. Retry the source read.", "err");
       return;
     }
     if (!file) {
@@ -91,7 +61,6 @@ function StatutoryPaymentProofContent({
     }
 
     setBusy(true);
-    let postAccepted = false;
     try {
       const form = new FormData();
       form.set("organizationId", String(organizationId));
@@ -104,34 +73,63 @@ function StatutoryPaymentProofContent({
         body: form,
       });
       const body = await response.json().catch(() => ({}));
+      // A POST already sent to the server cannot safely be assumed cancelled.
+      // After any awaited response, suppress all results for a retired scope.
+      if (!isCurrent()) return;
       if (!response.ok) throw new Error(body.error ?? "Payment proof could not be uploaded.");
-      postAccepted = true;
-      const refreshed = await load();
-      if (!refreshed ||
-          !confirmedPaymentProofUpload(body, refreshed, organizationId, batchId)) {
-        throw Error("The saved payment-proof receipt is missing or differs from the refreshed evidence.");
+      if (response.status !== 201 ||
+          body.organizationId !== organizationId || body.batchId !== batchId ||
+          !Number.isSafeInteger(body.evidence?.id) || body.evidence.id <= 0 ||
+          typeof body.evidence?.fileSha256 !== "string" || !/^[a-f0-9]{64}$/i.test(body.evidence.fileSha256)) {
+        // Even an invalid 2xx response may follow a committed write. Refresh
+        // the source before offering another upload, never claim failure/success.
+        const refreshed = await reloadWithOutcome();
+        if (!isCurrent()) return;
+        notify(refreshed?.data
+          ? "Upload response could not be verified. Review refreshed payment proof before another upload."
+          : "Upload may be stored, but confirmation is pending. Retry payment proof before another upload.", "err");
+        return;
       }
-      notify(active ? "Payment proof replaced with audit history preserved." : "Payment proof uploaded and hashed.", "ok");
       setFile(null);
       setReplacementReason("");
+      const refreshed = await reloadWithOutcome();
+      if (!isCurrent()) return; // A retired employer/batch must not emit a new result.
+      if (!confirmsStoredPaymentProof(refreshed?.data ?? null, organizationId, batchId, body.evidence)) {
+        notify("Payment proof may be stored, but the refreshed evidence was not verified. Retry payment proof to confirm before another upload.", "err");
+        return;
+      }
+      notify("Payment proof stored and verified in refreshed evidence.", "ok");
     } catch (error) {
+      if (!isCurrent()) return;
+      // The server may have committed a receipt before an HTTP/transport error.
+      // Refresh this exact employer/batch before presenting another upload.
+      const refreshed = await reloadWithOutcome();
+      if (!isCurrent()) return;
       const message = error instanceof Error ? error.message : "Payment proof could not be uploaded.";
-      notify(postAccepted
-        ? "Payment proof may have been recorded; inspect the saved receipt before attempting another upload. " + message
-        : message, "err");
+      notify(refreshed?.data
+        ? `${message} Review refreshed payment proof before another upload.`
+        : `${message} Upload status cannot be confirmed. Retry payment proof before another upload.`,
+      "err");
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   }
 
+  if (!proof) return (
+    <div data-statutory-payment-proof className="notice notice-amber" style={{ display: "grid", gap: 8 }}>
+      <strong>{loading ? "Checking payment proof…" : "Payment proof unavailable"}</strong>
+      {!loading && <span>{error?.message ?? "The evidence read could not be verified."}</span>}
+      {!loading && complianceReadStateUiEnabled && (
+        <span role="status" style={{ overflowWrap: "anywhere" }}>
+          Payment evidence cannot be accepted as filed or uploaded until this employer and batch have a verified source read.
+        </span>
+      )}
+      {!loading && <button className="secondary-button" type="button" onClick={() => void reload()}>Retry payment proof</button>}
+    </div>
+  );
+
   return (
     <div style={{ display: "grid", gap: 8 }} data-statutory-payment-proof>
-      {readPhase !== "verified" ? (
-        <div className="notice notice-amber" role={readPhase === "unavailable" ? "alert" : "status"}>
-          <span>{readPhase === "loading" ? "Verifying payment proof for this employer and batch…" : "Payment proof unavailable. " + readError + " No receipt recording is permitted."}</span>
-          {readPhase === "unavailable" && <button type="button" className="secondary-button" onClick={() => void load().catch(() => undefined)}>Retry payment proof</button>}
-        </div>
-      ) : <>
       {active ? (
         <div className="notice notice-green" style={{ margin: 0 }}>
           <FileCheck2 size={15} />
@@ -178,7 +176,7 @@ function StatutoryPaymentProofContent({
             </label>
           )}
           <div style={{ alignSelf: "end" }}>
-            <button className="secondary-button" disabled={busy || !file || readPhase !== "verified"} onClick={() => void upload()}>
+            <button className="secondary-button" disabled={busy || !file} onClick={() => void upload()}>
               {busy ? <Spinner label="Uploading" /> : <UploadCloud size={14} />}
               {active ? "Replace proof" : batchStatus === "open" ? "Upload proof" : "Backfill proof"}
             </button>
@@ -203,7 +201,6 @@ function StatutoryPaymentProofContent({
           </div>
         </details>
       )}
-      </>}
     </div>
   );
 }

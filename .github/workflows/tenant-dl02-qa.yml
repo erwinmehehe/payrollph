@@ -8,6 +8,9 @@ on:
       - '.github/workflows/tenant-dl02-qa.yml'
       - 'scripts/qa/tenant-dl02-http.mjs'
       - 'scripts/qa/tenant-second-pass-http.mjs'
+      - 'scripts/qa/tenant-ci-synthetic-proof-scanner.mjs'
+      - 'tests/tenant-dl02-scanner-workflow.test.mjs'
+      - 'src/app/api/compliance/statutory-remittances/payment-evidence/**'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'src/app/api/report-builder/saved/**'
       - 'src/app/api/hcm-report-builder/**'
@@ -46,8 +49,7 @@ jobs:
       READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
       SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
       TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
-      # CI-only localhost TLS scanner; never touch a real provider or production data.
-      MALWARE_SCAN_URL: https://127.0.0.1:8443/scan
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
       MALWARE_SCAN_TOKEN: ci-malware-token-0000000000000000000000000000
       REQUIRE_PRIVILEGED_MFA: "true"
       LOCAL_LOGIN_AUDIT_ENABLED: "true"
@@ -74,6 +76,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Guard isolated DL-02 synthetic scanner prerequisite
+        run: node --test tests/tenant-dl02-scanner-workflow.test.mjs
       - name: Ephemeral encryption key for disposable CI only
         shell: bash
         run: |
@@ -82,26 +86,6 @@ jobs:
           echo "PII_ENCRYPTION_KEY=$key" >> "$GITHUB_ENV"
       - run: npm run db:push
       - run: npm run build
-      - name: Start synthetic known-file TLS scanner (disposable CI only; not malware certification)
-        shell: bash
-        run: |
-          set -euo pipefail
-          key="$RUNNER_TEMP/tenant-scanner-key.pem"
-          crt="$RUNNER_TEMP/tenant-scanner-cert.pem"
-          openssl req -x509 -nodes -newkey rsa:2048 -keyout "$key" -out "$crt" -days 1 -subj "/CN=127.0.0.1" -addext "subjectAltName=IP:127.0.0.1" >/dev/null 2>&1
-          export TENANT_SCANNER_KEY="$key" TENANT_SCANNER_CERT="$crt" NODE_EXTRA_CA_CERTS="$crt"
-          echo "TENANT_SCANNER_KEY=$key" >> "$GITHUB_ENV"
-          echo "TENANT_SCANNER_CERT=$crt" >> "$GITHUB_ENV"
-          echo "NODE_EXTRA_CA_CERTS=$crt" >> "$GITHUB_ENV"
-          nohup node scripts/qa/tenant-read-sweep-scanner.mjs > /tmp/tenant-read-scanner.log 2>&1 &
-          for attempt in {1..20}; do
-            if curl -fsSk https://127.0.0.1:8443/health >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          cat /tmp/tenant-read-scanner.log
-          exit 1
       - name: Start isolated production-mode localhost server
         shell: bash
         env:
@@ -112,8 +96,6 @@ jobs:
           EMPLOYEE_HR_CASES_ENABLED: "true"
           OWNER_PRACTICE_PAYROLL_ENABLED: "true"
           HCM_GOVERNANCE_READINESS_ENABLED: "true"
-          # Local synthetic BIR GET/POST proof uses a flag-on test server only.
-          # Production and the main branch retain default-OFF behavior.
           BIR_1604C_DAT_CANDIDATE_ENABLED: "true"
           PAYMONGO_WEBHOOK_SECRET: ci-fake-paymongo-webhook-signing-secret
           XENDIT_PAYOUT_CALLBACK_TOKEN: ci-fake-xendit-payout-callback
@@ -122,6 +104,25 @@ jobs:
           XENDIT_BILLING_ENABLED: "true"
         run: |
           set -euo pipefail
+          # The shared second-pass suite exercises synthetic statutory payment-proof
+          # uploads. Its positive control requires a CI-only localhost TLS scanner.
+          # No production malware-scanner logic, tokens or deploy flags are changed.
+          node --check scripts/qa/tenant-ci-synthetic-proof-scanner.mjs
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout /tmp/tenant-ci-scanner.key -out /tmp/tenant-ci-scanner.crt \
+            -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          export TENANT_SYNTHETIC_SCAN_MODE=isolated-pg16-only
+          export MALWARE_SCAN_URL=https://127.0.0.1:8443/scan
+          export MALWARE_SCAN_TOKEN=ci-tenant-proof-scanner-only
+          export NODE_EXTRA_CA_CERTS=/tmp/tenant-ci-scanner.crt
+          nohup node scripts/qa/tenant-ci-synthetic-proof-scanner.mjs > /tmp/tenant-dl02-ci-scanner.log 2>&1 &
+          for attempt in {1..15}; do
+            if curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health
           resend_webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
           echo "::add-mask::$resend_webhook_secret"
           export RESEND_WEBHOOK_SECRET="$resend_webhook_secret"
@@ -139,6 +140,8 @@ jobs:
           TENANT_SECOND_PASS_MODE: isolated-ci-only
           TENANT_DL02_PROOF: isolated-ci-only
         run: npx tsx scripts/qa/tenant-second-pass-http.mjs
-      - name: Show isolated server log on failure
+      - name: Show isolated server and scanner logs on failure
         if: failure()
-        run: cat /tmp/tenant-dl02-server.log || true
+        run: |
+          cat /tmp/tenant-dl02-server.log || true
+          cat /tmp/tenant-dl02-ci-scanner.log || true

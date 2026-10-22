@@ -16,7 +16,7 @@ export function useScopedAsyncResource<T>(
   const [refreshing, setRefreshing] = useState<typeof key | null>(null);
 
   const run = useCallback(() => {
-    if (!key.enabled) return Promise.resolve();
+    if (!key.enabled) return Promise.resolve(undefined);
     return owner.run(key, key.load, (outcome) => {
       setSettled({ key, ...outcome });
       setRefreshing(null);
@@ -34,15 +34,19 @@ export function useScopedAsyncResource<T>(
     void run();
   }, [run]);
 
-  // Called by explicit refresh/mutation handlers, never by the mount effect.
-  const reload = useCallback(() => {
-    if (!key.enabled || !owner.isActive(key)) return Promise.resolve();
+  // Existing consumers expect Promise<void>. Keep the public reload API stable.
+  // Only callers that must verify a write request need the committed outcome.
+  const reloadWithOutcome = useCallback(() => {
+    if (!key.enabled || !owner.isActive(key)) return Promise.resolve(undefined);
     setRefreshing(key);
     return run();
   }, [key, owner, run, setRefreshing]);
+  const reload = useCallback(async (): Promise<void> => {
+    await reloadWithOutcome();
+  }, [reloadWithOutcome]);
 
   const active = activeAsyncResult(settled, key, enabled);
   const loading = enabled && (!active || refreshing === key);
   const isCurrent = useCallback(() => key.enabled && owner.isActive(key), [key, owner]);
-  return { data: loading ? null : active?.data ?? null, error: loading ? null : active?.error ?? null, loading, reload, isCurrent };
+  return { data: loading ? null : active?.data ?? null, error: loading ? null : active?.error ?? null, loading, reload, reloadWithOutcome, isCurrent };
 }

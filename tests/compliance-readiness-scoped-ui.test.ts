@@ -27,18 +27,16 @@ test("read-only compliance and launch status panels use cancellable tenant-bound
     const source = readFileSync(panel.path, "utf8");
     assert.ok(source.includes("useScopedAsyncResource("), panel.path);
     assert.ok(source.includes(panel.scope), panel.path);
-    if (panel.path.includes("compliance-calendar-panel")) {
-      const reader = readFileSync("src/lib/compliance-calendar-read.ts", "utf8");
-      assert.ok(source.includes("readVerifiedComplianceCalendar("), panel.path);
-      assert.ok(reader.includes(panel.route), panel.path);
-      assert.match(reader, /cache: "no-store", signal/);
-      assert.match(reader, /if \(!response\.ok\) throw/);
-      assert.match(reader, /isVerifiedComplianceCalendar\(value, organizationId\)/);
+    if (panel.path.endsWith("compliance-calendar-panel.tsx")) {
+      // Route/fetch and abort signal live in a pure tenant-bound verifier.
+      const verified = readFileSync("src/lib/compliance-calendar-read.ts", "utf8");
+      assert.match(source, /readVerifiedComplianceCalendar\(organizationId, fetch, signal\)/);
+      assert.match(verified, /\/api\/compliance\/calendar\?organizationId=/);
+      assert.match(verified, /cache: "no-store", signal/);
+      assert.match(verified, /parseVerifiedComplianceCalendar\(value, organizationId\)/);
     } else {
       assert.ok(source.includes(panel.route), panel.path);
-    }
-    assert.match(source, /async \(signal: AbortSignal\)/);
-    if (!panel.path.includes("compliance-calendar-panel")) {
+      assert.match(source, /async \(signal: AbortSignal\)/);
       assert.match(source, /cache: "no-store",\s+signal,/);
     }
     assert.match(source, /error: loadError, reload/);

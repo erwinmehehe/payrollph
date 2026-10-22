@@ -10,10 +10,13 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Status } from "@/components/workspace/ui";
+import { readVerifiedComplianceCalendar, type CalendarPayload as Payload, type CalendarStatus, type RuleWatchItem } from "@/lib/compliance-calendar-read";
 import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
-import { readVerifiedComplianceCalendar, type CalendarStatus, type RuleWatchItem, type VerifiedComplianceCalendar } from "@/lib/compliance-calendar-read";
 
-type Payload = VerifiedComplianceCalendar;
+// This flag controls explanatory UI only. Employer authorization and
+// fail-closed source checks run even when the optional notice is OFF.
+const complianceReadStateUiEnabled =
+  process.env.NEXT_PUBLIC_COMPLIANCE_READ_STATE_UI_ENABLED === "true";
 
 const RULE_WATCH_LABEL: Record<RuleWatchItem["status"], string> = {
   current: "Current",
@@ -58,7 +61,7 @@ function prettyDate(value: string | null) {
 
 export function ComplianceCalendarPanel({ organizationId }: { organizationId: number }) {
   const [attentionOnly, setAttentionOnly] = useState(true);
-  const fetchCalendar = useCallback(async (signal: AbortSignal): Promise<Payload> =>
+  const fetchCalendar = useCallback((signal: AbortSignal): Promise<Payload> =>
     readVerifiedComplianceCalendar(organizationId, fetch, signal), [organizationId]);
 
   // Discard previous-employer data before paint and abort retired responses,
@@ -97,7 +100,12 @@ export function ComplianceCalendarPanel({ organizationId }: { organizationId: nu
           <div className="notice notice-red" style={{ margin: 0 }}>
             <AlertTriangle size={15} />
             <span><strong>Calendar unavailable.</strong> {error}</span>
-            <button className="secondary-button" type="button" onClick={() => void reload()} disabled={loading}>Retry calendar</button>
+            {complianceReadStateUiEnabled && (
+              <span role="status" style={{ display: "block", overflowWrap: "anywhere" }}>
+                Filing and remittance statuses are hidden until the complete employer-specific calendar and rule-watch sources are verified. No all-clear is implied.
+              </span>
+            )}
+            <button type="button" className="secondary-button" onClick={() => void reload()}>Retry calendar</button>
           </div>
         </div>
       ) : payload ? (
@@ -138,7 +146,7 @@ export function ComplianceCalendarPanel({ organizationId }: { organizationId: nu
               </div>
               {payload.ruleWatch.filter((item) => item.status !== "current").map((item) => (
                 <div
-                  key={`${item.family}-${item.sourceDocument ?? item.label}`}
+                  key={`${item.family}-${item.label}-${item.sourceDocument ?? ""}`}
                   className={RULE_WATCH_URGENT.has(item.status) ? "notice notice-amber" : "notice"}
                   style={{ margin: 0 }}
                 >

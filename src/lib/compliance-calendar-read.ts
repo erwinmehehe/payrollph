@@ -1,133 +1,125 @@
-/**
- * Scoped read of compliance deadlines and rule coverage; no aggregate may
- * display as zero, complete or clear until every source collection is verified.
- */
-export type CalendarStatus =
-  "complete" | "upcoming" | "due-soon" | "overdue" | "posting-pending" |
-  "exception" | "verification-required" | "configuration-required";
+export type CalendarStatus = "complete" | "upcoming" | "due-soon" | "overdue" |
+  "posting-pending" | "exception" | "verification-required" | "configuration-required";
+export type RuleWatchStatus = "current" | "review-due" | "verification-unrecorded" |
+  "change-upcoming" | "update-overdue" | "coverage-ending" | "no-coverage";
 export type CalendarItem = {
   id: string; agency: "BIR" | "SSS" | "PhilHealth" | "Pag-IBIG";
   obligation: string; applicableMonth: string; dueDate: string | null;
   status: CalendarStatus; detail: string; sourceLabel: string; sourceUrl: string;
   exactness: "nominal" | "conservative-target";
 };
-const REQUIRED_RULE_WATCH_LABELS = {
-  sss: "SSS contribution schedule",
-  philhealth: "PhilHealth premium schedule",
-  pagibig: "Pag-IBIG contribution rules",
-  "bir-withholding": "BIR withholding tax tables",
-  "wage-orders": "Regional minimum wage orders",
-} as const;
-export type RuleWatchFamily = keyof typeof REQUIRED_RULE_WATCH_LABELS;
 export type RuleWatchItem = {
-  family: RuleWatchFamily; label: string;
-  status: "current" | "review-due" | "verification-unrecorded" |
-    "change-upcoming" | "update-overdue" | "coverage-ending" | "no-coverage";
-  currentVersion: string | null; sourceDocument: string | null;
-  lastVerifiedOn: string | null; detail: string;
+  family: string; label: string; status: RuleWatchStatus;
+  currentVersion: string | null; sourceDocument: string | null; lastVerifiedOn: string | null; detail: string;
 };
-export type VerifiedComplianceCalendar = {
+export type CalendarPayload = {
   organizationId: number; today: string; applicableMonths: string[];
-  payrollMonths: string[]; birMonths: string[]; annualTaxYears: number[];
+  contributionMonths: string[]; birPayMonths: string[];
   items: CalendarItem[]; ruleWatch: RuleWatchItem[]; note: string;
 };
-const record = (x: unknown): x is Record<string, unknown> =>
-  x !== null && typeof x === "object" && !Array.isArray(x);
-const id = (x: unknown) => typeof x === "number" && Number.isSafeInteger(x) && x > 0;
-const text = (x: unknown) => typeof x === "string" && x.trim().length > 0;
-const optionalText = (x: unknown) => x === null || typeof x === "string";
-const month = (x: unknown) => typeof x === "string" && /^\d{4}-(?:0[1-9]|1[0-2])$/.test(x);
-const date = (x: unknown) => {
-  if (typeof x !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(x)) return false;
-  const stamp = Date.parse(x + "T00:00:00Z");
-  return Number.isFinite(stamp) && new Date(stamp).toISOString().slice(0, 10) === x;
+const record = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+const text = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
+const isoDay = (v: unknown): v is string => {
+  if (!text(v) || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const parsed = new Date(v + "T00:00:00Z");
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === v;
 };
-const statuses: CalendarStatus[] = [
+const isoMonth = (v: unknown): v is string =>
+  typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(v);
+const optionalText = (v: unknown) => v === null || typeof v === "string";
+const calendarStatuses = new Set<CalendarStatus>([
   "complete", "upcoming", "due-soon", "overdue", "posting-pending",
   "exception", "verification-required", "configuration-required",
-];
-function item(x: unknown): x is CalendarItem {
-  if (!record(x)) return false;
-  return text(x.id) && ["BIR","SSS","PhilHealth","Pag-IBIG"].includes(String(x.agency)) &&
-    text(x.obligation) && month(x.applicableMonth) &&
-    (x.dueDate === null || date(x.dueDate)) &&
-    statuses.includes(x.status as CalendarStatus) &&
-    text(x.detail) && text(x.sourceLabel) && text(x.sourceUrl) &&
-    ["nominal", "conservative-target"].includes(String(x.exactness));
+]);
+const watchStatuses = new Set<RuleWatchStatus>([
+  "current", "review-due", "verification-unrecorded", "change-upcoming",
+  "update-overdue", "coverage-ending", "no-coverage",
+]);
+function calendarItem(v: unknown): v is CalendarItem {
+  return record(v) && text(v.id) &&
+    ["BIR", "SSS", "PhilHealth", "Pag-IBIG"].includes(String(v.agency)) &&
+    text(v.obligation) && isoMonth(v.applicableMonth) &&
+    (v.dueDate === null || isoDay(v.dueDate)) && calendarStatuses.has(v.status as CalendarStatus) &&
+    text(v.detail) && text(v.sourceLabel) && text(v.sourceUrl) &&
+    (v.exactness === "nominal" || v.exactness === "conservative-target");
 }
-function rule(x: unknown): x is RuleWatchItem {
-  if (!record(x)) return false;
-  return typeof x.family === "string" && Object.prototype.hasOwnProperty.call(REQUIRED_RULE_WATCH_LABELS, x.family) &&
-    text(x.label) && text(x.detail) &&
-    ["current","review-due","verification-unrecorded","change-upcoming",
-      "update-overdue","coverage-ending","no-coverage"].includes(String(x.status)) &&
-    optionalText(x.currentVersion) && optionalText(x.sourceDocument) &&
-    (x.lastVerifiedOn === null || date(x.lastVerifiedOn));
+function watchItem(v: unknown): v is RuleWatchItem {
+  return record(v) && text(v.family) && text(v.label) &&
+    watchStatuses.has(v.status as RuleWatchStatus) &&
+    optionalText(v.currentVersion) && optionalText(v.sourceDocument) &&
+    (v.lastVerifiedOn === null || isoDay(v.lastVerifiedOn)) && text(v.detail);
 }
-function completeRuleWatch(watch: RuleWatchItem[]): boolean {
-  const identities = new Set(watch.map(row => row.family + "|" + row.label));
-  return identities.size === watch.length &&
-    Object.entries(REQUIRED_RULE_WATCH_LABELS).every(([family, label]) =>
-      watch.some(row => row.family === family && row.label === label));
-}
-function completeObligations(calendar: VerifiedComplianceCalendar): boolean {
-  const { applicableMonths, payrollMonths, birMonths, annualTaxYears, today, items } = calendar;
-  const uniqueMonths = (months: string[]) =>
-    months.length === new Set(months).size && months.every(month);
-  if (!uniqueMonths(applicableMonths) || !uniqueMonths(payrollMonths) ||
-      !uniqueMonths(birMonths) || annualTaxYears.length !== new Set(annualTaxYears).size ||
-      !annualTaxYears.every((year) => Number.isSafeInteger(year) && year >= 2000 && year <= 2100)) return false;
-  const expectedMonths = new Set([...payrollMonths, ...birMonths]);
-  if (expectedMonths.size !== applicableMonths.length ||
-      applicableMonths.some((m) => !expectedMonths.has(m))) return false;
-  const windowYear = Number(today.slice(0, 4)) -
-    (Number(today.slice(5, 7)) <= 4 ? 1 : 0);
-  if (Number(today.slice(5, 7)) >= 5 && Number(today.slice(5, 7)) <= 10 &&
-      annualTaxYears.length > 0) return false;
-  if (annualTaxYears.some((year) => year !== windowYear)) return false;
-  if (birMonths.some((m) => Number(m.slice(0, 4)) === windowYear) &&
-      (Number(today.slice(5, 7)) >= 11 || Number(today.slice(5, 7)) <= 4) &&
-      !annualTaxYears.includes(windowYear)) return false;
-  const expected = new Map<string, { agency: CalendarItem["agency"]; month: string }>();
-  for (const m of payrollMonths) for (const agency of ["SSS", "PhilHealth", "Pag-IBIG"] as const)
-    expected.set(`${agency}-${m}`, { agency, month: m });
-  for (const m of birMonths) expected.set(`BIR-1601C-${m}`, { agency: "BIR", month: m });
-  for (const year of annualTaxYears) {
-    for (const code of ["2316-EMPLOYEE", "1604C", "2316-BIR"])
-      expected.set(`BIR-${code}-${year}`, { agency: "BIR", month: `${year}-12` });
+/** A calendar with missing results or missing rules is unavailable, never "all clear". */
+export function parseVerifiedComplianceCalendar(value: unknown, organizationId: number): CalendarPayload | null {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
+      !record(value) || value.organizationId !== organizationId || !isoDay(value.today) ||
+      !Array.isArray(value.applicableMonths) || !value.applicableMonths.every(isoMonth) ||
+      !Array.isArray(value.contributionMonths) || !value.contributionMonths.every(isoMonth) ||
+      !Array.isArray(value.birPayMonths) || !value.birPayMonths.every(isoMonth) ||
+      !Array.isArray(value.items) || !value.items.every(calendarItem) ||
+      !Array.isArray(value.ruleWatch) || !value.ruleWatch.every(watchItem) ||
+      !text(value.note)) return null;
+  const items = value.items as CalendarItem[];
+  const watch = value.ruleWatch as RuleWatchItem[];
+  if (new Set(items.map(x => x.id)).size !== items.length ||
+      new Set(watch.map(x => JSON.stringify([x.family, x.label, x.sourceDocument]))).size !== watch.length)
+    return null;
+
+  // These five source-status families are always produced by the server,
+  // including when there are no payroll runs. An empty ruleWatch is not an
+  // authoritative all-clear, even if the HTTP status is 200.
+  const requiredFamilies = ["sss", "philhealth", "pagibig", "bir-withholding", "wage-orders"];
+  if (!requiredFamilies.every(family => watch.some(entry => entry.family === family)))
+    return null;
+
+  // Server-issued source months are distinct: a BIR entry cannot excuse
+  // missing SSS, PhilHealth or Pag-IBIG items for a payroll-period month.
+  const months = value.applicableMonths as string[];
+  const contributionMonths = value.contributionMonths as string[];
+  const birPayMonths = value.birPayMonths as string[];
+  const union = new Set([...contributionMonths, ...birPayMonths]);
+  if (new Set(months).size !== months.length ||
+      new Set(contributionMonths).size !== contributionMonths.length ||
+      new Set(birPayMonths).size !== birPayMonths.length ||
+      months.length !== union.size || months.some(month => !union.has(month)) ||
+      (months.length === 0 && items.length !== 0)) return null;
+
+  const contributionAgencies = ["SSS", "PhilHealth", "Pag-IBIG"] as const;
+  for (const month of contributionMonths) {
+    for (const agency of contributionAgencies) {
+      if (!items.some(item => item.id === agency + "-" + month &&
+          item.agency === agency && item.applicableMonth === month)) return null;
+    }
   }
-  return items.length === expected.size && items.every((item) => {
-    const required = expected.get(item.id);
-    return required?.agency === item.agency && required.month === item.applicableMonth;
-  });
-}
-export function isVerifiedComplianceCalendar(
-  x: unknown, organizationId: number,
-): x is VerifiedComplianceCalendar {
-  if (!id(organizationId) || !record(x) || x.organizationId !== organizationId ||
-      !date(x.today) || !text(x.note) ||
-      !Array.isArray(x.applicableMonths) || !x.applicableMonths.every(month) ||
-      !Array.isArray(x.payrollMonths) || !x.payrollMonths.every(month) ||
-      !Array.isArray(x.birMonths) || !x.birMonths.every(month) ||
-      !Array.isArray(x.annualTaxYears) ||
-      !Array.isArray(x.items) || !x.items.every(item) ||
-      !Array.isArray(x.ruleWatch) || !x.ruleWatch.every(rule)) return false;
-  return new Set((x.items as CalendarItem[]).map(row => row.id)).size === x.items.length &&
-    completeObligations(x as VerifiedComplianceCalendar) &&
-    completeRuleWatch(x.ruleWatch as RuleWatchItem[]);
+  for (const month of birPayMonths) {
+    if (!items.some(item => item.id === "BIR-1601C-" + month &&
+        item.agency === "BIR" && item.applicableMonth === month)) return null;
+  }
+  // Reject orphan and misbound monthly entries; annual BIR items remain valid.
+  for (const item of items) {
+    if (item.agency !== "BIR" && (!contributionMonths.includes(item.applicableMonth) ||
+        item.id !== item.agency + "-" + item.applicableMonth)) return null;
+    if (item.id.startsWith("BIR-1601C-") &&
+        (!birPayMonths.includes(item.applicableMonth) ||
+         item.id !== "BIR-1601C-" + item.applicableMonth || item.agency !== "BIR")) return null;
+  }
+  return value as CalendarPayload;
 }
 export async function readVerifiedComplianceCalendar(
-  organizationId: number, fetcher: typeof fetch = fetch, signal?: AbortSignal,
-): Promise<VerifiedComplianceCalendar> {
-  if (!id(organizationId)) throw Error("Compliance calendar unavailable: invalid employer.");
+  organizationId: number,
+  fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<CalendarPayload> {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0)
+    throw Error("Compliance calendar unavailable. Retry.");
   const response = await fetcher("/api/compliance/calendar?organizationId=" + organizationId,
     { cache: "no-store", signal });
   if (!response.ok) throw Error("Compliance calendar unavailable. Retry.");
   let value: unknown;
   try { value = await response.json(); }
-  catch { throw Error("Compliance calendar returned malformed JSON. Retry."); }
-  if (!isVerifiedComplianceCalendar(value, organizationId)) {
-    throw Error("Compliance calendar incomplete or for another employer. Retry.");
-  }
-  return value;
+  catch { throw Error("Compliance calendar unreadable. Retry."); }
+  const verified = parseVerifiedComplianceCalendar(value, organizationId);
+  if (!verified) throw Error("Compliance calendar incomplete or for a different employer. Retry.");
+  return verified;
 }

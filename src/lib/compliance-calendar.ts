@@ -123,20 +123,6 @@ function remittanceItem(input: {
 
   const batch = input.batch;
   if (batch) {
-    if (batch.status === "verification-required") {
-      return {
-        id: input.agency + "-" + input.applicableMonth,
-        agency: input.agency,
-        obligation: input.agency + " employer contribution remittance",
-        applicableMonth: input.applicableMonth,
-        dueDate: batch.dueDate || nominalDueDate,
-        status: "verification-required",
-        detail: "One or more legal employers have missing or unscoped payroll/remittance evidence. Reconcile every employer before treating this company-wide month as complete.",
-        sourceLabel: source.label,
-        sourceUrl: source.url,
-        exactness: "nominal",
-      };
-    }
     if (batch.status === "reconciled") {
       return {
         id: `${input.agency}-${input.applicableMonth}`,

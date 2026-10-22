@@ -406,6 +406,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Opt-in verified DOLE report reads, fresh mutation confirmation and source-attribution UI; multi-entity GET/POST/CSV and builder deny regardless of this flag",
     approval: "Exact flag-off visual parity, multi-entity 503 and untouched victim data, real desktop/390px component browser, independent statutory/payroll acceptance",
   },
+  complianceReadStateUi: {
+    env: "NEXT_PUBLIC_COMPLIANCE_READ_STATE_UI_ENABLED",
+    owner: "Security / Philippine Payroll Compliance / Product",
+    risk: "Opt-in explanatory UI for fail-closed statutory calendar and payment-proof unavailable states; authorization and source validation remain unconditional",
+    approval: "Default-off parity on desktop and 390px, fail-closed wrong-employer/partial reads, source-pinned PG16 test, independent security and payroll acceptance",
+  },
 } as const;
 
 export type CriticalReleaseFlag = keyof typeof CRITICAL_RELEASE_FLAGS;

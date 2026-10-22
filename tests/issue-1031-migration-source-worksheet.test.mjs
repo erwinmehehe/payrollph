@@ -11,9 +11,9 @@ const read = file => readFileSync(resolve(root, file), "utf8");
 
 test("source-only worksheet covers every drizzle file with current byte SHA and no populated receipts", () => {
   const result = generateSourceWorksheet();
-  assert.equal(result.summary.totalDrizzleFiles, 151);
-  assert.equal(result.summary.numberedSqlFiles, 149);
-  assert.equal(result.summary.sqlFiles, 150);
+  assert.equal(result.summary.totalDrizzleFiles, 152);
+  assert.equal(result.summary.numberedSqlFiles, 150);
+  assert.equal(result.summary.sqlFiles, 151);
   assert.equal(result.summary.sourceSchemaTables, 273);
   assert.equal(result.summary.duplicatePrefixGroups, 13);
   assert.ok(result.migrationRows.some(row => row.file_path === "drizzle/0127_year_end_prior_evidence.sql" && row.creates_objects.includes("year_end_prior_evidence")));
@@ -79,6 +79,20 @@ test("source-only worksheet covers every drizzle file with current byte SHA and 
     assert.ok(result.tableRows.some(row => row.schema_table === name), name + " in source crosswalk");
   }
   for (const field of RECEIPT_FIELDS) assert.equal(correctionCases[field], "");
+
+  // A new additive security index is SOURCE, not a live application receipt.
+  const activeReceiptIndex = result.migrationRows.find(row =>
+    row.file_path === "drizzle/0136_statutory_payment_evidence_one_active.sql");
+  assert.ok(activeReceiptIndex, "0136 must be counted in source inventory");
+  assert.equal(activeReceiptIndex.numeric_prefix, "0136");
+  assert.equal(activeReceiptIndex.statement_types, "CREATE INDEX | PROCEDURAL");
+  assert.equal(activeReceiptIndex.statement_count, 2);
+  assert.equal(activeReceiptIndex.source_schema_objects, "statutory_remittance_payment_evidence");
+  assert.ok(activeReceiptIndex.candidate_prior_source_files_not_receipts.includes(
+    "drizzle/0031_statutory_remittance_payment_evidence.sql"));
+  assert.match(activeReceiptIndex.manual_review_flags, /DOLLAR_BODY_MANUAL_REVIEW/);
+  for (const field of RECEIPT_FIELDS) assert.equal(activeReceiptIndex[field], "",
+    "0136 is never treated as a production apply");
 
   const paths = readdirSync(resolve(root, "drizzle")).map(name => "drizzle/" + name).sort();
   assert.deepEqual(result.migrationRows.map(row => row.file_path).sort(), paths);

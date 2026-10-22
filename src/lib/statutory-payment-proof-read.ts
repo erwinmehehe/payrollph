@@ -1,100 +1,73 @@
-/**
- * Client-only proof-of-payment read contract. A missing or foreign evidence
- * collection is never treated as proof that no agency receipt was recorded.
- * Mutation authorization remains server-side.
- */
-export type VerifiedPaymentProofRow = {
-  id: number;
-  batchId: number;
-  fileName: string;
-  mimeType: string;
-  byteSize: number;
-  fileSha256: string;
-  status: "active" | "superseded";
-  replacementReason: string | null;
-  uploadedByName: string;
-  uploadedAt: string;
-  supersededAt: string | null;
+export type EvidenceRow = {
+  id: number; batchId: number; fileName: string; mimeType: string; byteSize: number;
+  fileSha256: string; status: "active" | "superseded"; replacementReason: string | null;
+  uploadedByName: string; uploadedAt: string; supersededAt: string | null;
 };
-export type VerifiedPaymentProofRead = {
-  organizationId: number;
-  batchId: number;
-  evidence: VerifiedPaymentProofRow[];
-  active: VerifiedPaymentProofRow | null;
+export type VerifiedPaymentProof = {
+  organizationId: number; batchId: number; evidence: EvidenceRow[]; active: EvidenceRow | null;
 };
-const obj = (x: unknown): x is Record<string, unknown> =>
-  x !== null && typeof x === "object" && !Array.isArray(x);
-const id = (x: unknown): x is number =>
-  typeof x === "number" && Number.isSafeInteger(x) && x > 0;
-const text = (x: unknown): x is string =>
-  typeof x === "string" && x.trim().length > 0;
-const date = (x: unknown): x is string =>
-  typeof x === "string" && Number.isFinite(Date.parse(x));
-function validRow(value: unknown, batchId: number): value is VerifiedPaymentProofRow {
-  if (!obj(value) || !id(value.id) || value.batchId !== batchId ||
-      !text(value.fileName) ||
-      !["application/pdf", "image/jpeg", "image/png"].includes(String(value.mimeType)) ||
-      !id(value.byteSize) || value.byteSize > 2 * 1024 * 1024 ||
-      typeof value.fileSha256 !== "string" || !/^[0-9a-f]{64}$/i.test(value.fileSha256) ||
-      !["active", "superseded"].includes(String(value.status)) ||
-      !(value.replacementReason === null || typeof value.replacementReason === "string") ||
-      !text(value.uploadedByName) || !date(value.uploadedAt) ||
-      !(value.supersededAt === null || date(value.supersededAt))) return false;
-  return true;
+const record = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+const id = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v) && v > 0;
+const text = (v: unknown) => typeof v === "string" && v.trim().length > 0;
+const optionalText = (v: unknown) => v === null || typeof v === "string";
+function evidenceRow(v: unknown, batchId: number): v is EvidenceRow {
+  return record(v) && id(v.id) && v.batchId === batchId &&
+    text(v.fileName) &&
+    ["application/pdf", "image/jpeg", "image/png"].includes(String(v.mimeType)) &&
+    id(v.byteSize) && typeof v.fileSha256 === "string" &&
+    /^[a-f0-9]{64}$/i.test(v.fileSha256) &&
+    (v.status === "active" || v.status === "superseded") &&
+    optionalText(v.replacementReason) && text(v.uploadedByName) &&
+    text(v.uploadedAt) && optionalText(v.supersededAt);
 }
-/** Verified empty: evidence=[], active=null, but only with matching identity. */
-export function isVerifiedPaymentProofRead(
+/** Read proof cannot silently drop audit history, misbind a batch or invent "no proof". */
+export function parseVerifiedPaymentProof(
   value: unknown, organizationId: number, batchId: number,
-): value is VerifiedPaymentProofRead {
-  if (!id(organizationId) || !id(batchId) || !obj(value) ||
+): VerifiedPaymentProof | null {
+  if (!id(organizationId) || !id(batchId) || !record(value) ||
       value.organizationId !== organizationId || value.batchId !== batchId ||
-      !Array.isArray(value.evidence) || value.evidence.length > 500 ||
-      !value.evidence.every((row: unknown) => validRow(row, batchId))) return false;
-  const rows = value.evidence as VerifiedPaymentProofRow[];
-  if (new Set(rows.map((row) => row.id)).size !== rows.length) return false;
-  const active = rows.filter((row) => row.status === "active");
-  if (active.length > 1) return false;
-  if (value.active === null) return active.length === 0;
-  return validRow(value.active, batchId) && active.length === 1 &&
-    value.active.id === active[0].id &&
-    JSON.stringify(value.active) === JSON.stringify(active[0]);
+      !Array.isArray(value.evidence) || !value.evidence.every(v => evidenceRow(v, batchId)) ||
+      !(value.active === null || evidenceRow(value.active, batchId))) return null;
+  const rows = value.evidence as EvidenceRow[];
+  const active = rows.filter(v => v.status === "active");
+  const reportedActive = value.active;
+  // Keep the record-narrowing inside a stable helper; TypeScript cannot
+  // retain a preceding && guard inside the Object.entries callback.
+  const matchesActive = (candidate: unknown, row: EvidenceRow): boolean =>
+    record(candidate) &&
+    Object.entries(row).every(([key, field]) => candidate[key] === field);
+  if (new Set(rows.map(v => v.id)).size !== rows.length || active.length > 1 ||
+      (active.length === 0 ? reportedActive !== null :
+        !matchesActive(reportedActive, active[0])))
+    return null;
+  return value as VerifiedPaymentProof;
+}
+/** A POST is confirmed only when refreshed evidence contains its sole active receipt. */
+export function confirmsStoredPaymentProof(
+  verified: VerifiedPaymentProof | null, organizationId: number, batchId: number,
+  uploaded: { id: number; fileSha256: string },
+): boolean {
+  return verified !== null && verified.organizationId === organizationId &&
+    verified.batchId === batchId && verified.active?.id === uploaded.id &&
+    verified.active.fileSha256 === uploaded.fileSha256 &&
+    verified.evidence.filter(row => row.status === "active").length === 1 &&
+    verified.evidence.some(row => row.id === uploaded.id && row.status === "active" &&
+      row.fileSha256 === uploaded.fileSha256);
 }
 export async function readVerifiedPaymentProof(
   organizationId: number, batchId: number,
   fetcher: typeof fetch = fetch, signal?: AbortSignal,
-): Promise<VerifiedPaymentProofRead> {
-  if (!id(organizationId) || !id(batchId)) {
-    throw new Error("Payment proof unavailable: select a valid employer and batch.");
-  }
+): Promise<VerifiedPaymentProof> {
+  if (!id(organizationId) || !id(batchId)) throw Error("Payment proof unavailable. Retry.");
   const response = await fetcher(
     "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
-      organizationId + "&batchId=" + batchId,
-    { cache: "no-store", signal },
-  );
-  if (!response.ok) throw new Error("Payment proof unavailable. Retry the evidence read.");
-  let payload: unknown;
-  try { payload = await response.json(); }
-  catch { throw new Error("Payment proof returned malformed JSON. Retry."); }
-  if (!isVerifiedPaymentProofRead(payload, organizationId, batchId)) {
-    throw new Error("Payment proof response incomplete or for another employer/batch. Retry.");
-  }
-  return payload;
-}
-
-/** Never confirm a receipt upload from an unrelated or stale valid GET. */
-export function confirmedPaymentProofUpload(
-  receipt: unknown, refreshed: VerifiedPaymentProofRead,
-  organizationId: number, batchId: number,
-): boolean {
-  if (!obj(receipt) || !obj(receipt.evidence) ||
-      !isVerifiedPaymentProofRead(refreshed, organizationId, batchId)) return false;
-  const saved = receipt.evidence;
-  if (!id(saved.id) || saved.status !== "active") return false;
-  const match = refreshed.evidence.find(row => row.id === saved.id);
-  return !!match && refreshed.active?.id === saved.id &&
-    match.fileSha256 === saved.fileSha256 &&
-    match.fileName === saved.fileName &&
-    match.byteSize === saved.byteSize &&
-    match.mimeType === saved.mimeType &&
-    match.status === saved.status;
+    organizationId + "&batchId=" + batchId, { cache: "no-store", signal });
+  if (!response.ok) throw Error("Payment proof unavailable. Retry.");
+  let value: unknown;
+  try { value = await response.json(); }
+  catch { throw Error("Payment proof unreadable. Retry."); }
+  const verified = parseVerifiedPaymentProof(value, organizationId, batchId);
+  if (!verified) throw Error("Payment proof incomplete or for a different employer/batch. Retry.");
+  return verified;
 }

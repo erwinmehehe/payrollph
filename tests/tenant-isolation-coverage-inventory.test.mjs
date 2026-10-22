@@ -227,7 +227,7 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 354, "Keep 354 unverified method gaps after merged HCM and #1325 proofs");
+  assert.equal(manifest.metrics.gap, 354, "Keep 356 unverified method gaps after merged HCM and #1303 proofs");
   assert.equal(manifest.metrics.coveredAfter, 129, "Count exact linked PG16 method proofs without treating GAPs as successes");
 });
 
@@ -813,18 +813,37 @@ test("all credited proof links point to the claimed route and every recertified 
           "GET compliance/statutory-remittances/payment-evidence/[id]",
           "GET compliance/statutory-remittances/payment-evidence",
           "GET compliance/statutory-remittances/posting-evidence/[id]",
+          "POST compliance/statutory-remittances/payment-evidence",
         ]).has(key), path + " " + method.name + ": unreviewed table-driven credit");
         const suite = readFileSync(proof.file, "utf8");
         const runner = source.join("\n");
         assert.match(runner,
-          /await \(await import\("\.\/tenant-manifest-driven-http\.mjs"\)\)\.verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus \}\)/,
+          /await \(await import\("\.\/tenant-manifest-driven-http\.mjs"\)\)\.verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus, makeSession \}\)/,
           key + ": proof must execute inside the isolated PostgreSQL HTTP harness");
         assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+        if (key === "POST compliance/statutory-remittances/payment-evidence") {
+          const owned = evidenceLine(proof.file, proof.ownPositiveLine, key + " owned upload");
+          const denied = evidenceLine(proof.file, proof.foreignDenialLine, key + " foreign denial");
+          const unchanged = evidenceLine(proof.file, proof.unchangedDbLine, key + " victim unchanged");
+          assert.match(owned, /const ownUpload = expectStatus\(await request\("/);
+          assert.match(denied, /const foreignUpload = expectStatus\(await request\("/);
+          const proofLines = suite.split("\n");
+          const ownSpan = proofLines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 3).join("\n");
+          const deniedSpan = proofLines.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 3).join("\n");
+          assert.match(ownSpan, /method: "POST", cookie: privileged\.cookie, form: proofForm\(ownOrg\.id, ownedBatch\.id\)/);
+          assert.match(ownSpan, /\}\), 201,/);
+          assert.match(deniedSpan, /method: "POST", cookie: privileged\.cookie, form: proofForm\(victimOrg\.id, victimBatch\.id\)/);
+          assert.match(deniedSpan, /\}\), 403,/);
+          assert.match(unchanged, /assert\.deepEqual\(after, before,/);
+          assert.match(suite, /const contenders = await Promise\.all\(\["race-a", "race-b", "race-c", "race-d"\]/);
+          assert.match(suite, /assert\.equal\(activeAfterRace\.length, 1/);
+          continue; // Explicit own/foreign mutation and unchanged-DB proof; no generic bypass.
+        }
         const adapter = evidenceLine(proof.file, proof.line, key + " adapter");
         assert.ok(adapter.includes(JSON.stringify(key) + ": {"),
           key + ": pinned case does not match credited method");
         const start = suite.indexOf(adapter);
-        const next = suite.indexOf("\n  \"GET ", start + adapter.length);
+        const next = suite.indexOf("\n  },", start + adapter.length);
         const registryEnd = suite.indexOf("\n});\nexport const FIRST_ADAPTED_METHODS", start);
         assert.ok(registryEnd > start, key + ": registry boundary missing");
         const caseSource = suite.slice(start, next < 0 ? registryEnd : next);
@@ -838,12 +857,12 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(evidenceLine(proof.file, proof.foreignDenialLine, key + " victim"),
           /const foreign = expectStatus\(await request\(urls\.foreign, \{ cookie \}\), adapter\.denial,/);
         const forged = evidenceLine(proof.file, proof.forgedSelectorLine, key + " forged selector");
-        const forgedByKey = {
-          "GET compliance/statutory-remittances/payment-evidence/[id]": "const crossId = expectStatus(await request(",
-          "GET compliance/statutory-remittances/payment-evidence": "const filtered = expectStatus(await request(",
-          "GET compliance/statutory-remittances/posting-evidence/[id]": "const forged = expectStatus(await request(",
-        };
-        assert.ok(forged.trimStart().startsWith(forgedByKey[key]),
+        const expectedForged = key.endsWith("/posting-evidence/[id]")
+          ? "const forged = expectStatus(await request("
+          : key.endsWith("/payment-evidence/[id]")
+            ? "const crossId = expectStatus(await request("
+            : "const filtered = expectStatus(await request(";
+        assert.ok(forged.includes(expectedForged),
           key + ": real foreign identifier must be tested under own employer");
         assert.match(evidenceLine(proof.file, proof.unchangedDbLine, key + " victim unchanged"),
           /assert\.deepEqual\(after, before,/);

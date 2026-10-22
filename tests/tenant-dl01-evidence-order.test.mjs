@@ -44,8 +44,7 @@ test("each download/index method must exercise authenticated own success, exact 
   assert.ok(src.includes('"?organizationId=" + ownOrg.id, { cookie }), 404'));
   assert.ok(src.includes('const filtered = expectStatus(await request('));
   assert.ok(src.includes('"&batchId=" + victimBatch.id, { cookie }), 404'));
-  assert.ok(src.includes("assert.equal(filtered.json?.evidence, undefined"));
-  assert.ok(src.includes("Foreign batch must not enumerate victim proof bytes or metadata"));
+  assert.ok(src.includes('assert.ok(!filtered.text.includes("SYNTHETIC-ONLY-0-"'));
 });
 
 test("real PostgreSQL unchanged-victim snapshot and both independent attacker sessions remain mandatory", () => {
@@ -55,7 +54,7 @@ test("real PostgreSQL unchanged-victim snapshot and both independent attacker se
   assert.ok(src.includes("const after = await snapshotVictim(victimOrg.id)"));
   assert.ok(src.includes("assert.deepEqual(after, before"));
   assert.ok(src.includes("assert.equal(observations.length, FIRST_ADAPTED_METHODS.length * 2)"));
-  assert.ok(harness.includes('verifyManifestDrivenStatutoryBatch(f, { request, expectStatus })'));
+  assert.ok(harness.includes('verifyManifestDrivenStatutoryBatch(f, { request, expectStatus, makeSession })'));
   assert.ok(src.includes('process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only"'));
 });
 

@@ -227,7 +227,7 @@ async function verifyBirAndPaymentProof(f, { request, expectStatus }) {
       { cookie }), 200, "Own synthetic payment-proof GET must show real recorded proof");
     assert.equal(ownProof.json?.organizationId, own.id);
     assert.equal(ownProof.json?.batchId, proofRows[idx].batch.id);
-    assert.ok(ownProof.json?.evidence?.some(row => row.id === proofRows[idx].stored.id)); assert.ok((await import("../../src/lib/statutory-payment-proof-read")).isVerifiedPaymentProofRead(ownProof.json, own.id, proofRows[idx].batch.id), "Actual payment proof index must satisfy scoped client contract");
+    assert.ok(ownProof.json?.evidence?.some(row => row.id === proofRows[idx].stored.id)); assert.ok(((await import("../../src/lib/statutory-payment-proof-read")).parseVerifiedPaymentProof(ownProof.json, own.id, proofRows[idx].batch.id) !== null), "Actual payment proof index must satisfy scoped client contract");
     expectStatus(await request(
       "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
       own.id + "&batchId=" + proofRows[0].batch.id,

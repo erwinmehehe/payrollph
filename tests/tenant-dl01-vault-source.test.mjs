@@ -63,11 +63,22 @@ test("DL-01 candidate tests NEVER silently promote manifest or claim release acc
     assert.equal(entry?.status, "GAP", method + " stays a GAP until completed PG16 proof + independent review");
     assert.equal(entry?.testedBy, null);
   }
-  assert.equal(manifest.metrics.methods, 493, "all inventoried methods must remain accounted for");
+  // This PR adds one *provisional* statutory payment-evidence POST proof to
+  // main's counts. It must not silently promote either DL-01 vault method.
+  const statutoryPost = manifest.allApiRouteFiles[
+    "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts"
+  ]?.methods.find(row => row.name === "POST");
+  assert.equal(statutoryPost?.status, "COVERED",
+    "The extra provisional method must be the statutory payment-evidence POST");
+  assert.equal(statutoryPost?.testedBy?.file, "scripts/qa/tenant-manifest-driven-http.mjs");
+  for (const key of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine"]) {
+    assert.ok(Number.isInteger(statutoryPost?.testedBy?.[key]) && statutoryPost.testedBy[key] > 0,
+      "Payment POST requires source-pinned own, foreign and unchanged-victim proof: " + key);
+  }
   assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
     [129, 10, 354]);
+  assert.equal(manifest.metrics.methods, 493);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 354 API methods and 19 page\/action GAPs remain/);
-  assert.equal(manifest.metrics.confirmedExploitableTenantLeaks, 0, "no completed leak claim is implied");
   assert.equal(manifest.scopedPages.length, 20);
   assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 19);
 });

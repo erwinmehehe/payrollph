@@ -128,6 +128,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
       assert.ok(method, key + ": reviewed route and method must still exist");
       const inheritedMainSources = new Map([
         ["GET compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
+        ["POST compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
         ["GET compliance/dole-13th-month", "scripts/qa/dole-13th-month-http.mjs"],
         ["POST compliance/dole-13th-month", "scripts/qa/dole-13th-month-http.mjs"],
         ["GET compliance/government-loan-remittances", "scripts/qa/government-loan-read-http.mjs"],
@@ -176,9 +177,9 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     }
     additionalSourcePinnedMethods += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 123,
-    "All 123 merged-main source-validated methods must remain; only three new compliance proofs are unique");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 360,
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods, 124,
+    "Main's already-proven statutory payment POST cannot be double-counted; only two new BIR proofs are unique");
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
