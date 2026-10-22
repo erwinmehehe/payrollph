@@ -80,3 +80,21 @@ export async function readVerifiedPaymentProof(
   }
   return payload;
 }
+
+/** Never confirm a receipt upload from an unrelated or stale valid GET. */
+export function confirmedPaymentProofUpload(
+  receipt: unknown, refreshed: VerifiedPaymentProofRead,
+  organizationId: number, batchId: number,
+): boolean {
+  if (!obj(receipt) || !obj(receipt.evidence) ||
+      !isVerifiedPaymentProofRead(refreshed, organizationId, batchId)) return false;
+  const saved = receipt.evidence;
+  if (!id(saved.id) || saved.status !== "active") return false;
+  const match = refreshed.evidence.find(row => row.id === saved.id);
+  return !!match && refreshed.active?.id === saved.id &&
+    match.fileSha256 === saved.fileSha256 &&
+    match.fileName === saved.fileName &&
+    match.byteSize === saved.byteSize &&
+    match.mimeType === saved.mimeType &&
+    match.status === saved.status;
+}

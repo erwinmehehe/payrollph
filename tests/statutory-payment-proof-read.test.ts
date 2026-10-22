@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  confirmedPaymentProofUpload,
   isVerifiedPaymentProofRead, readVerifiedPaymentProof,
   type VerifiedPaymentProofRead,
 } from "@/lib/statutory-payment-proof-read";
@@ -61,4 +62,20 @@ test("payment proof: retry performs a fresh GET and only the verified second rea
   await assert.rejects(readVerifiedPaymentProof(employer, batch, retryFetcher));
   assert.deepEqual(await readVerifiedPaymentProof(employer, batch, retryFetcher), empty);
   assert.equal(calls, 2);
+});
+
+test("payment proof: POST success needs the exact active evidence ID and digest in the next GET", () => {
+  const verified = { ...empty, evidence: [row], active: row };
+  const receipt = { evidence: {
+    id: row.id, fileSha256: row.fileSha256, fileName: row.fileName,
+    byteSize: row.byteSize, mimeType: row.mimeType, status: "active",
+  } };
+  assert.equal(confirmedPaymentProofUpload(receipt, verified, employer, batch), true);
+  assert.equal(confirmedPaymentProofUpload(receipt, empty, employer, batch), false);
+  assert.equal(confirmedPaymentProofUpload(receipt,
+    { ...empty, evidence: [{ ...row, id: 602 }], active: { ...row, id: 602 } },
+    employer, batch), false);
+  assert.equal(confirmedPaymentProofUpload({ evidence: { ...receipt.evidence,
+    fileSha256: "b".repeat(64) } }, verified, employer, batch), false);
+  assert.equal(confirmedPaymentProofUpload(receipt, verified, employer + 1, batch), false);
 });

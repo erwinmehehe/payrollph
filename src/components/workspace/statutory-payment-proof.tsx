@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FileCheck2, UploadCloud } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner } from "./ui";
-import { readVerifiedPaymentProof, type VerifiedPaymentProofRow } from "@/lib/statutory-payment-proof-read";
+import { confirmedPaymentProofUpload, readVerifiedPaymentProof, type VerifiedPaymentProofRow } from "@/lib/statutory-payment-proof-read";
 
 type EvidenceRow = VerifiedPaymentProofRow;
 
@@ -46,6 +46,7 @@ function StatutoryPaymentProofContent({
       setRows(verified.evidence);
       setActive(verified.active);
       setReadPhase("verified");
+      return verified;
     } catch (caught) {
       if (!signal?.aborted) {
         setRows([]);
@@ -90,6 +91,7 @@ function StatutoryPaymentProofContent({
     }
 
     setBusy(true);
+    let postAccepted = false;
     try {
       const form = new FormData();
       form.set("organizationId", String(organizationId));
@@ -103,12 +105,20 @@ function StatutoryPaymentProofContent({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Payment proof could not be uploaded.");
-      await load();
+      postAccepted = true;
+      const refreshed = await load();
+      if (!refreshed ||
+          !confirmedPaymentProofUpload(body, refreshed, organizationId, batchId)) {
+        throw Error("The saved payment-proof receipt is missing or differs from the refreshed evidence.");
+      }
       notify(active ? "Payment proof replaced with audit history preserved." : "Payment proof uploaded and hashed.", "ok");
       setFile(null);
       setReplacementReason("");
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Payment proof could not be uploaded.", "err");
+      const message = error instanceof Error ? error.message : "Payment proof could not be uploaded.";
+      notify(postAccepted
+        ? "Payment proof may have been recorded; inspect the saved receipt before attempting another upload. " + message
+        : message, "err");
     } finally {
       setBusy(false);
     }
