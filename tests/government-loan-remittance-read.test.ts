@@ -5,7 +5,7 @@ import {
   type VerifiedGovernmentLoanRead,
 } from "@/lib/government-loan-remittance-read";
 
-const org = 101;
+const org = 101, entity = 12;
 const empty: VerifiedGovernmentLoanRead = {
   organizationId: org, today: "2026-10-21",
   legalEntity: { id: 12, code: "FICTIONAL", displayName: "Fictional Employer" },
@@ -29,15 +29,15 @@ const json = (body: unknown, status = 200): typeof fetch =>
   (async () => new Response(JSON.stringify(body), { status })) as typeof fetch;
 
 test("government loan: verified zero batch/member lists are legitimate only with correct employer", async () => {
-  assert.equal(isVerifiedGovernmentLoanRead(empty, org), true);
-  assert.deepEqual(await readVerifiedGovernmentLoanRemittances(org, json(empty)), empty);
-  assert.equal(isVerifiedGovernmentLoanRead({ ...empty, batches: [batch], members: [member] }, org), true);
+  assert.equal(isVerifiedGovernmentLoanRead(empty, org, entity), true);
+  assert.deepEqual(await readVerifiedGovernmentLoanRemittances(org, entity, json(empty)), empty);
+  assert.equal(isVerifiedGovernmentLoanRead({ ...empty, batches: [batch], members: [member] }, org, entity), true);
 });
 
 test("government loan: HTTP non-OK and invalid JSON always unavailable", async () => {
-  await assert.rejects(readVerifiedGovernmentLoanRemittances(org, json(empty, 500)), /unavailable/);
+  await assert.rejects(readVerifiedGovernmentLoanRemittances(org, entity, json(empty, 500)), /unavailable/);
   const malformed = (async () => new Response("{", { status: 200 })) as typeof fetch;
-  await assert.rejects(readVerifiedGovernmentLoanRemittances(org, malformed), /malformed JSON/);
+  await assert.rejects(readVerifiedGovernmentLoanRemittances(org, entity, malformed), /malformed JSON/);
 });
 
 test("government loan: missing counts, arrays, foreign employer/LE or partial members rejected", async () => {
@@ -52,19 +52,32 @@ test("government loan: missing counts, arrays, foreign employer/LE or partial me
     { ...empty, batches: [{ ...batch, expectedTotal: undefined }], members: [member] },
     { ...empty, batches: [{ ...batch, organizationId: org + 1 }], members: [member] },
     { ...empty, batches: [{ ...batch, loanCount: 2 }], members: [member] },
+    { ...empty, batches: [{ ...batch, expectedTotal: "0.00" }], members: [member] },
+    { ...empty, batches: [{ ...batch, expectedTotal: "100.01" }], members: [member] },
+    { ...empty, batches: [{ ...batch, employeeCount: 2 }], members: [member] },
   ]) {
-    assert.equal(isVerifiedGovernmentLoanRead(value, org), false);
-    await assert.rejects(readVerifiedGovernmentLoanRemittances(org, json(value)), /incomplete or for another/);
+    assert.equal(isVerifiedGovernmentLoanRead(value, org, entity), false);
+    await assert.rejects(readVerifiedGovernmentLoanRemittances(org, entity, json(value)), /incomplete or for another/);
   }
 });
 
+test("government loan: multiple loans sum exactly in cents and count distinct employees", () => {
+  const member2 = { ...member, id: 89, loanType: "SSS calamity",
+    loanReferenceNo: "FICTIONAL-LOAN-2", deductedAmount: "0.01" };
+  const b2 = { ...batch, loanCount: 2, employeeCount: 1, expectedTotal: "100.01", pendingPostingCount: 2 };
+  const verified = { ...empty, batches: [b2], members: [member, member2] };
+  assert.equal(isVerifiedGovernmentLoanRead(verified, org, entity), true);
+  assert.equal(isVerifiedGovernmentLoanRead({ ...verified,
+    batches: [{ ...b2, expectedTotal: "100.00" }] }, org, entity), false);
+  assert.equal(isVerifiedGovernmentLoanRead(verified, org, entity + 1), false);
+});
 test("government loan: explicit retry refetches after failure, never caches synthetic empty", async () => {
   let attempts = 0;
   const fetcher = (async () => {
     attempts += 1;
     return attempts === 1 ? new Response("{not json") : new Response(JSON.stringify(empty));
   }) as typeof fetch;
-  await assert.rejects(readVerifiedGovernmentLoanRemittances(org, fetcher));
-  assert.deepEqual(await readVerifiedGovernmentLoanRemittances(org, fetcher), empty);
+  await assert.rejects(readVerifiedGovernmentLoanRemittances(org, entity, fetcher));
+  assert.deepEqual(await readVerifiedGovernmentLoanRemittances(org, entity, fetcher), empty);
   assert.equal(attempts, 2);
 });

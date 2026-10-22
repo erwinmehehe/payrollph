@@ -44,6 +44,11 @@ const date = (x: unknown): x is string => {
 const month = (x: unknown): x is string =>
   typeof x === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(x);
 
+/** Exact integer-cent arithmetic; floating-point totals must never certify remittances. */
+function cents(value: string): bigint {
+  const [whole, fraction = ""] = value.split(".");
+  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"));
+}
 function validBatch(value: unknown, org: number, entity: number): value is VerifiedGovernmentLoanBatch {
   if (!record(value)) return false;
   return id(value.id) && value.organizationId === org && value.legalEntityId === entity &&
@@ -69,11 +74,12 @@ function validMember(value: unknown, org: number, entity: number): value is Veri
       (money(value.postedAmount) && text(value.postingReference)));
 }
 export function isVerifiedGovernmentLoanRead(
-  value: unknown, organizationId: number,
+  value: unknown, organizationId: number, legalEntityId: number,
 ): value is VerifiedGovernmentLoanRead {
-  if (!id(organizationId) || !record(value) || value.organizationId !== organizationId ||
+  if (!id(organizationId) || !id(legalEntityId) ||
+      !record(value) || value.organizationId !== organizationId ||
       !date(value.today) || !record(value.legalEntity) ||
-      !id(value.legalEntity.id) || !text(value.legalEntity.code) ||
+      value.legalEntity.id !== legalEntityId || !text(value.legalEntity.code) ||
       !text(value.legalEntity.displayName) ||
       !Array.isArray(value.batches) || value.batches.length > 5000 ||
       !Array.isArray(value.members) || value.members.length > 50000) return false;
@@ -89,24 +95,31 @@ export function isVerifiedGovernmentLoanRead(
   for (const batch of batches) {
     const related = members.filter(row => row.batchId === batch.id);
     if (batch.loanCount !== related.length ||
+        batch.employeeCount !== new Set(related.map(row => row.employeeNo)).size ||
+        cents(batch.expectedTotal) !== related.reduce(
+          (sum, member) => sum + cents(member.deductedAmount), 0n,
+        ) ||
         batch.pendingPostingCount !== related.filter(row => row.postingStatus === "pending").length ||
         batch.exceptionCount !== related.filter(row => row.postingStatus === "exception").length) return false;
   }
   return true;
 }
 export async function readVerifiedGovernmentLoanRemittances(
-  organizationId: number, fetcher: typeof fetch = fetch, signal?: AbortSignal,
+  organizationId: number, legalEntityId: number,
+  fetcher: typeof fetch = fetch, signal?: AbortSignal,
 ): Promise<VerifiedGovernmentLoanRead> {
-  if (!id(organizationId)) throw Error("Government loan remittances unavailable for this employer.");
+  if (!id(organizationId) || !id(legalEntityId))
+    throw Error("Government loan remittances unavailable until a legal employer is selected.");
   const response = await fetcher(
-    "/api/compliance/government-loan-remittances?organizationId=" + organizationId,
+    "/api/compliance/government-loan-remittances?organizationId=" + organizationId +
+      "&legalEntityId=" + legalEntityId,
     { cache: "no-store", signal },
   );
   if (!response.ok) throw Error("Government loan remittance evidence unavailable. Retry.");
   let value: unknown;
   try { value = await response.json(); }
   catch { throw Error("Government loan remittance evidence returned malformed JSON. Retry."); }
-  if (!isVerifiedGovernmentLoanRead(value, organizationId)) {
+  if (!isVerifiedGovernmentLoanRead(value, organizationId, legalEntityId)) {
     throw Error("Government loan remittance evidence incomplete or for another employer. Retry.");
   }
   return value;

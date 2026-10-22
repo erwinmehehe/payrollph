@@ -104,7 +104,7 @@ export async function verifyComplianceReadSweep(f, { request, expectStatus }) {
       "Authorized employer reads its real synthetic SSS loan batch");
     assert.equal(ownLoanRead.json?.organizationId, own.id);
     assert.ok(ownLoanRead.json?.batches?.some(x => x.id === loanSeed[idx].batch.id));
-    assert.ok(ownLoanRead.json?.members?.some(x => x.id === loanSeed[idx].member.id)); assert.ok((await import("../../src/lib/government-loan-remittance-read")).isVerifiedGovernmentLoanRead(ownLoanRead.json, own.id), "Actual loan remittance API must satisfy scoped client validation");
+    assert.ok(ownLoanRead.json?.members?.some(x => x.id === loanSeed[idx].member.id)); assert.ok((await import("../../src/lib/government-loan-remittance-read")).isVerifiedGovernmentLoanRead(ownLoanRead.json, own.id, f.entities[idx].id), "Actual loan remittance API must satisfy scoped client validation");
     expectStatus(await request(
       "/api/compliance/government-loan-remittances?organizationId=" + victim.id +
       "&legalEntityId=" + f.entities[0].id, { cookie }), 403,
