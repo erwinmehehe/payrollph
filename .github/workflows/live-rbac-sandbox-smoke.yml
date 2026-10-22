@@ -65,10 +65,13 @@ jobs:
       - name: Verify private compensation database readiness (#1015/#1061)
         env:
           PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
+          # Source-of-truth: docs/engineering/clean-baseline-cutover-runbook.md.
+          # Retain the private exact-session identity/schema guard; the legacy
+          # main/neondb target is the fallback, not the post-cutover app DB.
           EXPECTED_NEON_PROJECT_ID: calm-wave-70219564
-          EXPECTED_NEON_BRANCH_ID: br-lucky-sound-b79i56jw
-          EXPECTED_NEON_ENDPOINT_ID: ep-cool-hat-b7e7gpoo
-          EXPECTED_NEON_DATABASE_NAME: neondb
+          EXPECTED_NEON_BRANCH_ID: br-young-leaf-b7ae1g8v
+          EXPECTED_NEON_ENDPOINT_ID: ep-aged-surf-b7ru90rs
+          EXPECTED_NEON_DATABASE_NAME: payrollph_clean_baseline
         run: |
           set -euo pipefail
           umask 077
