@@ -17,6 +17,11 @@ export type VerifiedBirModuleEvidence = {
   organizationId: number; legalEntityId: number; taxYear: number;
   moduleV70: VerifiedBirModuleReview; moduleV74: VerifiedBirModuleReview;
   sourceDigest: string; agencyAccepted: false;
+  evidenceReceipts: Array<{
+    id: number; action: "observe" | "review"; sourceDigest: string;
+    observationId: number | null; moduleVersion: "7.0" | "7.4" | null;
+    fileSha256: string;
+  }>;
 };
 export type BirModuleReadScope = {
   organizationId: number; legalEntityId: number; taxYear: number; sourceDigest: string | null;
@@ -58,7 +63,17 @@ export function isVerifiedBirModuleEvidence(
     hex(value.sourceDigest) &&
     (scope.sourceDigest === null || value.sourceDigest === scope.sourceDigest) &&
     value.agencyAccepted === false &&
-    validModule(value.moduleV70, "7.0") && validModule(value.moduleV74, "7.4");
+    validModule(value.moduleV70, "7.0") && validModule(value.moduleV74, "7.4") &&
+    Array.isArray(value.evidenceReceipts) && value.evidenceReceipts.length <= 300 &&
+    value.evidenceReceipts.every((receipt: unknown) =>
+      record(receipt) && id(receipt.id) &&
+      receipt.sourceDigest === value.sourceDigest && hex(receipt.fileSha256) &&
+      ((receipt.action === "observe" && receipt.observationId === null &&
+        (receipt.moduleVersion === "7.0" || receipt.moduleVersion === "7.4")) ||
+       (receipt.action === "review" && id(receipt.observationId) &&
+        receipt.moduleVersion === null))) &&
+    new Set((value.evidenceReceipts as Array<{id: number}>).map((row) => row.id)).size ===
+      value.evidenceReceipts.length;
 }
 export async function readVerifiedBirModuleEvidence(
   scope: BirModuleReadScope, fetcher: typeof fetch = fetch, signal?: AbortSignal,
@@ -76,4 +91,32 @@ export async function readVerifiedBirModuleEvidence(
     throw Error("BIR validation evidence is incomplete, stale or belongs to another employer/year. Retry.");
   }
   return value;
+}
+
+// Confirm the specific synthetic audit receipt, not just a stale status envelope.
+// This is a UI gate. The server remains authoritative for employee data and approvals.
+export function confirmedBirModuleMutation(
+  mode: "observe" | "review", receipt: unknown,
+  refreshed: VerifiedBirModuleEvidence, scope: BirModuleReadScope,
+  expected: { observationId?: number; moduleVersion?: "7.0" | "7.4"; fileSha256?: string },
+): boolean {
+  if (!record(receipt) || !isVerifiedBirModuleEvidence(refreshed, scope)) return false;
+  const receiptId = mode === "observe" ? receipt.observationId : receipt.reviewId;
+  if (!id(receiptId)) return false;
+  const saved = refreshed.evidenceReceipts.find((item) => item.id === receiptId);
+  if (!saved || saved.action !== mode || saved.sourceDigest !== refreshed.sourceDigest)
+    return false;
+  if (mode === "observe") return saved.moduleVersion === expected.moduleVersion &&
+    saved.fileSha256 === expected.fileSha256;
+  const actual = saved.observationId === null ? null :
+    refreshed.evidenceReceipts.find((item) => item.id === saved.observationId);
+  if (!actual || actual.action !== "observe" || saved.fileSha256 !== actual.fileSha256 ||
+      actual.id !== expected.observationId ||
+      receipt.moduleVersion !== actual.moduleVersion) return false;
+  const module = actual.moduleVersion === "7.0" ? refreshed.moduleV70 : refreshed.moduleV74;
+  return module.status === receipt.status &&
+    module.independentlyReviewed === receipt.independentlyReviewed &&
+    module.fileSha256 === receipt.fileSha256 &&
+    module.evidenceReference === receipt.evidenceReference &&
+    module.validatedOn === receipt.validatedOn;
 }

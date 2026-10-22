@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { readVerifiedBirModuleEvidence, type VerifiedBirModuleEvidence } from "@/lib/bir-1604c-module-read";
+import { confirmedBirModuleMutation, readVerifiedBirModuleEvidence, type VerifiedBirModuleEvidence } from "@/lib/bir-1604c-module-read";
 
 type Issue = { code: string; message: string; employeeNo?: string; field?: string };
 type Preview = {
@@ -54,6 +54,7 @@ function EnabledBir1604cCandidatePanel({
       );
       setEvidence(verified);
       setEvidenceReadPhase("verified");
+      return verified;
     } catch (caught) {
       setEvidence(null);
       setEvidenceReadPhase("unavailable");
@@ -195,6 +196,7 @@ function EnabledBir1604cCandidatePanel({
       return;
     }
     setEvidenceLoading(true);
+    let postAccepted = false;
     try {
       const payload = mode === "observe" ? {
         mode, organizationId, legalEntityId, taxYear,
@@ -217,11 +219,18 @@ function EnabledBir1604cCandidatePanel({
         setNotice(output?.error ?? "BIR validation evidence was rejected.");
         return;
       }
+      postAccepted = true;
       const receiptId = mode === "observe" ? output?.observationId : output?.reviewId;
       if (!Number.isSafeInteger(receiptId) || receiptId <= 0) {
         throw new Error("BIR evidence receipt was incomplete. Refresh to verify the saved state.");
       }
-      await refreshEvidence();
+      const verified = await refreshEvidence();
+      if (!confirmedBirModuleMutation(mode, output, verified,
+          { organizationId, legalEntityId, taxYear, sourceDigest },
+          { moduleVersion: version, fileSha256: fileSha.trim().toLowerCase(),
+            observationId: Number(observationId) })) {
+        throw new Error("The exact BIR audit receipt was not confirmed by refreshed evidence.");
+      }
       if (mode === "observe") {
         setObservationId(String(receiptId));
         setNotice("Module observation recorded (#" + String(receiptId) + "). A different authorized payroll operator must review its private evidence.");
@@ -229,7 +238,9 @@ function EnabledBir1604cCandidatePanel({
         setNotice("Independent review recorded. This is NOT an agency filing acceptance.");
       }
     } catch {
-      setNotice("Could not verify the recorded BIR module evidence. Retry the read before acting.");
+      setNotice(postAccepted
+        ? "BIR evidence may have been recorded; inspect the actual observation or review receipt before retrying."
+        : "Could not verify BIR module evidence. Retry the authorized read before acting.");
     } finally {
       setEvidenceLoading(false);
     }

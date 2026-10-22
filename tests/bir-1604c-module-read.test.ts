@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  confirmedBirModuleMutation,
   isVerifiedBirModuleEvidence, readVerifiedBirModuleEvidence,
   type BirModuleReadScope, type VerifiedBirModuleEvidence,
 } from "@/lib/bir-1604c-module-read";
@@ -18,7 +19,7 @@ const blank = (moduleVersion: "7.0" | "7.4") => ({
 const empty: VerifiedBirModuleEvidence = {
   organizationId: 101, legalEntityId: 22, taxYear: 2026,
   sourceDigest: digest, moduleV70: blank("7.0"), moduleV74: blank("7.4"),
-  agencyAccepted: false,
+  agencyAccepted: false, evidenceReceipts: [],
 };
 const json = (body: unknown, status = 200): typeof fetch =>
   (async () => new Response(JSON.stringify(body), { status })) as typeof fetch;
@@ -63,4 +64,33 @@ test("BIR module: Retry refetches and only displays later verified evidence", as
   await assert.rejects(readVerifiedBirModuleEvidence(scope, fetcher));
   assert.deepEqual(await readVerifiedBirModuleEvidence(scope, fetcher), empty);
   assert.equal(attempts, 2);
+});
+
+test("BIR module: a POST receipt must match the exact authenticated audit read", () => {
+  const observed = { id: 91, action: "observe" as const, sourceDigest: digest,
+    observationId: null, moduleVersion: "7.0" as const, fileSha256: "b".repeat(64) };
+  const review = { id: 92, action: "review" as const, sourceDigest: digest,
+    observationId: 91, moduleVersion: null, fileSha256: "b".repeat(64) };
+  const observedView = { ...empty, evidenceReceipts: [observed] };
+  assert.equal(confirmedBirModuleMutation("observe", { observationId: 91 },
+    observedView, scope, { moduleVersion: "7.0", fileSha256: "b".repeat(64) }), true);
+  assert.equal(confirmedBirModuleMutation("observe", { observationId: 91 },
+    empty, scope, { moduleVersion: "7.0", fileSha256: "b".repeat(64) }), false);
+  assert.equal(confirmedBirModuleMutation("observe", { observationId: 91 },
+    observedView, scope, { moduleVersion: "7.4", fileSha256: "b".repeat(64) }), false);
+  const validated = { ...blank("7.0"), status: "yes" as const,
+    independentlyReviewed: true, fileSha256: "b".repeat(64),
+    evidenceReference: "FICTIONAL-REVIEW", validatedOn: "2026-10-20" };
+  const reviewedView = { ...observedView, evidenceReceipts: [observed, review],
+    moduleV70: validated };
+  const receipt = { reviewId: 92, status: validated.status,
+    independentlyReviewed: true, fileSha256: validated.fileSha256,
+    evidenceReference: validated.evidenceReference,
+    validatedOn: validated.validatedOn, moduleVersion: "7.0" };
+  assert.equal(confirmedBirModuleMutation("review", receipt, reviewedView,
+    scope, { observationId: 91 }), true);
+  assert.equal(confirmedBirModuleMutation("review", receipt, observedView,
+    scope, { observationId: 91 }), false);
+  assert.equal(confirmedBirModuleMutation("review", receipt, reviewedView,
+    scope, { observationId: 99 }), false);
 });
