@@ -230,6 +230,14 @@ async function verifyBirAndPaymentProof(f, { request, expectStatus }) {
     assert.ok(ownProof.json?.evidence?.some(row => row.id === proofRows[idx].stored.id)); assert.ok((await import("../../src/lib/statutory-payment-proof-read")).isVerifiedPaymentProofRead(ownProof.json, own.id, proofRows[idx].batch.id), "Actual payment proof index must satisfy scoped client contract");
     expectStatus(await request(
       "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
+      own.id + "&batchId=" + proofRows[0].batch.id,
+      { cookie }), 404, "Existing foreign batch under an authorized employer must not be verified-empty");
+    expectStatus(await request(
+      "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
+      own.id + "&batchId=999999999",
+      { cookie }), 404, "Nonexistent batch under an authorized employer must not be verified-empty");
+    expectStatus(await request(
+      "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
       victim.id + "&batchId=" + proofRows[0].batch.id,
       { cookie }), 403, "Foreign statutory proof GET must deny real victim record");
 

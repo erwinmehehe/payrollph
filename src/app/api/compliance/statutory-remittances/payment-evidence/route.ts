@@ -67,6 +67,17 @@ export async function GET(request: Request) {
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
 
+  // A verified-empty evidence list is meaningful only for an actual batch
+  // owned by the requested employer. Never certify a missing/foreign parent.
+  const [ownedBatch] = await db.select({ id: statutoryRemittanceBatches.id })
+    .from(statutoryRemittanceBatches).where(and(
+      eq(statutoryRemittanceBatches.id, batchId),
+      eq(statutoryRemittanceBatches.organizationId, organizationId),
+    )).limit(1);
+  if (!ownedBatch) return Response.json({
+    error: "Statutory remittance batch not found for this employer.",
+  }, { status: 404 });
+
   const rows = await db.select({
     id: statutoryRemittancePaymentEvidence.id,
     batchId: statutoryRemittancePaymentEvidence.batchId,
