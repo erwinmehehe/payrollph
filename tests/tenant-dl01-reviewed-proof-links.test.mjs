@@ -80,14 +80,14 @@ for (const spec of specs) {
 test('review closes exactly three outstanding methods without waiving any page or write', () => {
   const methods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods);
   assert.equal(methods.length, 493);
-  assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), [103,10,380]);
-  assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], [103,10,380]);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 380 API methods and 20 page\/action GAPs remain\./);
+  assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), [122,10,361]);
+  assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], [122,10,361]);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 361 API methods and 20 page\/action GAPs remain\./);
   assert.equal(manifest.scopedPages.length, 20);
   assert.ok(manifest.scopedPages.every(p => p.status === 'GAP'));
   const importPost = manifest.allApiRouteFiles['src/app/api/employees/import/route.ts'].methods.find(m => m.name === 'POST');
   assert.equal(importPost.status, 'GAP', 'GET proof cannot cover the import write');
   assert.equal(importPost.testedBy, null);
-  assert.ok(overview.includes('| coveredAfter | 103 |'));
-  assert.ok(overview.includes('| gap | 380 |'));
+  assert.ok(overview.includes('| coveredAfter | 122 |'));
+  assert.ok(overview.includes('| gap | 361 |'));
 });
