@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  statutoryRemittanceBatches,
+  auditEvents, statutoryRemittanceBatches,
   statutoryRemittancePaymentEvidence,
 } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
@@ -258,39 +258,38 @@ export async function POST(request: Request) {
       uploadedByName: statutoryRemittancePaymentEvidence.uploadedByName,
       uploadedAt: statutoryRemittancePaymentEvidence.uploadedAt,
     });
-    return { kind: "created" as const, created, active, lockedBatch };
+    // Treat the receipt and its audit trail as one commit. If audit insertion
+    // fails, PostgreSQL rolls back the active-proof replacement as well.
+    await tx.insert(auditEvents).values({
+      organizationId,
+      actor: user.name,
+      action: active
+        ? "Statutory remittance payment proof replaced"
+        : lockedBatch.status === "open"
+          ? "Statutory remittance payment proof uploaded"
+          : "Historical statutory remittance payment proof backfilled",
+      resource: lockedBatch.agency + " · " + lockedBatch.applicableMonth,
+      metadata: {
+        batchId,
+        evidenceId: created.id,
+        fileName: created.fileName,
+        mimeType: created.mimeType,
+        byteSize: created.byteSize,
+        fileSha256: created.fileSha256,
+        malwareScannedClean: scan.scannedClean,
+        malwareScanEngine: scan.engine ?? null,
+        malwareScanNote: scan.note,
+        replacedEvidenceId: active?.id ?? null,
+        replacementReason,
+        batchStatusAtUpload: lockedBatch.status,
+        historicalBackfill: lockedBatch.status !== "open",
+      },
+    });
+    return { kind: "created" as const, created };
   });
 
   if (outcome.kind === "rejected") {
     return Response.json({ error: outcome.error }, { status: outcome.status });
   }
-  const { created, active, lockedBatch } = outcome;
-
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: active
-      ? "Statutory remittance payment proof replaced"
-      : lockedBatch.status === "open"
-        ? "Statutory remittance payment proof uploaded"
-        : "Historical statutory remittance payment proof backfilled",
-    resource: lockedBatch.agency + " · " + lockedBatch.applicableMonth,
-    metadata: {
-      batchId,
-      evidenceId: created.id,
-      fileName: created.fileName,
-      mimeType: created.mimeType,
-      byteSize: created.byteSize,
-      fileSha256: created.fileSha256,
-      malwareScannedClean: scan.scannedClean,
-      malwareScanEngine: scan.engine ?? null,
-      malwareScanNote: scan.note,
-      replacedEvidenceId: active?.id ?? null,
-      replacementReason,
-      batchStatusAtUpload: lockedBatch.status,
-      historicalBackfill: lockedBatch.status !== "open",
-    },
-  });
-
-  return Response.json({ organizationId, batchId, evidence: created }, { status: 201 });
+  return Response.json({ organizationId, batchId, evidence: outcome.created }, { status: 201 });
 }
