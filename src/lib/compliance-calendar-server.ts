@@ -30,7 +30,7 @@ export function annualTaxYearCandidates(today: string, payYears: number[]) {
 export type LoadedComplianceCalendar =
   | { kind: "not-found" }
   | { kind: "empty"; today: string }
-  | { kind: "ready"; today: string; applicableMonths: string[]; items: ComplianceCalendarItem[]; organizationName: string };
+  | { kind: "ready"; today: string; applicableMonths: string[]; payrollMonths: string[]; birMonths: string[]; annualTaxYears: number[]; items: ComplianceCalendarItem[]; organizationName: string };
 
 export async function loadComplianceCalendar(organizationId: number, today = manilaDate()): Promise<LoadedComplianceCalendar> {
   const [organization] = await db.select().from(organizations)
@@ -100,6 +100,7 @@ export async function loadComplianceCalendar(organizationId: number, today = man
     : [];
 
   const payYears = [...new Set(runs.map((run) => Number(String(run.payDate).slice(0, 4))))];
+  const annualTaxYears = annualTaxYearCandidates(today, payYears);
   const items = buildComplianceCalendar({
     today,
     currentMonth: today.slice(0, 7),
@@ -108,7 +109,7 @@ export async function loadComplianceCalendar(organizationId: number, today = man
     legalName: organization.legalName,
     philHealthEmployerNo: organization.philHealthEmployerNo,
     bir1601cOperationalMonths,
-    annualTaxYears: annualTaxYearCandidates(today, payYears),
+    annualTaxYears,
     batches: batches.map((batch) => ({
       agency: batch.agency,
       applicableMonth: batch.applicableMonth,
@@ -127,6 +128,9 @@ export async function loadComplianceCalendar(organizationId: number, today = man
     kind: "ready",
     today,
     applicableMonths: [...new Set([...applicableMonths, ...birApplicableMonths])],
+    payrollMonths: applicableMonths,
+    birMonths: birApplicableMonths,
+    annualTaxYears,
     items,
     organizationName: organization.name,
   };
