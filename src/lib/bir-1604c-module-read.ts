@@ -113,10 +113,10 @@ export function confirmedBirModuleMutation(
   if (!actual || actual.action !== "observe" || saved.fileSha256 !== actual.fileSha256 ||
       actual.id !== expected.observationId ||
       receipt.moduleVersion !== actual.moduleVersion) return false;
-  const module = actual.moduleVersion === "7.0" ? refreshed.moduleV70 : refreshed.moduleV74;
-  return module.status === receipt.status &&
-    module.independentlyReviewed === receipt.independentlyReviewed &&
-    module.fileSha256 === receipt.fileSha256 &&
-    module.evidenceReference === receipt.evidenceReference &&
-    module.validatedOn === receipt.validatedOn;
+  const reviewState = actual.moduleVersion === "7.0" ? refreshed.moduleV70 : refreshed.moduleV74;
+  return reviewState.status === receipt.status &&
+    reviewState.independentlyReviewed === receipt.independentlyReviewed &&
+    reviewState.fileSha256 === receipt.fileSha256 &&
+    reviewState.evidenceReference === receipt.evidenceReference &&
+    reviewState.validatedOn === receipt.validatedOn;
 }
