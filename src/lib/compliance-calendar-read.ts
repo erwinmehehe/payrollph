@@ -57,7 +57,7 @@ function item(x: unknown): x is CalendarItem {
 }
 function rule(x: unknown): x is RuleWatchItem {
   if (!record(x)) return false;
-  return text(x.family) && Object.prototype.hasOwnProperty.call(REQUIRED_RULE_WATCH_LABELS, x.family) &&
+  return typeof x.family === "string" && Object.prototype.hasOwnProperty.call(REQUIRED_RULE_WATCH_LABELS, x.family) &&
     text(x.label) && text(x.detail) &&
     ["current","review-due","verification-unrecorded","change-upcoming",
       "update-overdue","coverage-ending","no-coverage"].includes(String(x.status)) &&
