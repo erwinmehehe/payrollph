@@ -68,6 +68,10 @@ jobs:
         run: |
           node --check scripts/qa/tenant-high-risk-01-http.mjs
           node --test tests/tenant-high-risk-batch-01.test.mjs
+      - name: Guard provisional DL-01 employee-vault PG16 real-HTTP proof
+        run: |
+          node --check scripts/qa/tenant-dl01-vault-http.mjs
+          node --test tests/tenant-dl01-vault-source.test.mjs
       - name: Trace 34 client-ID routes; guard all 489 methods; pin 20 pages
         run: |
           node --check scripts/qa/tenant-delegated-trace.mjs
@@ -96,6 +100,9 @@ jobs:
           PUBLIC_API_V1_EXTENDED_ENABLED: "true"
           API_V1_EXTENDED_READS_ENABLED: "true"
           EMPLOYEE_HR_CASES_ENABLED: "true"
+          # Exercise A-5 only on this disposable localhost three-employer server.
+          # Never enable or change the corresponding Vercel production flag.
+          EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
           OWNER_PRACTICE_PAYROLL_ENABLED: "true"
           # Only the disposable localhost three-employer HTTP fixture; never deployed.
           HCM_GOVERNANCE_READINESS_ENABLED: "true"
@@ -133,6 +140,7 @@ jobs:
         env:
           CI: "true"
           TENANT_SECOND_PASS_MODE: isolated-ci-only
+          EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
         run: npx tsx scripts/qa/tenant-second-pass-http.mjs
 
       - name: Show server log on failure
