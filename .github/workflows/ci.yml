@@ -6,12 +6,12 @@ on:
   pull_request:
 
 concurrency:
-  # A newer push to a pull request supersedes that PR's older run. Pushes to
-  # main are keyed by commit SHA and are never cancelled: the required "check"
-  # job fails closed on a cancelled shard, so cancelling a main run because
-  # another merge landed minutes later left that commit permanently red and
-  # could hide a genuine failure behind a "cancelled" result.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  # Keep each PR head in its own group: an older head's queued "check" job
+  # must not block this head's fail-closed matrix and required check.
+  # Duplicate attempts on the SAME head still cancel one another. Older heads
+  # may continue running but can never satisfy the latest-head merge gate.
+  # Pushes to main are still isolated by SHA and are never cancelled.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:

@@ -82,15 +82,15 @@ test('DL-01 reviewed proofs remain intact with DL-02; no page or write gap is wa
   assert.equal(methods.length, 493);
   // Main's reviewed DL-01 baseline was 96/10/387. DL-02 adds 19 source-pinned
   // methods; the loan and legacy DOLE PRs add four. Public dispositions and page GAPs remain unchanged.
-  const expectedCurrent = [119, 10, 364];
+  const expectedCurrent = [123, 10, 360];
   assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), expectedCurrent);
   assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], expectedCurrent);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 364 API methods and 20 page\/action GAPs remain\./);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 360 API methods and 20 page\/action GAPs remain\./);
   assert.equal(manifest.scopedPages.length, 20);
   assert.ok(manifest.scopedPages.every(p => p.status === 'GAP'));
   const importPost = manifest.allApiRouteFiles['src/app/api/employees/import/route.ts'].methods.find(m => m.name === 'POST');
   assert.equal(importPost.status, 'GAP', 'GET proof cannot cover the import write');
   assert.equal(importPost.testedBy, null);
-  assert.ok(overview.includes('| coveredAfter | 119 |'));
-  assert.ok(overview.includes('| gap | 364 |'));
+  assert.ok(overview.includes('| coveredAfter | 123 |'));
+  assert.ok(overview.includes('| gap | 360 |'));
 });
