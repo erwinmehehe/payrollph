@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
@@ -121,8 +121,14 @@ export async function GET(request: Request) {
       .where(and(
         eq(legalEntities.organizationId, organizationId),
         eq(legalEntities.active, true),
-        scope.context.enabled && scope.context.legalEntityId !== null
-          ? eq(legalEntities.id, scope.context.legalEntityId) : undefined,
+        // Existing payroll clients retain their selected employer. The loan
+        // picker explicitly requests the directory of all granted employers.
+        scope.context.enabled
+          ? url.searchParams.get("selection") === "granted"
+            ? inArray(legalEntities.id, scope.context.entities.map(entity => entity.id))
+            : scope.context.legalEntityId !== null
+              ? eq(legalEntities.id, scope.context.legalEntityId) : undefined
+          : undefined,
       ))
       .orderBy(asc(legalEntities.id));
     return Response.json({ organizationId, legalEntities: entities });

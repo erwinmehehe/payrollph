@@ -12,9 +12,81 @@ import {
 } from "lucide-react";
 import type { Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
-import { confirmedDole13thMutation, readVerifiedDole13th, type VerifiedDole13thRead } from "@/lib/dole-thirteenth-month-read";
+import { isVerifiedDoleThirteenthRead } from "@/lib/dole-thirteenth-read";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { DoleThirteenthMonthReportPanel as LegacyDolePanel } from "./dole-thirteenth-month-report-panel-legacy";
+ 
+// A display-only rollout. Legal-employer source attribution always fails
+// closed on the server in multi-entity mode, even when this flag is OFF.
+const doleAttributionStateUiEnabled =
+  process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED === "true";
 
-type State = VerifiedDole13thRead;
+type State = {
+  profile: {
+    establishmentAddress: string;
+    principalBusiness: string;
+    contactName: string;
+    contactPosition: string;
+    contactPhone: string;
+  } | null;
+  report: {
+    reportType: string;
+    taxYear: number;
+    dueDate: string;
+    establishmentName: string;
+    establishmentAddress: string;
+    principalBusiness: string;
+    totalEmployment: number;
+    workersBenefited: number;
+    totalBenefitsGranted: number;
+    contactName: string;
+    contactPosition: string;
+    contactPhone: string;
+    employees: Array<{
+      employeeNo: string;
+      employeeName: string;
+      amountGranted: number;
+    }>;
+  };
+  reportHash: string;
+  profileComplete: boolean;
+  readyToSubmit: boolean;
+  reviewRows: Array<{
+    employeeNo: string;
+    employeeName: string;
+    amountGranted: number;
+    screeningEntitlement: number;
+    screeningShortfall: number;
+  }>;
+  incompleteBasicRows: Array<{
+    employeeNo: string;
+    employeeName: string;
+  }>;
+  sourceNote: string;
+  submissionCurrent: boolean;
+  currentSubmission: {
+    portalReference: string;
+    submittedAt: string;
+    recordedByName: string;
+  } | null;
+  latestSubmission: {
+    reportHash: string;
+    portalReference: string;
+    submittedAt: string;
+  } | null;
+  submissionHistory: Array<{
+    id: number;
+    reportHash: string;
+    portalReference: string;
+    submittedAt: string;
+    recordedByName: string;
+  }>;
+  officialSource: {
+    label: string;
+    url: string;
+    deadline: string;
+  };
+};
 
 function currentYear() {
   return Number(new Intl.DateTimeFormat("en", { timeZone: "Asia/Manila", year: "numeric" }).format(new Date()));
@@ -28,6 +100,10 @@ type DoleThirteenthMonthReportProps = {
 // Submission evidence, payroll aggregates and contact details are private
 // to a particular legal employer, not the parent workspace.
 export function DoleThirteenthMonthReportPanel(props: DoleThirteenthMonthReportProps) {
+  if (!criticalReleaseFlagEnabled("doleAttributionStateUi", {
+    NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED:
+      process.env.NEXT_PUBLIC_DOLE_ATTRIBUTION_STATE_UI_ENABLED,
+  })) return <LegacyDolePanel {...props} />;
   return <ScopedDoleThirteenthMonthReportPanel key={props.organizationId} {...props} />;
 }
 
@@ -55,8 +131,8 @@ function ScopedDoleThirteenthMonthReportPanel({
   const loadControllerRef = useRef<AbortController | null>(null);
   const mutationRevisionRef = useRef(0);
 
-  const load = useCallback(async (): Promise<State | null> => {
-    if (!mountedRef.current) return null;
+  const load = useCallback(async (expected?: (value: State) => boolean): Promise<boolean> => {
+    if (!mountedRef.current) return false;
     loadControllerRef.current?.abort();
     const controller = new AbortController();
     loadControllerRef.current = controller;
@@ -64,6 +140,7 @@ function ScopedDoleThirteenthMonthReportPanel({
     const isCurrent = () =>
       mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
     setLoading(true);
+    setSaving(false);
     setError("");
     // A different annual report could invalidate a previous submission proof.
     // Never show prior year's aggregate pay, portal reference or editable PII.
@@ -77,20 +154,29 @@ function ScopedDoleThirteenthMonthReportPanel({
       contactPhone: "",
     });
     try {
-      const verified = await readVerifiedDole13th(organizationId, taxYear, fetch, controller.signal);
-      if (!isCurrent()) return null;
-      setState(verified);
+      const response = await fetch(
+        `/api/compliance/dole-13th-month?organizationId=${organizationId}&taxYear=${taxYear}`,
+        { cache: "no-store", signal: controller.signal },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!isCurrent()) return false;
+      if (!response.ok) throw new Error(body?.error ?? "DOLE 13th-month report could not be loaded.");
+      if (!isVerifiedDoleThirteenthRead(body, organizationId, taxYear)) {
+        throw new Error("DOLE report identity, totals or submission evidence could not be verified. Retry.");
+      }
+      if (expected && !expected(body)) throw new Error("Updated DOLE record not confirmed by fresh read.");
+      setState(body);
       setProfile({
-        establishmentAddress: verified.profile?.establishmentAddress ?? "",
-        principalBusiness: verified.profile?.principalBusiness ?? "",
-        contactName: verified.profile?.contactName ?? "",
-        contactPosition: verified.profile?.contactPosition ?? "",
-        contactPhone: verified.profile?.contactPhone ?? "",
+        establishmentAddress: body.profile?.establishmentAddress ?? "",
+        principalBusiness: body.profile?.principalBusiness ?? "",
+        contactName: body.profile?.contactName ?? "",
+        contactPosition: body.profile?.contactPosition ?? "",
+        contactPhone: body.profile?.contactPhone ?? "",
       });
-      return verified;
+      return true;
     } catch (loadError) {
       if (isCurrent()) setError(loadError instanceof Error ? loadError.message : "DOLE 13th-month report could not be loaded.");
-      return null;
+      return false;
     } finally {
       if (isCurrent()) setLoading(false);
     }
@@ -110,14 +196,13 @@ function ScopedDoleThirteenthMonthReportPanel({
   }, [load]);
 
   async function mutate(action: "save_profile" | "record_submission", extra: Record<string, unknown>) {
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || !state || loading || saving) return;
     const revision = ++mutationRevisionRef.current;
     const readRevision = loadRevisionRef.current;
     const isCurrentMutation = () =>
       mountedRef.current && revision === mutationRevisionRef.current
       && readRevision === loadRevisionRef.current;
     setSaving(true);
-    let postAccepted = false;
     try {
       const response = await fetch("/api/compliance/dole-13th-month", {
         method: "POST",
@@ -127,12 +212,26 @@ function ScopedDoleThirteenthMonthReportPanel({
       const body = await response.json().catch(() => ({}));
       if (!isCurrentMutation()) return;
       if (!response.ok) throw new Error(body.error ?? "DOLE reporting update failed.");
-      postAccepted = true;
-      const refreshed = await load();
-      if (!mountedRef.current || revision !== mutationRevisionRef.current) return;
-      if (!refreshed ||
-          !confirmedDole13thMutation(action, body, refreshed, organizationId, taxYear))
-        throw new Error("The exact DOLE receipt could not be confirmed in the refreshed report.");
+      const refreshed = await load((fresh) => {
+        if (action === "save_profile") {
+          const saved = body?.profile;
+          return saved?.organizationId === organizationId && fresh.profile !== null &&
+            ["establishmentAddress", "principalBusiness", "contactName", "contactPosition", "contactPhone"]
+              .every(key => fresh.profile?.[key as keyof NonNullable<State["profile"]>] === saved?.[key]);
+        }
+        const saved = body?.submission;
+        return Number.isSafeInteger(saved?.id) && saved.id > 0 &&
+          saved.organizationId === organizationId && saved.reportHash === body?.reportHash &&
+          fresh.reportHash === body.reportHash && fresh.submissionCurrent &&
+          fresh.submissionHistory.some(row => row.id === saved.id &&
+            row.reportHash === saved.reportHash && row.portalReference === saved.portalReference &&
+            row.submittedAt === saved.submittedAt);
+      });
+      if (!mountedRef.current) return;
+      if (!refreshed) {
+        notify("The DOLE update may have been recorded, but its current state could not be verified. Inspect the report before retrying.", "err");
+        return;
+      }
       notify(
         action === "save_profile"
           ? "DOLE reporting profile saved."
@@ -141,16 +240,14 @@ function ScopedDoleThirteenthMonthReportPanel({
       );
       if (action === "record_submission") setPortalReference("");
     } catch (mutationError) {
-      if (mountedRef.current && revision === mutationRevisionRef.current) {
-        const message = mutationError instanceof Error ? mutationError.message : "DOLE reporting update failed.";
-        notify(postAccepted
-          ? "This DOLE change may have been recorded; inspect the saved profile or portal evidence before retrying. " + message
-          : message, "err");
-      }
+      if (isCurrentMutation()) notify(mutationError instanceof Error ? mutationError.message : "DOLE reporting update failed.", "err");
     } finally {
       if (mountedRef.current && revision === mutationRevisionRef.current) setSaving(false);
     }
   }
+
+  const showAttributionNotice = doleAttributionStateUiEnabled &&
+    error.includes("until historical payroll");
 
   return (
     <article className="card" data-dole-13th-month-report style={{ marginTop: 16 }}>
@@ -164,7 +261,7 @@ function ScopedDoleThirteenthMonthReportPanel({
           </p>
         </div>
         <div className="heading-actions">
-          <select value={taxYear} onChange={(event) => setTaxYear(Number(event.target.value))}>
+          <select value={taxYear} onChange={(event) => { setState(null); setTaxYear(Number(event.target.value)); }}>
             {[currentYear(), currentYear() - 1, currentYear() - 2].map((year) => (
               <option value={year} key={year}>{year}</option>
             ))}
@@ -177,9 +274,19 @@ function ScopedDoleThirteenthMonthReportPanel({
 
       {error ? (
         <div className="card-body" style={{ paddingTop: 0 }}>
-          <div className="notice notice-red" style={{ margin: 0 }}>
-            <ShieldAlert size={15} /><span><strong>DOLE report unavailable.</strong> {error}</span>
-            <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>Retry DOLE report</button>
+          <div className="notice notice-red" style={{ margin: 0, ...(showAttributionNotice ? {
+            display: "grid", gridTemplateColumns: "15px minmax(0, 1fr)", alignItems: "start",
+          } : {}) }}>
+            <ShieldAlert size={15} /><span>{error}</span>
+            {showAttributionNotice && (
+                <span role="status" style={{ display: "block", overflowWrap: "anywhere", gridColumn: 2 }}>
+                  Legal-employer attribution is required before the DOLE report, CSV download, profile changes or portal submission evidence can be used. Nothing has been submitted or approved.
+                </span>
+              )}
+            <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}
+              style={showAttributionNotice ? { gridColumn: 2, justifySelf: "start" } : undefined}>
+              <RefreshCcw size={14} /> Retry verified report
+            </button>
           </div>
         </div>
       ) : state ? (
@@ -303,7 +410,7 @@ function ScopedDoleThirteenthMonthReportPanel({
             <span>{state.sourceNote} Current report hash: {state.reportHash.slice(0, 12)}…</span>
           </div>
 
-          {state.submissionHistory.length > 0 && (
+          {(state.submissionHistory?.length ?? 0) > 0 && (
             <details>
               <summary style={{ cursor: "pointer", fontWeight: 800, fontSize: 12 }}>
                 Submission evidence history ({state.submissionHistory.length})

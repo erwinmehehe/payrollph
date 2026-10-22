@@ -1,109 +1,206 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  confirmedGovernmentLoanMutation,
-  isVerifiedGovernmentLoanRead, readVerifiedGovernmentLoanRemittances,
-  type VerifiedGovernmentLoanRead,
-} from "@/lib/government-loan-remittance-read";
+  isConfirmedGovernmentLoanMutation,
+  isVerifiedGovernmentLoanRemittanceRead,
+  type GovernmentLoanRead,
+} from "../src/lib/government-loan-remittance-read";
 
-const org = 101, entity = 12;
-const empty: VerifiedGovernmentLoanRead = {
-  organizationId: org, today: "2026-10-21",
-  legalEntity: { id: 12, code: "FICTIONAL", displayName: "Fictional Employer" },
-  batches: [], members: [],
-};
-const member = {
-  id: 88, batchId: 33, organizationId: org, legalEntityId: 12,
-  employeeNo: "FICTIONAL-001", loanType: "SSS salary",
-  loanReferenceNo: "FICTIONAL-LOAN", deductedAmount: "100.00",
-  postingStatus: "pending" as const, postedAmount: null,
-  postingReference: null, exceptionNote: null,
-};
-const batch = {
-  id: 33, organizationId: org, legalEntityId: 12,
-  agency: "SSS" as const, applicableMonth: "2026-09", dueDate: "2026-10-31",
-  status: "open" as const, displayStatus: "open" as const,
-  employeeCount: 1, loanCount: 1, expectedTotal: "100.00",
-  amountPaid: null, paymentReference: null, agencyAcknowledgementReference: null,
+const firstRevision = "2026-10-20T08:00:00.000Z";
+const laterRevision = "2026-10-20T09:00:00.000Z";
+const paidAt = "2026-10-20T08:55:00.000Z";
+const baseBatch = {
+  id: 12, organizationId: 4, legalEntityId: 18,
+  agency: "SSS" as const, applicableMonth: "2026-09", dueDate: "2026-10-15",
+  status: "open", displayStatus: "overdue", employeeCount: 1, loanCount: 1,
+  expectedTotal: "125.00", amountPaid: null as string | null,
+  paymentReference: null as string | null,
+  agencyAcknowledgementReference: null as string | null,
+  paymentVarianceNote: null as string | null,
+  paidAt: null as string | null,
   pendingPostingCount: 1, exceptionCount: 0,
+  updatedAt: firstRevision,
 };
-const json = (body: unknown, status = 200): typeof fetch =>
-  (async () => new Response(JSON.stringify(body), { status })) as typeof fetch;
+const baseMember = {
+  id: 23, organizationId: 4, legalEntityId: 18,
+  batchId: 12, employeeId: 3, employeeNo: "E3",
+  loanType: "SSS Salary Loan", loanReferenceNo: "LOAN-1",
+  deductedAmount: "125.00", postingStatus: "pending",
+  postedAmount: null as string | null, postingReference: null as string | null,
+  exceptionNote: null as string | null,
+  updatedAt: firstRevision,
+};
+const baseRead: GovernmentLoanRead = {
+  organizationId: 4, legalEntityId: 18, today: "2026-10-20",
+  legalEntity: { id: 18, code: null, displayName: "Example Inc." },
+  batches: [baseBatch], members: [baseMember],
+};
+const paidBatch = {
+  ...baseBatch, status: "paid", displayStatus: "paid",
+  amountPaid: "125.00", paymentReference: "PRN-12345",
+  agencyAcknowledgementReference: "ACK-12345",
+  paidAt, updatedAt: laterRevision,
+};
+const confirmedMember = {
+  ...baseMember, postingStatus: "confirmed", postedAmount: "125.00",
+  postingReference: "POST-12345", exceptionNote: null,
+  updatedAt: laterRevision,
+};
+const exceptionMember = {
+  ...baseMember, postingStatus: "exception",
+  exceptionNote: "Agency posting was not found", updatedAt: laterRevision,
+};
 
-test("government loan: verified zero batch/member lists are legitimate only with correct employer", async () => {
-  assert.equal(isVerifiedGovernmentLoanRead(empty, org, entity), true);
-  assert.deepEqual(await readVerifiedGovernmentLoanRemittances(org, entity, json(empty)), empty);
-  assert.equal(isVerifiedGovernmentLoanRead({ ...empty, batches: [batch], members: [member] }, org, entity), true);
+test("a complete employer-bound read is valid, while empty or foreign evidence must be explicit", () => {
+  const empty = { ...baseRead, batches: [], members: [] };
+  assert.equal(isVerifiedGovernmentLoanRemittanceRead(empty, 4), true);
+  assert.equal(isVerifiedGovernmentLoanRemittanceRead(baseRead, 4), true);
+  for (const invalid of [
+    { ...empty, organizationId: 5 },
+    { ...empty, batches: undefined },
+    { ...empty, members: null },
+    { ...empty, legalEntity: { ...empty.legalEntity, id: 19 } },
+    { ...baseRead, batches: [{ ...baseBatch, expectedTotal: "0.00" }] },
+    { ...baseRead, batches: [{ ...baseBatch, loanCount: 0 }] },
+    { ...baseRead, members: [{ ...baseMember, organizationId: 9 }] },
+    { ...baseRead, members: [] },
+  ]) assert.equal(isVerifiedGovernmentLoanRemittanceRead(invalid, 4), false);
 });
 
-test("government loan: HTTP non-OK and invalid JSON always unavailable", async () => {
-  await assert.rejects(readVerifiedGovernmentLoanRemittances(org, entity, json(empty, 500)), /unavailable/);
-  const malformed = (async () => new Response("{", { status: 200 })) as typeof fetch;
-  await assert.rejects(readVerifiedGovernmentLoanRemittances(org, entity, malformed), /malformed JSON/);
+test("member deduction amounts, posting counts and recorded money must reconcile", () => {
+  for (const invalid of [
+    { ...baseRead, batches: [{ ...baseBatch, expectedTotal: "126.00" }] },
+    { ...baseRead, batches: [{ ...baseBatch, pendingPostingCount: 0 }] },
+    { ...baseRead, batches: [{ ...baseBatch, displayStatus: "paid" }] },
+    { ...baseRead, batches: [{ ...baseBatch, loanCount: 2 }] },
+    { ...baseRead, members: [{ ...baseMember, deductedAmount: "125.001" }] },
+    { ...baseRead, members: [{ ...baseMember, postingStatus: "confirmed", postedAmount: "0.00", postingReference: "POST-1" }] },
+    { ...baseRead, members: [{ ...baseMember, postingStatus: "pending", postedAmount: "125.00" }] },
+  ]) assert.equal(isVerifiedGovernmentLoanRemittanceRead(invalid, 4), false);
 });
 
-test("government loan: missing counts, arrays, foreign employer/LE or partial members rejected", async () => {
-  for (const value of [
-    {}, { ...empty, organizationId: org + 1 },
-    { ...empty, batches: undefined }, { ...empty, members: undefined },
-    { ...empty, legalEntity: { id: 12, code: "" } },
-    { ...empty, batches: [batch], members: [] },
-    { ...empty, batches: [batch], members: [{ ...member, organizationId: org + 1 }] },
-    { ...empty, batches: [batch], members: [{ ...member, legalEntityId: 23 }] },
-    { ...empty, batches: [{ ...batch, pendingPostingCount: 0 }], members: [member] },
-    { ...empty, batches: [{ ...batch, expectedTotal: undefined }], members: [member] },
-    { ...empty, batches: [{ ...batch, organizationId: org + 1 }], members: [member] },
-    { ...empty, batches: [{ ...batch, loanCount: 2 }], members: [member] },
-    { ...empty, batches: [{ ...batch, expectedTotal: "0.00" }], members: [member] },
-    { ...empty, batches: [{ ...batch, expectedTotal: "100.01" }], members: [member] },
-    { ...empty, batches: [{ ...batch, employeeCount: 2 }], members: [member] },
-  ]) {
-    assert.equal(isVerifiedGovernmentLoanRead(value, org, entity), false);
-    await assert.rejects(readVerifiedGovernmentLoanRemittances(org, entity, json(value)), /incomplete or for another/);
-  }
+test("reconciled status demands real payment evidence and complete confirmed loan postings", () => {
+  const settled: GovernmentLoanRead = {
+    ...baseRead,
+    batches: [{ ...paidBatch, status: "reconciled", displayStatus: "reconciled",
+      pendingPostingCount: 0, exceptionCount: 0 }],
+    members: [confirmedMember],
+  };
+  assert.equal(isVerifiedGovernmentLoanRemittanceRead(settled, 4), true);
+  const impossible = [
+    // Matching counts/totals used to let pending members masquerade as reconciled.
+    { ...settled, batches: [{ ...settled.batches[0],
+      pendingPostingCount: 1 }], members: [baseMember] },
+    // A zero-paid reconciled batch used to pass the shape-only validator.
+    { ...settled, batches: [{ ...settled.batches[0], amountPaid: null }] },
+    { ...settled, batches: [{ ...settled.batches[0], amountPaid: "0.00" }] },
+    { ...settled, batches: [{ ...settled.batches[0], paymentReference: null }] },
+    { ...settled, batches: [{ ...settled.batches[0], agencyAcknowledgementReference: null }] },
+    { ...settled, batches: [{ ...settled.batches[0], paidAt: null }] },
+    { ...settled, members: [{ ...confirmedMember, postedAmount: "0.00" }] },
+    { ...settled, members: [{ ...confirmedMember, postedAmount: "124.98" }] },
+    { ...settled, members: [{ ...confirmedMember, postingReference: null }] },
+  ];
+  for (const invalid of impossible)
+    assert.equal(isVerifiedGovernmentLoanRemittanceRead(invalid, 4), false);
+  assert.equal(isVerifiedGovernmentLoanRemittanceRead(
+    { ...settled, members: [{ ...confirmedMember, postedAmount: "124.99" }] }, 4,
+  ), true, "existing 1-cent posting tolerance is retained");
 });
 
-test("government loan: multiple loans sum exactly in cents and count distinct employees", () => {
-  const member2 = { ...member, id: 89, loanType: "SSS calamity",
-    loanReferenceNo: "FICTIONAL-LOAN-2", deductedAmount: "0.01" };
-  const b2 = { ...batch, loanCount: 2, employeeCount: 1, expectedTotal: "100.01", pendingPostingCount: 2 };
-  const verified = { ...empty, batches: [b2], members: [member, member2] };
-  assert.equal(isVerifiedGovernmentLoanRead(verified, org, entity), true);
-  assert.equal(isVerifiedGovernmentLoanRead({ ...verified,
-    batches: [{ ...b2, expectedTotal: "100.00" }] }, org, entity), false);
-  assert.equal(isVerifiedGovernmentLoanRead(verified, org, entity + 1), false);
-});
-test("government loan: explicit retry refetches after failure, never caches synthetic empty", async () => {
-  let attempts = 0;
-  const fetcher = (async () => {
-    attempts += 1;
-    return attempts === 1 ? new Response("{not json") : new Response(JSON.stringify(empty));
-  }) as typeof fetch;
-  await assert.rejects(readVerifiedGovernmentLoanRemittances(org, entity, fetcher));
-  assert.deepEqual(await readVerifiedGovernmentLoanRemittances(org, entity, fetcher), empty);
-  assert.equal(attempts, 2);
+test("paid and exception status require employer payment and actual exception evidence", () => {
+  const paid: GovernmentLoanRead = {
+    ...baseRead, batches: [paidBatch],
+  };
+  assert.equal(isVerifiedGovernmentLoanRemittanceRead(paid, 4), true);
+  const exception: GovernmentLoanRead = {
+    ...baseRead,
+    batches: [{ ...paidBatch, status: "exception", displayStatus: "exception",
+      exceptionCount: 1, pendingPostingCount: 0 }],
+    members: [exceptionMember],
+  };
+  assert.equal(isVerifiedGovernmentLoanRemittanceRead(exception, 4), true);
+  assert.equal(isVerifiedGovernmentLoanRemittanceRead(
+    { ...exception, batches: [{ ...exception.batches[0], exceptionCount: 0 }] }, 4,
+  ), false);
+  assert.equal(isVerifiedGovernmentLoanRemittanceRead(
+    { ...exception, members: [{ ...exceptionMember, exceptionNote: null }] }, 4,
+  ), false);
+  assert.equal(isVerifiedGovernmentLoanRemittanceRead(
+    { ...paid, batches: [{ ...paidBatch, amountPaid: "125.02" }] }, 4,
+  ), false, "excess remittance requires a reason");
+  assert.equal(isVerifiedGovernmentLoanRemittanceRead(
+    { ...paid, batches: [{ ...paidBatch, amountPaid: "125.02", paymentVarianceNote: "Interest" }] }, 4,
+  ), true);
 });
 
-test("government loan: a schema-valid stale GET must never confirm a POST receipt", () => {
-  const before = { ...empty, batches: [batch], members: [member] };
-  const created = { batch: { ...batch, id: 33 } };
-  assert.equal(confirmedGovernmentLoanMutation("create_batch", created, before, org, entity), true);
-  assert.equal(confirmedGovernmentLoanMutation("create_batch", created, empty, org, entity), false);
-  const paid = { ...batch, status: "paid" as const, displayStatus: "paid" as const,
-    amountPaid: "100.00", paymentReference: "FICTIONAL-PAY-ABC",
-    agencyAcknowledgementReference: "FICTIONAL-ACK-DEF" };
-  const paidReceipt = { batch: paid };
-  assert.equal(confirmedGovernmentLoanMutation("record_payment", paidReceipt,
-    { ...empty, batches: [paid], members: [member] }, org, entity), true);
-  assert.equal(confirmedGovernmentLoanMutation("record_payment", paidReceipt,
-    before, org, entity), false);
-  const confirmed = { ...member, postingStatus: "confirmed" as const,
-    postedAmount: "100.00", postingReference: "FICTIONAL-POSTING" };
-  const confirmedBatch = { ...paid, pendingPostingCount: 0 };
-  assert.equal(confirmedGovernmentLoanMutation("confirm_member_posting", { member: confirmed },
-    { ...empty, batches: [confirmedBatch], members: [confirmed] }, org, entity), true);
-  assert.equal(confirmedGovernmentLoanMutation("confirm_member_posting", { member: confirmed },
-    { ...empty, batches: [confirmedBatch], members: [member] }, org, entity), false);
-  assert.equal(confirmedGovernmentLoanMutation("record_payment", paidReceipt,
-    { ...empty, organizationId: org + 1, batches: [paid], members: [member] }, org, entity), false);
+test("new batch receipt must match the newly visible batch and employer", () => {
+  const request = { agency: "SSS", applicableMonth: "2026-09" };
+  assert.equal(isConfirmedGovernmentLoanMutation(
+    "create_batch", request, { batch: { ...baseBatch } }, baseRead,
+  ), true);
+  assert.equal(isConfirmedGovernmentLoanMutation(
+    "create_batch", request, { batch: { ...baseBatch, organizationId: 8 } }, baseRead,
+  ), false);
+  assert.equal(isConfirmedGovernmentLoanMutation(
+    "create_batch", request, { batch: { ...baseBatch } },
+    { ...baseRead, batches: [] },
+  ), false);
+  assert.equal(isConfirmedGovernmentLoanMutation(
+    "create_batch", request, { batch: { ...baseBatch } },
+    { ...baseRead, batches: [{ ...baseBatch, updatedAt: laterRevision }] },
+  ), false);
+});
+
+test("payment POST plus stale but valid GET cannot produce a success confirmation", () => {
+  const intent = {
+    batchId: 12, amountPaid: 125,
+    paymentReference: "PRN-12345",
+    agencyAcknowledgementReference: "ACK-12345",
+  };
+  const receipt = { batch: { ...paidBatch } };
+  const paid: GovernmentLoanRead = { ...baseRead, batches: [paidBatch] };
+  assert.equal(isVerifiedGovernmentLoanRemittanceRead(paid, 4), true);
+  assert.equal(isConfirmedGovernmentLoanMutation("record_payment", intent, receipt, paid), true);
+  assert.equal(isConfirmedGovernmentLoanMutation("record_payment", intent, receipt, baseRead), false);
+  assert.equal(isConfirmedGovernmentLoanMutation("record_payment", intent, receipt, {
+    ...paid, batches: [{ ...paidBatch, updatedAt: firstRevision }],
+  }), false);
+  assert.equal(isConfirmedGovernmentLoanMutation("record_payment", intent, {
+    batch: { ...paidBatch, paymentReference: "DIFFERENT-PRN" },
+  }, paid), false);
+  assert.equal(isConfirmedGovernmentLoanMutation("record_payment", intent, receipt, {
+    ...paid, batches: [{ ...paidBatch, amountPaid: "125.01" }],
+  }), false);
+});
+
+test("posting and exception POST receipts require fresh matching rows and revision", () => {
+  const settled: GovernmentLoanRead = {
+    ...baseRead, batches: [{ ...paidBatch, status: "reconciled", displayStatus: "reconciled",
+      pendingPostingCount: 0, exceptionCount: 0 }],
+    members: [confirmedMember],
+  };
+  const confirm = { memberId: 23, postedAmount: 125, postingReference: "POST-12345" };
+  const receipt = { member: { ...confirmedMember } };
+  assert.equal(isConfirmedGovernmentLoanMutation("confirm_member_posting", confirm, receipt, settled), true);
+  assert.equal(isConfirmedGovernmentLoanMutation("confirm_member_posting", confirm, receipt,
+    { ...settled, members: [baseMember] }), false);
+  assert.equal(isConfirmedGovernmentLoanMutation("confirm_member_posting", confirm, receipt,
+    { ...settled, members: [{ ...confirmedMember, updatedAt: firstRevision }] }), false);
+
+  const except: GovernmentLoanRead = {
+    ...baseRead,
+    batches: [{ ...paidBatch, status: "exception", displayStatus: "exception",
+      pendingPostingCount: 0, exceptionCount: 1 }],
+    members: [exceptionMember],
+  };
+  const intent = { memberId: 23, exceptionNote: "Agency posting was not found" };
+  assert.equal(isConfirmedGovernmentLoanMutation("mark_member_exception", intent,
+    { member: { ...exceptionMember } }, except), true);
+  assert.equal(isConfirmedGovernmentLoanMutation("mark_member_exception", intent,
+    { member: { ...exceptionMember } },
+    { ...except, batches: [{ ...paidBatch }] }), false);
+  assert.equal(isConfirmedGovernmentLoanMutation("mark_member_exception", intent,
+    { member: { ...exceptionMember } },
+    { ...except, members: [{ ...exceptionMember, updatedAt: firstRevision }] }), false);
 });

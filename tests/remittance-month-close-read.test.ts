@@ -101,7 +101,12 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
-  assert.equal(manifest.metrics.methods, 493);
+  assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
+  // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
+  // PR #1325 contributes three other real HTTP proofs; never double-credit these.
+  assert.equal(manifest.metrics.coveredAfter, 122);
+  assert.equal(manifest.metrics.publicByDesign, 10);
+  assert.equal(manifest.metrics.gap, 361);
   // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
   // can only close GAPs if every method cites the corresponding isolated HTTP
   // suite, executed for both attacker employers against real victim rows.
@@ -125,6 +130,13 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   let newlySourcePinned = 0;
   for (const suite of newSuites) {
+    const inheritedMainProof = new Map([
+      ["GET compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
+      ["GET compliance/dole-13th-month", "scripts/qa/dole-13th-month-http.mjs"],
+      ["POST compliance/dole-13th-month", "scripts/qa/dole-13th-month-http.mjs"],
+      ["GET compliance/government-loan-remittances", "scripts/qa/government-loan-read-http.mjs"],
+      ["POST compliance/government-loan-remittances", "scripts/qa/government-loan-read-http.mjs"],
+    ]);
     const methods = suite.keys.map((key) => {
       const [name, route] = key.split(" ");
       const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]
@@ -132,14 +144,13 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
       assert.ok(method, key + ": method must exist");
       assert.ok(method.status === "GAP" ||
         (method.status === "COVERED" && (method.testedBy?.file === suite.file ||
-          (key === "GET compliance/statutory-remittances/payment-evidence" &&
-            method.testedBy?.file === "scripts/qa/tenant-manifest-driven-http.mjs"))),
+          inheritedMainProof.get(key) === method.testedBy?.file)),
         key + ": only actual source-pinned own/victim HTTP tests may close a GAP");
       if (method.status === "GAP") assert.equal(method.testedBy, null);
       return method;
     });
-    const externalMain = methods.filter((method) => method.status === "COVERED" &&
-      method.testedBy?.file === "scripts/qa/tenant-manifest-driven-http.mjs").length;
+    const externalMain = methods.filter((method, index) => method.status === "COVERED" &&
+      inheritedMainProof.get(suite.keys[index]) === method.testedBy?.file).length;
     const added = methods.filter((method) => method.status === "COVERED" &&
       method.testedBy?.file === suite.file).length;
     assert.ok(added === 0 || added + externalMain === suite.keys.length,
@@ -162,10 +173,10 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     }
     newlySourcePinned += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 115,
-    "Keep all 96 main-proven methods; add only independently proven HCM/compliance methods");
-  assert.equal(manifest.metrics.gap + newlySourcePinned, 368,
-    "Never reduce main’s 387 open method GAPs without new source-linked real HTTP proof");
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 119,
+    "Keep the 119 independently source-pinned main methods and only add new compliance methods");
+  assert.equal(manifest.metrics.gap + newlySourcePinned, 364,
+    "Never reduce main’s 364 open method GAPs without new source-linked real HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);

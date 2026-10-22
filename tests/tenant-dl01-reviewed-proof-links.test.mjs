@@ -80,8 +80,11 @@ for (const spec of specs) {
 test('review closes exactly three outstanding methods without waiving any page or write', () => {
   const methods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods);
   assert.equal(methods.length, 493);
-  assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), [122,10,361]);
-  assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], [122,10,361]);
+  // Main's reviewed DL-01 baseline was 96/10/387. DL-02 adds 19 source-pinned
+  // methods; the loan and legacy DOLE PRs add four. Public dispositions and page GAPs remain unchanged.
+  const expectedCurrent = [122, 10, 361];
+  assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), expectedCurrent);
+  assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], expectedCurrent);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 361 API methods and 20 page\/action GAPs remain\./);
   assert.equal(manifest.scopedPages.length, 20);
   assert.ok(manifest.scopedPages.every(p => p.status === 'GAP'));

@@ -1,13 +1,42 @@
 "use client";
 
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { GovernmentLoanRemittancePanel as LegacyPanel } from "./government-loan-remittance-panel-legacy";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
-import { confirmedGovernmentLoanMutation, readVerifiedGovernmentLoanRemittances, type VerifiedGovernmentLoanBatch, type VerifiedGovernmentLoanMember } from "@/lib/government-loan-remittance-read";
+import { isConfirmedGovernmentLoanMutation, isVerifiedGovernmentLoanRemittanceRead, type GovernmentLoanRead } from "@/lib/government-loan-remittance-read";
+
+import { parseAuthorizedLegalEmployers, type LegalEmployerOption } from "@/lib/government-loan-employer-scope";
 
 type Agency = "SSS" | "Pag-IBIG";
 
-type Batch = VerifiedGovernmentLoanBatch;
-type Member = VerifiedGovernmentLoanMember;
+type Batch = {
+  id: number;
+  agency: Agency;
+  applicableMonth: string;
+  dueDate: string;
+  status: string;
+  displayStatus: string;
+  employeeCount: number;
+  loanCount: number;
+  expectedTotal: string;
+  amountPaid: string | null;
+  pendingPostingCount: number;
+  exceptionCount: number;
+};
+
+type Member = {
+  id: number;
+  batchId: number;
+  employeeNo: string;
+  loanType: string;
+  loanReferenceNo: string;
+  deductedAmount: string;
+  postingStatus: string;
+  postedAmount: string | null;
+  postingReference: string | null;
+  exceptionNote: string | null;
+};
 
 const peso = (value: string | number) =>
   `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -18,105 +47,111 @@ function previousMonth() {
   return month.toISOString().slice(0, 7);
 }
 
-type PanelProps = {
+export function GovernmentLoanRemittancePanel(props: {
   organizationId: number;
   setNotice: (message: string) => void;
-};
-type LegalEmployerOption = { id: number; displayName: string; active: true };
-
-export function GovernmentLoanRemittancePanel(props: PanelProps) {
-  // Re-mount all evidence and draft actions when either employer identity changes.
-  return <GovernmentLoanLegalEmployerSelector key={props.organizationId} {...props} />;
+}) {
+  if (!criticalReleaseFlagEnabled("governmentLoanRemittanceUi", {
+    NEXT_PUBLIC_GOVERNMENT_LOAN_REMITTANCE_UI_ENABLED:
+      process.env.NEXT_PUBLIC_GOVERNMENT_LOAN_REMITTANCE_UI_ENABLED,
+  })) return <LegacyPanel {...props} />;
+  // Employer scope is tenant-private. Remount on a new organizationId so no
+  // batch, member or posting state from the previous employer can render.
+  return <GovernmentLoanRemittancePanelEmployerScope key={props.organizationId} {...props} />;
 }
 
-function GovernmentLoanLegalEmployerSelector(props: PanelProps) {
-  const [options, setOptions] = useState<LegalEmployerOption[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [phase, setPhase] = useState<"loading" | "ready" | "unavailable">("loading");
-  const [error, setError] = useState("");
+function GovernmentLoanRemittancePanelEmployerScope({
+  organizationId, setNotice,
+}: {
+  organizationId: number;
+  setNotice: (message: string) => void;
+}) {
+  const [legalEmployers, setLegalEmployers] = useState<LegalEmployerOption[]>([]);
+  const [selectedLegalEntityId, setSelectedLegalEntityId] = useState<number | null>(null);
+  const [scopeLoading, setScopeLoading] = useState(true);
+  const [scopeError, setScopeError] = useState("");
   const [mutationBusy, setMutationBusy] = useState(false);
 
-  const refreshSelector = useCallback(async (signal?: AbortSignal) => {
-    setPhase("loading");
-    setError("");
+  const loadEmployers = useCallback(async (signal?: AbortSignal) => {
+    setScopeLoading(true);
+    setScopeError("");
+    setLegalEmployers([]);
+    setSelectedLegalEntityId(null);
     try {
       const response = await fetch(
-        "/api/legal-entities?organizationId=" + props.organizationId + "&mode=selector",
+        "/api/legal-entities?organizationId=" + organizationId + "&mode=selector&selection=granted",
         { cache: "no-store", signal },
       );
-      const data: unknown = await response.json().catch(() => null);
-      if (!response.ok || !data || typeof data !== "object" || Array.isArray(data))
-        throw Error("Legal-employer selector unavailable.");
-      const body = data as Record<string, unknown>;
-      if (body.organizationId !== props.organizationId ||
-          !Array.isArray(body.legalEntities) || body.legalEntities.length === 0 ||
-          body.legalEntities.length > 100 ||
-          !body.legalEntities.every((item: unknown) =>
-            item !== null && typeof item === "object" && !Array.isArray(item) &&
-            Number.isSafeInteger((item as LegalEmployerOption).id) &&
-            (item as LegalEmployerOption).id > 0 &&
-            (item as LegalEmployerOption).active === true &&
-            typeof (item as LegalEmployerOption).displayName === "string" &&
-            (item as LegalEmployerOption).displayName.trim().length > 0)) {
-        throw Error("Legal-employer selector returned an incomplete authorized scope.");
-      }
-      const entities = body.legalEntities as LegalEmployerOption[];
-      if (new Set(entities.map((item) => item.id)).size !== entities.length)
-        throw Error("Legal-employer selector returned duplicate IDs.");
       if (signal?.aborted) return;
-      setOptions(entities);
-      setSelectedId(entities.length === 1 ? entities[0].id : null);
-      setPhase("ready");
-    } catch (caught) {
+      if (!response.ok) throw new Error("Authorized legal employers are unavailable.");
+      const body: unknown = await response.json();
+      const entries = parseAuthorizedLegalEmployers(body, organizationId);
+      if (!entries || entries.length === 0)
+        throw new Error("No verified active legal employer is available.");
       if (signal?.aborted) return;
-      setOptions([]);
-      setSelectedId(null);
-      setPhase("unavailable");
-      setError(caught instanceof Error ? caught.message : "Legal-employer selector unavailable.");
+      setLegalEmployers(entries);
+      // Never choose an implicit legal employer when more than one is accessible.
+      setSelectedLegalEntityId(entries.length === 1 ? entries[0].id : null);
+    } catch {
+      if (!signal?.aborted) setScopeError(
+        "Legal employer access could not be verified. No loan records or payment actions are available.",
+      );
+    } finally {
+      if (!signal?.aborted) setScopeLoading(false);
     }
-  }, [props.organizationId]);
+  }, [organizationId]);
 
   useEffect(() => {
     const controller = new AbortController();
     queueMicrotask(() => {
-      if (!controller.signal.aborted) void refreshSelector(controller.signal);
+      if (!controller.signal.aborted) void loadEmployers(controller.signal);
     });
     return () => controller.abort();
-  }, [refreshSelector]);
+  }, [loadEmployers]);
 
+  if (scopeLoading) return <div role="status" className="notice notice-amber">
+    Checking authorized legal employers before loading government loan remittances…
+  </div>;
+  if (scopeError) return <div role="alert" className="notice notice-amber" style={{ display: "grid", gap: 8 }}>
+    {scopeError}
+    <button className="secondary-button" type="button" onClick={() => void loadEmployers()}>
+      Retry legal employer access
+    </button>
+  </div>;
   return (
-    <div data-government-loan-legal-employer>
-      {phase === "loading" && <div className="notice notice-amber" role="status">Verifying authorized legal employers…</div>}
-      {phase === "unavailable" && (
-        <div className="notice notice-amber" role="alert">
-          <AlertTriangle size={15} /> {error} No payment or posting action is permitted.
-          <button className="secondary-button" type="button" onClick={() => void refreshSelector()}>
-            Retry legal employers
-          </button>
-        </div>
-      )}
-      {phase === "ready" && (
-        <label className="field" style={{ display: "grid", maxWidth: 380, marginTop: 12 }}>
-          <span>Legal employer (required)</span>
-          <select aria-label="Government loan legal employer" value={selectedId ?? ""}
+    <div data-government-loan-employer-scope style={{ display: "grid", gap: 10 }}>
+      {legalEmployers.length > 1 ? (
+        <label className="field" style={{ maxWidth: 420 }}>
+          <span>Legal employer for government loan remittances</span>
+          <select aria-label="Legal employer for government loan remittances"
+            value={selectedLegalEntityId ?? ""}
             disabled={mutationBusy}
             onChange={(event) => {
               const id = Number(event.target.value);
-              setSelectedId(Number.isSafeInteger(id) && id > 0 &&
-                options.some((item) => item.id === id) ? id : null);
+              setSelectedLegalEntityId(legalEmployers.some(entity => entity.id === id) ? id : null);
             }}>
-            {options.length > 1 && <option value="">Select legal employer…</option>}
-            {options.map((item) => <option key={item.id} value={item.id}>{item.displayName}</option>)}
+            <option value="">Select a legal employer</option>
+            {legalEmployers.map(entity => (
+              <option key={entity.id} value={entity.id}>
+                {entity.displayName}{entity.code ? " (" + entity.code + ")" : ""}
+              </option>
+            ))}
           </select>
         </label>
+      ) : (
+        <p>Legal employer: <strong>{legalEmployers[0].displayName}</strong></p>
       )}
-      {phase === "ready" && selectedId === null &&
-        <div className="notice notice-amber" role="status">
-          Select a legal employer before opening government loan remittances.
-        </div>}
-      {phase === "ready" && selectedId !== null &&
-        <GovernmentLoanRemittancePanelContent key={props.organizationId + ":" + selectedId}
-          {...props} legalEntityId={selectedId} onMutationBusy={setMutationBusy} />}
+      {selectedLegalEntityId === null ? (
+        <p role="status">Choose an authorized legal employer before viewing or recording loan remittances.</p>
+      ) : (
+        <GovernmentLoanRemittancePanelContent
+          key={organizationId + ":" + selectedLegalEntityId}
+          organizationId={organizationId}
+          legalEntityId={selectedLegalEntityId}
+          setNotice={setNotice}
+          onMutationBusyChange={setMutationBusy}
+        />
+      )}
     </div>
   );
 }
@@ -125,14 +160,20 @@ function GovernmentLoanRemittancePanelContent({
   organizationId,
   legalEntityId,
   setNotice,
-  onMutationBusy,
-}: PanelProps & { legalEntityId: number; onMutationBusy: (busy: boolean) => void }) {
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
+  onMutationBusyChange,
+}: {
+  organizationId: number;
+  legalEntityId: number;
+  setNotice: (message: string) => void;
+  onMutationBusyChange: (busy: boolean) => void;
+}) {
+  const [snapshot, setSnapshot] = useState<GovernmentLoanRead | null>(null);
+  const [readError, setReadError] = useState("");
+  const [reading, setReading] = useState(true);
+  const members: Member[] = snapshot?.members ?? [];
   const [month, setMonth] = useState(previousMonth());
   const [busy, setBusy] = useState<string | null>(null);
-  const [readPhase, setReadPhase] = useState<"loading" | "verified" | "unavailable">("loading");
-  const [readError, setReadError] = useState("");
+  const [forbidden, setForbidden] = useState(false);
   const [paymentBatchId, setPaymentBatchId] = useState<number | null>(null);
   const [amountPaid, setAmountPaid] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
@@ -143,26 +184,36 @@ function GovernmentLoanRemittancePanelContent({
   const [postingReference, setPostingReference] = useState("");
   const [exceptionNote, setExceptionNote] = useState("");
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    setReadPhase("loading");
+  const load = useCallback(async (signal?: AbortSignal): Promise<GovernmentLoanRead | null> => {
+    setReading(true);
+    setSnapshot(null);
     setReadError("");
-    setBatches([]);
-    setMembers([]);
     try {
-      const verified = await readVerifiedGovernmentLoanRemittances(organizationId, legalEntityId, fetch, signal);
-      if (signal?.aborted) return;
-      setBatches(verified.batches);
-      setMembers(verified.members);
-      setReadPhase("verified");
-      return verified;
-    } catch (caught) {
-      if (!signal?.aborted) {
-        setBatches([]);
-        setMembers([]);
-        setReadPhase("unavailable");
-        setReadError(caught instanceof Error ? caught.message : "Loan remittance evidence unavailable.");
+      const response = await fetch(
+        "/api/compliance/government-loan-remittances?organizationId=" + organizationId + "&legalEntityId=" + legalEntityId,
+        { cache: "no-store", signal },
+      );
+      if (signal?.aborted) return null;
+      if (response.status === 403) {
+        setForbidden(true);
+        setReadError("Access to this employer's government loan records is unavailable.");
+        return null;
       }
-      throw caught;
+      if (!response.ok) throw new Error("Government loan remittances are unavailable.");
+      const body: unknown = await response.json();
+      if (!isVerifiedGovernmentLoanRemittanceRead(body, organizationId) ||
+          body.legalEntityId !== legalEntityId) {
+        throw new Error("Government loan totals or member records are incomplete or from another employer.");
+      }
+      if (signal?.aborted) return null;
+      setForbidden(false);
+      setSnapshot(body);
+      return body;
+    } catch {
+      if (!signal?.aborted) setReadError("Government loan evidence is unavailable or could not be verified. Retry before taking action.");
+      return null;
+    } finally {
+      if (!signal?.aborted) setReading(false);
     }
   }, [organizationId, legalEntityId]);
 
@@ -172,27 +223,20 @@ function GovernmentLoanRemittancePanelContent({
     // Strict Mode cleanup can cancel this scheduled read before it starts.
     queueMicrotask(() => {
       if (controller.signal.aborted) return;
-      void load(controller.signal).catch((error) => {
-        if (controller.signal.aborted) return;
-        setNotice(error instanceof Error ? error.message : "Could not load government loan remittances.");
-      });
+      void load(controller.signal);
     });
     return () => controller.abort();
   }, [load, setNotice]);
 
   const monthBatches = useMemo(
-    () => batches.filter((batch) => batch.applicableMonth === month),
-    [batches, month],
+    () => (snapshot?.batches ?? []).filter((batch) => batch.applicableMonth === month),
+    [snapshot, month],
   );
 
   async function mutate(action: string, payload: Record<string, unknown>, success: string) {
-    if (readPhase !== "verified" || busy !== null) {
-      setNotice("Loan remittance controls are unavailable until the employer evidence read is verified.");
-      return false;
-    }
+    if (!snapshot || reading || busy !== null) return false;
     setBusy(action);
-    onMutationBusy(true);
-    let postAccepted = false;
+    onMutationBusyChange(true);
     try {
       const response = await fetch("/api/compliance/government-loan-remittances", {
         method: "POST",
@@ -201,23 +245,24 @@ function GovernmentLoanRemittancePanelContent({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Government loan remittance action failed.");
-      postAccepted = true;
+      // A successful POST may have committed even if the next GET is stale or
+      // unavailable. Never report success until its exact row/revision appears.
       const refreshed = await load();
-      if (!refreshed ||
-          !confirmedGovernmentLoanMutation(action, body, refreshed, organizationId, legalEntityId)) {
-        throw Error("Saved receipt does not match the refreshed authorized record.");
+      if (!refreshed || !isConfirmedGovernmentLoanMutation(action, payload, body, refreshed)) {
+        const uncertain = "This action may already have been recorded, but the updated employer record could not be confirmed. Check the current batch and agency posting evidence before retrying.";
+        setSnapshot(null);
+        setReadError(uncertain);
+        setNotice(uncertain);
+        return false;
       }
       setNotice(success);
       return true;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Government loan remittance action failed.";
-      setNotice(postAccepted
-        ? "This action may have been recorded; inspect the saved legal-employer batch or member posting before retrying. " + message
-        : message);
+      setNotice(error instanceof Error ? error.message : "Government loan remittance action failed.");
       return false;
     } finally {
       setBusy(null);
-      onMutationBusy(false);
+      onMutationBusyChange(false);
     }
   }
 
@@ -273,14 +318,12 @@ function GovernmentLoanRemittancePanelContent({
     }
   }
 
-  if (readPhase !== "verified") return (
-    <article className="card" style={{ marginTop: 18 }} data-government-loan-remittance>
-      <div className="notice notice-amber" role={readPhase === "unavailable" ? "alert" : "status"}>
-        <AlertTriangle size={15} />
-        <span>{readPhase === "loading" ? "Verifying government loan remittance evidence…" : "Government loan remittance controls unavailable. " + readError + " No payment or posting action is permitted."}</span>
-        {readPhase === "unavailable" && <button type="button" className="secondary-button" onClick={() => void load().catch(() => undefined)}>Retry remittance evidence</button>}
-      </div>
-    </article>
+  if (forbidden) return (
+    <div role="alert" className="notice notice-amber" style={{ display: "grid", gap: 8 }}>
+      Government loan records are unavailable for this employer. No status or payment actions can be shown.
+      <button type="button" className="secondary-button" disabled={reading || busy !== null}
+        onClick={() => void load()}>Retry employer access</button>
+    </div>
   );
 
   return (
@@ -293,12 +336,20 @@ function GovernmentLoanRemittancePanelContent({
             Reconcile SSS Salary/Calamity Loans and Pag-IBIG MPL/Calamity Loans from released payroll to employer payment and member posting.
           </p>
         </div>
-        <button className="secondary-button" onClick={() => void load()} disabled={busy !== null}>
+        <button className="secondary-button" onClick={() => void load()} disabled={busy !== null || reading}>
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
 
       <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 14 }}>
+        {reading && <p role="status">Verifying employer-scoped remittance and member evidence…</p>}
+        {readError && <div role="alert" className="notice notice-amber">
+          <AlertTriangle size={15} /> {readError}
+          <button className="secondary-button" type="button" disabled={reading || busy !== null} onClick={() => void load()}>Retry evidence read</button>
+        </div>}
+        {snapshot && monthBatches.length === 0 && (
+          <p role="status">No remittance batch is recorded for this month. This is not proof that loan liabilities are zero.</p>
+        )}
         <div className="notice notice-amber" style={{ margin: 0 }}>
           <AlertTriangle size={15} />
           <span>
@@ -315,7 +366,7 @@ function GovernmentLoanRemittancePanelContent({
             <button
               key={agency}
               className="secondary-button"
-              disabled={busy !== null || monthBatches.some((batch) => batch.agency === agency)}
+              disabled={!snapshot || reading || busy !== null || monthBatches.some((batch) => batch.agency === agency)}
               onClick={() => void createBatch(agency)}
             >
               <Landmark size={14} />

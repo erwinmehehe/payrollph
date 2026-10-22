@@ -1,169 +1,205 @@
 /**
- * Evidence-only government-loan remittance read. A network error, missing
- * collection, partial financial row or foreign employer cannot mean zero
- * liabilities, zero posting exceptions, or permission to record a payment.
+ * Verified loan remittance evidence. An absent, foreign or partial 200 is
+ * not a legitimate zero liability or permission to record payment.
  */
-export type VerifiedGovernmentLoanBatch = {
+export type GovernmentLoanBatch = {
   id: number; organizationId: number; legalEntityId: number;
-  agency: "SSS" | "Pag-IBIG"; applicableMonth: string; dueDate: string;
-  status: "open" | "paid" | "reconciled" | "exception";
-  displayStatus: "open" | "paid" | "reconciled" | "exception" | "overdue";
+  agency: "SSS" | "Pag-IBIG"; applicableMonth: string;
+  dueDate: string; status: string; displayStatus: string;
   employeeCount: number; loanCount: number; expectedTotal: string;
   amountPaid: string | null; paymentReference: string | null;
-  agencyAcknowledgementReference: string | null;
+  agencyAcknowledgementReference: string | null; paymentVarianceNote: string | null;
+  paidAt: string | null; updatedAt: string;
   pendingPostingCount: number; exceptionCount: number;
 };
-export type VerifiedGovernmentLoanMember = {
-  id: number; batchId: number; organizationId: number; legalEntityId: number;
-  employeeNo: string; loanType: string; loanReferenceNo: string;
-  deductedAmount: string; postingStatus: "pending" | "confirmed" | "exception";
-  postedAmount: string | null; postingReference: string | null;
-  exceptionNote: string | null;
+export type GovernmentLoanMember = {
+  id: number; organizationId: number; legalEntityId: number;
+  batchId: number; employeeId: number; employeeNo: string;
+  loanType: string; loanReferenceNo: string; deductedAmount: string;
+  postingStatus: string; postedAmount: string | null;
+  postingReference: string | null; exceptionNote: string | null;
+  updatedAt: string;
 };
-export type VerifiedGovernmentLoanRead = {
-  organizationId: number;
-  today: string;
-  legalEntity: { id: number; code: string; displayName: string };
-  batches: VerifiedGovernmentLoanBatch[];
-  members: VerifiedGovernmentLoanMember[];
+export type GovernmentLoanRead = {
+  organizationId: number; legalEntityId: number; today: string;
+  legalEntity: {id: number; code: string | null; displayName: string};
+  batches: GovernmentLoanBatch[];
+  members: GovernmentLoanMember[];
 };
-const record = (x: unknown): x is Record<string, unknown> =>
-  x !== null && typeof x === "object" && !Array.isArray(x);
-const id = (x: unknown): x is number =>
-  typeof x === "number" && Number.isSafeInteger(x) && x > 0;
-const count = (x: unknown): x is number =>
-  typeof x === "number" && Number.isSafeInteger(x) && x >= 0;
-const text = (x: unknown): x is string =>
-  typeof x === "string" && x.trim().length > 0;
-const optionalText = (x: unknown) => x === null || typeof x === "string";
-const money = (x: unknown): x is string =>
-  typeof x === "string" && /^(?:0|[1-9][0-9]{0,12})(?:\.[0-9]{1,2})?$/.test(x) && Number.isFinite(Number(x));
-const date = (x: unknown): x is string => {
-  if (typeof x !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(x)) return false;
-  const millis = Date.parse(x + "T00:00:00Z");
-  return Number.isFinite(millis) && new Date(millis).toISOString().slice(0, 10) === x;
+const obj = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+const id = (v: unknown): v is number =>
+  typeof v === "number" && Number.isSafeInteger(v) && v > 0;
+const nonnegative = (v: unknown): v is number =>
+  typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
+const text = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
+// PostgreSQL remittance amounts use scale 2. Keeping cents as safe integers
+// avoids rounding away a partially posted peso amount or an extra decimal.
+const cents = (v: unknown): number | null => {
+  if (typeof v !== "string") return null;
+  const match = /^(\d{1,12})(?:\.(\d{1,2}))?$/.exec(v);
+  if (!match) return null;
+  const value = Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));
+  return Number.isSafeInteger(value) ? value : null;
 };
-const month = (x: unknown): x is string =>
-  typeof x === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(x);
+const money = (v: unknown): v is string => cents(v) !== null;
+const timestamp = (v: unknown): v is string =>
+  typeof v === "string" &&
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(v) &&
+  Number.isFinite(Date.parse(v));
+const day = (v: unknown): v is string => {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const parsed = Date.parse(v + "T00:00:00.000Z");
+  return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0,10) === v;
+};
+const month = (v: unknown): v is string => typeof v === "string" &&
+  /^\d{4}-(0[1-9]|1[0-2])$/.test(v);
+function batch(v: unknown, organizationId: number, legalEntityId: number, today: string): v is GovernmentLoanBatch {
+  if (!obj(v) || !id(v.id) || v.organizationId !== organizationId ||
+      v.legalEntityId !== legalEntityId ||
+      !["SSS", "Pag-IBIG"].includes(String(v.agency)) || !month(v.applicableMonth) ||
+      !day(v.dueDate) || !["open", "paid", "exception", "reconciled"].includes(String(v.status)) ||
+      !timestamp(v.updatedAt) || !nonnegative(v.employeeCount) ||
+      !nonnegative(v.loanCount) || v.employeeCount === 0 || v.loanCount === 0 ||
+      v.employeeCount > v.loanCount ||
+      !money(v.expectedTotal) || (cents(v.expectedTotal) ?? 0) <= 0 ||
+      !nonnegative(v.pendingPostingCount) || !nonnegative(v.exceptionCount) ||
+      v.pendingPostingCount + v.exceptionCount > v.loanCount) return false;
+  if (v.displayStatus !== (v.status === "open" && v.dueDate < today ? "overdue" : v.status))
+    return false;
 
-/** Exact integer-cent arithmetic; floating-point totals must never certify remittances. */
-function cents(value: string): bigint {
-  const [whole, fraction = ""] = value.split(".");
-  return BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0"));
+  if (v.status === "open") return v.amountPaid === null;
+
+  const expected = cents(v.expectedTotal);
+  const paid = cents(v.amountPaid);
+  if (expected === null || paid === null || paid <= 0 || paid + 1 < expected ||
+      !text(v.paymentReference) || !text(v.agencyAcknowledgementReference) ||
+      !timestamp(v.paidAt)) return false;
+  if (paid > expected + 1 && !text(v.paymentVarianceNote)) return false;
+  return true;
 }
-function validBatch(value: unknown, org: number, entity: number): value is VerifiedGovernmentLoanBatch {
-  if (!record(value)) return false;
-  return id(value.id) && value.organizationId === org && value.legalEntityId === entity &&
-    (value.agency === "SSS" || value.agency === "Pag-IBIG") &&
-    month(value.applicableMonth) && date(value.dueDate) &&
-    ["open", "paid", "reconciled", "exception"].includes(String(value.status)) &&
-    (value.displayStatus === value.status || (value.displayStatus === "overdue" && value.status === "open")) &&
-    count(value.employeeCount) && count(value.loanCount) &&
-    money(value.expectedTotal) &&
-    (value.amountPaid === null || money(value.amountPaid)) &&
-    optionalText(value.paymentReference) &&
-    optionalText(value.agencyAcknowledgementReference) &&
-    count(value.pendingPostingCount) && count(value.exceptionCount);
+function member(v: unknown, organizationId: number, legalEntityId: number): v is GovernmentLoanMember {
+  if (!obj(v) || !id(v.id) || v.organizationId !== organizationId ||
+      v.legalEntityId !== legalEntityId || !id(v.batchId) || !id(v.employeeId) ||
+      !text(v.employeeNo) || !text(v.loanType) || !text(v.loanReferenceNo) ||
+      !timestamp(v.updatedAt) ||
+      !money(v.deductedAmount) || (cents(v.deductedAmount) ?? 0) <= 0 ||
+      !["pending", "confirmed", "exception"].includes(String(v.postingStatus))) return false;
+  const deducted = cents(v.deductedAmount);
+  const posted = cents(v.postedAmount);
+  if (v.postingStatus === "confirmed") {
+    return deducted !== null && posted !== null && posted > 0 &&
+      Math.abs(posted - deducted) <= 1 && text(v.postingReference) &&
+      v.exceptionNote === null;
+  }
+  if (v.postedAmount !== null || v.postingReference !== null) return false;
+  return v.postingStatus === "exception" ? text(v.exceptionNote) : v.exceptionNote === null;
 }
-function validMember(value: unknown, org: number, entity: number): value is VerifiedGovernmentLoanMember {
-  if (!record(value)) return false;
-  return id(value.id) && id(value.batchId) &&
-    value.organizationId === org && value.legalEntityId === entity &&
-    text(value.employeeNo) && text(value.loanType) && text(value.loanReferenceNo) &&
-    money(value.deductedAmount) &&
-    ["pending", "confirmed", "exception"].includes(String(value.postingStatus)) &&
-    (value.postedAmount === null || money(value.postedAmount)) &&
-    optionalText(value.postingReference) && optionalText(value.exceptionNote) &&
-    (value.postingStatus !== "confirmed" ||
-      (money(value.postedAmount) && text(value.postingReference)));
-}
-export function isVerifiedGovernmentLoanRead(
-  value: unknown, organizationId: number, legalEntityId: number,
-): value is VerifiedGovernmentLoanRead {
-  if (!id(organizationId) || !id(legalEntityId) ||
-      !record(value) || value.organizationId !== organizationId ||
-      !date(value.today) || !record(value.legalEntity) ||
-      value.legalEntity.id !== legalEntityId || !text(value.legalEntity.code) ||
-      !text(value.legalEntity.displayName) ||
-      !Array.isArray(value.batches) || value.batches.length > 5000 ||
-      !Array.isArray(value.members) || value.members.length > 50000) return false;
-  const entityId = value.legalEntity.id as number;
-  if (!value.batches.every((row: unknown) => validBatch(row, organizationId, entityId)) ||
-      !value.members.every((row: unknown) => validMember(row, organizationId, entityId))) return false;
-  const batches = value.batches as VerifiedGovernmentLoanBatch[];
-  const members = value.members as VerifiedGovernmentLoanMember[];
-  if (new Set(batches.map(row => row.id)).size !== batches.length ||
-      new Set(members.map(row => row.id)).size !== members.length) return false;
-  const ids = new Set(batches.map(row => row.id));
-  if (members.some(row => !ids.has(row.batchId))) return false;
-  for (const batch of batches) {
-    const related = members.filter(row => row.batchId === batch.id);
-    if (batch.loanCount !== related.length ||
-        batch.employeeCount !== new Set(related.map(row => row.employeeNo)).size ||
-        cents(batch.expectedTotal) !== related.reduce(
-          (sum, member) => sum + cents(member.deductedAmount), BigInt(0),
-        ) ||
-        batch.pendingPostingCount !== related.filter(row => row.postingStatus === "pending").length ||
-        batch.exceptionCount !== related.filter(row => row.postingStatus === "exception").length) return false;
+export function isVerifiedGovernmentLoanRemittanceRead(
+  v: unknown, organizationId: number,
+): v is GovernmentLoanRead {
+  if (!id(organizationId) || !obj(v) || v.organizationId !== organizationId ||
+      !id(v.legalEntityId) || !day(v.today) ||
+      !obj(v.legalEntity) || v.legalEntity.id !== v.legalEntityId ||
+      !(v.legalEntity.code === null || typeof v.legalEntity.code === "string") ||
+      !text(v.legalEntity.displayName) || !Array.isArray(v.batches) ||
+      !Array.isArray(v.members) || v.batches.length > 5000 || v.members.length > 20000) return false;
+  const entityId = v.legalEntityId;
+  if (!v.batches.every((b: unknown) => batch(b, organizationId, entityId, v.today as string)) ||
+      !v.members.every((m: unknown) => member(m, organizationId, entityId))) return false;
+  const batches = v.batches as GovernmentLoanBatch[];
+  const members = v.members as GovernmentLoanMember[];
+  const ids = new Set(batches.map(b => b.id));
+  if (ids.size !== batches.length ||
+      new Set(members.map(m => m.id)).size !== members.length ||
+      members.some(m => !ids.has(m.batchId))) return false;
+  for (const b of batches) {
+    const rows = members.filter(m => m.batchId === b.id);
+    if (rows.length !== b.loanCount ||
+        new Set(rows.map(r => r.employeeId)).size !== b.employeeCount ||
+        rows.filter(r => r.postingStatus === "pending").length !== b.pendingPostingCount ||
+        rows.filter(r => r.postingStatus === "exception").length !== b.exceptionCount) return false;
+    const expectedCents = cents(b.expectedTotal);
+    const memberCents = rows.reduce((sum, row) => sum + (cents(row.deductedAmount) ?? 0), 0);
+    if (expectedCents === null || !Number.isSafeInteger(memberCents) ||
+        memberCents !== expectedCents) return false;
+    if (b.status === "reconciled" &&
+        (b.pendingPostingCount !== 0 || b.exceptionCount !== 0 ||
+         rows.some(row => row.postingStatus !== "confirmed"))) return false;
+    if (b.status === "exception" && b.exceptionCount === 0) return false;
+    if (b.status === "open" && rows.some(row => row.postingStatus !== "pending"))
+      return false;
   }
   return true;
 }
-export async function readVerifiedGovernmentLoanRemittances(
-  organizationId: number, legalEntityId: number,
-  fetcher: typeof fetch = fetch, signal?: AbortSignal,
-): Promise<VerifiedGovernmentLoanRead> {
-  if (!id(organizationId) || !id(legalEntityId))
-    throw Error("Government loan remittances unavailable until a legal employer is selected.");
-  const response = await fetcher(
-    "/api/compliance/government-loan-remittances?organizationId=" + organizationId +
-      "&legalEntityId=" + legalEntityId,
-    { cache: "no-store", signal },
-  );
-  if (!response.ok) throw Error("Government loan remittance evidence unavailable. Retry.");
-  let value: unknown;
-  try { value = await response.json(); }
-  catch { throw Error("Government loan remittance evidence returned malformed JSON. Retry."); }
-  if (!isVerifiedGovernmentLoanRead(value, organizationId, legalEntityId)) {
-    throw Error("Government loan remittance evidence incomplete or for another employer. Retry.");
-  }
-  return value;
-}
 
 /**
- * Confirm a write only when its actual POST receipt matches the exact saved
- * record in a second authorized GET. A stale but schema-valid GET is not proof.
+ * A successful POST receipt is not enough: the fresh GET must show the exact
+ * changed record and revision, rather than an unrelated or stale 200.
  */
-export function confirmedGovernmentLoanMutation(
-  action: string, receipt: unknown, refreshed: VerifiedGovernmentLoanRead,
-  organizationId: number, legalEntityId: number,
+export function isConfirmedGovernmentLoanMutation(
+  action: string,
+  payload: Record<string, unknown>,
+  response: unknown,
+  read: GovernmentLoanRead,
 ): boolean {
-  if (!record(receipt) ||
-      !isVerifiedGovernmentLoanRead(refreshed, organizationId, legalEntityId)) return false;
+  if (!obj(response) || !id(read.organizationId) || !id(read.legalEntityId)) return false;
+  const isCurrent = (receipt: Record<string, unknown>, current: Record<string, unknown>): boolean =>
+    id(receipt.id) && receipt.id === current.id &&
+    receipt.organizationId === read.organizationId &&
+    receipt.legalEntityId === read.legalEntityId &&
+    timestamp(receipt.updatedAt) && receipt.updatedAt === current.updatedAt;
+
   if (action === "create_batch" || action === "record_payment") {
-    const raw = receipt.batch;
-    if (!record(raw) || !id(raw.id) ||
-        raw.organizationId !== organizationId || raw.legalEntityId !== legalEntityId) return false;
-    const saved = refreshed.batches.find((batch) => batch.id === raw.id);
-    if (!saved || saved.agency !== raw.agency ||
-        saved.applicableMonth !== raw.applicableMonth ||
-        saved.expectedTotal !== raw.expectedTotal || saved.status !== raw.status) return false;
-    if (action === "create_batch") return raw.status === "open";
-    return raw.status === "paid" && saved.amountPaid === raw.amountPaid &&
-      saved.paymentReference === raw.paymentReference &&
-      saved.agencyAcknowledgementReference === raw.agencyAcknowledgementReference;
+    if (!obj(response.batch) || !id(response.batch.id)) return false;
+    const receipt = response.batch;
+    const current = read.batches.find(row => row.id === receipt.id);
+    if (!current || !isCurrent(receipt, current)) return false;
+    if (action === "create_batch") {
+      return receipt.status === "open" && current.status === "open" &&
+        receipt.agency === payload.agency && current.agency === payload.agency &&
+        receipt.applicableMonth === payload.applicableMonth &&
+        current.applicableMonth === payload.applicableMonth;
+    }
+    const amount = payload.amountPaid;
+    if (current.id !== payload.batchId || typeof amount !== "number" ||
+        !Number.isFinite(amount) || amount <= 0) return false;
+    const submittedCents = Math.round(amount * 100);
+    const paid = cents(receipt.amountPaid);
+    return Number.isSafeInteger(submittedCents) && paid !== null &&
+      paid === submittedCents && cents(current.amountPaid) === paid &&
+      receipt.status === "paid" && current.status === "paid" &&
+      text(receipt.paymentReference) &&
+      receipt.paymentReference === current.paymentReference &&
+      receipt.paymentReference === String(payload.paymentReference ?? "").trim() &&
+      text(receipt.agencyAcknowledgementReference) &&
+      receipt.agencyAcknowledgementReference === current.agencyAcknowledgementReference &&
+      receipt.agencyAcknowledgementReference === String(payload.agencyAcknowledgementReference ?? "").trim() &&
+      timestamp(receipt.paidAt) && receipt.paidAt === current.paidAt;
   }
-  if (action === "confirm_member_posting" || action === "mark_member_exception") {
-    const raw = receipt.member;
-    if (!record(raw) || !id(raw.id) ||
-        raw.organizationId !== organizationId || raw.legalEntityId !== legalEntityId) return false;
-    const saved = refreshed.members.find((member) => member.id === raw.id);
-    if (!saved || saved.batchId !== raw.batchId ||
-        saved.postingStatus !== raw.postingStatus) return false;
-    return action === "confirm_member_posting"
-      ? raw.postingStatus === "confirmed" &&
-        saved.postedAmount === raw.postedAmount &&
-        saved.postingReference === raw.postingReference
-      : raw.postingStatus === "exception" && saved.exceptionNote === raw.exceptionNote;
+
+  if (action !== "confirm_member_posting" && action !== "mark_member_exception") return false;
+  if (!obj(response.member) || !id(response.member.id)) return false;
+  const receipt = response.member;
+  const current = read.members.find(row => row.id === receipt.id);
+  if (!current || !isCurrent(receipt, current) || current.id !== payload.memberId ||
+      receipt.batchId !== current.batchId) return false;
+  if (action === "confirm_member_posting") {
+    const requested = payload.postedAmount;
+    if (typeof requested !== "number" || !Number.isFinite(requested) || requested <= 0)
+      return false;
+    const submittedCents = Math.round(requested * 100);
+    return Number.isSafeInteger(submittedCents) &&
+      receipt.postingStatus === "confirmed" && current.postingStatus === "confirmed" &&
+      cents(receipt.postedAmount) === submittedCents &&
+      cents(current.postedAmount) === submittedCents &&
+      text(receipt.postingReference) &&
+      receipt.postingReference === current.postingReference &&
+      receipt.postingReference === String(payload.postingReference ?? "").trim();
   }
-  return false;
+  return receipt.postingStatus === "exception" && current.postingStatus === "exception" &&
+    text(receipt.exceptionNote) &&
+    receipt.exceptionNote === current.exceptionNote &&
+    receipt.exceptionNote === String(payload.exceptionNote ?? "").trim() &&
+    read.batches.some(batch => batch.id === current.batchId && batch.status === "exception");
 }
