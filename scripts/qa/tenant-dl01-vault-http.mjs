@@ -3,8 +3,8 @@
  * three-employer PG16 + localhost HTTP runner. No live storage object is read,
  * written or removed; deletion only soft-removes fictional DB metadata.
  *
- * GET /api/employee-vault and DELETE /api/employee-vault/[id] stay GAP until
- * exact-head Security HTTP Smoke, source-line pinning and independent review.
+ * GET /api/employee-vault and DELETE /api/employee-vault/[id] have provisional
+ * source-pinned method proofs; exact-head CI and human review still required.
  */
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
@@ -174,5 +174,5 @@ export async function verifyDl01Vault(f, { request, expectStatus }) {
       "Victim documents and audit must remain byte-for-byte unchanged after own, foreign and forged vault HTTP requests");
     console.log("PASS provisional DL-01 vault GET and DELETE, independent attacker " + idx);
   }
-  console.log("PROVISIONAL DL-01 vault: 2 candidate methods, 2 attackers, actual high-ID victim, unchanged PG; inventory stays NOT ACCEPTED.");
+  console.log("PROVISIONAL DL-01 vault: 2 source-linked methods, 2 attackers, actual high-ID victim, unchanged PG; global inventory NOT ACCEPTED.");
 }
