@@ -2,6 +2,8 @@
 
 > **RELEASE BLOCKER:** 357 API methods and 20 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
+> **NOT ACCEPTED**: 357 method gaps and 20 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
 ## Merged security fix — former-employer payslip PDF authorization (#1283)
@@ -10,7 +12,7 @@
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with an additional contribution-evidence active-membership authorization guard proposed in #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 361 method gaps and 20 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and new #1328 integration requires exact-head CI.
+**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with an additional contribution-evidence active-membership authorization guard proposed in #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 357 method gaps and 20 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and new #1328 integration requires exact-head CI.
 
 ## Approved-exit Separation evidence
 

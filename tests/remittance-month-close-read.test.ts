@@ -173,10 +173,10 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     }
     newlySourcePinned += added;
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 119,
-    "Keep the 119 independently source-pinned main methods and only add new compliance methods");
-  assert.equal(manifest.metrics.gap + newlySourcePinned, 364,
-    "Never reduce main’s 364 open method GAPs without new source-linked real HTTP proof");
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 123,
+    "Keep all 123 independently source-pinned methods from main after #1330 and only add new compliance methods");
+  assert.equal(manifest.metrics.gap + newlySourcePinned, 360,
+    "Never reduce main’s 360 open method GAPs without new source-linked real HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);
