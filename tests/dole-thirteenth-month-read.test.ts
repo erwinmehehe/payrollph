@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  confirmedDole13thMutation,
   isVerifiedDole13thRead, readVerifiedDole13th, type VerifiedDole13thRead,
 } from "@/lib/dole-thirteenth-month-read";
 
@@ -62,4 +63,36 @@ test("DOLE 13th: Retry requests a fresh report and only verified evidence can su
   await assert.rejects(readVerifiedDole13th(org, year, fetcher));
   assert.deepEqual(await readVerifiedDole13th(org, year, fetcher), report);
   assert.equal(attempts, 2);
+});
+
+test("DOLE 13th: an exact saved profile or portal receipt is required after POST", () => {
+  const profile = { establishmentAddress: "Fictional Site", principalBusiness: "Fictional Work",
+    contactName: "Fictional Owner", contactPosition: "Payroll", contactPhone: "5550101" };
+  const withProfile = { ...report, profile, profileComplete: true, readyToSubmit: false };
+  const receipt = { profile: { ...profile, organizationId: org } };
+  assert.equal(confirmedDole13thMutation("save_profile", receipt, withProfile, org, year), true);
+  assert.equal(confirmedDole13thMutation("save_profile", receipt, report, org, year), false);
+  assert.equal(confirmedDole13thMutation("save_profile", receipt,
+    { ...withProfile, profile: { ...profile, contactPhone: "5550199" } }, org, year), false);
+
+  const entry = { id: 71, organizationId: org, reportYear: year,
+    reportHash: report.reportHash, portalReference: "FICTIONAL-OCP-001",
+    submittedAt: "2026-10-21T00:00:00.000Z", recordedByName: "Fictional Owner" };
+  const submitted = {
+    ...withProfile, submissionCurrent: true,
+    currentSubmission: { reportHash: entry.reportHash, portalReference: entry.portalReference,
+      submittedAt: entry.submittedAt, recordedByName: entry.recordedByName },
+    latestSubmission: { reportHash: entry.reportHash, portalReference: entry.portalReference,
+      submittedAt: entry.submittedAt },
+    submissionHistory: [{ id: entry.id, reportHash: entry.reportHash,
+      portalReference: entry.portalReference, submittedAt: entry.submittedAt,
+      recordedByName: entry.recordedByName }],
+  };
+  const post = { submission: entry, reportHash: report.reportHash };
+  assert.equal(confirmedDole13thMutation("record_submission", post, submitted, org, year), true);
+  assert.equal(confirmedDole13thMutation("record_submission", post, withProfile, org, year), false);
+  assert.equal(confirmedDole13thMutation("record_submission", post,
+    { ...submitted, submissionHistory: [{ ...submitted.submissionHistory[0],
+      id: 72 }] }, org, year), false);
+  assert.equal(confirmedDole13thMutation("record_submission", post, submitted, org + 1, year), false);
 });

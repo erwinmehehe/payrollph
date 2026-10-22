@@ -131,3 +131,35 @@ export async function readVerifiedDole13th(
   }
   return value;
 }
+
+// A successful POST is not evidence of persistence until the exact receipt
+// appears in a fresh, employer/year-scoped read. Never invite blind retries.
+export function confirmedDole13thMutation(
+  action: "save_profile" | "record_submission", receipt: unknown,
+  refreshed: VerifiedDole13thRead, organizationId: number, taxYear: number,
+): boolean {
+  if (!record(receipt) || !isVerifiedDole13thRead(refreshed, organizationId, taxYear))
+    return false;
+  if (action === "save_profile") {
+    if (!profile(receipt.profile) ||
+        !record(receipt.profile) || receipt.profile.organizationId !== organizationId ||
+        refreshed.profile === null) return false;
+    return (["establishmentAddress", "principalBusiness", "contactName",
+      "contactPosition", "contactPhone"] as const).every((field) =>
+        (receipt.profile as DoleProfile)[field] === refreshed.profile?.[field]);
+  }
+  const saved = receipt.submission;
+  if (!record(saved) || !id(saved.id) ||
+      saved.organizationId !== organizationId || saved.reportYear !== taxYear ||
+      !hash(saved.reportHash) || saved.reportHash !== refreshed.reportHash ||
+      receipt.reportHash !== saved.reportHash ||
+      !text(saved.portalReference) || !date(saved.submittedAt) ||
+      refreshed.submissionCurrent !== true || refreshed.currentSubmission === null)
+    return false;
+  return refreshed.currentSubmission.reportHash === saved.reportHash &&
+    refreshed.currentSubmission.portalReference === saved.portalReference &&
+    refreshed.submissionHistory.some((row) => row.id === saved.id &&
+      row.reportHash === saved.reportHash &&
+      row.portalReference === saved.portalReference &&
+      row.submittedAt === saved.submittedAt);
+}

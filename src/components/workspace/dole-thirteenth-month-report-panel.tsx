@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
-import { readVerifiedDole13th, type VerifiedDole13thRead } from "@/lib/dole-thirteenth-month-read";
+import { confirmedDole13thMutation, readVerifiedDole13th, type VerifiedDole13thRead } from "@/lib/dole-thirteenth-month-read";
 
 type State = VerifiedDole13thRead;
 
@@ -55,8 +55,8 @@ function ScopedDoleThirteenthMonthReportPanel({
   const loadControllerRef = useRef<AbortController | null>(null);
   const mutationRevisionRef = useRef(0);
 
-  const load = useCallback(async (): Promise<boolean> => {
-    if (!mountedRef.current) return false;
+  const load = useCallback(async (): Promise<State | null> => {
+    if (!mountedRef.current) return null;
     loadControllerRef.current?.abort();
     const controller = new AbortController();
     loadControllerRef.current = controller;
@@ -64,7 +64,6 @@ function ScopedDoleThirteenthMonthReportPanel({
     const isCurrent = () =>
       mountedRef.current && !controller.signal.aborted && revision === loadRevisionRef.current;
     setLoading(true);
-    setSaving(false);
     setError("");
     // A different annual report could invalidate a previous submission proof.
     // Never show prior year's aggregate pay, portal reference or editable PII.
@@ -79,7 +78,7 @@ function ScopedDoleThirteenthMonthReportPanel({
     });
     try {
       const verified = await readVerifiedDole13th(organizationId, taxYear, fetch, controller.signal);
-      if (!isCurrent()) return false;
+      if (!isCurrent()) return null;
       setState(verified);
       setProfile({
         establishmentAddress: verified.profile?.establishmentAddress ?? "",
@@ -88,10 +87,10 @@ function ScopedDoleThirteenthMonthReportPanel({
         contactPosition: verified.profile?.contactPosition ?? "",
         contactPhone: verified.profile?.contactPhone ?? "",
       });
-      return true;
+      return verified;
     } catch (loadError) {
       if (isCurrent()) setError(loadError instanceof Error ? loadError.message : "DOLE 13th-month report could not be loaded.");
-      return false;
+      return null;
     } finally {
       if (isCurrent()) setLoading(false);
     }
@@ -118,6 +117,7 @@ function ScopedDoleThirteenthMonthReportPanel({
       mountedRef.current && revision === mutationRevisionRef.current
       && readRevision === loadRevisionRef.current;
     setSaving(true);
+    let postAccepted = false;
     try {
       const response = await fetch("/api/compliance/dole-13th-month", {
         method: "POST",
@@ -127,8 +127,12 @@ function ScopedDoleThirteenthMonthReportPanel({
       const body = await response.json().catch(() => ({}));
       if (!isCurrentMutation()) return;
       if (!response.ok) throw new Error(body.error ?? "DOLE reporting update failed.");
+      postAccepted = true;
       const refreshed = await load();
-      if (!mountedRef.current || !refreshed) return;
+      if (!mountedRef.current || revision !== mutationRevisionRef.current) return;
+      if (!refreshed ||
+          !confirmedDole13thMutation(action, body, refreshed, organizationId, taxYear))
+        throw new Error("The exact DOLE receipt could not be confirmed in the refreshed report.");
       notify(
         action === "save_profile"
           ? "DOLE reporting profile saved."
@@ -137,7 +141,12 @@ function ScopedDoleThirteenthMonthReportPanel({
       );
       if (action === "record_submission") setPortalReference("");
     } catch (mutationError) {
-      if (isCurrentMutation()) notify(mutationError instanceof Error ? mutationError.message : "DOLE reporting update failed.", "err");
+      if (mountedRef.current && revision === mutationRevisionRef.current) {
+        const message = mutationError instanceof Error ? mutationError.message : "DOLE reporting update failed.";
+        notify(postAccepted
+          ? "This DOLE change may have been recorded; inspect the saved profile or portal evidence before retrying. " + message
+          : message, "err");
+      }
     } finally {
       if (mountedRef.current && revision === mutationRevisionRef.current) setSaving(false);
     }
