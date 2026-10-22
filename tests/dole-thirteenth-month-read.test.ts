@@ -72,6 +72,7 @@ test("DOLE 13th: an exact saved profile or portal receipt is required after POST
   const receipt = { profile: { ...profile, organizationId: org } };
   assert.equal(confirmedDole13thMutation("save_profile", receipt, withProfile, org, year), true);
   assert.equal(confirmedDole13thMutation("save_profile", receipt, report, org, year), false);
+  assert.equal(confirmedDole13thMutation("save_profile", { profile: { ...profile, organizationId: org + 1 } }, withProfile, org, year), false);
   assert.equal(confirmedDole13thMutation("save_profile", receipt,
     { ...withProfile, profile: { ...profile, contactPhone: "5550199" } }, org, year), false);
 

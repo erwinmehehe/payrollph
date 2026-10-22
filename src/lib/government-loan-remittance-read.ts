@@ -49,7 +49,7 @@ const month = (x: unknown): x is string =>
 /** Exact integer-cent arithmetic; floating-point totals must never certify remittances. */
 function cents(value: string): bigint {
   const [whole, fraction = ""] = value.split(".");
-  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"));
+  return BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0"));
 }
 function validBatch(value: unknown, org: number, entity: number): value is VerifiedGovernmentLoanBatch {
   if (!record(value)) return false;
@@ -101,7 +101,7 @@ export function isVerifiedGovernmentLoanRead(
     if (batch.loanCount !== related.length ||
         batch.employeeCount !== new Set(related.map(row => row.employeeNo)).size ||
         cents(batch.expectedTotal) !== related.reduce(
-          (sum, member) => sum + cents(member.deductedAmount), 0n,
+          (sum, member) => sum + cents(member.deductedAmount), BigInt(0),
         ) ||
         batch.pendingPostingCount !== related.filter(row => row.postingStatus === "pending").length ||
         batch.exceptionCount !== related.filter(row => row.postingStatus === "exception").length) return false;

@@ -141,9 +141,9 @@ export function confirmedDole13thMutation(
   if (!record(receipt) || !isVerifiedDole13thRead(refreshed, organizationId, taxYear))
     return false;
   if (action === "save_profile") {
-    if (!profile(receipt.profile) ||
-        !record(receipt.profile) || receipt.profile.organizationId !== organizationId ||
-        refreshed.profile === null) return false;
+    // Check the receipt's tenant identity before narrowing to the public profile fields.
+    if (!record(receipt.profile) || receipt.profile.organizationId !== organizationId ||
+        !profile(receipt.profile) || refreshed.profile === null) return false;
     return (["establishmentAddress", "principalBusiness", "contactName",
       "contactPosition", "contactPhone"] as const).every((field) =>
         (receipt.profile as DoleProfile)[field] === refreshed.profile?.[field]);
