@@ -33,12 +33,12 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 **Shared fixture:** PDF/csv bytes, statutory batches, payroll run, real vault/document row and employee import; no provider. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
 
 - `GET /api/bir/annual-employer/module-evidence` — [source](../../src/app/api/bir/annual-employer/module-evidence/route.ts#L65)
-- `POST /api/bir/annual-employer/module-evidence` — [source](../../src/app/api/bir/annual-employer/module-evidence/route.ts#L95)
+- `POST /api/bir/annual-employer/module-evidence` — [source](../../src/app/api/bir/annual-employer/module-evidence/route.ts#L110)
 - `GET /api/compliance/contribution-issues/evidence` — [source](../../src/app/api/compliance/contribution-issues/evidence/route.ts#L41)
 - `GET /api/compliance/filing-validations/[id]/file` — [source](../../src/app/api/compliance/filing-validations/[id]/file/route.ts#L14)
 - `GET /api/compliance/labor-inspection/evidence-pack` — [source](../../src/app/api/compliance/labor-inspection/evidence-pack/route.ts#L23)
 - `GET /api/compliance/statutory-remittances/payment-evidence` — [source](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L57)
-- `POST /api/compliance/statutory-remittances/payment-evidence` — [source](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L97)
+- `POST /api/compliance/statutory-remittances/payment-evidence` — [source](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L108)
 - `GET /api/compliance/statutory-remittances/payment-evidence/[id]` — [source](../../src/app/api/compliance/statutory-remittances/payment-evidence/[id]/route.ts#L11)
 - `GET /api/compliance/statutory-remittances/posting-evidence/[id]` — [source](../../src/app/api/compliance/statutory-remittances/posting-evidence/[id]/route.ts#L22)
 - `GET /api/compliance/statutory-remittances/posting-import` — [source](../../src/app/api/compliance/statutory-remittances/posting-import/route.ts#L41)
@@ -61,7 +61,11 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch DL-02 — Self-service files, HR evidence, photos, report exports and workforce evidence (26 methods; phase 1)
 
-**Shared fixture:** employee principal, HR document, photo bytes, workforce evidence, report config and nonempty export. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** employee principal, HR document, photo bytes, workforce evidence, report config and nonempty export. **Status:** part 1 supplies source-pinned real-HTTP/PostgreSQL evidence for 19 methods in `scripts/qa/tenant-dl02-http.mjs`; `GET /api/reports` and `GET /api/self/documents` are credited by #1318; `GET /api/multi-entity/reports`, `POST /api/self/photo`, `GET`/`POST /api/web-bundy/evidence` and `POST /api/workforce/demand-observations/import` remain GAP (need a multi-entity server, an HTTPS test scanner and per-employer allowlists). **PR:** [#1328](https://github.com/erwinmehehe/payrollph/pull/1328); source merge and current-head CI do not certify the remaining DL-02 or full tenant-isolation gaps.
+
+**Route-specific denial evidence:** `GET`/`HEAD`/`DELETE /api/self/photo` and `GET /api/self/contribution-evidence` are session-derived self-service endpoints that accept no client-selected employer or victim-object ID. For each of two independent synthetic employee employers, their specific negative control is **the same signed-in employee's access denied with 403 after revoking that employee's active employer membership**, following a real own-request 200. A separate victim employer's PostgreSQL snapshot remains unchanged. These are *revoked-membership* controls, not fabricated foreign-object selector requests; other DL-02 routes exercise actual foreign-employer or victim-object denials.
+
+**Proof-integrity reinforcement:** This batch seeds two real attacker-employer populations and their saved report POST objects **before** creating the victim-exclusive targets. Victim IDs are read back from disposable PostgreSQL and required to exceed each attacker-owned corresponding object ID, rather than only a fixed sequence floor. Report POST positives must contain seeded employer-specific employee counts/rows; report GET catalogs are labeled as authorized field metadata and paired with foreign-tenant 403 controls, not falsely claimed as owned-row exports. Performance GET must return a real synthetic cycle/review JSON document and matching section/snapshot SHA256. The unchanged victim DB snapshot now includes employment decisions/terms, employees, payroll runs/entries and performance cycles/reviews. Rebuild source-line manifest pins and rerun applicable exact-head CI before any `COVERED` disposition is accepted.
 
 - `GET /api/hcm-report-builder` — [source](../../src/app/api/hcm-report-builder/route.ts#L43)
 - `POST /api/hcm-report-builder` — [source](../../src/app/api/hcm-report-builder/route.ts#L61)
@@ -78,7 +82,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 - `GET /api/reports` — [source](../../src/app/api/reports/route.ts#L13)
 - `GET /api/reports/builder` — [source](../../src/app/api/reports/builder/route.ts#L69)
 - `POST /api/reports/builder` — [source](../../src/app/api/reports/builder/route.ts#L80)
-- `GET /api/self/contribution-evidence` — [source](../../src/app/api/self/contribution-evidence/route.ts#L47)
+- `GET /api/self/contribution-evidence` — [source](../../src/app/api/self/contribution-evidence/route.ts#L48)
 - `GET /api/self/documents` — [source](../../src/app/api/self/documents/route.ts#L47)
 - `POST /api/self/documents` — [source](../../src/app/api/self/documents/route.ts#L147)
 - `POST /api/self/payslips` — [source](../../src/app/api/self/payslips/route.ts#L371)
