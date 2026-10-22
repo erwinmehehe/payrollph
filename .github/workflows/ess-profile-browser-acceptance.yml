@@ -69,6 +69,8 @@ jobs:
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Verify localhost-only schema and create a disposable database
         run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Seed two fictional employers and authenticated role accounts
         run: |
           npx tsx scripts/employee-import-synthetic-fixture.ts

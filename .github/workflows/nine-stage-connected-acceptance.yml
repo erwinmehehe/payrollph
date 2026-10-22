@@ -305,6 +305,8 @@ jobs:
         run: |
           node scripts/qa/apply-audit-0109-isolated.mjs
           node scripts/qa/synthetic-session-clock.cjs
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Validate guarded synthetic Manila month-end helper
         run: node --test tests/qa-synthetic-month-end.test.mjs
       - name: Run focused payroll/WFM safety regressions (separate from connected evidence)

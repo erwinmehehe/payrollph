@@ -72,6 +72,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Ephemeral dedicated PII key for the disposable build
         shell: bash
         run: |
