@@ -25,7 +25,8 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const pages = manifest.scopedPages;
   assert.equal(pages.length, 20);
-  assert.ok(pages.every((p) => p.status === "GAP"));
+  const pageGaps = pages.filter((page) => page.status === "GAP");
+  assert.equal(pageGaps.length, 19, "The manager inbox has a separate flag-ON HTTP proof");
   const runSnapshot = await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
   const employeeSnapshot = await db.select().from(employees)
@@ -114,7 +115,7 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
     allScopedPagePathsProbed: pages.length,
     independentAttackerCompanies: 2, httpPageComparisons: observations.length,
     authorizedOwn200AndForeignDenied: observations.filter((p) => !p.notCertified).length,
-    outstandingPageOrActionGaps: pages.length, pageGapsReclassified: 0,
+    outstandingPageOrActionGaps: pageGaps.length, pageGapsReclassified: 0,
     crossEmployerPIIMarkersObserved: 0, victimEmployeeAndPayrollUnchanged: true,
     requiresFeatureOnBrowserAndActionAcceptance: true,
     observedStatuses: observations }));

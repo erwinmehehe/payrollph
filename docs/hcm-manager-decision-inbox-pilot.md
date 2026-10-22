@@ -35,7 +35,8 @@ Payroll approval tasks, compensation-change HCM processes and termination proces
 - SQL filters tenant, status, unit and candidate assignment label before a 20+1 source limit, then revalidates identity/assignment. A candidate page can display fewer than 20, or no eligible records while an older page still exists; do not claim the whole queue is clear.
 - Page counts describe only the current candidate page, not the entire employer.
 - An overdue SLA requires an actual HCM step dueAt timestamp. Do not use leave start/end dates or overtime work dates as a contractual deadline.
-- Stale browser requests are aborted; response envelope must match employer/source/cursor; switching employers remounts the client to reset its state.
+- Stale browser requests are aborted; response envelope must match employer/source/cursor and the authorized manager scope independently derived on the server-rendered page; switching employers remounts the client to reset its state.
+- Pagination cursors refer to the last scanned **source candidate**, not necessarily the last visible, authorized row. An empty display can validly have `hasMore=true`; response validation checks descending visible IDs and strictly progressing candidate cursors without exposing hidden candidate identities.
 - The UI is read-only; decision controls and any per-task deep links remain with source applications.
 
 ## Pre-client source integration

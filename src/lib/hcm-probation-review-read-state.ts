@@ -43,3 +43,65 @@ export function probationReviewReadActions(
     showUnavailablePermission: ready && review === null && !canMutate,
   };
 }
+
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const id = (value: unknown) =>
+  typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+const optionalString = (value: unknown) =>
+  value === null || typeof value === "string";
+const reviewDate = (value: unknown) =>
+  typeof value === "string" && Number.isFinite(Date.parse(value));
+const optionalRating = (value: unknown) =>
+  value === null || (Number.isSafeInteger(value) && Number(value) >= 1 && Number(value) <= 5);
+
+/**
+ * Server response identity and displayed record proof. The loose envelope
+ * above remains for read-action state tests; it is not a tenant authorization.
+ */
+export function isScopedProbationReviewEnvelope(
+  value: unknown, organizationId: number, employeeId: number, employmentTermId: number,
+): boolean {
+  if (!id(organizationId) || !id(employeeId) || !id(employmentTermId) ||
+      !isProbationReviewReadEnvelope(value) || !isObject(value)) return false;
+  const packet = value as unknown as Record<string, unknown>;
+  if (packet.organizationId !== organizationId || packet.canManage !== true
+      || typeof packet.guardrail !== "string" || !Array.isArray(packet.events)
+      || !isObject(packet.employee) || packet.employee.id !== employeeId
+      || !isObject(packet.term) || packet.term.id !== employmentTermId
+      || packet.term.employeeId !== employeeId || packet.term.organizationId !== organizationId
+      || packet.term.termKind !== "probationary") return false;
+  if (packet.review === null) {
+    return packet.acknowledgment === null && packet.events.length === 0;
+  }
+  const review = packet.review;
+  if (!isObject(review) || !id(review.id)
+      || review.organizationId !== organizationId || review.employeeId !== employeeId
+      || review.employmentTermId !== employmentTermId
+      || !["draft", "submitted"].includes(String(review.status))
+      || ![null, "confirm_regular", "non_renew", "needs_hr_review"].includes(
+        review.recommendation as string | null)
+      || !["overallRating", "roleExpectationsRating", "workQualityRating",
+        "reliabilityRating", "conductCollaborationRating"].every(
+        (key) => optionalRating(review[key]))
+      || !["summary", "strengths", "developmentAreas"].every(
+        (key) => optionalString(review[key]))
+      || typeof review.reviewerName !== "string"
+      || !(review.submittedAt === null || reviewDate(review.submittedAt))
+      || (review.status === "submitted" && packet.mutable !== false)) return false;
+  if (review.status === "submitted" &&
+      (review.submittedAt === null || review.recommendation === null ||
+       ["overallRating", "roleExpectationsRating", "workQualityRating",
+         "reliabilityRating", "conductCollaborationRating"].some(
+         (key) => review[key] === null))) return false;
+  if (packet.acknowledgment !== null) {
+    const a = packet.acknowledgment;
+    if (!isObject(a) || !id(a.id) || a.reviewId !== review.id
+        || typeof a.response !== "string" || !optionalString(a.employeeComment)
+        || typeof a.acknowledgedByName !== "string" || !reviewDate(a.createdAt)) return false;
+  }
+  return packet.events.every((event: unknown) =>
+    isObject(event) && event.organizationId === organizationId
+      && event.employeeId === employeeId && event.reviewId === review.id && id(event.id));
+}
