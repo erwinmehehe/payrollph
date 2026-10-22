@@ -48,7 +48,7 @@ export async function verifyComplianceReadSweep(f, { request, expectStatus }) {
       agency: "SSS", applicableMonth: "2025-08",
       dueDate: "2025-09-15", status: "paid",
       employeeCount: 1, loanCount: 1, expectedTotal: "50.00",
-      amountPaid: "50.00", snapshotHash: "a".repeat(64),
+      amountPaid: "50.00", paymentReference: "FICTIONAL-NONPAYMENT-RECEIPT", agencyAcknowledgementReference: "FICTIONAL-ACK-ONLY", paidAt: new Date("2025-09-15T00:00:00.000Z"), snapshotHash: "a".repeat(64),
       createdBy: "Fictional disposable compliance QA",
     }).returning();
     const [member] = await db.insert(governmentLoanRemittanceMembers).values({
@@ -82,7 +82,7 @@ export async function verifyComplianceReadSweep(f, { request, expectStatus }) {
       "&taxYear=" + year, { cookie }), 200,
       "Actual owned 13th-month report must load");
     assert.equal(ownDole.json?.organizationId, own.id);
-    assert.equal(ownDole.json?.taxYear, year); assert.ok((await import("../../src/lib/dole-thirteenth-month-read")).isVerifiedDole13thRead(ownDole.json, own.id, year), "Actual DOLE API payload must pass the client fail-closed contract");
+    assert.equal(ownDole.json?.report?.taxYear, year); assert.ok((await import("../../src/lib/dole-thirteenth-read")).isVerifiedDoleThirteenthRead(ownDole.json, own.id, year), "Actual DOLE API payload must pass the merged production fail-closed contract");
     assert.equal(ownDole.json?.profileComplete, true);
     assert.ok(ownDole.json?.report?.employees?.length > 0,
       "Positive DOLE GET needs real seeded released payroll employees");
@@ -104,7 +104,7 @@ export async function verifyComplianceReadSweep(f, { request, expectStatus }) {
       "Authorized employer reads its real synthetic SSS loan batch");
     assert.equal(ownLoanRead.json?.organizationId, own.id);
     assert.ok(ownLoanRead.json?.batches?.some(x => x.id === loanSeed[idx].batch.id));
-    assert.ok(ownLoanRead.json?.members?.some(x => x.id === loanSeed[idx].member.id)); assert.ok((await import("../../src/lib/government-loan-remittance-read")).isVerifiedGovernmentLoanRead(ownLoanRead.json, own.id, f.entities[idx].id), "Actual loan remittance API must satisfy scoped client validation");
+    assert.ok(ownLoanRead.json?.members?.some(x => x.id === loanSeed[idx].member.id)); assert.equal(ownLoanRead.json?.legalEntityId, f.entities[idx].id); assert.ok((await import("../../src/lib/government-loan-remittance-read")).isVerifiedGovernmentLoanRemittanceRead(ownLoanRead.json, own.id), "Actual loan remittance API must satisfy merged production and selected-entity validation");
     expectStatus(await request(
       "/api/compliance/government-loan-remittances?organizationId=" + victim.id +
       "&legalEntityId=" + f.entities[0].id, { cookie }), 403,
