@@ -223,8 +223,14 @@ async function makeFixture() {
   const runs = await db.insert(payrollRuns).values([
     ...Array.from({ length: 8 }, (_, idx) => ({
       organizationId: victim.id, legalEntityId: entities[0].id,
-      periodLabel: "VICTIM-ONLY-" + idx, periodStart: "2026-10-01",
-      periodEnd: "2026-10-15", payDate: "2026-10-16", status: "Released",
+      // Keep all eight real victim-exclusive run IDs while respecting the
+      // clean-baseline no-overlapping-Released-period exclusion constraint.
+      // The latest victim run remains October, matching existing payroll probes.
+      periodLabel: "VICTIM-ONLY-" + idx,
+      periodStart: "2026-" + String(3 + idx).padStart(2, "0") + "-01",
+      periodEnd: "2026-" + String(3 + idx).padStart(2, "0") + "-15",
+      payDate: "2026-" + String(3 + idx).padStart(2, "0") + "-16",
+      status: "Released",
     })),
     ...[attackerA, attackerB].map((org, idx) => ({
       organizationId: org.id, legalEntityId: entities[idx + 1].id,
