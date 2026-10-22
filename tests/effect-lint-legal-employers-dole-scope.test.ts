@@ -39,13 +39,14 @@ test("both initial loads defer effect-phase state work and cancel all retired re
     assert.match(source, /const revision = \+\+loadRevisionRef\.current/);
     assert.match(source, /const isCurrent = \(\) =>\s*mountedRef\.current && !controller\.signal\.aborted && revision === loadRevisionRef\.current/);
     if (path === dolePath) {
-      // DOLE delegates GET to a pure scope validator; verify the abortable
-      // request contract in both the caller and the reader, not stale syntax.
-      const reader = read("src/lib/dole-thirteenth-month-read.ts");
-      assert.match(source, /readVerifiedDole13th\(organizationId, taxYear, fetch, controller\.signal\)/);
-      assert.match(reader, /cache: "no-store", signal/);
-      assert.match(reader, /if \(!response\.ok\) throw/);
-      assert.match(reader, /isVerifiedDole13thRead\(value, organizationId, taxYear\)/);
+      // Main now calls the endpoint directly and checks the strict merged read contract.
+      // Retain abort, HTTP denial, entity/year identity, and before-use proof checks.
+      const reader = read("src/lib/dole-thirteenth-read.ts");
+      assert.match(source, /cache: "no-store", signal: controller\.signal/);
+      assert.match(source, /if \(!response\.ok\) throw/);
+      assert.match(source, /if \(!isVerifiedDoleThirteenthRead\(body, organizationId, taxYear\)\)/);
+      assert.match(reader, /v\.organizationId !== organizationId \|\| v\.legalEntityId !== null/);
+      assert.match(reader, /v\.currentSubmission\.reportHash !== v\.reportHash/);
     } else {
       assert.match(source, /cache: "no-store", signal: controller\.signal/);
     }

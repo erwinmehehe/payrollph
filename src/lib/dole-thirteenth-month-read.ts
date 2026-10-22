@@ -28,7 +28,7 @@ export type VerifiedDole13thRead = {
   incompleteBasicRows: Array<{ employeeNo: string; employeeName: string }>;
   sourceNote: string;
   submissionCurrent: boolean;
-  currentSubmission: { reportHash: string; portalReference: string; submittedAt: string; recordedByName: string } | null;
+  currentSubmission: { id: number; reportHash: string; portalReference: string; submittedAt: string; recordedByName: string } | null;
   latestSubmission: { reportHash: string; portalReference: string; submittedAt: string } | null;
   submissionHistory: Array<{
     id: number; reportHash: string; portalReference: string; submittedAt: string;
@@ -107,8 +107,14 @@ export function isVerifiedDole13thRead(
   if (value.profileComplete !== complete ||
       value.readyToSubmit !== (complete && employees.length > 0)) return false;
   if (value.submissionCurrent !== (value.currentSubmission !== null)) return false;
-  if (value.currentSubmission !== null &&
-      (value.currentSubmission as Record<string, unknown>).reportHash !== value.reportHash) return false;
+  if (value.currentSubmission !== null) {
+    const current = value.currentSubmission as VerifiedDole13thRead["currentSubmission"] & { id: number };
+    if (current.reportHash !== value.reportHash ||
+        !(value.submissionHistory as VerifiedDole13thRead["submissionHistory"]).some(row =>
+          row.id === current.id && row.reportHash === current.reportHash &&
+          row.portalReference === current.portalReference &&
+          row.submittedAt === current.submittedAt)) return false;
+  }
   return new Set((value.submissionHistory as Array<{id:number}>).map(row => row.id)).size === value.submissionHistory.length;
 }
 export async function readVerifiedDole13th(
@@ -156,8 +162,10 @@ export function confirmedDole13thMutation(
       !text(saved.portalReference) || !date(saved.submittedAt) ||
       refreshed.submissionCurrent !== true || refreshed.currentSubmission === null)
     return false;
-  return refreshed.currentSubmission.reportHash === saved.reportHash &&
+  return refreshed.currentSubmission.id === saved.id &&
+    refreshed.currentSubmission.reportHash === saved.reportHash &&
     refreshed.currentSubmission.portalReference === saved.portalReference &&
+    refreshed.currentSubmission.submittedAt === saved.submittedAt &&
     refreshed.submissionHistory.some((row) => row.id === saved.id &&
       row.reportHash === saved.reportHash &&
       row.portalReference === saved.portalReference &&

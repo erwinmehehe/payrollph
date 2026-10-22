@@ -81,7 +81,7 @@ test("DOLE 13th: an exact saved profile or portal receipt is required after POST
     submittedAt: "2026-10-21T00:00:00.000Z", recordedByName: "Fictional Owner" };
   const submitted = {
     ...withProfile, submissionCurrent: true,
-    currentSubmission: { reportHash: entry.reportHash, portalReference: entry.portalReference,
+    currentSubmission: { id: entry.id, reportHash: entry.reportHash, portalReference: entry.portalReference,
       submittedAt: entry.submittedAt, recordedByName: entry.recordedByName },
     latestSubmission: { reportHash: entry.reportHash, portalReference: entry.portalReference,
       submittedAt: entry.submittedAt },
@@ -92,6 +92,8 @@ test("DOLE 13th: an exact saved profile or portal receipt is required after POST
   const post = { submission: entry, reportHash: report.reportHash };
   assert.equal(confirmedDole13thMutation("record_submission", post, submitted, org, year), true);
   assert.equal(confirmedDole13thMutation("record_submission", post, withProfile, org, year), false);
+  assert.equal(confirmedDole13thMutation("record_submission", post,
+    { ...submitted, currentSubmission: { ...submitted.currentSubmission, id: 72 } }, org, year), false);
   assert.equal(confirmedDole13thMutation("record_submission", post,
     { ...submitted, submissionHistory: [{ ...submitted.submissionHistory[0],
       id: 72 }] }, org, year), false);

@@ -43,8 +43,9 @@ test("each download/index method must exercise authenticated own success, exact 
   assert.ok(src.includes('const crossId = expectStatus(await request('));
   assert.ok(src.includes('"?organizationId=" + ownOrg.id, { cookie }), 404'));
   assert.ok(src.includes('const filtered = expectStatus(await request('));
-  assert.ok(src.includes('"&batchId=" + victimBatch.id, { cookie }), 200'));
-  assert.ok(src.includes("assert.deepEqual(filtered.json?.evidence, []"));
+  assert.ok(src.includes('"&batchId=" + victimBatch.id, { cookie }), 404'));
+  assert.ok(src.includes("assert.equal(filtered.json?.evidence, undefined"));
+  assert.ok(src.includes("Foreign batch must not enumerate victim proof bytes or metadata"));
 });
 
 test("real PostgreSQL unchanged-victim snapshot and both independent attacker sessions remain mandatory", () => {
