@@ -6,7 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
   auditEvents, employeePayProfiles, employees, payrollEntries, payrollRuns,
@@ -22,12 +22,31 @@ export async function verifySalaryCorrectionCaseTenantIsolation(f, { request, ex
   assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only");
   assert.equal(process.env.TENANT_641_SALARY_CORRECTION_CASE_PROOF, "isolated-ci-only");
   const victim = f.orgs[0];
-  // A past date inside the current Philippine tax year (the case window).
+  // Use an actual past date in the current Philippine tax year that is not
+  // covered by another Released run for either fictional owner. The shared
+  // high-risk proof legitimately releases October 16-31, so "yesterday" can
+  // collide with payroll_runs_no_overlapping_release. Never weaken that guard.
   const today = philippineToday();
-  const effective = new Date(today + "T00:00:00Z");
-  effective.setUTCDate(effective.getUTCDate() - 1);
-  const effectiveDate = effective.toISOString().slice(0, 10);
-  assert.equal(effectiveDate.slice(0, 4), today.slice(0, 4), "Proof needs a past date in the current tax year (not 1 January)");
+  const year = today.slice(0, 4);
+  const priorDay = (isoDate) => {
+    const day = new Date(isoDate + "T00:00:00Z");
+    day.setUTCDate(day.getUTCDate() - 1);
+    return day.toISOString().slice(0, 10);
+  };
+  const ownerReleasedPeriods = await Promise.all([1, 2].map((idx) =>
+    db.select({ periodStart: payrollRuns.periodStart, periodEnd: payrollRuns.periodEnd })
+      .from(payrollRuns)
+      .where(and(eq(payrollRuns.organizationId, f.orgs[idx].id),
+        eq(payrollRuns.legalEntityId, f.entities[idx].id),
+        eq(payrollRuns.status, "Released")))));
+  let effectiveDate;
+  for (let day = priorDay(today); day >= year + "-01-02"; day = priorDay(day)) {
+    const available = ownerReleasedPeriods.every((runs) => runs.every((run) =>
+      day < run.periodStart || day > run.periodEnd));
+    if (available) { effectiveDate = day; break; }
+  }
+  assert.ok(effectiveDate, "No unoccupied past payroll day in the current tax year for fictional salary-case proof");
+  assert.equal(effectiveDate.slice(0, 4), year, "Proof needs a past date in the current tax year (not 1 January)");
 
   // A real victim-only case with a real Released source run, high ID included.
   const [victimCase] = await db.insert(salaryCorrectionCases).values({
