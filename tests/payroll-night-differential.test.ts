@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { employees, organizations, payrollEntries, payrollRuns, timePunches } from "../src/db/schema";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
+import { seedMonthlyPayProfilesForRun } from "./helpers/pay-profiles";
 
 /**
  * Night differential is +10% of whatever that minute otherwise earns, not a
@@ -64,6 +65,8 @@ async function runEveningShift(workDate: string, periodStart: string, periodEnd:
     status: "Draft",
     payDate: periodEnd,
   }).returning();
+
+  await seedMonthlyPayProfilesForRun(run.id);
 
   await enqueuePayrollRun(run.id, 25);
   await drainPayrollQueue(10, run.id);
