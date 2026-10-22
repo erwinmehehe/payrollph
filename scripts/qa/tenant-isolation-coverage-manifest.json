@@ -6759,7 +6759,7 @@
           "name": "GET",
           "line": 41,
           "status": "PUBLIC-BY-DESIGN",
-          "reason": "Intentionally unauthenticated public static statutory posting CSV schema template, returned verbatim by GET without looking up any organization, employee, remittance batch or stored evidence, with no request/tenant selectors. The isolated three-employer HTTP test confirms anonymous and signed-in callers receive identical synthetic template bytes despite forged organizationId/employeeId/batchId. Separate authenticated POST remains tenant-scoped GAP and is not public.",
+          "reason": "Intentionally unauthenticated public static statutory posting CSV schema template, returned verbatim by GET without looking up any organization, employee, remittance batch or stored evidence, with no request/tenant selectors. The isolated three-employer HTTP test confirms anonymous and signed-in callers receive identical synthetic template bytes despite forged organizationId/employeeId/batchId. Separate authenticated POST is tenant-scoped, not PUBLIC-BY-DESIGN; it has independently linked provisional HTTP/PG16 own/foreign/forged/unchanged-victim proof and remains subject to exact-head CI and security review.",
           "testedBy": null
         },
         {
