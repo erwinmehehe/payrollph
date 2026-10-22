@@ -38,7 +38,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 - `GET /api/compliance/filing-validations/[id]/file` — [source](../../src/app/api/compliance/filing-validations/[id]/file/route.ts#L14)
 - `GET /api/compliance/labor-inspection/evidence-pack` — [source](../../src/app/api/compliance/labor-inspection/evidence-pack/route.ts#L23)
 - `GET /api/compliance/statutory-remittances/payment-evidence` — [source](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L57)
-- `POST /api/compliance/statutory-remittances/payment-evidence` — [source](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L95)
+- `POST /api/compliance/statutory-remittances/payment-evidence` — [source](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L108)
 - `GET /api/compliance/statutory-remittances/payment-evidence/[id]` — [source](../../src/app/api/compliance/statutory-remittances/payment-evidence/[id]/route.ts#L11)
 - `GET /api/compliance/statutory-remittances/posting-evidence/[id]` — [source](../../src/app/api/compliance/statutory-remittances/posting-evidence/[id]/route.ts#L22)
 - `GET /api/compliance/statutory-remittances/posting-import` — [source](../../src/app/api/compliance/statutory-remittances/posting-import/route.ts#L41)

@@ -47,16 +47,16 @@ function requireDisposable() {
   }
 }
 
-async function request(path, { method = "GET", bearer, cookie, scim, body, headers = {} } = {}) {
+async function request(path, { method = "GET", bearer, cookie, scim, body, form, headers = {} } = {}) {
   const h = { ...headers };
   if (bearer || scim) h.authorization = "Bearer " + (bearer ?? scim);
   if (cookie) h.cookie = cookie;
   if (method !== "GET") Object.assign(h, ORIGIN);
-  if (body !== undefined) h["content-type"] = "application/json";
+  if (body !== undefined && form === undefined) h["content-type"] = "application/json";
   const response = await fetch(new URL(path, BASE), {
     method,
     headers: h,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: form ?? (body === undefined ? undefined : JSON.stringify(body)),
     redirect: "manual",
     cache: "no-store",
   });
@@ -86,13 +86,13 @@ function ownOnly(rows, ownId, foreignIds, label, field = "id") {
   assertions++;
 }
 
-async function makeSession(userId) {
+async function makeSession(userId, options = {}) {
   const raw = randomBytes(32).toString("hex");
   const [row] = await db.insert(sessions).values({
     userId,
     tokenHash: createHash("sha256").update(raw).digest("hex"),
     expiresAt: new Date(Date.now() + 3_600_000),
-    lastSeenAt: new Date(),
+    lastSeenAt: new Date(), ...(options.privileged ? { mfaVerifiedAt: new Date(), authMethod: "oidc" } : {}),
   }).returning({ id: sessions.id });
   return { id: row.id, cookie: "__Host-linaw_session=" + raw };
 }
@@ -1089,7 +1089,7 @@ async function main() {
   await (await import("./tenant-high-risk-01-http.mjs")).verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });
   await verifyRemittanceMonthCloseTenantProof(f); await (await import("./bank-tenant-http.mjs")).verifyBankTenantIsolation(f, { request, expectStatus, makeSession }); await (await import("./owner-practice-http.mjs")).verifyOwnerPracticeHttp(f, { request, expectStatus });
   await (await import("./payroll-read-sweep-http.mjs")).verifyPayrollReadSweep(f, { request, expectStatus }); if (process.env.TENANT_DL02_PROOF === "isolated-ci-only") await (await import("./tenant-dl02-http.mjs")).verifyDl02TenantIsolation(f, { request, expectStatus, makeSession });
-  await (await import("./tenant-manifest-driven-http.mjs")).verifyManifestDrivenStatutoryBatch(f, { request, expectStatus }); await (await import("./tenant-dl01-batch2-http.mjs")).verifyDl01Batch2(f, { request, expectStatus }); if (process.env.TENANT_DL01_VAULT_PROOF === "isolated-ci-only") await (await import("./tenant-dl01-vault-http.mjs")).verifyDl01Vault(f, { request, expectStatus }); await verifySelfExplanationTenantRead(f); await verifyPayoutStatusTenantRead(f); await (await import("./tenant-static-template-http.mjs")).verifyTenantIndependentImportTemplate(f, { request, expectStatus });
+  await (await import("./tenant-manifest-driven-http.mjs")).verifyManifestDrivenStatutoryBatch(f, { request, expectStatus, makeSession }); await (await import("./tenant-dl01-batch2-http.mjs")).verifyDl01Batch2(f, { request, expectStatus }); if (process.env.TENANT_DL01_VAULT_PROOF === "isolated-ci-only") await (await import("./tenant-dl01-vault-http.mjs")).verifyDl01Vault(f, { request, expectStatus }); await verifySelfExplanationTenantRead(f); await verifyPayoutStatusTenantRead(f); await (await import("./tenant-static-template-http.mjs")).verifyTenantIndependentImportTemplate(f, { request, expectStatus });
   await (await import("./tenant-scoped-page-probes.mjs")).probeManifestBusinessPages(f, { request, makeSession, expectStatus });
   await (await import("./hcm-manager-inbox-page-http.mjs")).verifyHcmManagerInboxPage(f);
   if (process.env.TENANT_1302_FIRST_PAYROLL_PROOF === "isolated-ci-only") {

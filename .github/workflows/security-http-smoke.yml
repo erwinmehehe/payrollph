@@ -114,6 +114,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Only the disposable PG16 QA server may accept synthetic fixture uploads.
+          # This is NOT malware-scanner acceptance and never changes deployed settings.
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout /tmp/tenant-ci-scanner.key -out /tmp/tenant-ci-scanner.crt \
+            -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          export TENANT_SYNTHETIC_SCAN_MODE=isolated-pg16-only
+          export MALWARE_SCAN_URL=https://127.0.0.1:8443/scan
+          export MALWARE_SCAN_TOKEN=ci-tenant-proof-scanner-only
+          export NODE_EXTRA_CA_CERTS=/tmp/tenant-ci-scanner.crt
+          nohup node scripts/qa/tenant-ci-synthetic-proof-scanner.mjs > /tmp/tenant-ci-scanner.log 2>&1 &
+          for attempt in {1..15}; do
+            if curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health
           # Generate a fresh signing key only for this localhost CI server.
           # A real-looking whsec value must never be committed as source text.
           resend_webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"

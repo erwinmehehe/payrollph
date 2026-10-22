@@ -18,9 +18,10 @@ export const HISTORICAL_SCHEMA_SHA256 = "72c465c62e99aa9ce0271d700cc526f408216b0
 
 /**
  * Keep the historical 0132-era SQL shape analysis immutable across #1210.
- * The only reviewed schema changes since the pinned commit are explicit
- * NULLS FIRST on two marketing_leads indexes. Reconstruct the EXACT
- * historical source bytes, or stop instead of falsely updating evidence.
+ * The reviewed post-pin changes are two marketing index sort directives,
+ * the #641 salary-correction definitions, and the single 0136 active-proof
+ * partial unique index. Reconstruct the EXACT historical source bytes,
+ * or stop instead of falsely updating evidence.
  */
 export function reconstructPinnedSchemaText(currentSource) {
   const hash = text => createHash("sha256").update(text).digest("hex");
@@ -31,6 +32,10 @@ export function reconstructPinnedSchemaText(currentSource) {
      'index("marketing_leads_status_created_idx").on(table.status, table.createdAt.desc())'],
     ['index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt.desc().nullsFirst())',
      'index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt.desc())'],
+    // The forward-only 0136 unique index was added after the pinned 0132
+    // historical snapshot; subtract ONLY its exact, reviewed source bytes.
+    // Final HISTORICAL_SCHEMA_SHA256 still protects every other schema byte.
+    ["    uniqueIndex(\"statutory_remittance_payment_evidence_one_active_unique\").on(table.batchId)\n      .where(sql`${table.status} = 'active'`),\n", ""],
   ];
   let historical = currentSource;
   // Reviewed purely additive source blocks added after the pin. Each is removed
@@ -197,6 +202,32 @@ function getManifest(projectHistoricalMarketingIndexes = false) {
         throw Error("HISTORICAL_1031_MARKETING_INDEX_MODEL_DRIFT_" + name);
       index.keys[1] = "created_at DESC";
     }
+
+    // The current Drizzle manifest includes the additive 0136 receipt index.
+    // The frozen <=0132 historical shape CSV must compare the exact pinned
+    // schema, not treat a later protected index as historical SQL drift.
+    // reconstructPinnedSchemaText() already verified that the only removed
+    // source was the exact reviewed index text and historical SHA-256.
+    const receiptTables = value.tables.filter(x =>
+      x.name === "statutory_remittance_payment_evidence");
+    if (receiptTables.length !== 1)
+      throw Error("HISTORICAL_1031_PROOF_TABLE_MODEL_MISSING");
+    const receipt = receiptTables[0];
+    const reviewedIndexName = "statutory_remittance_payment_evidence_one_active_unique";
+    const reviewedIndexes = receipt.indexes.filter(x => x.name === reviewedIndexName);
+    if (reviewedIndexes.length !== 1)
+      throw Error("HISTORICAL_1031_ACTIVE_PROOF_INDEX_MODEL_DRIFT");
+    const reviewedIndex = reviewedIndexes[0];
+    const normalizedPredicate = String(reviewedIndex.predicate ?? "")
+      .replaceAll('"', "").replace(/\s+/g, " ").trim();
+    if (reviewedIndex.unique !== true || reviewedIndex.method !== "btree" ||
+        reviewedIndex.keys.length !== 1 || reviewedIndex.keys[0] !== "batch_id" ||
+        normalizedPredicate !== "statutory_remittance_payment_evidence.status = 'active'")
+      throw Error("HISTORICAL_1031_ACTIVE_PROOF_INDEX_MODEL_DRIFT");
+    // Subtract only the reviewed post-pin index from this in-memory historical
+    // comparison; no live schema, migration, protected index or frozen CSV
+    // is changed. All other index differences remain visible.
+    receipt.indexes = receipt.indexes.filter(x => x.name !== reviewedIndexName);
   }
   return new Map(value.tables.map(x=>[x.name,x]));
 }

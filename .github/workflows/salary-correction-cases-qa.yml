@@ -14,6 +14,7 @@ on:
       - 'tests/hcm-salary-correction-cases*'
       - 'scripts/qa/salary-correction-case-tenant-proof.mjs'
       - 'scripts/qa/tenant-second-pass-http.mjs'
+      - 'scripts/qa/tenant-ci-synthetic-proof-scanner.mjs'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
 
 permissions:
@@ -102,6 +103,25 @@ jobs:
           XENDIT_BILLING_ENABLED: "true"
         run: |
           set -euo pipefail
+          # The salary-case real-HTTP regression also exercises statutory proof POST.
+          # Supply only its disposable-PG16, CI-only TLS fixture scanner.
+          # Production still fails closed whenever real malware scanning is unavailable.
+          node --check scripts/qa/tenant-ci-synthetic-proof-scanner.mjs
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout /tmp/tenant-ci-scanner.key -out /tmp/tenant-ci-scanner.crt \
+            -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          export TENANT_SYNTHETIC_SCAN_MODE=isolated-pg16-only
+          export MALWARE_SCAN_URL=https://127.0.0.1:8443/scan
+          export MALWARE_SCAN_TOKEN=ci-tenant-proof-scanner-only
+          export NODE_EXTRA_CA_CERTS=/tmp/tenant-ci-scanner.crt
+          nohup node scripts/qa/tenant-ci-synthetic-proof-scanner.mjs > /tmp/salary-case-ci-scanner.log 2>&1 &
+          for attempt in {1..15}; do
+            if curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health
           resend_webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
           echo "::add-mask::$resend_webhook_secret"
           export RESEND_WEBHOOK_SECRET="$resend_webhook_secret"

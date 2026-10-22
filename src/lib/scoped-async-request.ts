@@ -51,6 +51,7 @@ export function createScopedRequestOwner<K>() {
       if (activeKey !== key || pending !== controller || controller.signal.aborted) return;
       pending = null;
       commit(outcome);
+      return outcome;
     },
   };
 }

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  statutoryRemittanceBatches,
+  auditEvents, statutoryRemittanceBatches,
   statutoryRemittancePaymentEvidence,
 } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
@@ -61,11 +61,22 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
   const batchId = Number(url.searchParams.get("batchId"));
-  if (!Number.isInteger(organizationId) || !Number.isInteger(batchId)) {
-    return Response.json({ error: "organizationId and batchId are required." }, { status: 400 });
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
+      !Number.isSafeInteger(batchId) || batchId <= 0) {
+    return Response.json({ error: "Valid organizationId and batchId are required." }, { status: 400 });
   }
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
+
+  // An empty proof index is verified only for a real batch owned by this employer.
+  // Foreign or nonexistent batches must fail closed instead of returning 200 [].
+  const [ownedBatch] = await db.select({ id: statutoryRemittanceBatches.id })
+    .from(statutoryRemittanceBatches)
+    .where(and(
+      eq(statutoryRemittanceBatches.id, batchId),
+      eq(statutoryRemittanceBatches.organizationId, organizationId),
+    )).limit(1);
+  if (!ownedBatch) return Response.json({ error: "Remittance batch not found." }, { status: 404 });
 
   const rows = await db.select({
     id: statutoryRemittancePaymentEvidence.id,
@@ -87,6 +98,8 @@ export async function GET(request: Request) {
     .orderBy(desc(statutoryRemittancePaymentEvidence.uploadedAt), desc(statutoryRemittancePaymentEvidence.id));
 
   return Response.json({
+    organizationId,
+    batchId,
     evidence: rows,
     active: rows.find((row) => row.status === "active") ?? null,
   });
@@ -169,38 +182,49 @@ export async function POST(request: Request) {
   const fileDataBase64 = Buffer.from(bytes).toString("base64");
   const fileName = safeFileName(file.name);
 
-  const existing = await db.select().from(statutoryRemittancePaymentEvidence).where(and(
-    eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
-    eq(statutoryRemittancePaymentEvidence.batchId, batchId),
-  )).orderBy(desc(statutoryRemittancePaymentEvidence.uploadedAt), desc(statutoryRemittancePaymentEvidence.id));
-  const active = existing.find((row) => row.status === "active") ?? null;
+  // Lock the owned parent batch inside the transaction. Same-batch writers
+  // serialize here; a partial unique index protects against other DB writers.
+  const outcome = await db.transaction(async (tx) => {
+    const [lockedBatch] = await tx.select().from(statutoryRemittanceBatches)
+      .where(and(
+        eq(statutoryRemittanceBatches.id, batchId),
+        eq(statutoryRemittanceBatches.organizationId, organizationId),
+      )).for("update");
+    if (!lockedBatch) return {
+      kind: "rejected" as const, status: 404 as const, error: "Remittance batch not found.",
+    };
 
-  if (batch.status !== "open") {
-    if (active) {
-      return Response.json({
+    const existing = await tx.select().from(statutoryRemittancePaymentEvidence).where(and(
+      eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
+      eq(statutoryRemittancePaymentEvidence.batchId, batchId),
+    )).orderBy(desc(statutoryRemittancePaymentEvidence.uploadedAt), desc(statutoryRemittancePaymentEvidence.id));
+    const activeRows = existing.filter(row => row.status === "active");
+    if (activeRows.length > 1) return {
+      kind: "rejected" as const, status: 409 as const,
+      error: "Multiple active payment proofs require an administrator integrity review.",
+    };
+    const active = activeRows[0] ?? null;
+
+    if (lockedBatch.status !== "open") {
+      if (active) return {
+        kind: "rejected" as const, status: 409 as const,
         error: "Payment proof is immutable once payment has been recorded.",
-      }, { status: 409 });
-    }
-    if (!replacementReason || replacementReason.length < 8) {
-      return Response.json({
+      };
+      if (!replacementReason || replacementReason.length < 8) return {
+        kind: "rejected" as const, status: 409 as const,
         error: "Historical payment proof backfill requires an explanation of at least 8 characters.",
-      }, { status: 409 });
+      };
     }
-  }
-
-  if (active && !replacementReason) {
-    return Response.json({
+    if (active && !replacementReason) return {
+      kind: "rejected" as const, status: 409 as const,
       error: "An active payment proof already exists. Explain why it is being replaced.",
-    }, { status: 409 });
-  }
-  if (existing.some((row) => row.fileSha256 === fileSha256)) {
-    return Response.json({
+    };
+    if (existing.some(row => row.fileSha256 === fileSha256)) return {
+      kind: "rejected" as const, status: 409 as const,
       error: "This exact payment proof file is already stored for the batch.",
-    }, { status: 409 });
-  }
+    };
 
-  const now = new Date();
-  const created = await db.transaction(async (tx) => {
+    const now = new Date();
     if (active) {
       await tx.update(statutoryRemittancePaymentEvidence).set({
         status: "superseded",
@@ -209,10 +233,10 @@ export async function POST(request: Request) {
       }).where(and(
         eq(statutoryRemittancePaymentEvidence.id, active.id),
         eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
+        eq(statutoryRemittancePaymentEvidence.batchId, batchId),
       ));
     }
-
-    const [row] = await tx.insert(statutoryRemittancePaymentEvidence).values({
+    const [created] = await tx.insert(statutoryRemittancePaymentEvidence).values({
       organizationId,
       batchId,
       fileName,
@@ -234,34 +258,38 @@ export async function POST(request: Request) {
       uploadedByName: statutoryRemittancePaymentEvidence.uploadedByName,
       uploadedAt: statutoryRemittancePaymentEvidence.uploadedAt,
     });
-    return row;
+    // Treat the receipt and its audit trail as one commit. If audit insertion
+    // fails, PostgreSQL rolls back the active-proof replacement as well.
+    await tx.insert(auditEvents).values({
+      organizationId,
+      actor: user.name,
+      action: active
+        ? "Statutory remittance payment proof replaced"
+        : lockedBatch.status === "open"
+          ? "Statutory remittance payment proof uploaded"
+          : "Historical statutory remittance payment proof backfilled",
+      resource: lockedBatch.agency + " · " + lockedBatch.applicableMonth,
+      metadata: {
+        batchId,
+        evidenceId: created.id,
+        fileName: created.fileName,
+        mimeType: created.mimeType,
+        byteSize: created.byteSize,
+        fileSha256: created.fileSha256,
+        malwareScannedClean: scan.scannedClean,
+        malwareScanEngine: scan.engine ?? null,
+        malwareScanNote: scan.note,
+        replacedEvidenceId: active?.id ?? null,
+        replacementReason,
+        batchStatusAtUpload: lockedBatch.status,
+        historicalBackfill: lockedBatch.status !== "open",
+      },
+    });
+    return { kind: "created" as const, created };
   });
 
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: active
-      ? "Statutory remittance payment proof replaced"
-      : batch.status === "open"
-        ? "Statutory remittance payment proof uploaded"
-        : "Historical statutory remittance payment proof backfilled",
-    resource: batch.agency + " · " + batch.applicableMonth,
-    metadata: {
-      batchId,
-      evidenceId: created.id,
-      fileName: created.fileName,
-      mimeType: created.mimeType,
-      byteSize: created.byteSize,
-      fileSha256: created.fileSha256,
-      malwareScannedClean: scan.scannedClean,
-      malwareScanEngine: scan.engine ?? null,
-      malwareScanNote: scan.note,
-      replacedEvidenceId: active?.id ?? null,
-      replacementReason,
-      batchStatusAtUpload: batch.status,
-      historicalBackfill: batch.status !== "open",
-    },
-  });
-
-  return Response.json({ evidence: created }, { status: 201 });
+  if (outcome.kind === "rejected") {
+    return Response.json({ error: outcome.error }, { status: outcome.status });
+  }
+  return Response.json({ organizationId, batchId, evidence: outcome.created }, { status: 201 });
 }

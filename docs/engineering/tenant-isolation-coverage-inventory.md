@@ -1,8 +1,8 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 357 API methods and 19 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 356 API methods and 19 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 357 method gaps and 19 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+> **NOT ACCEPTED**: 356 method gaps and 19 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -12,13 +12,15 @@
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 357 method gaps and 19 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
+**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 356 method gaps and 19 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
 
 ## Approved-exit Separation evidence
 
 PR #1280 changes the Separation route; GET, POST and PATCH are bound to the dedicated real HTTP/PG approved-exit test, with own success and explicit foreign-employer rejection plus unchanged victim row. It seeds prior termination-intent approval and executes actual financial checker decisions; it does not claim human intent approval or ordinary-payroll HTTP checker acceptance. Remaining method/page gaps stay open.
 
-**#1326 provisional-only note:** The three HCM probation GET/POST/PATCH credits rely on real synthetic own/foreign PG16 controls and unchanged victim rows; the manager decision inbox page is the sole provisional page-level COVERED record based on feature-ON localhost SSR own 200 / foreign 404. Its flag is not activated for production. All 19 remaining page/action GAPs and 357 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
+**#1326 provisional-only note:** The three HCM probation GET/POST/PATCH credits rely on real synthetic own/foreign PG16 controls and unchanged victim rows; the manager decision inbox page is the sole provisional page-level COVERED record based on feature-ON localhost SSR own 200 / foreign 404. Its flag is not activated for production. All 19 remaining page/action GAPs and 356 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
+
+**#1303 provisional-only note:** The extra statutory payment-evidence POST requires a signed-in privileged synthetic own 201, real foreign-employer 403, forged victim batch 404, one-active-row concurrency, and unchanged victim PostgreSQL. Its TLS test double is *not* production malware scanning. Migration 0136 is protected and unapplied. All 19 remaining page/action GAPs and 356 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
 
 ## Latest-main integration
 
@@ -34,7 +36,7 @@ The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested
 
 ## Source-pinned counts
 
-**Reconciled DL-01 (#1329), DL-02 (#1328), government-loan (#1307), DOLE (#1308) and provisional #1326 classification: 126 COVERED / 10 PUBLIC-BY-DESIGN / 357 GAP** among 493 API methods, plus 19 page/action GAPs.
+**Merged #1326 HCM and source-pinned PR #1303 classification: 127 COVERED / 10 PUBLIC-BY-DESIGN / 356 GAP** among 493 API methods, plus 19 page/action GAPs.
 
 **DL-02 proof-strengthening in #1328:** Attacker A and B now have persisted own-employer IDs and distinguishable populations (2 and 3 employees) before victim-only objects are inserted (4 employees). Victim ID/order assertions compare actual DB rows against **both** attacker-owned IDs, rather than only `id > 6`. HCM and tenant report POST positives validate real populated own counts/rows, while their catalog GETs are explicitly role/tenant-gated metadata, not employer-record exports. Performance evidence GET verifies real review/cycle JSON, own employee/organization identifiers, section digests, and download SHA256. Denied writes preserve a broader victim snapshot including term decisions, employees, payroll and review records. Coverage counts remain **provisional until the modified suite passes on the PR's current commit**; this is not global tenant-isolation acceptance.
 
@@ -47,9 +49,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 290 |
 | methods | 493 |
 | coveredBefore | 20 |
-| coveredAfter | 126 |
+| coveredAfter | 127 |
 | publicByDesign | 10 |
-| gap | 357 |
+| gap | 356 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -251,10 +253,10 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`compliance/remittance-month-close` POST](../../src/app/api/compliance/remittance-month-close/route.ts#L227) | session, query, body | assertOrganizationRole L11, getSessionUser L13, enforceSameOriginMutation L27, assertOrganizationRole L37 | searchParams.get("organizationId") L194, searchParams.get("legalEntityId") L195, body.organizationId L236 | NO VALID METHOD PROOF | **GAP** |
 | [`compliance/statutory-remittance-corrections` GET](../../src/app/api/compliance/statutory-remittance-corrections/route.ts#L280) | session, query, body | getAccess L14, getSessionUser L19, enforceSameOriginMutation L38, getAccess L239 | searchParams.get("organizationId") L286, body.organizationId L319 | NO VALID METHOD PROOF | **GAP** |
 | [`compliance/statutory-remittance-corrections` POST](../../src/app/api/compliance/statutory-remittance-corrections/route.ts#L310) | session, query, body | getAccess L14, getSessionUser L19, enforceSameOriginMutation L38, getAccess L239 | searchParams.get("organizationId") L286, body.organizationId L319 | NO VALID METHOD PROOF | **GAP** |
-| [`compliance/statutory-remittances/payment-evidence/[id]` GET](../../src/app/api/compliance/statutory-remittances/payment-evidence/[id]/route.ts#L11) | session, query | getAccess L5, getSessionUser L7, getSessionUser L15, getAccess L25 | searchParams.get("organizationId") L18 | [Executed own/victim/forged-selector/unchanged-DB proof](../../scripts/qa/tenant-manifest-driven-http.mjs#L299) | **COVERED** |
-| [`compliance/statutory-remittances/payment-evidence` GET](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L57) | session, query, body | getAccess L8, getSessionUser L10, enforceSameOriginMutation L13, getAccess L23 | searchParams.get("organizationId") L62 | [Executed own/victim/forged-selector/unchanged-DB proof](../../scripts/qa/tenant-manifest-driven-http.mjs#L299) | **COVERED** |
-| [`compliance/statutory-remittances/payment-evidence` POST](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L95) | session, query, body | getAccess L8, getSessionUser L10, enforceSameOriginMutation L13, getAccess L23 | searchParams.get("organizationId") L62 | NO VALID METHOD PROOF | **GAP** |
-| [`compliance/statutory-remittances/posting-evidence/[id]` GET](../../src/app/api/compliance/statutory-remittances/posting-evidence/[id]/route.ts#L22) | session | getAccess L5, getSessionUser L6, getSessionUser L26, getAccess L40 | none found | [Executed own/victim/forged-selector/unchanged-DB proof](../../scripts/qa/tenant-manifest-driven-http.mjs#L299) | **COVERED** |
+| [`compliance/statutory-remittances/payment-evidence/[id]` GET](../../src/app/api/compliance/statutory-remittances/payment-evidence/[id]/route.ts#L11) | session, query | getAccess L5, getSessionUser L7, getSessionUser L15, getAccess L25 | searchParams.get("organizationId") L18 | [Executed own/victim/forged-selector/unchanged-DB proof](../../scripts/qa/tenant-manifest-driven-http.mjs#L303) | **COVERED** |
+| [`compliance/statutory-remittances/payment-evidence` GET](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L57) | session, query, body | getAccess L8, getSessionUser L10, enforceSameOriginMutation L13, getAccess L23 | searchParams.get("organizationId") L62 | [Executed own/victim/forged-selector/unchanged-DB proof](../../scripts/qa/tenant-manifest-driven-http.mjs#L303) | **COVERED** |
+| [`compliance/statutory-remittances/payment-evidence` POST](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L108) | session, query, body | getAccess L8, getSessionUser L10, enforceSameOriginMutation L13, getAccess L23 | searchParams.get("organizationId") L62 | [Executed synthetic MFA own 201, foreign 403, forged batch 404, one-active concurrency, unchanged victim PostgreSQL](../../scripts/qa/tenant-manifest-driven-http.mjs#L357) | **COVERED** |
+| [`compliance/statutory-remittances/posting-evidence/[id]` GET](../../src/app/api/compliance/statutory-remittances/posting-evidence/[id]/route.ts#L22) | session | getAccess L5, getSessionUser L6, getSessionUser L26, getAccess L40 | none found | [Executed own/victim/forged-selector/unchanged-DB proof](../../scripts/qa/tenant-manifest-driven-http.mjs#L303) | **COVERED** |
 | [`compliance/statutory-remittances/posting-import` GET](../../src/app/api/compliance/statutory-remittances/posting-import/route.ts#L41) | session, body | getAccess L11, getSessionUser L13, enforceSameOriginMutation L24, getAccess L32 | body.organizationId L60 | [Public inert CSV GET, three-tenant+anonymous bytes](../../scripts/qa/tenant-static-template-http.mjs) | **PUBLIC-BY-DESIGN** |
 | [`compliance/statutory-remittances/posting-import` POST](../../src/app/api/compliance/statutory-remittances/posting-import/route.ts#L52) | session, body | getAccess L11, getSessionUser L13, enforceSameOriginMutation L24, getAccess L32 | body.organizationId L60 | [own L188](../../scripts/qa/tenant-dl01-batch2-http.mjs#L188), [victim 403 L217](../../scripts/qa/tenant-dl01-batch2-http.mjs#L217), [forged L226](../../scripts/qa/tenant-dl01-batch2-http.mjs#L226), [unchanged PG L315](../../scripts/qa/tenant-dl01-batch2-http.mjs#L315) | **COVERED** |
 | [`compliance/statutory-remittances` GET](../../src/app/api/compliance/statutory-remittances/route.ts#L64) | session, query, body | getAccess L12, getSessionUser L14, enforceSameOriginMutation L27, getAccess L46 | searchParams.get("organizationId") L69, searchParams.get("legalEntityId") L70, body.organizationId L111 | NO VALID METHOD PROOF | **GAP** |

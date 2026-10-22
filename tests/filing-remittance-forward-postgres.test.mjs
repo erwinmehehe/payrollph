@@ -6,6 +6,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
 
 const source=readFileSync('drizzle/0132_filing_remittance_evidence_forward.sql','utf8');
+const oneActiveProofIndex=readFileSync('drizzle/0136_statutory_payment_evidence_one_active.sql','utf8');
 const enabled=process.env.FILING_FORWARD_REHEARSAL==='synthetic-only';
 
 test('filing forward repair restores real Drizzle reads, preserves outcomes, fails safely and rolls back',{
@@ -83,6 +84,10 @@ test('filing forward repair restores real Drizzle reads, preserves outcomes, fai
     await client.query('SET LOCAL search_path=pg_catalog');
     await client.query(source);
     await client.query('SET LOCAL search_path=public,pg_catalog');
+    // The reviewed 0132 repair restores the historical legacy structure.
+    // The new forward-only 0136 then restores the additive current-schema
+    // one-active-proof index; compare the FULL catalog without filtering it.
+    await client.query(oneActiveProofIndex);
     assert.deepEqual(await catalog(),pristine,'exact catalog parity with fresh Drizzle schema');
     const rows=await orm.select().from(filings).where(and(eq(filings.organizationId,orgs[0]),eq(filings.legalEntityId,entities[0])));
     assert.equal(rows.length,1);assert.equal(rows[0].status,'accepted');
@@ -96,6 +101,7 @@ test('filing forward repair restores real Drizzle reads, preserves outcomes, fai
     assert.equal((await orm.select().from(evidence).where(and(eq(evidence.organizationId,orgs[0]),eq(evidence.batchId,batches[0])))).length,1);
     assert.equal((await orm.select().from(evidence).where(and(eq(evidence.organizationId,orgs[0]),eq(evidence.batchId,batches[1])))).length,0);
     await reject("INSERT INTO statutory_remittance_payment_evidence(organization_id,batch_id,file_name,mime_type,byte_size,file_sha256,file_data_base64,uploaded_by_name) SELECT organization_id,batch_id,file_name,mime_type,byte_size,file_sha256,file_data_base64,uploaded_by_name FROM statutory_remittance_payment_evidence LIMIT 1",'23505','statutory_remittance_payment_evidence_hash_unique');
+    await reject("INSERT INTO statutory_remittance_payment_evidence(organization_id,batch_id,file_name,mime_type,byte_size,file_sha256,file_data_base64,uploaded_by_name) SELECT organization_id,batch_id,file_name,mime_type,byte_size,repeat('c',64),file_data_base64,uploaded_by_name FROM statutory_remittance_payment_evidence WHERE organization_id=" + orgs[0] + " LIMIT 1",'23505','statutory_remittance_payment_evidence_one_active_unique');
     await reject('UPDATE statutory_remittance_payment_evidence SET batch_id=2147483647 WHERE organization_id='+orgs[0],'23503');
     await client.query('DELETE FROM users WHERE id=$1',[uploader]);
     assert.ok((await orm.select().from(evidence)).every(r=>r.uploadedByUserId===null));

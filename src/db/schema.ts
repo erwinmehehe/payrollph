@@ -2777,6 +2777,8 @@ export const statutoryRemittancePaymentEvidence = pgTable(
   },
   (table) => [
     uniqueIndex("statutory_remittance_payment_evidence_hash_unique").on(table.batchId, table.fileSha256),
+    uniqueIndex("statutory_remittance_payment_evidence_one_active_unique").on(table.batchId)
+      .where(sql`${table.status} = 'active'`),
     index("statutory_remittance_payment_evidence_batch_idx").on(table.organizationId, table.batchId, table.status),
   ],
 );

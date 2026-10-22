@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
-  assert.equal(manifest.metrics.gap, 357, "361 API method gaps remain after reviewed DL-01 plus DL-02 proofs");
-  assert.equal(manifest.metrics.coveredAfter, 126, "96 original DL-01/main, nineteen DL-02, four loan/DOLE and three HCM method proofs");
+  assert.equal(manifest.metrics.gap, 356, "Retain all unverified tenant method GAPs");
+  assert.equal(manifest.metrics.coveredAfter, 127, "Maintain exact source-pinned own/foreign method proofs");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
@@ -78,7 +78,7 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
 });
 
 test("real-HTTP and disposable DB proof requirements cannot be weakened", () => {
-  assert.match(harness, /await \(await import\("\.\/tenant-manifest-driven-http\.mjs"\)\)\.verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus \}\)/);
+  assert.match(harness, /await \(await import\("\.\/tenant-manifest-driven-http\.mjs"\)\)\.verifyManifestDrivenStatutoryBatch\(f, \{ request, expectStatus, makeSession \}\)/);
 
   assert.match(src, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
   assert.match(src, /const own = expectStatus\(await request\(urls\.own, \{ cookie \}\), 200/);

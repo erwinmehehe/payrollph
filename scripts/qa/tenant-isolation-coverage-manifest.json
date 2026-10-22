@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-21",
-  "acceptanceStatus": "NOT ACCEPTED: 357 API methods and 19 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET only is intentionally unauthenticated fixed-template PUBLIC-BY-DESIGN; its POST remains GAP. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 126 COVERED / 10 PUBLIC-BY-DESIGN / 357 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED.",
+  "acceptanceStatus": "NOT ACCEPTED: 356 API methods and 19 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 127 COVERED / 10 PUBLIC-BY-DESIGN / 356 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED.",
   "metrics": {
     "routeFiles": 290,
     "methods": 493,
     "coveredBefore": 20,
-    "coveredAfter": 126,
+    "coveredAfter": 127,
     "publicByDesign": 10,
-    "gap": 357,
+    "gap": 356,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -4196,7 +4196,7 @@
       ]
     },
     "src/app/api/compliance/calendar/route.ts": {
-      "gitBlobSha": "646cb631195e918491908c9c34c696cd1f22b31a",
+      "gitBlobSha": "23de9e07cdccd6c7ae1eb66976b4da83a1548f9e",
       "route": "compliance/calendar",
       "methods": [
         {
@@ -6472,12 +6472,12 @@
           "reason": "Verified fictional signed-in owners download own exact PDF bytes (hash and disposition); both attackers are denied the real later-seeded victim-only evidence ID with HTTP 403, and a victim ID forged under an allowed own organization returns exact 404; real victim PostgreSQL snapshot unchanged.",
           "testedBy": {
             "file": "scripts/qa/tenant-manifest-driven-http.mjs",
-            "ownPositiveLine": 299,
-            "foreignDenialLine": 302,
-            "unchangedDbLine": 342,
+            "ownPositiveLine": 303,
+            "foreignDenialLine": 306,
+            "unchangedDbLine": 396,
             "scope": "Two independent attacker employers and a real victim-only PostgreSQL evidence row seeded after both attacker records; each authentic attacker succeeds on the owned populated response, is denied on the selected higher victim ID with exact status, and the victim database snapshot remains unchanged. The forged selector line points to the method-specific rejection or ignored victim identifier.",
             "line": 36,
-            "forgedSelectorLine": 313
+            "forgedSelectorLine": 317
           }
         }
       ],
@@ -6552,30 +6552,37 @@
       ]
     },
     "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts": {
-      "gitBlobSha": "37a901c394f02ffc1a2d5bf1c034c40ac9d4fd51",
+      "gitBlobSha": "889b81433bc981e1731589202fc808e1da5e35ed",
       "route": "compliance/statutory-remittances/payment-evidence",
       "methods": [
         {
           "name": "GET",
           "line": 57,
           "status": "COVERED",
-          "reason": "Verified own nonempty evidence list includes actual own row and excludes victim; two attackers GET the existing later-seeded victim batch with victim employer and receive exact 403; own organization with forged victim batch returns an empty filtered list after the owned positive; victim PostgreSQL snapshot unchanged.",
+          "reason": "Real employer/batch-bound nonempty payment proof list and higher-ID actual victim ID proof. Two independent attackers GET own evidence 200, other employer 403, victim batch under own employer 404 (never fabricated verified-empty), unchanged actual PostgreSQL victim records.",
           "testedBy": {
             "file": "scripts/qa/tenant-manifest-driven-http.mjs",
-            "ownPositiveLine": 299,
-            "foreignDenialLine": 302,
-            "unchangedDbLine": 342,
-            "scope": "Two independent attacker employers and a real victim-only PostgreSQL evidence row seeded after both attacker records; each authentic attacker succeeds on the owned populated response, is denied on the selected higher victim ID with exact status, and the victim database snapshot remains unchanged. The forged selector line points to the method-specific rejection or ignored victim identifier.",
+            "ownPositiveLine": 303,
+            "foreignDenialLine": 306,
+            "unchangedDbLine": 396,
+            "scope": "Two independent attacker employers; real PG16 employer-scoped own 200 and higher-ID victim 403/404, actual unchanged victim PostgreSQL.",
             "line": 51,
-            "forgedSelectorLine": 320
+            "forgedSelectorLine": 324
           }
         },
         {
           "name": "POST",
-          "line": 95,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 108,
+          "status": "COVERED",
+          "reason": "MFA-verified attacker-owned synthetic PDF upload returns 201 through production-mode localhost HTTP, foreign real employer POST returns 403, real victim batch under own employer returns 404, and real victim PostgreSQL snapshot unchanged (synthetic TLS scan stub only; no malware or production certification). Parallel same-batch distinct-file replacement tested with PostgreSQL row locking and partial unique active-proof constraint.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-manifest-driven-http.mjs",
+            "line": 357,
+            "ownPositiveLine": 357,
+            "foreignDenialLine": 363,
+            "unchangedDbLine": 396,
+            "scope": "Two independent MFA-verified synthetic owner sessions, real owned batches and victim-only batches, disposable PG16, CI-only local TLS fixture scanner, zero provider traffic"
+          }
         }
       ],
       "employerSources": {
@@ -6695,13 +6702,13 @@
           "reason": "Two independent authenticated employers download actual own posting-source CSV bytes (200; digest, type and attachment checked), are denied the real higher-ID victim-only posting artifact (403), ignore forged victim organization/batch selectors on own files and still deny the victim ID under a forged own organization (403), with all real victim PostgreSQL evidence and related rows unchanged.",
           "testedBy": {
             "file": "scripts/qa/tenant-manifest-driven-http.mjs",
-            "line": 117,
-            "ownPositiveLine": 299,
-            "foreignDenialLine": 302,
-            "unchangedDbLine": 342,
-            "forgedSelectorLine": 328,
-            "victimExistsLine": 252,
-            "victimIdOrderingLine": 279,
+            "line": 121,
+            "ownPositiveLine": 303,
+            "foreignDenialLine": 306,
+            "unchangedDbLine": 396,
+            "forgedSelectorLine": 332,
+            "victimExistsLine": 256,
+            "victimIdOrderingLine": 283,
             "scope": "Real HTTP against disposable PostgreSQL16 with two independent attacker employers; actual own positive first, persisted victim-exclusive higher ID and exact denial, forged selectors, and real unchanged victim DB snapshot. Reviewed source was exercised by security run 39592582663 and salary-correction run 39592582809 on merge candidate 47cf659f53b99275d1438d9944bdd29167e1b7bf. Fresh final-commit CI remains required; this is not overall acceptance."
           }
         }

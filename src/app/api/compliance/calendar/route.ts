@@ -35,8 +35,11 @@ export async function GET(request: Request) {
   if (calendar.kind === "not-found") return Response.json({ error: "Organization not found." }, { status: 404 });
   if (calendar.kind === "empty") {
     return Response.json({
+      organizationId,
       today: calendar.today,
       applicableMonths: [],
+      contributionMonths: [],
+      birPayMonths: [],
       items: [],
       ruleWatch: buildStatutoryRuleWatch(calendar.today),
       note: "The compliance calendar starts when payroll periods exist.",
@@ -44,8 +47,11 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
+    organizationId,
     today: calendar.today,
     applicableMonths: calendar.applicableMonths,
+    contributionMonths: calendar.contributionMonths,
+    birPayMonths: calendar.birPayMonths,
     items: calendar.items,
     ruleWatch: buildStatutoryRuleWatch(calendar.today),
     note: "Dates are nominal statutory dates or conservative internal targets. Published agency calendars, filer classification, weekends and holidays can change the final filing/payment date.",
