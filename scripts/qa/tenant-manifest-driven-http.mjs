@@ -395,6 +395,34 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   const after = await snapshotVictim(victimOrg.id);
   assert.deepEqual(after, before,
     "All real-HTTP own/foreign reads must leave victim employer evidence, tasks, employee, payroll and audit data unchanged");
+  // HTTP 201 must have a matching durable employer/batch audit receipt.
+  // CI seed rows predate this route, so only audit proof IDs created via HTTP.
+  for (const idx of [1, 2]) {
+    const organizationId = f.orgs[idx].id;
+    const batchId = fixtures.batches[7 + idx].id;
+    const seededProofId = fixtures.evidence[7 + idx].id;
+    const [proofs, events] = await Promise.all([
+      db.select({ id: statutoryRemittancePaymentEvidence.id,
+        fileSha256: statutoryRemittancePaymentEvidence.fileSha256 })
+        .from(statutoryRemittancePaymentEvidence)
+        .where(and(eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
+          eq(statutoryRemittancePaymentEvidence.batchId, batchId))),
+      db.select({ action: auditEvents.action, metadata: auditEvents.metadata })
+        .from(auditEvents).where(eq(auditEvents.organizationId, organizationId)),
+    ]);
+    const audited = new Map(events.filter(event =>
+      event.metadata?.batchId === batchId &&
+      ["Statutory remittance payment proof replaced",
+        "Statutory remittance payment proof uploaded",
+        "Historical statutory remittance payment proof backfilled"].includes(event.action)
+    ).map(event => [event.metadata.evidenceId, event.metadata.fileSha256]));
+    const newProofs = proofs.filter(proof => proof.id !== seededProofId);
+    assert.ok(newProofs.length >= 2, "Fixture must execute a real POST and concurrent replacement");
+    for (const proof of newProofs) {
+      assert.equal(audited.get(proof.id), proof.fileSha256,
+        "Every HTTP-committed receipt must have a matching same-employer/batch audit row");
+    }
+  }
   assert.equal(observations.length, FIRST_ADAPTED_METHODS.length * 2);
   assert.equal(new Set(observations.map((x) => x.key)).size, FIRST_ADAPTED_METHODS.length);
   console.log(JSON.stringify({
