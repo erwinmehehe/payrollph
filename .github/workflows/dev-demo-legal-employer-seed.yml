@@ -63,6 +63,8 @@ jobs:
           echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
       - name: Provision empty loopback PostgreSQL schema under repository guard
         run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Verify legal-employer links, idempotence and foreign-company denial
         run: npx tsx --test --test-concurrency=1 tests/demo-legal-employer-seed.test.ts
       - name: Verify Owner can create a fictional payroll Draft via the real API

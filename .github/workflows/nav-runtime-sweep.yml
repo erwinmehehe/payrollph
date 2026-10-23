@@ -66,6 +66,8 @@ jobs:
           done
       - name: Apply schema to disposable PostgreSQL
         run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Derive real navigation inventory and scan error call sites
         run: npx tsx scripts/nav-sweep-manifest.ts
       - name: Reuse existing synthetic tenant fixture

@@ -74,8 +74,9 @@ test("disposable PostgreSQL: encrypted revision/checker/tenant/transfer/bound-st
       await db.delete(payrollRuns).where(inArray(payrollRuns.organizationId, ids));
       await db.delete(employees).where(inArray(employees.organizationId, ids));
       await db.delete(legalEntities).where(inArray(legalEntities.organizationId, ids));
-      await db.delete(auditEvents).where(inArray(auditEvents.organizationId, ids));
-      await db.delete(organizations).where(inArray(organizations.id, ids));
+      // Audit 0109 seals an immutable append-only chain. Retain the fictional
+      // employer anchors plus their audit records until this CI-only database
+      // is discarded; do not delete sealed evidence or relax the trigger.
     }
     if (actors.length) await db.delete(users).where(inArray(users.id, actors));
     await pool.end();

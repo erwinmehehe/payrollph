@@ -359,6 +359,8 @@ jobs:
         run: npm run db:push
       - name: Apply append-only 0109 audit guard only to ephemeral test database
         run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Prove customer with identical demo employer names cannot be provisioned (disposable PG16)
         run: npx tsx scripts/qa/adversarial-production-demo-name-guard.mjs
       - name: Start fictional localhost app (no public listener)
