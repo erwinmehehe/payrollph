@@ -261,3 +261,11 @@ test('try-finally read-only validation with mandatory return protects a later ba
   assert.equal(findings[0].type, 'IMPLICIT_BACKFILL');
   assert.equal(findings[0].state, 'early-readonly-exit');
 });
+
+test('retired sibling schema helpers contain no request-time schema writers', () => {
+  // Only core-schema-compat.ts may still carry legacy writers until it is retired.
+  const report = auditDirectory(fileURLToPath(new URL('../src', import.meta.url)), fileURLToPath(new URL('..', import.meta.url)));
+  const files = [...new Set(report.findings.map(f => f.file.replaceAll('\\', '/')))];
+  assert.deepEqual(files, ['src/lib/core-schema-compat.ts']);
+  assert.equal(report.unguarded, 0);
+});

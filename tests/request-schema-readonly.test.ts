@@ -7,7 +7,7 @@ import {
   payrollMonthCloseSchemaSpec, doleReportingSchemaSpec, separationSchemaSpec,
   marketingLeadSchemaSpec, marketingLeadSchemaForRuntime, workforceAttendanceSchemaSpec,
   migrationSchemaSpec, outboxDeliverySchemaSpec, statutoryCorrectionSchemaSpec,
-  statutoryMonthCloseSchemaSpec, verifyRequestSchemaReadOnlyFromPool,
+  statutoryMonthCloseSchemaSpec, verifyRequestSchemaReadOnlyFromPool, cachedRequestSchemaVerifier,
   verifyRequestSchemaReadOnly,
   type RequestSchemaSpec,
   type RequestCatalogQuery,
@@ -135,28 +135,53 @@ test("a failed rollback is propagated so a caller discards the connection", asyn
   assert.equal(calls.at(-1), "ROLLBACK");
 });
 
-test("legacy DDL modules use shared opt-in mode before any schema DDL", () => {
-  for (const file of ["src/lib/leave-payroll-schema.ts", "src/lib/pay-basis-schema.ts"]) {
+test("sibling schema helpers contain no request-time DDL or backfill and only verify the catalog", () => {
+  // tests/runtime-schema-audit.test.mjs separately requires zero audited writers in these files.
+  for (const file of [
+    "src/lib/dole-reporting-schema.ts", "src/lib/leave-payroll-schema.ts", "src/lib/migration-schema.ts",
+    "src/lib/outbox-schema.ts", "src/lib/pay-basis-schema.ts", "src/lib/payroll-month-close-schema.ts",
+    "src/lib/separation-schema.ts", "src/lib/statutory-remittance-correction-schema.ts",
+    "src/lib/statutory-remittance-month-close-schema.ts", "src/lib/workforce-attendance-control-schema.ts",
+    "src/lib/marketing-leads.ts",
+  ]) {
     const source = readFileSync(file, "utf8");
-    assert.ok(source.includes("coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE)"));
-    assert.ok(source.includes('if (mode === "read-only")'));
-    assert.ok(source.includes("verifyRequestSchemaReadOnly("));
-    assert.ok(source.includes("client?.release(!verified)"));
-    assert.ok(source.indexOf('if (mode === "read-only")') <
-      source.indexOf('await client.query("BEGIN")'),
-      "the schema inspection must precede any DDL transaction");
+    assert.ok(!source.includes("coreSchemaCompatibilityMode"), file + ": no legacy mode switch remains");
+    assert.ok(!/\b(?:CREATE|ALTER|DROP)\s+(?:TABLE|INDEX|UNIQUE INDEX)\b/i.test(source), file);
+    assert.ok(!/pg_advisory_xact_lock/.test(source), file + ": no legacy DDL lock remains");
+    assert.ok(/cachedRequestSchemaVerifier\(pool, \w+SchemaSpec\)|verifyRequestSchemaReadOnlyFromPool\(pool,/.test(source),
+      file + ": the helper must delegate to the catalog verifier");
   }
   const pay = readFileSync("src/lib/pay-basis-schema.ts", "utf8");
-  const backfill = pay.slice(pay.indexOf("export async function ensureEmployeePayProfiles"));
-  assert.ok(backfill.includes("LEFT JOIN employee_pay_profiles p"));
-  assert.ok(backfill.includes("WHERE e.organization_id = $1"));
-  assert.ok(backfill.includes("READONLY_PAY_PROFILES_REQUIRE_REVIEWED_BACKFILL"));
-  assert.ok(backfill.indexOf('if (mode === "read-only")') <
-    backfill.indexOf("INSERT INTO employee_pay_profiles"),
-    "legacy pay profile INSERT may only run in explicit legacy mode");
-  assert.ok(backfill.includes("client?.release(!rolledBack)"));
+  const profiles = pay.slice(pay.indexOf("export async function ensureEmployeePayProfiles"));
+  assert.ok(profiles.includes("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"));
+  assert.ok(profiles.includes("LEFT JOIN employee_pay_profiles p"));
+  assert.ok(profiles.includes("WHERE e.organization_id = $1"));
+  assert.ok(profiles.includes("READONLY_PAY_PROFILES_REQUIRE_REVIEWED_BACKFILL"));
+  assert.ok(!/INSERT\s+INTO\s+employee_pay_profiles/i.test(profiles), "missing pay profiles are never silently invented");
+  assert.ok(profiles.includes("client?.release(!rolledBack)"));
 });
 
+test("cached catalog verifier checks once, shares in-flight checks and never caches a failure", async () => {
+  let connects = 0;
+  let fail = true;
+  const released: boolean[] = [];
+  const pool = {
+    async connect() {
+      connects += 1;
+      const { query } = simulate(leaveSchemaSpec, fail ? { transactionReadOnly: false } : {});
+      return { query, release: (destroy?: boolean) => { released.push(Boolean(destroy)); } };
+    },
+  } as unknown as Pool;
+  const check = cachedRequestSchemaVerifier(pool, leaveSchemaSpec);
+  await assert.rejects(() => check());
+  assert.deepEqual(released, [true], "a failed check discards its pooled client");
+  fail = false;
+  await Promise.all([check(), check(), check()]);
+  assert.equal(connects, 2, "concurrent callers share one in-flight check after the failure");
+  await check();
+  assert.equal(connects, 2, "a passed check is cached for the process");
+  assert.deepEqual(released, [true, false]);
+});
 
 test("month-close and DOLE reporting structure has valid typed evidence, indexes and defaults", async () => {
   for (const spec of [payrollMonthCloseSchemaSpec, doleReportingSchemaSpec]) {
@@ -211,28 +236,6 @@ test("DOLE report certification refuses incomplete metadata or per-employer uniq
   }
 });
 
-test("payroll month-close and DOLE legacy writers honor read-only mode before DDL", () => {
-  for (const file of [
-    "src/lib/payroll-month-close-schema.ts",
-    "src/lib/dole-reporting-schema.ts",
-  ]) {
-    const source = readFileSync(file, "utf8");
-    assert.ok(source.includes("coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE)"));
-    assert.ok(source.includes('if (mode === "read-only")'));
-    assert.ok(source.includes("verifyRequestSchemaReadOnly("));
-    assert.ok(source.includes("client?.release(!verified)"));
-    assert.ok(source.indexOf('if (mode === "read-only")') <
-      source.indexOf('await client.query("BEGIN")'),
-      "request-path DDL must not run in read-only mode");
-  }
-  const close = readFileSync("src/lib/payroll-month-close-schema.ts", "utf8");
-  assert.ok(close.includes("UPDATE payroll_month_closures c"));
-  assert.ok(close.includes("ALTER COLUMN legal_entity_id SET NOT NULL"));
-  const dole = readFileSync("src/lib/dole-reporting-schema.ts", "utf8");
-  assert.ok(dole.includes("CREATE TABLE IF NOT EXISTS dole_compliance_submissions"));
-});
-
-
 test("separation final-pay schema is catalog-complete without DDL or employee row access", async () => {
   const { query, calls } = simulate(separationSchemaSpec);
   await verifyRequestSchemaReadOnly(query, separationSchemaSpec);
@@ -282,7 +285,7 @@ test("separation final-pay blocks missing/incorrect amounts, JSON snapshots and 
   }
 });
 
-test("separation read-only failure and ROLLBACK errors propagate, and legacy DDL remains gated", async () => {
+test("separation read-only failure and ROLLBACK errors propagate", async () => {
   for (const drift of [
     { transactionReadOnly: false },
     { failAt: "pg_catalog.pg_constraint" },
@@ -292,37 +295,32 @@ test("separation read-only failure and ROLLBACK errors propagate, and legacy DDL
     await assert.rejects(() => verifyRequestSchemaReadOnly(query, separationSchemaSpec));
     assert.equal(calls.at(-1), "ROLLBACK");
   }
-  const source = readFileSync("src/lib/separation-schema.ts", "utf8");
-  assert.ok(source.includes("coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE)"));
-  assert.ok(source.includes('if (mode === "read-only")'));
-  assert.ok(source.includes("verifyRequestSchemaReadOnly("));
-  assert.ok(source.includes("client?.release(!verified)"));
-  assert.ok(source.indexOf('if (mode === "read-only")') < source.indexOf('await client.query("BEGIN")'));
-  assert.ok(source.includes("ALTER TABLE separation_records"),
-    "Legacy mode retains its prior operation until DBA migration cutover");
-  assert.ok(source.includes("client?.release(!safeToReuse)"),
-    "legacy rollback failure must discard the possibly open pooled transaction");
-  assert.ok(source.includes("separationSchemaPromise = null"),
-    "failed legacy connection or DDL should be retried after remediation");
 });
-
 
 const newlyGuardedSpecs: RequestSchemaSpec[] = [
   marketingLeadSchemaSpec, workforceAttendanceSchemaSpec, migrationSchemaSpec,
   outboxDeliverySchemaSpec, statutoryCorrectionSchemaSpec, statutoryMonthCloseSchemaSpec,
 ];
 
-test("marketing read-only rollout preserves old index acceptance with flag off", async () => {
+test("marketing index check: flag on is canonical-only, flag off accepts canonical or historical", async () => {
   const canonical = marketingLeadSchemaForRuntime({ REQUEST_SCHEMA_READONLY_ENABLED: "true" });
+  // A database whose indexes were created by the retired runtime DDL.
+  const historical = {
+    ...marketingLeadSchemaSpec,
+    indexes: marketingLeadSchemaSpec.indexes.map(index => ({
+      ...index,
+      definitionTokens: index.definitionTokens?.map(token => token.replace(" DESC)", " DESC NULLS LAST)")),
+    })),
+  };
   for (const flag of [undefined, "false", "", "TRUE"]) {
-    const legacy = marketingLeadSchemaForRuntime({ REQUEST_SCHEMA_READONLY_ENABLED: flag });
-    await verifyRequestSchemaReadOnly(simulate(legacy).query, legacy);
-    await assert.rejects(() => verifyRequestSchemaReadOnly(simulate(legacy).query, canonical),
-      /REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
-    await assert.rejects(() => verifyRequestSchemaReadOnly(simulate(canonical).query, legacy),
-      /REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
+    const flagOff = marketingLeadSchemaForRuntime({ REQUEST_SCHEMA_READONLY_ENABLED: flag });
+    // Nothing can repair these indexes at runtime any more, so both real shapes pass.
+    await verifyRequestSchemaReadOnly(simulate(canonical).query, flagOff);
+    await verifyRequestSchemaReadOnly(simulate(historical).query, flagOff);
   }
   await verifyRequestSchemaReadOnly(simulate(canonical).query, canonical);
+  await assert.rejects(() => verifyRequestSchemaReadOnly(simulate(historical).query, canonical),
+    /REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
   assert.equal(canonical, marketingLeadSchemaSpec, "flag-off calls cannot mutate the canonical contract");
 });
 
@@ -386,24 +384,6 @@ test("unverified request-time schemas cannot bypass catalog or constraint checks
       );
       assert.equal(calls.at(-1), "ROLLBACK");
     }
-  }
-});
-
-test("six additional legacy schema helpers refuse DDL and unreviewed backfill in read-only mode", () => {
-  for (const path of [
-    "src/lib/marketing-leads.ts",
-    "src/lib/workforce-attendance-control-schema.ts",
-    "src/lib/migration-schema.ts",
-    "src/lib/outbox-schema.ts",
-    "src/lib/statutory-remittance-correction-schema.ts",
-    "src/lib/statutory-remittance-month-close-schema.ts",
-  ]) {
-    const source = readFileSync(path, "utf8");
-    assert.ok(source.includes("coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE)"), path);
-    assert.ok(source.includes('if (mode === "read-only")'), path);
-    assert.ok(source.includes("verifyRequestSchemaReadOnlyFromPool(pool,"), path);
-    assert.ok(source.indexOf('if (mode === "read-only")') < source.indexOf('await client.query("BEGIN")'), path);
-    assert.ok(source.includes("client.release(!safeToReuse)"), path);
   }
 });
 

@@ -34,7 +34,7 @@ try {
   isolated = false;
 }
 
-test("actual PostgreSQL index ordering preserves flag-off explicit read-only behavior",{skip:!isolated},async()=>{
+test("actual PostgreSQL index ordering: flag on canonical-only, flag off accepts both real shapes",{skip:!isolated},async()=>{
  const client=new Client({connectionString:url,connectionTimeoutMillis:4000,query_timeout:8000});
  await client.connect();
  const canonical=marketingLeadSchemaForRuntime({REQUEST_SCHEMA_READONLY_ENABLED:"true"});
@@ -46,9 +46,14 @@ test("actual PostgreSQL index ordering preserves flag-off explicit read-only beh
   CREATE INDEX marketing_leads_kind_created_idx ON marketing_leads(kind,created_at DESC ${nulls})`);
  try{
   await verify(canonical);
-  await assert.rejects(()=>verify(legacy),/REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
+  await verify(legacy);
   await indexes("NULLS LAST");
   await verify(legacy);
+  await assert.rejects(()=>verify(canonical),/REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
+  // An ascending index is neither shape and fails in both modes.
+  await client.query(`DROP INDEX marketing_leads_status_created_idx;
+   CREATE INDEX marketing_leads_status_created_idx ON marketing_leads(status,created_at)`);
+  await assert.rejects(()=>verify(legacy),/REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
   await assert.rejects(()=>verify(canonical),/REQUEST_SCHEMA_READONLY_MARKETING_INCOMPATIBLE/);
  }finally{try{await indexes("NULLS FIRST");}finally{await client.end();}}
 });

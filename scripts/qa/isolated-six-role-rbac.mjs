@@ -110,6 +110,19 @@ async function probe(role, name, path, expected, cookie, org) {
   try {
     const response = await request(path, cookie);
     const body = await response.json().catch(() => null);
+    // CI-only aggregate diagnosis: never log employee rows or response bodies.
+    // Preserve the HTTP assertion even if the profile count is complete.
+    if (name === "dashboard" && response.status === 500) {
+      const { rows: [counts] } = await pool.query(
+        `SELECT (SELECT COUNT(*) FROM employees WHERE organization_id = $1)::int AS employees,
+                (SELECT COUNT(*) FROM employee_pay_profiles WHERE organization_id = $1)::int AS profiles,
+                (SELECT COUNT(*) FROM employees e WHERE e.organization_id = $1 AND
+                   NOT EXISTS (SELECT 1 FROM employee_pay_profiles p
+                     WHERE p.employee_id = e.id AND p.organization_id = e.organization_id))::int AS missing`,
+        [org],
+      );
+      console.error(`ISOLATED_RBAC_DASHBOARD_PROFILE_PREFLIGHT employees=${counts.employees} profiles=${counts.profiles} missing=${counts.missing}`);
+    }
     const valid = response.status === 200 ? validRead(name, body, role, org)
       : !!body && typeof body.error === "string" && !("runs" in body) &&
         !("datasets" in body) && !("employees" in body);

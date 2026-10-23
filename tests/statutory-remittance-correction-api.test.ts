@@ -82,11 +82,13 @@ test("payroll UI exposes four-eyes request and approval workflow", () => {
 });
 
 
-test("correction API self-initializes its additive table for existing deployments", () => {
+test("correction API checks its reviewed table and never creates it at request time", () => {
   const schemaGuard = readFileSync("src/lib/statutory-remittance-correction-schema.ts", "utf8");
+  const verifier = readFileSync("src/lib/request-schema-readonly.ts", "utf8");
   assert.ok(route.includes("ensureStatutoryRemittanceCorrectionSchema"));
-  assert.ok(schemaGuard.includes("CREATE TABLE IF NOT EXISTS statutory_remittance_correction_requests"));
-  assert.ok(schemaGuard.includes("pg_advisory_xact_lock"));
+  assert.ok(schemaGuard.includes("verifyRequestSchemaReadOnlyFromPool(pool, statutoryCorrectionSchemaSpec)"));
+  assert.ok(!/CREATE\s+TABLE|ALTER\s+TABLE|pg_advisory_xact_lock/i.test(schemaGuard), "no request-time DDL remains");
+  assert.ok(verifier.includes("statutory_remittance_correction_requests"));
 });
 
 

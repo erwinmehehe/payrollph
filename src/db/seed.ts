@@ -10,6 +10,7 @@ import {
   calamityAdvisories,
   disciplinaryCases,
   employeeLoans,
+  employeePayProfiles,
   employees,
   freelancerProfiles,
   holidays,
@@ -109,7 +110,7 @@ export async function ensureSeedData() {
   for (const [orgIndex, org] of [loom, mantra, santos].entries()) {
     const orgPeople = people.slice(0, orgIndex === 1 ? 7 : 8);
     const defaultUnit = units[orgIndex === 0 ? 2 : orgIndex === 1 ? 4 : 6];
-    await db.insert(employees).values(orgPeople.map((person, index) => ({
+    const seededEmployees = await db.insert(employees).values(orgPeople.map((person, index) => ({
       organizationId: org.id,
       orgUnitId:
         orgIndex === 0
@@ -129,7 +130,33 @@ export async function ensureSeedData() {
       mobile: person[10],
       email: `${person[0]}.${person[1]}`.toLowerCase().replace(/[^a-z.]/g, "") + "@linaw.ph",
       startDate: `202${(index % 4) + 1}-0${(index % 8) + 1}-15`,
-    })));
+    }))).returning({
+      id: employees.id, organizationId: employees.organizationId,
+      employeeNo: employees.employeeNo, basicRate: employees.basicRate,
+    });
+
+    // This runs only during first creation on an EMPTY, non-production demo DB.
+    // Verify the fictional roster before creating pay profiles; never backfill
+    // arbitrary employer data from a request-time payroll or dashboard read.
+    const byNumber = new Map(seededEmployees.map((worker) => [worker.employeeNo, worker]));
+    if (seededEmployees.length !== orgPeople.length || byNumber.size !== orgPeople.length) {
+      throw new Error("DEV_DEMO_PAY_PROFILE_ROSTER_UNVERIFIED");
+    }
+    const prefix = orgIndex === 0 ? "LL" : orgIndex === 1 ? "MS" : "SR";
+    const verifiedProfiles = orgPeople.map((person, index) => {
+      const employeeNo = `${prefix}-${String(index + 101).padStart(3, "0")}`;
+      const worker = byNumber.get(employeeNo);
+      if (!worker || !Number.isSafeInteger(worker.id) || worker.id < 1 ||
+          worker.organizationId !== org.id || worker.basicRate !== person[6]) {
+        throw new Error("DEV_DEMO_PAY_PROFILE_ROSTER_UNVERIFIED");
+      }
+      return {
+        employeeId: worker.id, organizationId: org.id, payBasis: "monthly" as const,
+        rateAmount: person[6], standardWorkDaysPerMonth: "22",
+        standardHoursPerDay: "8",
+      };
+    });
+    await db.insert(employeePayProfiles).values(verifiedProfiles);
   }
 
   await ensureDemoLegalEmployerLinks();
