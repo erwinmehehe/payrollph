@@ -12,6 +12,7 @@ import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
 import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { approvalBelongsToPayrollRun } from "@/lib/payroll-approval-link";
+import { loadPayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness-server";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(_request);
@@ -52,6 +53,18 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   }
   if (["Queued", "Processing", "Recalculating"].includes(run.status)) {
     return Response.json({ error: `Payroll calculation is already in progress (currently ${run.status}).` }, { status: 409 });
+  }
+
+  // Read-only pre-run checks happen BEFORE any Recalculating claim, approval
+  // invalidation, payroll enqueue or worker execution. UI checks are advisory
+  // only; direct POSTs must be subject to the same fail-closed readiness gate.
+  const preRunReadiness = await loadPayrollPreRunReadiness(run);
+  if (!preRunReadiness.ready) {
+    return Response.json({
+      error: "Pre-calculation readiness has blocking issues. Resolve them before calculating payroll.",
+      code: "PAYROLL_PRE_RUN_READINESS_BLOCKED",
+      readiness: preRunReadiness,
+    }, { status: 422, headers: { "Cache-Control": "private, no-store" } });
   }
 
   const employeeRows = await db.select({ id: employees.id }).from(employees).where(
