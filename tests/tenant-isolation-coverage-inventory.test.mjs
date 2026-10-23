@@ -689,9 +689,9 @@ test("all credited proof links point to the claimed route and every recertified 
         const endpoint = "/api/" + entry.route;
         assert.ok(span(spec[0]).includes(endpoint) && span(spec[1]).includes(endpoint),
           key + ": both own and foreign calls must hit the same method route");
-        assert.ok(span(spec[0]).includes("), " + spec[3] + ","),
+        assert.ok(new RegExp("\\),\\s*" + spec[3] + ",").test(span(spec[0])),
           key + ": positive must assert real owned HTTP success");
-        assert.ok(span(spec[1]).includes("), 403,"),
+        assert.match(span(spec[1]), /\)\s*,\s*403\s*,/,
           key + ": foreign request must explicitly deny actual victim employer");
         if (method.name !== "GET") {
           assert.ok(span(spec[0]).includes('method: "' + method.name + '"') &&
