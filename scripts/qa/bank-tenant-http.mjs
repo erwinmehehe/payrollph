@@ -29,13 +29,13 @@ export async function verifyBankTenantIsolation(f, { request, expectStatus, make
       organizationId: org.id, employeeNo: "CI-BANK-" + nonce + "-" + idx,
       firstName: "FictionalBank", lastName: "Worker" + idx,
       legalEntityId: f.entities[idx].id, title: "Fictional worker", avatarInitials: "FW",
-      basicRate: "10000.00", startDate: "2026-10-01",
+      basicRate: "10000.00", startDate: "2026-02-01",
       bankAccount: encrypted, bankCode: "CI", status: "Active",
     }).returning();
     const [run] = await db.insert(payrollRuns).values({
       organizationId: org.id, legalEntityId: f.entities[idx].id,
       periodLabel: "CI-BANK-ONLY-" + nonce + "-" + idx,
-      periodStart: "2026-10-01", periodEnd: "2026-10-15", payDate: "2026-10-20",
+      periodStart: "2026-02-01", periodEnd: "2026-02-15", payDate: "2026-02-20",
       status: "Released", employeeCount: 1, grossPay: "5000.00", netPay: "5000.00",
     }).returning();
     await db.insert(payrollEntries).values({ payrollRunId: run.id, employeeId: worker.id,

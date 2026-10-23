@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
-import { employeeRestDayRevisions, employees, organizations, payrollEntries, payrollRuns, timePunches } from "../src/db/schema";
+import { employeePayProfiles, employeeRestDayRevisions, employees, organizations, payrollEntries, payrollRuns, timePunches } from "../src/db/schema";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
 
 test("the rest_day column exists in the schema, the migration, and the production compat upgrade", () => {
@@ -61,6 +61,7 @@ async function runDayShift(input: {
     startDate: "2025-01-01",
     restDay: input.restDay,
   }).returning();
+  await monthlyPayProfile(org.id, employee.id);
 
   await db.insert(timePunches).values({
     organizationId: org.id,
@@ -89,6 +90,15 @@ async function runDayShift(input: {
   const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
   assert.ok(entry, `no payroll entry was created for the ${input.label} run`);
   return { org, entry };
+}
+
+// Every employee has an explicit pay profile (the app writes one on create;
+// payroll never invents it at request time). Same values the retired backfill used.
+async function monthlyPayProfile(organizationId: number, employeeId: number) {
+  await db.insert(employeePayProfiles).values({
+    organizationId, employeeId, payBasis: "monthly", rateAmount: "35200.00",
+    standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+  });
 }
 
 function money(value: number) {
@@ -190,6 +200,7 @@ test("historical recalculation keeps the rest day that was effective on the work
       // Current schedule is Monday after the change below.
       restDay: "Monday",
     }).returning();
+    await monthlyPayProfile(org.id, employee.id);
 
     await db.insert(employeeRestDayRevisions).values({
       organizationId: org.id,

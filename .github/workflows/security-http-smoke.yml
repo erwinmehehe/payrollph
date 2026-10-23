@@ -91,6 +91,8 @@ jobs:
       - name: Validate scanner service syntax
         run: node --check services/malware-scanner/server.mjs
       - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - run: npm run build
 
       - name: Start production server

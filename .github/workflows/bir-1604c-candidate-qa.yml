@@ -109,14 +109,18 @@ jobs:
           echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      # The year-end PostgreSQL test retains synthetic audit-chain employer anchors.
+      # Create the browser fixture first so its empty-database preflight remains strict.
+      - name: Seed synthetic employer, employee, MFA and annual BIR records
+        run: npx tsx scripts/bir-1604c-synthetic-browser-fixture.ts
       - name: Execute read-only 2316 ledger isolation and final-pay PostgreSQL acceptance
         run: npx tsx --test tests/bir-2316-withholding-postgres.test.ts tests/year-end-prior-evidence-postgres.test.ts
       - name: Generate and behavior-test the unsigned prescribed-template PDF
         env:
           BIR_2316_PDF_QA: 'true'
         run: npx tsx --test tests/bir-2316-certificate.test.ts
-      - name: Seed synthetic employer, employee, MFA and annual BIR records
-        run: npx tsx scripts/bir-1604c-synthetic-browser-fixture.ts
       - name: Typecheck the filing implementation
         run: npm run typecheck
       - name: Build scoped candidate and UI

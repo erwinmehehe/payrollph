@@ -201,7 +201,13 @@ try {
     await navigateCompliance(page, width);
     const root = page.locator('[data-bir-1604c-candidate]');
     assert.ok(await root.getByText("1604-C reviewed DAT candidate", { exact: false }).isVisible());
-    assert.ok((await root.locator('[data-bir-v70-validation-status]').textContent()).includes("not run"));
+    const verifiedStatus = root.locator('[data-bir-v70-validation-status]');
+    // Wait for the authenticated, scoped evidence GET: neither the loading
+    // nor unavailable state contains these verified-only status elements.
+    await verifiedStatus.locator("strong").first().waitFor({ state: "visible", timeout: 30000 });
+    const verifiedText = await verifiedStatus.textContent();
+    assert.match(verifiedText ?? "", /Validated against BIR Alphalist Module v7\.0:\s*not run/);
+    assert.match(verifiedText ?? "", /For v7\.4:\s*not run/);
     // The Year-End panel is taller than a 900px viewport. Scroll to the
     // heading itself: asserting the root's top is on-screen is incorrect once
     // its internal content overflows the viewport vertically.

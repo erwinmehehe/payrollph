@@ -74,6 +74,8 @@ jobs:
           echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Seed disposable test database only
         run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
       - name: Build local app with synthetic flags

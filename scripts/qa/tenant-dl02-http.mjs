@@ -58,7 +58,7 @@ async function seedEmployer(label, nonce, makeSession) {
   const [term] = await db.insert(hcmEmploymentTerms).values({ organizationId: org.id, employeeId: worker.id, employmentType: "Probationary",
     termKind: "probationary", effectiveFrom: "2026-01-05", status: "active", reason: "Fictional DL02 term", requestedBy: owner.name }).returning();
   const [decision] = await db.insert(hcmEmploymentTermDecisions).values({ organizationId: org.id, employeeId: worker.id,
-    employmentTermId: term.id, decisionKind: "regularize", effectiveDate: "2026-07-05", reason: "Fictional DL02 decision",
+    employmentTermId: term.id, decisionKind: "confirm_regular", effectiveDate: "2026-07-05", reason: "Fictional DL02 decision",
     requestedByUserId: owner.id, requestedBy: owner.name }).returning();
   const [performanceCycle] = await db.insert(performanceCycles).values({
     organizationId: org.id, name: "DL02 " + label + " " + nonce + " review",

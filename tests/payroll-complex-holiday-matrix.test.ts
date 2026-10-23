@@ -13,6 +13,7 @@ import {
   timePunches,
 } from "../src/db/schema";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
+import { seedMonthlyPayProfilesForRun } from "./helpers/pay-profiles";
 
 function money(value: number) {
   return (Math.round((value + Number.EPSILON) * 100) / 100).toFixed(2);
@@ -185,6 +186,8 @@ async function runComplexHoliday(input: {
     status: "Draft",
     payDate: input.workDate,
   }).returning();
+
+  await seedMonthlyPayProfilesForRun(run.id);
 
   await enqueuePayrollRun(run.id);
   await drainPayrollQueue(10, run.id);

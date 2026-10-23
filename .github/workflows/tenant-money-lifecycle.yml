@@ -58,6 +58,8 @@ jobs:
       - run: npm ci
       - run: node --test tests/money-proof-target.test.mjs
       - run: npm run db:push
+      - name: Apply reviewed 0109 audit chain and supplement to disposable app_db before clone
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Clone empty disposable schema into dedicated money-proof database
         run: |
           node --input-type=module <<'NODE'

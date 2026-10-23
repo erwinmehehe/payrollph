@@ -13888,9 +13888,9 @@
           "reason": "Two MFA-verified owners list their own persisted correction case 200 without the victim-only case; forged victim organizationId 403; victim cases unchanged.",
           "testedBy": {
             "file": "scripts/qa/salary-correction-case-tenant-proof.mjs",
-            "line": 84,
-            "ownPositiveLine": 81,
-            "foreignDenialLine": 84,
+            "line": 103,
+            "ownPositiveLine": 100,
+            "foreignDenialLine": 103,
             "scope": "Synthetic MFA-verified owners in two employers; real own HTTP success, real victim-only case/employer denial, disposable PG16, flag-on isolated server, no money, provider or production approval"
           }
         },
@@ -13901,10 +13901,10 @@
           "reason": "Two MFA-verified owners PATCH their own case run 200 with a persisted decision; victim employer PATCH 403 and victim case ID inside own employer 404; victim cases, runs and audit unchanged.",
           "testedBy": {
             "file": "scripts/qa/salary-correction-case-tenant-proof.mjs",
-            "line": 92,
-            "ownPositiveLine": 86,
-            "foreignDenialLine": 92,
-            "unchangedDbLine": 100,
+            "line": 111,
+            "ownPositiveLine": 105,
+            "foreignDenialLine": 111,
+            "unchangedDbLine": 119,
             "scope": "Synthetic MFA-verified owners in two employers; real own HTTP success, real victim-only case/employer denial, disposable PG16, flag-on isolated server, no money, provider or production approval"
           }
         },
@@ -13915,10 +13915,10 @@
           "reason": "Two MFA-verified owners POST an owned case 201 snapshotting their own Released run; victim employer POST 403 and victim worker inside own employer 404; victim cases, runs and audit unchanged.",
           "testedBy": {
             "file": "scripts/qa/salary-correction-case-tenant-proof.mjs",
-            "line": 76,
-            "ownPositiveLine": 71,
-            "foreignDenialLine": 76,
-            "unchangedDbLine": 100,
+            "line": 95,
+            "ownPositiveLine": 90,
+            "foreignDenialLine": 95,
+            "unchangedDbLine": 119,
             "scope": "Synthetic MFA-verified owners in two employers; real own HTTP success, real victim-only case/employer denial, disposable PG16, flag-on isolated server, no money, provider or production approval"
           }
         }
