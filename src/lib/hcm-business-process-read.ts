@@ -77,6 +77,13 @@ export function isVerifiedHcmBusinessProcessInbox(
     .some(key => typeof m[key] !== "boolean")) return false;
   return uniqueIds(v.myWork) && uniqueIds(v.submitted) && uniqueIds(v.recent);
 }
+/** Pure HTTP + JSON gate: null is unavailable, never a verified-empty queue. */
+export function readVerifiedHcmBusinessProcessResponse(
+  ok: boolean, payload: unknown, organizationId: number,
+): HcmBusinessProcessInboxRead | null {
+  return ok && isVerifiedHcmBusinessProcessInbox(payload, organizationId) ? payload : null;
+}
+
 export async function readVerifiedHcmBusinessProcessInbox(
   organizationId: number, fetcher: typeof fetch = fetch, signal?: AbortSignal,
 ): Promise<HcmBusinessProcessInboxRead> {
@@ -89,8 +96,9 @@ export async function readVerifiedHcmBusinessProcessInbox(
   let payload: unknown;
   try { payload = await response.json(); }
   catch { throw Error("HCM work queue returned unreadable data."); }
-  if (!isVerifiedHcmBusinessProcessInbox(payload, organizationId)) {
-    throw Error("HCM work queue is incomplete or belongs to another employer.");
+  const verified = readVerifiedHcmBusinessProcessResponse(response.ok, payload, organizationId);
+  if (!verified) {
+    throw Error("HCM work queue is incomplete or belongs to another employer. Retry.");
   }
-  return payload;
+  return verified;
 }

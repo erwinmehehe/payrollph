@@ -140,4 +140,6 @@ test("source wiring carries employer identity and abortable failed-read / retry 
   assert.match(panel, /setReport\(null\)/);
   assert.match(panel, /setRefreshNonce\(\(current\) => current \+ 1\)/);
   assert.doesNotMatch(panel, /setReport\(payload as HcmGovernanceReport\)/);
+  assert.match(panel, /Unavailable, retry/);
+  assert.match(panel, /onClick=\{retryRead\}>Retry<\/button>/);
 });
