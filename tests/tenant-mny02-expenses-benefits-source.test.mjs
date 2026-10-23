@@ -14,10 +14,10 @@ const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const cases = [
   ["GET expenses", 147, 153, 158],
-  ["POST expenses", 57, 162, 168],
-  ["PATCH expenses", 181, 192, 180],
-  ["GET de-minimis", 199, 205, 204],
-  ["POST de-minimis", 73, 209, 214],
+  ["POST expenses", 57, 162, 169],
+  ["PATCH expenses", 181, 192, 181],
+  ["GET de-minimis", 199, 205, null],
+  ["POST de-minimis", 73, 209, 216],
   ["DELETE de-minimis", 230, 224, 230],
 ];
 
@@ -38,7 +38,7 @@ test("six distinct money-linked methods run in existing real HTTP/PG16 three-emp
 });
 
 test("method-specific source links prove real own positive, foreign denial and exact victim SQL invariant", () => {
-  for (const [key, own, foreign] of cases) {
+  for (const [key, own, foreign, forged] of cases) {
     const [verb, route] = key.split(" ");
     const path = "src/app/api/" + route + "/route.ts";
     const endpoint = readFileSync(path, "utf8");
@@ -61,6 +61,14 @@ test("method-specific source links prove real own positive, foreign denial and e
     assert.match(ownSpan, new RegExp("\\),\\s*" + (verb === "POST" ? 201 : 200) + ","),
       key + ": a successful nonempty own response is required");
     assert.match(foreignSpan, /\),\s*403,/, key + ": genuine foreign access must be denied");
+    assert.equal(method.testedBy.forgedSelectorLine, forged ?? undefined,
+      key + ": forged selector pointer must reference the reviewed request");
+    if (forged != null && verb === "POST") {
+      assert.match(lines[forged - 1] ?? "", /expectStatus\(await request\(/,
+        key + ": forged employee proof must be a real second request");
+      assert.match(lines.slice(forged - 1, forged + 7).join("\n"), /\)\s*,\s*404\s*,/,
+        key + ": forged victim employee must be denied with 404");
+    }
     if (["POST", "PATCH", "DELETE"].includes(verb)) {
       assert.ok(ownSpan.includes('method: "' + verb + '"'),
         key + ": owned write must exercise the real HTTP method");
