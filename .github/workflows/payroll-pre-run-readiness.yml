@@ -1,0 +1,75 @@
+name: Payroll Pre-Run Readiness (Disposable PostgreSQL)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/lib/payroll-pre-run-readiness.ts"
+      - "src/lib/payroll-pre-run-readiness-server.ts"
+      - "src/app/api/payroll-runs/*/pre-run-readiness/**"
+      - "src/app/api/payroll-runs/*/process/**"
+      - "src/components/workspace/payroll-run.tsx"
+      - "tests/payroll-pre-run-readiness*.test.ts"
+      - ".github/workflows/payroll-pre-run-readiness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-run-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Set fictional-only encryption keys
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - name: Push schema to isolated CI PostgreSQL only
+        run: npm run db:push
+      - name: Apply reviewed cutover baseline to isolated CI PostgreSQL only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Typecheck complete project
+        run: npx tsc --noEmit
+      - name: Run deterministic finding and isolated Postgres tests
+        run: >
+          npx tsx --test --test-concurrency=1
+          tests/payroll-pre-run-readiness.test.ts
+          tests/payroll-pre-run-readiness-postgres.test.ts
