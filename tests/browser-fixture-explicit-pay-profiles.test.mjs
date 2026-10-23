@@ -37,3 +37,32 @@ test("second-pass tenant HTTP and DL-02 synthetic employees get explicit employe
     assert.match(source, /standardHoursPerDay: "8"/, path);
   }
 });
+
+test("non-production dev demo seed creates profiles only for verified first-run fictional workers", () => {
+  const source = readFileSync("src/db/seed.ts", "utf8");
+  assert.match(source, /export const DEMO_MODE = process\.env\.NODE_ENV !== "production"/);
+  assert.match(source, /if \(!DEMO_MODE\) \{/);
+  const firstSeed = source.indexOf("  const orgValues = [");
+  const nextPhase = source.indexOf("  await ensureDemoLegalEmployerLinks();", firstSeed);
+  assert.ok(firstSeed > 0 && nextPhase > firstSeed);
+  const initialOnly = source.slice(firstSeed, nextPhase);
+  assert.match(initialOnly, /const seededEmployees = await db\.insert\(employees\)/);
+  assert.match(initialOnly, /DEV_DEMO_PAY_PROFILE_ROSTER_UNVERIFIED/);
+  assert.match(initialOnly, /worker\.organizationId !== org\.id/);
+  assert.match(initialOnly, /worker\.basicRate !== person\[6\]/);
+  assert.match(initialOnly, /await db\.insert\(employeePayProfiles\)\.values\(verifiedProfiles\)/);
+  assert.match(initialOnly, /payBasis: "monthly"/);
+  assert.match(initialOnly, /standardWorkDaysPerMonth: "22"/);
+  assert.match(initialOnly, /standardHoursPerDay: "8"/);
+});
+
+test("tenant isolation secondary worker fixtures seed pay profiles before positive dashboard reads", () => {
+  const main = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+  const bank = readFileSync("scripts/qa/bank-tenant-http.mjs", "utf8");
+  assert.match(main, /await seedSecondPassCoworkerProfile\(attacker\.id, coworker\.id\)/);
+  assert.match(main, /SECOND_PASS_COWORKER_PAY_PROFILE_ROSTER_UNVERIFIED/);
+  assert.match(main, /db\.insert\(employeePayProfiles\)\.values\(\{/);
+  assert.match(bank, /await seedBankFixturePayProfile\(org, worker\)/);
+  assert.match(bank, /BANK_TENANT_PAY_PROFILE_FIXTURE_NON_DISPOSABLE_OR_UNVERIFIED/);
+  assert.match(bank, /db\.insert\(employeePayProfiles\)\.values\(\{/);
+});

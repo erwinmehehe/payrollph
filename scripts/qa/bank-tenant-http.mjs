@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
-import { auditEvents, bankFileValidations, bankTemplates, employees, payrollEntries,
+import { auditEvents, bankFileValidations, bankTemplates, employees, employeePayProfiles, payrollEntries,
   payrollRuns, sessions, userOrganizations, users } from "../../src/db/schema";
 import { encryptBankAccount } from "../../src/lib/bank-account-crypto";
 
@@ -31,7 +31,7 @@ export async function verifyBankTenantIsolation(f, { request, expectStatus, make
       legalEntityId: f.entities[idx].id, title: "Fictional worker", avatarInitials: "FW",
       basicRate: "10000.00", startDate: "2026-02-01",
       bankAccount: encrypted, bankCode: "CI", status: "Active",
-    }).returning();
+    }).returning(); await seedBankFixturePayProfile(org, worker);
     const [run] = await db.insert(payrollRuns).values({
       organizationId: org.id, legalEntityId: f.entities[idx].id,
       periodLabel: "CI-BANK-ONLY-" + nonce + "-" + idx,
@@ -123,4 +123,24 @@ export async function verifyBankTenantIsolation(f, { request, expectStatus, make
   assert.deepEqual(after, before, "All victim bank evidence, audit, wages and destinations unchanged");
   console.log(JSON.stringify({ result: "PASS", kind: "BANK_TENANT_REAL_HTTP_PG", methods: 4,
     attackerEmployers: 2, ownFileHashesVerified: 2, providerCalls: 0, bankFormatCertified: false }));
+}
+
+/** Fictional bank-export worker only. Never populate real payroll profiles. */
+async function seedBankFixturePayProfile(org, worker) {
+  const url = new URL(process.env.DATABASE_URL ?? "");
+  if (process.env.CI !== "true" ||
+      process.env.TENANT_SECOND_PASS_MODE !== "isolated-ci-only" ||
+      process.env.SECURITY_SMOKE_URL !== "http://127.0.0.1:3000" ||
+      url.hostname !== "127.0.0.1" || url.port !== "5432" ||
+      url.pathname !== "/app_db" ||
+      worker.organizationId !== org.id ||
+      !worker.employeeNo.startsWith("CI-BANK-") ||
+      worker.basicRate !== "10000.00") {
+    throw new Error("BANK_TENANT_PAY_PROFILE_FIXTURE_NON_DISPOSABLE_OR_UNVERIFIED");
+  }
+  await db.insert(employeePayProfiles).values({
+    organizationId: org.id, employeeId: worker.id, payBasis: "monthly",
+    rateAmount: "10000.00", standardWorkDaysPerMonth: "22",
+    standardHoursPerDay: "8",
+  });
 }

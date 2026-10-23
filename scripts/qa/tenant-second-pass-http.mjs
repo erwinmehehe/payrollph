@@ -840,7 +840,7 @@ async function verifySensitiveTenantDownloadsAndRoles(f) {
       firstName: "FictionalCoworker", lastName: "Private",
       title: "Separate owned worker", avatarInitials: "FC",
       basicRate: "19000.00", startDate: "2026-10-01",
-    }).returning({ id: employees.id });
+    }).returning({ id: employees.id }); await seedSecondPassCoworkerProfile(attacker.id, coworker.id);
     const [coworkerEntry] = await db.insert(payrollEntries).values({
       payrollRunId: f.ownRuns[idx].id, employeeId: coworker.id,
       grossPay: "6000.00", deductions: "500.00", netPay: "5500.00",
@@ -1345,4 +1345,22 @@ async function seedSecondPassPayProfiles(victim, victimEmployees, orgs, ownedEmp
       rateAmount: "18000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
     })),
   ]);
+}
+
+/** Seed the exact newly-created fictional coworker, never arbitrary tenant data. */
+async function seedSecondPassCoworkerProfile(organizationId, employeeId) {
+  requireDisposable();
+  const [worker] = await db.select({
+    employeeNo: employees.employeeNo, basicRate: employees.basicRate,
+  }).from(employees).where(and(
+    eq(employees.id, employeeId), eq(employees.organizationId, organizationId),
+  )).limit(1);
+  if (!worker || !worker.employeeNo.startsWith("CI-COWORKER-") ||
+      worker.basicRate !== "19000.00") {
+    throw new Error("SECOND_PASS_COWORKER_PAY_PROFILE_ROSTER_UNVERIFIED");
+  }
+  await db.insert(employeePayProfiles).values({
+    organizationId, employeeId, payBasis: "monthly", rateAmount: "19000.00",
+    standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+  });
 }
