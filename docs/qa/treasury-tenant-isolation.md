@@ -29,6 +29,14 @@ PayMongo reconciliation methods nor external settlement are certified here.
 No coverage credits or closure-queue changes are claimed before exact-head HTTP
 CI passes and the evidence is reviewed. No exploit was reproduced locally.
 
-Local direct-handler diagnosis passed 287 assertions and 54 denied requests with
+Additional fixtures in two separate employers execute overlapping approval
+requests: exactly one HTTP 200, one HTTP 409 and one committed approval audit.
+Changing the stored destination after request creation must cancel the stale
+request without overwriting the current worker destination. A scoped admin first
+reads nonempty own-unit history, then is denied the same worker after unit
+reassignment, company-wide history, treasury configuration reads and profile
+writes. Every response is checked for the full fictional account numbers.
+
+Local direct-handler diagnosis passed 635 assertions and 62 denied requests with
 real PostgreSQL. Its fixture identity adapter is forbidden in CI and is not HTTP
 session acceptance. CI must emit real-http in its JSON receipt before acceptance.

@@ -62,6 +62,9 @@ async function request(path, cookie, method = "GET", body) {
     response = await handler(new Request(new URL(path, base), options), { params: Promise.resolve(found[1]) });
   } else response = await fetch(new URL(path, base), options);
   const text = await response.text();
+  for (const rawAccount of ['000000000001', '000000000002', '000000000003']) {
+    check(!text.includes(rawAccount), 'HTTP response must not expose a full fictional bank account');
+  }
   let json; try { json = JSON.parse(text); } catch { json = null; }
   return { status: response.status, text, json, headers: [...response.headers] };
 }
@@ -200,6 +203,41 @@ async function journey(v, a) {
   successes.push({ organizationId: a.org.id, independentDestinationApproval: true,
     profileWrite: true, policyWrite: true, payoutStatus: true, providerSend: false });
 }
+async function extendedControls(a) {
+  // A fresh employer keeps concurrency/rate-limit fixtures independent of the
+  // ordinary journey and leaves the original victim entirely untouched.
+  const decisionPath = `/api/payout-destination-changes/${a.change.id}`;
+  const decision = { organizationId: a.org.id, decision: 'approve', decisionNote: 'Independent synthetic bank review' };
+  const replies = await Promise.all([1, 2].map(() => request(decisionPath, a.checker.cookie, 'PATCH', decision)));
+  assert.deepEqual(replies.map(r => r.status).sort(), [200, 409], 'overlapping decisions apply exactly once'); assertions++;
+  const audit = await db.select().from(s.auditEvents).where(eq(s.auditEvents.organizationId, a.org.id));
+  check(audit.filter(row => row.action === 'Employee payout destination change approved').length === 1, 'one committed approval audit');
+  const { createPayoutDestinationChangeRequest } = await import('../../src/lib/payout-destination-controls.ts');
+  const stale = await createPayoutDestinationChangeRequest({ organizationId: a.org.id, employeeId: a.worker.id,
+    requestedByUserId: a.maker.user.id, requestedByName: a.maker.user.name,
+    reason: 'Synthetic pending destination to test source staleness', replacementBankAccount: '000000000001', bankCode: 'BPI', mobile: null });
+  await db.update(s.employees).set({ bankAccount: encryptBankAccount('000000000003') }).where(eq(s.employees.id, a.worker.id));
+  const workerBefore = (await db.select().from(s.employees).where(eq(s.employees.id, a.worker.id)))[0];
+  const staleResponse = await request(`/api/payout-destination-changes/${stale.id}`, a.checker.cookie, 'PATCH', decision);
+  status(staleResponse, 409, 'stale source cannot be approved');
+  check(staleResponse.json.request.status === 'cancelled', 'stale request explicitly cancelled');
+  assert.deepEqual((await db.select().from(s.employees).where(eq(s.employees.id, a.worker.id)))[0], workerBefore, 'stale cancellation preserves current bank destination'); assertions++;
+  const units = await db.insert(s.orgUnits).values(['OWN', 'OTHER'].map(code => ({
+    organizationId: a.org.id, legalEntityId: a.entity.id, type: 'department', name: code, code,
+  }))).returning();
+  const scoped = await login(a.org, 'scoped-admin', randomUUID().slice(0, 8), 'admin');
+  await db.update(s.userOrganizations).set({ orgUnitId: units[0].id }).where(eq(s.userOrganizations.userId, scoped.user.id));
+  await db.update(s.employees).set({ orgUnitId: units[0].id }).where(eq(s.employees.id, a.worker.id));
+  const ownHistory = status(await request(`/api/payout-destination-changes?organizationId=${a.org.id}&employeeId=${a.worker.id}`, scoped.cookie), 200, 'scoped admin nonempty own-unit history');
+  check(ownHistory.requests.some(row => row.id === a.change.id), 'scoped own-unit positive');
+  await db.update(s.employees).set({ orgUnitId: units[1].id }).where(eq(s.employees.id, a.worker.id));
+  await deny(a, scoped, `/api/payout-destination-changes?organizationId=${a.org.id}&employeeId=${a.worker.id}`, 'GET', undefined, 403, 'same-employer foreign-unit history denied');
+  await deny(a, scoped, `/api/payout-destination-changes?organizationId=${a.org.id}`, 'GET', undefined, 403, 'scoped admin cannot list company-wide bank history');
+  await deny(a, scoped, `/api/treasury-controls?organizationId=${a.org.id}`, 'GET', undefined, 403, 'scoped admin cannot read company treasury authority');
+  await deny(a, scoped, '/api/payout-profiles', 'PATCH', { organizationId: a.org.id, legalEntityId: a.entity.id }, 403, 'scoped admin cannot configure company payout profile');
+  successes.push({ organizationId: a.org.id, concurrentDecisionOnce: true, staleSourceCancelled: true,
+    scopedUnitPositiveAndDenial: true, fullAccountRedaction: true });
+}
 try {
   const nonce = randomUUID().slice(0, 8);
   const a = await seed('TR-B', nonce), b = await seed('TR-C', nonce);
@@ -208,6 +246,9 @@ try {
   const v = await seed('TR-VICTIM', nonce); await setup(v);
   check(v.change.id > Math.max(a.change.id, b.change.id, 6), 'actual high-ID victim destination request');
   await journey(v, a); await journey(v, b);
+  for (const label of ['TR-EX-B', 'TR-EX-C']) {
+    const extra = await seed(label, nonce); await setup(extra); await extendedControls(extra);
+  }
   await mkdir('qa-artifacts', { recursive: true });
   await writeFile('qa-artifacts/treasury-isolation.json', JSON.stringify({ head: process.env.PR_HEAD_SHA ?? null,
     assertions, receipts, successes, status: 'PASS', transport: direct ? 'direct-handler-diagnosis-auth-adapter' : 'real-http',
