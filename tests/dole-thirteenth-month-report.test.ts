@@ -179,19 +179,20 @@ test("DOLE route generates a source worksheet but never claims to submit it", ()
   assert.ok(route.includes("DOLE 13th-month portal submission recorded"));
 });
 
-test("DOLE reporting profile and submission evidence are additive and self-initializing", () => {
+test("DOLE reporting profile and submission evidence are additive and checked, never created at request time", () => {
   for (const path of [
     "drizzle/0032_dole_13th_month_reporting.sql",
     "drizzle/baseline.sql",
     "src/db/schema.ts",
-    "src/lib/dole-reporting-schema.ts",
+    "src/lib/request-schema-readonly.ts",
   ]) {
     const source = readFileSync(path, "utf8");
     assert.ok(source.includes("dole_reporting_profiles"), path);
     assert.ok(source.includes("dole_compliance_submissions"), path);
   }
   const guard = readFileSync("src/lib/dole-reporting-schema.ts", "utf8");
-  assert.ok(guard.includes("pg_advisory_xact_lock"));
+  assert.ok(guard.includes("cachedRequestSchemaVerifier(pool, doleReportingSchemaSpec)"));
+  assert.ok(!/CREATE\s+TABLE|ALTER\s+TABLE|pg_advisory_xact_lock/i.test(guard), "no request-time DDL remains");
 });
 
 test("Compliance Center exposes report summary, source download, OCP link and stale evidence warning", () => {

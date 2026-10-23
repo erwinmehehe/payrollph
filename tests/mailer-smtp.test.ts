@@ -370,7 +370,8 @@ test("provider message id and delivery outcome persist on the outbox row", async
 
 test("outbox schema keeps durable idempotency and delivery state", () => {
   const schema = readFileSync("src/db/schema.ts", "utf8");
-  const compat = readFileSync("src/lib/outbox-schema.ts", "utf8");
+  const guard = readFileSync("src/lib/outbox-schema.ts", "utf8");
+  const verifier = readFileSync("src/lib/request-schema-readonly.ts", "utf8");
   const migration = readFileSync("drizzle/0003_outbox_delivery_reliability.sql", "utf8");
 
   for (const marker of [
@@ -384,8 +385,10 @@ test("outbox schema keeps durable idempotency and delivery state", () => {
     assert.ok(schema.includes(marker), `outbox schema is missing ${marker}`);
   }
 
-  assert.ok(compat.includes("ensureOutboxDeliverySchema"));
-  assert.ok(compat.includes("CREATE UNIQUE INDEX IF NOT EXISTS outbox_dedupe_key_unique"));
+  assert.ok(guard.includes("ensureOutboxDeliverySchema"));
+  assert.ok(guard.includes("verifyRequestSchemaReadOnlyFromPool(pool, outboxDeliverySchemaSpec)"));
+  assert.ok(!/CREATE\s+(?:UNIQUE\s+)?INDEX|ALTER\s+TABLE/i.test(guard), "no request-time outbox DDL remains");
+  assert.ok(verifier.includes("outbox_dedupe_key_unique"), "the catalog check must require the dedupe unique index");
   assert.ok(migration.includes("ADD COLUMN IF NOT EXISTS dedupe_key"));
 });
 
