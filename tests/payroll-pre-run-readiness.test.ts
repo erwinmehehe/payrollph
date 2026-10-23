@@ -92,9 +92,12 @@ test("actual statutory watch is evaluated, never silently ignored", () => {
 });
 
 test("review-due, overdue update and uncovered rule pack have distinct blocking finding codes", () => {
-  const rules = [item("sss", "review-due"), item("philhealth", "update-overdue"),
-    item("pagibig", "no-coverage"), item("bir-withholding", "current"),
-    item("wage-orders", "current")];
+  // An update-overdue item is a supplemental pending-change advisory, not
+  // the agency pack's baseline. Keep the real baseline in this synthetic fixture
+  // so this test isolates each intended status without masking a missing pack.
+  const rules = [item("sss", "review-due"), item("philhealth", "current"),
+    item("philhealth", "update-overdue"), item("pagibig", "no-coverage"),
+    item("bir-withholding", "current"), item("wage-orders", "current")];
   const result = evaluatePayrollPreRunReadiness(fixture({ ruleWatch: rules }));
   assert.deepEqual(result.findings.map(f => f.code), [
     "PRERUN_STATUTORY_REVIEW_DUE",
@@ -102,6 +105,8 @@ test("review-due, overdue update and uncovered rule pack have distinct blocking 
     "PRERUN_STATUTORY_NO_COVERAGE",
   ]);
   assert.ok(result.findings.every(f => f.blocking));
+  assert.ok(!result.findings.some(f => f.code === "PRERUN_STATUTORY_WATCH_INCOMPLETE"),
+    "An overdue advisory accompanied by its current baseline must not look like missing rule evidence");
   assert.ok(!has(fixture({ employees: [], ruleWatch: rules }), "PRERUN_STATUTORY_REVIEW_DUE"),
     "rule status for an empty cohort is not incorrectly attributed to workers");
 });
