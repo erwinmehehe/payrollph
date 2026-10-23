@@ -256,7 +256,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
       path + " " + verb + ": a foreign victim denial must be exercised");
     if (verb === "POST") {
       assert.match(proofLines[entry.testedBy.unchangedDbLine - 1] ?? "",
-        /assert\\.deepEqual\\(victimAfter, victimBefore/,
+        /assert\.deepEqual\(victimAfter, victimBefore/,
         "Unsigned PDF POST must leave the real victim database and audit untouched");
     }
   }
