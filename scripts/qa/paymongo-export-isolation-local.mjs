@@ -49,7 +49,7 @@ async function request(path, cookie, method = "GET", body) {
     directUser = { ...r, id: r.id, totpEnabled: r.totp_enabled, employeeId: r.employee_id,
       mfaVerifiedAt: r.mfa_verified_at, authMethod: r.auth_method };
     const routes = [
-      [/^\/api\/payroll-runs\/(\d+)\/(exports|payout-reconciliation)$/, m => [`payroll-runs/[id]/${m[2]}`, { id: m[1] }]],
+      [/^\/api\/payroll-runs\/([^/]+)\/(exports|payout-reconciliation)$/, m => [`payroll-runs/[id]/${m[2]}`, { id: m[1] }]],
       [/^\/api\/approvals\/(\d+)$/, m => ["approvals/[id]", { id: m[1] }]],
       [/^\/api\/(payroll-earnings|payroll-underpayments|holidays)$/, m => [m[1], {}]],
     ];
@@ -192,6 +192,13 @@ async function investigate(v, a) {
   const ownExport = await request(exportPath(a.source.id) + '?kind=journal', a.maker.cookie);
   status(ownExport, 200, 'own nonempty journal export');
   check(ownExport.text.length > 30, 'own CSV contains real fixture rows');
+  const forgedOwn = await request(exportPath(a.source.id) + `?kind=journal&organizationId=${v.org.id}&legalEntityId=${v.entity.id}&employeeId=${v.worker.id}`, a.maker.cookie);
+  status(forgedOwn, 200, 'own export ignores forged foreign selectors');
+  check(forgedOwn.text === ownExport.text && !forgedOwn.text.includes(v.worker.employeeNo), 'forged selectors cannot change export scope or bytes');
+  for (const invalid of ['not-a-number', '1.5']) {
+    await deniedNoProvider(v, a.maker, exportPath(invalid) + '?kind=journal', 'GET', undefined, 400, 'invalid export run ID');
+    await deniedNoProvider(v, a.checker, reconcilePath(invalid), 'POST', { action: 'retry-failed', confirm: true }, 400, 'invalid reconciliation run ID');
+  }
   const reconciled = status(await request(reconcilePath(a.source.id), a.checker.cookie, 'POST', { action: 'reconcile' }), 200, 'own successful provider reconciliation');
   check(reconciled.organizationId === a.org.id && reconciled.runId === a.source.id && reconciled.reconciliation.succeeded === 1, 'reconciliation bound to own employer and exact one worker');
   for (const query of ['?kind=journal', '?kind=bank&dryRun=true', '?kind=bank&dryRun=false']) {
@@ -382,6 +389,33 @@ async function providerCorruption(a, victim) {
   successes.push({ organizationId: a.org.id, malformedResponseCases: cases.map(c => c[0]),
     unknownNotRetryable: true, correctedReadRecovery: true, noProviderPosts: true });
 }
+async function crossRailClaim(a, victim) {
+  await db.insert(s.payoutBatches).values({ organizationId: a.org.id, payrollRunId: a.source.id,
+    provider: 'xendit', idempotencyKey: 'local-claim-' + a.source.id, requestHash: 'a'.repeat(64),
+    transferCount: 1, totalAmountCents: 2800000, status: 'prepared' });
+  const path = id => `/api/payroll-runs/${id}/exports`;
+  for (const mode of ['preflight', 'disburse', 'complete-manual']) {
+    const count = providerCalls.length;
+    const before = await snapshot(a);
+    const blocked = await request(path(a.source.id), a.checker.cookie, 'POST', { mode, confirm: true });
+    status(blocked, 409, 'existing Xendit claim blocks PayMongo/manual ' + mode);
+    check(blocked.json.code === 'XENDIT_PAYOUT_LEDGER_ALREADY_EXISTS', 'exact cross-rail claim guard');
+    check(providerCalls.length === count, 'cross-rail rejection cannot reach provider');
+    assert.deepEqual(await snapshot(a), before, 'blocked cross-rail operation changes no state'); assertions++;
+    await deniedNoProvider(a, victim.checker, path(a.source.id), 'POST', { mode, confirm: true }, 403,
+      'foreign actor cannot inspect claimed provider through ' + mode);
+  }
+  const before = await snapshot(a);
+  const count = providerCalls.length;
+  const bank = await request(path(a.source.id) + '?kind=bank&dryRun=false', a.checker.cookie);
+  status(bank, 409, 'claimed run cannot issue final bank bytes');
+  check(bank.json.code === 'PAYROLL_PAYOUT_LEDGER_ALREADY_CLAIMED', 'bank claim guard');
+  check(providerCalls.length === count, 'bank claim refusal cannot query provider');
+  assert.deepEqual(await snapshot(a), before, 'bank refusal leaves claim unchanged'); assertions++;
+  status(await request(path(a.source.id) + '?kind=journal', a.maker.cookie), 200, 'existing claim does not block owned accounting journal');
+  successes.push({ organizationId: a.org.id, crossRailClaimBlocksProviderAndManual: true, finalBankRefused: true,
+    claimNotDisclosedToForeignActor: true, ownedJournalRemainsAvailable: true });
+}
 try {
   process.env.PAYMONGO_SECRET_KEY = 'sk_test_synthetic_no_network';
   const nonce = randomUUID().slice(0, 8);
@@ -406,6 +440,9 @@ try {
   }
   for (const label of ['PM-BAD-B', 'PM-BAD-C']) {
     const actor = await seed(label, nonce); await providerFixture(actor); await providerCorruption(actor, v);
+  }
+  for (const label of ['PM-RAIL-B', 'PM-RAIL-C']) {
+    const actor = await seed(label, nonce); await crossRailClaim(actor, v);
   }
   assert.deepEqual(await snapshot(v), initial, 'victim unchanged after complete investigation'); assertions++;
   await mkdir('outputs', { recursive: true });
