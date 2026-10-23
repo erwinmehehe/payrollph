@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
-import { employees, organizations, userOrganizations, users } from "../src/db/schema";
+import { employees, employeePayProfiles, organizations, userOrganizations, users } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
 import { encryptTotpSecret } from "../src/lib/security-secret";
 
@@ -31,6 +31,10 @@ async function main() {
     basicRate: "30000",
     startDate: "2026-10-01",
   }).returning({ id: employees.id });
+  await db.insert(employeePayProfiles).values({
+    organizationId: tenantB.id, employeeId: workerB.id, payBasis: "monthly",
+    rateAmount: "30000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+  });
 
   const mfa = encryptTotpSecret("JBSWY3DPEHPK3PXP");
   for (const role of ["employee", "hr"] as const) {

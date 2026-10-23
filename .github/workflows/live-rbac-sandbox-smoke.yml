@@ -382,6 +382,13 @@ jobs:
           fi
       - name: Run all six real authenticated API roles with isolated fictional records
         run: npx tsx scripts/qa/isolated-six-role-rbac.mjs
+      - name: Diagnose failure by machine-readable error code only (no log bodies)
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f /tmp/payrollph-isolated-rbac-next.log ]; then
+            grep -Eo 'REQUEST_SCHEMA_READONLY_[A-Z_]+|READONLY_PAY_PROFILES_REQUIRE_REVIEWED_BACKFILL|PUBLIC_DEMO_PAY_PROFILE_[A-Z_]+|CORE_SCHEMA_[A-Z_]+' /tmp/payrollph-isolated-rbac-next.log | sort -u || true
+          fi
       - name: Publish status-only fictional evidence, never cookies or employee rows
         if: always()
         uses: actions/upload-artifact@v7
