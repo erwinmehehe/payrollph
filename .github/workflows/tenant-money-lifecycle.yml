@@ -84,6 +84,7 @@ jobs:
           done
           test "$ready" = true
           npx tsx scripts/qa/tenant-money-lifecycle-http.mjs
+          npx tsx scripts/qa/final-pay-lifecycle-http.mjs
       - name: Server diagnostics
         if: failure()
         run: cat /tmp/money-server.log || true
@@ -91,5 +92,7 @@ jobs:
         if: always()
         with:
           name: money-lifecycle-${{ matrix.exact-links }}-${{ github.event.pull_request.head.sha || github.sha }}
-          path: qa-artifacts/tenant-money-lifecycle.json
+          path: |
+            qa-artifacts/tenant-money-lifecycle.json
+            qa-artifacts/final-pay-lifecycle.json
           if-no-files-found: warn
