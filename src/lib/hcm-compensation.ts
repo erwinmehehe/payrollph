@@ -1,5 +1,6 @@
 import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { approvalBelongsToPayrollRun } from "@/lib/payroll-approval-link";
 import {
   approvalTasks,
   auditEvents,
@@ -126,7 +127,7 @@ export async function invalidatePayrollRunsForCompensationChange(
       invalidated.push(updated.id);
 
       for (const task of tasks) {
-        if (!task.detail.includes(`Payroll run #${run.id}`)) continue;
+        if (!approvalBelongsToPayrollRun(task, run)) continue;
         if (task.status !== "Pending" && task.status !== "Approved") continue;
         await tx.update(approvalTasks).set({
           status: "Superseded",
