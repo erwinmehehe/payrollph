@@ -16,6 +16,7 @@ const { eq } = await import("drizzle-orm");
 const { encryptBankAccount } = await import("../../src/lib/bank-account-crypto.ts");
 const base = process.env.MONEY_PROOF_URL;
 const receipts = [];
+const successes = [];
 const exactLinks = process.env.EXACT_PAYROLL_APPROVAL_LINKS_ENABLED === "true";
 let assertions = 0;
 function check(condition, label) { assert.ok(condition, label); assertions++; }
@@ -122,6 +123,7 @@ async function corrections(v, a, effectiveDate) {
   assert.deepEqual(await snapshot(a), ownBeforeDisabledPosting, "disabled posting does not change money state"); assertions++;
   const selfDecision = status(await request("/api/payroll-underpayments", a.maker.cookie, "PATCH", decision), 409, "maker cannot review own correction");
   check(selfDecision.code === "UNDERPAYMENT_SELF_REVIEW", "self-review blocked by maker-checker");
+  check((await db.select().from(s.payrollUnderpaymentRequests).where(eq(s.payrollUnderpaymentRequests.id, pending.id)))[0].status === "pending_review", "self-review leaves pending correction unchanged");
   await deny(v, a.checker, "/api/payroll-underpayments", "PATCH", { ...decision, id: v.claim.id }, 404, "foreign correction id forged own organization");
   await deny(v, a.checker, "/api/payroll-underpayments", "PATCH", { ...decision, id: v.claim.id, organizationId: v.org.id }, 403, "foreign correction organization review");
   const reviewed = status(await request("/api/payroll-underpayments", a.checker.cookie, "PATCH", decision), 200, "own independent correction rejection");
@@ -129,6 +131,11 @@ async function corrections(v, a, effectiveDate) {
   check((await db.select().from(s.payrollUnderpaymentRequests).where(eq(s.payrollUnderpaymentRequests.id, pending.id)))[0].status === "rejected", "SQL confirms correction rejection");
   for (const path of ["/api/payroll-earnings", "/api/payroll-underpayments"]) {
     status(await request(`${path}?organizationId=${a.org.id}`, a.employeeUser.cookie), 403, "employee cannot read payroll adjustments");
+  }
+  for (const route of ["payroll-earnings", "payroll-underpayments"]) {
+    for (const method of ["GET", "POST", "PATCH"]) successes.push({ route, method,
+      organizationId: a.org.id, objectId: route === "payroll-earnings" ? own.id : pending.id,
+      ownSuccess: true, forgedSelectorExercised: true });
   }
 }
 async function seedAdjustments(t, effectiveDate) {
@@ -141,6 +148,44 @@ async function seedAdjustments(t, effectiveDate) {
     "SQL confirms earning belongs to own worker");
   check((await db.select().from(s.payrollUnderpaymentRequests).where(eq(s.payrollUnderpaymentRequests.id, t.claim.id)))[0].sourcePayrollRunId === t.source.id,
     "SQL confirms correction refers to own source");
+}
+async function earningInvalidation(a) {
+  const [target] = await db.insert(s.payrollRuns).values({ organizationId: a.org.id, legalEntityId: a.entity.id,
+    periodLabel: "Fictional earning invalidation", periodStart: "2027-01-01", periodEnd: "2027-01-15",
+    payDate: "2027-01-16", status: "Processed", employeeCount: 1, processedChunks: 1, totalChunks: 1 }).returning();
+  const [unrelated] = await db.insert(s.payrollRuns).values({ id: Number(String(target.id) + "88888"),
+    organizationId: a.org.id, legalEntityId: a.entity.id, periodLabel: "Unrelated earning prefix",
+    periodStart: "2027-02-01", periodEnd: "2027-02-15", payDate: "2027-02-16", status: "Processed" }).returning();
+  const tasks = await db.insert(s.approvalTasks).values([target, unrelated].map(r => ({ organizationId: a.org.id,
+    payrollRunId: r.id, title: "Fictional earning review", detail: `Payroll run #${r.id}`,
+    approver: a.checker.user.name, dueLabel: "Synthetic" }))).returning();
+  const beforeUnrelated = (await db.select().from(s.payrollRuns).where(eq(s.payrollRuns.id, unrelated.id)))[0];
+  for (const method of ["POST", "PATCH"]) {
+    await db.insert(s.payrollEntries).values({ payrollRunId: target.id, employeeId: a.worker.id,
+      grossPay: "100.00", deductions: "0.00", netPay: "100.00" });
+    let result;
+    if (method === "POST") {
+      result = status(await request("/api/payroll-earnings", a.maker.cookie, "POST", { organizationId: a.org.id,
+        employeeId: a.worker.id, earningType: "commission", label: "Invalidation regression", amount: 12.34,
+        effectiveDate: "2027-01-05" }), 201, "earning creation invalidates exactly its cutoff");
+      a.invalidationEarningId = result.id;
+    } else {
+      result = status(await request("/api/payroll-earnings", a.maker.cookie, "PATCH", { id: a.invalidationEarningId }), 200,
+        "earning void invalidates exactly its cutoff");
+    }
+    assert.deepEqual(result.invalidatedPayrollRunIds, [target.id]); assertions++;
+    check((await db.select().from(s.payrollEntries).where(eq(s.payrollEntries.payrollRunId, target.id))).length === 0, "stale own entries removed");
+    for (const [index, expected] of [[0, "Superseded"], [1, exactLinks ? "Pending" : "Superseded"]]) {
+      assert.equal((await db.select().from(s.approvalTasks).where(eq(s.approvalTasks.id, tasks[index].id)))[0].status,
+        expected, `${method} exactLinks=${exactLinks} task=${index}`); assertions++;
+    }
+    assert.deepEqual((await db.select().from(s.payrollRuns).where(eq(s.payrollRuns.id, unrelated.id)))[0], beforeUnrelated,
+      "unrelated cutoff register unchanged"); assertions++;
+    if (method === "POST") {
+      await db.update(s.payrollRuns).set({ status: "Processed", employeeCount: 1, processedChunks: 1, totalChunks: 1 }).where(eq(s.payrollRuns.id, target.id));
+      for (const t of tasks) await db.update(s.approvalTasks).set({ status: "Pending", decidedBy: null, decidedAt: null }).where(eq(s.approvalTasks.id, t.id));
+    }
+  }
 }
 async function lifecycle(v, a) {
   const forged = { organizationId: v.org.id, legalEntityId: v.entity.id, employeeId: v.worker.id };
@@ -155,6 +200,9 @@ async function lifecycle(v, a) {
     { organizationId: a.org.id, payrollRunId: a.run.id, title: "Renamed linked approval", detail: "Renamed payroll review", approver: a.checker.user.name, dueLabel: "Synthetic" },
     { organizationId: a.org.id, payrollRunId: null, title: "Legacy linked approval", detail: `Payroll run #${a.run.id} · legacy`, approver: a.checker.user.name, dueLabel: "Synthetic" },
   ]).returning();
+  await pool.query("UPDATE user_organizations SET active=false WHERE user_id=$1 AND organization_id=$2", [a.maker.user.id, a.org.id]);
+  await deny(a, a.maker, `/api/payroll-runs/${a.run.id}/process`, "POST", {}, 403, "revoked membership cannot process with an existing session");
+  await pool.query("UPDATE user_organizations SET active=true WHERE user_id=$1 AND organization_id=$2", [a.maker.user.id, a.org.id]);
   for (const suffix of ["process", "submit-review", "release"]) {
     await deny(v, a.maker, `/api/payroll-runs/${v.run.id}/${suffix}`, "POST", { ...forged, organizationId: a.org.id, approverUserId: a.checker.user.id }, 403, "foreign run " + suffix);
   }
@@ -179,15 +227,25 @@ async function lifecycle(v, a) {
   await deny(a, a.maker, `/api/approvals/${submitted.task.id}`, "PATCH", { status: "Approved" }, 403, "maker cannot approve own task");
   const approved = status(await request(`/api/approvals/${submitted.task.id}`, a.checker.cookie, "PATCH", { status: "Approved" }), 200, "independent own payroll checker");
   check(Boolean(approved), "real approval response");
+  const [approvedTask] = await db.select().from(s.approvalTasks).where(eq(s.approvalTasks.id, submitted.task.id));
+  check(approvedTask.status === "Approved" && approvedTask.decidedBy === a.checker.user.name, "SQL confirms independent checker decision");
   await deny(a, a.checker, `/api/payroll-runs/${a.run.id}/release`, "POST", { acknowledgeExceptions: true }, 403, "checker cannot release checked payroll");
   await db.update(s.sessions).set({ mfaVerifiedAt: null }).where(eq(s.sessions.id, a.releaser.session.id));
+  const beforeMfaDenial = await snapshot(a);
   const mfaDenied = await request(`/api/payroll-runs/${a.run.id}/release`, a.releaser.cookie, "POST", { acknowledgeExceptions: true });
   status(mfaDenied, 403, "release requires recent MFA");
   check(mfaDenied.json.code === "MFA_REQUIRED", "MFA enforced for fictional releaser");
+  assert.deepEqual(await snapshot(a), beforeMfaDenial, "missing MFA cannot alter financial state"); assertions++;
   await db.update(s.sessions).set({ mfaVerifiedAt: new Date() }).where(eq(s.sessions.id, a.releaser.session.id));
   const released = status(await request(`/api/payroll-runs/${a.run.id}/release`, a.releaser.cookie, "POST", { ...forged, acknowledgeExceptions: true }), 200, "own separate releaser settles fictional payroll");
   check(released.run.id === a.run.id && released.run.organizationId === a.org.id && released.run.status === "Released", "own release committed");
   check((await db.select().from(s.payrollRuns).where(eq(s.payrollRuns.id, a.run.id)))[0].status === "Released", "SQL confirms own release");
+  const slips = await db.select().from(s.payslips).where(eq(s.payslips.organizationId, a.org.id));
+  check(slips.length === 1 && slips[0].employeeId === a.worker.id, "settlement creates only own worker payslip");
+  for (const suffix of ["process", "submit-review", "release"]) successes.push({ route: `payroll-runs/[id]/${suffix}`,
+    method: "POST", organizationId: a.org.id, objectId: a.run.id, ownSuccess: true, forgedSelectorExercised: true });
+  successes.push({ route: "approvals/[id]", method: "PATCH", organizationId: a.org.id, objectId: submitted.task.id,
+    ownSuccess: true, independentChecker: a.checker.user.id });
 }
 try {
   const nonce = randomUUID().slice(0, 8);
@@ -209,11 +267,11 @@ try {
     approver: v.checker.user.name, dueLabel: "Synthetic" }).returning();
   check(v.task.id > 6, "real high-ID victim approval exists");
   const initialVictim = await snapshot(v);
-  for (const attacker of [a, b]) { await corrections(v, attacker, effectiveDate); await lifecycle(v, attacker); }
+  for (const attacker of [a, b]) { await corrections(v, attacker, effectiveDate); await earningInvalidation(attacker); await lifecycle(v, attacker); }
   assert.deepEqual(await snapshot(v), initialVictim, "victim unchanged across both complete attacker journeys"); assertions++;
   await mkdir("qa-artifacts", { recursive: true });
   await writeFile("qa-artifacts/tenant-money-lifecycle.json", JSON.stringify({ head: process.env.PR_HEAD_SHA ?? null,
     assertions, exactLinks, attackerOrganizations: [a.org.id, b.org.id], victimOrganizationId: v.org.id,
-    receipts, status: "PASS", scope: "partial MNY-01; no provider or production acceptance" }, null, 2));
+    successes, receipts, status: "PASS", scope: "partial MNY-01; no provider or production acceptance" }, null, 2));
   console.log(`Money lifecycle PASS: ${assertions} assertions, ${receipts.length} denied requests with unchanged victim snapshots.`);
 } finally { await pool.end(); }
