@@ -33,6 +33,13 @@ import {
 
 const csv = escapeCsvCell;
 const round2 = (value: number) => Math.round(value * 100) / 100;
+const formatExactPayoutCents = (cents: number) => {
+  if (!Number.isSafeInteger(cents) || cents < 0) {
+    throw new Error("PAYOUT_REGISTER_RECONCILIATION_FAILED: invalid total centavos.");
+  }
+  const digits = String(cents).padStart(3, "0");
+  return digits.slice(0, -2) + "." + digits.slice(-2);
+};
 
 export function taxWithheldFromLineItems(value: unknown) {
   const lines = Array.isArray(value)
@@ -271,6 +278,12 @@ export async function generateBankFile(
     };
   });
 
+  // Every count, manifest, body amount and split total derives from this
+  // single exact-centavo register; no independent float sum is authoritative.
+  const registerCents = rows.map((row) => payoutCentsFromNetPay(row.net_pay));
+  const registerTotalCents = registerCents.reduce((sum, amount) => sum + amount, 0);
+  const registerTotal = formatExactPayoutCents(registerTotalCents);
+
   const tName = template.name.toLowerCase();
   const usesMobileDestination = tName.includes("gcash") || tName.includes("maya") || tName.includes("paymaya");
   const validation = {
@@ -278,7 +291,7 @@ export async function generateBankFile(
     template: template.name,
     version: template.version,
     rowCount: rows.length,
-    totalNet: rows.reduce((sum, row) => sum + Number(row.net_pay), 0).toFixed(2),
+    totalNet: registerTotal,
     missingAccounts: rows.filter((row) => row.account_number === "0000000000").length,
     missingMobiles: rows.filter((row) => row.mobile === "09000000000").length,
     missingPaymentSnapshots: rows.filter((row) => !row.paymentSnapshotPresent).length,
@@ -300,7 +313,7 @@ export async function generateBankFile(
     assertReleasedPayoutTotals({
       expectedEmployeeCount: run.employeeCount,
       expectedNetPay: run.netPay,
-      amountsCents: rows.map((row) => payoutCentsFromNetPay(row.net_pay)),
+      amountsCents: registerCents,
     });
     if (usesMobileDestination && validation.missingMobiles > 0) {
       throw new Error(
@@ -348,7 +361,7 @@ export async function generateBankFile(
 
   const splitParts = splitRowsByBankLimits(
     rows,
-    (row) => Math.round(Number(row.amount) * 100),
+    (row) => payoutCentsFromNetPay(row.amount),
     { maxAmountCents, maxRows: maxRowsPerFile },
   );
   const rowParts = splitParts.length > 0 ? splitParts : [rows];
@@ -417,8 +430,8 @@ export async function generateBankFile(
           email: row.email,
           mobile: row.mobile,
           bank_code: row.bank_code,
-          amount: Number(row.amount).toFixed(2),
-          net_pay: Number(row.net_pay).toFixed(2),
+          amount: formatExactPayoutCents(payoutCentsFromNetPay(row.amount)),
+          net_pay: formatExactPayoutCents(payoutCentsFromNetPay(row.net_pay)),
           payment_date: row.payment_date,
           reference: row.reference,
         })),
@@ -445,7 +458,7 @@ export async function generateBankFile(
   const baseFilename = `${options.allowSyntheticDemoDestinations ? "demo-" : ""}${template.name.replaceAll(" ", "-").toLowerCase()}-${run.id}.${template.format.toLowerCase()}`;
   const renderedParts = rowParts.map((partRows, index) => {
     const totalCents = partRows.reduce(
-      (sum, row) => sum + Math.round(Number(row.amount) * 100),
+      (sum, row) => sum + payoutCentsFromNetPay(row.amount),
       0,
     );
     const filename = bankPartFilename(baseFilename, index + 1, rowParts.length);
@@ -462,8 +475,8 @@ export async function generateBankFile(
   });
 
   const combinedCents = renderedParts.reduce((sum, part) => sum + part.totalCents, 0);
-  const releasedCents = Math.round(Number(run.netPay) * 100);
-  if (!dryRun && combinedCents !== releasedCents) {
+  const releasedCents = payoutCentsFromNetPay(run.netPay);
+  if (!dryRun && (combinedCents !== releasedCents || combinedCents !== registerTotalCents)) {
     throw new Error(
       `Split bank files do not reconcile to released payroll net pay: files PHP ${(combinedCents / 100).toFixed(2)} vs released PHP ${(releasedCents / 100).toFixed(2)}.`,
     );
@@ -479,7 +492,7 @@ export async function generateBankFile(
     files: renderedParts.map((part) => ({
       filename: part.filename,
       rowCount: part.rowCount,
-      totalNet: (part.totalCents / 100).toFixed(2),
+      totalNet: formatExactPayoutCents(part.totalCents),
     })),
   };
 
