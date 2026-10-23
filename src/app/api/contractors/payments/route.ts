@@ -88,13 +88,27 @@ export async function GET(request: Request) {
     contractor: contractors,
   })
     .from(contractorPayments)
-    .innerJoin(contractors, eq(contractorPayments.contractorId, contractors.id))
+    // Keep missing or foreign-attributed contractor references visible to the
+    // integrity check below; an inner join silently omits orphaned rows.
+    .leftJoin(contractors, eq(contractorPayments.contractorId, contractors.id))
     .where(and(
       eq(contractorPayments.organizationId, organizationId),
       gte(contractorPayments.paymentDate, period.start),
       lte(contractorPayments.paymentDate, period.end),
     ))
     .orderBy(asc(contractorPayments.paymentDate), asc(contractorPayments.id));
+
+  // A legacy/imported payment may point to a contractor owned by another
+  // employer: joining on contractor ID alone would disclose that employer's
+  // identity and present inaccurate withholding totals. Never silently drop
+  // those liabilities or serialize any foreign contractor information.
+  if (rows.some(({ contractor }) => !contractor || contractor.organizationId !== organizationId)) {
+    return Response.json(
+      { error: "Contractor payment attribution requires review." },
+      { status: 409, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  const verifiedRows = rows.map(({ payment, contractor }) => ({ payment, contractor: contractor! }));
 
   const aggregate = new Map<string, {
     atc: string;
@@ -103,7 +117,7 @@ export async function GET(request: Request) {
     withholdingAmount: number;
     transactions: number;
   }>();
-  for (const row of rows) {
+  for (const row of verifiedRows) {
     const atc = row.payment.withholdingAtc;
     const rate = Number(row.payment.withholdingRate);
     const key = `${atc}|${rate.toFixed(3)}`;
@@ -133,7 +147,7 @@ export async function GET(request: Request) {
       form,
       period,
       totals,
-      payments: rows.map(({ payment, contractor }) => ({
+      payments: verifiedRows.map(({ payment, contractor }) => ({
         ...payment,
         contractorName: contractor.name,
         contractorTin: maskGovernmentId(contractor.tin),
