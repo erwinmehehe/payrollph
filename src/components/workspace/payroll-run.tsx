@@ -157,7 +157,7 @@ export function PayrollRunView({
       revision: (previous?.revision ?? 0) + 1,
       calculate,
       orgId: data.selectedOrganization.id,
-      legalEntityId: run.legalEntityId,
+      legalEntityId: run.legalEntityId ?? null,
       process: () => onProcess(id),
       onBlocked: (message) => notify(message, "err"),
     }));
