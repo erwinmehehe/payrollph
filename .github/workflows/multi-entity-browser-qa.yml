@@ -177,6 +177,16 @@ jobs:
         env:
           MULTI_ENTITY_REGISTRATIONS_ENABLED: "true"
         run: node scripts/multi-entity-registration-synthetic-http.mjs
+      - name: Show disposable server diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          for log in /tmp/multi-entity*-ci.log; do
+            if [ -f "$log" ]; then
+              echo "Disposable server log: $log"
+              tail -n 120 "$log"
+            fi
+          done
       - name: Preserve before/after synthetic screenshots
         if: always()
         uses: actions/upload-artifact@v7
