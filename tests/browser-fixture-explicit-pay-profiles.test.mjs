@@ -82,3 +82,24 @@ test("multi-entity browser fixture creates verified tenant-bound pay profiles be
   assert.match(fixture, /standardWorkDaysPerMonth: "22"/);
   assert.match(fixture, /standardHoursPerDay: "8"/);
 });
+
+test("approved-exit PostgreSQL HTTP fixture seeds only verified tenant-bound payroll profiles before real separation", () => {
+  const source = readFileSync("scripts/qa/payroll-approved-exit-http.mjs", "utf8");
+  assert.match(source, /assert\.equal\(process\.env\.CI, "true"\)/);
+  assert.match(source, /assert\.equal\(process\.env\.GITHUB_ACTIONS, "true"\)/);
+  assert.match(source, /assert\.equal\(database\.hostname, "127\.0\.0\.1"\)/);
+  assert.match(source, /assert\.equal\(database\.pathname, "\/app_db"\)/);
+  assert.match(source, /assert\.equal\(worker\.organizationId, own\.id, "EXIT_HTTP_PROFILE_CROSS_TENANT_REFUSED"\)/);
+  assert.match(source, /EXIT_HTTP_PROFILE_ROSTER_UNVERIFIED/);
+  assert.match(source, /assert\.equal\(worker\.basicRate, "22000\.00", "EXIT_HTTP_PROFILE_RATE_DRIFT_REFUSED"\)/);
+  assert.match(source, /db\.insert\(employeePayProfiles\)\.values\(\{/);
+  assert.match(source, /employeeId: worker\.id, organizationId: own\.id, payBasis: "monthly"/);
+  assert.match(source, /rateAmount: "22000\.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8"/);
+  const created = source.indexOf("const [worker] = await db.insert(employees)");
+  const profile = source.indexOf("await db.insert(employeePayProfiles).values({", created);
+  const post = source.indexOf('const ownCreate = expectStatus(await request("/api/separation", maker, "POST"', profile);
+  assert.ok(created >= 0 && profile > created && post > profile,
+    "Reviewed pay profile must exist before HTTP separation and payroll checks");
+  assert.match(source, /const selfDenied = expectStatus/);
+  assert.match(source, /Foreign POST denied/);
+});

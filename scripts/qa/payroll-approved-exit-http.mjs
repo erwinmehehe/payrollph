@@ -58,6 +58,15 @@ try {
   const [maker, checker, stranger] = await Promise.all(actors.map(actor => session(actor.id)));
   const [entity] = await db.insert(legalEntities).values({ organizationId: own.id, code: "PRIMARY", legalName: "Fictional Exit Employer", displayName: "Fictional Exit", primaryEntity: true }).returning();
   const [worker] = await db.insert(employees).values({ organizationId: own.id, legalEntityId: entity.id, employeeNo: "EXIT-" + suffix.slice(0, 8), firstName: "Fictional", lastName: "Exit", title: "Synthetic", avatarInitials: "FE", basicRate: "22000.00", startDate: "2025-01-01", mobile: "09999999999" }).returning();
+  // Synthetic PG16/18 test roster: request-time pay-profile backfills are forbidden.
+  // Reject fixture drift before the real Separation POST and payroll authorization checks.
+  assert.equal(worker.organizationId, own.id, "EXIT_HTTP_PROFILE_CROSS_TENANT_REFUSED");
+  assert.equal(worker.employeeNo, "EXIT-" + suffix.slice(0, 8), "EXIT_HTTP_PROFILE_ROSTER_UNVERIFIED");
+  assert.equal(worker.basicRate, "22000.00", "EXIT_HTTP_PROFILE_RATE_DRIFT_REFUSED");
+  await db.insert(employeePayProfiles).values({
+    employeeId: worker.id, organizationId: own.id, payBasis: "monthly",
+    rateAmount: "22000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+  });
   assert.deepEqual((await db.select({ id: employees.id }).from(employees).where(and(eq(employees.organizationId, own.id), payrollEmploymentStatus("2026-10-01")))).map(row => row.id), [worker.id]);
   // This fixture isolates the handoff AFTER approved termination intent, not human intent approval.
   await db.insert(hcmBusinessProcessInstances).values({ organizationId: own.id, definitionCode: "fictional-prior-approved-intent", definitionVersion: 1, processType: "termination", sourceType: "separation_initiation", sourceKey: worker.id + ":" + suffix, employeeId: worker.id, effectiveDate: "2026-10-09", status: "approved", initiatedByUserId: actors[0].id, initiatedByName: actors[0].name, definitionSnapshot: { sourceEvidence: freezeSeparationIntent({ organizationId: own.id, employeeId: worker.id, employeeStatus: "Active", employeeOrgUnitId: null, employeeStartDate: "2025-01-01", employmentTermDecisionId: null, separationType: "resignation", noticeDate: "2026-09-20", lastDay: "2026-10-09" }) } });
