@@ -87,6 +87,10 @@ function packItem<T>(
   if (!current) {
     return { ...base, status: "no-coverage", detail: "No approved rule pack covers today. Payroll for today's dates will fail closed until a verified pack is added." };
   }
+  // An expiring pack cannot appear merely advisory when its official-source
+  // verification is unrecorded or stale. Verification takes precedence.
+  const verification = verificationItem(base, today);
+  if (verification.status !== "current") return verification;
   if (current.effectiveUntil) {
     const successor = packs.some((pack) => pack.effectiveFrom > current.effectiveUntil!);
     const daysLeft = dayNumber(current.effectiveUntil) - dayNumber(today);
@@ -94,7 +98,7 @@ function packItem<T>(
       return { ...base, status: "coverage-ending", detail: `The current pack ends ${current.effectiveUntil} (${daysLeft} days) and no successor pack is loaded.` };
     }
   }
-  return verificationItem(base, today);
+  return verification;
 }
 
 function verificationItem(base: Omit<RuleWatchItem, "status" | "detail">, today: string): RuleWatchItem {

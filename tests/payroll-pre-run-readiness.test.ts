@@ -41,7 +41,9 @@ const codes = (input: PreRunReadinessInput) =>
 const has = (input: PreRunReadinessInput, code: string) => codes(input).includes(code);
 const item = (family: RuleWatchItem["family"], status: RuleWatchItem["status"]): RuleWatchItem => ({
   family, status, label: family, currentVersion: "Fictional pack",
-  sourceDocument: "Synthetic agency circular", lastVerifiedOn: null,
+  sourceDocument: "Synthetic agency circular",
+  lastVerifiedOn: status === "verification-unrecorded" || status === "no-coverage"
+    ? null : status === "review-due" ? "2026-01-01" : "2026-10-19",
   detail: "Fictional rule status requiring manual review.",
 });
 
@@ -128,6 +130,32 @@ test("missing or duplicate statutory rule-watch records fail closed for populate
   assert.ok(has(overdue, "PRERUN_STATUTORY_UPDATE_OVERDUE"),
     "Overdue source alerts must continue to block calculation");
   assert.ok(!has(fixture({ employees: [], ruleWatch: [] }), "PRERUN_STATUTORY_WATCH_INCOMPLETE"));
+});
+
+test("nonblocking rule-watch labels never excuse missing source verification dates", () => {
+  for (const status of ["current", "coverage-ending"] as const) {
+    const ruleWatch = fixture().ruleWatch.map(row => row.family === "philhealth"
+      ? { ...row, status, lastVerifiedOn: null } : row);
+    assert.ok(has(fixture({ ruleWatch }), "PRERUN_STATUTORY_VERIFICATION_UNRECORDED"),
+      status + " must not bypass missing official-source review evidence");
+  }
+  const malformed = fixture().ruleWatch.map(row => row.family === "sss"
+    ? { ...row, lastVerifiedOn: "not-a-date" } : row);
+  assert.ok(has(fixture({ ruleWatch: malformed }), "PRERUN_STATUTORY_VERIFICATION_UNRECORDED"));
+});
+
+test("missing or invalid approval and revision timestamps fail closed", () => {
+  const original = fixture().timesheets[0];
+  for (const decidedAt of [null, "not-a-date"]) {
+    assert.ok(has(fixture({ timesheets: [{ ...original, decidedAt }] }),
+      "PRERUN_ATTENDANCE_UNREVIEWED"));
+  }
+  assert.ok(has(fixture({ restDayRevisions: [{
+    employeeId: 21, effectiveDate: "2026-10-08", createdAt: "not-a-date",
+  }] }), "PRERUN_REST_DAY_REVISION_UNRESOLVED"));
+  assert.ok(has(fixture({ scheduleAssignments: [{
+    employeeId: 21, effectiveFrom: "2026-10-08", createdAt: "not-a-date",
+  }] }), "PRERUN_SCHEDULE_REVISION_UNRESOLVED"));
 });
 
 test("missing pay profile and missing legal-entity attribution are per-employee findings", () => {

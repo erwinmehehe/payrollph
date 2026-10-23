@@ -136,6 +136,15 @@ export function evaluatePayrollPreRunReadiness(input: PreRunReadinessInput): Pay
           "Statutory verification evidence unavailable",
           family + " must have exactly one baseline rule-watch record; found " +
             baseline.length + ". Restore complete source evidence before calculation.");
+      } else if (!BLOCKING_STATUSES[baseline[0].status]
+        && (!baseline[0].lastVerifiedOn || !isoDay(baseline[0].lastVerifiedOn))) {
+        // A nonblocking label (including coverage-ending) is never evidence
+        // of an actual official-source review. Reject contradictory metadata.
+        add("PRERUN_STATUTORY_VERIFICATION_UNRECORDED",
+          "Statutory source verification is unrecorded",
+          family + " is marked " + baseline[0].status
+            + " without a valid source-verification date. Confirm the official"
+            + " source and record the review before calculation.");
       }
     }
     for (const item of ruleWatch) {
@@ -161,8 +170,9 @@ export function evaluatePayrollPreRunReadiness(input: PreRunReadinessInput): Pay
     const id = employee.id;
     const label = "Employee " + employee.employeeNo;
     const sheet = latestTimesheets.get(id);
-    const approved = sheet?.status === "approved"
-      && sheet.periodStart === run.periodStart && sheet.periodEnd === run.periodEnd;
+    const approved = sheet != null && sheet.status === "approved"
+      && sheet.periodStart === run.periodStart && sheet.periodEnd === run.periodEnd
+      && Number.isFinite(instant(sheet.decidedAt));
     const pendingCorrection = input.attendanceCorrections.some(row =>
       row.employeeId === id && row.status === "pending"
         && during(row.workDate, run.periodStart, run.periodEnd));
@@ -188,8 +198,11 @@ export function evaluatePayrollPreRunReadiness(input: PreRunReadinessInput): Pay
     // Rest-day revision rows and schedule assignments have no pending-status
     // column. A subsequent independently approved timesheet is their evidence
     // of resolution; otherwise a mid-period change must be reviewed first.
-    const resolvedAfter = (createdAt: Date | string) =>
-      approved && sheet?.decidedAt != null && instant(sheet.decidedAt) >= instant(createdAt);
+    const resolvedAfter = (createdAt: Date | string) => {
+      const revisionRecordedAt = instant(createdAt);
+      return approved && Number.isFinite(revisionRecordedAt)
+        && instant(sheet?.decidedAt ?? null) >= revisionRecordedAt;
+    };
     const restDayPending = input.restDayRevisions.some(row =>
       row.employeeId === id && run.periodStart < row.effectiveDate
         && row.effectiveDate <= run.periodEnd && !resolvedAfter(row.createdAt));
