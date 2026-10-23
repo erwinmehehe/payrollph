@@ -15,6 +15,10 @@ concurrency:
 
 jobs:
   money-lifecycle-pg16:
+    strategy:
+      fail-fast: false
+      matrix:
+        exact-links: ['false', 'true']
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -26,7 +30,7 @@ jobs:
           POSTGRES_DB: app_db
         ports: ['5432:5432']
         options: >-
-          --health-cmd 'pg_isready -U postgres -d app_db'
+          --health-cmd "pg_isready -U postgres -d app_db"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       TZ: Asia/Manila
@@ -43,6 +47,7 @@ jobs:
       XENDIT_PAYOUTS_ENABLED: 'false'
       PAYROLL_UNDERPAYMENT_POSTING_ENABLED: 'false'
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      EXACT_PAYROLL_APPROVAL_LINKS_ENABLED: ${{ matrix.exact-links }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -82,6 +87,6 @@ jobs:
       - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: money-lifecycle-${{ github.event.pull_request.head.sha || github.sha }}
+          name: money-lifecycle-${{ matrix.exact-links }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: qa-artifacts/tenant-money-lifecycle.json
           if-no-files-found: warn

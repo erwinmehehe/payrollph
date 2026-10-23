@@ -16,6 +16,7 @@ const { eq } = await import("drizzle-orm");
 const { encryptBankAccount } = await import("../../src/lib/bank-account-crypto.ts");
 const base = process.env.MONEY_PROOF_URL;
 const receipts = [];
+const exactLinks = process.env.EXACT_PAYROLL_APPROVAL_LINKS_ENABLED === "true";
 let assertions = 0;
 function check(condition, label) { assert.ok(condition, label); assertions++; }
 async function request(path, cookie, method = "GET", body) {
@@ -143,6 +144,17 @@ async function seedAdjustments(t, effectiveDate) {
 }
 async function lifecycle(v, a) {
   const forged = { organizationId: v.org.id, legalEntityId: v.entity.id, employeeId: v.worker.id };
+  // A real same-employer run whose ID starts with the target's decimal ID.
+  // Historical display-text matching incorrectly superseded its approval.
+  const prefixId = Number(String(a.run.id) + "99999");
+  const [prefixRun] = await db.insert(s.payrollRuns).values({ id: prefixId, organizationId: a.org.id,
+    legalEntityId: a.entity.id, periodLabel: "Unrelated prefix-collision run", periodStart: "2026-03-01",
+    periodEnd: "2026-03-15", payDate: "2026-03-16", status: "Draft" }).returning();
+  const inserted = await db.insert(s.approvalTasks).values([
+    { organizationId: a.org.id, payrollRunId: prefixRun.id, title: "Unrelated pending approval", detail: `Payroll run #${prefixRun.id}`, approver: a.checker.user.name, dueLabel: "Synthetic" },
+    { organizationId: a.org.id, payrollRunId: a.run.id, title: "Renamed linked approval", detail: "Renamed payroll review", approver: a.checker.user.name, dueLabel: "Synthetic" },
+    { organizationId: a.org.id, payrollRunId: null, title: "Legacy linked approval", detail: `Payroll run #${a.run.id} · legacy`, approver: a.checker.user.name, dueLabel: "Synthetic" },
+  ]).returning();
   for (const suffix of ["process", "submit-review", "release"]) {
     await deny(v, a.maker, `/api/payroll-runs/${v.run.id}/${suffix}`, "POST", { ...forged, organizationId: a.org.id, approverUserId: a.checker.user.id }, 403, "foreign run " + suffix);
   }
@@ -152,6 +164,13 @@ async function lifecycle(v, a) {
   check(calculated.run.id === a.run.id && calculated.run.organizationId === a.org.id, "calculated own run");
   const entries = await db.select().from(s.payrollEntries).where(eq(s.payrollEntries.payrollRunId, a.run.id));
   check(entries.length === 1 && entries[0].employeeId === a.worker.id && Number(entries[0].netPay) > 0, "actual own-worker payroll calculation");
+  for (const [index, expected] of [[0, exactLinks ? "Pending" : "Superseded"], [1, exactLinks ? "Superseded" : "Pending"], [2, "Superseded"]]) {
+    const [actual] = await db.select().from(s.approvalTasks).where(eq(s.approvalTasks.id, inserted[index].id));
+    assert.equal(actual.status, expected, `process exactLinks=${exactLinks} task=${index}`); assertions++;
+  }
+  // Flag-off parity leaves a renamed legacy task pending. Retire this test-only
+  // task before the ordinary fresh-checker journey; it is not a real approval.
+  if (!exactLinks) await db.update(s.approvalTasks).set({ status: "Superseded" }).where(eq(s.approvalTasks.id, inserted[1].id));
   const selfReview = await request(`/api/payroll-runs/${a.run.id}/submit-review`, a.maker.cookie, "POST", { approverUserId: a.maker.user.id });
   status(selfReview, 409, "maker cannot be own payroll checker");
   status(await request(`/api/payroll-runs/${a.run.id}/submit-review`, a.maker.cookie, "POST", { approverUserId: v.checker.user.id }), 422, "foreign checker cannot be assigned");
@@ -194,7 +213,7 @@ try {
   assert.deepEqual(await snapshot(v), initialVictim, "victim unchanged across both complete attacker journeys"); assertions++;
   await mkdir("qa-artifacts", { recursive: true });
   await writeFile("qa-artifacts/tenant-money-lifecycle.json", JSON.stringify({ head: process.env.PR_HEAD_SHA ?? null,
-    assertions, attackerOrganizations: [a.org.id, b.org.id], victimOrganizationId: v.org.id,
+    assertions, exactLinks, attackerOrganizations: [a.org.id, b.org.id], victimOrganizationId: v.org.id,
     receipts, status: "PASS", scope: "partial MNY-01; no provider or production acceptance" }, null, 2));
   console.log(`Money lifecycle PASS: ${assertions} assertions, ${receipts.length} denied requests with unchanged victim snapshots.`);
 } finally { await pool.end(); }
