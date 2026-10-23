@@ -20724,10 +20724,10 @@
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
             "file": "scripts/qa/payroll-approved-exit-http.mjs",
-            "line": 87,
-            "ownPositiveLine": 87,
-            "foreignDenialLine": 82,
-            "unchangedDbLine": 84,
+            "line": 96,
+            "ownPositiveLine": 96,
+            "foreignDenialLine": 91,
+            "unchangedDbLine": 93,
             "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
           }
         }
@@ -26163,10 +26163,10 @@
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
             "file": "scripts/qa/payroll-approved-exit-http.mjs",
-            "line": 71,
-            "ownPositiveLine": 71,
-            "foreignDenialLine": 74,
-            "unchangedDbLine": 78,
+            "line": 80,
+            "ownPositiveLine": 80,
+            "foreignDenialLine": 83,
+            "unchangedDbLine": 87,
             "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
           }
         },
@@ -26177,10 +26177,10 @@
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
             "file": "scripts/qa/payroll-approved-exit-http.mjs",
-            "line": 65,
-            "ownPositiveLine": 65,
-            "foreignDenialLine": 75,
-            "unchangedDbLine": 78,
+            "line": 74,
+            "ownPositiveLine": 74,
+            "foreignDenialLine": 84,
+            "unchangedDbLine": 87,
             "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
           }
         },
@@ -26191,10 +26191,10 @@
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
             "file": "scripts/qa/payroll-approved-exit-http.mjs",
-            "line": 97,
-            "ownPositiveLine": 97,
-            "foreignDenialLine": 76,
-            "unchangedDbLine": 78,
+            "line": 106,
+            "ownPositiveLine": 106,
+            "foreignDenialLine": 85,
+            "unchangedDbLine": 87,
             "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
           }
         }

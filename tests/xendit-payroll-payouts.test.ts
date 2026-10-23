@@ -132,3 +132,40 @@ test("Xendit read-only reconciliation never follows credential-bearing redirects
   assert.equal(observed?.method, "GET");
   assert.equal(observed?.url, "https://api.xendit.co/v3/payouts/" + payoutId);
 });
+
+test("read-only lookup binds the response payout ID to the requested ID only when explicitly enabled", async () => {
+  const requested = "po-requested-0001";
+  const other = "po-different-0002";
+  const expected = { referenceNumber: "PAY-25-E001", amountCents: 1550123, businessId: "biz-sample" };
+  let calls = 0;
+  const mock: typeof fetch = async (url, options) => {
+    calls++;
+    assert.equal(String(url), "https://api.xendit.co/v3/payouts/" + requested);
+    assert.equal(new Request(String(url), options).method, "GET");
+    return Response.json({ payout_id: other, reference_id: expected.referenceNumber,
+      status: "SUCCEEDED", source_currency: "PHP", destination_currency: "PHP",
+      source_amount: expected.amountCents, business_id: expected.businessId });
+  };
+  assert.equal((await getXenditPayrollPayout(requested, expected, mock, env)).payoutId, other,
+    "Default-off retains the previous response behavior");
+  await assert.rejects(getXenditPayrollPayout(requested, expected, mock, {
+    ...env, XENDIT_RECONCILIATION_IDENTITY_ENABLED: "true",
+  }), /XENDIT_RECONCILIATION_PAYOUT_ID_MISMATCH/);
+  assert.equal(calls, 2, "Each invocation performs one read and never retries or submits");
+});
+
+test("enabled read-only identity guard accepts an exact payout and retains amount/business validation", async () => {
+  const payoutId = "po-exact-identity-0001";
+  const expected = { referenceNumber: "PAY-25-E001", amountCents: 1550123, businessId: "biz-sample" };
+  const enabled = { ...env, XENDIT_RECONCILIATION_IDENTITY_ENABLED: "true" };
+  const payload = { payout_id: payoutId, reference_id: expected.referenceNumber,
+    status: "SUCCEEDED", source_currency: "PHP", destination_currency: "PHP",
+    source_amount: expected.amountCents, business_id: expected.businessId };
+  assert.equal((await getXenditPayrollPayout(payoutId, expected,
+    async () => Response.json(payload), enabled)).payoutId, payoutId);
+  for (const changed of [{ source_amount: 1 }, { business_id: "foreign-business" },
+    { reference_id: "PAY-99-E999" }, { payout_id: "malformed" }]) {
+    await assert.rejects(getXenditPayrollPayout(payoutId, expected,
+      async () => Response.json({ ...payload, ...changed }), enabled), /Reconciliation required/);
+  }
+});
