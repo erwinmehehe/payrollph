@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -110,13 +110,14 @@ export function PayrollRunView({
   const [releaseFailure, setReleaseFailure] = useState<{ runId: number; error: string } | null>(null);
   const [preRunResult, setPreRunResult] = useState<{ scope: string; readiness: PayrollPreRunReadiness } | null>(null);
   const [preRunError, setPreRunError] = useState<{ scope: string; message: string } | null>(null);
-  const [preRunBusyScope, setPreRunBusyScope] = useState<string | null>(null);
+  const [preRunBusy, setPreRunBusy] = useState<{ scope: string; nonce: string } | null>(null);
+  const startedPreRunRequests = useRef(new Set<string>());
   // Each request owns the callbacks and scope captured by the user's click.
   // An effect aborts it on run/employer changes; no refs are read in render.
   const [preRunRequest, setPreRunRequest] = useState<{
     scope: string;
     id: number;
-    revision: number;
+    nonce: string;
     calculate: boolean;
     orgId: number;
     legalEntityId: number | null;
@@ -144,29 +145,33 @@ export function PayrollRunView({
   ]);
   const visiblePreRun = preRunResult?.scope === preRunScope ? preRunResult.readiness : null;
   const visiblePreRunError = preRunError?.scope === preRunScope ? preRunError.message : null;
-  const preRunChecking = preRunBusyScope === preRunScope;
+  const preRunChecking = preRunBusy?.scope === preRunScope
+    && preRunBusy.nonce === preRunRequest?.nonce;
 
   function checkPreRunAndMaybeCalculate(id: number, calculate: boolean) {
     if (!run || run.id !== id || !selectedEmployerMatches || preRunChecking || busy) return;
-    setPreRunBusyScope(preRunScope);
+    const nonce = crypto.randomUUID();
+    setPreRunBusy({ scope: preRunScope, nonce });
     setPreRunError(null);
     setPreRunResult(null);
-    setPreRunRequest((previous) => ({
+    setPreRunRequest({
       scope: preRunScope,
       id,
-      revision: (previous?.revision ?? 0) + 1,
+      nonce,
       calculate,
       orgId: data.selectedOrganization.id,
       legalEntityId: run.legalEntityId ?? null,
       process: () => onProcess(id),
       onBlocked: (message) => notify(message, "err"),
-    }));
+    });
   }
 
   useEffect(() => {
     const request = preRunRequest;
     if (!request || request.scope !== preRunScope
       || !selectedEmployerMatches || run?.id !== request.id) return;
+    if (startedPreRunRequests.current.has(request.nonce)) return;
+    startedPreRunRequests.current.add(request.nonce);
     const controller = new AbortController();
     let active = true;
     void (async () => {
@@ -198,7 +203,9 @@ export function PayrollRunView({
         });
         if (request.calculate) request.onBlocked("Calculation blocked: pre-run readiness could not be verified.");
       } finally {
-        if (active) setPreRunBusyScope(null);
+        // Clear only this request: an older aborted fetch cannot unlock a newer run.
+        setPreRunBusy((current) => current?.nonce === request.nonce ? null : current);
+        setPreRunRequest((current) => current?.nonce === request.nonce ? null : current);
       }
     })();
     return () => {
