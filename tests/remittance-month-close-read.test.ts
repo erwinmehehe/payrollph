@@ -101,11 +101,11 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
-  assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
+  assert.equal(manifest.metrics.methods, 494, "494 actual methods include the protected pre-run readiness GET and inherited #641 handlers");
   // Pin the current ledger exactly: the two DL-01 vault methods and eight
   // money-input methods retain their independent proofs; MNY-02 adds six
   // separately linked contractor/EWT methods; two underpayment methods add distinct
-  // source-linked proof, leaving 336 method GAPs.
+  // source-linked proof; pre-run readiness adds one protected GET, leaving 336 method GAPs.
   // This is provisional coverage; no production or global audit sign-off.
   for (const [vaultRoute, vaultMethod] of [
     ["src/app/api/employee-vault/route.ts", "GET"],
@@ -119,7 +119,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   }
   // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
   // PR #1325 contributes three other real HTTP proofs; never double-credit these.
-  assert.equal(manifest.metrics.coveredAfter, 147, "Preserve main/BIR/vault, eight money inputs and six source-pinned contractor methods");
+  assert.equal(manifest.metrics.coveredAfter, 148, "Preserve main/BIR/vault, money, contractor and distinct pre-run GET method proofs");
   assert.equal(manifest.metrics.publicByDesign, 10);
   assert.equal(manifest.metrics.gap, 336, "Retain the remaining unproven methods as GAP");
   // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
@@ -262,7 +262,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     "Keep all 129 independently source-pinned methods from merged main, not counting new MNY-02");
   assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + contractorCases.length + underpaymentMethods.length, 354,
     "Never reduce main's 354 originally open method GAPs without distinct own/victim HTTP proof");
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 494);
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);
     return harnessLines[number - 1];
