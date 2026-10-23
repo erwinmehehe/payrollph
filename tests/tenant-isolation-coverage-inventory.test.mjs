@@ -250,6 +250,8 @@ test("group reports use three genuine tenant readers and refuse foreign legal em
   assert.match(harness, /assert\.equal\(ownReport\.status, 200/);
   assert.match(harness, /assert\.equal\(deniedVictim\.status, 403/);
   assert.match(harness, /assert\.equal\(refused\.status, 409/);
+  assert.match(harness, /assert\.equal\(refusedReleasedRun\.status, 409/);
+  assert.match(harness, /assert\.equal\(afterReleasedTest\.status, 200/);
   assert.match(harness, /assert\.deepEqual\(intact\.rows, untouchedVictim\.rows/);
   const route = readFileSync(path, "utf8");
   assert.match(route, /groupReportHasUnattributedRows/);
