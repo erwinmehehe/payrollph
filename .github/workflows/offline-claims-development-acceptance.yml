@@ -151,6 +151,8 @@ jobs:
           echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
       - name: Install isolated schema (NEVER Neon)
         run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Fail if offline FK, status, or action acceptance is skipped
         run: npx tsx --test tests/offline-claims-split.test.ts tests/workflow-offline-claim-tenant-integration.test.ts
       - name: Build exact-source localhost app

@@ -89,6 +89,8 @@ jobs:
           done
       - name: Create full schema on disposable localhost-only PostgreSQL
         run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Seed fictional employers and authenticated roles
         run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
       - name: Run employee-vault tenant, role, removal and file-validate checks

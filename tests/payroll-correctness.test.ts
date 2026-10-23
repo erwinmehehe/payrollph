@@ -26,6 +26,7 @@ import { generateBankFile } from "../src/lib/exporters";
 import { allocateLeaveDaysToPeriod } from "../src/lib/leave-payroll";
 import { holidayCalendarFingerprint } from "../src/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026 } from "../src/lib/wage-orders";
+import { seedMonthlyPayProfilesForRun } from "./helpers/pay-profiles";
 
 // Isolated synthetic keys; never expose or reuse a key in production.
 const priorTestBankKey = process.env.BANK_DATA_ENCRYPTION_KEY;
@@ -116,6 +117,8 @@ test("payroll calculation uses only employees in scope and punches inside the cu
       status: "Draft",
       payDate: "2026-09-30",
     }).returning();
+
+    await seedMonthlyPayProfilesForRun(run.id);
 
     await enqueuePayrollRun(run.id, 25);
     await drainPayrollQueue(10, run.id);
@@ -220,7 +223,8 @@ test("failed settlement rolls back every earlier ledger mutation", async () => {
       },
     });
 
-    await assert.rejects(() => settlePayrollRun(run.id), /no longer active/);
+    await seedMonthlyPayProfilesForRun(run.id);
+  await assert.rejects(() => settlePayrollRun(run.id), /no longer active/);
 
     const [claimAfter] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, claim.id));
     assert.equal(claimAfter.status, "approved");
@@ -285,7 +289,9 @@ test("targeted queue drain never processes an older unrelated payroll run", asyn
     }).returning();
 
     // Queue B first so the old global worker would have processed it before A.
+    await seedMonthlyPayProfilesForRun(runB.id);
     await enqueuePayrollRun(runB.id, 25);
+    await seedMonthlyPayProfilesForRun(runA.id);
     await enqueuePayrollRun(runA.id, 25);
 
     const drained = await drainPayrollQueue(10, runA.id);
@@ -530,6 +536,7 @@ test("two releases cannot settle the same expense claim into different payroll r
       });
     }
 
+    await seedMonthlyPayProfilesForRun(runA.id);
     const results = await Promise.allSettled([
       settlePayrollRun(runA.id),
       settlePayrollRun(runB.id),
@@ -652,6 +659,8 @@ test("seeded payroll lifecycle recalculates cleanly and releases overtime, leave
       payDate: "2026-09-30",
     }).returning();
 
+    await seedMonthlyPayProfilesForRun(run.id);
+
     await enqueuePayrollRun(run.id, 25);
     await drainPayrollQueue(10, run.id);
 
@@ -684,6 +693,8 @@ test("seeded payroll lifecycle recalculates cleanly and releases overtime, leave
     await db.update(employeeLoans)
       .set({ cutoffDeduction: "400.00" })
       .where(eq(employeeLoans.id, loan.id));
+
+    await seedMonthlyPayProfilesForRun(run.id);
 
     await enqueuePayrollRun(run.id, 25);
     await drainPayrollQueue(10, run.id);
@@ -887,6 +898,8 @@ test("approved paid, unpaid and partially paid leave flows into payroll without 
       payDate: "2026-09-30",
     }).returning();
 
+    await seedMonthlyPayProfilesForRun(run.id);
+
     await enqueuePayrollRun(run.id, 25);
     await drainPayrollQueue(10, run.id);
 
@@ -981,6 +994,8 @@ test("payroll fails closed when approved leave has no configured payroll treatme
       status: "Draft",
       payDate: "2026-09-30",
     }).returning();
+
+    await seedMonthlyPayProfilesForRun(run.id);
 
     await enqueuePayrollRun(run.id, 25);
     await assert.rejects(
