@@ -355,7 +355,7 @@ export async function generateBankFile(
       : null;
 
   const maxAmountCents = matchingPayoutProfile?.maxAmountPerFile
-    ? Math.round(Number(matchingPayoutProfile.maxAmountPerFile) * 100)
+    ? payoutCentsFromNetPay(matchingPayoutProfile.maxAmountPerFile)
     : null;
   const maxRowsPerFile = matchingPayoutProfile?.maxRowsPerFile ?? null;
 
@@ -464,7 +464,7 @@ export async function generateBankFile(
     const filename = bankPartFilename(baseFilename, index + 1, rowParts.length);
     const rendered = renderBody(partRows);
     const body = dryRun
-      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# part=${index + 1}/${rowParts.length}\n# rows=${partRows.length} totalNet=${(totalCents / 100).toFixed(2)}\n# maxAmountPerFile=${matchingPayoutProfile?.maxAmountPerFile ?? "none"} maxRowsPerFile=${maxRowsPerFile ?? "none"}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots} missingIdentitySnapshots=${validation.missingIdentitySnapshots}\n# syntheticDemoDestinations=${validation.syntheticDemoDestinations}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${rendered}`
+      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# part=${index + 1}/${rowParts.length}\n# rows=${partRows.length} totalNet=${formatExactPayoutCents(totalCents)}\n# maxAmountPerFile=${matchingPayoutProfile?.maxAmountPerFile ?? "none"} maxRowsPerFile=${maxRowsPerFile ?? "none"}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots} missingIdentitySnapshots=${validation.missingIdentitySnapshots}\n# syntheticDemoDestinations=${validation.syntheticDemoDestinations}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${rendered}`
       : rendered;
     return {
       filename,
@@ -478,7 +478,7 @@ export async function generateBankFile(
   const releasedCents = payoutCentsFromNetPay(run.netPay);
   if (!dryRun && (combinedCents !== releasedCents || combinedCents !== registerTotalCents)) {
     throw new Error(
-      `Split bank files do not reconcile to released payroll net pay: files PHP ${(combinedCents / 100).toFixed(2)} vs released PHP ${(releasedCents / 100).toFixed(2)}.`,
+      `Split bank files do not reconcile to released payroll net pay: files PHP ${formatExactPayoutCents(combinedCents)} vs released PHP ${formatExactPayoutCents(releasedCents)}.`,
     );
   }
 
