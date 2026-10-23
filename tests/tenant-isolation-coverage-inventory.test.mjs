@@ -611,7 +611,7 @@ test("all credited proof links point to the claimed route and every recertified 
         const lines = readableLines(proof.file);
         assert.ok(lines[spec[0] - 1].includes(method.name === "POST" ? "status(await request" : "const winner = replies.find"));
         assert.match(lines[spec[1] - 1], /await deny\(v,/);
-        assert.match(lines[spec[1] - 1], /v\.org\.id/);
+        assert.ok(lines[spec[1] - 1].includes("v.org.id"), "Foreign proof must select the actual victim employer");
         assert.match(lines[proof.unchangedDbLine - 1], /assert\.deepEqual\(await snapshot\(v\), before/);
         const integration = lines.join("\n");
         assert.match(integration, /await journey\(v, a\); await journey\(v, b\)/);
