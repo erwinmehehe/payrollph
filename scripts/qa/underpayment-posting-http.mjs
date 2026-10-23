@@ -221,4 +221,3 @@ try {
     scope: 'same-request approval retries and payout authorization; no provider settlement acceptance' }, null, 2));
   console.log(`Underpayment posting PASS: ${assertions} assertions, ${receipts.length} denied requests, posting=${posting}.`);
 } finally { await pool.end(); }
-
