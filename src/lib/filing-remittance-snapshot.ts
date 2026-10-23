@@ -116,7 +116,7 @@ export function assertMonthlyFilingMatchesRemittance(input: {
     "REMITTANCE_EXPORT_SNAPSHOT_MISMATCH: Worksheet differs from the displayed frozen remittance liability. Review and reconcile before exporting.",
   );
   const cents = (value: string): number => {
-    if (!/^(?:0|[1-9]\\d{0,13})(?:\\.\\d{1,2})?$/.test(value)) throw failure();
+    if (!/^(?:0|[1-9]\d{0,13})(?:\.\d{1,2})?$/.test(value)) throw failure();
     const [whole, fraction = ""] = value.split(".");
     const result = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
     if (!Number.isSafeInteger(result)) throw failure();
@@ -134,7 +134,7 @@ export function assertMonthlyFilingMatchesRemittance(input: {
     || input.members.length !== input.displayed.employeeCount
     || input.exportedEmployeeIds.length !== input.displayed.employeeCount) throw failure();
 
-  const rows = parseCsv(input.body.split(/\\r?\\n/).filter((line) => !line.startsWith("#")).join("\\n"));
+  const rows = parseCsv(input.body.split(/\r?\n/).filter((line) => !line.startsWith("#")).join("\n"));
   const column = rows[0]?.map((value) => value.trim()).indexOf(totalColumn) ?? -1;
   if (column < 0 || rows.length !== input.displayed.employeeCount + 1) throw failure();
   const expected = new Map<number, number>();
