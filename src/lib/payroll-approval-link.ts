@@ -14,6 +14,6 @@ export function approvalBelongsToPayrollRun(
   }
   if (!Number.isSafeInteger(run.id) || run.id < 1 || task.organizationId !== run.organizationId) return false;
   if (task.payrollRunId !== null) return task.payrollRunId === run.id;
-  const token = /^Payroll run #([1-9]\d*)(?=$|[\s·.,;:])/.exec(task.detail);
+  const token = /^Payroll run #([1-9]\d*)(?=$|[\s·])/.exec(task.detail);
   return token !== null && Number(token[1]) === run.id;
 }

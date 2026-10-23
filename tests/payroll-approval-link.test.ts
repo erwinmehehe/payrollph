@@ -14,7 +14,7 @@ test("legacy null-FK tasks match a whole canonical leading run number", () => {
   for (const detail of ["Payroll run #12", "Payroll run #12 · review", "Payroll run #12 review"]) {
     assert.equal(approvalBelongsToPayrollRun(task(null, detail), run, on), true);
   }
-  for (const detail of ["Payroll run #123", "Payroll run #120", "Payroll run #12x", "Payroll run #012", "Note Payroll run #12", "Payroll run #12e2"]) {
+  for (const detail of ["Payroll run #123", "Payroll run #120", "Payroll run #12x", "Payroll run #12.3", "Payroll run #012", "Note Payroll run #12", "Payroll run #12e2"]) {
     assert.equal(approvalBelongsToPayrollRun(task(null, detail), run, on), false);
   }
 });

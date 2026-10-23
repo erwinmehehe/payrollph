@@ -14,7 +14,9 @@ test("money proof rejects hosted, ambiguous and provider-enabled targets before 
     { DATABASE_URL: "postgresql://synthetic:synthetic@127.0.0.1:5432/neondb" },
     { DATABASE_URL: safe.DATABASE_URL + "?host=remote.example.com" },
     { PAYMONGO_DISBURSEMENTS_ENABLED: "true" }, { XENDIT_PAYOUTS_ENABLED: "true" },
+    { PAYROLL_UNDERPAYMENT_POSTING_ENABLED: "true" },
     { PAYMONGO_SECRET_KEY: "synthetic" }, { XENDIT_SECRET_KEY: "synthetic" },
-    { RESEND_API_KEY: "synthetic" }, { SMTP_HOST: "synthetic" },
+    { XENDIT_PAYOUT_SECRET_KEY: "synthetic" }, { POSTMARK_SERVER_TOKEN: "synthetic" },
+    { SMTP_URL: "smtp://synthetic.invalid" }, { RESEND_API_KEY: "synthetic" }, { SMTP_HOST: "synthetic" },
   ]) assert.throws(() => assertMoneyProofTarget({ ...safe, ...change }));
 });

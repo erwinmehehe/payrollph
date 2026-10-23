@@ -72,7 +72,7 @@ async function seed(label, nonce) {
 async function snapshot(v) {
   const tables = (await pool.query(`SELECT table_name FROM information_schema.columns
     WHERE table_schema='public' AND column_name='organization_id'
-    AND table_name ~ '^(payroll|payout|approval|audit|supplementary|loan|statutory|payslip|employee)'
+    AND table_name ~ '^(payroll|payout|approval|audit|supplementary|loan|statutory|payslip|employee|holiday)'
     ORDER BY table_name`)).rows.map(r => r.table_name);
   const state = {};
   for (const name of tables) {
@@ -139,6 +139,8 @@ async function corrections(v, a, effectiveDate) {
   }
 }
 async function seedAdjustments(t, effectiveDate) {
+  t.holiday = status(await request("/api/holidays", t.maker.cookie, "POST", { organizationId: t.org.id,
+    holidayDate: "2027-04-05", name: `Fictional ${t.label} holiday`, kind: "special" }), 201, "own holiday create");
   t.earning = status(await request("/api/payroll-earnings", t.maker.cookie, "POST", { organizationId: t.org.id, employeeId: t.worker.id,
     earningType: "commission", label: `Fictional ${t.label} commission`, amount: 123.45, effectiveDate }), 201, "own earning create");
   t.claim = status(await request("/api/payroll-underpayments", t.maker.cookie, "POST", { organizationId: t.org.id, employeeId: t.worker.id,
@@ -148,6 +150,21 @@ async function seedAdjustments(t, effectiveDate) {
     "SQL confirms earning belongs to own worker");
   check((await db.select().from(s.payrollUnderpaymentRequests).where(eq(s.payrollUnderpaymentRequests.id, t.claim.id)))[0].sourcePayrollRunId === t.source.id,
     "SQL confirms correction refers to own source");
+}
+async function holidays(v, a) {
+  const own = status(await request(`/api/holidays?organizationId=${a.org.id}&id=${v.holiday.id}`, a.maker.cookie), 200, "own holiday read ignores forged object selector");
+  check(own.holidays.some(x => x.id === a.holiday.id) && own.holidays.every(x => x.organizationId === a.org.id), "nonempty own holiday scope");
+  await deny(v, a.maker, `/api/holidays?organizationId=${v.org.id}`, "GET", undefined, 403, "foreign holiday read");
+  await deny(v, a.maker, "/api/holidays", "POST", { organizationId: v.org.id, holidayDate: "2027-04-06", name: "Forged holiday", kind: "special" }, 403, "foreign holiday create");
+  await deny(v, a.maker, "/api/holidays", "PATCH", { id: v.holiday.id, organizationId: a.org.id, name: "Forged victim update" }, 403, "foreign holiday update forged own organization");
+  await deny(v, a.maker, `/api/holidays?id=${v.holiday.id}&organizationId=${a.org.id}`, "DELETE", undefined, 403, "foreign holiday delete forged own organization");
+  const changed = status(await request("/api/holidays", a.maker.cookie, "PATCH", { id: a.holiday.id, organizationId: v.org.id, name: "Updated own fictional holiday" }), 200, "own holiday update ignores forged organization");
+  check(changed.id === a.holiday.id && changed.organizationId === a.org.id && changed.name === "Updated own fictional holiday", "updated own holiday");
+  check((await db.select().from(s.holidays).where(eq(s.holidays.id, a.holiday.id)))[0].name === changed.name, "SQL confirms holiday update");
+  status(await request(`/api/holidays?id=${a.holiday.id}&organizationId=${v.org.id}`, a.maker.cookie, "DELETE"), 200, "own holiday delete ignores forged organization");
+  check((await db.select().from(s.holidays).where(eq(s.holidays.id, a.holiday.id))).length === 0, "SQL confirms only own holiday deleted");
+  for (const method of ["GET", "POST", "PATCH", "DELETE"]) successes.push({ route: "holidays", method,
+    organizationId: a.org.id, objectId: a.holiday.id, ownSuccess: true, forgedSelectorExercised: true });
 }
 async function earningInvalidation(a) {
   const [target] = await db.insert(s.payrollRuns).values({ organizationId: a.org.id, legalEntityId: a.entity.id,
@@ -258,6 +275,7 @@ try {
   check(v.worker.id > Math.max(a.worker.id, b.worker.id, 6) && v.run.id > Math.max(a.run.id, b.run.id, 6), "real victim IDs exceed attacker IDs and 6");
   await seedAdjustments(v, effectiveDate);
   check(v.earning.id > Math.max(a.earning.id, b.earning.id, 6) && v.claim.id > Math.max(a.claim.id, b.claim.id, 6), "victim earning/correction IDs exceed both attacker IDs and 6");
+  check(v.holiday.id > Math.max(a.holiday.id, b.holiday.id, 6), "real victim holiday exceeds both own comparator IDs");
   // Actual pending victim task, not an invented ID. Foreign requests must be
   // rejected before task fingerprint, status or financial contents are read.
   await db.insert(s.approvalTasks).values(Array.from({ length: 7 }, (_, i) => ({ organizationId: a.org.id,
@@ -267,7 +285,7 @@ try {
     approver: v.checker.user.name, dueLabel: "Synthetic" }).returning();
   check(v.task.id > 6, "real high-ID victim approval exists");
   const initialVictim = await snapshot(v);
-  for (const attacker of [a, b]) { await corrections(v, attacker, effectiveDate); await earningInvalidation(attacker); await lifecycle(v, attacker); }
+  for (const attacker of [a, b]) { await holidays(v, attacker); await corrections(v, attacker, effectiveDate); await earningInvalidation(attacker); await lifecycle(v, attacker); }
   assert.deepEqual(await snapshot(v), initialVictim, "victim unchanged across both complete attacker journeys"); assertions++;
   await mkdir("qa-artifacts", { recursive: true });
   await writeFile("qa-artifacts/tenant-money-lifecycle.json", JSON.stringify({ head: process.env.PR_HEAD_SHA ?? null,
