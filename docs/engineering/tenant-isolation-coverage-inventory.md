@@ -1,26 +1,26 @@
-# Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
+# Tenant isolation â€” complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 344 API methods and 19 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 342 API methods and 19 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 344 method gaps and 19 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+> **NOT ACCEPTED**: 342 method gaps and 19 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
-## Merged security fix — former-employer payslip PDF authorization (#1283)
+## Merged security fix â€” former-employer payslip PDF authorization (#1283)
 
 **Source change already merged to main:** [PR #1283](https://github.com/erwinmehehe/payrollph/pull/1283) at [`main@dfbf579410cc64ad41ad11e93fc8d275a6dfb0d`](https://github.com/erwinmehehe/payrollph/commit/dfbf579410cc64ad41ad11e93fc8d275a6dfb0d). `GET /api/self/payslips/[id]` now checks `assertMembership(session.id, employee.organizationId)` before querying employer identity or returning the PDF. The source on this audit branch is **blob-identical** to the merged fix. No production incident or historical exposure has been established; the owner still needs to assess stale employee links and historic sessions.
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 344 method gaps and 19 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
+**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 342 method gaps and 19 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
 
 ## Approved-exit Separation evidence
 
 PR #1280 changes the Separation route; GET, POST and PATCH are bound to the dedicated real HTTP/PG approved-exit test, with own success and explicit foreign-employer rejection plus unchanged victim row. It seeds prior termination-intent approval and executes actual financial checker decisions; it does not claim human intent approval or ordinary-payroll HTTP checker acceptance. Remaining method/page gaps stay open.
 
-**#1326 provisional-only note:** The three HCM probation GET/POST/PATCH credits rely on real synthetic own/foreign PG16 controls and unchanged victim rows; the manager decision inbox page is the sole provisional page-level COVERED record based on feature-ON localhost SSR own 200 / foreign 404. Its flag is not activated for production. All 19 remaining page/action GAPs and 344 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
+**#1326 provisional-only note:** The three HCM probation GET/POST/PATCH credits rely on real synthetic own/foreign PG16 controls and unchanged victim rows; the manager decision inbox page is the sole provisional page-level COVERED record based on feature-ON localhost SSR own 200 / foreign 404. Its flag is not activated for production. All 19 remaining page/action GAPs and 342 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
 
-**#1303 provisional-only note:** The extra statutory payment-evidence POST requires a signed-in privileged synthetic own 201, real foreign-employer 403, forged victim batch 404, one-active-row concurrency, and unchanged victim PostgreSQL. Its TLS test double is *not* production malware scanning. Migration 0136 is protected and unapplied. All 19 remaining page/action GAPs and 344 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
+**#1303 provisional-only note:** The extra statutory payment-evidence POST requires a signed-in privileged synthetic own 201, real foreign-employer 403, forged victim batch 404, one-active-row concurrency, and unchanged victim PostgreSQL. Its TLS test double is *not* production malware scanning. Migration 0136 is protected and unapplied. All 19 remaining page/action GAPs and 342 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
 
 ## Latest-main integration
 
@@ -34,13 +34,13 @@ The dedicated `scripts/qa/bank-tenant-http.mjs` suite executes from the existing
 
 The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested fictional-only Neon database and pre-registered tenant ID**, with approved host, same-origin, request throttling and fail-closed runtime PostgreSQL identity checks. The new readiness/demo-provisioning GET requires a private token and returns status-only evidence, not tenant rows. Both are untested as production human role acceptance. A missing attestation blocks live demo logins even when a customer's company has the same editable name. The original unverified method inventory remains open, and exact-head CI/security tests are mandatory before treating new proof as verified.
 
-**PR #1325 BIR module GET/POST provisional-only:** The independent [disposable three-employer HTTP suite](../../scripts/qa/compliance-read-sweep-http.mjs) records real owned BIR annual module GET/POST positive responses, distinct victim-employer denials, real legal-employer ID isolation and unchanged victim PostgreSQL audit/payment records. BIR source/draft data never proves agency acceptance. These are the two method credits added by PR #1325; merged PR #1336 independently contributes employee-vault GET/DELETE. The already merged #1303 payment-evidence POST uses its existing independently verified `tenant-manifest-driven-http.mjs` proof unchanged. New HEAD must pass CI and independent security source review; **344 API method gaps and 19 page/action gaps remain NOT ACCEPTED.**
+**PR #1325 BIR module GET/POST provisional-only:** The independent [disposable three-employer HTTP suite](../../scripts/qa/compliance-read-sweep-http.mjs) records real owned BIR annual module GET/POST positive responses, distinct victim-employer denials, real legal-employer ID isolation and unchanged victim PostgreSQL audit/payment records. BIR source/draft data never proves agency acceptance. These are the two method credits added by PR #1325; merged PR #1336 independently contributes employee-vault GET/DELETE. The already merged #1303 payment-evidence POST uses its existing independently verified `tenant-manifest-driven-http.mjs` proof unchanged. New HEAD must pass CI and independent security source review; **342 API method gaps and 19 page/action gaps remain NOT ACCEPTED.**
 
 ## Source-pinned counts
 
-**Current provisional source-linked inventory (main #1303, merged #1336 vault and #1325 BIR proofs, plus eight PR #1339 money-input methods): 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP** among 493 API methods, plus 19 page/action GAPs.
+**Current provisional source-linked inventory (main #1303, merged #1336 vault and #1325 BIR proofs, plus eight PR #1339 money-input methods): 141 COVERED / 10 PUBLIC-BY-DESIGN / 342 GAP** among 493 API methods, plus 19 page/action GAPs.
 
-**PR #1339 partial money-path proof:** Four holiday methods, three supplementary-earning methods and payroll calculation POST have exact own/foreign/forged-selector/unchanged-victim links in `tenant-money-lifecycle-http.mjs`. Both independent attackers execute real own actions against a seeded high-ID victim. At `428b4c371`, production-mode HTTP/PG16 passed 301 assertions and 42 denied requests in each flag state ([OFF](https://github.com/erwinmehehe/payrollph/actions/runs/39885142988/job/120191468825), [ON](https://github.com/erwinmehehe/payrollph/actions/runs/39885142988/job/120191469158)). Review submission, independent approval/release and underpayment rejection are also exercised, but no additional credits are claimed for them here. Recalculation/earnings prefix-collision fixes remain default-off. Fresh final-head CI is required; the frozen 33-method MNY-01 queue, 344 API gaps and 19 page/action gaps are not closed.
+**PR #1339 partial money-path proof:** Four holiday methods, three supplementary-earning methods and payroll calculation POST have exact own/foreign/forged-selector/unchanged-victim links in `tenant-money-lifecycle-http.mjs`. Both independent attackers execute real own actions against a seeded high-ID victim. At `428b4c371`, production-mode HTTP/PG16 passed 301 assertions and 42 denied requests in each flag state ([OFF](https://github.com/erwinmehehe/payrollph/actions/runs/39885142988/job/120191468825), [ON](https://github.com/erwinmehehe/payrollph/actions/runs/39885142988/job/120191469158)). Review submission, independent approval/release and underpayment rejection are also exercised, but no additional credits are claimed for them here. Recalculation/earnings prefix-collision fixes remain default-off. Fresh final-head CI is required; the frozen 33-method MNY-01 queue, 342 API gaps and 19 page/action gaps are not closed.
 
 **DL-02 proof-strengthening in #1328:** Attacker A and B now have persisted own-employer IDs and distinguishable populations (2 and 3 employees) before victim-only objects are inserted (4 employees). Victim ID/order assertions compare actual DB rows against **both** attacker-owned IDs, rather than only `id > 6`. HCM and tenant report POST positives validate real populated own counts/rows, while their catalog GETs are explicitly role/tenant-gated metadata, not employer-record exports. Performance evidence GET verifies real review/cycle JSON, own employee/organization identifiers, section digests, and download SHA256. Denied writes preserve a broader victim snapshot including term decisions, employees, payroll and review records. Coverage counts remain **provisional until the modified suite passes on the PR's current commit**; this is not global tenant-isolation acceptance.
 
@@ -53,9 +53,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 290 |
 | methods | 493 |
 | coveredBefore | 20 |
-| coveredAfter | 139 |
+| coveredAfter | 141 |
 | publicByDesign | 10 |
-| gap | 344 |
+| gap | 342 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -70,9 +70,9 @@ Two formerly unverified methods receive **provisional** credit: `GET /api/employ
 
 Two independently authenticated fictional employer owners receive real nonempty GET 200 controls, plus real victim employer 403 and real foreign worker-in-owned-tenant 404 denials, with forged selectors constrained to the authorized own list. DELETE yields persisted own soft-removal 204, real higher-ID victim-only document 403, forged-selector-on-owned 204, and a real owned audit event. The test persists attacker-owned document IDs first, proves victim IDs exceed both, and asserts the victim documents **and audit rows** are unchanged. No S3 object bytes are deleted and no production feature is activated. [Source-integrity checks](../../tests/tenant-dl01-vault-source.test.mjs) pin each distinct method to exact live HTTP and DB assertion lines.
 
-At the #1336 merge, method totals moved **127 COVERED / 10 PUBLIC / 356 GAP → 129 COVERED / 10 PUBLIC / 354 GAP** out of 493, while **19 page/action gaps remain**. This is not whole-system acceptance; exact PR-head CI and independent security/owner review remain necessary.
+At the #1336 merge, method totals moved **127 COVERED / 10 PUBLIC / 356 GAP â†’ 129 COVERED / 10 PUBLIC / 354 GAP** out of 493, while **19 page/action gaps remain**. This is not whole-system acceptance; exact PR-head CI and independent security/owner review remain necessary.
 
-## PR #1330 — DL-01 batch 2 independently runnable method proofs (provisional)
+## PR #1330 â€” DL-01 batch 2 independently runnable method proofs (provisional)
 
 On [Security HTTP Smoke 39629835069](https://github.com/erwinmehehe/payrollph/actions/runs/39629835069), commit `ef6937548ce9911847a58360966d8d471c438a26`, the existing disposable PostgreSQL 16 / localhost runner completed **658 smoke assertions**. Both separately signed-in attacker employers received nonempty, tenant-owned HTTP positives; tested real higher-ID victim-only objects, exact 403/404/400 negative and forged-selector controls; and preserved victim batches, members, posting artifacts, cases, events, audit, payroll runs and employees byte-for-byte in PostgreSQL snapshots. The statutory posting-import test additionally confirmed a persisted fictional member posting and exact CSV artifact bytes/hash. No live money, filing or provider calls.
 
@@ -84,40 +84,40 @@ The source-pinning commit changes the PR SHA, so **new exact-head full CI, Secur
 
 No direct exploit has been demonstrated. Review exact source lines, delegated authorization helpers, and a real seeded response before declaring a leak.
 
-- [`src/app/api/approvals/[id]/route.ts#L270`](../../src/app/api/approvals/[id]/route.ts#L270) — client-supplied identifier reference at L270. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/careers/route.ts#L32`](../../src/app/api/careers/route.ts#L32) — client-supplied identifier reference at L32, L63. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/compliance/bir-1601c-remittances/route.ts#L119`](../../src/app/api/compliance/bir-1601c-remittances/route.ts#L119) — client-supplied identifier reference at L119, L120, L181, L182. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/compliance/contribution-issues/evidence/route.ts#L46`](../../src/app/api/compliance/contribution-issues/evidence/route.ts#L46) — client-supplied identifier reference at L46. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/compliance/contribution-issues/route.ts#L62`](../../src/app/api/compliance/contribution-issues/route.ts#L62) — client-supplied identifier reference at L62, L63, L137. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/compliance/government-loan-remittances/route.ts#L64`](../../src/app/api/compliance/government-loan-remittances/route.ts#L64) — client-supplied identifier reference at L64, L65, L132, L133. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/compliance/remittance-actions/route.ts#L98`](../../src/app/api/compliance/remittance-actions/route.ts#L98) — client-supplied identifier reference at L98, L117. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/compliance/statutory-remittance-corrections/route.ts#L286`](../../src/app/api/compliance/statutory-remittance-corrections/route.ts#L286) — client-supplied identifier reference at L286, L319. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/compliance/statutory-remittances/payment-evidence/[id]/route.ts#L18`](../../src/app/api/compliance/statutory-remittances/payment-evidence/[id]/route.ts#L18) — client-supplied identifier reference at L18. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L62`](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L62) — client-supplied identifier reference at L62. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/compliance/statutory-remittances/posting-import/route.ts#L60`](../../src/app/api/compliance/statutory-remittances/posting-import/route.ts#L60) — client-supplied identifier reference at L60. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/compliance/statutory-remittances/route.ts#L69`](../../src/app/api/compliance/statutory-remittances/route.ts#L69) — client-supplied identifier reference at L69, L70, L111, L112. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/dashboard/route.ts#L10`](../../src/app/api/dashboard/route.ts#L10) — client-supplied identifier reference at L10. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/employee-vault/route.ts#L20`](../../src/app/api/employee-vault/route.ts#L20) — client-supplied identifier reference at L20, L21. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/first-payroll/progress/route.ts#L13`](../../src/app/api/first-payroll/progress/route.ts#L13) — client-supplied identifier reference at L13, L31. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/hcm/org-explorer/route.ts#L19`](../../src/app/api/hcm/org-explorer/route.ts#L19) — client-supplied identifier reference at L19. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/hcm/position-history/route.ts#L19`](../../src/app/api/hcm/position-history/route.ts#L19) — client-supplied identifier reference at L19. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/jobs/admin-status/route.ts#L15`](../../src/app/api/jobs/admin-status/route.ts#L15) — client-supplied identifier reference at L15. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/leave/route.ts#L93`](../../src/app/api/leave/route.ts#L93) — client-supplied identifier reference at L93, L94, L137, L213, L405. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/multi-entity/context/route.ts#L17`](../../src/app/api/multi-entity/context/route.ts#L17) — client-supplied identifier reference at L17, L32, L35, L35, L36. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/multi-entity/reports/route.ts#L16`](../../src/app/api/multi-entity/reports/route.ts#L16) — client-supplied identifier reference at L16. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/multi-entity/transfers/route.ts#L44`](../../src/app/api/multi-entity/transfers/route.ts#L44) — client-supplied identifier reference at L44, L99, L100, L258. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/organizations/route.ts#L25`](../../src/app/api/organizations/route.ts#L25) — client-supplied identifier reference at L25. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/payout-destination-changes/[id]/route.ts#L22`](../../src/app/api/payout-destination-changes/[id]/route.ts#L22) — client-supplied identifier reference at L22. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts#L111`](../../src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts#L111) — client-supplied identifier reference at L111, L116. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/report-builder/saved/route.ts#L40`](../../src/app/api/report-builder/saved/route.ts#L40) — client-supplied identifier reference at L40, L56, L82, L110. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/v1/journal-entries/route.ts#L21`](../../src/app/api/v1/journal-entries/route.ts#L21) — client-supplied identifier reference at L21. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/web-bundy/consent/route.ts#L22`](../../src/app/api/web-bundy/consent/route.ts#L22) — client-supplied identifier reference at L22. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/web-bundy/evidence/route.ts#L63`](../../src/app/api/web-bundy/evidence/route.ts#L63) — client-supplied identifier reference at L63. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/webhooks/paymongo/transfers/route.ts#L34`](../../src/app/api/webhooks/paymongo/transfers/route.ts#L34) — client-supplied identifier reference at L34. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/workforce/demand-observations/issued/route.ts#L73`](../../src/app/api/workforce/demand-observations/issued/route.ts#L73) — client-supplied identifier reference at L73, L76, L84, L89. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/workforce/demand-observations/issued/score/route.ts#L32`](../../src/app/api/workforce/demand-observations/issued/score/route.ts#L32) — client-supplied identifier reference at L32, L35, L44, L52, L60, L68. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/workforce/demand-observations/outlook/route.ts#L20`](../../src/app/api/workforce/demand-observations/outlook/route.ts#L20) — client-supplied identifier reference at L20. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
-- [`src/app/api/workforce/demand-outlook/route.ts#L23`](../../src/app/api/workforce/demand-outlook/route.ts#L23) — client-supplied identifier reference at L23. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/approvals/[id]/route.ts#L270`](../../src/app/api/approvals/[id]/route.ts#L270) â€” client-supplied identifier reference at L270. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/careers/route.ts#L32`](../../src/app/api/careers/route.ts#L32) â€” client-supplied identifier reference at L32, L63. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/compliance/bir-1601c-remittances/route.ts#L119`](../../src/app/api/compliance/bir-1601c-remittances/route.ts#L119) â€” client-supplied identifier reference at L119, L120, L181, L182. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/compliance/contribution-issues/evidence/route.ts#L46`](../../src/app/api/compliance/contribution-issues/evidence/route.ts#L46) â€” client-supplied identifier reference at L46. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/compliance/contribution-issues/route.ts#L62`](../../src/app/api/compliance/contribution-issues/route.ts#L62) â€” client-supplied identifier reference at L62, L63, L137. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/compliance/government-loan-remittances/route.ts#L64`](../../src/app/api/compliance/government-loan-remittances/route.ts#L64) â€” client-supplied identifier reference at L64, L65, L132, L133. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/compliance/remittance-actions/route.ts#L98`](../../src/app/api/compliance/remittance-actions/route.ts#L98) â€” client-supplied identifier reference at L98, L117. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/compliance/statutory-remittance-corrections/route.ts#L286`](../../src/app/api/compliance/statutory-remittance-corrections/route.ts#L286) â€” client-supplied identifier reference at L286, L319. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/compliance/statutory-remittances/payment-evidence/[id]/route.ts#L18`](../../src/app/api/compliance/statutory-remittances/payment-evidence/[id]/route.ts#L18) â€” client-supplied identifier reference at L18. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L62`](../../src/app/api/compliance/statutory-remittances/payment-evidence/route.ts#L62) â€” client-supplied identifier reference at L62. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/compliance/statutory-remittances/posting-import/route.ts#L60`](../../src/app/api/compliance/statutory-remittances/posting-import/route.ts#L60) â€” client-supplied identifier reference at L60. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/compliance/statutory-remittances/route.ts#L69`](../../src/app/api/compliance/statutory-remittances/route.ts#L69) â€” client-supplied identifier reference at L69, L70, L111, L112. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/dashboard/route.ts#L10`](../../src/app/api/dashboard/route.ts#L10) â€” client-supplied identifier reference at L10. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/employee-vault/route.ts#L20`](../../src/app/api/employee-vault/route.ts#L20) â€” client-supplied identifier reference at L20, L21. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/first-payroll/progress/route.ts#L13`](../../src/app/api/first-payroll/progress/route.ts#L13) â€” client-supplied identifier reference at L13, L31. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/hcm/org-explorer/route.ts#L19`](../../src/app/api/hcm/org-explorer/route.ts#L19) â€” client-supplied identifier reference at L19. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/hcm/position-history/route.ts#L19`](../../src/app/api/hcm/position-history/route.ts#L19) â€” client-supplied identifier reference at L19. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/jobs/admin-status/route.ts#L15`](../../src/app/api/jobs/admin-status/route.ts#L15) â€” client-supplied identifier reference at L15. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/leave/route.ts#L93`](../../src/app/api/leave/route.ts#L93) â€” client-supplied identifier reference at L93, L94, L137, L213, L405. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/multi-entity/context/route.ts#L17`](../../src/app/api/multi-entity/context/route.ts#L17) â€” client-supplied identifier reference at L17, L32, L35, L35, L36. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/multi-entity/reports/route.ts#L16`](../../src/app/api/multi-entity/reports/route.ts#L16) â€” client-supplied identifier reference at L16. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/multi-entity/transfers/route.ts#L44`](../../src/app/api/multi-entity/transfers/route.ts#L44) â€” client-supplied identifier reference at L44, L99, L100, L258. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/organizations/route.ts#L25`](../../src/app/api/organizations/route.ts#L25) â€” client-supplied identifier reference at L25. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/payout-destination-changes/[id]/route.ts#L22`](../../src/app/api/payout-destination-changes/[id]/route.ts#L22) â€” client-supplied identifier reference at L22. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts#L111`](../../src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts#L111) â€” client-supplied identifier reference at L111, L116. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/report-builder/saved/route.ts#L40`](../../src/app/api/report-builder/saved/route.ts#L40) â€” client-supplied identifier reference at L40, L56, L82, L110. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/v1/journal-entries/route.ts#L21`](../../src/app/api/v1/journal-entries/route.ts#L21) â€” client-supplied identifier reference at L21. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/web-bundy/consent/route.ts#L22`](../../src/app/api/web-bundy/consent/route.ts#L22) â€” client-supplied identifier reference at L22. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/web-bundy/evidence/route.ts#L63`](../../src/app/api/web-bundy/evidence/route.ts#L63) â€” client-supplied identifier reference at L63. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/webhooks/paymongo/transfers/route.ts#L34`](../../src/app/api/webhooks/paymongo/transfers/route.ts#L34) â€” client-supplied identifier reference at L34. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/workforce/demand-observations/issued/route.ts#L73`](../../src/app/api/workforce/demand-observations/issued/route.ts#L73) â€” client-supplied identifier reference at L73, L76, L84, L89. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/workforce/demand-observations/issued/score/route.ts#L32`](../../src/app/api/workforce/demand-observations/issued/score/route.ts#L32) â€” client-supplied identifier reference at L32, L35, L44, L52, L60, L68. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/workforce/demand-observations/outlook/route.ts#L20`](../../src/app/api/workforce/demand-observations/outlook/route.ts#L20) â€” client-supplied identifier reference at L20. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
+- [`src/app/api/workforce/demand-outlook/route.ts#L23`](../../src/app/api/workforce/demand-outlook/route.ts#L23) â€” client-supplied identifier reference at L23. **NEEDS OWNER / delegated-helper trace; not a confirmed leak.**
 
 ## Web Bundy source drift reconciliation (current main; pending exact-head CI)
 
@@ -131,7 +131,7 @@ Reconciled the active manifest, source line metadata, and pinned baseline agains
 
 The original source-pinned partition JSON files remain an archival baseline and may still label these three previously untested methods as GAP. The consolidated manifest and updated method tables reflect **31 COVERED / 6 PUBLIC-BY-DESIGN / 452 GAP**, pending current-head GitHub Actions. The new two-attacker, one-victim disposable-PG checks prove seeded own positive and explicit foreign denials for GET dashboard, GET employees and GET payroll-runs, including a direct victim-only payroll register ID. They do **not** constitute proof for POST/PATCH/DELETE or the remaining routes.
 
-## Additional three-tenant HTTP coverage and proof-link QA — exact-head CI pending
+## Additional three-tenant HTTP coverage and proof-link QA â€” exact-head CI pending
 
 A second disposable-PostgreSQL method batch adds own-positive / attacker-victim-denial HTTP checks for **assets GET, POST, PATCH, DELETE; documents GET; approval chains GET; leave balances GET; compliance calendar GET**. Fixtures contain seeded per-employer assets, documents, approval policies and leave policies. Asset mutation tests assert actual own success, explicit victim-only denial, and unchanged victim rows. No production systems, payroll math or real payments are touched.
 
@@ -167,7 +167,7 @@ Both independent attacker employers first receive real 200/201 own-record eviden
 Every one of the 290 route files and 493 exported handlers is in the following source-line tables. The JSON manifest stores git blob SHA, source signal, helper symbol, identifier reference, valid test location (where found), and per-method result.
 
 <!-- Generated from source-pinned GitHub blob inspection; NOT isolation acceptance -->
-# API methods — inventory appendix A (partitions 00–10)
+# API methods â€” inventory appendix A (partitions 00â€“10)
 
 | Route + method (source) | Employer source signal | Auth helper (file:line) | Client ID reference | Evidence | Status |
 |---|---|---|---|---|---|
@@ -427,7 +427,7 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 
 
 <!-- Generated from source-pinned GitHub blob inspection; NOT isolation acceptance -->
-# API methods — inventory appendix B (partitions 11–20)
+# API methods â€” inventory appendix B (partitions 11â€“20)
 
 | Route + method (source) | Employer source signal | Auth helper (file:line) | Client ID reference | Evidence | Status |
 |---|---|---|---|---|---|
@@ -473,9 +473,9 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`payroll-runs/[id]/xendit-payout` POST](../../src/app/api/payroll-runs/[id]/xendit-payout/route.ts#L91) | session, body | getSessionUser L4, assertOrganizationUnitAccess L6, enforceSameOriginMutation L10, enforceSameOriginMutation L23 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`payroll-runs` GET](../../src/app/api/payroll-runs/route.ts#L26) | session, query, body | enforceSameOriginMutation L1, getSessionUser L7, assertOrganizationRole L10, assertOrganizationUnitAccess L10 | searchParams.get("organizationId") L30, searchParams.get("runId") L31, body.organizationId L103 | [three-org HTTP L425](../../scripts/qa/tenant-second-pass-http.mjs#L425) | **COVERED** |
 | [`payroll-runs` POST](../../src/app/api/payroll-runs/route.ts#L99) | session, query, body | enforceSameOriginMutation L1, getSessionUser L7, assertOrganizationRole L10, assertOrganizationUnitAccess L10 | searchParams.get("organizationId") L30, searchParams.get("runId") L31, body.organizationId L103 | [approved-exit HTTP proof](../../scripts/qa/payroll-approved-exit-http.mjs#L87) | **COVERED (provisional; CI required)** |
-| [`payroll-underpayments` GET](../../src/app/api/payroll-underpayments/route.ts#L52) | session, query, body | getSessionUser L7, assertOrganizationRole L9, getAccess L9, enforceSameOriginMutation L13 | searchParams.get("organizationId") L55, body.organizationId L109, body.employeeId L110 | NO VALID METHOD PROOF | **GAP** |
-| [`payroll-underpayments` POST](../../src/app/api/payroll-underpayments/route.ts#L103) | session, query, body | getSessionUser L7, assertOrganizationRole L9, getAccess L9, enforceSameOriginMutation L13 | searchParams.get("organizationId") L55, body.organizationId L109, body.employeeId L110 | NO VALID METHOD PROOF | **GAP** |
-| [`payroll-underpayments` PATCH](../../src/app/api/payroll-underpayments/route.ts#L231) | session, query, body | getSessionUser L7, assertOrganizationRole L9, getAccess L9, enforceSameOriginMutation L13 | searchParams.get("organizationId") L55, body.organizationId L109, body.employeeId L110 | NO VALID METHOD PROOF | **GAP** |
+| [`payroll-underpayments` GET](../../src/app/api/payroll-underpayments/route.ts#L53) | session, query, body | getSessionUser L7, assertOrganizationRole L9, getAccess L9, enforceSameOriginMutation L13 | searchParams.get("organizationId") L55, body.organizationId L109, body.employeeId L110 | NO VALID METHOD PROOF | **GAP** |
+| [`payroll-underpayments` POST](../../src/app/api/payroll-underpayments/route.ts#L104) | session, query, body | getSessionUser L7, assertOrganizationRole L9, getAccess L9, enforceSameOriginMutation L13 | searchParams.get("organizationId") L55, body.organizationId L109, body.employeeId L110 | [Provisional HTTP/PG16 own and victim proof](../../scripts/qa/underpayment-posting-http.mjs#L136) | **COVERED** |
+| [`payroll-underpayments` PATCH](../../src/app/api/payroll-underpayments/route.ts#L236) | session, query, body | getSessionUser L7, assertOrganizationRole L9, getAccess L9, enforceSameOriginMutation L13 | searchParams.get("organizationId") L55, body.organizationId L109, body.employeeId L110 | [Provisional HTTP/PG16 independent posting and victim proof](../../scripts/qa/underpayment-posting-http.mjs#L166) | **COVERED** |
 | [`payroll/overpayment-preflight` GET](../../src/app/api/payroll/overpayment-preflight/route.ts#L64) | session, query, body | getSessionUser L11, assertOrganizationRole L12, getAccess L12, enforceSameOriginMutation L14 | searchParams.get("organizationId") L65, body.organizationId L106, body.employeeId L107 | NO VALID METHOD PROOF | **GAP** |
 | [`payroll/overpayment-preflight` POST](../../src/app/api/payroll/overpayment-preflight/route.ts#L102) | session, query, body | getSessionUser L11, assertOrganizationRole L12, getAccess L12, enforceSameOriginMutation L14 | searchParams.get("organizationId") L65, body.organizationId L106, body.employeeId L107 | NO VALID METHOD PROOF | **GAP** |
 | [`performance/action-items` POST](../../src/app/api/performance/action-items/route.ts#L167) | session, body | assertOrganizationRole L11, assertScope L12, getAccess L13, getSessionUser L20 | body.organizationId L175, body.organizationId L258 | NO VALID METHOD PROOF | **GAP** |
@@ -677,7 +677,7 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 
 The other 72 examined app TS/TSX files have no detected employer-scoped business identifier; all 92 are pinned in `scripts/qa/tenant-isolation-inventory/baseline.json`. `src/app` files using business IDs are listed here.
 
-# Scoped Next.js pages and server actions — inventory appendix C
+# Scoped Next.js pages and server actions â€” inventory appendix C
 
 Static source scan pinned to `main@d94c1f3e0e1a8b1de0d15186923f3ed641314214`. Page-shell access checks do not replace underlying API authorization. **GAP means no valid same-employer + victim-only browser evidence is cited.**
 
@@ -709,7 +709,7 @@ Static source scan pinned to `main@d94c1f3e0e1a8b1de0d15186923f3ed641314214`. Pa
 
 **STATUS: INVENTORY / DRIFT-GUARD WORK, NOT COMPLETE TENANT ISOLATION.** No live Neon access, real employee records, money movement, provider calls, SQL migrations, or production flag changes. All functional GAP acceptance must remain open until current-head real HTTP/DB CI proof exists. The issue #853 human and #579 real employer acceptance remain separate.
 
-## Current-main synchronization — October 19, 2026 (NOT security acceptance)
+## Current-main synchronization â€” October 19, 2026 (NOT security acceptance)
 
 Re-pinned the active source manifest and baseline to [`main@8c2a62135fd6e23db4603197822339cc1020ec27`](https://github.com/erwinmehehe/payrollph/commit/8c2a62135fd6e23db4603197822339cc1020ec27). Four existing API routes changed since the prior checkpoint: statutory remittances, payroll variance, reports and workforce attendance corrections. Method/guard/source links were refreshed from actual source; no new handlers appeared, and **all affected methods remain GAP**. The variance route now includes new multi-entity guard calls, but source guards alone are not own/victim HTTP proof. Archived original partitions are historical.
 

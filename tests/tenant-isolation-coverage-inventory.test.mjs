@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 344, "Keep all 344 unverified API method gaps after separate BIR and vault proofs");
-  assert.equal(manifest.metrics.coveredAfter, 139, "Count exact linked PG16 BIR and vault method proofs without treating GAPs as successes");
+  assert.equal(manifest.metrics.gap, 342, "Keep all 342 unverified API method gaps after separate BIR and vault proofs");
+  assert.equal(manifest.metrics.coveredAfter, 141, "Count exact linked PG16 BIR and vault method proofs without treating GAPs as successes");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -603,6 +603,26 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (proof?.file === "scripts/qa/underpayment-posting-http.mjs") {
+        assert.equal(path, "src/app/api/payroll-underpayments/route.ts");
+        const spec = { POST: [136, 149], PATCH: [166, 155] }[method.name];
+        assert.ok(spec, "Only the two executed underpayment writes receive new credit");
+        assert.deepEqual([proof.ownPositiveLine, proof.foreignDenialLine], spec);
+        const lines = readableLines(proof.file);
+        assert.ok(lines[spec[0] - 1].includes(method.name === "POST" ? "status(await request" : "const winner = replies.find"));
+        assert.match(lines[spec[1] - 1], /await deny\(v,/);
+        assert.match(lines[spec[1] - 1], /v\.org\.id/);
+        assert.match(lines[proof.unchangedDbLine - 1], /assert\.deepEqual\(await snapshot\(v\), before/);
+        const integration = lines.join("\n");
+        assert.match(integration, /await journey\(v, a\); await journey\(v, b\)/);
+        assert.match(integration, /v\.claim\.id > Math\.max\(a\.claim\.id, b\.claim\.id, 6\)/);
+        assert.match(integration, /\[200, 409\]/);
+        const workflow = readFileSync(".github/workflows/underpayment-posting.yml", "utf8");
+        assert.match(workflow, /posting: \['false', 'true'\]/);
+        assert.match(workflow, /MONEY_PROOF_TRANSPORT: http/);
+        assert.match(workflow, /npx tsx scripts\/qa\/underpayment-posting-http\.mjs/);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-money-lifecycle-http.mjs") {
         // Bookkeeping for eight separately executed PG16/HTTP cases; this
         // source guard never substitutes for the required workflow receipt.
