@@ -36,17 +36,11 @@ async function seedEmployer(label, nonce, makeSession) {
   // ATTA=2, ATTB=3, VICTIM=4 real employee rows.
   const employeeSuffixes = label === "VICTIM" ? ["W", "L", "X", "Y"]
     : label === "ATTB" ? ["W", "L", "X"] : ["W", "L"];
-  const workers = await db.insert(employees).values(employeeSuffixes.map((suffix) => ({
+  const [worker, linkTarget, ...others] = await db.insert(employees).values(employeeSuffixes.map((suffix) => ({
     organizationId: org.id, legalEntityId: entity.id, employeeNo: "DL02-" + label + "-" + suffix + "-" + nonce,
     firstName: "DL02" + label + suffix, lastName: "Synthetic", title: "Fictional", avatarInitials: "DS",
     basicRate: "20000.00", startDate: "2026-01-05",
-  }))).returning();
-  const [worker, linkTarget] = workers;
-  // All DL-02 synthetic employees receive explicit employer-bound pay profiles.
-  await db.insert(employeePayProfiles).values(workers.map((employee) => ({
-    organizationId: org.id, employeeId: employee.id, payBasis: "monthly",
-    rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
-  })));
+  }))).returning(); await seedDl02PayProfiles(org, [worker, linkTarget, ...others]);
   const [ess] = await db.insert(users).values({ email: "dl02-ess-" + label + "-" + nonce + "@example.invalid",
     name: "DL02 employee " + label, passwordHash: "fictional-session-only", role: "employee", employeeId: worker.id }).returning();
   const [unlinked] = await db.insert(users).values({ email: "dl02-link-" + label + "-" + nonce + "@example.invalid",
@@ -353,4 +347,21 @@ async function reserveHighSyntheticIds() {
   await db.execute(sql`SELECT setval(pg_get_serial_sequence('employees', 'id')::regclass,
     GREATEST(6, COALESCE((SELECT MAX(id) FROM employees), 0),
       nextval(pg_get_serial_sequence('employees', 'id')::regclass)), true)`);
+}
+
+/** Fictional tenant fixture profiles only; never touch a production database. */
+async function seedDl02PayProfiles(org, workers) {
+  const target = new URL(process.env.DATABASE_URL ?? "");
+  if (process.env.CI !== "true" ||
+      process.env.TENANT_DL02_PROOF !== "isolated-ci-only" ||
+      target.hostname !== "127.0.0.1" || target.port !== "5432" ||
+      target.pathname !== "/app_db" ||
+      process.env.PAYMONGO_DISBURSEMENTS_ENABLED !== "false" ||
+      process.env.XENDIT_PAYOUTS_ENABLED !== "false") {
+    throw new Error("DL02_PAY_PROFILE_FIXTURE_NON_DISPOSABLE_REFUSED");
+  }
+  await db.insert(employeePayProfiles).values(workers.map((employee) => ({
+    organizationId: org.id, employeeId: employee.id, payBasis: "monthly",
+    rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+  })));
 }

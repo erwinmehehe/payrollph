@@ -142,19 +142,7 @@ async function makeFixture() {
     employeeNo: "A-" + nonce + "-" + idx, firstName: "OwnEmployee" + idx,
     lastName: "Synthetic", title: "Attacker own employee", avatarInitials: "OS",
     basicRate: "18000.00", startDate: "2026-10-01",
-  }))).returning({ id: employees.id, employeeNo: employees.employeeNo });
-  // Explicit fictional profiles: the app no longer backfills missing pay data
-  // during an authenticated request. Preserve the real tenant association.
-  await db.insert(employeePayProfiles).values([
-    ...victimEmployees.map((employee) => ({
-      organizationId: victim.id, employeeId: employee.id, payBasis: "monthly",
-      rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
-    })),
-    ...ownedEmployees.map((employee, index) => ({
-      organizationId: orgs[index + 1].id, employeeId: employee.id, payBasis: "monthly",
-      rateAmount: "18000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
-    })),
-  ]);
+  }))).returning({ id: employees.id, employeeNo: employees.employeeNo }); await seedSecondPassPayProfiles(victim, victimEmployees, orgs, ownedEmployees);
   // Isolated per-tenant resource fixtures: always seed the victim first so
   // direct-object attempts exercise real high IDs rather than guessed 1..6.
   const syntheticAssets = await db.insert(assets).values([
@@ -1342,4 +1330,19 @@ async function verifyPayoutStatusTenantRead(f) {
   const victimAfter = await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
   assert.deepEqual(victimAfter, victimBefore, "Denied payout reads/mutations cannot affect another employer's payroll");
+}
+
+/** Disposable QA only. Hoisted below all line-pinned tenant proof assertions. */
+async function seedSecondPassPayProfiles(victim, victimEmployees, orgs, ownedEmployees) {
+  requireDisposable();
+  await db.insert(employeePayProfiles).values([
+    ...victimEmployees.map((employee) => ({
+      organizationId: victim.id, employeeId: employee.id, payBasis: "monthly",
+      rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+    })),
+    ...ownedEmployees.map((employee, index) => ({
+      organizationId: orgs[index + 1].id, employeeId: employee.id, payBasis: "monthly",
+      rateAmount: "18000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+    })),
+  ]);
 }
