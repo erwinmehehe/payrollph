@@ -1,8 +1,7 @@
 /**
- * MNY-01 payroll lifecycle and correction proof. Fictional records only.
- * Own successes, real victim IDs, forged selectors and unchanged-victim SQL
- * snapshots are executed over real HTTP. No provider is configured or called.
- * This is a partial MNY-01 implementation, never closure of its 33-method queue.
+ * LOCAL direct-handler investigation with real disposable PostgreSQL.
+ * Auth uses a fixture adapter; all provider calls are intercepted in memory.
+ * No real HTTP acceptance, external requests, coverage credits or audit closure.
  */
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -133,10 +132,33 @@ const providerCalls = [];
 const batches = new Map();
 const originalFetch = globalThis.fetch;
 const priorSecret = process.env.PAYMONGO_SECRET_KEY;
+const priorEnabled = process.env.PAYMONGO_DISBURSEMENTS_ENABLED;
+const priorWallet = process.env.PAYMONGO_WALLET_ID;
+let retryFixture = null;
 globalThis.fetch = async (url, options) => {
   const method = options?.method ?? 'GET';
   providerCalls.push({ url: String(url), method });
-  check(method === 'GET', 'Investigation forbids all provider writes');
+  if (retryFixture) {
+    if (String(url).startsWith('https://api.paymongo.com/v2/transfers/receiving_institutions?') && method === 'GET') {
+      return Response.json({ data: [{ attributes: { name: 'BPI', bic: 'BOPIPHMM' } }] });
+    }
+    if (String(url) === 'https://api.paymongo.com/v2/wallets/wallet_synthetic' && method === 'GET') {
+      return Response.json({ data: { id: 'wallet_synthetic', attributes: { status: 'active',
+        balance: { available: 100000000, pending: 0 }, account: { account_number: '0000000001', account_name: 'Fictional Wallet' } } } });
+    }
+    if (String(url) === 'https://api.paymongo.com/v2/batch_transfers' && method === 'POST') {
+      const payload = JSON.parse(options.body);
+      assert.equal(payload.transfers.length, 1, 'Only the one confirmed-failed worker may be retried'); assertions++;
+      assert.equal(payload.transfers[0].reference_number, `PAY-${retryFixture.actor.source.id}-${retryFixture.actor.worker.employeeNo}`); assertions++;
+      assert.equal(payload.transfers[0].amount, 2800000); assertions++;
+      assert.equal(payload.transfers[0].destination_account.number, '000000000001'); assertions++;
+      retryFixture.posts.push(payload);
+      batches.set('batch_tr_retry_' + retryFixture.actor.source.id, { ...batches.get('batch_tr_synthetic_' + retryFixture.actor.source.id), id: 'tr_retry_' + retryFixture.actor.source.id, status: 'pending' });
+      return Response.json({ data: { id: 'batch_tr_retry_' + retryFixture.actor.source.id,
+        transfers: [{ ...batches.get('batch_tr_synthetic_' + retryFixture.actor.source.id), status: 'pending' }] } });
+    }
+  }
+  check(method === 'GET', 'Only the explicitly registered retry fixture may perform a synthetic POST');
   const batchId = String(url).replace('https://api.paymongo.com/v2/batch_transfers/', '');
   check(batches.has(batchId), 'Only an explicitly registered fictional provider read is allowed');
   return Response.json({ data: { id: batchId, transfers: [batches.get(batchId)] } });
@@ -187,6 +209,49 @@ async function investigate(v, a) {
   await deniedNoProvider(a, a.employeeUser, exportPath(a.source.id) + '?kind=bank&dryRun=false', 'GET', undefined, 403, 'employee cannot obtain final bank file');
   successes.push({ organizationId: a.org.id, ownJournal: true, ownProviderReconcile: true });
 }
+async function retryControls(a) {
+  const batchId = 'batch_tr_synthetic_' + a.source.id;
+  batches.get(batchId).status = 'failed';
+  process.env.PAYMONGO_DISBURSEMENTS_ENABLED = 'true';
+  process.env.PAYMONGO_WALLET_ID = 'wallet_synthetic';
+  retryFixture = { actor: a, posts: [] };
+  const path = `/api/payroll-runs/${a.source.id}/payout-reconciliation`;
+  const body = { action: 'retry-failed', confirm: true };
+  const missing = await request(path, a.checker.cookie, 'POST', body);
+  status(missing, 409, 'retry requires preflight');
+  check(retryFixture.posts.length === 0, 'missing preflight sends nothing');
+  const [preflight] = await db.insert(s.auditEvents).values({ organizationId: a.org.id,
+    actor: a.maker.user.name, action: 'PayMongo payroll preflight passed', resource: 'Fictional preflight',
+    createdAt: new Date(Date.now() - 60_000), metadata: { runId: a.source.id } }).returning();
+  const { createPayoutDestinationChangeRequest, decidePayoutDestinationChange } = await import('../../src/lib/payout-destination-controls.ts');
+  await db.insert(s.treasuryControlPolicies).values({ organizationId: a.org.id, enabled: true });
+  const change = await createPayoutDestinationChangeRequest({ organizationId: a.org.id, employeeId: a.worker.id,
+    requestedByUserId: a.maker.user.id, requestedByName: a.maker.user.name,
+    reason: 'Synthetic changed destination after preflight', replacementBankAccount: '000000000002', bankCode: 'BPI', mobile: null });
+  await decidePayoutDestinationChange({ organizationId: a.org.id, requestId: change.id,
+    decidedByUserId: a.checker.user.id, decidedByName: a.checker.user.name, decision: 'approve', decisionNote: 'Independent fixture review' });
+  // Keep treasury authorization independent of this stale-source scenario:
+  // restore the baseline policy after recording the actual approved change.
+  await db.update(s.treasuryControlPolicies).set({ enabled: false }).where(eq(s.treasuryControlPolicies.organizationId, a.org.id));
+  const stale = await request(path, a.checker.cookie, 'POST', body);
+  status(stale, 502, 'changed destination blocks reconciliation before retry');
+  check(stale.json.error.startsWith('PAYOUT_DESTINATION_CHANGED_AFTER_CALCULATION') && retryFixture.posts.length === 0, 'frozen destination guard blocks all sends');
+  // Restore the original fixture destination before a separate fresh-preflight
+  // retry case. Never rewrite the released instruction to satisfy the test.
+  await db.update(s.employees).set({ bankAccount: encryptBankAccount('000000000001') }).where(eq(s.employees.id, a.worker.id));
+  await db.insert(s.auditEvents).values({ organizationId: a.org.id, actor: a.maker.user.name,
+    action: 'PayMongo payroll preflight passed', resource: 'New fictional preflight', metadata: { runId: a.source.id } });
+  const retry = await request(path, a.checker.cookie, 'POST', body);
+  status(retry, 200, 'fresh-preflight confirmed-failed transfer retry succeeds');
+  check(retryFixture.posts.length === 1, 'one synthetic provider POST');
+  const count = retryFixture.posts.length;
+  status(await request(path, a.checker.cookie, 'POST', body), 409, 'repeating retry cannot resend');
+  check(retryFixture.posts.length === count, 'retry replay sends nothing');
+  successes.push({ organizationId: a.org.id, missingPreflightBlocked: true, stalePreflightBlocked: true,
+    freshRetry: true, replayBlocked: true, syntheticPosts: count, priorPreflightId: preflight.id });
+  retryFixture = null;
+  process.env.PAYMONGO_DISBURSEMENTS_ENABLED = 'false';
+}
 try {
   process.env.PAYMONGO_SECRET_KEY = 'sk_test_synthetic_no_network';
   const nonce = randomUUID().slice(0, 8);
@@ -197,15 +262,22 @@ try {
   check(v.source.id > Math.max(a.source.id, b.source.id, 6), 'high-ID actual victim run');
   const initial = await snapshot(v);
   await investigate(v, a); await investigate(v, b);
+  for (const label of ['PM-RETRY-B', 'PM-RETRY-C']) {
+    const actor = await seed(label, nonce); await providerFixture(actor); await retryControls(actor);
+  }
   assert.deepEqual(await snapshot(v), initial, 'victim unchanged after complete investigation'); assertions++;
   await mkdir('outputs', { recursive: true });
   await writeFile('outputs/paymongo-export-local.json', JSON.stringify({ assertions, receipts, successes,
     providerCalls, status: 'PASS', transport: 'direct-handler-diagnosis-auth-adapter',
-    scope: 'Local investigation only; no HTTP acceptance, provider writes or coverage credits' }, null, 2));
-  console.log(`PayMongo/export local diagnosis PASS: ${assertions} assertions; ${receipts.length} denials; ${providerCalls.length} synthetic GETs.`);
+    scope: 'Local investigation only; all provider GET/POST intercepted; no HTTP acceptance, external calls or coverage credits' }, null, 2));
+  console.log(`PayMongo/export local diagnosis PASS: ${assertions} assertions; ${receipts.length} denials; ${providerCalls.filter(c => c.method === 'GET').length} synthetic GETs; ${providerCalls.filter(c => c.method === 'POST').length} synthetic POSTs.`);
 } finally {
   globalThis.fetch = originalFetch;
   if (priorSecret === undefined) delete process.env.PAYMONGO_SECRET_KEY;
   else process.env.PAYMONGO_SECRET_KEY = priorSecret;
+  if (priorEnabled === undefined) delete process.env.PAYMONGO_DISBURSEMENTS_ENABLED;
+  else process.env.PAYMONGO_DISBURSEMENTS_ENABLED = priorEnabled;
+  if (priorWallet === undefined) delete process.env.PAYMONGO_WALLET_ID;
+  else process.env.PAYMONGO_WALLET_ID = priorWallet;
   await pool.end();
 }
