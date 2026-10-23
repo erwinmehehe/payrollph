@@ -34,10 +34,9 @@ test("legacy hosted demo schema supports the current launch and workspace models
       for (const sql of blocks) await client.query(sql);
       await client.query("COMMIT");
     }
-    for (const path of ["src/lib/leave-payroll-schema.ts", "src/lib/pay-basis-schema.ts"]) {
-      const helper = readFileSync(path, "utf8").split("export async function ensureEmployeePayProfiles")[0];
-      for (const match of helper.matchAll(/await client\.query\(`([\s\S]*?)`\);/g)) await client.query(match[1]);
-    }
+    // The leave and pay-basis helpers no longer carry request-time DDL; replay the
+    // exact historical SQL they used to run so the old demo shape is still rebuilt.
+    await client.query(readFileSync("tests/fixtures/retired-runtime-ddl/leave-pay-basis.sql", "utf8"));
     // Module columns are installed by the ordered release migration, never
     // by a request-time compatibility helper. Rehearse the documented upgrade.
     await client.query(readFileSync("drizzle/0122_tenant_module_disclosure.sql", "utf8"));

@@ -72,6 +72,8 @@ jobs:
       - run: npm run db:push
       - name: Apply audit 0109 on isolated real PG16 before acceptance
         run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Apply reviewed cutover baseline supplement before WFM payroll tests
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Reject empty or skipped TAP evidence
         run: node --test tests/wfm-pilot-synthetic-evidence.test.mjs
       - name: Run automated portions of all fourteen WFM scenarios

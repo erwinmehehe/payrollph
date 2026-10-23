@@ -13,7 +13,7 @@ test("demo and trial attribution is stored on the durable lead before notificati
   assert.ok(recordIndex >= 0);
   assert.ok(notifyIndex > recordIndex);
   assert.ok(route.includes("attribution,"));
-  assert.ok(leads.includes("attribution jsonb"));
+  assert.ok(read("src/lib/request-schema-readonly.ts").includes("marketing_leads.attribution"), "the catalog check requires the attribution column");
   assert.ok(leads.includes("JSON.stringify(input.attribution ?? {})"));
   assert.ok(leads.includes("metadata: {"));
   assert.ok(leads.includes("marketing: {"));
