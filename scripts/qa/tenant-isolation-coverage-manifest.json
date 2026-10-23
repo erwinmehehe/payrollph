@@ -17630,10 +17630,10 @@
           "status": "COVERED",
           "reason": "PROVISIONAL three-tenant real HTTPS/PG16 own report, two independent foreign report denials, read-back victim worker IDs above 6 and foreign attribution fail-closed proof. Exact-head CI and owner review required.",
           "testedBy": {
-            "file": "scripts/multi-entity-synthetic-browser.mjs",
-            "line": 160,
-            "ownPositiveLine": 173,
-            "foreignDenialLine": 180
+            "file": "scripts/qa/multi-entity-group-report-http.mjs",
+            "line": 28,
+            "ownPositiveLine": 41,
+            "foreignDenialLine": 48
           }
         }
       ],
