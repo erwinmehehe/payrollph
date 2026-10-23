@@ -227,8 +227,11 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 344, "Keep all 344 unverified API method gaps after separate BIR and vault proofs");
-  assert.equal(manifest.metrics.coveredAfter, 139, "Count exact linked PG16 BIR and vault method proofs without treating GAPs as successes");
+  // Preserve the 139/344 historical baseline while crediting only the THREE
+  // distinct source-linked BIR2316 GET/GET/POST methods in separate HTTPS PG16.
+  // Do not reclassify unrelated GAPs or relax the original 493-method audit.
+  assert.equal(manifest.metrics.gap + 3, 344, "Retain the 344 historical gaps minus precisely three BIR2316 methods");
+  assert.equal(manifest.metrics.coveredAfter - 3, 139, "Retain 139 earlier proofs plus three independently linked BIR2316 methods");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
