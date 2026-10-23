@@ -203,11 +203,11 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   assert.equal(groupReport?.status, "COVERED", "Group report cannot receive a credit without its own GET proof");
   assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs",
     "Group report may not borrow a money-input or unrelated source proof");
-  const groupReportLines = readFileSync(groupReport.testedBy.file, "utf8").split("\\n");
-  assert.match(groupReportLines[groupReport.testedBy.line - 1] ?? "", /const bVictims = await database\\.query\\(/);
-  assert.match(groupReportLines[groupReport.testedBy.ownPositiveLine - 1] ?? "", /const ownReport = await request\\(caller, on,/);
-  assert.match(groupReportLines[groupReport.testedBy.foreignDenialLine - 1] ?? "", /assert\\.equal\\(deniedVictim\\.status, 403,/);
-  assert.match(groupReportLines.join("\\n"), /assert\\.equal\\(refusedReleasedRun\\.status, 409,/);
+  const groupReportLines = readFileSync(groupReport.testedBy.file, "utf8").split("\n");
+  assert.match(groupReportLines[groupReport.testedBy.line - 1] ?? "", /const bVictims = await database\.query\(/);
+  assert.match(groupReportLines[groupReport.testedBy.ownPositiveLine - 1] ?? "", /const ownReport = await request\(caller, on,/);
+  assert.match(groupReportLines[groupReport.testedBy.foreignDenialLine - 1] ?? "", /assert\.equal\(deniedVictim\.status, 403,/);
+  assert.match(groupReportLines.join("\n"), /assert\.equal\(refusedReleasedRun\.status, 409,/);
   const groupReportCredits = 1;
   assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - groupReportCredits, 129,
     "Keep all 129 independently source-pinned methods from current main including merged #1336 vault proofs");
