@@ -148,7 +148,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 - `PATCH /api/contractors` — [source](../../src/app/api/contractors/route.ts#L96)
 - `POST /api/contractors` — [source](../../src/app/api/contractors/route.ts#L38)
 - `GET /api/contractors/payments` — [source](../../src/app/api/contractors/payments/route.ts#L42)
-- `POST /api/contractors/payments` — [source](../../src/app/api/contractors/payments/route.ts#L173)
+- `POST /api/contractors/payments` — [source](../../src/app/api/contractors/payments/route.ts#L187)
 - `DELETE /api/de-minimis` — [source](../../src/app/api/de-minimis/route.ts#L170)
 - `GET /api/de-minimis` — [source](../../src/app/api/de-minimis/route.ts#L20)
 - `POST /api/de-minimis` — [source](../../src/app/api/de-minimis/route.ts#L65)
