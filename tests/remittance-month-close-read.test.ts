@@ -197,9 +197,29 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     method.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs");
   assert.equal(moneyMethods.length, 8, "Only the separately executed eight money-input cases are additional credits");
   assert.ok(moneyMethods.every(method => method.status === "COVERED"));
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length, 129,
+  const underpaymentFile = "scripts/qa/underpayment-posting-http.mjs";
+  const underpaymentLines = readFileSync(underpaymentFile, "utf8").split("\n");
+  const underpaymentRoute = manifest.allApiRouteFiles["src/app/api/payroll-underpayments/route.ts"];
+  const underpaymentMethods = underpaymentRoute.methods.filter((method: {
+    testedBy?: { file?: string };
+  }) => method.testedBy?.file === underpaymentFile);
+  assert.equal(underpaymentMethods.length, 2, "Exactly two separately executed underpayment writes are additional credits");
+  for (const [name, own, foreign] of [["POST", 136, 149], ["PATCH", 166, 155]] as const) {
+    const method = underpaymentMethods.find((entry: { name: string }) => entry.name === name);
+    assert.equal(method?.status, "COVERED");
+    assert.deepEqual([method.testedBy.ownPositiveLine, method.testedBy.foreignDenialLine], [own, foreign]);
+    assert.ok(underpaymentLines[own - 1].includes(name === "POST" ? "status(await request" : "const winner = replies.find"));
+    assert.ok(underpaymentLines[foreign - 1].includes("await deny(v,") &&
+      underpaymentLines[foreign - 1].includes("v.org.id"));
+    assert.ok(underpaymentLines[method.testedBy.unchangedDbLine - 1].includes("assert.deepEqual(await snapshot(v), before"));
+  }
+  const underpaymentWorkflow = readFileSync(".github/workflows/underpayment-posting.yml", "utf8");
+  assert.match(underpaymentWorkflow, /MONEY_PROOF_TRANSPORT: http/);
+  assert.match(underpaymentWorkflow, /posting: \['false', 'true'\]/);
+  assert.match(underpaymentWorkflow, /npx tsx scripts\/qa\/underpayment-posting-http\.mjs/);
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - underpaymentMethods.length, 129,
     "Keep all 129 independently source-pinned methods from current main including merged #1336 vault proofs");
-  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length, 354,
+  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + underpaymentMethods.length, 354,
     "Never reduce merged-main's 354 open method GAPs without new source-linked real HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
