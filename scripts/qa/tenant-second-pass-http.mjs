@@ -12,7 +12,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
-  apiKeys, approvalChainPolicies, assets, documents, employees, leavePolicies, legalEntities, organizations, orgUnits, payrollEntries,
+  apiKeys, approvalChainPolicies, assets, documents, employees, employeePayProfiles, leavePolicies, legalEntities, organizations, orgUnits, payrollEntries,
   payrollRuns, payslips, providerEvents, scimIdentities, scimTokens,
   sessions, userOrganizations, users, employeeHrCases, employeeHrCaseMessages, birWithholdingRemittanceBatches,
 } from "../../src/db/schema";
@@ -143,6 +143,18 @@ async function makeFixture() {
     lastName: "Synthetic", title: "Attacker own employee", avatarInitials: "OS",
     basicRate: "18000.00", startDate: "2026-10-01",
   }))).returning({ id: employees.id, employeeNo: employees.employeeNo });
+  // Explicit fictional profiles: the app no longer backfills missing pay data
+  // during an authenticated request. Preserve the real tenant association.
+  await db.insert(employeePayProfiles).values([
+    ...victimEmployees.map((employee) => ({
+      organizationId: victim.id, employeeId: employee.id, payBasis: "monthly",
+      rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+    })),
+    ...ownedEmployees.map((employee, index) => ({
+      organizationId: orgs[index + 1].id, employeeId: employee.id, payBasis: "monthly",
+      rateAmount: "18000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+    })),
+  ]);
   // Isolated per-tenant resource fixtures: always seed the victim first so
   // direct-object attempts exercise real high IDs rather than guessed 1..6.
   const syntheticAssets = await db.insert(assets).values([

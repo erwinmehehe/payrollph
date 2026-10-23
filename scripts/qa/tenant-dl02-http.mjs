@@ -10,7 +10,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
-  auditEvents, employees, hcmEmploymentDecisionNotes, hcmEmploymentTermDecisions, hcmEmploymentTerms,
+  auditEvents, employees, employeePayProfiles, hcmEmploymentDecisionNotes, hcmEmploymentTermDecisions, hcmEmploymentTerms,
   hcmPolicyAssignments, hcmPolicyVersions, legalEntities, organizations, payrollEntries, payrollRuns,
   performanceCycles, performanceReviews, savedReportDefinitions, sessions, userOrganizations, users,
 } from "../../src/db/schema";
@@ -36,11 +36,17 @@ async function seedEmployer(label, nonce, makeSession) {
   // ATTA=2, ATTB=3, VICTIM=4 real employee rows.
   const employeeSuffixes = label === "VICTIM" ? ["W", "L", "X", "Y"]
     : label === "ATTB" ? ["W", "L", "X"] : ["W", "L"];
-  const [worker, linkTarget] = await db.insert(employees).values(employeeSuffixes.map((suffix) => ({
+  const workers = await db.insert(employees).values(employeeSuffixes.map((suffix) => ({
     organizationId: org.id, legalEntityId: entity.id, employeeNo: "DL02-" + label + "-" + suffix + "-" + nonce,
     firstName: "DL02" + label + suffix, lastName: "Synthetic", title: "Fictional", avatarInitials: "DS",
     basicRate: "20000.00", startDate: "2026-01-05",
   }))).returning();
+  const [worker, linkTarget] = workers;
+  // All DL-02 synthetic employees receive explicit employer-bound pay profiles.
+  await db.insert(employeePayProfiles).values(workers.map((employee) => ({
+    organizationId: org.id, employeeId: employee.id, payBasis: "monthly",
+    rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+  })));
   const [ess] = await db.insert(users).values({ email: "dl02-ess-" + label + "-" + nonce + "@example.invalid",
     name: "DL02 employee " + label, passwordHash: "fictional-session-only", role: "employee", employeeId: worker.id }).returning();
   const [unlinked] = await db.insert(users).values({ email: "dl02-link-" + label + "-" + nonce + "@example.invalid",

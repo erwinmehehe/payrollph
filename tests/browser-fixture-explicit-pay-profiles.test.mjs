@@ -22,3 +22,18 @@ test("three authenticated browser fixtures create tenant-bound monthly pay profi
     assert.match(source, /standardHoursPerDay: "8"/);
   }
 });
+
+test("second-pass tenant HTTP and DL-02 synthetic employees get explicit employer-bound pay profiles", () => {
+  for (const path of [
+    "scripts/qa/tenant-second-pass-http.mjs",
+    "scripts/qa/tenant-dl02-http.mjs",
+  ]) {
+    const source = readFileSync(path, "utf8");
+    assert.match(source, /db\.insert\(employeePayProfiles\)\.values\(/, path);
+    assert.match(source, /organizationId: (?:victim|org|orgs\[index \+ 1\])\.id/, path);
+    assert.match(source, /employeeId: employee\.id/, path);
+    assert.match(source, /payBasis: "monthly"/, path);
+    assert.match(source, /standardWorkDaysPerMonth: "22"/, path);
+    assert.match(source, /standardHoursPerDay: "8"/, path);
+  }
+});
