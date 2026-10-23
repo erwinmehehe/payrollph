@@ -199,6 +199,19 @@ export async function recordXenditPayoutObservation(input: {
     }
     const prior = match.transfer.status as PayoutStatus;
     if (prior === "prepared" || prior === "cancelled") throw new Error("XENDIT_UNCLAIMED_PAYOUT_OBSERVATION");
+    // Deduplicate authenticated, identity-matched events before testing terminal
+    // transitions: an older event replayed after a newer settlement is a no-op,
+    // not a false status regression (and must not write another audit receipt).
+    if (input.eventId) {
+      const inserted = await tx.insert(providerEvents).values({
+        provider: "xendit", eventId: input.eventId,
+        organizationId: input.organizationId, payrollRunId: input.payrollRunId,
+        eventType: input.eventType ?? `status.${input.providerStatus.toLowerCase()}`,
+      }).onConflictDoNothing({
+        target: [providerEvents.provider, providerEvents.eventId],
+      }).returning({ id: providerEvents.id });
+      if (inserted.length === 0) return { recorded: false, status: prior };
+    }
     if (prior === "reversed" && desired !== "reversed") {
       return { recorded: false, status: prior };
     }
@@ -207,14 +220,6 @@ export async function recordXenditPayoutObservation(input: {
     }
     if (prior === "failed" && !["failed", "reversed"].includes(desired)) {
       throw new Error("XENDIT_FAILED_PAYOUT_STATUS_CHANGED_REQUIRES_INVESTIGATION");
-    }
-    if (input.eventId) {
-      const inserted = await tx.insert(providerEvents).values({
-        provider: "xendit", eventId: input.eventId,
-        organizationId: input.organizationId, payrollRunId: input.payrollRunId,
-        eventType: input.eventType ?? `status.${input.providerStatus.toLowerCase()}`,
-      }).onConflictDoNothing().returning({ id: providerEvents.id });
-      if (inserted.length === 0) return { recorded: false, status: prior };
     }
     const updateStatus: PayoutStatus =
       prior === "succeeded" && desired === "reversed" ? "reversed"
