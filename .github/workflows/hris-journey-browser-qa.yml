@@ -159,6 +159,8 @@ jobs:
       - run: npm run db:push
       - name: Apply audit 0109 on isolated real PG16 before acceptance
         run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Seed disposable HCM baseline
         run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
       - name: Add unit managers, approval and onboarding acceptance records

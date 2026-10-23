@@ -82,6 +82,8 @@ jobs:
         run: npm run db:push
       - name: Apply existing audit-chain controls to isolated test schema
         run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Typecheck and build exact PR commit
         run: |
           npm run typecheck

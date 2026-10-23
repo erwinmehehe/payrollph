@@ -58,7 +58,7 @@ export async function verifyTenantFilingFile(f, { request, expectStatus }) {
     const [run] = await db.insert(payrollRuns).values({
       organizationId: f.orgs[orgIndex].id, legalEntityId: f.entities[orgIndex].id,
       periodLabel: "Fictional DL01 final cutoff " + nonce + "-" + ordered.length,
-      periodStart: "2026-10-16", periodEnd: "2026-10-31", payDate: "2026-10-31",
+      ...distinctFinalFilingMonth(ordered.length),
       status: "Released", employeeCount: 1,
     }).returning();
     const employeeId = orgIndex === 0 ? f.victimEmployee.id : f.ownedEmployees[orgIndex - 1].id;
@@ -124,4 +124,19 @@ export async function verifyTenantFilingFile(f, { request, expectStatus }) {
   assert.equal(receipts.length, 2);
   console.log(JSON.stringify({ kind: "DISPOSABLE_PG16_REAL_HTTP", auditSuite: "dl01-filing-file",
     receipts, productionTested: false, certified: false }));
+}
+
+/**
+ * All 10 fictional GET-file fixtures must remain separate Released periods:
+ * the clean source baseline forbids overlapping released payroll for the same
+ * employer/legal entity/scope. 2027 months also fall after synthetic workers'
+ * 2026 employment start and outside the earlier 2026 payroll security probes.
+ * Each month ends on a real calendar month's final day (including February).
+ */
+function distinctFinalFilingMonth(index) {
+  assert.ok(Number.isInteger(index) && index >= 0 && index < 10,
+    "DL01 filing fixtures are limited to ten independent monthly cutoffs");
+  const month = String(index + 1).padStart(2, "0");
+  const monthEnd = new Date(Date.UTC(2027, index + 1, 0)).toISOString().slice(0, 10);
+  return { periodStart: "2027-" + month + "-16", periodEnd: monthEnd, payDate: monthEnd };
 }

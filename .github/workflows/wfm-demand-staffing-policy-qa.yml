@@ -58,6 +58,8 @@ jobs:
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Create disposable Postgres schema
         run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Pure rules and independent database policy lifecycle
         run: npx tsx --test --test-concurrency=1 tests/workforce-demand-staffing-policy.test.ts tests/workforce-demand-staffing-policy-db.test.ts
       - name: Source size policy

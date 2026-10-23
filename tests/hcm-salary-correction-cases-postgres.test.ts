@@ -175,8 +175,9 @@ test("disposable PostgreSQL: #641 correction case completeness, reconciliation, 
       await db.delete(s.employeePayProfiles).where(inArray(s.employeePayProfiles.organizationId, orgs));
       await db.delete(s.employees).where(inArray(s.employees.organizationId, orgs));
       await db.delete(s.legalEntities).where(inArray(s.legalEntities.organizationId, orgs));
-      await db.delete(s.auditEvents).where(inArray(s.auditEvents.organizationId, orgs));
-      await db.delete(s.organizations).where(inArray(s.organizations.id, orgs));
+      // Audit chain 0109 is deliberately append-only. Keep these fictional
+      // organization and audit rows until the disposable CI database is dropped;
+      // do not weaken the production audit trigger just to clean up test data.
     }
     if (actors.length) await db.delete(s.users).where(inArray(s.users.id, actors));
     await pool.end();

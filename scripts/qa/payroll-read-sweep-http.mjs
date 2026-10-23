@@ -79,7 +79,7 @@ export async function verifyPayrollReadSweep(f, { request, expectStatus }) {
     const [batch] = await db.select().from(statutoryRemittanceBatches).where(and(
       eq(statutoryRemittanceBatches.organizationId, org.id),
       eq(statutoryRemittanceBatches.legalEntityId, f.entities[idx].id),
-      eq(statutoryRemittanceBatches.applicableMonth, "2026-09"),
+      eq(statutoryRemittanceBatches.applicableMonth, "2026-01"),
       eq(statutoryRemittanceBatches.agency, "SSS"),
     )).limit(1);
     assert.ok(batch?.id > 0, "Actual fictional employer remittance batch must exist");

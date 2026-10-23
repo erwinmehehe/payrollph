@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomBytes } from "node:crypto";
+import { seedMonthlyPayProfilesForRun } from "./helpers/pay-profiles";
 
 /**
  * A real disposable PostgreSQL ONLY, never Neon or a developer's existing DB.
@@ -123,6 +124,8 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
       return rows;
     };
 
+    await seedMonthlyPayProfilesForRun(runA.id);
+
     await enqueuePayrollRun(runA.id, 25);
     await drainPayrollQueue(10, runA.id);
     const aFirst = await reconcile(runA.id, 51);
@@ -134,6 +137,7 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
     const firstSlips = (await slips(alpha.id)).map((s) => s.content).sort();
 
     // Identical rerun of a Needs review run replaces detail/payslips, not appends.
+    await seedMonthlyPayProfilesForRun(runA.id);
     await enqueuePayrollRun(runA.id, 25);
     await drainPayrollQueue(10, runA.id);
     const aReplay = await reconcile(runA.id, 51);
@@ -144,6 +148,7 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
       "No pending job may append a third copy");
 
     // Same date and payroll calendar, separate employer/run/statutory identities.
+    await seedMonthlyPayProfilesForRun(runB.id);
     await enqueuePayrollRun(runB.id, 25);
     await drainPayrollQueue(10, runB.id);
     const bRows = await reconcile(runB.id, 2);
@@ -212,6 +217,7 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
       timeOut: new Date("2026-10-09T20:00:00+08:00"),
       shiftStart: "09:00", shiftEnd: "18:00", status: "Complete",
     });
+    await seedMonthlyPayProfilesForRun(runA.id);
     await enqueuePayrollRun(runA.id, 25);
     await drainPayrollQueue(10, runA.id);
     const corrected = await reconcile(runA.id, 51);
@@ -238,6 +244,7 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
       preparedByUserId: exitMaker.id, approvedByUserId: exitChecker.id,
     });
     await db.update(employees).set({ status: "Separating" }).where(eq(employees.id, alphaWorkers[1].id));
+    await seedMonthlyPayProfilesForRun(runA.id);
     await enqueuePayrollRun(runA.id, 25);
     await drainPayrollQueue(10, runA.id);
     const afterExit = await reconcile(runA.id, 51);
