@@ -5,6 +5,7 @@ import {
   payrollUnderpaymentRequests, supplementaryEarnings,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { underpaymentDuplicateConflict } from "@/lib/underpayment-duplicate";
 import {
   assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES,
   PAYROLL_TAX_APPROVER_ROLES, PAYROLL_VIEW_ROLES,
@@ -217,6 +218,10 @@ export async function POST(request: Request) {
       message: "Submitted. An independent reviewer must validate wage, statutory and tax treatment against original payroll and evidence before posting.",
     }, { status: 201 });
   } catch (error) {
+    if (underpaymentDuplicateConflict(error)) {
+      return Response.json({ code: "UNDERPAYMENT_SOURCE_ALREADY_REQUESTED",
+        error: "A correction already exists for this worker and source payroll. Review the existing request; retrying cannot create another correction." }, { status: 409 });
+    }
     const code = error instanceof Error ? error.message : "";
     if (["UNDERPAYMENT_SOURCE_CHANGED", "UNDERPAYMENT_TARGET_NOT_DRAFT", "UNDERPAYMENT_WORKER_UNAVAILABLE"].includes(code)) {
       return Response.json({ code, error: "Source evidence, worker eligibility or target payroll changed. Refresh, reconcile and try a fresh request." }, { status: 409 });
