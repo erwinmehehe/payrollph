@@ -206,9 +206,17 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     vaultSourcePinnedMethods++;
   }
   assert.equal(vaultSourcePinnedMethods, 2, "No partial or double-credited vault closeout");
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods, 124,
+  // #1341 credits exactly one separate multi-entity read method. Historical
+  // Batch-01 coverage remains frozen until its OWN proofs change, not by
+  // treating another suite's provisional GET as part of this batch.
+  const reportCredit = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]
+    ?.methods.find(method => method.name === "GET");
+  assert.equal(reportCredit?.status, "COVERED");
+  assert.equal(reportCredit?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
+  const separateGroupReportCredits = 1;
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - separateGroupReportCredits, 124,
     "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods, 359,
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + separateGroupReportCredits, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
