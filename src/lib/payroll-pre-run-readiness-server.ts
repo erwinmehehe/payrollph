@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   attendanceCorrectionRequests, employeePayProfiles, employeeRestDayRevisions,
@@ -137,9 +137,14 @@ export async function loadPayrollPreRunReadiness(
     }).from(scheduleSwapRequests).where(and(
       eq(scheduleSwapRequests.organizationId, organizationId),
       eq(scheduleSwapRequests.status, "pending"),
-      // Read both parties' possible dates, then filter to this cohort in memory.
-      lte(scheduleSwapRequests.requesterWorkDate, periodEnd),
-      gte(scheduleSwapRequests.counterpartyWorkDate, periodStart),
+      or(
+        and(gte(scheduleSwapRequests.requesterWorkDate, periodStart),
+          lte(scheduleSwapRequests.requesterWorkDate, periodEnd),
+          inArray(scheduleSwapRequests.requesterEmployeeId, ids)),
+        and(gte(scheduleSwapRequests.counterpartyWorkDate, periodStart),
+          lte(scheduleSwapRequests.counterpartyWorkDate, periodEnd),
+          inArray(scheduleSwapRequests.counterpartyEmployeeId, ids)),
+      ),
     )),
   ]) : [[], [], [], [], [], [], [], []];
 
