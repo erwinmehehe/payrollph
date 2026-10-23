@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { hashPassword } from "../src/lib/crypto";
 import {
-  automationOperationalCases, employees, hcmBusinessProcessInstances,
+  automationOperationalCases, employeePayProfiles, employees, hcmBusinessProcessInstances,
   hcmBusinessProcessInstanceSteps, orgUnits, organizations, permissionSets,
   provisioningTasks, userOrganizations, userPermissionAssignments, users,
 } from "../src/db/schema";
@@ -71,6 +71,37 @@ async function main() {
       basicRate: "88000.00", startDate: "2026-01-01",
     },
   ]).returning();
+  // The app's request path is intentionally READ-ONLY and rejects missing
+  // pay profiles. Seed exactly this synthetic roster before browser acceptance;
+  // never repair an employer's payroll data during request handling.
+  assert.deepEqual(
+    [alphaWorker, betaWorker, (await db.select().from(employees)
+      .where(eq(employees.organizationId, beta.id)))[1]].map(worker => worker.organizationId),
+    [alpha.id, beta.id, beta.id],
+    "HCM QA pay-profile roster must contain two employers only",
+  );
+  const seededRoster = await db.select({
+    id: employees.id, organizationId: employees.organizationId,
+    employeeNo: employees.employeeNo, basicRate: employees.basicRate,
+  }).from(employees);
+  const expectedRoster = new Map([
+    ["SHARED-001:" + alpha.id, "10000.00"],
+    ["SHARED-001:" + beta.id, "99000.00"],
+    ["BETA-002:" + beta.id, "88000.00"],
+  ]);
+  assert.equal(seededRoster.length, expectedRoster.size, "HCM fixture must own exactly 3 synthetic employees");
+  const explicitProfiles = seededRoster.map(worker => {
+    const pay = expectedRoster.get(worker.employeeNo + ":" + worker.organizationId);
+    assert.ok(pay && worker.basicRate === pay,
+      "HCM_QA_PAY_PROFILE_ROSTER_UNVERIFIED");
+    return {
+      organizationId: worker.organizationId, employeeId: worker.id,
+      payBasis: "monthly" as const, rateAmount: pay,
+      standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+    };
+  });
+  await db.insert(employeePayProfiles).values(explicitProfiles);
+
   // Only the isolated vault browser acceptance needs a linked ESS worker.
   // Do not change the general HRIS synthetic fixture's account assumptions.
   if (process.env.EMPLOYEE_VAULT_BROWSER_ACCEPTANCE_MODE === "synthetic-postgres-only") {
