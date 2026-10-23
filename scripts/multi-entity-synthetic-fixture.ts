@@ -3,7 +3,7 @@ import { db } from "../src/db";
 import { eq, sql } from "drizzle-orm";
 import { hashPassword } from "../src/lib/crypto";
 import {
-  employeePayProfiles, employees, legalEntities, orgUnits, organizations, payrollRuns,
+  employees, employeePayProfiles, legalEntities, orgUnits, organizations, payrollRuns,
   userLegalEntityGrants, userOrganizations, users,
 } from "../src/db/schema";
 
@@ -81,7 +81,7 @@ async function main() {
     { organizationId: tenantA.id, userId: members[7].id, legalEntityId: a1.id },
     { organizationId: tenantA.id, userId: members[7].id, legalEntityId: a2.id },
   ]);
-  const workers = await db.insert(employees).values([
+  const staff = await db.insert(employees).values([
     { organizationId: tenantA.id, legalEntityId: a1.id, employeeNo: "A-01",
       firstName: "Alpha", lastName: "Synthetic", title: "Staff",
       avatarInitials: "AS", basicRate: "20000", startDate: "2026-01-01" },
@@ -92,17 +92,14 @@ async function main() {
       firstName: "Foreign", lastName: "Synthetic", title: "Staff",
       avatarInitials: "FS", basicRate: "28000", startDate: "2026-01-01" },
   ]).returning();
-  // The request path now verifies pay profiles without creating/backfilling them.
-  // Seed every fictional worker explicitly in this disposable fixture instead.
-  const payProfiles = await db.insert(employeePayProfiles).values(workers.map(worker => ({
-    employeeId: worker.id,
-    organizationId: worker.organizationId,
-    payBasis: "monthly",
-    rateAmount: worker.basicRate,
-    standardWorkDaysPerMonth: "22",
-    standardHoursPerDay: "8",
+  // Request-time reads verify pay profiles; only the disposable test fixture
+  // creates them, and every fictional employee must receive one.
+  const payProfiles = await db.insert(employeePayProfiles).values(staff.map(worker => ({
+    organizationId: worker.organizationId, employeeId: worker.id,
+    payBasis: "monthly" as const, rateAmount: worker.basicRate,
+    standardWorkDaysPerMonth: "22.00", standardHoursPerDay: "8.00",
   }))).returning({ employeeId: employeePayProfiles.employeeId });
-  assert.equal(payProfiles.length, workers.length,
+  assert.equal(payProfiles.length, staff.length,
     "Every synthetic worker requires an explicit pay profile before an app request");
   await db.insert(payrollRuns).values([
     { organizationId: tenantA.id, legalEntityId: a1.id,
