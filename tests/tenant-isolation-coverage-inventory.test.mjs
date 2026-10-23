@@ -228,7 +228,7 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
   assert.equal(manifest.metrics.gap, 344, "Keep all 344 unverified API method gaps after separate BIR and vault proofs");
-  assert.equal(manifest.metrics.coveredAfter, 139, "Count exact linked PG16 BIR and vault method proofs without treating GAPs as successes");
+  assert.equal(manifest.metrics.coveredAfter, 140, "Count verified pre-run GET alongside existing BIR/vault and money-input HTTP proof; preserve every GAP");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
