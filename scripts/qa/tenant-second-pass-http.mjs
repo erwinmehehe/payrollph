@@ -1355,6 +1355,26 @@ async function verifyPreRunReadinessTenantRead(f) {
     const foreignPreRun = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/pre-run-readiness", { cookie }), 403,
       "Real victim-only pre-run readiness denied to a different signed-in employer");
     assert.ok(!foreignPreRun.text.includes("VictimExclusive"), "No victim employee readiness evidence may leak");
+    // A legitimate owned Draft reaches the new pre-run gate; with statutory
+    // verification unrecorded, it MUST be rejected before any calculation.
+    const [draft] = await db.insert(payrollRuns).values({
+      organizationId: org.id, legalEntityId: f.entities[idx].id,
+      periodLabel: "Fictional pre-run gate evidence " + idx,
+      periodStart: "2026-10-16", periodEnd: "2026-10-31",
+      payDate: "2026-11-02", status: "Draft",
+    }).returning();
+    const ownedBefore = await db.select().from(payrollRuns).where(eq(payrollRuns.id, draft.id));
+    const ownBlockedProcess = expectStatus(await request("/api/payroll-runs/" + draft.id + "/process", {
+      method: "POST", cookie, body: {},
+    }), 422, "Owned calculation must be blocked by unverified rule-watch evidence");
+    assert.equal(ownBlockedProcess.json?.code, "PAYROLL_PRE_RUN_READINESS_BLOCKED");
+    assert.ok(ownBlockedProcess.json?.readiness?.findings?.some(row =>
+      row.code === "PRERUN_STATUTORY_VERIFICATION_UNRECORDED"));
+    const foreignBlockedProcess = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/process", {
+      method: "POST", cookie, body: {},
+    }), 403, "Other employer's calculation must be rejected BEFORE the pre-run gate");
+    const ownedAfter = await db.select().from(payrollRuns).where(eq(payrollRuns.id, draft.id));
+    assert.deepEqual(ownedAfter, ownedBefore, "Rejected owned calculation must not claim a run or supersede approval");
   }
   const victimAfter = await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
