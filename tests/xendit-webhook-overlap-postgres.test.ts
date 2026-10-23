@@ -10,6 +10,7 @@ import {
   payrollRuns, payoutBatches, payoutBatchTransfers, payoutTransfers, providerEvents,
 } from "../src/db/schema";
 import { prepareInitialPayoutBatch } from "../src/lib/payout-ledger";
+import { reconcileXenditPayroll } from "../src/lib/xendit-payroll-operations";
 import { claimNextXenditPayout, xenditPayoutLedger } from "../src/lib/xendit-payout-ledger";
 import { POST as webhookPOST } from "../src/app/api/webhooks/xendit-payout/route";
 
@@ -57,7 +58,7 @@ test("Xendit claim + webhook replay use overlapping PostgreSQL transactions, one
       periodStart: "2026-10-01", periodEnd: "2026-10-15",
       payDate: "2026-10-20", status: "Released", employeeCount: 1,
       grossPay: "100.00", netPay: "100.00",
-    }).returning({ id: payrollRuns.id });
+    }).returning();
     const [entry] = await db.insert(payrollEntries).values({
       payrollRunId: run.id, employeeId: person.id,
       grossPay: "100.00", deductions: "0.00", netPay: "100.00",
@@ -161,6 +162,48 @@ test("Xendit claim + webhook replay use overlapping PostgreSQL transactions, one
         (row.metadata as Record<string, unknown>).eventId === eventId
       ).length, 1);
     }
+
+    // Manual READ-only reconciliation attempts use an audit-linked retry chain.
+    // Provider GETs are intercepted locally; no real request can leave the test.
+    const priorFetch = globalThis.fetch;
+    let lookupCount = 0;
+    try {
+      globalThis.fetch = async (input, init) => {
+        lookupCount += 1;
+        assert.match(String(input), /^https:\/\/api\.xendit\.co\/v3\/payouts\/po-/);
+        assert.equal(init?.redirect, "error");
+        throw new Error("Synthetic read-only provider timeout");
+      };
+      await assert.rejects(
+        () => reconcileXenditPayroll(run, "Synthetic operator"),
+        /Synthetic read-only provider timeout/,
+      );
+      globalThis.fetch = async () => Response.json({
+        payout_id: payoutId, reference_id: referenceNumber,
+        source_amount: 10000, source_currency: "PHP",
+        destination_currency: "PHP", business_id: businessId, status: "SUCCEEDED",
+      });
+      const result = await reconcileXenditPayroll(run, "Synthetic operator");
+      assert.equal(result.checked, 1);
+      assert.equal(lookupCount, 1);
+    } finally {
+      globalThis.fetch = priorFetch;
+    }
+    const attempts = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, org.id));
+    const initiated = attempts.filter((row) => row.action === "Xendit payout read-only lookup initiated");
+    const failed = attempts.filter((row) => row.action === "Xendit payout read-only lookup failed");
+    const completed = attempts.filter((row) => row.action === "Xendit payout read-only lookup completed");
+    assert.equal(initiated.length, 2);
+    assert.equal(failed.length, 1);
+    assert.equal(completed.length, 1);
+    const meta = (row: typeof initiated[number]) => row.metadata as Record<string, unknown>;
+    assert.notEqual(meta(initiated[0]).attemptId, meta(initiated[1]).attemptId);
+    for (const row of [...initiated, ...failed, ...completed]) {
+      assert.equal(meta(row).referenceNumber, referenceNumber);
+      assert.equal(meta(row).providerPayoutId, payoutId);
+    }
+    assert.equal(meta(failed[0]).attemptId, meta(initiated[0]).attemptId);
+    assert.equal(meta(completed[0]).attemptId, meta(initiated[1]).attemptId);
   } finally {
     if (opened) await holder.query("ROLLBACK").catch(() => {});
     await holder.end().catch(() => {});
