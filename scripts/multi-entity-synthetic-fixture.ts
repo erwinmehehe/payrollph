@@ -102,7 +102,7 @@ async function main() {
       firstName: "Third", lastName: "Synthetic", title: "Staff",
       avatarInitials: "TS", basicRate: "30000", startDate: "2026-01-01" },
   ]).returning({ id: employees.id, organizationId: employees.organizationId,
-    basicRate: employees.basicRate });
+    employeeNo: employees.employeeNo, basicRate: employees.basicRate });
   // Eight additional B-only workers give the cross-tenant negative proof
   // real, read-back employee IDs above 6 (not fabricated 1..6 probes).
   const bVictimEmployees = await db.insert(employees).values(Array.from({ length: 8 }, (_, index) => ({
@@ -111,7 +111,7 @@ async function main() {
     firstName: "Victim" + index, lastName: "Fictional", title: "Staff",
     avatarInitials: "VF", basicRate: "15000", startDate: "2026-01-01",
   }))).returning({ id: employees.id, organizationId: employees.organizationId,
-    basicRate: employees.basicRate });
+    employeeNo: employees.employeeNo, basicRate: employees.basicRate });
 
   // #1334 retired request-time pay-profile backfills. Seed one explicitly
   // per just-created fictional worker, before any authenticated app reads.
@@ -122,6 +122,27 @@ async function main() {
   assert.deepEqual(syntheticWorkers.map(worker => worker.organizationId), [
     tenantA.id, tenantA.id, tenantB.id, tenantC.id, ...Array(8).fill(tenantB.id),
   ], "Pay profiles may only be seeded for the explicitly known tenant roster");
+  // The latest main also pins the exact fictional employee number, tenant and
+  // rate before fixture pay-profile creation. No customer rows are repaired.
+  const expectedProfiles = [
+    { employeeNo: "A-01", organizationId: tenantA.id, rateAmount: "20000.00" },
+    { employeeNo: "A-02", organizationId: tenantA.id, rateAmount: "24000.00" },
+    { employeeNo: "B-01", organizationId: tenantB.id, rateAmount: "28000.00" },
+    { employeeNo: "C-01", organizationId: tenantC.id, rateAmount: "30000.00" },
+    ...Array.from({ length: 8 }, (_, index) => ({
+      employeeNo: "B-VICTIM-" + index, organizationId: tenantB.id,
+      rateAmount: "15000.00",
+    })),
+  ];
+  const byEmployeeNo = new Map(syntheticWorkers.map(worker => [worker.employeeNo, worker]));
+  assert.equal(byEmployeeNo.size, expectedProfiles.length, "Fictional roster must be unique");
+  assert.equal(syntheticWorkers.length, expectedProfiles.length, "Fictional roster count must be exact");
+  for (const expected of expectedProfiles) {
+    const worker = byEmployeeNo.get(expected.employeeNo);
+    assert.ok(worker, "Verified fictional worker must exist");
+    assert.equal(worker.organizationId, expected.organizationId, "Cross-tenant profile refused");
+    assert.equal(worker.basicRate, expected.rateAmount, "Fixture pay rate drift refused");
+  }
   await db.insert(employeePayProfiles).values(syntheticWorkers.map(worker => ({
     organizationId: worker.organizationId, employeeId: worker.id,
     payBasis: "monthly", rateAmount: worker.basicRate,

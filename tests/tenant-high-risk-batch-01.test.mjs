@@ -211,6 +211,25 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(moneyMethods.length, 8, "Only eight separately executed money-input methods are credited");
   assert.ok(moneyMethods.every(m => m.status === "COVERED" && m.testedBy.ownPositiveLine &&
     m.testedBy.foreignDenialLine && m.testedBy.unchangedDbLine && m.testedBy.forgedSelectorLine));
+  const underpaymentFile = "scripts/qa/underpayment-posting-http.mjs";
+  const underpaymentLines = readFileSync(underpaymentFile, "utf8").split("\n");
+  const underpaymentWorkflow = readFileSync(".github/workflows/underpayment-posting.yml", "utf8");
+  assert.match(underpaymentWorkflow, /MONEY_PROOF_TRANSPORT: http/);
+  assert.match(underpaymentWorkflow, /posting: \['false', 'true'\]/);
+  assert.match(underpaymentWorkflow, /npx tsx scripts\/qa\/underpayment-posting-http\.mjs/);
+  const underpaymentMethods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods)
+    .filter(m => m.testedBy?.file === underpaymentFile);
+  assert.equal(underpaymentMethods.length, 2, "Only two independently executed underpayment writes are credited");
+  for (const [methodName, ownLine, foreignLine] of [["POST", 136, 149], ["PATCH", 166, 155]]) {
+    const method = methodsByKey.get(methodName + " payroll-underpayments");
+    assert.equal(method?.status, "COVERED");
+    assert.equal(method.testedBy.file, underpaymentFile);
+    assert.deepEqual([method.testedBy.ownPositiveLine, method.testedBy.foreignDenialLine], [ownLine, foreignLine]);
+    assert.ok(underpaymentLines[ownLine - 1].includes(methodName === "POST" ? "status(await request" : "const winner = replies.find"));
+    assert.ok(underpaymentLines[foreignLine - 1].includes("await deny(v,") &&
+      underpaymentLines[foreignLine - 1].includes("v.org.id"));
+    assert.ok(underpaymentLines[method.testedBy.unchangedDbLine - 1].includes("assert.deepEqual(await snapshot(v), before"));
+  }
   // Six additional MNY-02 contractor/EWT methods are separately counted only
   // when their exact real HTTP own/foreign proof is pinned to this specific
   // reviewed suite. Do not weaken or change the historical 124/359 baseline.
@@ -242,9 +261,9 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs",
     "Only the real multi-entity browser acceptance may support this extra method credit");
   const groupReportCredits = 1;
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods - groupReportCredits, 124,
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods - underpaymentMethods.length - groupReportCredits, 124,
     "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods + groupReportCredits, 359,
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods + underpaymentMethods.length + groupReportCredits, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
