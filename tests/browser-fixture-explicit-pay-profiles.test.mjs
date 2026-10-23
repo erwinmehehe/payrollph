@@ -96,10 +96,24 @@ test("approved-exit PostgreSQL HTTP fixture seeds only verified tenant-bound pay
   assert.match(source, /employeeId: worker\.id, organizationId: own\.id, payBasis: "monthly"/);
   assert.match(source, /rateAmount: "22000\.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8"/);
   const created = source.indexOf("const [worker] = await db.insert(employees)");
-  const profile = source.indexOf("await db.insert(employeePayProfiles).values({", created);
-  const post = source.indexOf('const ownCreate = expectStatus(await request("/api/separation", maker, "POST"', profile);
-  assert.ok(created >= 0 && profile > created && post > profile,
-    "Reviewed pay profile must exist before HTTP separation and payroll checks");
+  const invocation = source.indexOf("await seedApprovedExitFixtureProfile(own, worker, suffix);", created);
+  const post = source.indexOf('const ownCreate = expectStatus(await request("/api/separation", maker, "POST"', invocation);
+  const helper = source.indexOf("async function seedApprovedExitFixtureProfile(own, worker, suffix)");
+  const profile = source.indexOf("await db.insert(employeePayProfiles).values({", helper);
+  assert.ok(created >= 0 && invocation > created && post > invocation && helper > post && profile > helper,
+    "Verified synthetic pay profile must be seeded before HTTP separation without moving security proof lines");
+  // Source-line-pinned isolation inventory must keep its real HTTP positive/denial evidence.
+  const lines = source.split("\n");
+  assert.match(lines[64], /const ownCreate = expectStatus\(await request\("\/api\/separation"/);
+  assert.match(lines[70], /const ownRead = expectStatus\(await request\("\/api\/separation\?/);
+  assert.match(lines[73], /Foreign GET denied/);
+  assert.match(lines[74], /Foreign POST denied/);
+  assert.match(lines[75], /Foreign PATCH denied/);
+  assert.match(lines[77], /assert\.deepEqual\(afterForeign, beforeForeign/);
+  assert.match(lines[81], /Foreign payroll creation denied/);
+  assert.match(lines[83], /assert\.deepEqual\(payrollAfterForeign, payrollBeforeForeign/);
+  assert.match(lines[86], /Actual payroll API creates a draft/);
+  assert.match(lines[96], /Distinct checker approves owned package/);
   assert.match(source, /const selfDenied = expectStatus/);
   assert.match(source, /Foreign POST denied/);
 });
