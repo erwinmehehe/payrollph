@@ -38,7 +38,18 @@ test("both initial loads defer effect-phase state work and cancel all retired re
     assert.match(source, /loadControllerRef\.current\?\.abort\(\)/, path);
     assert.match(source, /const revision = \+\+loadRevisionRef\.current/);
     assert.match(source, /const isCurrent = \(\) =>\s*mountedRef\.current && !controller\.signal\.aborted && revision === loadRevisionRef\.current/);
-    assert.match(source, /cache: "no-store", signal: controller\.signal/);
+    if (path === dolePath) {
+      // Main now calls the endpoint directly and checks the strict merged read contract.
+      // Retain abort, HTTP denial, entity/year identity, and before-use proof checks.
+      const reader = read("src/lib/dole-thirteenth-read.ts");
+      assert.match(source, /cache: "no-store", signal: controller\.signal/);
+      assert.match(source, /if \(!response\.ok\) throw/);
+      assert.match(source, /if \(!isVerifiedDoleThirteenthRead\(body, organizationId, taxYear\)\)/);
+      assert.match(reader, /v\.organizationId !== organizationId \|\| v\.legalEntityId !== null/);
+      assert.match(reader, /v\.currentSubmission\.reportHash !== v\.reportHash/);
+    } else {
+      assert.match(source, /cache: "no-store", signal: controller\.signal/);
+    }
     assert.match(source, /if \(!isCurrent\(\)\) return false;/);
     assert.match(source, /if \(isCurrent\(\)\) setLoading\(false\)/);
   }

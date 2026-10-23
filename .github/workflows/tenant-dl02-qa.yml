@@ -96,6 +96,7 @@ jobs:
           EMPLOYEE_HR_CASES_ENABLED: "true"
           OWNER_PRACTICE_PAYROLL_ENABLED: "true"
           HCM_GOVERNANCE_READINESS_ENABLED: "true"
+          BIR_1604C_DAT_CANDIDATE_ENABLED: "true"
           PAYMONGO_WEBHOOK_SECRET: ci-fake-paymongo-webhook-signing-secret
           XENDIT_PAYOUT_CALLBACK_TOKEN: ci-fake-xendit-payout-callback
           XENDIT_CALLBACK_TOKEN: ci-fake-xendit-subscription-callback

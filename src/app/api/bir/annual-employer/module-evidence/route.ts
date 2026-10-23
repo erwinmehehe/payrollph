@@ -81,9 +81,27 @@ export async function GET(request: Request) {
   if (!source) return Response.json({ error: "Legal employer not found." }, { status: 404, headers: PRIVATE });
   const audits = await loadAudits(scope);
   return Response.json({
+    organizationId: scope.organizationId,
+    legalEntityId: scope.legalEntityId,
+    taxYear: scope.taxYear,
     moduleV70: birModuleEvidenceStatus(audits, source.reconciliation.sourceDigest, "7.0"),
     moduleV74: birModuleEvidenceStatus(audits, source.reconciliation.sourceDigest, "7.4"),
     sourceDigest: source.reconciliation.sourceDigest,
+    evidenceReceipts: audits.filter((entry) =>
+      (entry.action === "bir1604c.validator.observed" ||
+       entry.action === "bir1604c.validator.reviewed") &&
+      (entry.metadata as Record<string, unknown> | null)?.sourceDigest ===
+        source.reconciliation.sourceDigest,
+    ).map((entry) => ({
+      id: entry.id,
+      action: entry.action === "bir1604c.validator.observed" ? "observe" : "review",
+      sourceDigest: source.reconciliation.sourceDigest,
+      observationId: entry.action === "bir1604c.validator.reviewed"
+        ? (entry.metadata as Record<string, unknown>).observationId : null,
+      moduleVersion: entry.action === "bir1604c.validator.observed"
+        ? (entry.metadata as Record<string, unknown>).moduleVersion : null,
+      fileSha256: (entry.metadata as Record<string, unknown>).fileSha256,
+    })),
     agencyAccepted: false,
   }, { headers: PRIVATE });
 }

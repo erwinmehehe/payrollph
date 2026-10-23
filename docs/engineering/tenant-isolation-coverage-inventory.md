@@ -1,8 +1,8 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 354 API methods and 19 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 344 API methods and 19 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 354 method gaps and 19 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+> **NOT ACCEPTED**: 344 method gaps and 19 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -12,15 +12,15 @@
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 354 method gaps and 19 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
+**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 344 method gaps and 19 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
 
 ## Approved-exit Separation evidence
 
 PR #1280 changes the Separation route; GET, POST and PATCH are bound to the dedicated real HTTP/PG approved-exit test, with own success and explicit foreign-employer rejection plus unchanged victim row. It seeds prior termination-intent approval and executes actual financial checker decisions; it does not claim human intent approval or ordinary-payroll HTTP checker acceptance. Remaining method/page gaps stay open.
 
-**#1326 provisional-only note:** The three HCM probation GET/POST/PATCH credits rely on real synthetic own/foreign PG16 controls and unchanged victim rows; the manager decision inbox page is the sole provisional page-level COVERED record based on feature-ON localhost SSR own 200 / foreign 404. Its flag is not activated for production. All 19 remaining page/action GAPs and 354 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
+**#1326 provisional-only note:** The three HCM probation GET/POST/PATCH credits rely on real synthetic own/foreign PG16 controls and unchanged victim rows; the manager decision inbox page is the sole provisional page-level COVERED record based on feature-ON localhost SSR own 200 / foreign 404. Its flag is not activated for production. All 19 remaining page/action GAPs and 344 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
 
-**#1303 provisional-only note:** The extra statutory payment-evidence POST requires a signed-in privileged synthetic own 201, real foreign-employer 403, forged victim batch 404, one-active-row concurrency, and unchanged victim PostgreSQL. Its TLS test double is *not* production malware scanning. Migration 0136 is protected and unapplied. All 19 remaining page/action GAPs and 354 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
+**#1303 provisional-only note:** The extra statutory payment-evidence POST requires a signed-in privileged synthetic own 201, real foreign-employer 403, forged victim batch 404, one-active-row concurrency, and unchanged victim PostgreSQL. Its TLS test double is *not* production malware scanning. Migration 0136 is protected and unapplied. All 19 remaining page/action GAPs and 344 remaining API GAPs stay unaccepted pending full exact-head checks and human review.
 
 ## Latest-main integration
 
@@ -34,9 +34,13 @@ The dedicated `scripts/qa/bank-tenant-http.mjs` suite executes from the existing
 
 The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested fictional-only Neon database and pre-registered tenant ID**, with approved host, same-origin, request throttling and fail-closed runtime PostgreSQL identity checks. The new readiness/demo-provisioning GET requires a private token and returns status-only evidence, not tenant rows. Both are untested as production human role acceptance. A missing attestation blocks live demo logins even when a customer's company has the same editable name. The original unverified method inventory remains open, and exact-head CI/security tests are mandatory before treating new proof as verified.
 
+**PR #1325 BIR module GET/POST provisional-only:** The independent [disposable three-employer HTTP suite](../../scripts/qa/compliance-read-sweep-http.mjs) records real owned BIR annual module GET/POST positive responses, distinct victim-employer denials, real legal-employer ID isolation and unchanged victim PostgreSQL audit/payment records. BIR source/draft data never proves agency acceptance. These are the two method credits added by PR #1325; merged PR #1336 independently contributes employee-vault GET/DELETE. The already merged #1303 payment-evidence POST uses its existing independently verified `tenant-manifest-driven-http.mjs` proof unchanged. New HEAD must pass CI and independent security source review; **344 API method gaps and 19 page/action gaps remain NOT ACCEPTED.**
+
 ## Source-pinned counts
 
-**Current provisional inventory including DL-01 vault closeout: 129 COVERED / 10 PUBLIC-BY-DESIGN / 354 GAP** among 493 API methods, plus 19 page/action GAPs.
+**Current provisional source-linked inventory (main #1303, merged #1336 vault and #1325 BIR proofs, plus eight PR #1339 money-input methods): 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP** among 493 API methods, plus 19 page/action GAPs.
+
+**PR #1339 partial money-path proof:** Four holiday methods, three supplementary-earning methods and payroll calculation POST have exact own/foreign/forged-selector/unchanged-victim links in `tenant-money-lifecycle-http.mjs`. Both independent attackers execute real own actions against a seeded high-ID victim. At `428b4c371`, production-mode HTTP/PG16 passed 301 assertions and 42 denied requests in each flag state ([OFF](https://github.com/erwinmehehe/payrollph/actions/runs/39885142988/job/120191468825), [ON](https://github.com/erwinmehehe/payrollph/actions/runs/39885142988/job/120191469158)). Review submission, independent approval/release and underpayment rejection are also exercised, but no additional credits are claimed for them here. Recalculation/earnings prefix-collision fixes remain default-off. Fresh final-head CI is required; the frozen 33-method MNY-01 queue, 344 API gaps and 19 page/action gaps are not closed.
 
 **DL-02 proof-strengthening in #1328:** Attacker A and B now have persisted own-employer IDs and distinguishable populations (2 and 3 employees) before victim-only objects are inserted (4 employees). Victim ID/order assertions compare actual DB rows against **both** attacker-owned IDs, rather than only `id > 6`. HCM and tenant report POST positives validate real populated own counts/rows, while their catalog GETs are explicitly role/tenant-gated metadata, not employer-record exports. Performance evidence GET verifies real review/cycle JSON, own employee/organization identifiers, section digests, and download SHA256. Denied writes preserve a broader victim snapshot including term decisions, employees, payroll and review records. Coverage counts remain **provisional until the modified suite passes on the PR's current commit**; this is not global tenant-isolation acceptance.
 
@@ -49,9 +53,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 290 |
 | methods | 493 |
 | coveredBefore | 20 |
-| coveredAfter | 129 |
+| coveredAfter | 139 |
 | publicByDesign | 10 |
-| gap | 354 |
+| gap | 344 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -66,7 +70,7 @@ Two formerly unverified methods receive **provisional** credit: `GET /api/employ
 
 Two independently authenticated fictional employer owners receive real nonempty GET 200 controls, plus real victim employer 403 and real foreign worker-in-owned-tenant 404 denials, with forged selectors constrained to the authorized own list. DELETE yields persisted own soft-removal 204, real higher-ID victim-only document 403, forged-selector-on-owned 204, and a real owned audit event. The test persists attacker-owned document IDs first, proves victim IDs exceed both, and asserts the victim documents **and audit rows** are unchanged. No S3 object bytes are deleted and no production feature is activated. [Source-integrity checks](../../tests/tenant-dl01-vault-source.test.mjs) pin each distinct method to exact live HTTP and DB assertion lines.
 
-Method totals provisionally move **127 COVERED / 10 PUBLIC / 356 GAP → 129 COVERED / 10 PUBLIC / 354 GAP** out of 493, while **19 page/action gaps remain**. This is not whole-system acceptance; exact PR-head CI and independent security/owner review remain necessary.
+At the #1336 merge, method totals moved **127 COVERED / 10 PUBLIC / 356 GAP → 129 COVERED / 10 PUBLIC / 354 GAP** out of 493, while **19 page/action gaps remain**. This is not whole-system acceptance; exact PR-head CI and independent security/owner review remain necessary.
 
 ## PR #1330 — DL-01 batch 2 independently runnable method proofs (provisional)
 
@@ -215,8 +219,8 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`biometrics/sync` GET](../../src/app/api/biometrics/sync/route.ts#L16) | session, query, body | enforceSameOriginMutation L1, getSessionUser L5, assertOrganizationRole L6, getSessionUser L17 | searchParams.get("organizationId") L20, body.organizationId L73 | NO VALID METHOD PROOF | **GAP** |
 | [`biometrics/sync` POST](../../src/app/api/biometrics/sync/route.ts#L53) | session, query, body | enforceSameOriginMutation L1, getSessionUser L5, assertOrganizationRole L6, getSessionUser L17 | searchParams.get("organizationId") L20, body.organizationId L73 | NO VALID METHOD PROOF | **GAP** |
 | [`bir/annual-employer/candidate` POST](../../src/app/api/bir/annual-employer/candidate/route.ts#L49) | session | assertOrganizationRole L4, getAccess L4, getSessionUser L6, enforceSameOriginMutation L15 | body.organizationId L75, body.organizationId L79, body.organizationId L85 | NO VALID METHOD PROOF | **GAP** |
-| [`bir/annual-employer/module-evidence` GET](../../src/app/api/bir/annual-employer/module-evidence/route.ts#L65) | session, query | assertOrganizationRole L6, getAccess L6, getSessionUser L8, enforceSameOriginMutation L16 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`bir/annual-employer/module-evidence` POST](../../src/app/api/bir/annual-employer/module-evidence/route.ts#L92) | session, query | assertOrganizationRole L6, getAccess L6, getSessionUser L8, enforceSameOriginMutation L16 | none found | NO VALID METHOD PROOF | **GAP** |
+| [`bir/annual-employer/module-evidence` GET](../../src/app/api/bir/annual-employer/module-evidence/route.ts#L65) | session, query | assertOrganizationRole L6, getAccess L6, getSessionUser L8, enforceSameOriginMutation L16 | none found | [Real PG16 own/victim BIR GET proof](../../scripts/qa/compliance-read-sweep-http.mjs#L182) | **COVERED** |
+| [`bir/annual-employer/module-evidence` POST](../../src/app/api/bir/annual-employer/module-evidence/route.ts#L110) | session, query | assertOrganizationRole L6, getAccess L6, getSessionUser L8, enforceSameOriginMutation L16 | none found | [Real PG16 own/victim BIR POST proof](../../scripts/qa/compliance-read-sweep-http.mjs#L205) | **COVERED** |
 | [`bir/annual-employer` GET](../../src/app/api/bir/annual-employer/route.ts#L13) | session, query | assertOrganizationRole L4, getAccess L4, getSessionUser L5, getSessionUser L14 | searchParams.get("organizationId") L17, searchParams.get("legalEntityId") L19 | NO VALID METHOD PROOF | **GAP** |
 | [`capabilities` GET](../../src/app/api/capabilities/route.ts#L7) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`careers/admin` PATCH](../../src/app/api/careers/admin/route.ts#L14) | session, body | getSessionUser L4, assertOrganizationRole L5, getAccess L5, enforceSameOriginMutation L7 | body.organizationId L23 | NO VALID METHOD PROOF | **GAP** |

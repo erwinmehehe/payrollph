@@ -90,11 +90,25 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(payExplain?.status, "COVERED");
   assert.equal(payExplain?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs",
     "Keep the newer source-matched own/foreign real-HTTP pay-explanation proof");
-  // Preserve all main-credited receipts, including the two DL-01 GETs. Newly
+  // Preserve all inherited main-branch receipts, including payment-evidence and merged vault proofs. Newly
   // credited routes may only add to this historical count when their specific
   // isolated two-attacker HTTP suite is wired into the real PG16 harness.
   // Never "fix" this gate by substituting a new total without proof.
   const additionalSuites = [
+    {
+      file: "scripts/qa/compliance-read-sweep-http.mjs",
+      entrypoint: "verifyComplianceReadSweep",
+      methods: [
+        "GET bir/annual-employer/module-evidence",
+        "POST bir/annual-employer/module-evidence",
+        "GET compliance/dole-13th-month",
+        "POST compliance/dole-13th-month",
+        "GET compliance/government-loan-remittances",
+        "POST compliance/government-loan-remittances",
+        "GET compliance/statutory-remittances/payment-evidence",
+        "POST compliance/statutory-remittances/payment-evidence",
+      ],
+    },
     {
       file: "scripts/qa/hcm-probation-sweep-http.mjs",
       entrypoint: "verifyHcmProbationSweep",
@@ -112,14 +126,25 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     const statuses = suite.methods.map((key) => {
       const method = methodsByKey.get(key);
       assert.ok(method, key + ": reviewed route and method must still exist");
-      assert.ok(method.status === "GAP" ||
+      const inheritedMainSources = new Map([
+        ["GET compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
+        ["POST compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
+        ["GET compliance/dole-13th-month", "scripts/qa/dole-13th-month-http.mjs"],
+        ["POST compliance/dole-13th-month", "scripts/qa/dole-13th-month-http.mjs"],
+        ["GET compliance/government-loan-remittances", "scripts/qa/government-loan-read-http.mjs"],
+        ["POST compliance/government-loan-remittances", "scripts/qa/government-loan-read-http.mjs"],
+      ]);
+      const mainEvidence = method.status === "COVERED" &&
+        method.testedBy?.file === inheritedMainSources.get(key);
+      assert.ok(method.status === "GAP" || mainEvidence ||
         (method.status === "COVERED" && method.testedBy?.file === suite.file),
         key + ": a historical GAP can only close with its reviewed own/victim HTTP evidence");
       if (method.status === "GAP") assert.equal(method.testedBy, null);
-      return method.status;
+      return method.status === "COVERED" && method.testedBy?.file !== suite.file ? "INHERITED" : method.status;
     });
     const added = statuses.filter((status) => status === "COVERED").length;
-    assert.ok(added === 0 || added === suite.methods.length,
+    const inherited = statuses.filter((status) => status === "INHERITED").length;
+    assert.ok(added === 0 || added + inherited === suite.methods.length,
       suite.file + ": an incomplete/partial proof suite cannot silently receive credit");
     if (!added) continue;
     const runner = readFileSync(suite.file, "utf8");
@@ -130,6 +155,14 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     const proofLines = runner.split("\n");
     for (const key of suite.methods) {
       const method = methodsByKey.get(key);
+      if (method.testedBy?.file !== suite.file) {
+        assert.ok(["scripts/qa/tenant-manifest-driven-http.mjs",
+          "scripts/qa/dole-13th-month-http.mjs",
+          "scripts/qa/government-loan-read-http.mjs"].includes(method.testedBy?.file),
+          key + ": inherited source must have its independently reviewed main HTTP suite");
+        assert.ok(method.testedBy.ownPositiveLine && method.testedBy.foreignDenialLine);
+        continue;
+      }
       assert.equal(method.testedBy.file, suite.file);
       const { ownPositiveLine, foreignDenialLine, unchangedDbLine } = method.testedBy;
       assert.match(proofLines[ownPositiveLine - 1] ?? "",
@@ -173,9 +206,14 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     vaultSourcePinnedMethods++;
   }
   assert.equal(vaultSourcePinnedMethods, 2, "No partial or double-credited vault closeout");
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods, 124,
-    "Preserve historical covered method count, excluding separately pinned HCM and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods, 359,
+  const moneyMethods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods)
+    .filter(m => m.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs");
+  assert.equal(moneyMethods.length, 8, "Only eight separately executed money-input methods are credited");
+  assert.ok(moneyMethods.every(m => m.status === "COVERED" && m.testedBy.ownPositiveLine &&
+    m.testedBy.foreignDenialLine && m.testedBy.unchangedDbLine && m.testedBy.forgedSelectorLine));
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length, 124,
+    "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

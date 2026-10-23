@@ -134,13 +134,13 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
   }
   assert.equal(manifest.metrics.methods, 493);
   assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [129, 10, 354]);
+    [139, 10, 344]);
   assert.equal(manifest.scopedPages.length, 20);
   assert.equal(manifest.scopedPages.filter(x => x.status === "GAP").length, 19);
   const coveredPages = manifest.scopedPages.filter(x => x.status === "COVERED");
   assert.deepEqual(coveredPages.map(x => x.path), ["src/app/hcm/manager-decision-inbox/page.tsx"]);
   assert.equal(coveredPages[0].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
-  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: 354 API methods"));
+  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: 344 API methods"));
 });
 test("existing employee CSV export retains prior independent proof, not double-credited", () => {
   const record = manifest.allApiRouteFiles["src/app/api/exports/route.ts"].methods.find(x => x.name === "GET");

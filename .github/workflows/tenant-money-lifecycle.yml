@@ -1,0 +1,93 @@
+name: Payroll money lifecycle isolation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  money-lifecycle-pg16:
+    strategy:
+      fail-fast: false
+      matrix:
+        exact-links: ['false', 'true']
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3011
+      MONEY_PROOF_URL: http://127.0.0.1:3011
+      MONEY_PROOF_MODE: disposable-only
+      MONEY_PROOF_TRANSPORT: http
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      TOTP_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      PII_ENCRYPTION_KEY: '2222222222222222222222222222222222222222222222222222222222222222'
+      BANK_DATA_ENCRYPTION_KEY: '3333333333333333333333333333333333333333333333333333333333333333'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYROLL_UNDERPAYMENT_POSTING_ENABLED: 'false'
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      EXACT_PAYROLL_APPROVAL_LINKS_ENABLED: ${{ matrix.exact-links }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node --test tests/money-proof-target.test.mjs
+      - run: npm run db:push
+      - name: Clone empty disposable schema into dedicated money-proof database
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from 'pg';
+          const c = new pg.Client({connectionString: process.env.DATABASE_URL});
+          await c.connect();
+          await c.query('CREATE DATABASE payroll_mny01_test TEMPLATE app_db');
+          await c.end();
+          NODE
+          echo 'DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/payroll_mny01_test' >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Run real HTTP and PostgreSQL money-path proof
+        run: |
+          set -euo pipefail
+          npm start -- -H 127.0.0.1 -p 3011 > /tmp/money-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:3011 >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          npx tsx scripts/qa/tenant-money-lifecycle-http.mjs
+      - name: Server diagnostics
+        if: failure()
+        run: cat /tmp/money-server.log || true
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: money-lifecycle-${{ matrix.exact-links }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: qa-artifacts/tenant-money-lifecycle.json
+          if-no-files-found: warn
