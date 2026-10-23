@@ -1,7 +1,8 @@
 /**
  * Regression controls for the offboarding BIR 2316 and unsigned certificate
- * source/PDF paths. Source checks plus the pure policy are NOT authenticated
- * PostgreSQL HTTP tenant proof; keep method status GAP until that is executed.
+ * source/PDF paths. Source/pure-policy tests are not HTTP acceptance:
+ * the separate disposable PG16+HTTPS proof must execute and pass before
+ * the provisional three-method coverage can be independently accepted.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -89,4 +90,46 @@ test("unsigned 2316 GET source and POST PDF share employer-scoped handler", () =
   assert.match(source, /if \(scope\.separationId === undefined\)/);
   assert.match(source, /export const GET = \(request: Request\) => respond\(request, "source"\);/);
   assert.match(source, /export const POST = \(request: Request\) => respond\(request, "pdf"\);/);
+});
+
+test("three BIR document methods have executed-path HTTP fixtures and remain review-gated", () => {
+  const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
+  const script = readFileSync("scripts/qa/tenant-bir2316-http.mjs", "utf8");
+  const inventory = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  assert.match(workflow, /npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/);
+  assert.match(workflow, /MULTI_ENTITY_ENABLED: "true"/);
+  assert.match(workflow, /BIR_2316_CERTIFICATE_DRAFT_ENABLED: "true"/);
+  assert.match(workflow, /BIR_2316_WITHHOLDING_EVIDENCE_ENABLED: "true"/);
+  assert.match(workflow, /BIR_2316_RECONCILIATION_ENABLED: "true"/);
+  assert.match(workflow, /PAYMONGO_DISBURSEMENTS_ENABLED: "false"/);
+  assert.match(workflow, /XENDIT_PAYOUTS_ENABLED: "false"/);
+  assert.match(script, /MULTI_ENTITY_QA_MODE, "synthetic-postgres-only"/);
+  assert.match(script, /for \(const idx of \[0, 1\]\)/);
+  assert.match(script, /await login\(context, fixture\.people\[idx \* 3\]\.email/);
+  assert.match(script, /rows\[4\]\.id > rows\[0\]\.id && rows\[4\]\.id > rows\[1\]\.id/);
+  assert.match(script, /const foreignDraft = expectStatus\(await request\(context, ON, draftPath\(victim\)\)/);
+  assert.match(script, /const foreignSource = expectStatus\(await request\(context, ON, sourcePath\(victim\)\)/);
+  assert.match(script, /const foreignPdf = expectStatus\(await request\(context, ON, sourcePath\(victim\)/);
+  assert.match(script, /assert\.deepEqual\(victimAfter, victimBefore/);
+  assert.match(script, /Revoked historical employer grant denies existing signed-in PDF generation/);
+  assert.match(script, /Transferred employee source must use prior employer/);
+  for (const [path, verbs] of [
+    ["src/app/api/separation/[id]/2316/route.ts", ["GET"]],
+    ["src/app/api/year-end/2316-certificate/route.ts", ["GET", "POST"]],
+  ] as const) {
+    for (const verb of verbs) {
+      const method = inventory.allApiRouteFiles[path].methods.find((m: { name: string }) => m.name === verb);
+      assert.equal(method?.status, "COVERED", path + " " + verb);
+      assert.equal(method.testedBy?.file, "scripts/qa/tenant-bir2316-http.mjs");
+      for (const key of ["line", "ownPositiveLine", "foreignDenialLine",
+        ...(verb === "POST" ? ["unchangedDbLine"] : [])]) {
+        const number = method.testedBy?.[key];
+        assert.ok(Number.isInteger(number) && number > 0 && number <= script.split("\n").length,
+          path + " " + verb + " missing exact proof " + key);
+      }
+    }
+  }
+  assert.equal(inventory.metrics.coveredAfter, 142);
+  assert.equal(inventory.metrics.gap, 341);
+  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED/);
 });
