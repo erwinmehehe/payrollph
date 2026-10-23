@@ -13,6 +13,7 @@ import {
   timePunches,
 } from "../src/db/schema";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
+import { seedMonthlyPayProfilesForRun } from "./helpers/pay-profiles";
 
 function traceValue(trace: unknown, key: string) {
   const inputs = trace && typeof trace === "object"
@@ -73,6 +74,8 @@ test("MWE taxable supplementary compensation ignores voluntary Pag-IBIG", async 
       status: "Draft",
       payDate: "2026-09-15",
     }).returning();
+
+    await seedMonthlyPayProfilesForRun(run.id);
 
     await enqueuePayrollRun(run.id);
     await drainPayrollQueue(10, run.id);
@@ -169,6 +172,8 @@ test("daily employee holiday pay requires proven preceding scheduled workday acr
       payDate: "2026-04-15",
     }).returning();
 
+    await seedMonthlyPayProfilesForRun(run.id);
+
     await enqueuePayrollRun(run.id);
     await drainPayrollQueue(10, run.id);
 
@@ -229,6 +234,8 @@ test("insufficient disposable pay defers EWA recovery instead of collecting it",
       status: "Draft",
       payDate: "2026-09-15",
     }).returning();
+
+    await seedMonthlyPayProfilesForRun(run.id);
 
     await enqueuePayrollRun(run.id);
     await drainPayrollQueue(10, run.id);

@@ -115,8 +115,8 @@ async function seedPostingAndCases(f) {
   const [victimBiRun] = await db.insert(payrollRuns).values({
     organizationId: victimOrg.id, legalEntityId: f.entities[0].id,
     periodLabel: "VICTIM-ONLY-BI-" + nonce,
-    periodStart: "2026-10-01", periodEnd: "2026-10-15",
-    payDate: "2026-10-16", status: "Released",
+    periodStart: "2026-10-16", periodEnd: "2026-10-30",
+    payDate: "2026-10-31", status: "Released",
   }).returning();
   const [persistedVictimWorker] = await db.select().from(employees)
     .where(eq(employees.id, victimExportWorker.id)).limit(1);

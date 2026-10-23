@@ -85,6 +85,8 @@ jobs:
         run: npm run db:push
       - name: Apply isolated audit-0109 DB controls
         run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build exact-commit application
         run: npm run build
       - name: Start localhost application for authenticated role/API tests
