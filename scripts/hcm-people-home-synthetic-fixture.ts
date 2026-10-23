@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { hashPassword } from "../src/lib/crypto";
 import {
-  automationOperationalCases, employees, hcmBusinessProcessInstances,
+  automationOperationalCases, employeePayProfiles, employees, hcmBusinessProcessInstances,
   hcmBusinessProcessInstanceSteps, orgUnits, organizations, permissionSets,
   provisioningTasks, userOrganizations, userPermissionAssignments, users,
 } from "../src/db/schema";
@@ -54,7 +54,7 @@ async function main() {
   await db.insert(userPermissionAssignments).values({
     organizationId: alpha.id, userOrganizationId: restrictedMembership.id, permissionSetId: deny.id,
   });
-  const [alphaWorker, betaWorker] = await db.insert(employees).values([
+  const [alphaWorker, betaWorker, betaSecondWorker] = await db.insert(employees).values([
     {
       organizationId: alpha.id, employeeNo: "SHARED-001", firstName: "AlphaPrivate",
       lastName: "Worker", avatarInitials: "AP", title: "Staff",
@@ -71,6 +71,22 @@ async function main() {
       basicRate: "88000.00", startDate: "2026-01-01",
     },
   ]).returning();
+  // The request path verifies explicit pay profiles and never creates them.
+  // All three fictional employees must be fully seeded in this disposable DB.
+  const syntheticWorkers = [alphaWorker, betaWorker, betaSecondWorker];
+  assert.ok(syntheticWorkers.every(worker => worker?.id),
+    "All three synthetic employee inserts must return an ID");
+  const payProfiles = await db.insert(employeePayProfiles).values(syntheticWorkers.map(worker => ({
+    employeeId: worker.id,
+    organizationId: worker.organizationId,
+    payBasis: "monthly",
+    rateAmount: worker.basicRate,
+    standardWorkDaysPerMonth: "22",
+    standardHoursPerDay: "8",
+  }))).returning({ employeeId: employeePayProfiles.employeeId });
+  assert.equal(payProfiles.length, syntheticWorkers.length,
+    "Every synthetic worker needs an explicit pay profile");
+
   // Only the isolated vault browser acceptance needs a linked ESS worker.
   // Do not change the general HRIS synthetic fixture's account assumptions.
   if (process.env.EMPLOYEE_VAULT_BROWSER_ACCEPTANCE_MODE === "synthetic-postgres-only") {
