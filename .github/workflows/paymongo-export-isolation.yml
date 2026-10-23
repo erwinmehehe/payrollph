@@ -59,6 +59,11 @@ jobs:
       - run: node --test tests/paymongo-http-proof-target.test.mjs
       - run: npm run db:push
       - name: Apply reviewed 0109 audit chain and supplement to disposable app_db before clone
+        # The one-shot baseline migration is deliberately payout-disabled.
+        # Scope this override to schema initialization only; the later isolated
+        # PayMongo HTTP proof keeps its explicit synthetic flag and credentials.
+        env:
+          PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
         run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Clone empty disposable schema into dedicated money-proof database
         run: |
