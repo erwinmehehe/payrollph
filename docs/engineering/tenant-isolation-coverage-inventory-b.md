@@ -1,5 +1,5 @@
 <!-- Generated from source-pinned GitHub blob inspection; NOT isolation acceptance -->
-# API methods â€” inventory appendix B (partitions 11â€“20)
+# API methods — inventory appendix B (partitions 11–20)
 
 | Route + method (source) | Employer source signal | Auth helper (file:line) | Client ID reference | Evidence | Status |
 |---|---|---|---|---|---|
