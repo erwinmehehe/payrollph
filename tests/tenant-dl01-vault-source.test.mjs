@@ -123,9 +123,9 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
   assert.match(processGate?.reason ?? "", /422.*403/, 
     "Old positive calculation acceptance must not be credited for an unverified rate table");
   assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [140, 10, 344]);
+    [146, 10, 338]);
   assert.equal(manifest.metrics.methods, 494);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 344 API methods and 19 page\/action GAPs remain/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 338 API methods and 19 page\/action GAPs remain/);
   assert.equal(manifest.scopedPages.length, 20);
   assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 19);
 });

@@ -132,10 +132,10 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
     assert.ok(overviewHasLink(spec.route, spec.method, proof.ownPositiveLine),
       spec.route + ": client-facing inventory lacks exact method proof");
   }
-  // Phase-1 readiness adds exactly one proof-linked GET; all 344 GAPs remain.
+  // Phase-1 readiness adds exactly one proof-linked GET; all 338 GAPs remain after the separate MNY-02 proofs.
   assert.equal(manifest.metrics.methods, 494);
   assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [140, 10, 344]);
+    [146, 10, 338]);
   const preRun = manifest.allApiRouteFiles[
     "src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"
   ]?.methods.find(row => row.name === "GET");
@@ -146,7 +146,7 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
   const coveredPages = manifest.scopedPages.filter(x => x.status === "COVERED");
   assert.deepEqual(coveredPages.map(x => x.path), ["src/app/hcm/manager-decision-inbox/page.tsx"]);
   assert.equal(coveredPages[0].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
-  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: 344 API methods"));
+  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: 338 API methods"));
 });
 test("existing employee CSV export retains prior independent proof, not double-credited", () => {
   const record = manifest.allApiRouteFiles["src/app/api/exports/route.ts"].methods.find(x => x.name === "GET");
