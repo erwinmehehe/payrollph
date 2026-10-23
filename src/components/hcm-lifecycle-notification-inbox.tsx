@@ -5,7 +5,7 @@ import { AlertTriangle, BellRing, CheckCircle2, Clock3, RefreshCw, UserRoundCog 
 import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
 import { HcmEmploymentDecisionEvidence } from "@/components/hcm-employment-decision-evidence";
 import {
-  isVerifiedLifecycleNotificationQueue, isVerifiedLifecycleNotificationReceipt,
+  readVerifiedLifecycleNotificationResponse, isVerifiedLifecycleNotificationReceipt,
 } from "@/lib/hcm-lifecycle-notification-read";
 
 type LifecycleTask = {
@@ -75,19 +75,17 @@ function LifecycleNotificationContent({
     } catch {
       throw new Error("Could not load lifecycle notifications.");
     }
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(typeof data?.error === "string" ? data.error : "Could not load lifecycle notifications.");
+    const data: unknown = await response.json().catch(() => null);
+    const verified = readVerifiedLifecycleNotificationResponse(response.ok, data, organizationId);
+    if (!verified) {
+      throw new Error("Lifecycle notifications are unavailable or not verified for this employer. Retry.");
     }
-    if (!isVerifiedLifecycleNotificationQueue(data, organizationId)) {
-      throw new Error("Lifecycle notifications could not be verified for the selected employer.");
-    }
-    return data as Payload;
+    return verified;
   }, [organizationId]);
 
   // Employer-keyed remount clears local selected decisions. The shared request
   // owner aborts retired GETs and never displays stale tasks or failure states.
-  const { data: payload, error: loadError, reload } = useScopedAsyncResource(
+  const { data: payload, error: loadError, loading, reload } = useScopedAsyncResource(
     "hcm-lifecycle-notifications:" + organizationId,
     fetchNotifications,
   );
@@ -116,11 +114,10 @@ function LifecycleNotificationContent({
     }
   }
 
-  const tasks = payload?.tasks ?? [];
-  const urgent = payload ? tasks.filter((task) => task.status === "open" && task.severity === "blocker").length : null;
-  const unassigned = payload ? tasks.filter((task) => !task.ownerUserId).length : null;
-  const escalated = payload ? tasks.filter((task) => task.escalationStage >= 2 && task.status !== "resolved").length : null;
-  const snoozed = payload ? tasks.filter((task) => task.status === "snoozed").length : null;
+  const urgent = payload ? payload.tasks.filter((task) => task.status === "open" && task.severity === "blocker").length : null;
+  const unassigned = payload ? payload.tasks.filter((task) => !task.ownerUserId).length : null;
+  const escalated = payload ? payload.tasks.filter((task) => task.escalationStage >= 2 && task.status !== "resolved").length : null;
+  const snoozed = payload ? payload.tasks.filter((task) => task.status === "snoozed").length : null;
 
   return (
     <section className="card" style={{ marginBottom: 18 }}>
@@ -138,7 +135,14 @@ function LifecycleNotificationContent({
         </button>
       </div>
 
-      {visibleError && <div className="notice notice-amber" style={{ marginBottom: 12 }}><AlertTriangle size={15} /><span>{visibleError}</span></div>}
+      {visibleError && payload && <div className="notice notice-amber" role="alert" style={{ marginBottom: 12 }}><AlertTriangle size={15} /><span>{visibleError}</span></div>}
+      {!loading && !payload && (
+        <div className="notice notice-amber" role="alert" style={{ marginBottom: 12 }}>
+          <AlertTriangle size={15} />
+          <span>Unavailable, retry. {visibleError || "Lifecycle notification tasks could not be verified for this employer."}</span>
+          <button type="button" className="secondary-button" onClick={() => { setError(""); void reload(); }}>Retry</button>
+        </div>
+      )}
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))", marginBottom: 14 }}>
         <article className="stat-card">
@@ -179,10 +183,10 @@ function LifecycleNotificationContent({
             </tr>
           </thead>
           <tbody>
-            {payload && tasks.length === 0 && (
+            {payload && payload.tasks.length === 0 && (
               <tr><td colSpan={5}><div className="empty-state">No active lifecycle notification tasks.</div></td></tr>
             )}
-            {tasks.map((task) => (
+            {payload?.tasks.map((task) => (
               <tr key={task.id}>
                 <td>
                   <strong>{task.employeeName}</strong>

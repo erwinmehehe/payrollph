@@ -55,6 +55,13 @@ export function isVerifiedLifecycleNotificationQueue(
   const ids = v.tasks.map((item: VerifiedLifecycleNotificationTask) => item.id);
   return new Set(ids).size === ids.length;
 }
+/** Pure HTTP + JSON gate: only a complete employer-bound queue may be empty. */
+export function readVerifiedLifecycleNotificationResponse(
+  ok: boolean, payload: unknown, organizationId: number,
+): VerifiedLifecycleNotificationQueue | null {
+  return ok && isVerifiedLifecycleNotificationQueue(payload, organizationId) ? payload : null;
+}
+
 /** HTTP success is not mutation evidence. */
 export function isVerifiedLifecycleNotificationReceipt(
   v: unknown, organizationId: number, taskId: number,

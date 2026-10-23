@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { db } from "../src/db";
 import { hashPassword } from "../src/lib/crypto";
 import {
+  employeePayProfiles,
   employees,
   hcmBusinessProcessInstances,
   hcmBusinessProcessInstanceSteps,
@@ -56,6 +57,19 @@ async function main() {
   assert.equal(betaWorker.id, 2, "A second fictional worker must be tenant-scoped");
   assert.equal(betaWorker.employeeNo, worker.employeeNo);
 
+  // Request paths verify explicit pay profiles; they never backfill them.
+  // Keep both fictional employers valid without relaxing any production gate.
+  const workers = [worker, betaWorker];
+  const payProfiles = await db.insert(employeePayProfiles).values(workers.map(person => ({
+    employeeId: person.id,
+    organizationId: person.organizationId,
+    payBasis: "monthly",
+    rateAmount: person.basicRate,
+    standardWorkDaysPerMonth: "22",
+    standardHoursPerDay: "8",
+  }))).returning({ employeeId: employeePayProfiles.employeeId });
+  assert.equal(payProfiles.length, workers.length,
+    "Every synthetic monitor worker needs an explicit pay profile");
 
   const passwordHash = hashPassword("Synthetic-HCM-Monitor-Only-2026!");
   const [hr, manager, payroll, checker, employee, scoped, denied, bookkeeper] =
