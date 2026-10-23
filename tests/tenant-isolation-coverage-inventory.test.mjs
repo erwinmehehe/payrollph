@@ -747,12 +747,16 @@ test("all credited proof links point to the claimed route and every recertified 
             key + ": both requests must exercise the same mutation method");
         }
         if (forged !== undefined) {
-          const forgedSpan = lines.slice(Math.max(0, forged - 3), forged + 10).join("\n");
-          assert.ok(forgedSpan.includes("victimEmployee.id") ||
-            forgedSpan.includes("victimExpense.id") ||
-            forgedSpan.includes("victimGrant.id") ||
-            forgedSpan.includes("organizationId: victim.id"),
-            key + ": forged control must use a real victim identifier");
+          const forgedSpan = span(forged);
+          const forgedVictimSelector = {
+            "GET expenses": '"&employeeId=" + victimEmployee.id',
+            "POST expenses": "employeeId: victimEmployee.id",
+            "PATCH expenses": "organizationId: victim.id",
+            "POST de-minimis": "employeeId: victimEmployee.id",
+            "DELETE de-minimis": '"&organizationId=" + victim.id',
+          }[key];
+          assert.ok(forgedVictimSelector && forgedSpan.includes(forgedVictimSelector),
+            key + ": forged request must use the reviewed real victim selector");
           if (key === "POST expenses" || key === "POST de-minimis") {
             assert.match(lines[forged - 1], /expectStatus\(await request\(/,
               key + ": forged employee must be a separate HTTP request");
