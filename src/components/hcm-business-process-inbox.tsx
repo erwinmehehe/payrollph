@@ -183,7 +183,7 @@ function HcmBusinessProcessInboxContent({
     }
   }
 
-  const processRows = tab === "submitted" ? payload?.submitted ?? [] : payload?.recent ?? [];
+  const processRows = payload ? (tab === "submitted" ? payload.submitted : payload.recent) : null;
   const partial = Boolean(payload?.meta && (
     tab === "work" ? payload.meta.myWorkPartial :
     tab === "submitted" ? payload.meta.submittedPartial : payload.meta.recentPartial
@@ -216,7 +216,14 @@ function HcmBusinessProcessInboxContent({
         </div>
       </div>
 
-      {error && <div role="alert" className="notice notice-amber" style={{ margin: "0 16px 12px" }}>{error}</div>}
+      {error && payload && <div role="alert" className="notice notice-amber" style={{ margin: "0 16px 12px" }}>{error}</div>}
+      {!loading && !payload && (
+        <div role="alert" className="notice notice-amber" style={{ margin: "0 16px 12px" }}>
+          Unavailable, retry. {error || "The HCM work queue could not be verified for this employer."}
+          No empty counts or decision controls are available.
+          <button type="button" className="secondary-button" onClick={() => void load()}>Retry</button>
+        </div>
+      )}
 
       <div className="tabs" role="group" aria-label="HCM Inbox views" style={{ marginInline: 16 }}>
         <button type="button" aria-pressed={tab === "work"} className={"tab " + (tab === "work" ? "active" : "")}
@@ -242,7 +249,7 @@ function HcmBusinessProcessInboxContent({
               </div>
             )}
             <div className="approval-list">
-              {(payload?.myWork ?? []).map(item => (
+              {payload?.myWork.map(item => (
                 <div className="approval-content" key={item.id}>
                   <span className="approval-symbol" aria-hidden="true"><Inbox size={17} className="i-purple" /></span>
                   <div>
@@ -323,7 +330,7 @@ function HcmBusinessProcessInboxContent({
             <table className="data-table">
               <thead><tr><th>Process</th><th>Effective</th><th>Initiated by</th><th>Status</th></tr></thead>
               <tbody>
-                {processRows.map(row => (
+                {processRows?.map(row => (
                   <tr key={row.id}>
                     <td>
                       <strong>{row.processName}</strong>
@@ -334,7 +341,7 @@ function HcmBusinessProcessInboxContent({
                     <td><span className={"status " + statusTone(row.status)}>{row.status.replaceAll("_", " ")}</span></td>
                   </tr>
                 ))}
-                {!loading && payload !== null && processRows.length === 0 && !partial && (
+                {!loading && payload !== null && processRows?.length === 0 && !partial && (
                   <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>
                     No HCM business-process history in this bounded view.
                   </td></tr>
