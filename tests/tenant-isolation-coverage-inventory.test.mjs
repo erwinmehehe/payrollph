@@ -240,6 +240,8 @@ test("group reports use three genuine tenant readers and refuse foreign legal em
   assert.match(evidenceLine(proof.file, proof.ownPositiveLine, "group own GET"),
     /const ownReport = await request\(caller, on, "\/api\/multi-entity\/reports/);
   assert.match(evidenceLine(proof.file, proof.foreignDenialLine, "group foreign GET"),
+    /assert\.equal\(deniedVictim\.status, 403/);
+  assert.match(readFileSync(proof.file, "utf8"),
     /const deniedVictim = await request\(caller, on, "\/api\/multi-entity\/reports/);
   const harness = readFileSync(proof.file, "utf8");
   assert.match(harness, /"entity-attacker-b@example\.test"/);
