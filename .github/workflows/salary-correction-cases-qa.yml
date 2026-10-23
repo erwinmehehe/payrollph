@@ -91,6 +91,7 @@ jobs:
           # Required by the shared login-audit probe; this localhost server only.
           LOCAL_LOGIN_AUDIT_ENABLED: "true"
           HCM_SALARY_CORRECTION_CASES_ENABLED: "true"
+          BIR_1604C_DAT_CANDIDATE_ENABLED: "true"
           PUBLIC_API_V1_EXTENDED_ENABLED: "true"
           API_V1_EXTENDED_READS_ENABLED: "true"
           EMPLOYEE_HR_CASES_ENABLED: "true"

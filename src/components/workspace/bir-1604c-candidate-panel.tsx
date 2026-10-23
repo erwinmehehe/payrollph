@@ -1,24 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { confirmedBirModuleMutation, readVerifiedBirModuleEvidence, type VerifiedBirModuleEvidence } from "@/lib/bir-1604c-module-read";
 
 type Issue = { code: string; message: string; employeeNo?: string; field?: string };
 type Preview = {
   status: string; fileName: string; fileSha256: string;
   sourceDigest: string; recordCount: number;
 };
-type ModuleReview = {
-  status: "yes" | "no" | "not run";
-  moduleVersion: string; fileSha256: string | null;
-  evidenceReference: string | null; validatedOn: string | null;
-  reportedAwaitingReview: boolean;
-};
-type ModuleEvidence = {
-  moduleV70: ModuleReview;
-  moduleV74: ModuleReview;
-  sourceDigest: string;
-  agencyAccepted: false;
-};
+type ModuleEvidence = VerifiedBirModuleEvidence;
 type Props = {
   organizationId: number; legalEntityId: number; taxYear: number;
   sourceDigest: string | null; setNotice: (message: string) => void;
@@ -42,6 +32,8 @@ function EnabledBir1604cCandidatePanel({
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(false);
   const [evidence, setEvidence] = useState<ModuleEvidence | null>(null);
+  const [evidenceReadPhase, setEvidenceReadPhase] = useState<"loading" | "verified" | "unavailable">("loading");
+  const [evidenceReadError, setEvidenceReadError] = useState("");
   const [version, setVersion] = useState<"7.0" | "7.4">("7.0");
   const [result, setResult] = useState<"pass" | "fail">("pass");
   const [fileSha, setFileSha] = useState("");
@@ -53,24 +45,41 @@ function EnabledBir1604cCandidatePanel({
   const [evidenceLoading, setEvidenceLoading] = useState(false);
 
   async function refreshEvidence() {
-    if (!legalEntityId) { setEvidence(null); return; }
-    const url = endpoint + "?organizationId=" + organizationId +
-      "&legalEntityId=" + legalEntityId + "&taxYear=" + taxYear;
-    const response = await fetch(url, { cache: "no-store" });
-    if (response.ok) setEvidence(await response.json() as ModuleEvidence);
-    else setEvidence(null);
+    setEvidence(null);
+    setEvidenceReadPhase("loading");
+    setEvidenceReadError("");
+    try {
+      const verified = await readVerifiedBirModuleEvidence(
+        { organizationId, legalEntityId, taxYear, sourceDigest }, fetch,
+      );
+      setEvidence(verified);
+      setEvidenceReadPhase("verified");
+      return verified;
+    } catch (caught) {
+      setEvidence(null);
+      setEvidenceReadPhase("unavailable");
+      setEvidenceReadError(caught instanceof Error ? caught.message : "BIR evidence unavailable.");
+      throw caught;
+    }
   }
   useEffect(() => {
-    let active = true;
-    if (!legalEntityId) return;
-    const url = endpoint + "?organizationId=" + organizationId +
-      "&legalEntityId=" + legalEntityId + "&taxYear=" + taxYear;
-    void fetch(url, { cache: "no-store" })
-      .then(async r => r.ok ? await r.json() as ModuleEvidence : null)
-      .then(value => { if (active) setEvidence(value); })
-      .catch(() => { if (active) setEvidence(null); });
-    return () => { active = false; };
-  }, [organizationId, legalEntityId, taxYear]);
+    const controller = new AbortController();
+    const scope = { organizationId, legalEntityId, taxYear, sourceDigest };
+    void readVerifiedBirModuleEvidence(scope, fetch, controller.signal)
+      .then((verified) => {
+        if (controller.signal.aborted) return;
+        setEvidence(verified);
+        setEvidenceReadPhase("verified");
+        setEvidenceReadError("");
+      })
+      .catch((caught) => {
+        if (controller.signal.aborted) return;
+        setEvidence(null);
+        setEvidenceReadPhase("unavailable");
+        setEvidenceReadError(caught instanceof Error ? caught.message : "BIR evidence unavailable.");
+      });
+    return () => controller.abort();
+  }, [organizationId, legalEntityId, taxYear, sourceDigest]);
 
   async function downloadTemplate() {
     if (!legalEntityId || !sourceDigest) {
@@ -182,8 +191,12 @@ function EnabledBir1604cCandidatePanel({
   }
 
   async function submitEvidence(mode: "observe" | "review") {
-    if (!legalEntityId) return;
+    if (!legalEntityId || !sourceDigest || evidenceReadPhase !== "verified" || !evidence || evidence.sourceDigest !== sourceDigest) {
+      setNotice("BIR desktop validation evidence is unavailable. Retry the scoped evidence read before recording.");
+      return;
+    }
     setEvidenceLoading(true);
+    let postAccepted = false;
     try {
       const payload = mode === "observe" ? {
         mode, organizationId, legalEntityId, taxYear,
@@ -201,17 +214,33 @@ function EnabledBir1604cCandidatePanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const output = await response.json().catch(() => ({}));
-      if (!response.ok) { setNotice(output.error ?? "BIR validation evidence was rejected."); return; }
+      const output = await response.json().catch(() => null);
+      if (!response.ok) {
+        setNotice(output?.error ?? "BIR validation evidence was rejected.");
+        return;
+      }
+      postAccepted = true;
+      const receiptId = mode === "observe" ? output?.observationId : output?.reviewId;
+      if (!Number.isSafeInteger(receiptId) || receiptId <= 0) {
+        throw new Error("BIR evidence receipt was incomplete. Refresh to verify the saved state.");
+      }
+      const verified = await refreshEvidence();
+      if (!confirmedBirModuleMutation(mode, output, verified,
+          { organizationId, legalEntityId, taxYear, sourceDigest },
+          { moduleVersion: version, fileSha256: fileSha.trim().toLowerCase(),
+            observationId: Number(observationId) })) {
+        throw new Error("The exact BIR audit receipt was not confirmed by refreshed evidence.");
+      }
       if (mode === "observe") {
-        setObservationId(String(output.observationId ?? ""));
-        setNotice("Module observation recorded (#" + String(output.observationId ?? "?") + "). A different authorized payroll operator must review its private evidence.");
+        setObservationId(String(receiptId));
+        setNotice("Module observation recorded (#" + String(receiptId) + "). A different authorized payroll operator must review its private evidence.");
       } else {
         setNotice("Independent review recorded. This is NOT an agency filing acceptance.");
       }
-      await refreshEvidence();
     } catch {
-      setNotice("Could not record BIR module evidence.");
+      setNotice(postAccepted
+        ? "BIR evidence may have been recorded; inspect the actual observation or review receipt before retrying."
+        : "Could not verify BIR module evidence. Retry the authorized read before acting.");
     } finally {
       setEvidenceLoading(false);
     }
@@ -269,11 +298,21 @@ function EnabledBir1604cCandidatePanel({
         </div>}
         <hr style={{ width: "100%", border: 0, borderTop: "1px solid var(--line)" }} />
         <h3 style={{ margin: 0 }}>BIR desktop validator evidence (independent review)</h3>
-        <p data-bir-v70-validation-status role="status" style={{ margin: 0 }}>
-          Validated against BIR Alphalist Module v7.0:{" "}
-          <strong>{evidence?.moduleV70.status ?? "not run"}</strong>.
-          {" "}For v7.4: <strong>{evidence?.moduleV74.status ?? "not run"}</strong>.
-        </p>
+        {evidenceReadPhase !== "verified" ? (
+          <p data-bir-v70-validation-status role={evidenceReadPhase === "unavailable" ? "alert" : "status"} style={{ margin: 0 }}>
+            {evidenceReadPhase === "loading"
+              ? "Checking BIR desktop module evidence for the selected employer…"
+              : "BIR desktop validator status unavailable. " + evidenceReadError + " This is NOT a verified 'not run' result."}
+            {evidenceReadPhase === "unavailable" && (
+              <button type="button" className="secondary-button" onClick={() => void refreshEvidence().catch(() => undefined)}>Retry BIR evidence</button>
+            )}
+          </p>
+        ) : (
+          <p data-bir-v70-validation-status role="status" style={{ margin: 0 }}>
+            Validated against BIR Alphalist Module v7.0: <strong>{evidence?.moduleV70.status}</strong>.
+            {" "}For v7.4: <strong>{evidence?.moduleV74.status}</strong>.
+          </p>
+        )}
         <small>Only an independently reviewed, version-specific result for the latest matching file SHA-256 can show yes/no. The status is operator-recorded evidence, not BIR submission or acceptance.</small>
         {(evidence?.moduleV70.reportedAwaitingReview || evidence?.moduleV74.reportedAwaitingReview) && (
           <p role="status">At least one module observation is awaiting review by another authorized operator.</p>
@@ -303,7 +342,7 @@ function EnabledBir1604cCandidatePanel({
               <input aria-label="Validator evidence reference" value={evidenceReference} maxLength={160}
                 onChange={event => setEvidenceReference(event.target.value)} />
             </label>
-            <button type="button" className="secondary-button" disabled={evidenceLoading || !legalEntityId}
+            <button type="button" className="secondary-button" disabled={evidenceLoading || !legalEntityId || !sourceDigest || evidenceReadPhase !== "verified" || !evidence}
               onClick={() => void submitEvidence("observe")}>Record observation (not yet verified)</button>
           </div>
         </details>
