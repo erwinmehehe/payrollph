@@ -772,6 +772,41 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(smoke, /EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"/);
         continue;
       }
+      if (proof?.file === "scripts/qa/multi-entity-group-report-http.mjs") {
+        // #1341's HTTPS Playwright proof uses request(caller, on, route) and
+        // assert.equal(status, code), not the older expectStatus HTTP adapter.
+        // Only this exact read method may use that distinct evidence source.
+        assert.equal(path, "src/app/api/multi-entity/reports/route.ts",
+          "No unrelated API may borrow the group-report browser proof");
+        assert.equal(method.name, "GET", "A read proof cannot certify a mutation");
+        assert.deepEqual([proof.line, proof.ownPositiveLine, proof.foreignDenialLine],
+          [28, 41, 48], "Exact reviewed evidence positions must not drift");
+        const suite = readFileSync(proof.file, "utf8");
+        assert.match(evidenceLine(proof.file, proof.line, path + " high-ID victim fixture"),
+          /const bVictims = await database\.query\(/);
+        assert.match(evidenceLine(proof.file, proof.ownPositiveLine, path + " own 200"),
+          /const ownReport = await request\(caller, on, "\/api\/multi-entity\/reports\?organizationId=" \+ actor\.ownId\)/);
+        assert.match(evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign 403"),
+          /assert\.equal\(deniedVictim\.status, 403,/);
+        assert.match(suite, /assert\.equal\(process\.env\.CI, "true"\)/);
+        assert.match(suite, /assert\.equal\(process\.env\.MULTI_ENTITY_QA_MODE, "synthetic-postgres-only"\)/);
+        assert.match(suite, /bVictims\.rows\.length >= 5/);
+        assert.match(suite, /"entity-attacker-b@example\.test"/);
+        assert.match(suite, /"entity-attacker-c@example\.test"/);
+        assert.match(suite, /assert\.equal\(ownReport\.status, 200,/);
+        assert.match(suite, /assert\.equal\(deniedOther\.status, 403,/);
+        assert.match(suite, /assert\.equal\(refused\.status, 409,/);
+        assert.match(suite, /assert\.equal\(refusedReleasedRun\.status, 409,/);
+        assert.match(suite, /assert\.deepEqual\(intact\.rows, untouchedVictim\.rows,/);
+        assert.match(suite, /assert\.equal\(restored\.status, 200,/);
+        assert.match(suite, /assert\.equal\(afterReleasedTest\.status, 200,/);
+        const browser = readFileSync("scripts/multi-entity-synthetic-browser.mjs", "utf8");
+        assert.match(browser, /import \{ verifyMultiEntityReportTenantIsolation \} from "\.\/qa\/multi-entity-group-report-http\.mjs"/);
+        assert.match(browser, /await verifyMultiEntityReportTenantIsolation\(\{/);
+        const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
+        assert.match(workflow, /node scripts\/multi-entity-synthetic-browser\.mjs/);
+        continue;
+      }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
