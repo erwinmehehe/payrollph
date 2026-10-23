@@ -66,3 +66,20 @@ test("tenant isolation secondary worker fixtures seed pay profiles before positi
   assert.match(bank, /BANK_TENANT_PAY_PROFILE_FIXTURE_NON_DISPOSABLE_OR_UNVERIFIED/);
   assert.match(bank, /db\.insert\(employeePayProfiles\)\.values\(\{/);
 });
+
+test("multi-entity browser fixture creates explicit tenant-bound profiles for all 12 fictional workers", () => {
+  const source = readFileSync("scripts/multi-entity-synthetic-fixture.ts", "utf8");
+  assert.match(source, /assert\.equal\(process\.env\.MULTI_ENTITY_QA_MODE, "synthetic-postgres-only"\)/);
+  assert.match(source, /const baseEmployees = await db\.insert\(employees\)\.values\(\[/);
+  assert.match(source, /const bVictimEmployees = await db\.insert\(employees\)\.values\(Array\.from\(\{ length: 8 \}/);
+  assert.match(source, /const syntheticWorkers = \[\.\.\.baseEmployees, \.\.\.bVictimEmployees\]/);
+  assert.match(source, /assert\.equal\(syntheticWorkers\.length, 12/);
+  assert.match(source, /assert\.deepEqual\(syntheticWorkers\.map\(worker => worker\.organizationId\)/);
+  assert.match(source, /await db\.insert\(employeePayProfiles\)\.values\(syntheticWorkers\.map\(worker => \(\{/);
+  assert.match(source, /organizationId: worker\.organizationId, employeeId: worker\.id/);
+  assert.match(source, /payBasis: "monthly", rateAmount: worker\.basicRate/);
+  assert.match(source, /standardWorkDaysPerMonth: "22", standardHoursPerDay: "8"/);
+  assert.match(source, /assert\.equal\(profiles\.length, syntheticWorkers\.length/);
+  assert.match(source, /assert\.equal\(profile\.organizationId, worker\.organizationId/);
+  assert.match(source, /assert\.equal\(profile\.rateAmount, worker\.basicRate/);
+});

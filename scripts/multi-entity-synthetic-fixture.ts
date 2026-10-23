@@ -3,7 +3,7 @@ import { db } from "../src/db";
 import { eq, sql } from "drizzle-orm";
 import { hashPassword } from "../src/lib/crypto";
 import {
-  employees, legalEntities, orgUnits, organizations, payrollRuns,
+  employees, employeePayProfiles, legalEntities, orgUnits, organizations, payrollRuns,
   userLegalEntityGrants, userOrganizations, users,
 } from "../src/db/schema";
 
@@ -88,7 +88,7 @@ async function main() {
     { organizationId: tenantA.id, userId: members[7].id, legalEntityId: a1.id },
     { organizationId: tenantA.id, userId: members[7].id, legalEntityId: a2.id },
   ]);
-  await db.insert(employees).values([
+  const baseEmployees = await db.insert(employees).values([
     { organizationId: tenantA.id, legalEntityId: a1.id, employeeNo: "A-01",
       firstName: "Alpha", lastName: "Synthetic", title: "Staff",
       avatarInitials: "AS", basicRate: "20000", startDate: "2026-01-01" },
@@ -101,15 +101,47 @@ async function main() {
     { organizationId: tenantC.id, legalEntityId: c1.id, employeeNo: "C-01",
       firstName: "Third", lastName: "Synthetic", title: "Staff",
       avatarInitials: "TS", basicRate: "30000", startDate: "2026-01-01" },
-  ]);
+  ]).returning({ id: employees.id, organizationId: employees.organizationId,
+    basicRate: employees.basicRate });
   // Eight additional B-only workers give the cross-tenant negative proof
   // real, read-back employee IDs above 6 (not fabricated 1..6 probes).
-  await db.insert(employees).values(Array.from({ length: 8 }, (_, index) => ({
+  const bVictimEmployees = await db.insert(employees).values(Array.from({ length: 8 }, (_, index) => ({
     organizationId: tenantB.id, legalEntityId: b1.id,
     employeeNo: "B-VICTIM-" + index,
     firstName: "Victim" + index, lastName: "Fictional", title: "Staff",
     avatarInitials: "VF", basicRate: "15000", startDate: "2026-01-01",
+  }))).returning({ id: employees.id, organizationId: employees.organizationId,
+    basicRate: employees.basicRate });
+
+  // #1334 retired request-time pay-profile backfills. Seed one explicitly
+  // per just-created fictional worker, before any authenticated app reads.
+  // This is fixture creation on an empty disposable CI database, never a
+  // repair of historical customer compensation or any real payroll record.
+  const syntheticWorkers = [...baseEmployees, ...bVictimEmployees];
+  assert.equal(syntheticWorkers.length, 12, "Expected all fictional workers");
+  assert.deepEqual(syntheticWorkers.map(worker => worker.organizationId), [
+    tenantA.id, tenantA.id, tenantB.id, tenantC.id, ...Array(8).fill(tenantB.id),
+  ], "Pay profiles may only be seeded for the explicitly known tenant roster");
+  await db.insert(employeePayProfiles).values(syntheticWorkers.map(worker => ({
+    organizationId: worker.organizationId, employeeId: worker.id,
+    payBasis: "monthly", rateAmount: worker.basicRate,
+    standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
   })));
+  const profiles = await db.select({
+    employeeId: employeePayProfiles.employeeId,
+    organizationId: employeePayProfiles.organizationId,
+    rateAmount: employeePayProfiles.rateAmount,
+  }).from(employeePayProfiles);
+  assert.equal(profiles.length, syntheticWorkers.length,
+    "Every synthetic worker must have exactly one explicit pay profile");
+  for (const worker of syntheticWorkers) {
+    const profile = profiles.find(row => row.employeeId === worker.id);
+    assert.ok(profile, "An explicit synthetic worker pay profile is required");
+    assert.equal(profile.organizationId, worker.organizationId,
+      "Pay profiles must never cross organization boundaries");
+    assert.equal(profile.rateAmount, worker.basicRate,
+      "Fixture rate must equal the fictional worker's explicitly seeded rate");
+  }
   await db.insert(payrollRuns).values([
     { organizationId: tenantA.id, legalEntityId: a1.id,
       periodLabel: "Alpha employer draft", periodStart: "2026-10-01",
