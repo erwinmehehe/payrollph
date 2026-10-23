@@ -3,7 +3,7 @@ import { db } from "../src/db";
 import { eq, sql } from "drizzle-orm";
 import { hashPassword } from "../src/lib/crypto";
 import {
-  employees, legalEntities, orgUnits, organizations, payrollRuns,
+  employeePayProfiles, employees, legalEntities, orgUnits, organizations, payrollRuns,
   userLegalEntityGrants, userOrganizations, users,
 } from "../src/db/schema";
 
@@ -81,7 +81,7 @@ async function main() {
     { organizationId: tenantA.id, userId: members[7].id, legalEntityId: a1.id },
     { organizationId: tenantA.id, userId: members[7].id, legalEntityId: a2.id },
   ]);
-  await db.insert(employees).values([
+  const fictionalWorkers = await db.insert(employees).values([
     { organizationId: tenantA.id, legalEntityId: a1.id, employeeNo: "A-01",
       firstName: "Alpha", lastName: "Synthetic", title: "Staff",
       avatarInitials: "AS", basicRate: "20000", startDate: "2026-01-01" },
@@ -91,7 +91,17 @@ async function main() {
     { organizationId: tenantB.id, legalEntityId: b1.id, employeeNo: "B-01",
       firstName: "Foreign", lastName: "Synthetic", title: "Staff",
       avatarInitials: "FS", basicRate: "28000", startDate: "2026-01-01" },
-  ]);
+  ]).returning({ id: employees.id, organizationId: employees.organizationId,
+    basicRate: employees.basicRate });
+  // The workspace's read-only pay-profile gate now rejects missing profiles.
+  // This is explicit fictional fixture setup, NEVER a production request-time
+  // backfill or a relaxation of READONLY_PAY_PROFILES_REQUIRE_REVIEWED_BACKFILL.
+  assert.equal(fictionalWorkers.length, 3);
+  await db.insert(employeePayProfiles).values(fictionalWorkers.map(worker => ({
+    employeeId: worker.id, organizationId: worker.organizationId,
+    payBasis: "monthly", rateAmount: worker.basicRate,
+    standardWorkDaysPerMonth: "26.00", standardHoursPerDay: "8.00",
+  })));
   await db.insert(payrollRuns).values([
     { organizationId: tenantA.id, legalEntityId: a1.id,
       periodLabel: "Alpha employer draft", periodStart: "2026-10-01",
