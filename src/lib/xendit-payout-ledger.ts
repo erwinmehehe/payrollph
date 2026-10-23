@@ -213,7 +213,9 @@ export async function recordXenditPayoutObservation(input: {
       if (inserted.length === 0) return { recorded: false, status: prior };
     }
     if (prior === "reversed" && desired !== "reversed") {
-      return { recorded: false, status: prior };
+      // A NEW stale event must not be silently consumed in the inbox without
+      // a matching audit receipt. Duplicate event IDs already returned above.
+      throw new Error("XENDIT_REVERSED_PAYOUT_STATUS_REGRESSION_REQUIRES_INVESTIGATION");
     }
     if (prior === "succeeded" && desired !== "succeeded" && desired !== "reversed") {
       throw new Error("XENDIT_SETTLED_PAYOUT_STATUS_REGRESSION_REQUIRES_INVESTIGATION");
