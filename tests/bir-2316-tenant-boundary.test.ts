@@ -129,7 +129,7 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
       }
     }
   }
-  assert.equal(inventory.metrics.coveredAfter, 142);
-  assert.equal(inventory.metrics.gap, 341);
+  assert.equal(inventory.metrics.coveredAfter, 148);
+  assert.equal(inventory.metrics.gap, 335);
   assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED/);
 });

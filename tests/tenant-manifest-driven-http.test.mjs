@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
-  assert.equal(manifest.metrics.gap + 3, 344, "Preserve original 344 GAPs minus three separate BIR2316 real HTTPS methods");
-  assert.equal(manifest.metrics.coveredAfter - 3, 139, "Maintain 139 earlier distinct proofs plus three new BIR2316 methods");
+  assert.equal(manifest.metrics.gap + 3, 338, "Retain main MNY-01/MNY-02 unverified GAP baseline minus three BIR2316 methods");
+  assert.equal(manifest.metrics.coveredAfter - 3, 145, "Keep all 145 main methods including six contractor/EWT proofs");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],
