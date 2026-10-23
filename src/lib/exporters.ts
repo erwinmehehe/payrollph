@@ -10,10 +10,15 @@ import {
   organizations,
   payrollEntries,
   payrollRuns,
+  payoutBatches,
   payoutProfiles,
+  statutoryRemittanceBatches,
+  statutoryRemittanceMembers,
 } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
-import { frozenReleasedPayrollPayment } from "@/lib/payroll-payout-snapshot";
+import { assertReleasedPayoutTotals, frozenReleasedPayrollPayment } from "@/lib/payroll-payout-snapshot";
+import { payoutCentsFromNetPay } from "@/lib/payout-ledger-rules";
+import { summarizeMonthlyContributionFile, assertMonthlyFilingMatchesRemittance } from "@/lib/filing-remittance-snapshot";
 import { bankPartFilename, createStoredZip, splitRowsByBankLimits } from "@/lib/bank-file-bundle";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
@@ -203,6 +208,14 @@ export async function generateBankFile(
     .orderBy(asc(employees.id));
 
   if (!dryRun && run.status === "Released") {
+    // Do not rely solely on the HTTP handler: no caller may export a second
+    // salary instruction after a provider has staged this run's ledger.
+    const [claimed] = await db.select({ id: payoutBatches.id }).from(payoutBatches)
+      .where(and(
+        eq(payoutBatches.organizationId, run.organizationId),
+        eq(payoutBatches.payrollRunId, run.id),
+      )).limit(1);
+    if (claimed) throw new Error("PAYOUT_BANK_FILE_LEDGER_ALREADY_CLAIMED");
     for (const { entry, employee } of entries) {
       if (employee.organizationId !== run.organizationId) {
         throw new Error("PAYOUT_TENANT_MISMATCH: bank export contains a worker outside the released employer workspace.");
@@ -282,14 +295,13 @@ export async function generateBankFile(
         `Final bank file cannot be generated: ${validation.missingPaymentSnapshots} payroll entr${validation.missingPaymentSnapshots === 1 ? "y lacks" : "ies lack"} an immutable payment snapshot. Recalculate before release.`,
       );
     }
-    if (rows.length !== run.employeeCount) {
-      throw new Error(
-        `Final bank file cannot be generated: register has ${rows.length} rows but the released run records ${run.employeeCount} employees.`,
-      );
-    }
-    if (Math.abs(Number(validation.totalNet) - Number(run.netPay)) > 0.01) {
-      throw new Error("Final bank file total does not match the released payroll net pay.");
-    }
+    // Exact cents and complete row count must match the released register.
+    // The former > 0.01 floating tolerance could admit a one-cent mutation.
+    assertReleasedPayoutTotals({
+      expectedEmployeeCount: run.employeeCount,
+      expectedNetPay: run.netPay,
+      amountsCents: rows.map((row) => payoutCentsFromNetPay(row.net_pay)),
+    });
     if (usesMobileDestination && validation.missingMobiles > 0) {
       throw new Error(
         `Final mobile-wallet file cannot be generated: ${validation.missingMobiles} employee(s) are missing a captured mobile number.`,
