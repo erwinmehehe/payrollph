@@ -726,7 +726,7 @@ test("all credited proof links point to the claimed route and every recertified 
       // cannot substitute for the disposable three-employer PG16 HTTP run.
       if (proof?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs") {
         const specs = {
-          "GET expenses": [153, 153, 158, 200],
+          "GET expenses": [147, 153, 158, 200],
           "POST expenses": [57, 162, 169, 201],
           "PATCH expenses": [181, 192, 181, 200],
           "GET de-minimis": [199, 205, undefined, 200],
