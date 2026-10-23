@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 338, "Keep all 338 unverified API method gaps after six provisional MNY-02 contractor/EWT proofs");
-  assert.equal(manifest.metrics.coveredAfter, 145, "Count six additional MNY-02 contractor/EWT method proofs without closing remaining gaps");
+  assert.equal(manifest.metrics.gap, 332, "Keep all 332 unverified API method gaps after twelve separately linked MNY-02 financial-method proofs");
+  assert.equal(manifest.metrics.coveredAfter, 151, "Count twelve additional MNY-02 contractor/EWT and expenses/benefits method proofs without closing remaining gaps");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {

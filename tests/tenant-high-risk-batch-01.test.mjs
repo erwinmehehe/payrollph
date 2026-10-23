@@ -237,9 +237,31 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     contractorMethods++;
   }
   assert.equal(contractorMethods, 6);
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods, 124,
+  // The next six MNY-02 expense/benefit methods have their own executable
+  // three-employer proof. Do not count a generic 403 or a source-only check.
+  const expenseBenefitFile = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
+  const expenseBenefitLines = readFileSync(expenseBenefitFile, "utf8").split("\n");
+  const expenseBenefitKeys = [
+    "GET expenses", "POST expenses", "PATCH expenses",
+    "GET de-minimis", "POST de-minimis", "DELETE de-minimis",
+  ];
+  assert.match(harness, /verifyMny02ExpensesBenefitsIsolation\(f, \{ request, expectStatus, makeSession \}\)/);
+  let expenseBenefitMethods = 0;
+  for (const key of expenseBenefitKeys) {
+    const method = methodsByKey.get(key);
+    assert.equal(method?.status, "COVERED", key + ": current provisional real-HTTP proof required");
+    assert.equal(method?.testedBy?.file, expenseBenefitFile, key + ": unique suite required");
+    const p = method.testedBy;
+    assert.match(expenseBenefitLines[p.ownPositiveLine - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(expenseBenefitLines[p.foreignDenialLine - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(expenseBenefitLines[p.unchangedDbLine - 1] ?? "",
+      /assert\.deepEqual\(await victimSnapshot\(victim\.id\), baseline/);
+    expenseBenefitMethods++;
+  }
+  assert.equal(expenseBenefitMethods, 6);
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods - expenseBenefitMethods, 124,
     "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods, 359,
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods + expenseBenefitMethods, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

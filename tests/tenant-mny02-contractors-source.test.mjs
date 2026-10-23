@@ -72,7 +72,7 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     }
   }
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 145, 10, 338]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 151, 10, 332]);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED/);
 });
 

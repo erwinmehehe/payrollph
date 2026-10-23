@@ -104,7 +104,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
   // Pin the current ledger exactly: the two DL-01 vault methods and eight
   // money-input methods retain their independent proofs; MNY-02 adds six
-  // separately linked contractor/EWT methods, with 338 methods still GAP.
+  // separately linked contractor/EWT and six expenses/benefits methods, with 332 still GAP.
   // This is provisional coverage; no production or global audit sign-off.
   for (const [vaultRoute, vaultMethod] of [
     ["src/app/api/employee-vault/route.ts", "GET"],
@@ -118,9 +118,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   }
   // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
   // PR #1325 contributes three other real HTTP proofs; never double-credit these.
-  assert.equal(manifest.metrics.coveredAfter, 145, "Preserve main/BIR/vault, eight money inputs and six source-pinned contractor methods");
+  assert.equal(manifest.metrics.coveredAfter, 151, "Preserve source-pinned main, money, contractor and six expense/benefit proofs");
   assert.equal(manifest.metrics.publicByDesign, 10);
-  assert.equal(manifest.metrics.gap, 338, "Retain the remaining unproven methods as GAP");
+  assert.equal(manifest.metrics.gap, 332, "Retain all 332 unproven methods as GAP");
   // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
   // can only close GAPs if every method cites the corresponding isolated HTTP
   // suite, executed for both attacker employers against real victim rows.
@@ -237,9 +237,37 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
       /assert\.deepEqual\(await victimSnapshot\(victim\.id\), originalVictim/,
       key + ": victim SQL snapshot must remain identical");
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - contractorCases.length, 129,
+  const extraProof = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
+  const extraLines = readFileSync(extraProof, "utf8").split("\n");
+  const extraCases = [
+    { method: "GET", route: "expenses" },
+    { method: "POST", route: "expenses" },
+    { method: "PATCH", route: "expenses" },
+    { method: "GET", route: "de-minimis" },
+    { method: "POST", route: "de-minimis" },
+    { method: "DELETE", route: "de-minimis" },
+  ] as const;
+  assert.ok(harnessLines.some(line =>
+    line.includes("verifyMny02ExpensesBenefitsIsolation(f, { request, expectStatus, makeSession })")),
+    "Six additional MNY-02 methods must run in the disposable PG16 HTTP harness");
+  for (const item of extraCases) {
+    const key = item.method + " " + item.route;
+    const method = manifest.allApiRouteFiles["src/app/api/" + item.route + "/route.ts"]
+      ?.methods.find((candidate: { name: string }) => candidate.name === item.method);
+    assert.equal(method?.status, "COVERED", key + ": actual own/foreign proof required");
+    assert.equal(method?.testedBy?.file, extraProof);
+    assert.match(extraLines[method.testedBy.ownPositiveLine - 1] ?? "",
+      /expectStatus\(await request\(/, key + ": successful same-method own control required");
+    assert.match(extraLines[method.testedBy.foreignDenialLine - 1] ?? "",
+      /expectStatus\(await request\(/, key + ": actual foreign victim denial required");
+    assert.match(extraLines[method.testedBy.unchangedDbLine - 1] ?? "",
+      /assert\.deepEqual\(await victimSnapshot\(victim\.id\), baseline/,
+      key + ": victim financial DB and audit rows must remain unchanged");
+  }
+  const newlyCoveredExpensesBenefits = extraCases.length;
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - contractorCases.length - newlyCoveredExpensesBenefits, 129,
     "Keep all 129 independently source-pinned methods from merged main, not counting new MNY-02");
-  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + contractorCases.length, 354,
+  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + contractorCases.length + newlyCoveredExpensesBenefits, 354,
     "Never reduce main's 354 originally open method GAPs without distinct own/victim HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
