@@ -143,11 +143,13 @@ async function main() {
     assert.equal(worker.organizationId, expected.organizationId, "Cross-tenant profile refused");
     assert.equal(worker.basicRate, expected.rateAmount, "Fixture pay rate drift refused");
   }
-  await db.insert(employeePayProfiles).values(syntheticWorkers.map(worker => ({
+  const insertedProfiles = await db.insert(employeePayProfiles).values(syntheticWorkers.map(worker => ({
     organizationId: worker.organizationId, employeeId: worker.id,
     payBasis: "monthly", rateAmount: worker.basicRate,
     standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
-  })));
+  }))).returning({ employeeId: employeePayProfiles.employeeId });
+  assert.equal(insertedProfiles.length, syntheticWorkers.length,
+    "Every synthetic worker requires an explicit pay profile before an app request");
   const profiles = await db.select({
     employeeId: employeePayProfiles.employeeId,
     organizationId: employeePayProfiles.organizationId,
