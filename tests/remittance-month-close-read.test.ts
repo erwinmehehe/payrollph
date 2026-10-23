@@ -239,7 +239,15 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   }
   assert.ok(harnessLines.some(line => line.includes('await verifyRemittanceMonthCloseTenantProof(f);')),
     "Method-level test must be executed by existing real-HTTP disposable PG16 job");
-  assert.ok(harnessLines.some(line => line.includes('period = "2026-09"')));
+  // The disposable PG16 source fixture moved to January to avoid overlapping
+  // a released payroll period. Pin the actual method-level proof month, rather
+  // than a stale September string that no longer occurs in the live harness.
+  const remittanceProofStart = harnessLines.findIndex(line =>
+    line.includes("async function verifyRemittanceMonthCloseTenantProof(f)"));
+  assert.ok(remittanceProofStart >= 0, "Real remittance proof must exist");
+  assert.ok(harnessLines.slice(remittanceProofStart, remittanceProofStart + 40)
+    .some(line => line.trim() === 'const period = "2026-01";'),
+    "Remittance GET and POST must share the reviewed January synthetic payroll period");
   assert.ok(harnessLines.some(line => line.includes('status: "reconciled"')));
   assert.ok(harnessLines.some(line => line.includes('fileSha256: createHash("sha256")')));
   assert.ok(harnessLines.some(line => line.includes('assert.deepEqual(victimBatchesAfter, victimBatchesBefore')));

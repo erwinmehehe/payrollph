@@ -105,6 +105,8 @@ jobs:
           printf 'MULTI_ENTITY_QA_TLS_CERT=%s\n' "$cert_file" >> "$GITHUB_ENV"
       - name: Create disposable PostgreSQL schema, never production
         run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Seed fictional two-tenant/two-employer roles, workers and draft runs
         run: npx tsx scripts/multi-entity-synthetic-fixture.ts
       - name: Exercise isolated HCM employer reads and frozen effective-change workers

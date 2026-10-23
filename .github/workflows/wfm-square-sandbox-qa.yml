@@ -62,6 +62,8 @@ jobs:
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Initialize disposable PostgreSQL 16
         run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Square pagination, corrections and isolated source-history privacy QA
         run: npx tsx --test --test-concurrency=1 tests/workforce-square-sandbox.test.ts tests/workforce-square-sandbox-db.test.ts
       - name: Source size gate

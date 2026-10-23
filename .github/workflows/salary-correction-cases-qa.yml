@@ -80,6 +80,8 @@ jobs:
           echo "::add-mask::$key"
           echo "PII_ENCRYPTION_KEY=$key" >> "$GITHUB_ENV"
       - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Case rules against real PostgreSQL (completeness, reconciliation, maker-checker, tenant, concurrency)
         env:
           SALARY_CORRECTION_CASES_POSTGRES_QA: "true"

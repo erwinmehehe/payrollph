@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { employees, organizations, payrollEntries, payrollRuns, timePunches } from "../src/db/schema";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
+import { seedMonthlyPayProfilesForRun } from "./helpers/pay-profiles";
 
 /**
  * Overtime worked on a holiday must be paid at that day's compounded OT rate
@@ -65,6 +66,8 @@ async function runOneShiftWithOvertime(workDate: string, periodStart: string, pe
     status: "Draft",
     payDate: periodEnd,
   }).returning();
+
+  await seedMonthlyPayProfilesForRun(run.id);
 
   await enqueuePayrollRun(run.id, 25);
   await drainPayrollQueue(10, run.id);

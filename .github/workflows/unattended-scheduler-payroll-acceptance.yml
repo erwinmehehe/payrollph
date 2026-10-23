@@ -111,6 +111,8 @@ jobs:
         run: npm run db:push
       - name: Apply audited 0109 chain functions on EMPTY isolated PostgreSQL only
         run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build real Next.js routes against disposable schema
         run: npm run build
       - name: Start isolated Next.js server without payroll worker
