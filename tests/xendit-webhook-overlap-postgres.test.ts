@@ -38,6 +38,7 @@ test("Xendit claim + webhook replay use overlapping PostgreSQL transactions, one
   const keys = [
     "XENDIT_PAYOUT_CALLBACK_TOKEN", "XENDIT_PAYOUT_BUSINESS_ID",
     "XENDIT_PAYOUT_ALLOWED_ORGANIZATION_ID", "XENDIT_PAYOUT_ALLOWED_LEGAL_ENTITY_ID",
+    "XENDIT_PAYOUT_SECRET_KEY",
   ];
   const prior = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   const holder = new Client({ connectionString: isolatedCiDatabase()! });
@@ -77,6 +78,9 @@ test("Xendit claim + webhook replay use overlapping PostgreSQL transactions, one
       XENDIT_PAYOUT_BUSINESS_ID: businessId,
       XENDIT_PAYOUT_ALLOWED_ORGANIZATION_ID: String(org.id),
       XENDIT_PAYOUT_ALLOWED_LEGAL_ENTITY_ID: String(entity.id),
+      // Synthetic credential only reaches our in-process GET stub below.
+      // Neither payout activation flag is changed, and no external HTTP is allowed.
+      XENDIT_PAYOUT_SECRET_KEY: "xnd_synthetic_read_only_reconciliation_fixture",
     });
 
     await holder.connect();
@@ -172,20 +176,27 @@ test("Xendit claim + webhook replay use overlapping PostgreSQL transactions, one
         lookupCount += 1;
         assert.match(String(input), /^https:\/\/api\.xendit\.co\/v3\/payouts\/po-/);
         assert.equal(init?.redirect, "error");
+        assert.equal(init?.method ?? "GET", "GET", "never send a money-moving request");
         throw new Error("Synthetic read-only provider timeout");
       };
       await assert.rejects(
         () => reconcileXenditPayroll(run, "Synthetic operator"),
         /Synthetic read-only provider timeout/,
       );
-      globalThis.fetch = async () => Response.json({
-        payout_id: payoutId, reference_id: referenceNumber,
-        source_amount: 10000, source_currency: "PHP",
-        destination_currency: "PHP", business_id: businessId, status: "SUCCEEDED",
-      });
+      globalThis.fetch = async (input, init) => {
+        lookupCount += 1;
+        assert.equal(String(input), "https://api.xendit.co/v3/payouts/" + payoutId);
+        assert.equal(init?.method ?? "GET", "GET", "never send a money-moving request");
+        assert.equal(init?.redirect, "error");
+        return Response.json({
+          payout_id: payoutId, reference_id: referenceNumber,
+          source_amount: 10000, source_currency: "PHP",
+          destination_currency: "PHP", business_id: businessId, status: "SUCCEEDED",
+        });
+      };
       const result = await reconcileXenditPayroll(run, "Synthetic operator");
       assert.equal(result.checked, 1);
-      assert.equal(lookupCount, 1);
+      assert.equal(lookupCount, 2, "exactly two intercepted read-only lookups");
     } finally {
       globalThis.fetch = priorFetch;
     }
