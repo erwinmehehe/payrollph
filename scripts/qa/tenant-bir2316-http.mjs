@@ -182,8 +182,21 @@ async function seed() {
       },
     };
   });
-  const separations = await db.insert(s.separationRecords).values(separationValues).returning();
-  const rows = separations.map((separation,i) => ({
+  // Insert real, incomplete draft rows before the approved fictional sources.
+  // A victim-only id > 6 must come from PostgreSQL persisted records; never
+  // fabricate an ID, skip a sequence, or count a draft as a positive 2316.
+  const draftFillers = [0, 1, 0].map(index => ({
+    organizationId: workers[index].organizationId, employeeId: workers[index].id,
+    separationType: "resignation", noticeDate: "2025-11-01",
+    lastDay: "2025-11-30", status: "draft",
+  }));
+  const separations = await db.insert(s.separationRecords)
+    .values([...draftFillers, ...separationValues]).returning();
+  check(separations.length === 8 && separations.slice(0, 3)
+    .every((row, index) => row.status === "draft" &&
+      row.organizationId === draftFillers[index].organizationId),
+    "Three real draft PostgreSQL rows precede every released 2316 source");
+  const rows = separations.slice(draftFillers.length).map((separation,i) => ({
     ...separation, entityId: workerTemplates[i].entity.id,
     employeeNo: workers[i].employeeNo, marker: workerTemplates[i].marker,
   }));
