@@ -227,8 +227,35 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 352, "Keep all 352 unverified API method gaps after separate BIR and vault proofs");
-  assert.equal(manifest.metrics.coveredAfter, 131, "Count exact linked PG16 BIR and vault method proofs without treating GAPs as successes");
+  assert.equal(manifest.metrics.gap, 351, "Keep 351 unverified API method gaps; group reports require exact-head flagged-mode proof");
+  assert.equal(manifest.metrics.coveredAfter, 132, "Count exact linked PG16 BIR, vault and group-report proof without promoting other gaps");
+});
+
+test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
+  const path = "src/app/api/multi-entity/reports/route.ts";
+  const method = manifest.allApiRouteFiles[path].methods.find(item => item.name === "GET");
+  assert.equal(method?.status, "COVERED");
+  assert.equal(method.testedBy?.file, "scripts/multi-entity-synthetic-browser.mjs");
+  const proof = method.testedBy;
+  assert.match(evidenceLine(proof.file, proof.ownPositiveLine, "group own GET"),
+    /const ownReport = await request\\(caller, on, "\/api\/multi-entity\/reports/);
+  assert.match(evidenceLine(proof.file, proof.foreignDenialLine, "group foreign GET"),
+    /const deniedVictim = await request\\(caller, on, "\/api\/multi-entity\/reports/);
+  const harness = readFileSync(proof.file, "utf8");
+  assert.match(harness, /"entity-attacker-b@example\\.test"/);
+  assert.match(harness, /"entity-attacker-c@example\\.test"/);
+  assert.match(harness, /bVictims\\.rows\\.length >= 5/);
+  assert.match(harness, /assert\\.equal\\(ownReport\\.status, 200/);
+  assert.match(harness, /assert\\.equal\\(deniedVictim\\.status, 403/);
+  assert.match(harness, /assert\\.equal\\(refused\\.status, 409/);
+  assert.match(harness, /assert\\.deepEqual\\(intact\\.rows, untouchedVictim\\.rows/);
+  const route = readFileSync(path, "utf8");
+  assert.match(route, /groupReportHasUnattributedRows/);
+  assert.match(route, /ENTITY_ATTRIBUTION_REQUIRED/);
+  const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
+  assert.match(workflow, /MULTI_ENTITY_ENABLED: "true"/);
+  assert.match(workflow, /node scripts\/multi-entity-synthetic-browser\\.mjs/);
+  // These source pins never replace executed CI and independent security review.
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
