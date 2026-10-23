@@ -26,7 +26,13 @@ function fixture(overrides: Partial<PreRunReadinessInput> = {}): PreRunReadiness
     scheduleOverrides: [],
     scheduleSwaps: [],
     periodConflict: null,
-    ruleWatch: [],
+    ruleWatch: [
+      item("sss", "current"),
+      item("philhealth", "current"),
+      item("pagibig", "current"),
+      item("bir-withholding", "current"),
+      item("wage-orders", "current"),
+    ],
     ...overrides,
   };
 }
@@ -62,7 +68,8 @@ test("all four actually used null-verification statutory families block before c
 
 test("review-due, overdue update and uncovered rule pack have distinct blocking finding codes", () => {
   const rules = [item("sss", "review-due"), item("philhealth", "update-overdue"),
-    item("pagibig", "no-coverage"), item("bir-withholding", "current")];
+    item("pagibig", "no-coverage"), item("bir-withholding", "current"),
+    item("wage-orders", "current")];
   const result = evaluatePayrollPreRunReadiness(fixture({ ruleWatch: rules }));
   assert.deepEqual(result.findings.map(f => f.code), [
     "PRERUN_STATUTORY_REVIEW_DUE",
@@ -72,6 +79,17 @@ test("review-due, overdue update and uncovered rule pack have distinct blocking 
   assert.ok(result.findings.every(f => f.blocking));
   assert.ok(!has(fixture({ employees: [], ruleWatch: rules }), "PRERUN_STATUTORY_REVIEW_DUE"),
     "rule status for an empty cohort is not incorrectly attributed to workers");
+});
+
+test("missing or duplicate statutory rule-watch records fail closed for populated runs", () => {
+  const fullWatch = fixture().ruleWatch;
+  const missing = fixture({ ruleWatch: fullWatch.filter(item => item.family !== "sss") });
+  const duplicate = fixture({ ruleWatch: [...fullWatch, item("pagibig", "current")] });
+  assert.equal(evaluatePayrollPreRunReadiness(missing).ready, false);
+  assert.ok(has(missing, "PRERUN_STATUTORY_WATCH_INCOMPLETE"));
+  assert.ok(has(duplicate, "PRERUN_STATUTORY_WATCH_INCOMPLETE"));
+  assert.equal(evaluatePayrollPreRunReadiness(duplicate).summary.blocking, 1);
+  assert.ok(!has(fixture({ employees: [], ruleWatch: [] }), "PRERUN_STATUTORY_WATCH_INCOMPLETE"));
 });
 
 test("missing pay profile and missing legal-entity attribution are per-employee findings", () => {

@@ -63,9 +63,10 @@ const BLOCKING_STATUSES: Partial<Record<RuleWatchStatus, string>> = {
   "update-overdue": "PRERUN_STATUTORY_UPDATE_OVERDUE",
   "no-coverage": "PRERUN_STATUTORY_NO_COVERAGE",
 };
-const USED_STATUTORY_FAMILIES = new Set([
+const REQUIRED_STATUTORY_FAMILIES = [
   "sss", "philhealth", "pagibig", "bir-withholding", "wage-orders",
-]);
+] as const;
+const USED_STATUTORY_FAMILIES = new Set<string>(REQUIRED_STATUTORY_FAMILIES);
 
 function isoDay(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -123,6 +124,18 @@ export function evaluatePayrollPreRunReadiness(input: PreRunReadinessInput): Pay
   // The payroll engine resolves these four packs on every populated run, even
   // when a particular employee's resulting statutory deduction is zero.
   if (employees.length) {
+    // A missing or duplicated watch item is NOT equivalent to an official
+    // verification. Otherwise a partial upstream read could silently authorize
+    // calculation with an unexamined statutory table.
+    for (const family of REQUIRED_STATUTORY_FAMILIES) {
+      const matching = ruleWatch.filter(item => item.family === family);
+      if (matching.length !== 1) {
+        add("PRERUN_STATUTORY_WATCH_INCOMPLETE",
+          "Statutory verification evidence unavailable",
+          family + " must have exactly one rule-watch record; found " +
+            matching.length + ". Restore complete source evidence before calculation.");
+      }
+    }
     for (const item of ruleWatch) {
       if (!USED_STATUTORY_FAMILIES.has(item.family)) continue;
       const code = BLOCKING_STATUSES[item.status];
