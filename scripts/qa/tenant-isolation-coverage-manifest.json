@@ -26040,9 +26040,9 @@
           "reason": "Provisional exact-method real HTTPS + PG16 own success, higher-ID foreign victim 403, same-tenant ungranted employer 403, forged selector and revoked-grant denial; independent CI/security review still required",
           "testedBy": {
             "file": "scripts/qa/tenant-bir2316-http.mjs",
-            "line": 246,
-            "ownPositiveLine": 246,
-            "foreignDenialLine": 271,
+            "line": 259,
+            "ownPositiveLine": 259,
+            "foreignDenialLine": 284,
             "scope": "Disposable PG16/HTTPS with two independently logged-in attacker organizations, own content/PDF success, real victim data and audit snapshots"
           }
         }
@@ -33922,9 +33922,9 @@
           "reason": "Provisional exact-method real HTTPS + PG16 own success, higher-ID foreign victim 403, same-tenant ungranted employer 403, forged selector and revoked-grant denial; independent CI/security review still required",
           "testedBy": {
             "file": "scripts/qa/tenant-bir2316-http.mjs",
-            "line": 253,
-            "ownPositiveLine": 253,
-            "foreignDenialLine": 273,
+            "line": 266,
+            "ownPositiveLine": 266,
+            "foreignDenialLine": 286,
             "scope": "Disposable PG16/HTTPS with two independently logged-in attacker organizations, own content/PDF success, real victim data and audit snapshots"
           }
         },
@@ -33935,11 +33935,11 @@
           "reason": "Provisional exact-method real HTTPS + PG16 own success, higher-ID foreign victim 403, same-tenant ungranted employer 403, forged selector and revoked-grant denial; independent CI/security review still required",
           "testedBy": {
             "file": "scripts/qa/tenant-bir2316-http.mjs",
-            "line": 260,
-            "ownPositiveLine": 260,
-            "foreignDenialLine": 275,
+            "line": 273,
+            "ownPositiveLine": 273,
+            "foreignDenialLine": 288,
             "scope": "Disposable PG16/HTTPS with two independently logged-in attacker organizations, own content/PDF success, real victim data and audit snapshots",
-            "unchangedDbLine": 343
+            "unchangedDbLine": 356
           }
         }
       ],
