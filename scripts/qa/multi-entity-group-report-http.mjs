@@ -100,6 +100,37 @@ export async function verifyMultiEntityReportTenantIsolation({
     const restored = await request(group, on, "/api/multi-entity/reports?organizationId=1");
     assert.equal(restored.status, 200, "Valid own report restores after the fictional corrupt row is removed");
     assert.equal(restored.data?.totals?.headcount, 2);
+
+    // Released-run monetary aggregates must refuse the same wrong-employer
+    // reference. Alter only a fictional *draft* row in disposable PostgreSQL;
+    // never call a release endpoint, worker, bank, provider or payout.
+    const originalDraft = await database.query(
+      "SELECT id, legal_entity_id, status, gross_pay, net_pay FROM payroll_runs WHERE organization_id = $1 AND period_label = $2",
+      [1, "Alpha employer draft"],
+    );
+    assert.equal(originalDraft.rows.length, 1);
+    const run = originalDraft.rows[0];
+    assert.equal(run.status, "Draft");
+    try {
+      const written = await database.query(
+        "UPDATE payroll_runs SET legal_entity_id = $1, status = $2, gross_pay = $3, net_pay = $4 WHERE id = $5 AND organization_id = $6",
+        [foreignEntity.rows[0].id, "Released", "1234.56", "1000.00", run.id, 1],
+      );
+      assert.equal(written.rowCount, 1);
+      const refusedReleasedRun = await request(group, on, "/api/multi-entity/reports?organizationId=1");
+      assert.equal(refusedReleasedRun.status, 409, "Foreign Released-run money cannot disappear from group totals");
+      assert.equal(refusedReleasedRun.data?.code, "ENTITY_ATTRIBUTION_REQUIRED");
+      assert.ok(!JSON.stringify(refusedReleasedRun.data).includes("1234.56"));
+    } finally {
+      await database.query(
+        "UPDATE payroll_runs SET legal_entity_id = $1, status = $2, gross_pay = $3, net_pay = $4 WHERE id = $5 AND organization_id = $6",
+        [run.legal_entity_id, run.status, run.gross_pay, run.net_pay, run.id, 1],
+      );
+    }
+    const afterReleasedTest = await request(group, on, "/api/multi-entity/reports?organizationId=1");
+    assert.equal(afterReleasedTest.status, 200);
+    assert.equal(afterReleasedTest.data?.totals?.gross, "0.00");
+
     checks.push("Non-null foreign employer attribution now fails closed with HTTP 409, then restores own report");
   } finally {
     await database.end();
