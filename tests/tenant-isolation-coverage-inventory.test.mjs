@@ -235,7 +235,7 @@ test("group reports use three genuine tenant readers and refuse foreign legal em
   const path = "src/app/api/multi-entity/reports/route.ts";
   const method = manifest.allApiRouteFiles[path].methods.find(item => item.name === "GET");
   assert.equal(method?.status, "COVERED");
-  assert.equal(method.testedBy?.file, "scripts/multi-entity-synthetic-browser.mjs");
+  assert.equal(method.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
   const proof = method.testedBy;
   assert.match(evidenceLine(proof.file, proof.ownPositiveLine, "group own GET"),
     /const ownReport = await request\(caller, on, "\/api\/multi-entity\/reports/);
@@ -254,6 +254,9 @@ test("group reports use three genuine tenant readers and refuse foreign legal em
   const route = readFileSync(path, "utf8");
   assert.match(route, /groupReportHasUnattributedRows/);
   assert.match(route, /ENTITY_ATTRIBUTION_REQUIRED/);
+  const runner = readFileSync("scripts/multi-entity-synthetic-browser.mjs", "utf8");
+  assert.match(runner, /verifyMultiEntityReportTenantIsolation\(/);
+  assert.match(runner, /\.\/qa\/multi-entity-group-report-http\.mjs/);
   const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
   assert.match(workflow, /MULTI_ENTITY_ENABLED: "true"/);
   assert.match(workflow, /node scripts\/multi-entity-synthetic-browser\.mjs/);
