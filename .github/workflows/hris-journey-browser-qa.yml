@@ -210,8 +210,10 @@ jobs:
           # never fixture employee identities, cookies, SQL values or full stacks.
           if [ -f /tmp/hris-journey-local.log ]; then
             grep -Ei 'Error:|error code|relation .* does not exist|column .* does not exist|digest:|Cannot|TypeError:' /tmp/hris-journey-local.log |
-              sed -E 's#postgres(ql)?://[^[:space:]]+#postgresql://[redacted]#g; s/[A-Za-z0-9_-]{40,}/[redacted]/g' |
-              tail -n 60 || true
+              # Avoid hiding a long symbolic error code, while masking real
+              # URLs, secrets, hashes, and quoted test-record values.
+              sed -E 's#postgres(ql)?://[^[:space:]]+#postgresql://[redacted]#g; s/(password|token|secret|cookie|authorization)[=:][^[:space:]]+/[redacted-key]/Ig; s/[0-9a-fA-F]{64,}/[redacted-hex]/g; s/[A-Za-z0-9_+-]{96,}/[redacted-long]/g' |
+              cut -c1-240 | tail -n 60 || true
           fi
       - name: Add fictional self-serve owner after HRIS acceptance
         run: npx tsx scripts/first-payroll-mobile-synthetic-fixture.ts
