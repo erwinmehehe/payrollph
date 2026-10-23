@@ -40,10 +40,17 @@ does not activate the correction. Payroll engine calculations are unchanged.
   money database. Some preexisting tests require the literal `/app_db` name;
   this run is NOT a full-suite PASS. Exact-head Linux regression remains
   required. The three database-name failures passed in a six-test rerun against
-  disposable `app_db`, and the full command was restarted there. The initial
+  disposable `app_db`. The complete TypeScript phase there finished with 4,888
+  passes, 47 skips and one historical coverage-counter assertion, which was
+  fixed and passed its six-test focused rerun. The initial
   inventory drift was resolved by exact source/method proof links after HTTP
-  execution; 61 inventory/closure guards passed. Those are bookkeeping checks,
-  not substitutes for HTTP behavior; no remaining gap was waived.
+  execution; 71 inventory/closure guards passed. Those are bookkeeping checks,
+  not substitutes for HTTP behavior; no remaining gap was waived. The full
+  Windows `.mjs` inventory additionally exposed the existing Bash-path,
+  executable lookup and `O_NOFOLLOW` portability failures. A shifted registry
+  citation was corrected by appending the new flag without moving old entries;
+  its four checklist tests pass. No Windows portability guard was relaxed and
+  no clean complete Windows-suite PASS is claimed.
 
 ## Required real HTTP proof
 

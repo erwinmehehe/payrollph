@@ -6,12 +6,6 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
-  exactPayrollApprovalLinks: {
-    env: "EXACT_PAYROLL_APPROVAL_LINKS_ENABLED",
-    owner: "Payroll / Security",
-    risk: "Bind recalculation and input-change approval invalidation to exact employer/run identity rather than display-text prefixes",
-    approval: "Executed exact-FK/legacy-token tests, default-off parity, PG16 real-HTTP unrelated-run and unchanged-victim proof; no production activation",
-  },
   firstPayrollConnected: {
     env: "FIRST_PAYROLL_CONNECTED_ENABLED",
     owner: "Payroll / Onboarding",
@@ -417,6 +411,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Security / Philippine Payroll Compliance / Product",
     risk: "Opt-in explanatory UI for fail-closed statutory calendar and payment-proof unavailable states; authorization and source validation remain unconditional",
     approval: "Default-off parity on desktop and 390px, fail-closed wrong-employer/partial reads, source-pinned PG16 test, independent security and payroll acceptance",
+  },
+  exactPayrollApprovalLinks: {
+    env: "EXACT_PAYROLL_APPROVAL_LINKS_ENABLED",
+    owner: "Payroll / Security",
+    risk: "Bind recalculation and input-change approval invalidation to exact employer/run identity rather than display-text prefixes",
+    approval: "Executed exact-FK/legacy-token tests, default-off parity, PG16 real-HTTP unrelated-run and unchanged-victim proof; no production activation",
   },
 } as const;
 
