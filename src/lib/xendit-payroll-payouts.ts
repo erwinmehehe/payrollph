@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 
 export const XENDIT_PAYROLL_API_VERSION = "2025-09-01";
 const XENDIT_PAYOUT_ENDPOINT = "https://api.xendit.co/v3/payouts";
@@ -271,5 +272,9 @@ export async function getXenditPayrollPayout(
     cache: "no-store",
   });
   if (!response.ok) throw new Error(`Xendit payout reconciliation returned HTTP ${response.status}.`);
-  return normalizeXenditPayout(await response.json().catch(() => null), expected);
+  const payout = normalizeXenditPayout(await response.json().catch(() => null), expected);
+  if (criticalReleaseFlagEnabled("xenditReconciliationIdentity", env) && payout.payoutId !== payoutId) {
+    throw new Error("XENDIT_RECONCILIATION_PAYOUT_ID_MISMATCH: Provider lookup returned a different payout; investigate before linking or settling.");
+  }
+  return payout;
 }
