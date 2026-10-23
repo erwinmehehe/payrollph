@@ -799,7 +799,7 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(suite, /assert\.equal\(refusedReleasedRun\.status, 409,/);
         assert.match(suite, /assert\.deepEqual\(intact\.rows, untouchedVictim\.rows,/);
         assert.match(suite, /assert\.equal\(restored\.status, 200,/);
-        assert.match(suite, /assert\.equal\(afterReleasedTest\.status, 200,/);
+        assert.match(suite, /assert\.equal\(afterReleasedTest\.status, 200\);/);
         const browser = readFileSync("scripts/multi-entity-synthetic-browser.mjs", "utf8");
         assert.match(browser, /import \{ verifyMultiEntityReportTenantIsolation \} from "\.\/qa\/multi-entity-group-report-http\.mjs"/);
         assert.match(browser, /await verifyMultiEntityReportTenantIsolation\(\{/);
