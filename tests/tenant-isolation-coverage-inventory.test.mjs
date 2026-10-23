@@ -701,6 +701,74 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(script, /noVictimResponse\(foreign/, "Foreign response must be checked for leaked identity");
         continue;
       }
+      // BIR 2316: only these three independently executed HTTPS/PG16 document
+      // methods may use helper-built paths instead of literal "/api" URLs at
+      // each source line. Preserve the generic route-fragment guard for ALL
+      // other proof suites and require actual owned responses, not just 403.
+      if (proof?.file === "scripts/qa/tenant-bir2316-http.mjs") {
+        const specs = {
+          "GET separation/[id]/2316": ["ownDraft", "foreignDraft", 259, 284],
+          "GET year-end/2316-certificate": ["ownSource", "foreignSource", 266, 286],
+          "POST year-end/2316-certificate": ["ownPdf", "foreignPdf", 273, 288],
+        };
+        const key = method.name + " " + entry.route;
+        const expected = specs[key];
+        assert.ok(expected, key + ": BIR proof cannot authorize unrelated routes");
+        assert.ok([
+          "src/app/api/separation/[id]/2316/route.ts",
+          "src/app/api/year-end/2316-certificate/route.ts",
+        ].includes(path), key + ": only reviewed 2316 document endpoints qualify");
+        assert.deepEqual([
+          proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+          proof.unchangedDbLine ?? null,
+        ], [expected[2], expected[2], expected[3],
+          method.name === "POST" ? 356 : null],
+        key + ": method-specific HTTP line pins changed without review");
+        const integration = readFileSync(proof.file, "utf8");
+        const lines = integration.split("\n");
+        const own = evidenceLine(proof.file, proof.ownPositiveLine, key + " own");
+        const foreign = evidenceLine(proof.file, proof.foreignDenialLine, key + " victim");
+        assert.ok(own.includes("const " + expected[0] + " = expectStatus(await request("),
+          key + ": real authenticated own HTTP request required");
+        assert.ok(foreign.includes("const " + expected[1] + " = expectStatus(await request("),
+          key + ": real victim-only HTTP denial required");
+        const span = n => lines.slice(n - 1, n + 9).join("\n");
+        assert.match(span(proof.ownPositiveLine), /\)\s*,\s*200\s*,/,
+          key + ": owned 2316 text/source/PDF must succeed, not return empty denial");
+        assert.match(span(proof.foreignDenialLine), /\)\s*,\s*403\s*,/,
+          key + ": real high-ID foreign victim must be rejected");
+        assert.match(integration, /function sourcePath\(row\)/);
+        assert.match(integration, /"\/api\/year-end\/2316-certificate\?organizationId="/);
+        assert.match(integration, /function draftPath\(row\)/);
+        assert.match(integration, /"\/api\/separation\/" \+ row\.id \+ "\/2316"/);
+        assert.match(integration, /for \(const idx of \[0, 1\]\)/);
+        assert.match(integration, /rows\[4\]\.id > 6 && rows\[4\]\.id > rows\[0\]\.id && rows\[4\]\.id > rows\[1\]\.id/);
+        assert.match(integration, /const draftFillers = \[0, 1, 0\]/);
+        assert.match(integration, /values\(\[\.\.\.draftFillers, \.\.\.separationValues\]\)/);
+        assert.match(integration, /const victimBefore = await snapshotVictim/);
+        assert.match(integration, /assert\.deepEqual\(victimAfter, victimBefore/);
+        assert.match(integration, /Revoked historical employer grant denies existing signed-in/);
+        assert.match(integration, /Transferred employee retains original frozen employer/);
+        assert.match(integration, /PAYMONGO_DISBURSEMENTS_ENABLED, "false"/);
+        assert.match(integration, /XENDIT_PAYOUTS_ENABLED, "false"/);
+        const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
+        assert.match(workflow, /run: npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/,
+          key + ": evidence must execute in isolated multi-entity HTTPS/PG16 CI");
+        assert.match(workflow, /MULTI_ENTITY_QA_MODE: synthetic-postgres-only/);
+        assert.match(workflow, /DATABASE_URL: postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db/);
+        if (method.name === "POST") {
+          assert.match(span(proof.ownPositiveLine), /method: "POST"/,
+            "Must generate real unsigned PDF, not a GET labeled as POST");
+          assert.match(span(proof.foreignDenialLine), /method: "POST"/,
+            "Foreign victim must be denied on actual POST");
+          const invariant = evidenceLine(proof.file, proof.unchangedDbLine, key + " victim snapshot");
+          assert.match(invariant, /assert\.deepEqual\(victimAfter, victimBefore/,
+            key + ": foreign/forged PDF request cannot mutate victim SQL/audit");
+          assert.match(integration, /"[%]PDF"|=== "%PDF"/,
+            "Owned POST must validate returned PDF bytes");
+        }
+        continue;
+      }
       // New method credits must be bound to an explicitly reviewed endpoint,
       // real two-attacker HTTP runner, exact request/status lines, and a
       // persisted victim-before/after assertion for mutating methods. Do not
