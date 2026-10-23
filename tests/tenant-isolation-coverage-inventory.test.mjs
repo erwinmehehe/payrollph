@@ -238,23 +238,23 @@ test("group reports use three genuine tenant readers and refuse foreign legal em
   assert.equal(method.testedBy?.file, "scripts/multi-entity-synthetic-browser.mjs");
   const proof = method.testedBy;
   assert.match(evidenceLine(proof.file, proof.ownPositiveLine, "group own GET"),
-    /const ownReport = await request\\(caller, on, "\/api\/multi-entity\/reports/);
+    /const ownReport = await request\(caller, on, "\/api\/multi-entity\/reports/);
   assert.match(evidenceLine(proof.file, proof.foreignDenialLine, "group foreign GET"),
-    /const deniedVictim = await request\\(caller, on, "\/api\/multi-entity\/reports/);
+    /const deniedVictim = await request\(caller, on, "\/api\/multi-entity\/reports/);
   const harness = readFileSync(proof.file, "utf8");
-  assert.match(harness, /"entity-attacker-b@example\\.test"/);
-  assert.match(harness, /"entity-attacker-c@example\\.test"/);
-  assert.match(harness, /bVictims\\.rows\\.length >= 5/);
-  assert.match(harness, /assert\\.equal\\(ownReport\\.status, 200/);
-  assert.match(harness, /assert\\.equal\\(deniedVictim\\.status, 403/);
-  assert.match(harness, /assert\\.equal\\(refused\\.status, 409/);
-  assert.match(harness, /assert\\.deepEqual\\(intact\\.rows, untouchedVictim\\.rows/);
+  assert.match(harness, /"entity-attacker-b@example\.test"/);
+  assert.match(harness, /"entity-attacker-c@example\.test"/);
+  assert.match(harness, /bVictims\.rows\.length >= 5/);
+  assert.match(harness, /assert\.equal\(ownReport\.status, 200/);
+  assert.match(harness, /assert\.equal\(deniedVictim\.status, 403/);
+  assert.match(harness, /assert\.equal\(refused\.status, 409/);
+  assert.match(harness, /assert\.deepEqual\(intact\.rows, untouchedVictim\.rows/);
   const route = readFileSync(path, "utf8");
   assert.match(route, /groupReportHasUnattributedRows/);
   assert.match(route, /ENTITY_ATTRIBUTION_REQUIRED/);
   const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
   assert.match(workflow, /MULTI_ENTITY_ENABLED: "true"/);
-  assert.match(workflow, /node scripts\/multi-entity-synthetic-browser\\.mjs/);
+  assert.match(workflow, /node scripts\/multi-entity-synthetic-browser\.mjs/);
   // These source pins never replace executed CI and independent security review.
 });
 
