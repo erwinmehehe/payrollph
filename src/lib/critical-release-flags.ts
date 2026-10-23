@@ -424,6 +424,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Duplicate correction request returns a conflict instead of an unhandled unique violation",
     approval: "Executed duplicate request, unchanged ledger and exact default-off parity; no production activation",
   },
+  xenditReconciliationIdentity: {
+    env: "XENDIT_RECONCILIATION_IDENTITY_ENABLED",
+    owner: "Treasury / Security",
+    risk: "Reject a read-only provider lookup whose returned payout ID differs from the requested transfer identity",
+    approval: "Executed exact-ID, mismatch and flag-off parity tests with synthetic provider responses; production activation separate",
+  },
 } as const;
 
 export type CriticalReleaseFlag = keyof typeof CRITICAL_RELEASE_FLAGS;

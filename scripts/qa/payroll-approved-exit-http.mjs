@@ -156,8 +156,11 @@ async function seedApprovedExitFixtureProfile(own, worker, suffix) {
   assert.equal(worker.organizationId, own.id, "EXIT_HTTP_PROFILE_CROSS_TENANT_REFUSED");
   assert.equal(worker.employeeNo, "EXIT-" + suffix.slice(0, 8), "EXIT_HTTP_PROFILE_ROSTER_UNVERIFIED");
   assert.equal(worker.basicRate, "22000.00", "EXIT_HTTP_PROFILE_RATE_DRIFT_REFUSED");
-  await db.insert(employeePayProfiles).values({
+  const [profile] = await db.insert(employeePayProfiles).values({
     employeeId: worker.id, organizationId: own.id, payBasis: "monthly",
     rateAmount: "22000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
-  });
+  }).returning();
+  assert.equal(profile.employeeId, worker.id);
+  assert.equal(profile.organizationId, own.id);
+  assert.equal(profile.rateAmount, "22000.00");
 }
