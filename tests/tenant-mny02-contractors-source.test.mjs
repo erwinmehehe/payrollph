@@ -71,11 +71,44 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
       assert.ok(foreignSpan.includes('method: "' + method + '"'));
     }
   }
+  // #1348 adds two distinct provisional underpayment HTTP/PG16 proofs on top
+  // of the six contractor/EWT proofs. Do not discard either proof set or
+  // silently credit unrelated methods when the provisional ledger changes.
+  const underpaymentFile = "scripts/qa/underpayment-posting-http.mjs";
+  const underpaymentSource = readFileSync(underpaymentFile, "utf8").split("\n");
+  const underpaymentMethods = manifest.allApiRouteFiles[
+    "src/app/api/payroll-underpayments/route.ts"]?.methods ?? [];
+  const creditedUnderpayments = underpaymentMethods.filter(method =>
+    method.testedBy?.file === underpaymentFile);
+  assert.deepEqual(creditedUnderpayments.map(method => method.name).sort(),
+    ["PATCH", "POST"], "Only two separately proven underpayment writes receive credit");
+  for (const [methodName, own, foreign] of [["POST", 136, 149], ["PATCH", 166, 155]]) {
+    const method = creditedUnderpayments.find(item => item.name === methodName);
+    assert.equal(method?.status, "COVERED");
+    assert.deepEqual([method.testedBy.line, method.testedBy.ownPositiveLine,
+      method.testedBy.foreignDenialLine, method.testedBy.forgedSelectorLine,
+      method.testedBy.unchangedDbLine], [own, own, foreign, foreign, 126],
+    methodName + ": source-pinned own, foreign and unchanged-victim evidence required");
+    assert.match(underpaymentSource[own - 1] ?? "",
+      methodName === "POST" ? /status\(await request\(/ : /const winner = replies\.find/);
+    assert.match(underpaymentSource[foreign - 1] ?? "", /await deny\(v,/);
+    assert.match(underpaymentSource[125] ?? "", /assert\.deepEqual\(await snapshot\(v\), before/);
+  }
+  const bir2316Methods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
+    .filter(method => method.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
+  assert.deepEqual(bir2316Methods.map(method => method.name).sort(), ["GET", "GET", "POST"],
+    "Exactly three distinct BIR 2316 document methods are separate from both underpayment and MNY-02 proofs");
+  assert.ok(bir2316Methods.every(method => method.status === "COVERED" &&
+    Number.isInteger(method.testedBy?.ownPositiveLine) &&
+    Number.isInteger(method.testedBy?.foreignDenialLine)));
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 148, 10, 335]);
-  assert.equal(manifest.metrics.coveredAfter - 3, 145,
-    "Preserve six independent MNY-02 methods from main; BIR2316 adds three more");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED/);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 150, 10, 333]);
+  assert.deepEqual([manifest.metrics.methods,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - bir2316Methods.length,
+    manifest.metrics.publicByDesign,
+    manifest.metrics.gap + creditedUnderpayments.length + bir2316Methods.length], [493, 145, 10, 338],
+  "Previous six-contractor MNY-02 baseline must remain accounted for separately");
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 333 API methods/);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {

@@ -444,7 +444,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
  * stable when new independently reviewed BIR method evidence is introduced.
  * Called by the real signed-in PG16 harness, never an acceptance bypass. */
 function verifyBir2316HistoricalGapBaseline(gaps) {
-  // Preserve the source-pinned main baseline (145 covered / 338 gaps) while
+  // Preserve current main's source-pinned baseline (147 covered / 336 gaps) while
   // crediting ONLY the three independently exercised BIR 2316 document methods.
   // A generic "three fewer gaps" subtraction is insufficient: require exact
   // GET/GET/POST identities and live own/victim evidence from their separate
@@ -474,8 +474,8 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
         "Unsigned PDF POST must leave the real victim database and audit untouched");
     }
   }
-  assert.equal(gaps.length + bir2316Methods.length, 338,
-    "Keep all 338 main GAPs except three exact source-pinned 2316 GET/GET/POST proofs");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length, 145,
-    "All 145 previous BIR/vault, MNY-01 and six MNY-02 credits remain intact");
+  assert.equal(gaps.length + bir2316Methods.length, 336,
+    "Preserve all 336 current main GAPs except three exact source-pinned 2316 GET/GET/POST proofs");
+  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length, 147,
+    "All 147 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
 }
