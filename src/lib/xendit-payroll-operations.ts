@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employees, payrollEntries, payrollRuns, payoutBatches, payoutProfiles } from "@/db/schema";
@@ -14,7 +14,7 @@ import {
 } from "@/lib/xendit-payroll-payouts";
 import {
   xenditPayoutLedger, claimNextXenditPayout, markXenditPayoutUnknown,
-  recordXenditPayoutObservation,
+  recordXenditPayoutObservation, type XenditPayoutLedgerRow,
 } from "@/lib/xendit-payout-ledger";
 import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
 
@@ -245,6 +245,60 @@ export async function submitXenditPayroll(run: PayrollRun, actor: string) {
   return { submitted, ledger, complete: ledger?.counts.prepared === 0 && ledger?.counts.unknown === 0 };
 }
 
+/**
+ * A reconciliation request is a provider READ, never a new payout. Persist a
+ * per-attempt receipt before every lookup, including failed/time-out lookups.
+ * Repeated operator requests remain traceable to the original transfer.
+ */
+async function auditedXenditPayoutLookup(input: {
+  run: PayrollRun;
+  actor: string;
+  row: XenditPayoutLedgerRow;
+  payoutId: string;
+  businessId: string;
+}) {
+  const attemptId = randomUUID();
+  const evidence = {
+    runId: input.run.id,
+    transferId: input.row.transferId,
+    referenceNumber: input.row.referenceNumber,
+    providerPayoutId: input.payoutId,
+    attemptId,
+    provider: "xendit",
+    moneyMovedByLinaw: false,
+  };
+  const base = {
+    organizationId: input.run.organizationId,
+    actor: input.actor,
+    resource: `payroll-run-${input.run.id}`,
+  };
+  await recordAuditEvent({
+    ...base, action: "Xendit payout read-only lookup initiated", metadata: evidence,
+  });
+  try {
+    const provider = await getXenditPayrollPayout(input.payoutId, {
+      referenceNumber: input.row.referenceNumber,
+      amountCents: input.row.amountCents,
+      businessId: input.businessId,
+    });
+    await recordAuditEvent({
+      ...base, action: "Xendit payout read-only lookup completed",
+      metadata: { ...evidence, providerStatus: provider.status },
+    });
+    return provider;
+  } catch (error) {
+    await recordAuditEvent({
+      ...base, action: "Xendit payout read-only lookup failed",
+      metadata: {
+        ...evidence,
+        error: error instanceof Error ? error.message.slice(0, 240) : "Provider lookup failed",
+        outcomeVerified: false,
+      },
+    });
+    throw error;
+  }
+}
+
 export async function reconcileXenditPayroll(run: PayrollRun, actor: string, cursor = 0) {
   if (!Number.isSafeInteger(cursor) || cursor < 0) throw new Error("Invalid reconciliation cursor.");
   const businessId = process.env.XENDIT_PAYOUT_BUSINESS_ID?.trim();
@@ -258,8 +312,8 @@ export async function reconcileXenditPayroll(run: PayrollRun, actor: string, cur
   const hasMore = queryable.some((row) => row.transferId > nextCursor);
   const updated: string[] = [];
   for (const row of page) {
-    const provider = await getXenditPayrollPayout(row.providerPayoutId!, {
-      referenceNumber: row.referenceNumber, amountCents: row.amountCents, businessId,
+    const provider = await auditedXenditPayoutLookup({
+      run, actor, row, payoutId: row.providerPayoutId!, businessId,
     });
     await recordXenditPayoutObservation({
       organizationId: run.organizationId, payrollRunId: run.id,
@@ -289,8 +343,8 @@ export async function resolveUnknownXenditPayroll(input: {
     throw new Error("Only an unresolved, unlinked Xendit payout can be manually matched.");
   }
   // This is read-only at the provider. A missing ID must never trigger a new payout.
-  const provider = await getXenditPayrollPayout(input.payoutId, {
-    referenceNumber: row.referenceNumber, amountCents: row.amountCents, businessId,
+  const provider = await auditedXenditPayoutLookup({
+    run: input.run, actor: input.actor, row, payoutId: input.payoutId, businessId,
   });
   await recordXenditPayoutObservation({
     organizationId: input.run.organizationId, payrollRunId: input.run.id,
