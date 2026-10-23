@@ -12,6 +12,12 @@ on:
       - "src/lib/payout-ledger-rules.ts"
       - "tests/payout-no-silent-retry.test.ts"
       - "src/lib/payout-ledger.ts"
+      - "src/lib/exporters.ts"
+      - "src/lib/filing-remittance-snapshot.ts"
+      - "src/app/api/webhooks/xendit-payout/route.ts"
+      - "tests/xendit-webhook-overlap-postgres.test.ts"
+      - "tests/bank-file-commit-integrity-postgres.test.ts"
+      - "tests/remittance-export-frozen-parity.test.ts"
       - "src/lib/xendit-payroll-operations.ts"
       - "src/lib/xendit-payout-ledger.ts"
       - "src/app/api/payroll-runs/**"
@@ -95,6 +101,9 @@ jobs:
           tests/paymongo-bank-file-http-race.test.ts
           tests/paymongo-disbursements.test.ts
           tests/payout-no-silent-retry.test.ts
+          tests/xendit-webhook-overlap-postgres.test.ts
+          tests/bank-file-commit-integrity-postgres.test.ts
+          tests/remittance-export-frozen-parity.test.ts
           tests/payroll-concurrent-approvals-http-pg.test.ts
           tests/xendit-payroll-ledger-integration.test.ts
           tests/payroll-lifecycle-safety.test.ts

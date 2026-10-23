@@ -37,7 +37,13 @@ test("final bank files and payslips are release-only", () => {
   assert.ok(route.includes('kind === "journal" && run.status !== "Released"'));
   assert.ok(exporter.includes('run.status !== "Released"'));
   assert.ok(exporter.includes("missingPaymentSnapshots"));
-  assert.ok(exporter.includes("Final bank file total does not match the released payroll net pay"));
+  // The exporter now rejects even a one-cent drift using exact integer cents.
+  assert.ok(exporter.includes("assertReleasedPayoutTotals({"));
+  assert.ok(exporter.includes("expectedNetPay: run.netPay"));
+  assert.ok(exporter.includes("amountsCents: registerCents"));
+  assert.ok(exporter.includes("payoutCentsFromNetPay(row.net_pay)"));
+  assert.ok(exporter.includes("combinedCents !== releasedCents"));
+  assert.ok(exporter.includes("PAYOUT_BANK_FILE_LEDGER_ALREADY_CLAIMED"));
 });
 
 test("pre-release UI can validate payout but cannot create a final bank file", () => {
