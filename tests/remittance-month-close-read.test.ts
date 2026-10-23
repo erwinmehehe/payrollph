@@ -104,7 +104,8 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
   // Pin the current ledger exactly: the two DL-01 vault methods now have
   // distinct synthetic PG16 proof links; eight further money-input methods
-  // have separate executed proof, while 344 methods remain GAP.
+  // have separate executed proof. PR #1353 separately adds three source-linked
+  // BIR 2316 real HTTPS/PG16 methods; the remaining 341 methods stay GAP.
   // This is provisional coverage; no production or global audit sign-off.
   for (const [vaultRoute, vaultMethod] of [
     ["src/app/api/employee-vault/route.ts", "GET"],
@@ -118,9 +119,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   }
   // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
   // PR #1325 contributes three other real HTTP proofs; never double-credit these.
-  assert.equal(manifest.metrics.coveredAfter, 139, "Preserve source-pinned main/BIR/vault plus eight executed money-input methods");
+  assert.equal(manifest.metrics.coveredAfter - 3, 139, "Preserve main/BIR/vault plus eight money-input methods; credit exactly three distinct BIR2316 proofs");
   assert.equal(manifest.metrics.publicByDesign, 10);
-  assert.equal(manifest.metrics.gap, 344, "Retain all unproven methods as GAP");
+  assert.equal(manifest.metrics.gap + 3, 344, "Retain all historical GAPs except three source-linked BIR2316 methods");
   // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
   // can only close GAPs if every method cites the corresponding isolated HTTP
   // suite, executed for both attacker employers against real victim rows.
@@ -197,9 +198,15 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     method.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs");
   assert.equal(moneyMethods.length, 8, "Only the separately executed eight money-input cases are additional credits");
   assert.ok(moneyMethods.every(method => method.status === "COVERED"));
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length, 129,
+  const bir2316Methods = (Object.values(manifest.allApiRouteFiles) as Array<{
+    methods: Array<{ status: string; testedBy?: { file: string } }>;
+  }>).flatMap(route => route.methods).filter(method =>
+    method.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
+  assert.equal(bir2316Methods.length, 3, "Only exact BIR2316 GET/GET/POST real HTTPS/PG16 proof is additional");
+  assert.ok(bir2316Methods.every(method => method.status === "COVERED"));
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - bir2316Methods.length, 129,
     "Keep all 129 independently source-pinned methods from current main including merged #1336 vault proofs");
-  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length, 354,
+  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + bir2316Methods.length, 354,
     "Never reduce merged-main's 354 open method GAPs without new source-linked real HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
