@@ -159,6 +159,54 @@ test("Xendit transport timeout leaves a durable uncertain outcome; lookup cannot
   }
 });
 
+test("mismatched provider lookup cannot link or settle an unknown payout; exact-ID recovery remains read-only", async () => {
+  const f = await fixture();
+  const originalFetch = globalThis.fetch;
+  const priorFlag = process.env.XENDIT_RECONCILIATION_IDENTITY_ENABLED;
+  process.env.XENDIT_RECONCILIATION_IDENTITY_ENABLED = "true";
+  let sends = 0;
+  let reads = 0;
+  let mismatch = true;
+  try {
+    globalThis.fetch = async (url, init) => {
+      if (String(url) === "https://api.xendit.co/v3/payouts" && init?.method === "POST") {
+        sends++;
+        throw new Error("Synthetic uncertain send; no external provider contacted");
+      }
+      assert.equal(String(url), "https://api.xendit.co/v3/payouts/" + payoutIdForRun(f.run.id));
+      assert.equal(new Request(String(url), init).method, "GET");
+      reads++;
+      return Response.json({ ...providerPayload(f.run.id, f.businessId, "SUCCEEDED"),
+        payout_id: mismatch ? "po-unrelated-synthetic-0001" : payoutIdForRun(f.run.id) });
+    };
+    assert.equal((await preflightXenditPayroll(f.run, "Synthetic operator")).ready, true);
+    await assert.rejects(submitXenditPayroll(f.run, "Synthetic operator"), /uncertain/);
+    const before = await xenditPayoutLedger(f.org.id, f.run.id);
+    assert.equal(before?.counts.unknown, 1);
+    const input = { run: f.run, actor: "Independent synthetic checker",
+      referenceNumber: `PAY-${f.run.id}-E001`, payoutId: payoutIdForRun(f.run.id) };
+    for (let i = 0; i < 2; i++) {
+      await assert.rejects(resolveUnknownXenditPayroll(input), /XENDIT_RECONCILIATION_PAYOUT_ID_MISMATCH/);
+      assert.deepEqual(await xenditPayoutLedger(f.org.id, f.run.id), before,
+        "Wrong-ID lookup/retry cannot change ledger identity, amount or settlement");
+    }
+    const evidence = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, f.org.id));
+    assert.equal(evidence.filter(row => row.action === "Xendit payout read-only lookup failed").length, 2);
+    assert.equal(evidence.filter(row => row.action === "Xendit unknown payout linked after provider read-only verification").length, 0);
+    mismatch = false;
+    const settled = await resolveUnknownXenditPayroll(input);
+    assert.equal(settled?.counts.succeeded, 1);
+    assert.equal(settled?.rows[0].providerPayoutId, payoutIdForRun(f.run.id));
+    assert.equal(reads, 3);
+    assert.equal(sends, 1, "All reconciliation attempts must be GET-only");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (priorFlag === undefined) delete process.env.XENDIT_RECONCILIATION_IDENTITY_ENABLED;
+    else process.env.XENDIT_RECONCILIATION_IDENTITY_ENABLED = priorFlag;
+    f.restore();
+  }
+});
+
 test("Xendit reconciliation advances across multiple provider pages without double-paying anyone", async () => {
   const f = await fixture();
   const previousFetch = globalThis.fetch;
