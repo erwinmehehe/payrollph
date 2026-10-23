@@ -14,9 +14,9 @@ const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 494 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 494, "494 actual methods including the independently proven pre-run GET");
-  assert.equal(manifest.metrics.gap, 338, "Retain every unverified GAP after six provisional MNY-02 proofs and the separate pre-run GET");
-  assert.equal(manifest.metrics.coveredAfter, 146, "Retain six MNY-02 method credits and the source-pinned pre-run GET");
+  assert.equal(manifest.metrics.methods, 494, "494 actual methods, including the source-pinned pre-run readiness GET");
+  assert.equal(manifest.metrics.gap, 336, "Retain unverified method GAPs after eight MNY-01, six MNY-02 and two underpayment proofs");
+  assert.equal(manifest.metrics.coveredAfter, 148, "Maintain BIR, vault, MNY-01, six MNY-02, two underpayment proofs and a protected pre-run GET");
   const workforceProof = readFileSync("scripts/qa/workforce-attendance-sweep-http.mjs", "utf8").split("\n");
   for (const [route, methods] of [
     ["src/app/api/workforce/attendance-exception-events/route.ts", ["GET","POST"]],

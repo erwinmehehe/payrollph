@@ -67,6 +67,58 @@ test("tenant isolation secondary worker fixtures seed pay profiles before positi
   assert.match(bank, /db\.insert\(employeePayProfiles\)\.values\(\{/);
 });
 
+test("multi-entity browser fixture creates verified tenant-bound pay profiles before UI testing", () => {
+  const fixture = readFileSync("scripts/multi-entity-synthetic-fixture.ts", "utf8");
+  assert.match(fixture, /process\.env\.MULTI_ENTITY_QA_MODE, "synthetic-postgres-only"/);
+  assert.match(fixture, /const seededEmployees = await db\.insert\(employees\)\.values\(\[/);
+  assert.match(fixture, /assert\.deepEqual\(\[tenantA\.id, tenantB\.id\], \[1, 2\]/);
+  assert.match(fixture, /employeeNo: "A-01", organizationId: tenantA\.id, rateAmount: "20000\.00"/);
+  assert.match(fixture, /employeeNo: "A-02", organizationId: tenantA\.id, rateAmount: "24000\.00"/);
+  assert.match(fixture, /employeeNo: "B-01", organizationId: tenantB\.id, rateAmount: "28000\.00"/);
+  assert.match(fixture, /worker\.organizationId, expected\.organizationId/);
+  assert.match(fixture, /worker\.basicRate, expected\.rateAmount/);
+  assert.match(fixture, /db\.insert\(employeePayProfiles\)\.values\(profiles\)/);
+  assert.match(fixture, /payBasis: "monthly"/);
+  assert.match(fixture, /standardWorkDaysPerMonth: "22"/);
+  assert.match(fixture, /standardHoursPerDay: "8"/);
+});
+
+test("approved-exit PostgreSQL HTTP fixture seeds only verified tenant-bound payroll profiles before real separation", () => {
+  const source = readFileSync("scripts/qa/payroll-approved-exit-http.mjs", "utf8");
+  assert.match(source, /assert\.equal\(process\.env\.CI, "true"\)/);
+  assert.match(source, /assert\.equal\(process\.env\.GITHUB_ACTIONS, "true"\)/);
+  assert.match(source, /assert\.equal\(database\.hostname, "127\.0\.0\.1"\)/);
+  assert.match(source, /assert\.equal\(database\.pathname, "\/app_db"\)/);
+  assert.match(source, /assert\.equal\(worker\.organizationId, own\.id, "EXIT_HTTP_PROFILE_CROSS_TENANT_REFUSED"\)/);
+  assert.match(source, /EXIT_HTTP_PROFILE_ROSTER_UNVERIFIED/);
+  assert.match(source, /assert\.equal\(worker\.basicRate, "22000\.00", "EXIT_HTTP_PROFILE_RATE_DRIFT_REFUSED"\)/);
+  assert.match(source, /db\.insert\(employeePayProfiles\)\.values\(\{/);
+  assert.match(source, /employeeId: worker\.id, organizationId: own\.id, payBasis: "monthly"/);
+  assert.match(source, /rateAmount: "22000\.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8"/);
+  const created = source.indexOf("const [worker] = await db.insert(employees)");
+  const invocation = source.indexOf("await seedApprovedExitFixtureProfile(own, worker, suffix);", created);
+  const post = source.indexOf('const ownCreate = expectStatus(await request("/api/separation", maker, "POST"', invocation);
+  const helper = source.indexOf("async function seedApprovedExitFixtureProfile(own, worker, suffix)");
+  const profile = source.indexOf("await db.insert(employeePayProfiles).values({", helper);
+  assert.ok(created >= 0 && invocation > created && post > invocation && helper > post && profile > helper,
+    "Verified synthetic pay profile must be seeded before HTTP separation without moving security proof lines");
+  // Source-line-pinned isolation inventory must keep its real HTTP positive/denial evidence.
+  const lines = source.split("\n");
+  assert.match(lines[64], /const ownCreate = expectStatus\(await request\("\/api\/separation"/);
+  assert.match(lines[70], /const ownRead = expectStatus\(await request\("\/api\/separation\?/);
+  assert.match(lines[73], /Foreign GET denied/);
+  assert.match(lines[74], /Foreign POST denied/);
+  assert.match(lines[75], /Foreign PATCH denied/);
+  assert.match(lines[77], /assert\.deepEqual\(afterForeign, beforeForeign/);
+  assert.match(lines[81], /Foreign payroll creation denied/);
+  assert.match(lines[83], /assert\.deepEqual\(payrollAfterForeign, payrollBeforeForeign/);
+  assert.match(lines[86], /Actual payroll API creates a draft/);
+  assert.match(lines[96], /Distinct checker approves owned package/);
+  assert.match(source, /const selfDenied = expectStatus/);
+  assert.match(source, /Foreign POST denied/);
+});
+
+
 
 test("HRIS integrated browser's three-person roster seeds reviewed fictional pay profiles explicitly", () => {
   const fixture = readFileSync("scripts/hcm-people-home-synthetic-fixture.ts", "utf8");
