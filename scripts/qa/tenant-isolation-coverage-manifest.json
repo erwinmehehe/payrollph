@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-22",
-  "acceptanceStatus": "NOT ACCEPTED: 352 API methods and 19 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 131 COVERED / 10 PUBLIC-BY-DESIGN / 352 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 352 methods and 19 page/action entries are GAP, not whole-system acceptance.",
+  "acceptanceStatus": "NOT ACCEPTED: 344 API methods and 19 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open.",
   "metrics": {
     "routeFiles": 290,
     "methods": 493,
     "coveredBefore": 20,
-    "coveredAfter": 131,
+    "coveredAfter": 139,
     "publicByDesign": 10,
-    "gap": 352,
+    "gap": 344,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -14649,36 +14649,64 @@
       "businessIds": []
     },
     "src/app/api/holidays/route.ts": {
-      "gitBlobSha": "e348143521547acfb4956d866c9ff4bb02a6f4be",
+      "gitBlobSha": "4735c6ce0ded298da3371741dd95216df229a8cd",
       "route": "holidays",
       "methods": [
         {
           "name": "GET",
-          "line": 128,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 129,
+          "status": "COVERED",
+          "reason": "Provisional PR #1339 real localhost HTTP/PG16 own success in two independent employers, actual high-ID victim denial, forged selectors and unchanged victim money/audit snapshots. Both release-flag states passed at 428b4c371; fresh exact-head CI remains required. Not whole-system acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-money-lifecycle-http.mjs",
+            "line": 190,
+            "ownPositiveLine": 190,
+            "foreignDenialLine": 192,
+            "unchangedDbLine": 126,
+            "forgedSelectorLine": 192
+          }
         },
         {
           "name": "POST",
-          "line": 190,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 191,
+          "status": "COVERED",
+          "reason": "Provisional PR #1339 real localhost HTTP/PG16 own success in two independent employers, actual high-ID victim denial, forged selectors and unchanged victim money/audit snapshots. Both release-flag states passed at 428b4c371; fresh exact-head CI remains required. Not whole-system acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-money-lifecycle-http.mjs",
+            "line": 177,
+            "ownPositiveLine": 177,
+            "foreignDenialLine": 193,
+            "unchangedDbLine": 126,
+            "forgedSelectorLine": 193
+          }
         },
         {
           "name": "PATCH",
-          "line": 295,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 296,
+          "status": "COVERED",
+          "reason": "Provisional PR #1339 real localhost HTTP/PG16 own success in two independent employers, actual high-ID victim denial, forged selectors and unchanged victim money/audit snapshots. Both release-flag states passed at 428b4c371; fresh exact-head CI remains required. Not whole-system acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-money-lifecycle-http.mjs",
+            "line": 196,
+            "ownPositiveLine": 196,
+            "foreignDenialLine": 194,
+            "unchangedDbLine": 126,
+            "forgedSelectorLine": 194
+          }
         },
         {
           "name": "DELETE",
-          "line": 421,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 422,
+          "status": "COVERED",
+          "reason": "Provisional PR #1339 real localhost HTTP/PG16 own success in two independent employers, actual high-ID victim denial, forged selectors and unchanged victim money/audit snapshots. Both release-flag states passed at 428b4c371; fresh exact-head CI remains required. Not whole-system acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-money-lifecycle-http.mjs",
+            "line": 199,
+            "ownPositiveLine": 199,
+            "foreignDenialLine": 195,
+            "unchangedDbLine": 126,
+            "forgedSelectorLine": 195
+          }
         }
       ],
       "employerSources": {
@@ -18677,29 +18705,50 @@
       ]
     },
     "src/app/api/payroll-earnings/route.ts": {
-      "gitBlobSha": "352d1bd2f9ab9daa7916cbdd00e456995524402e",
+      "gitBlobSha": "f329bf2434f4259f09f914132c5a77bb2b9bdafc",
       "route": "payroll-earnings",
       "methods": [
         {
           "name": "GET",
-          "line": 132,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 133,
+          "status": "COVERED",
+          "reason": "Provisional PR #1339 real localhost HTTP/PG16 own success in two independent employers, actual high-ID victim denial, forged selectors and unchanged victim money/audit snapshots. Both release-flag states passed at 428b4c371; fresh exact-head CI remains required. Not whole-system acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-money-lifecycle-http.mjs",
+            "line": 134,
+            "ownPositiveLine": 134,
+            "foreignDenialLine": 136,
+            "unchangedDbLine": 126,
+            "forgedSelectorLine": 136
+          }
         },
         {
           "name": "POST",
-          "line": 182,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 183,
+          "status": "COVERED",
+          "reason": "Provisional PR #1339 real localhost HTTP/PG16 own success in two independent employers, actual high-ID victim denial, forged selectors and unchanged victim money/audit snapshots. Both release-flag states passed at 428b4c371; fresh exact-head CI remains required. Not whole-system acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-money-lifecycle-http.mjs",
+            "line": 179,
+            "ownPositiveLine": 179,
+            "foreignDenialLine": 137,
+            "unchangedDbLine": 126,
+            "forgedSelectorLine": 137
+          }
         },
         {
           "name": "PATCH",
-          "line": 309,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 310,
+          "status": "COVERED",
+          "reason": "Provisional PR #1339 real localhost HTTP/PG16 own success in two independent employers, actual high-ID victim denial, forged selectors and unchanged victim money/audit snapshots. Both release-flag states passed at 428b4c371; fresh exact-head CI remains required. Not whole-system acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-money-lifecycle-http.mjs",
+            "line": 140,
+            "ownPositiveLine": 140,
+            "foreignDenialLine": 139,
+            "unchangedDbLine": 126,
+            "forgedSelectorLine": 139
+          }
         }
       ],
       "employerSources": {
@@ -19895,15 +19944,22 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/process/route.ts": {
-      "gitBlobSha": "b3aec4afe3e9931908fb9989f25be3c63fbffda0",
+      "gitBlobSha": "baced3312a5accaebc9991b3127e39aa5114601c",
       "route": "payroll-runs/[id]/process",
       "methods": [
         {
           "name": "POST",
-          "line": 15,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 16,
+          "status": "COVERED",
+          "reason": "Provisional PR #1339 real localhost HTTP/PG16 own success in two independent employers, actual high-ID victim denial, forged selectors and unchanged victim money/audit snapshots. Both release-flag states passed at 428b4c371; fresh exact-head CI remains required. Not whole-system acceptance.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-money-lifecycle-http.mjs",
+            "line": 263,
+            "ownPositiveLine": 263,
+            "foreignDenialLine": 259,
+            "unchangedDbLine": 126,
+            "forgedSelectorLine": 259
+          }
         }
       ],
       "employerSources": {

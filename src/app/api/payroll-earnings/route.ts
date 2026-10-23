@@ -9,6 +9,7 @@ import {
   supplementaryEarnings,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { approvalBelongsToPayrollRun } from "@/lib/payroll-approval-link";
 import { getSessionUser } from "@/lib/auth";
 import { isSharedBenefitPoolEarningType } from "@/lib/annualization";
 import {
@@ -115,7 +116,7 @@ async function invalidatePayrollRunsForSupplementaryChange(
       invalidated.push(updated.id);
 
       for (const task of tasks) {
-        if (!task.detail.includes(`Payroll run #${run.id}`)) continue;
+        if (!approvalBelongsToPayrollRun(task, run)) continue;
         if (task.status !== "Pending" && task.status !== "Approved") continue;
         await tx.update(approvalTasks).set({
           status: "Superseded",

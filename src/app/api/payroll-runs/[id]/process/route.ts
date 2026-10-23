@@ -11,6 +11,7 @@ import { loadAttendanceCutoffGate } from "@/lib/workforce-attendance-lock";
 import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
 import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { approvalBelongsToPayrollRun } from "@/lib/payroll-approval-link";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(_request);
@@ -117,7 +118,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       .from(approvalTasks)
       .where(eq(approvalTasks.organizationId, run.organizationId));
     const linkedApprovals = approvalRows
-      .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
+      .filter((task) => approvalBelongsToPayrollRun(task, run))
       .filter((task) => task.status === "Pending" || task.status === "Approved");
 
     const superseded: number[] = [];

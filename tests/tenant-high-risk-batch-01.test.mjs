@@ -206,9 +206,14 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     vaultSourcePinnedMethods++;
   }
   assert.equal(vaultSourcePinnedMethods, 2, "No partial or double-credited vault closeout");
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods, 124,
+  const moneyMethods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods)
+    .filter(m => m.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs");
+  assert.equal(moneyMethods.length, 8, "Only eight separately executed money-input methods are credited");
+  assert.ok(moneyMethods.every(m => m.status === "COVERED" && m.testedBy.ownPositiveLine &&
+    m.testedBy.foreignDenialLine && m.testedBy.unchangedDbLine && m.testedBy.forgedSelectorLine));
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length, 124,
     "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods, 359,
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
