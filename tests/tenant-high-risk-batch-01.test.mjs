@@ -211,9 +211,35 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(moneyMethods.length, 8, "Only eight separately executed money-input methods are credited");
   assert.ok(moneyMethods.every(m => m.status === "COVERED" && m.testedBy.ownPositiveLine &&
     m.testedBy.foreignDenialLine && m.testedBy.unchangedDbLine && m.testedBy.forgedSelectorLine));
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length, 124,
+  // Six additional MNY-02 contractor/EWT methods are separately counted only
+  // when their exact real HTTP own/foreign proof is pinned to this specific
+  // reviewed suite. Do not weaken or change the historical 124/359 baseline.
+  const contractorProof = "scripts/qa/tenant-mny02-contractors-http.mjs";
+  const contractorSource = readFileSync(contractorProof, "utf8").split("\n");
+  const contractorKeys = [
+    "GET contractors", "POST contractors", "PATCH contractors", "DELETE contractors",
+    "GET contractors/payments", "POST contractors/payments",
+  ];
+  assert.match(harness, /verifyMny02ContractorTenantIsolation\(f, \{ request, expectStatus \}\)/);
+  let contractorMethods = 0;
+  for (const key of contractorKeys) {
+    const method = methodsByKey.get(key);
+    assert.equal(method?.status, "COVERED", key + ": own/victim proof required");
+    assert.equal(method.testedBy?.file, contractorProof, key + ": cannot borrow unrelated proof");
+    const p = method.testedBy;
+    assert.match(contractorSource[p.ownPositiveLine - 1] ?? "", /expectStatus\(await request\(/,
+      key + ": executed own-employer success required");
+    assert.match(contractorSource[p.foreignDenialLine - 1] ?? "", /expectStatus\(await request\(/,
+      key + ": executed real foreign-employer denial required");
+    assert.match(contractorSource[p.unchangedDbLine - 1] ?? "",
+      /assert\.deepEqual\(await victimSnapshot\(victim\.id\), originalVictim/,
+      key + ": unchanged victim DB records required");
+    contractorMethods++;
+  }
+  assert.equal(contractorMethods, 6);
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods, 124,
     "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length, 359,
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
