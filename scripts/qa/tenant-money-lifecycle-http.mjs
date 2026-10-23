@@ -7,6 +7,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { assertMoneyProofTarget } from "./money-proof-target.mjs";
 
 assertMoneyProofTarget(process.env);
@@ -18,12 +19,46 @@ const base = process.env.MONEY_PROOF_URL;
 const receipts = [];
 const successes = [];
 const exactLinks = process.env.EXACT_PAYROLL_APPROVAL_LINKS_ENABLED === "true";
+// Optional local fixture diagnosis WITHOUT opening a listening socket. CI
+// never selects this adapter: its acceptance still requires real HTTP/auth.
+const direct = process.env.MONEY_PROOF_TRANSPORT === "direct-test-only";
+const require = createRequire(import.meta.url);
+let directUser;
+if (direct) {
+  assert.notEqual(process.env.CI, "true", "CI proof cannot use the local authentication adapter");
+  assert.notEqual(process.env.GITHUB_ACTIONS, "true", "GitHub acceptance must use real HTTP authentication");
+  assert.equal(process.env.NODE_ENV, "production", "Direct fixture diagnosis must still enforce MFA");
+  const authPath = require.resolve("../../src/lib/auth.ts");
+  const auth = require(authPath);
+  require.cache[authPath].exports = { ...auth, getSessionUser: async () => directUser };
+}
 let assertions = 0;
 function check(condition, label) { assert.ok(condition, label); assertions++; }
 async function request(path, cookie, method = "GET", body) {
-  const response = await fetch(new URL(path, base), { method, redirect: "manual", cache: "no-store",
+  const options = { method, redirect: "manual", cache: "no-store",
     headers: { cookie, origin: base, "sec-fetch-site": "same-origin", "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body) });
+    body: body === undefined ? undefined : JSON.stringify(body) };
+  let response;
+  if (direct) {
+    const raw = cookie.split("=")[1];
+    const identity = await pool.query(`SELECT u.*, s.mfa_verified_at, s.auth_method FROM users u
+      JOIN sessions s ON s.user_id=u.id WHERE s.token_hash=$1 AND s.expires_at>now()`,
+    [createHash("sha256").update(raw).digest("hex")]);
+    check(identity.rows.length === 1, "direct fixture identity exists");
+    const r = identity.rows[0];
+    directUser = { ...r, id: r.id, totpEnabled: r.totp_enabled, employeeId: r.employee_id,
+      mfaVerifiedAt: r.mfa_verified_at, authMethod: r.auth_method };
+    const routes = [
+      [/^\/api\/payroll-runs\/(\d+)\/(process|submit-review|release)$/, m => [`payroll-runs/[id]/${m[2]}`, { id: m[1] }]],
+      [/^\/api\/approvals\/(\d+)$/, m => ["approvals/[id]", { id: m[1] }]],
+      [/^\/api\/(payroll-earnings|payroll-underpayments|holidays)$/, m => [m[1], {}]],
+    ];
+    const pathname = new URL(path, base).pathname;
+    const found = routes.map(([pattern, route]) => { const m = pattern.exec(pathname); return m ? route(m) : null; }).find(Boolean);
+    assert.ok(found, "direct adapter allowlists only the reviewed money routes");
+    const handler = require(`../../src/app/api/${found[0]}/route.ts`)[method];
+    response = await handler(new Request(new URL(path, base), options), { params: Promise.resolve(found[1]) });
+  } else response = await fetch(new URL(path, base), options);
   const text = await response.text();
   let json; try { json = JSON.parse(text); } catch { json = null; }
   return { status: response.status, text, json, headers: [...response.headers] };
@@ -290,6 +325,7 @@ try {
   await mkdir("qa-artifacts", { recursive: true });
   await writeFile("qa-artifacts/tenant-money-lifecycle.json", JSON.stringify({ head: process.env.PR_HEAD_SHA ?? null,
     assertions, exactLinks, attackerOrganizations: [a.org.id, b.org.id], victimOrganizationId: v.org.id,
+    transport: direct ? "direct-handler-diagnosis-auth-adapter" : "real-http",
     successes, receipts, status: "PASS", scope: "partial MNY-01; no provider or production acceptance" }, null, 2));
-  console.log(`Money lifecycle PASS: ${assertions} assertions, ${receipts.length} denied requests with unchanged victim snapshots.`);
+  console.log(`Money lifecycle ${direct ? "direct diagnosis" : "HTTP"} PASS: ${assertions} assertions, ${receipts.length} denied requests with unchanged victim snapshots.`);
 } finally { await pool.end(); }
