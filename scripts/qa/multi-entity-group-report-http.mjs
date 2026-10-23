@@ -61,6 +61,61 @@ export async function verifyMultiEntityReportTenantIsolation({
     }
     checks.push("Three-tenant report own 200, two independent foreign 403 and real high-ID victim fixtures");
 
+    // #1332 installs composite tenant/employer FKs as NOT VALID: they stop
+    // new corrupt writes but do not retroactively verify older records.
+    // Prove the enforced FK first, then simulate a fictional legacy row only
+    // in disposable CI; the production schema and route remain untouched.
+    const injectHistoricalForeignEmployer = async ({ table, fkName, statement, values }) => {
+      assert.equal(process.env.GITHUB_ACTIONS, "true");
+      assert.equal(process.env.CI, "true");
+      assert.equal(process.env.MULTI_ENTITY_QA_MODE, "synthetic-postgres-only");
+      assert.equal(process.env.DATABASE_URL,
+        "postgresql://postgres:postgres@127.0.0.1:5432/app_db");
+      const { rows: [scope] } = await database.query(
+        "SELECT current_database() AS database_name, current_user AS database_user, " +
+        "current_setting('session_replication_role') AS trigger_mode",
+      );
+      assert.equal(scope.database_name, "app_db");
+      assert.equal(scope.database_user, "postgres");
+      assert.equal(scope.trigger_mode, "origin");
+      const { rows: [fk] } = await database.query(
+        "SELECT contype FROM pg_constraint WHERE conrelid = $1::regclass AND conname = $2",
+        ["public." + table, fkName],
+      );
+      assert.equal(fk?.contype, "f", "Expected the installed composite tenant/employer FK");
+
+      // Ordinary writes must fail with this exact enforced foreign key.
+      await database.query("BEGIN");
+      try {
+        await assert.rejects(
+          database.query(statement, values),
+          error => error?.code === "23503" && error?.constraint === fkName,
+          "Cross-tenant FK must reject a normal write",
+        );
+      } finally {
+        await database.query("ROLLBACK");
+      }
+
+      // Transaction-local test-only trigger bypass models pre-constraint
+      // historical data. It resets at COMMIT/ROLLBACK before any HTTP call.
+      // No ALTER TABLE, dropped FK, real payroll release or provider is used.
+      await database.query("BEGIN");
+      try {
+        await database.query("SET LOCAL session_replication_role = replica");
+        const changed = await database.query(statement, values);
+        assert.equal(changed.rowCount, 1, "Only one fictional legacy row may be staged");
+        await database.query("COMMIT");
+      } catch (error) {
+        await database.query("ROLLBACK");
+        throw error;
+      }
+      const { rows: [after] } = await database.query(
+        "SELECT current_setting('session_replication_role') AS trigger_mode",
+      );
+      assert.equal(after.trigger_mode, "origin",
+        "Normal FK and audit triggers must resume before real HTTP evidence");
+    };
+
     // Reproduce the non-null foreign legal-employer attribution defect using
     // a reversible *fictional* employee row. The old report silently dropped
     // this worker; the fixed report must refuse totals rather than undercount.
@@ -78,11 +133,11 @@ export async function verifyMultiEntityReportTenantIsolation({
     const untouchedVictim = await database.query(
       "SELECT id, organization_id, legal_entity_id, employee_no FROM employees WHERE organization_id = $1 ORDER BY id", [2]);
     try {
-      const changed = await database.query(
-        "UPDATE employees SET legal_entity_id = $1 WHERE id = $2 AND organization_id = $3 RETURNING id",
-        [foreignEntity.rows[0].id, targetEmployee.id, 1],
-      );
-      assert.equal(changed.rowCount, 1, "Synthetic cross-tenant FK attribution must really be written");
+      await injectHistoricalForeignEmployer({
+        table: "employees", fkName: "employees_tenant_employer_fk",
+        statement: "UPDATE employees SET legal_entity_id = $1 WHERE id = $2 AND organization_id = $3 RETURNING id",
+        values: [foreignEntity.rows[0].id, targetEmployee.id, 1],
+      });
       const refused = await request(group, on, "/api/multi-entity/reports?organizationId=1");
       assert.equal(refused.status, 409, "Foreign non-null entity reference cannot disappear from group totals");
       assert.equal(refused.data?.code, "ENTITY_ATTRIBUTION_REQUIRED");
@@ -112,11 +167,11 @@ export async function verifyMultiEntityReportTenantIsolation({
     const run = originalDraft.rows[0];
     assert.equal(run.status, "Draft");
     try {
-      const written = await database.query(
-        "UPDATE payroll_runs SET legal_entity_id = $1, status = $2, gross_pay = $3, net_pay = $4 WHERE id = $5 AND organization_id = $6",
-        [foreignEntity.rows[0].id, "Released", "1234.56", "1000.00", run.id, 1],
-      );
-      assert.equal(written.rowCount, 1);
+      await injectHistoricalForeignEmployer({
+        table: "payroll_runs", fkName: "payroll_runs_tenant_employer_fk",
+        statement: "UPDATE payroll_runs SET legal_entity_id = $1, status = $2, gross_pay = $3, net_pay = $4 WHERE id = $5 AND organization_id = $6",
+        values: [foreignEntity.rows[0].id, "Released", "1234.56", "1000.00", run.id, 1],
+      });
       const refusedReleasedRun = await request(group, on, "/api/multi-entity/reports?organizationId=1");
       assert.equal(refusedReleasedRun.status, 409, "Foreign Released-run money cannot disappear from group totals");
       assert.equal(refusedReleasedRun.data?.code, "ENTITY_ATTRIBUTION_REQUIRED");

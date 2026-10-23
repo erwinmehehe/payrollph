@@ -830,6 +830,19 @@ test("all credited proof links point to the claimed route and every recertified 
           /assert\.equal\(deniedVictim\.status, 403,/);
         assert.match(suite, /assert\.equal\(process\.env\.CI, "true"\)/);
         assert.match(suite, /assert\.equal\(process\.env\.MULTI_ENTITY_QA_MODE, "synthetic-postgres-only"\)/);
+        // #1332's enforced composite FKs must not be removed for a green test.
+        // The synthetic historical-row injector must remain disposable/transaction-local.
+        assert.match(suite, /assert\.equal\(process\.env\.GITHUB_ACTIONS, "true"\)/);
+        assert.match(suite, /postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db/);
+        assert.match(suite, /current_database\(\) AS database_name/);
+        assert.match(suite, /SELECT contype FROM pg_constraint/);
+        assert.match(suite, /employees_tenant_employer_fk/);
+        assert.match(suite, /payroll_runs_tenant_employer_fk/);
+        assert.match(suite, /assert\.rejects\(/);
+        assert.match(suite, /error\?\.code === "23503"/);
+        assert.match(suite, /SET LOCAL session_replication_role = replica/);
+        assert.match(suite, /await database\.query\("ROLLBACK"\)/);
+        assert.match(suite, /assert\.equal\(after\.trigger_mode, "origin"/);
         assert.match(suite, /bVictims\.rows\.length >= 5/);
         assert.match(suite, /"entity-attacker-b@example\.test"/);
         assert.match(suite, /"entity-attacker-c@example\.test"/);
