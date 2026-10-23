@@ -56,14 +56,38 @@ test("clean fictional cutoff is ready and uses the release AssuranceFinding wire
   assert.equal(finding.blocking, true);
 });
 
-test("all four actually used null-verification statutory families block before calculation", () => {
-  const watch = buildStatutoryRuleWatch("2026-10-23");
+test("all four synthetic unrecorded statutory families block before calculation", () => {
+  // Must remain valid after a reviewer eventually certifies the real packs.
+  // Never treat a future legitimate rule verification as a regression.
+  const watch = [
+    item("sss", "verification-unrecorded"),
+    item("philhealth", "verification-unrecorded"),
+    item("pagibig", "verification-unrecorded"),
+    item("bir-withholding", "verification-unrecorded"),
+    item("wage-orders", "current"),
+  ];
   const result = evaluatePayrollPreRunReadiness(fixture({ ruleWatch: watch }));
   const unverified = result.findings.filter(f => f.code === "PRERUN_STATUTORY_VERIFICATION_UNRECORDED");
   assert.equal(unverified.length, 4);
   assert.ok(unverified.every(f => f.blocking && f.severity === "high"));
   assert.equal(result.ready, false);
   assert.equal(result.summary.blocking, 4);
+});
+
+test("actual statutory watch is evaluated, never silently ignored", () => {
+  const watch = buildStatutoryRuleWatch("2026-10-23");
+  assert.equal(watch.length, 5, "All five watch families must remain represented");
+  const found = evaluatePayrollPreRunReadiness(fixture({ ruleWatch: watch }));
+  const mapping: Record<string, string> = {
+    "verification-unrecorded": "PRERUN_STATUTORY_VERIFICATION_UNRECORDED",
+    "review-due": "PRERUN_STATUTORY_REVIEW_DUE",
+    "update-overdue": "PRERUN_STATUTORY_UPDATE_OVERDUE",
+    "no-coverage": "PRERUN_STATUTORY_NO_COVERAGE",
+  };
+  const expected = watch.map(row => mapping[row.status]).filter(Boolean).sort();
+  const actual = found.findings.filter(row => row.code.startsWith("PRERUN_STATUTORY_")).map(row => row.code).sort();
+  assert.deepEqual(actual, expected);
+  assert.equal(found.ready, expected.length === 0);
 });
 
 test("review-due, overdue update and uncovered rule pack have distinct blocking finding codes", () => {

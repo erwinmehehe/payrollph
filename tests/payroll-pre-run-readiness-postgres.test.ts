@@ -8,6 +8,7 @@ import {
   organizations, payrollRuns, workforceTimesheets,
 } from "../src/db/schema";
 import { loadPayrollPreRunReadiness } from "../src/lib/payroll-pre-run-readiness-server";
+import { buildStatutoryRuleWatch } from "../src/lib/statutory-rule-watch";
 
 // Disposable, synthetic localhost PG ONLY; never run against hosted or Neon DB.
 const disposable = (() => {
@@ -89,7 +90,22 @@ test("real PostgreSQL pre-run loader scopes evidence to employer, employee, cuto
     assert.ok(forWorker(people[1].id).includes("PRERUN_PAY_PROFILE_MISSING"));
     assert.ok(forWorker(people[1].id).includes("PRERUN_ATTENDANCE_MISSING"));
     assert.deepEqual(forWorker(people[2].id), [], "other tenant must never appear");
-    assert.equal(first.findings.filter(f => f.code === "PRERUN_STATUTORY_VERIFICATION_UNRECORDED").length, 4);
+    // Compare with actual current rule-watch evidence, not a magic 4 that
+    // would fail after legitimate future official verification is recorded.
+    const statusCode: Record<string, string> = {
+      "verification-unrecorded": "PRERUN_STATUTORY_VERIFICATION_UNRECORDED",
+      "review-due": "PRERUN_STATUTORY_REVIEW_DUE",
+      "update-overdue": "PRERUN_STATUTORY_UPDATE_OVERDUE",
+      "no-coverage": "PRERUN_STATUTORY_NO_COVERAGE",
+    };
+    const today = new Date().toISOString().slice(0, 10);
+    const expected = buildStatutoryRuleWatch(today)
+      .map(row => statusCode[row.status]).filter(Boolean).sort();
+    const actual = first.findings
+      .filter(f => f.code.startsWith("PRERUN_STATUTORY_")).map(f => f.code).sort();
+    assert.deepEqual(actual, expected,
+      "The read-only loader must expose every unresolved live statutory family");
+    assert.ok(!actual.includes("PRERUN_STATUTORY_WATCH_INCOMPLETE"));
 
     // A separate legal employer with the same dates is not an overlapping run.
     await db.insert(payrollRuns).values({
