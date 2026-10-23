@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -111,6 +111,18 @@ export function PayrollRunView({
   const [preRunResult, setPreRunResult] = useState<{ scope: string; readiness: PayrollPreRunReadiness } | null>(null);
   const [preRunError, setPreRunError] = useState<{ scope: string; message: string } | null>(null);
   const [preRunBusyScope, setPreRunBusyScope] = useState<string | null>(null);
+  // Each request owns the callbacks and scope captured by the user's click.
+  // An effect aborts it on run/employer changes; no refs are read in render.
+  const [preRunRequest, setPreRunRequest] = useState<{
+    scope: string;
+    id: number;
+    revision: number;
+    calculate: boolean;
+    orgId: number;
+    legalEntityId: number | null;
+    process: () => Promise<void>;
+    onBlocked: (message: string) => void;
+  } | null>(null);
 
   // Derived, not synced: if the selected run disappears (client switch, new
   // run) the first run takes over without an effect round-trip.
@@ -130,43 +142,70 @@ export function PayrollRunView({
     data.selectedOrganization.id, run?.id ?? null, run?.legalEntityId ?? null,
     expectedLegalEntityId, run?.periodStart, run?.periodEnd, run?.payDate, run?.status,
   ]);
-  const preRunScopeRef = useRef(preRunScope);
-  preRunScopeRef.current = preRunScope;
   const visiblePreRun = preRunResult?.scope === preRunScope ? preRunResult.readiness : null;
   const visiblePreRunError = preRunError?.scope === preRunScope ? preRunError.message : null;
   const preRunChecking = preRunBusyScope === preRunScope;
 
-  async function checkPreRunAndMaybeCalculate(id: number, calculate: boolean) {
-    if (!run || run.id !== id || !selectedEmployerMatches || preRunChecking) return;
-    const scope = preRunScope;
-    setPreRunBusyScope(scope);
+  function checkPreRunAndMaybeCalculate(id: number, calculate: boolean) {
+    if (!run || run.id !== id || !selectedEmployerMatches || preRunChecking || busy) return;
+    setPreRunBusyScope(preRunScope);
     setPreRunError(null);
     setPreRunResult(null);
-    try {
-      const response = await fetch("/api/payroll-runs/" + id + "/pre-run-readiness", { cache: "no-store" });
-      if (!response.ok) throw new Error("Readiness could not be verified for this employer and run.");
-      const body: PayrollPreRunReadiness = await response.json();
-      if (body.runId !== id || body.organizationId !== data.selectedOrganization.id
-        || body.legalEntityId !== run.legalEntityId
-        || typeof body.ready !== "boolean" || !Array.isArray(body.findings)
-        || typeof body.summary?.blocking !== "number") {
-        throw new Error("Readiness returned incomplete or mismatched employer evidence.");
-      }
-      if (preRunScopeRef.current !== scope) return;
-      setPreRunResult({ scope, readiness: body });
-      if (!body.ready) {
-        if (calculate) notify("Calculation blocked: resolve pre-run readiness findings first.", "err");
-        return;
-      }
-      if (calculate) await onProcess(id);
-    } catch (error) {
-      if (preRunScopeRef.current !== scope) return;
-      setPreRunError({ scope, message: error instanceof Error ? error.message : "Pre-run readiness unavailable." });
-      if (calculate) notify("Calculation blocked: pre-run readiness could not be verified.", "err");
-    } finally {
-      if (preRunScopeRef.current === scope) setPreRunBusyScope(null);
-    }
+    setPreRunRequest((previous) => ({
+      scope: preRunScope,
+      id,
+      revision: (previous?.revision ?? 0) + 1,
+      calculate,
+      orgId: data.selectedOrganization.id,
+      legalEntityId: run.legalEntityId,
+      process: () => onProcess(id),
+      onBlocked: (message) => notify(message, "err"),
+    }));
   }
+
+  useEffect(() => {
+    const request = preRunRequest;
+    if (!request || request.scope !== preRunScope
+      || !selectedEmployerMatches || run?.id !== request.id) return;
+    const controller = new AbortController();
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/payroll-runs/" + request.id + "/pre-run-readiness", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Readiness could not be verified for this employer and run.");
+        const body: PayrollPreRunReadiness = await response.json();
+        if (body.runId !== request.id || body.organizationId !== request.orgId
+          || body.legalEntityId !== request.legalEntityId
+          || typeof body.ready !== "boolean" || !Array.isArray(body.findings)
+          || typeof body.summary?.blocking !== "number") {
+          throw new Error("Readiness returned incomplete or mismatched employer evidence.");
+        }
+        if (!active) return;
+        setPreRunResult({ scope: request.scope, readiness: body });
+        if (!body.ready) {
+          if (request.calculate) request.onBlocked("Calculation blocked: resolve pre-run readiness findings first.");
+          return;
+        }
+        if (request.calculate) await request.process();
+      } catch (error) {
+        if (!active) return;
+        setPreRunError({
+          scope: request.scope,
+          message: error instanceof Error ? error.message : "Pre-run readiness unavailable.",
+        });
+        if (request.calculate) request.onBlocked("Calculation blocked: pre-run readiness could not be verified.");
+      } finally {
+        if (active) setPreRunBusyScope(null);
+      }
+    })();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [preRunRequest, preRunScope, selectedEmployerMatches, run?.id]);
 
   // A changed employer, payroll snapshot or retry instantly invalidates the
   // old register before React can execute a new effect.
