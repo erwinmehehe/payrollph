@@ -9,6 +9,11 @@ on:
       - "src/components/workspace/multi-entity-ui.tsx"
       - "src/components/linaw-workspace.tsx"
       - "src/lib/critical-release-flags.ts"
+      - "src/lib/bir-2316-employer.ts"
+      - "src/app/api/separation/[id]/2316/route.ts"
+      - "src/app/api/year-end/2316-certificate/route.ts"
+      - "tests/bir-2316-tenant-boundary.test.ts"
+      - "scripts/qa/tenant-bir2316-http.mjs"
       # Deferred HCM stays blocked in the live app. In CI, independently
       # exercise its employer-scoped service and synthetic browser contracts.
       - "src/lib/hcm-*.ts"
@@ -129,6 +134,12 @@ jobs:
           nohup node scripts/multi-entity-loopback-https.mjs > /tmp/multi-entity-https-ci.log 2>&1 &
       - name: Start flag-ON localhost-only app
         shell: bash
+        # ONLY this disposable PG16 server exercises unsigned 2316 generation.
+        # No production activation, BIR submission or payout provider.
+        env:
+          BIR_2316_CERTIFICATE_DRAFT_ENABLED: "true"
+          BIR_2316_RECONCILIATION_ENABLED: "true"
+          BIR_2316_WITHHOLDING_EVIDENCE_ENABLED: "true"
         run: |
           nohup npm start -- -p 3100 -H 127.0.0.1 > /tmp/multi-entity-on-ci.log 2>&1 &
           for attempt in {1..45}; do
@@ -153,6 +164,12 @@ jobs:
           exit 1
       - name: Verify real authenticated UI, scoped API denials, role controls and mobile widths
         run: node scripts/multi-entity-synthetic-browser.mjs
+      - name: Verify actual signed-in BIR 2316 frozen-employer GET/POST isolation
+        env:
+          BIR_2316_CERTIFICATE_DRAFT_ENABLED: "true"
+          BIR_2316_RECONCILIATION_ENABLED: "true"
+          BIR_2316_WITHHOLDING_EVIDENCE_ENABLED: "true"
+        run: npx tsx scripts/qa/tenant-bir2316-http.mjs
       - name: Exercise isolated HCM employer switching in the synthetic browser
         # Intercepted requests/fictional names; NOT actual HCM route access.
         # Real flag-ON HCM routes remain 403 ENTITY_HCM_DEFERRED.
