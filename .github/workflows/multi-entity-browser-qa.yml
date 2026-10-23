@@ -10,7 +10,7 @@ on:
       - "src/components/linaw-workspace.tsx"
       - "src/lib/critical-release-flags.ts"
       - "src/lib/bir-2316-employer.ts"
-      - "src/app/api/separation/[id]/2316/route.ts"
+      - "src/app/api/separation/**/2316/route.ts"
       - "src/app/api/year-end/2316-certificate/route.ts"
       - "tests/bir-2316-tenant-boundary.test.ts"
       - "scripts/qa/tenant-bir2316-http.mjs"
