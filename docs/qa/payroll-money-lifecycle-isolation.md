@@ -4,7 +4,9 @@ PR: https://github.com/erwinmehehe/payrollph/pull/1339
 
 This work is not closure of the frozen 33-method MNY-01 batch, full tenant
 isolation, final-pay acceptance, provider payout acceptance or launch approval.
-The global coverage manifest is deliberately unchanged pending real HTTP CI.
+Eight changed-handler methods are provisionally source-linked only after the
+two real HTTP/PG16 jobs passed. Global acceptance remains NOT ACCEPTED, with
+344 API-method and 19 page/action gaps. Fresh final-head CI remains required.
 
 ## Defect and default-off correction
 
@@ -37,8 +39,11 @@ does not activate the correction. Payroll engine calculations are unchanged.
 - A complete local `TZ=Asia/Manila npm test` was attempted against the separate
   money database. Some preexisting tests require the literal `/app_db` name;
   this run is NOT a full-suite PASS. Exact-head Linux regression remains
-  required. Inventory guards also correctly reject the changed handlers until
-  their real HTTP evidence is linked; no test was weakened to permit the drift.
+  required. The three database-name failures passed in a six-test rerun against
+  disposable `app_db`, and the full command was restarted there. The initial
+  inventory drift was resolved by exact source/method proof links after HTTP
+  execution; 61 inventory/closure guards passed. Those are bookkeeping checks,
+  not substitutes for HTTP behavior; no remaining gap was waived.
 
 ## Required real HTTP proof
 
@@ -71,8 +76,14 @@ earnings create/void, checking target entries and approvals as well as unchanged
 unrelated registers. Flag OFF intentionally proves legacy behavior; ON must
 preserve unrelated approvals and invalidate exact renamed and legacy tasks.
 
+At `428b4c371c55686eea748920600f3cdfa9efcf64`, both production-mode real HTTP/PG16
+jobs passed with **301 assertions and 42 unchanged-victim denial receipts each**:
+
+- [Flag OFF](https://github.com/erwinmehehe/payrollph/actions/runs/39885142988/job/120191468825)
+- [Flag ON](https://github.com/erwinmehehe/payrollph/actions/runs/39885142988/job/120191469158)
+
 CI uploads `qa-artifacts/tenant-money-lifecycle.json`, with the exact head,
 transport, flag state, own-success identities and individual denied-request
-receipts. Real HTTP CI and source-linked inventory reconciliation are pending.
+receipts. The subsequent proof-link/counter changes require fresh final-head CI.
 No production flags, live databases, migrations, agency submissions or payment
 provider credentials were changed. No UI was modified.
