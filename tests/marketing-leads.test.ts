@@ -11,14 +11,18 @@ test("public enquiries have their own durable marketing lead record", () => {
   const migration = read("drizzle/0024_marketing_leads.sql");
   const baseline = read("drizzle/baseline.sql");
   const storage = read("src/lib/marketing-leads.ts");
+  const verifier = read("src/lib/request-schema-readonly.ts");
 
   assert.ok(schema.includes('export const marketingLeads = pgTable('), "Drizzle schema must include marketing leads");
   assert.ok(migration.includes("CREATE TABLE IF NOT EXISTS marketing_leads"), "production migration must create marketing leads");
-  assert.ok(storage.includes("ensureMarketingLeadSchema"), "public capture must self-heal an older production database");
+  assert.ok(storage.includes("ensureMarketingLeadSchema"), "public capture must check the catalog before writing");
+  assert.ok(storage.includes("verifyRequestSchemaReadOnlyFromPool(pool, marketingLeadSchemaForRuntime())"),
+    "the check is catalog-only; capture never creates or alters schema");
+  assert.ok(!/CREATE\s+(?:TABLE|INDEX)|ALTER\s+TABLE|pg_advisory_xact_lock/i.test(storage), "no request-time DDL remains");
   assert.ok(storage.includes("INSERT INTO marketing_leads"), "lead capture must write an independent durable record");
   assert.ok(storage.includes("notification_status"), "lead record must track notification state separately");
-  assert.ok(storage.includes("marketing_leads_kind_check"), "runtime upgrade must enforce lead kinds");
-  assert.ok(storage.includes("marketing_leads_status_check"), "runtime upgrade must enforce lead lifecycle states");
+  assert.ok(verifier.includes("marketing_leads_kind_check"), "the catalog check must require the lead kind constraint");
+  assert.ok(verifier.includes("marketing_leads_status_check"), "the catalog check must require the lead lifecycle constraint");
   assert.ok(migration.includes("notification_attempts integer NOT NULL DEFAULT 0"), "migration must persist retry attempts");
   assert.ok(migration.includes("attribution jsonb NOT NULL DEFAULT '{}'::jsonb"), "migration must persist sanitized attribution");
   assert.ok(baseline.includes('CREATE TABLE IF NOT EXISTS "marketing_leads"'), "fresh database baseline must include marketing leads");

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { db } from "../src/db";
-import { organizations, employees, users, userOrganizations, orgUnits, subscriptions } from "../src/db/schema";
+import { organizations, employees, employeePayProfiles, users, userOrganizations, orgUnits, subscriptions } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
 import { encryptTotpSecret } from "../src/lib/security-secret";
 
@@ -19,6 +19,12 @@ async function main() {
   
   const [unit] = await db.insert(orgUnits).values({ organizationId: tenant.id, code: "OPS", name: "Operations", type: "Department" }).returning();
   const [employee] = await db.insert(employees).values({ organizationId: tenant.id, orgUnitId: unit.id, employeeNo: "SYNTHETIC-SELF", firstName: "Synthetic", lastName: "Worker", title: "Staff", avatarInitials: "SW", basicRate: "30000", startDate: "2026-10-01" }).returning();
+  // Fixture-created employees must carry their explicit monthly pay profile.
+  // Request-time schema/data repair is deliberately retired by this PR.
+  await db.insert(employeePayProfiles).values({
+    organizationId: tenant.id, employeeId: employee.id, payBasis: "monthly",
+    rateAmount: "30000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+  });
   const totpSecret = encryptTotpSecret("JBSWY3DPEHPK3PXP");
   for (const role of ["owner", "hr", "manager", "employee"]) {
     const [user] = await db.insert(users).values({ name: "Synthetic " + role, email: role + "@build-block.example.test", passwordHash: hashPassword("Synthetic-Build-Block-Only-2026!"), role, totpEnabled: true, totpSecret, employeeId: role === "employee" ? employee.id : null }).returning();

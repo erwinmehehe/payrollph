@@ -149,10 +149,10 @@ test("COE issuance requires HR authority, MFA and actual delivery evidence", () 
   assert.ok(ui.includes("Attest COE actually issued"));
 });
 
-test("SQL 0102 and runtime schema agree on stable actor columns; historical baseline remains immutable", () => {
+test("SQL 0102, schema.ts and the read-only catalog check agree on stable actor columns; historical baseline remains immutable", () => {
   const schema = readFileSync("src/db/schema.ts", "utf8");
   const migration = readFileSync("drizzle/0102_final_pay_maker_checker.sql", "utf8");
-  const compatibility = readFileSync("src/lib/separation-schema.ts", "utf8");
+  const verifier = readFileSync("src/lib/request-schema-readonly.ts", "utf8");
   const baseline = readFileSync("drizzle/baseline.sql", "utf8");
   const oldSeparationTable = baseline
     .split('CREATE TABLE "separation_records" (')[1]
@@ -161,7 +161,7 @@ test("SQL 0102 and runtime schema agree on stable actor columns; historical base
   for (const column of ["prepared_by_user_id", "approved_by_user_id", "released_by_user_id"]) {
     assert.ok(schema.includes(column));
     assert.ok(migration.includes(column));
-    assert.ok(compatibility.includes(column));
+    assert.ok(verifier.includes("separation_records." + column), column + " must be required by the catalog check");
     assert.ok(!oldSeparationTable.includes(column));
   }
 });

@@ -68,13 +68,15 @@ test("certification history is immutable per evidence snapshot", () => {
   assert.ok(!route.includes("db.update(statutoryRemittanceMonthClosures).set({"));
 });
 
-test("month close self-initializes additive schema for existing deployments", () => {
+test("month close checks its reviewed schema and never creates it at request time", () => {
   const guard = readFileSync("src/lib/statutory-remittance-month-close-schema.ts", "utf8");
+  const verifier = readFileSync("src/lib/request-schema-readonly.ts", "utf8");
   assert.ok(route.includes("ensureStatutoryRemittanceMonthCloseSchema"));
-  assert.ok(guard.includes("CREATE TABLE IF NOT EXISTS statutory_remittance_month_closures"));
-  assert.ok(guard.includes("statutory_remittance_month_closure_snapshot_unique"));
-  assert.ok(guard.includes("pg_advisory_xact_lock"));
-  assert.ok(guard.includes("ensureStatutoryRemittanceCorrectionSchema"));
+  assert.ok(guard.includes("verifyRequestSchemaReadOnlyFromPool(pool, statutoryMonthCloseSchemaSpec)"));
+  assert.ok(guard.includes("ensureStatutoryRemittanceCorrectionSchema"), "month close also requires the correction tables");
+  assert.ok(!/CREATE\s+TABLE|ALTER\s+TABLE|pg_advisory_xact_lock/i.test(guard), "no request-time DDL remains");
+  assert.ok(verifier.includes("statutory_remittance_month_closures"));
+  assert.ok(verifier.includes("statutory_remittance_month_closure_snapshot_unique"));
 });
 
 

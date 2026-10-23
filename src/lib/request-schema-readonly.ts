@@ -203,6 +203,23 @@ export async function verifyRequestSchemaReadOnlyFromPool(pool: Pool, spec: Requ
   }
 }
 
+/**
+ * Catalog check that passes once per process. Concurrent callers share one
+ * in-flight check; a failure is never cached, so the next caller re-checks.
+ */
+export function cachedRequestSchemaVerifier(pool: Pool, spec: RequestSchemaSpec): () => Promise<void> {
+  let ready = false;
+  let inFlight: Promise<void> | null = null;
+  return () => {
+    if (ready) return Promise.resolve();
+    if (inFlight) return inFlight;
+    inFlight = verifyRequestSchemaReadOnlyFromPool(pool, spec)
+      .then(() => { ready = true; })
+      .finally(() => { inFlight = null; });
+    return inFlight;
+  };
+}
+
 export const leaveSchemaSpec: RequestSchemaSpec = {
   label: "leave",
   tables: ["leave_policies", "leave_request_interval_sets", "leave_request_intervals"],
@@ -435,8 +452,10 @@ export const marketingLeadSchemaSpec: RequestSchemaSpec = {
   ],
 };
 
-/** Explicit read-only callers keep main's index contract with the rollout off.
- * Canonical numbered-SQL ordering is adopted only with the reviewed cutover.
+/** With the rollout flag on, only the canonical numbered-SQL ordering passes.
+ * With it off, the app can no longer create or repair these indexes, so it
+ * accepts either the canonical DESC (NULLS FIRST) index or the historical
+ * runtime-created DESC NULLS LAST one; any other definition still fails closed.
  * Clone the two static tokens; never mutate the shared canonical specification.
  */
 export function marketingLeadSchemaForRuntime(
@@ -447,7 +466,8 @@ export function marketingLeadSchemaForRuntime(
     ...marketingLeadSchemaSpec,
     indexes: marketingLeadSchemaSpec.indexes.map(index => ({
       ...index,
-      definitionTokens: index.definitionTokens?.map(token => token.replace(" DESC)", " DESC NULLS LAST)")),
+      // "(status, created_at DESC" is a prefix of both accepted definitions.
+      definitionTokens: index.definitionTokens?.map(token => token.replace(" DESC)", " DESC")),
     })),
   };
 }
