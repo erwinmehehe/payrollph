@@ -116,7 +116,10 @@ async function main() {
       standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
     };
   });
-  await db.insert(employeePayProfiles).values(profiles);
+  const insertedProfiles = await db.insert(employeePayProfiles).values(profiles)
+    .returning({ employeeId: employeePayProfiles.employeeId });
+  assert.equal(insertedProfiles.length, expectedProfiles.length,
+    "Every synthetic worker requires an explicit pay profile before an app request");
   await db.insert(payrollRuns).values([
     { organizationId: tenantA.id, legalEntityId: a1.id,
       periodLabel: "Alpha employer draft", periodStart: "2026-10-01",

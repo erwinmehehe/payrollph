@@ -23,6 +23,14 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
   // synchronizes with the HTTP source and receives data asynchronously.
   const [refreshNonce, setRefreshNonce] = useState(0);
 
+  function retryRead() {
+    setBusy(true);
+    setReport(null);
+    setCheckedOrganizationId(null);
+    setErrorState(null);
+    setRefreshNonce((current) => current + 1);
+  }
+
   useEffect(() => {
     const requestId = ++requestGeneration.current;
     const controller = new AbortController();
@@ -78,13 +86,19 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
         <button
           type="button"
           className="secondary-button"
-          onClick={() => { setBusy(true); setReport(null); setCheckedOrganizationId(null); setErrorState(null); setRefreshNonce((current) => current + 1); }}
+          onClick={retryRead}
           disabled={busy || !checked}
         >
           <RefreshCw size={14} /> {busy ? "Checking..." : "Refresh checks"}
         </button>
       </div>
-      {error && <div className="notice notice-amber" role="alert"><span>{error}</span></div>}
+      {checked && !report && (
+        <div className="notice notice-amber" role="alert">
+          <ShieldAlert size={16} />
+          <span>Unavailable, retry. {error || "HCM governance records could not be verified for this employer."}</span>
+          <button type="button" className="secondary-button" onClick={retryRead}>Retry</button>
+        </div>
+      )}
       {!checked && <p role="status">Checking HCM governance records...</p>}
       {report && (
         <>
