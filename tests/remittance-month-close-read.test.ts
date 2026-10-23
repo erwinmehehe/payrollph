@@ -102,12 +102,99 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
-  // Pin the DL-01 ledger exactly; retain the endpoint-specific HTTP proofs below.
-  assert.equal(manifest.metrics.coveredAfter, 123, "Retain 123 source-pinned methods and 360 unverified method gaps");
-  assert.equal(manifest.metrics.publicByDesign, 10, "Eight inherited public dispositions plus two DL-01 fixed templates");
-  assert.equal(manifest.metrics.gap, 360, "Retain 123 source-pinned methods and 360 unverified method gaps");
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
+  // Pin the current ledger exactly: the two DL-01 vault methods now have
+  // distinct synthetic PG16 proof links, but the other 352 methods remain GAP.
+  // This is provisional coverage; no production or global audit sign-off.
+  for (const [vaultRoute, vaultMethod] of [
+    ["src/app/api/employee-vault/route.ts", "GET"],
+    ["src/app/api/employee-vault/[id]/route.ts", "DELETE"],
+  ]) {
+    const method = manifest.allApiRouteFiles[vaultRoute]?.methods.find(
+      (item: { name: string }) => item.name === vaultMethod,
+    );
+    assert.equal(method?.status, "COVERED", vaultMethod + " vault requires distinct own/foreign HTTP proof");
+    assert.equal(method?.testedBy?.file, "scripts/qa/tenant-dl01-vault-http.mjs");
+  }
+  // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
+  // PR #1325 contributes three other real HTTP proofs; never double-credit these.
+  assert.equal(manifest.metrics.coveredAfter, 131, "Preserve source-pinned main, merged #1336 vault and PR #1325 BIR methods");
+  assert.equal(manifest.metrics.publicByDesign, 10);
+  assert.equal(manifest.metrics.gap, 352, "Retain all unproven methods as GAP");
+  // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
+  // can only close GAPs if every method cites the corresponding isolated HTTP
+  // suite, executed for both attacker employers against real victim rows.
+  const newSuites = [
+    { file: "scripts/qa/compliance-read-sweep-http.mjs",
+      entry: "verifyComplianceReadSweep",
+      keys: [
+        "GET bir/annual-employer/module-evidence", "POST bir/annual-employer/module-evidence",
+        "GET compliance/dole-13th-month", "POST compliance/dole-13th-month",
+        "GET compliance/government-loan-remittances", "POST compliance/government-loan-remittances",
+        "GET compliance/statutory-remittances/payment-evidence",
+        "POST compliance/statutory-remittances/payment-evidence",
+      ] },
+    { file: "scripts/qa/hcm-probation-sweep-http.mjs",
+      entry: "verifyHcmProbationSweep",
+      keys: [
+        "GET hcm/probation-reviews", "POST hcm/probation-reviews",
+        "PATCH hcm/probation-reviews",
+      ] },
+  ];
   const harnessLines = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
+  let newlySourcePinned = 0;
+  for (const suite of newSuites) {
+    const inheritedMainProof = new Map([
+      ["GET compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
+        ["POST compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
+      ["GET compliance/dole-13th-month", "scripts/qa/dole-13th-month-http.mjs"],
+      ["POST compliance/dole-13th-month", "scripts/qa/dole-13th-month-http.mjs"],
+      ["GET compliance/government-loan-remittances", "scripts/qa/government-loan-read-http.mjs"],
+      ["POST compliance/government-loan-remittances", "scripts/qa/government-loan-read-http.mjs"],
+    ]);
+    const methods = suite.keys.map((key) => {
+      const [name, route] = key.split(" ");
+      const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]
+        ?.methods.find((entry: { name: string }) => entry.name === name);
+      assert.ok(method, key + ": method must exist");
+      assert.ok(method.status === "GAP" ||
+        (method.status === "COVERED" && (method.testedBy?.file === suite.file ||
+          inheritedMainProof.get(key) === method.testedBy?.file)),
+        key + ": only actual source-pinned own/victim HTTP tests may close a GAP");
+      if (method.status === "GAP") assert.equal(method.testedBy, null);
+      return method;
+    });
+    const externalMain = methods.filter((method, index) => method.status === "COVERED" &&
+      inheritedMainProof.get(suite.keys[index]) === method.testedBy?.file).length;
+    const added = methods.filter((method) => method.status === "COVERED" &&
+      method.testedBy?.file === suite.file).length;
+    assert.ok(added === 0 || added + externalMain === suite.keys.length,
+      suite.file + ": partial HTTP suites cannot receive method-level credit");
+    if (!added) continue;
+    assert.ok(harnessLines.some(line => line.includes(suite.entry + "(f, { request, expectStatus })")),
+      suite.file + ": proof must run in the guarded PG16 second-pass HTTP job");
+    const source = readFileSync(suite.file, "utf8").split("\n");
+    assert.ok(source.some(line => line.includes("for (const idx of [1, 2])")),
+      suite.file + ": exercise two independent attackers");
+    for (const method of methods.filter(method => method.testedBy?.file === suite.file)) {
+      const { ownPositiveLine, foreignDenialLine, unchangedDbLine } = method.testedBy;
+      assert.match(source[ownPositiveLine - 1] ?? "", /expectStatus\(await request(?:Multipart)?\(/,
+        method.name + ": authenticated own-employer success required");
+      assert.match(source[foreignDenialLine - 1] ?? "", /403\s*,/,
+        method.name + ": foreign-employer 403 required");
+      if (method.name !== "GET") assert.match(source[unchangedDbLine - 1] ?? "",
+        /assert\.deepEqual\(/,
+        method.name + ": denied mutation must leave victim rows unchanged");
+    }
+    // The HCM probation methods are inherited from main/#1326: validate their
+    // own/foreign evidence above, but do not subtract them as newly added here.
+    if (suite.entry === "verifyComplianceReadSweep") newlySourcePinned += added;
+  }
+  assert.equal(newlySourcePinned, 2, "PR #1325 adds exactly the two BIR method proofs; other suites are inherited");
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned, 129,
+    "Keep all 129 independently source-pinned methods from current main including merged #1336 vault proofs");
+  assert.equal(manifest.metrics.gap + newlySourcePinned, 354,
+    "Never reduce merged-main's 354 open method GAPs without new source-linked real HTTP proof");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);
     return harnessLines[number - 1];

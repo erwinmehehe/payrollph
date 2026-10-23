@@ -41,9 +41,9 @@ test("current overview headline equals complete 490-method manifest (historical 
   }
   assert.equal(manifest.scopedPages.length, stats.scopedPagesAndActions);
   assert.ok(overview.includes("**RELEASE BLOCKER:** " + stats.gap + " API methods and " +
-    manifest.scopedPages.length + " business-ID page entries"));
+    manifest.scopedPages.filter((page) => page.status === "GAP").length + " business-ID page entries"));
   assert.ok(overview.includes("**NOT ACCEPTED**: " + stats.gap +
-    " method gaps and " + manifest.scopedPages.length + " page/action gaps"));
+    " method gaps and " + manifest.scopedPages.filter((page) => page.status === "GAP").length + " page/action gaps"));
 });
 
 test("closure plan schedules every original GAP exactly once in priority order", () => {

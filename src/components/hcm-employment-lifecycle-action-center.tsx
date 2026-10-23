@@ -6,64 +6,8 @@ import {
   hcmResponseMatchesReadScope, type HcmReadScope,
 } from "@/lib/hcm-client-employer-scope";
 import { AlertTriangle, CalendarClock, CheckCircle2, RefreshCw, UserRoundCog } from "lucide-react";
+import { readVerifiedLifecycleResponse, type VerifiedLifecyclePayload as LifecyclePayload, type VerifiedLifecycleRow as LifecycleRow } from "@/lib/hcm-employment-lifecycle-read";
 
-type LifecycleRow = {
-  employeeId: number;
-  employeeNo: string;
-  employeeName: string;
-  employeeStatus: string;
-  state: "unconfigured" | "clear" | "upcoming" | "action_required" | "in_progress" | "complete";
-  severity: "info" | "warning" | "blocker";
-  action:
-    | "configure_terms"
-    | "record_decision"
-    | "review_decision"
-    | "await_effective_date"
-    | "retry_decision"
-    | "start_separation"
-    | "continue_separation"
-    | "none";
-  dueDate: string | null;
-  daysUntil: number | null;
-  label: string;
-  detail: string;
-  term: null | {
-    id: number;
-    termKind: string;
-    employmentType: string;
-    effectiveFrom: string;
-    effectiveUntil?: string | null;
-    probationReviewDate?: string | null;
-    contractEndDate?: string | null;
-    status: string;
-  };
-  decision: null | {
-    id: number;
-    decisionKind: string;
-    status: string;
-    effectiveDate: string;
-    proposedSeparationLastDay?: string | null;
-    separationHandoffStatus?: string | null;
-    separationRecordId?: number | null;
-    failure?: string | null;
-  };
-};
-
-type LifecyclePayload = {
-  today: string;
-  policy: {
-    actionWindowDays: number;
-  };
-  summary: {
-    total: number;
-    actionRequired: number;
-    upcoming: number;
-    inProgress: number;
-    unconfigured: number;
-    handoffReady: number;
-  };
-  rows: LifecycleRow[];
-};
 
 function actionLabel(action: LifecycleRow["action"]) {
   if (action === "configure_terms") return "Configure terms";
@@ -139,13 +83,20 @@ function ScopedHcmEmploymentLifecycleActionCenter({
         "/api/hcm/lifecycle-readiness?" + params.toString(),
         { cache: "no-store", signal: controller.signal },
       );
-      const data = await response.json().catch(() => ({}));
+      const data: unknown = await response.json().catch(() => null);
       if (controller.signal.aborted) return;
-      if (!response.ok) throw new Error(data.error ?? "Could not load employment lifecycle readiness.");
+      if (!response.ok) {
+        const serverError = data && typeof data === "object" && !Array.isArray(data)
+          ? (data as Record<string, unknown>).error : null;
+        throw new Error(typeof serverError === "string" && serverError.trim()
+          ? serverError : "Could not load employment lifecycle readiness.");
+      }
       if (!hcmResponseMatchesReadScope(data, selection)) {
         throw new Error("Employment lifecycle returned an unexpected tenant or legal employer.");
       }
-      setPayload(data as LifecyclePayload);
+      const verified = readVerifiedLifecycleResponse(response.ok, data, selection);
+      if (!verified) throw new Error("Employment lifecycle source unavailable or not verified for the selected employer.");
+      setPayload(verified);
     } catch (loadError) {
       if (controller.signal.aborted) return;
       setPayload(null);
@@ -186,7 +137,8 @@ function ScopedHcmEmploymentLifecycleActionCenter({
         </button>
       </div>
 
-      {error && <div className="notice notice-amber"><AlertTriangle size={15} /><span>{error}</span></div>}
+      {error && <div className="notice notice-amber" role="alert"><AlertTriangle size={15} /><span>{error}</span></div>}
+      {!loading && !payload && <div className="notice notice-amber" role="status">Lifecycle status is unavailable. Use Refresh to retry; no clear status or actions are shown.</div>}
 
       {payload && (
         <>

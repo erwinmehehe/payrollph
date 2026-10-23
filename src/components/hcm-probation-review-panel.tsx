@@ -11,7 +11,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import {
-  isProbationReviewReadEnvelope, probationReviewReadActions,
+  isProbationReviewReadEnvelope, isScopedProbationReviewEnvelope, probationReviewReadActions,
   type ProbationReviewReadPhase,
 } from "@/lib/hcm-probation-review-read-state";
 
@@ -112,7 +112,8 @@ function HcmProbationReviewPanelContent({
       if (signal?.aborted) return false;
       if (revision !== requestRevision.current) return false;
       if (!response.ok) throw new Error(data.error ?? "Could not load probation review.");
-      if (!isProbationReviewReadEnvelope(data)) {
+      if (!isProbationReviewReadEnvelope(data) ||
+           !isScopedProbationReviewEnvelope(data, organizationId, employeeId, employmentTermId)) {
         throw new Error("Probation review returned an invalid authorized source view.");
       }
       const next = data as Payload;

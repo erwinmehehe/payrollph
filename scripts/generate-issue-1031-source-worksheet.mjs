@@ -93,9 +93,9 @@ function fileSources() {
     return { path: name, prefix, sha256: sourceHash(bytes), sql: filename.endsWith(".sql"),
       parsed: filename.endsWith(".sql") ? parseMigrationSql(bytes.toString("utf8")) : null };
   });
-  // Forward-only sources 0128 through 0134
+  // Forward-only sources 0128 through 0136
   // extend the pinned SOURCE inventory; never use this count as a receipt.
-  if (files.length !== 151) throw Error("EXPECTED_151_DRIZZLE_FILES_FOUND_" + files.length);
+  if (files.length !== 152) throw Error("EXPECTED_152_DRIZZLE_FILES_FOUND_" + files.length);
   for (const pathSuffix of [
     "drizzle/0128_recovery_foreign_key_names_forward.sql",
     "drizzle/0129_non_recovery_fk_names_forward.sql",
@@ -104,6 +104,8 @@ function fileSources() {
     "drizzle/0132_filing_remittance_evidence_forward.sql",
     "drizzle/0133_audit_missing_foundation_forward.sql",
     "drizzle/0134_wfm_demand_missing_foundation_forward.sql",
+    "drizzle/0135_salary_correction_cases.sql",
+    "drizzle/0136_statutory_payment_evidence_one_active.sql",
   ]) if (files.filter(row => row.path === pathSuffix && row.sql).length !== 1)
     throw Error("FORWARD_SOURCE_MISSING_FROM_PINNED_INVENTORY_" + pathSuffix);
   return files;

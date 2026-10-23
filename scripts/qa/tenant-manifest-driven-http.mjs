@@ -56,7 +56,11 @@ const CASES = Object.freeze({
       foreign: "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
         victimOrg.id + "&batchId=" + victimBatch.id,
     }),
-    prove: (r, { ownedEvidence, victimEvidence }) => {
+    prove: (r, { ownOrg, ownedBatch, ownedEvidence, victimEvidence }) => {
+      assert.equal(r.json?.organizationId, ownOrg.id,
+        "Payment proof index must echo the authenticated employer scope");
+      assert.equal(r.json?.batchId, ownedBatch.id,
+        "Payment proof index must echo the real owned remittance batch");
       assert.ok(Array.isArray(r.json?.evidence));
       assert.ok(r.json.evidence.some((row) => row.id === ownedEvidence.id),
         "Must enumerate a real own evidence record");
@@ -218,7 +222,7 @@ async function seedStatutoryFixtures(f) {
     "Selected existing victim-only object IDs must exceed both attacker objects");
   return { batches, evidence, posting, postingBytes, tasks, bytes, nonce };
 }
-export async function verifyManifestDrivenStatutoryBatch(f, { request, expectStatus }) {
+export async function verifyManifestDrivenStatutoryBatch(f, { request, expectStatus, makeSession }) {
   assert.equal(process.env.CI, "true");
   assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only");
   assert.equal(new URL(process.env.DATABASE_URL).hostname, "127.0.0.1");
@@ -226,7 +230,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  assert.equal(gaps.length, 360, "Reconciled 360 unverified methods remain GAP after four additional #1330 proofs");
+  assert.equal(gaps.length, 352, "Retain 352 unproven methods after distinct BIR and employee-vault source-pinned proofs; merged #1303 receipts remain");
   const certifiedGovernance = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(certifiedGovernance?.status, "COVERED", "Closing a GAP requires independently exercised tenant-proof evidence");
   assert.equal(certifiedGovernance?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs", "HCM GET must retain the real authenticated own/foreign HTTP proof");
@@ -319,10 +323,10 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
       if (item.key === "GET compliance/statutory-remittances/payment-evidence") {
         const filtered = expectStatus(await request(
           "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
-          ownOrg.id + "&batchId=" + victimBatch.id, { cookie }), 200,
-        "Legitimate own-employer filter with another employer's batch ID");
-        assert.deepEqual(filtered.json?.evidence, [],
-          "Foreign batch must not enumerate victim proof bytes or metadata");
+          ownOrg.id + "&batchId=" + victimBatch.id, { cookie }), 404,
+        "Foreign real batch under own employer must be unavailable, not verified empty");
+        assert.ok(!filtered.text.includes("SYNTHETIC-ONLY-0-" + fixtures.nonce),
+          "Foreign batch denial must not reveal victim proof bytes or metadata");
       }
       if (item.key === "GET compliance/statutory-remittances/posting-evidence/[id]") {
         const forged = expectStatus(await request(
@@ -337,10 +341,88 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
         assert.ok(!denied.text.includes("FICTIONAL-0-" + fixtures.nonce));
       }
     }
+    // This POST proof uses a real production-mode HTTP handler, a real
+    // disposable-PG16 batch and a narrowly scoped CI-only TLS scan stub.
+    // It never reaches a provider or proves production malware acceptance.
+    const privileged = await makeSession(f.owners[idx].id, { privileged: true });
+    const bytesFor = (tag) => Buffer.from("%PDF-1.4\nSYNTHETIC-PROOF-TENANT-QA:" + fixtures.nonce + ":" + idx + ":" + tag + "\n%%EOF\n");
+    function proofForm(orgId, batchId, tag = "initial") {
+      const form = new FormData();
+      form.append("organizationId", String(orgId));
+      form.append("batchId", String(batchId));
+      form.append("replacementReason", "Synthetic CI replacement; no real statutory payment");
+      form.append("file", new File([bytesFor(tag)], "synthetic-proof-" + idx + "-" + tag + ".pdf", { type: "application/pdf" }));
+      return form;
+    }
+    const ownUpload = expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
+      method: "POST", cookie: privileged.cookie, form: proofForm(ownOrg.id, ownedBatch.id),
+    }), 201, "MFA-verified synthetic employer can store its own test payment proof");
+    assert.equal(ownUpload.json?.organizationId, ownOrg.id, "POST response must echo the owning employer");
+    assert.equal(ownUpload.json?.batchId, ownedBatch.id, "POST response must echo the real owned batch");
+    assert.ok(Number.isSafeInteger(ownUpload.json?.evidence?.id), "Owned upload must return a real stored proof ID");
+    const foreignUpload = expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
+      method: "POST", cookie: privileged.cookie, form: proofForm(victimOrg.id, victimBatch.id),
+    }), 403, "Authenticated employee may never upload a proof to a foreign real employer");
+    assert.ok(!foreignUpload.text.includes("SYNTHETIC-ONLY-0-"), "Foreign upload must reveal no victim evidence");
+    expectStatus(await request("/api/compliance/statutory-remittances/payment-evidence", {
+      method: "POST", cookie: privileged.cookie, form: proofForm(ownOrg.id, victimBatch.id),
+    }), 404, "A real victim batch ID must not be writable under the attacker's organization");
+    // Concurrent own-batch replacements must never create two active records.
+    const contenders = await Promise.all(["race-a", "race-b", "race-c", "race-d"].map(tag =>
+      request("/api/compliance/statutory-remittances/payment-evidence", {
+        method: "POST", cookie: privileged.cookie, form: proofForm(ownOrg.id, ownedBatch.id, tag),
+      })));
+    assert.ok(contenders.some(result => result.status === 201),
+      "At least one parallel valid replacement must succeed");
+    for (const attempt of contenders) {
+      assert.ok(attempt.status === 201 || attempt.status === 409,
+        "Parallel replacements must serialize or fail closed: " + attempt.status + " " + attempt.text.slice(0, 120));
+      if (attempt.status === 201) {
+        assert.equal(attempt.json?.organizationId, ownOrg.id);
+        assert.equal(attempt.json?.batchId, ownedBatch.id);
+      }
+    }
+    const indexAfterRace = expectStatus(await request(
+      "/api/compliance/statutory-remittances/payment-evidence?organizationId=" +
+      ownOrg.id + "&batchId=" + ownedBatch.id, { cookie: privileged.cookie }), 200,
+      "Concurrent replacements must preserve a verified owned-batch index");
+    const activeAfterRace = indexAfterRace.json?.evidence?.filter(row => row.status === "active") ?? [];
+    assert.equal(activeAfterRace.length, 1,
+      "Concurrent distinct-file replacements must leave exactly one active record");
+    assert.equal(indexAfterRace.json?.active?.id, activeAfterRace[0].id,
+      "The active metadata must identify the sole active receipt");
   }
   const after = await snapshotVictim(victimOrg.id);
   assert.deepEqual(after, before,
     "All real-HTTP own/foreign reads must leave victim employer evidence, tasks, employee, payroll and audit data unchanged");
+  // HTTP 201 must have a matching durable employer/batch audit receipt.
+  // CI seed rows predate this route, so only audit proof IDs created via HTTP.
+  for (const idx of [1, 2]) {
+    const organizationId = f.orgs[idx].id;
+    const batchId = fixtures.batches[7 + idx].id;
+    const seededProofId = fixtures.evidence[7 + idx].id;
+    const [proofs, events] = await Promise.all([
+      db.select({ id: statutoryRemittancePaymentEvidence.id,
+        fileSha256: statutoryRemittancePaymentEvidence.fileSha256 })
+        .from(statutoryRemittancePaymentEvidence)
+        .where(and(eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
+          eq(statutoryRemittancePaymentEvidence.batchId, batchId))),
+      db.select({ action: auditEvents.action, metadata: auditEvents.metadata })
+        .from(auditEvents).where(eq(auditEvents.organizationId, organizationId)),
+    ]);
+    const audited = new Map(events.filter(event =>
+      event.metadata?.batchId === batchId &&
+      ["Statutory remittance payment proof replaced",
+        "Statutory remittance payment proof uploaded",
+        "Historical statutory remittance payment proof backfilled"].includes(event.action)
+    ).map(event => [event.metadata.evidenceId, event.metadata.fileSha256]));
+    const newProofs = proofs.filter(proof => proof.id !== seededProofId);
+    assert.ok(newProofs.length >= 2, "Fixture must execute a real POST and concurrent replacement");
+    for (const proof of newProofs) {
+      assert.equal(audited.get(proof.id), proof.fileSha256,
+        "Every HTTP-committed receipt must have a matching same-employer/batch audit row");
+    }
+  }
   assert.equal(observations.length, FIRST_ADAPTED_METHODS.length * 2);
   assert.equal(new Set(observations.map((x) => x.key)).size, FIRST_ADAPTED_METHODS.length);
   console.log(JSON.stringify({

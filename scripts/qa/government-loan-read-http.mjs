@@ -26,7 +26,7 @@ export async function verifyGovernmentLoanRemittanceIsolation(f, { request, expe
     organizationId:org.id,legalEntityId:f.entities[idx].id,
     agency:"SSS",applicableMonth:"2026-08",dueDate:"2026-09-30",
     status:"paid",employeeCount:1,loanCount:1,expectedTotal:"125.00",
-    amountPaid:"125.00",paymentReference:"FICTIONAL-PAID-"+idx,
+    amountPaid:"125.00",paymentReference:"FICTIONAL-PAID-"+idx,paidAt:new Date("2026-09-30T00:00:00.000Z"),
     agencyAcknowledgementReference:"FICTIONAL-ACK-"+idx,
     snapshotHash:"a".repeat(64),createdBy:"Fictional CI",
   }))).returning({id:governmentLoanRemittanceBatches.id});
@@ -53,7 +53,7 @@ export async function verifyGovernmentLoanRemittanceIsolation(f, { request, expe
     assert.equal(ownLoanRead.json?.legalEntityId,f.entities[idx].id);
     assert.ok(ownLoanRead.json?.batches?.some(b=>b.id===batches[idx].id));
     assert.ok(ownLoanRead.json?.members?.some(m=>m.id===members[idx].id));
-    assert.ok(!ownLoanRead.json?.members?.some(m=>m.id===members[0].id));
+    assert.ok(!ownLoanRead.json?.members?.some(m=>m.id===members[0].id)); assert.ok((await import("../../src/lib/government-loan-remittance-read")).isVerifiedGovernmentLoanRemittanceRead(ownLoanRead.json,org.id),"Existing main loan proof fixture must satisfy the merged strict client validator");
     expectStatus(await request("/api/compliance/government-loan-remittances?organizationId=" +
       victim.id + "&legalEntityId=" + f.entities[0].id, {cookie}), 403,
       "Foreign government loan reconciliation GET must deny victim data");

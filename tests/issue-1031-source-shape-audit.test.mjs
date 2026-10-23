@@ -13,7 +13,7 @@ function assertHistoricalShapeMatchesPinnedEvidence(report, snapshotPath) {
   assert.equal(report.csv, frozen, "historical CSV must be byte-for-byte immutable");
 }
 
-test("only two reviewed marketing index edits can be projected to pinned schema bytes", () => {
+test("only reviewed post-pin schema additions can project to the original pinned bytes", () => {
   const current = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
   const historical = reconstructPinnedSchemaText(current);
   assert.equal(createHash("sha256").update(historical.text).digest("hex"), HISTORICAL_SCHEMA_SHA256);
@@ -23,6 +23,16 @@ test("only two reviewed marketing index edits can be projected to pinned schema 
     /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
   assert.throws(() => reconstructPinnedSchemaText(current.replace(
     "table.createdAt.desc().nullsFirst()", "table.createdAt.desc().nullsLast()")),
+    /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
+  // 0136 cannot silently change the index target, predicate, or sort keys.
+  const reviewedIndex = "    uniqueIndex(\"statutory_remittance_payment_evidence_one_active_unique\").on(table.batchId)\n      .where(sql`${table.status} = 'active'`),\n";
+  assert.equal(current.split(reviewedIndex).length, 2,
+    "0136's exact reviewed additive partial index must exist once");
+  assert.throws(() => reconstructPinnedSchemaText(current.replace(
+    reviewedIndex, reviewedIndex.replace("'active'", "'superseded'"))),
+    /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
+  assert.throws(() => reconstructPinnedSchemaText(current.replace(
+    reviewedIndex, reviewedIndex.replace("on(table.batchId)", "on(table.organizationId)"))),
     /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
 });
 
