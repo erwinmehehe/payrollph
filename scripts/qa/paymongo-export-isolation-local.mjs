@@ -7,10 +7,15 @@ import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { createServer } from "node:http";
+import { assertPaymongoHttpProofTarget } from "./paymongo-http-proof-target.mjs";
 import { assertMoneyProofTarget } from "./money-proof-target.mjs";
 
-assertMoneyProofTarget(process.env);
-assert.equal(process.env.MONEY_PROOF_TRANSPORT, "direct-test-only", "Local handler investigation only; not HTTP acceptance");
+if (process.env.MONEY_PROOF_TRANSPORT === 'http') assertPaymongoHttpProofTarget(process.env);
+else {
+  assertMoneyProofTarget(process.env);
+  assert.equal(process.env.MONEY_PROOF_TRANSPORT, 'direct-test-only');
+}
 const { db, pool } = await import("../../src/db/index.ts");
 const s = await import("../../src/db/schema.ts");
 const { eq } = await import("drizzle-orm");
@@ -58,7 +63,7 @@ async function request(path, cookie, method = "GET", body) {
     assert.ok(found, "direct adapter allowlists only the reviewed money routes");
     const handler = require(`../../src/app/api/${found[0]}/route.ts`)[method];
     response = await handler(new Request(new URL(path, base), options), { params: Promise.resolve(found[1]) });
-  } else response = await fetch(new URL(path, base), options);
+  } else response = await originalFetch(new URL(path, base), options);
   const text = await response.text();
   let json; try { json = JSON.parse(text); } catch { json = null; }
   return { status: response.status, text, json, headers: [...response.headers] };
@@ -136,7 +141,7 @@ const priorSecret = process.env.PAYMONGO_SECRET_KEY;
 const priorEnabled = process.env.PAYMONGO_DISBURSEMENTS_ENABLED;
 const priorWallet = process.env.PAYMONGO_WALLET_ID;
 let retryFixture = null;
-globalThis.fetch = async (url, options) => {
+const syntheticProviderFetch = async (url, options) => {
   const method = options?.method ?? 'GET';
   providerCalls.push({ url: String(url), method });
   if (retryFixture) {
@@ -416,6 +421,31 @@ async function crossRailClaim(a, victim) {
   successes.push({ organizationId: a.org.id, crossRailClaimBlocksProviderAndManual: true, finalBankRefused: true,
     claimNotDisclosedToForeignActor: true, ownedJournalRemainsAvailable: true });
 }
+let providerServer;
+if (direct) globalThis.fetch = syntheticProviderFetch;
+else {
+  providerServer = createServer(async (req, res) => {
+    try {
+      assert.equal(req.headers.authorization, 'Basic ' + Buffer.from('sk_test_synthetic_no_network:').toString('base64'));
+      let body = '';
+      for await (const chunk of req) {
+        body += chunk;
+        assert.ok(body.length <= 1_000_000, 'Synthetic provider request body limit');
+      }
+      const reply = await syntheticProviderFetch('https://api.paymongo.com' + req.url,
+        { method: req.method, body: body || undefined, headers: req.headers });
+      res.writeHead(reply.status, Object.fromEntries(reply.headers));
+      res.end(await reply.text());
+    } catch (error) {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ errors: [{ detail: error.message }] }));
+    }
+  });
+  await new Promise((resolve, reject) => {
+    providerServer.once('error', reject);
+    providerServer.listen(3012, '127.0.0.1', resolve);
+  });
+}
 try {
   process.env.PAYMONGO_SECRET_KEY = 'sk_test_synthetic_no_network';
   const nonce = randomUUID().slice(0, 8);
@@ -447,7 +477,7 @@ try {
   assert.deepEqual(await snapshot(v), initial, 'victim unchanged after complete investigation'); assertions++;
   await mkdir('outputs', { recursive: true });
   await writeFile('outputs/paymongo-export-local.json', JSON.stringify({ assertions, receipts, successes,
-    providerCalls, status: 'PASS', transport: 'direct-handler-diagnosis-auth-adapter',
+    providerCalls, status: 'PASS', transport: direct ? 'direct-handler-diagnosis-auth-adapter' : 'real-http',
     scope: 'Local investigation only; all provider GET/POST intercepted; no HTTP acceptance, external calls or coverage credits' }, null, 2));
   console.log(`PayMongo/export local diagnosis PASS: ${assertions} assertions; ${receipts.length} denials; ${providerCalls.filter(c => c.method === 'GET').length} synthetic GETs; ${providerCalls.filter(c => c.method === 'POST').length} synthetic POSTs.`);
 } finally {
@@ -458,5 +488,6 @@ try {
   else process.env.PAYMONGO_DISBURSEMENTS_ENABLED = priorEnabled;
   if (priorWallet === undefined) delete process.env.PAYMONGO_WALLET_ID;
   else process.env.PAYMONGO_WALLET_ID = priorWallet;
+  if (providerServer) await new Promise(resolve => providerServer.close(resolve));
   await pool.end();
 }
