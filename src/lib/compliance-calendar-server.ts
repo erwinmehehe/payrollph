@@ -30,7 +30,7 @@ export function annualTaxYearCandidates(today: string, payYears: number[]) {
 export type LoadedComplianceCalendar =
   | { kind: "not-found" }
   | { kind: "empty"; today: string }
-  | { kind: "ready"; today: string; applicableMonths: string[]; items: ComplianceCalendarItem[]; organizationName: string };
+  | { kind: "ready"; today: string; applicableMonths: string[]; contributionMonths: string[]; birPayMonths: string[]; items: ComplianceCalendarItem[]; organizationName: string };
 
 export async function loadComplianceCalendar(organizationId: number, today = manilaDate()): Promise<LoadedComplianceCalendar> {
   const [organization] = await db.select().from(organizations)
@@ -127,6 +127,8 @@ export async function loadComplianceCalendar(organizationId: number, today = man
     kind: "ready",
     today,
     applicableMonths: [...new Set([...applicableMonths, ...birApplicableMonths])],
+    contributionMonths: applicableMonths,
+    birPayMonths: birApplicableMonths,
     items,
     organizationName: organization.name,
   };
