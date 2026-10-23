@@ -211,9 +211,14 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(moneyMethods.length, 8, "Only eight separately executed money-input methods are credited");
   assert.ok(moneyMethods.every(m => m.status === "COVERED" && m.testedBy.ownPositiveLine &&
     m.testedBy.foreignDenialLine && m.testedBy.unchangedDbLine && m.testedBy.forgedSelectorLine));
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length, 124,
+  const bir2316Methods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods)
+    .filter(m => m.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
+  assert.equal(bir2316Methods.length, 3, "Three separately source-linked frozen-employer HTTPS BIR2316 methods");
+  assert.ok(bir2316Methods.every(m => m.status === "COVERED" &&
+    m.testedBy.ownPositiveLine && m.testedBy.foreignDenialLine));
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - bir2316Methods.length, 124,
     "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length, 359,
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + bir2316Methods.length, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
