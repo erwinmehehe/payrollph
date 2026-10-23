@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 351, "Keep 351 unverified API method gaps; group reports require exact-head flagged-mode proof");
-  assert.equal(manifest.metrics.coveredAfter, 132, "Count exact linked PG16 BIR, vault and group-report proof without promoting other gaps");
+  assert.equal(manifest.metrics.gap, 343, "Keep all 344 unverified API method gaps after separate BIR and vault proofs");
+  assert.equal(manifest.metrics.coveredAfter, 140, "Count exact linked PG16 BIR and vault method proofs without treating GAPs as successes");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
@@ -637,6 +637,46 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (proof?.file === "scripts/qa/tenant-money-lifecycle-http.mjs") {
+        // Bookkeeping for eight separately executed PG16/HTTP cases; this
+        // source guard never substitutes for the required workflow receipt.
+        const specs = {
+          "GET holidays": [190, 192], "POST holidays": [177, 193],
+          "PATCH holidays": [196, 194], "DELETE holidays": [199, 195],
+          "GET payroll-earnings": [134, 136], "POST payroll-earnings": [179, 137],
+          "PATCH payroll-earnings": [140, 139], "POST payroll-runs/[id]/process": [263, 259],
+        };
+        const spec = specs[method.name + " " + entry.route];
+        assert.ok(spec, path + ": unrelated methods cannot borrow money-path proof");
+        assert.deepEqual([proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+          proof.forgedSelectorLine, proof.unchangedDbLine], [spec[0], spec[0], spec[1], spec[1], 126]);
+        const integration = readFileSync(proof.file, "utf8");
+        const lines = integration.split("\n");
+        const own = lines.slice(spec[0] - 1, spec[0] + 2).join("\n");
+        const foreign = lines[spec[1] - 1];
+        assert.match(own, /status\(await request\(/);
+        assert.match(foreign, /await deny\(v, a\.maker/);
+        assert.match(foreign, /403,/);
+        assert.match(foreign, /v\.(?:org|earning|holiday|run)\./);
+        if (entry.route === "payroll-runs/[id]/process") {
+          assert.match(own, /\/process/);
+          assert.match(integration, /for \(const suffix of \["process", "submit-review", "release"\]\)/);
+        } else {
+          assert.ok(own.includes("/api/" + entry.route) && foreign.includes("/api/" + entry.route));
+        }
+        if (method.name !== "GET") {
+          assert.ok(own.includes('"' + method.name + '"') && foreign.includes('"' + method.name + '"'));
+        }
+        assert.match(lines[125], /assert\.deepEqual\(await snapshot\(v\), before/);
+        assert.match(integration, /for \(const attacker of \[a, b\]\)/);
+        assert.match(integration, /victim earning\/correction IDs exceed both attacker IDs and 6/);
+        const workflow = readFileSync(".github/workflows/tenant-money-lifecycle.yml", "utf8");
+        assert.match(workflow, /exact-links: \['false', 'true'\]/);
+        assert.match(workflow, /MONEY_PROOF_TRANSPORT: http/);
+        assert.match(workflow, /npx tsx scripts\/qa\/tenant-money-lifecycle-http\.mjs/);
+        assert.match(integration, /assert\.notEqual\(process\.env\.GITHUB_ACTIONS, "true"/);
+        continue;
+      }
       // New method credits must be bound to an explicitly reviewed endpoint,
       // real two-attacker HTTP runner, exact request/status lines, and a
       // persisted victim-before/after assertion for mutating methods. Do not

@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
-  assert.equal(manifest.metrics.gap, 351, "Retain 351 unverified methods after provisional group-report GET proof");
-  assert.equal(manifest.metrics.coveredAfter, 132, "BIR, vault and group-report own/foreign proof must remain linked");
+  assert.equal(manifest.metrics.gap, 343, "Retain every unverified tenant method GAP after eight money-input proofs");
+  assert.equal(manifest.metrics.coveredAfter, 140, "Maintain distinct source-pinned BIR, vault and eight money-input proofs");
   const report = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
   assert.equal(report?.status, "COVERED");
   assert.equal(report?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");

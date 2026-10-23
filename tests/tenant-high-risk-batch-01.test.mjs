@@ -206,17 +206,19 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     vaultSourcePinnedMethods++;
   }
   assert.equal(vaultSourcePinnedMethods, 2, "No partial or double-credited vault closeout");
-  // #1341 credits exactly one separate multi-entity read method. Historical
-  // Batch-01 coverage remains frozen until its OWN proofs change, not by
-  // treating another suite's provisional GET as part of this batch.
-  const reportCredit = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]
-    ?.methods.find(method => method.name === "GET");
-  assert.equal(reportCredit?.status, "COVERED");
-  assert.equal(reportCredit?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
-  const separateGroupReportCredits = 1;
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - separateGroupReportCredits, 124,
+  const moneyMethods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods)
+    .filter(m => m.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs");
+  assert.equal(moneyMethods.length, 8, "Only eight separately executed money-input methods are credited");
+  assert.ok(moneyMethods.every(m => m.status === "COVERED" && m.testedBy.ownPositiveLine &&
+    m.testedBy.foreignDenialLine && m.testedBy.unchangedDbLine && m.testedBy.forgedSelectorLine));
+  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
+  assert.equal(groupReport?.status, "COVERED", "Group report requires an independently sourced GET proof");
+  assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs",
+    "Only the real multi-entity browser acceptance may support this extra method credit");
+  const groupReportCredits = 1;
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - groupReportCredits, 124,
     "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + separateGroupReportCredits, 359,
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + groupReportCredits, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
