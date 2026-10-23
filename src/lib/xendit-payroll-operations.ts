@@ -1,5 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employees, payrollEntries, payrollRuns, payoutBatches, payoutProfiles } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -258,12 +258,21 @@ async function auditedXenditPayoutLookup(input: {
   businessId: string;
 }) {
   const attemptId = randomUUID();
+  const [firstAttempt] = await db.select({ metadata: auditEvents.metadata })
+    .from(auditEvents).where(and(
+      eq(auditEvents.organizationId, input.run.organizationId),
+      eq(auditEvents.action, "Xendit payout read-only lookup initiated"),
+      sql`${auditEvents.metadata} ->> 'transferId' = ${String(input.row.transferId)}`,
+    )).orderBy(asc(auditEvents.id)).limit(1);
+  const priorId = firstAttempt?.metadata && typeof firstAttempt.metadata === "object"
+    ? (firstAttempt.metadata as Record<string, unknown>).attemptId : null;
   const evidence = {
     runId: input.run.id,
     transferId: input.row.transferId,
     referenceNumber: input.row.referenceNumber,
     providerPayoutId: input.payoutId,
     attemptId,
+    retryOfAttemptId: typeof priorId === "string" ? priorId : null,
     provider: "xendit",
     moneyMovedByLinaw: false,
   };
