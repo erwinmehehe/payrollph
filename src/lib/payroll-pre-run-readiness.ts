@@ -124,16 +124,18 @@ export function evaluatePayrollPreRunReadiness(input: PreRunReadinessInput): Pay
   // The payroll engine resolves these four packs on every populated run, even
   // when a particular employee's resulting statutory deduction is zero.
   if (employees.length) {
-    // A missing or duplicated watch item is NOT equivalent to an official
-    // verification. Otherwise a partial upstream read could silently authorize
-    // calculation with an unexamined statutory table.
+    // The watcher returns one baseline record per family plus OPTIONAL
+    // future change-upcoming/update-overdue advisories for that same family.
+    // Require exactly one baseline without treating those valid advisories as
+    // duplicate official verification, or letting a missing baseline pass.
     for (const family of REQUIRED_STATUTORY_FAMILIES) {
-      const matching = ruleWatch.filter(item => item.family === family);
-      if (matching.length !== 1) {
+      const baseline = ruleWatch.filter(item => item.family === family
+        && item.status !== "change-upcoming" && item.status !== "update-overdue");
+      if (baseline.length !== 1) {
         add("PRERUN_STATUTORY_WATCH_INCOMPLETE",
           "Statutory verification evidence unavailable",
-          family + " must have exactly one rule-watch record; found " +
-            matching.length + ". Restore complete source evidence before calculation.");
+          family + " must have exactly one baseline rule-watch record; found " +
+            baseline.length + ". Restore complete source evidence before calculation.");
       }
     }
     for (const item of ruleWatch) {

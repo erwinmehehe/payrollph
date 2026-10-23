@@ -76,7 +76,8 @@ test("all four synthetic unrecorded statutory families block before calculation"
 
 test("actual statutory watch is evaluated, never silently ignored", () => {
   const watch = buildStatutoryRuleWatch("2026-10-23");
-  assert.equal(watch.length, 5, "All five watch families must remain represented");
+  assert.equal(new Set(watch.map(row => row.family)).size, 5,
+    "All five watch families must remain represented, including optional forthcoming changes");
   const found = evaluatePayrollPreRunReadiness(fixture({ ruleWatch: watch }));
   const mapping: Record<string, string> = {
     "verification-unrecorded": "PRERUN_STATUTORY_VERIFICATION_UNRECORDED",
@@ -113,6 +114,14 @@ test("missing or duplicate statutory rule-watch records fail closed for populate
   assert.ok(has(missing, "PRERUN_STATUTORY_WATCH_INCOMPLETE"));
   assert.ok(has(duplicate, "PRERUN_STATUTORY_WATCH_INCOMPLETE"));
   assert.equal(evaluatePayrollPreRunReadiness(duplicate).summary.blocking, 1);
+  const advisory = fixture({ ruleWatch: [...fullWatch, item("wage-orders", "change-upcoming")] });
+  assert.equal(evaluatePayrollPreRunReadiness(advisory).ready, true,
+    "A legitimate extra forthcoming wage advisory is not a duplicate baseline");
+  const overdue = fixture({ ruleWatch: [...fullWatch, item("sss", "update-overdue")] });
+  assert.ok(!has(overdue, "PRERUN_STATUTORY_WATCH_INCOMPLETE"),
+    "An overdue source alert must not be mistaken for a duplicate baseline");
+  assert.ok(has(overdue, "PRERUN_STATUTORY_UPDATE_OVERDUE"),
+    "Overdue source alerts must continue to block calculation");
   assert.ok(!has(fixture({ employees: [], ruleWatch: [] }), "PRERUN_STATUTORY_WATCH_INCOMPLETE"));
 });
 
