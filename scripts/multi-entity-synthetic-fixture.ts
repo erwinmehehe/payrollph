@@ -31,15 +31,18 @@ async function main() {
     await db.execute(sql.raw(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS legal_entity_id integer`));
   }
 
-  const [tenantA, tenantB] = await db.insert(organizations).values([
+  const [tenantA, tenantB, tenantC] = await db.insert(organizations).values([
     { name: "Synthetic Group A", legalName: "Synthetic Group A", plan: "Core" },
     { name: "Synthetic Tenant B", legalName: "Synthetic Tenant B", plan: "Core" },
+    { name: "Synthetic Tenant C", legalName: "Synthetic Tenant C", plan: "Core" },
   ]).returning();
-  assert.deepEqual([tenantA.id, tenantB.id], [1, 2], "Expected an empty disposable database");
-  const [a1, a2, b1] = await db.insert(legalEntities).values([
+  assert.deepEqual([tenantA.id, tenantB.id, tenantC.id], [1, 2, 3],
+    "Expected an empty disposable database");
+  const [a1, a2, b1, c1] = await db.insert(legalEntities).values([
     { organizationId: tenantA.id, code: "PRIMARY", legalName: "Alpha Legal Employer", displayName: "Alpha Legal", primaryEntity: true },
     { organizationId: tenantA.id, code: "SECOND", legalName: "Beta Legal Employer", displayName: "Beta Legal" },
     { organizationId: tenantB.id, code: "PRIMARY", legalName: "Foreign Legal Employer", displayName: "Foreign Legal", primaryEntity: true },
+    { organizationId: tenantC.id, code: "PRIMARY", legalName: "Third Legal Employer", displayName: "Third Legal", primaryEntity: true },
   ]).returning();
   // Deterministic sub-millisecond source timestamp: JS Date cannot represent
   // its final 437 microseconds, while PostgreSQL equality must remain exact.
@@ -61,6 +64,8 @@ async function main() {
     { email: "entity-nogrant@example.test", name: "Synthetic Owner Without Grant", role: "owner", passwordHash },
     { email: "entity-foreign@example.test", name: "Synthetic Foreign Owner", role: "owner", passwordHash },
     { email: "entity-checker@example.test", name: "Synthetic Independent Checker", role: "admin", passwordHash },
+    { email: "entity-attacker-b@example.test", name: "Tenant B Group Reader", role: "group_hr", passwordHash },
+    { email: "entity-attacker-c@example.test", name: "Tenant C Group Reader", role: "group_hr", passwordHash },
   ]).returning();
   await db.insert(userOrganizations).values([
     { userId: members[0].id, organizationId: tenantA.id, role: "group_hr", active: true },
@@ -71,6 +76,8 @@ async function main() {
     { userId: members[5].id, organizationId: tenantA.id, role: "owner", active: true },
     { userId: members[6].id, organizationId: tenantB.id, role: "owner", active: true },
     { userId: members[7].id, organizationId: tenantA.id, role: "admin", active: true },
+    { userId: members[8].id, organizationId: tenantB.id, role: "group_hr", active: true },
+    { userId: members[9].id, organizationId: tenantC.id, role: "group_hr", active: true },
   ]);
   await db.insert(userLegalEntityGrants).values([
     { organizationId: tenantA.id, userId: members[2].id, legalEntityId: a1.id },
@@ -91,7 +98,18 @@ async function main() {
     { organizationId: tenantB.id, legalEntityId: b1.id, employeeNo: "B-01",
       firstName: "Foreign", lastName: "Synthetic", title: "Staff",
       avatarInitials: "FS", basicRate: "28000", startDate: "2026-01-01" },
+    { organizationId: tenantC.id, legalEntityId: c1.id, employeeNo: "C-01",
+      firstName: "Third", lastName: "Synthetic", title: "Staff",
+      avatarInitials: "TS", basicRate: "30000", startDate: "2026-01-01" },
   ]);
+  // Eight additional B-only workers give the cross-tenant negative proof
+  // real, read-back employee IDs above 6 (not fabricated 1..6 probes).
+  await db.insert(employees).values(Array.from({ length: 8 }, (_, index) => ({
+    organizationId: tenantB.id, legalEntityId: b1.id,
+    employeeNo: "B-VICTIM-" + index,
+    firstName: "Victim" + index, lastName: "Fictional", title: "Staff",
+    avatarInitials: "VF", basicRate: "15000", startDate: "2026-01-01",
+  })));
   await db.insert(payrollRuns).values([
     { organizationId: tenantA.id, legalEntityId: a1.id,
       periodLabel: "Alpha employer draft", periodStart: "2026-10-01",
@@ -101,8 +119,8 @@ async function main() {
       periodEnd: "2026-10-15", payDate: "2026-10-15", status: "Draft" },
   ]);
   console.log(JSON.stringify({
-    syntheticOnly: true, tenantCount: 2, legalEmployerCount: 3,
-    employees: 3, payoutEvents: 0, filingEvents: 0, externalCalls: 0,
+    syntheticOnly: true, tenantCount: 3, legalEmployerCount: 4,
+    employees: 12, payoutEvents: 0, filingEvents: 0, externalCalls: 0,
   }));
 }
 main().catch(error => {
