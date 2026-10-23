@@ -198,6 +198,8 @@ test("Xendit claim + webhook replay use overlapping PostgreSQL transactions, one
     assert.equal(completed.length, 1);
     const meta = (row: typeof initiated[number]) => row.metadata as Record<string, unknown>;
     assert.notEqual(meta(initiated[0]).attemptId, meta(initiated[1]).attemptId);
+    assert.equal(meta(initiated[0]).retryOfAttemptId, null);
+    assert.equal(meta(initiated[1]).retryOfAttemptId, meta(initiated[0]).attemptId);
     for (const row of [...initiated, ...failed, ...completed]) {
       assert.equal(meta(row).referenceNumber, referenceNumber);
       assert.equal(meta(row).providerPayoutId, payoutId);
