@@ -12,7 +12,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
-  apiKeys, approvalChainPolicies, assets, documents, employees, leavePolicies, legalEntities, organizations, orgUnits, payrollEntries,
+  apiKeys, approvalChainPolicies, assets, documents, employees, employeePayProfiles, leavePolicies, legalEntities, organizations, orgUnits, payrollEntries,
   payrollRuns, payslips, providerEvents, scimIdentities, scimTokens,
   sessions, userOrganizations, users, employeeHrCases, employeeHrCaseMessages, birWithholdingRemittanceBatches,
 } from "../../src/db/schema";
@@ -142,7 +142,7 @@ async function makeFixture() {
     employeeNo: "A-" + nonce + "-" + idx, firstName: "OwnEmployee" + idx,
     lastName: "Synthetic", title: "Attacker own employee", avatarInitials: "OS",
     basicRate: "18000.00", startDate: "2026-10-01",
-  }))).returning({ id: employees.id, employeeNo: employees.employeeNo });
+  }))).returning({ id: employees.id, employeeNo: employees.employeeNo }); await seedSecondPassPayProfiles(victim, victimEmployees, orgs, ownedEmployees);
   // Isolated per-tenant resource fixtures: always seed the victim first so
   // direct-object attempts exercise real high IDs rather than guessed 1..6.
   const syntheticAssets = await db.insert(assets).values([
@@ -840,7 +840,7 @@ async function verifySensitiveTenantDownloadsAndRoles(f) {
       firstName: "FictionalCoworker", lastName: "Private",
       title: "Separate owned worker", avatarInitials: "FC",
       basicRate: "19000.00", startDate: "2026-10-01",
-    }).returning({ id: employees.id });
+    }).returning({ id: employees.id }); await seedSecondPassCoworkerProfile(attacker.id, coworker.id);
     const [coworkerEntry] = await db.insert(payrollEntries).values({
       payrollRunId: f.ownRuns[idx].id, employeeId: coworker.id,
       grossPay: "6000.00", deductions: "500.00", netPay: "5500.00",
@@ -1330,6 +1330,39 @@ async function verifyPayoutStatusTenantRead(f) {
   const victimAfter = await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
   assert.deepEqual(victimAfter, victimBefore, "Denied payout reads/mutations cannot affect another employer's payroll");
+}
+
+/** Disposable QA only. Hoisted below all line-pinned tenant proof assertions. */
+async function seedSecondPassPayProfiles(victim, victimEmployees, orgs, ownedEmployees) {
+  requireDisposable();
+  await db.insert(employeePayProfiles).values([
+    ...victimEmployees.map((employee) => ({
+      organizationId: victim.id, employeeId: employee.id, payBasis: "monthly",
+      rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+    })),
+    ...ownedEmployees.map((employee, index) => ({
+      organizationId: orgs[index + 1].id, employeeId: employee.id, payBasis: "monthly",
+      rateAmount: "18000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+    })),
+  ]);
+}
+
+/** Seed the exact newly-created fictional coworker, never arbitrary tenant data. */
+async function seedSecondPassCoworkerProfile(organizationId, employeeId) {
+  requireDisposable();
+  const [worker] = await db.select({
+    employeeNo: employees.employeeNo, basicRate: employees.basicRate,
+  }).from(employees).where(and(
+    eq(employees.id, employeeId), eq(employees.organizationId, organizationId),
+  )).limit(1);
+  if (!worker || !worker.employeeNo.startsWith("CI-COWORKER-") ||
+      worker.basicRate !== "19000.00") {
+    throw new Error("SECOND_PASS_COWORKER_PAY_PROFILE_ROSTER_UNVERIFIED");
+  }
+  await db.insert(employeePayProfiles).values({
+    organizationId, employeeId, payBasis: "monthly", rateAmount: "19000.00",
+    standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+  });
 }
 
 /**
