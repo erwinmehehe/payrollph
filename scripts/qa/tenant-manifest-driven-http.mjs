@@ -230,7 +230,40 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  assert.equal(gaps.length, 338, "Retain 338 unproven methods after eight MNY-01 and six MNY-02 methods; all BIR/vault receipts remain");
+  // Preserve the source-pinned main baseline (145 covered / 338 gaps) while
+  // crediting ONLY the three independently exercised BIR 2316 document methods.
+  // A generic "three fewer gaps" subtraction is insufficient: require exact
+  // GET/GET/POST identities and live own/victim evidence from their separate
+  // synthetic HTTPS + PostgreSQL acceptance suite.
+  const bir2316Methods = [
+    ["src/app/api/separation/[id]/2316/route.ts", "GET", "ownDraft", "foreignDraft"],
+    ["src/app/api/year-end/2316-certificate/route.ts", "GET", "ownSource", "foreignSource"],
+    ["src/app/api/year-end/2316-certificate/route.ts", "POST", "ownPdf", "foreignPdf"],
+  ];
+  const proofFile = "scripts/qa/tenant-bir2316-http.mjs";
+  const proofLines = readFileSync(proofFile, "utf8").split("\n");
+  for (const [path, verb, own, foreign] of bir2316Methods) {
+    const matching = manifest.allApiRouteFiles[path]?.methods.filter((m) => m.name === verb);
+    assert.equal(matching?.length, 1, path + " " + verb + ": exact method required");
+    const entry = matching[0];
+    assert.equal(entry.status, "COVERED", path + " " + verb + ": only tested 2316 methods count");
+    assert.equal(entry.testedBy?.file, proofFile, path + " " + verb + ": own/foreign PG16 proof required");
+    assert.match(proofLines[entry.testedBy.ownPositiveLine - 1] ?? "",
+      new RegExp("const " + own + " = expectStatus\\(await request\\("),
+      path + " " + verb + ": own 2316 success must have a real HTTP request");
+    assert.match(proofLines[entry.testedBy.foreignDenialLine - 1] ?? "",
+      new RegExp("const " + foreign + " = expectStatus\\(await request\\("),
+      path + " " + verb + ": a foreign victim denial must be exercised");
+    if (verb === "POST") {
+      assert.match(proofLines[entry.testedBy.unchangedDbLine - 1] ?? "",
+        /assert\\.deepEqual\\(victimAfter, victimBefore/,
+        "Unsigned PDF POST must leave the real victim database and audit untouched");
+    }
+  }
+  assert.equal(gaps.length + bir2316Methods.length, 338,
+    "Keep all 338 main GAPs except three exact source-pinned 2316 GET/GET/POST proofs");
+  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length, 145,
+    "All 145 previous BIR/vault, MNY-01 and six MNY-02 credits remain intact");
   const certifiedGovernance = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(certifiedGovernance?.status, "COVERED", "Closing a GAP requires independently exercised tenant-proof evidence");
   assert.equal(certifiedGovernance?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs", "HCM GET must retain the real authenticated own/foreign HTTP proof");
