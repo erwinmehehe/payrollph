@@ -163,13 +163,30 @@ jobs:
           echo "Disposable flag-off app did not start"
           exit 1
       - name: Verify real authenticated UI, scoped API denials, role controls and mobile widths
+        id: existing_browser
+        continue-on-error: true
         run: node scripts/multi-entity-synthetic-browser.mjs
+      - name: Print bounded fictional localhost application error diagnostics
+        if: steps.existing_browser.outcome == 'failure'
+        shell: bash
+        run: |
+          for file in /tmp/multi-entity-on-ci.log /tmp/multi-entity-off-ci.log; do
+            echo "Error lines from synthetic-only local app: $file"
+            if test -f "$file"; then
+              grep -Ei 'Error:|cause:|code:|does not exist|Failed|digest:|cannot|TypeError:' "$file" | tail -n 45 | cut -c 1-240 || true
+            fi
+          done
       - name: Verify actual signed-in BIR 2316 frozen-employer GET/POST isolation
         env:
           BIR_2316_CERTIFICATE_DRAFT_ENABLED: "true"
           BIR_2316_RECONCILIATION_ENABLED: "true"
           BIR_2316_WITHHOLDING_EVIDENCE_ENABLED: "true"
         run: npx tsx scripts/qa/tenant-bir2316-http.mjs
+      - name: Enforce existing UI/browser acceptance remains green
+        if: steps.existing_browser.outcome == 'failure'
+        run: |
+          echo "Existing multi-entity synthetic browser failed; keep the job red."
+          exit 1
       - name: Exercise isolated HCM employer switching in the synthetic browser
         # Intercepted requests/fictional names; NOT actual HCM route access.
         # Real flag-ON HCM routes remain 403 ENTITY_HCM_DEFERRED.
