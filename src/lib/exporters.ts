@@ -10,10 +10,15 @@ import {
   organizations,
   payrollEntries,
   payrollRuns,
+  payoutBatches,
   payoutProfiles,
+  statutoryRemittanceBatches,
+  statutoryRemittanceMembers,
 } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
-import { frozenReleasedPayrollPayment } from "@/lib/payroll-payout-snapshot";
+import { assertReleasedPayoutTotals, frozenReleasedPayrollPayment } from "@/lib/payroll-payout-snapshot";
+import { payoutCentsFromNetPay } from "@/lib/payout-ledger-rules";
+import { assertMonthlyFilingMatchesRemittance } from "@/lib/filing-remittance-snapshot";
 import { bankPartFilename, createStoredZip, splitRowsByBankLimits } from "@/lib/bank-file-bundle";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
@@ -28,6 +33,13 @@ import {
 
 const csv = escapeCsvCell;
 const round2 = (value: number) => Math.round(value * 100) / 100;
+const formatExactPayoutCents = (cents: number) => {
+  if (!Number.isSafeInteger(cents) || cents < 0) {
+    throw new Error("PAYOUT_REGISTER_RECONCILIATION_FAILED: invalid total centavos.");
+  }
+  const digits = String(cents).padStart(3, "0");
+  return digits.slice(0, -2) + "." + digits.slice(-2);
+};
 
 export function taxWithheldFromLineItems(value: unknown) {
   const lines = Array.isArray(value)
@@ -203,6 +215,14 @@ export async function generateBankFile(
     .orderBy(asc(employees.id));
 
   if (!dryRun && run.status === "Released") {
+    // Do not rely solely on the HTTP handler: no caller may export a second
+    // salary instruction after a provider has staged this run's ledger.
+    const [claimed] = await db.select({ id: payoutBatches.id }).from(payoutBatches)
+      .where(and(
+        eq(payoutBatches.organizationId, run.organizationId),
+        eq(payoutBatches.payrollRunId, run.id),
+      )).limit(1);
+    if (claimed) throw new Error("PAYOUT_BANK_FILE_LEDGER_ALREADY_CLAIMED");
     for (const { entry, employee } of entries) {
       if (employee.organizationId !== run.organizationId) {
         throw new Error("PAYOUT_TENANT_MISMATCH: bank export contains a worker outside the released employer workspace.");
@@ -258,6 +278,12 @@ export async function generateBankFile(
     };
   });
 
+  // Every count, manifest, body amount and split total derives from this
+  // single exact-centavo register; no independent float sum is authoritative.
+  const registerCents = rows.map((row) => payoutCentsFromNetPay(row.net_pay));
+  const registerTotalCents = registerCents.reduce((sum, amount) => sum + amount, 0);
+  const registerTotal = formatExactPayoutCents(registerTotalCents);
+
   const tName = template.name.toLowerCase();
   const usesMobileDestination = tName.includes("gcash") || tName.includes("maya") || tName.includes("paymaya");
   const validation = {
@@ -265,7 +291,7 @@ export async function generateBankFile(
     template: template.name,
     version: template.version,
     rowCount: rows.length,
-    totalNet: rows.reduce((sum, row) => sum + Number(row.net_pay), 0).toFixed(2),
+    totalNet: registerTotal,
     missingAccounts: rows.filter((row) => row.account_number === "0000000000").length,
     missingMobiles: rows.filter((row) => row.mobile === "09000000000").length,
     missingPaymentSnapshots: rows.filter((row) => !row.paymentSnapshotPresent).length,
@@ -282,14 +308,13 @@ export async function generateBankFile(
         `Final bank file cannot be generated: ${validation.missingPaymentSnapshots} payroll entr${validation.missingPaymentSnapshots === 1 ? "y lacks" : "ies lack"} an immutable payment snapshot. Recalculate before release.`,
       );
     }
-    if (rows.length !== run.employeeCount) {
-      throw new Error(
-        `Final bank file cannot be generated: register has ${rows.length} rows but the released run records ${run.employeeCount} employees.`,
-      );
-    }
-    if (Math.abs(Number(validation.totalNet) - Number(run.netPay)) > 0.01) {
-      throw new Error("Final bank file total does not match the released payroll net pay.");
-    }
+    // Exact cents and complete row count must match the released register.
+    // The former > 0.01 floating tolerance could admit a one-cent mutation.
+    assertReleasedPayoutTotals({
+      expectedEmployeeCount: run.employeeCount,
+      expectedNetPay: run.netPay,
+      amountsCents: registerCents,
+    });
     if (usesMobileDestination && validation.missingMobiles > 0) {
       throw new Error(
         `Final mobile-wallet file cannot be generated: ${validation.missingMobiles} employee(s) are missing a captured mobile number.`,
@@ -330,13 +355,13 @@ export async function generateBankFile(
       : null;
 
   const maxAmountCents = matchingPayoutProfile?.maxAmountPerFile
-    ? Math.round(Number(matchingPayoutProfile.maxAmountPerFile) * 100)
+    ? payoutCentsFromNetPay(matchingPayoutProfile.maxAmountPerFile)
     : null;
   const maxRowsPerFile = matchingPayoutProfile?.maxRowsPerFile ?? null;
 
   const splitParts = splitRowsByBankLimits(
     rows,
-    (row) => Math.round(Number(row.amount) * 100),
+    (row) => payoutCentsFromNetPay(row.amount),
     { maxAmountCents, maxRows: maxRowsPerFile },
   );
   const rowParts = splitParts.length > 0 ? splitParts : [rows];
@@ -405,8 +430,8 @@ export async function generateBankFile(
           email: row.email,
           mobile: row.mobile,
           bank_code: row.bank_code,
-          amount: Number(row.amount).toFixed(2),
-          net_pay: Number(row.net_pay).toFixed(2),
+          amount: formatExactPayoutCents(payoutCentsFromNetPay(row.amount)),
+          net_pay: formatExactPayoutCents(payoutCentsFromNetPay(row.net_pay)),
           payment_date: row.payment_date,
           reference: row.reference,
         })),
@@ -433,13 +458,13 @@ export async function generateBankFile(
   const baseFilename = `${options.allowSyntheticDemoDestinations ? "demo-" : ""}${template.name.replaceAll(" ", "-").toLowerCase()}-${run.id}.${template.format.toLowerCase()}`;
   const renderedParts = rowParts.map((partRows, index) => {
     const totalCents = partRows.reduce(
-      (sum, row) => sum + Math.round(Number(row.amount) * 100),
+      (sum, row) => sum + payoutCentsFromNetPay(row.amount),
       0,
     );
     const filename = bankPartFilename(baseFilename, index + 1, rowParts.length);
     const rendered = renderBody(partRows);
     const body = dryRun
-      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# part=${index + 1}/${rowParts.length}\n# rows=${partRows.length} totalNet=${(totalCents / 100).toFixed(2)}\n# maxAmountPerFile=${matchingPayoutProfile?.maxAmountPerFile ?? "none"} maxRowsPerFile=${maxRowsPerFile ?? "none"}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots} missingIdentitySnapshots=${validation.missingIdentitySnapshots}\n# syntheticDemoDestinations=${validation.syntheticDemoDestinations}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${rendered}`
+      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# part=${index + 1}/${rowParts.length}\n# rows=${partRows.length} totalNet=${formatExactPayoutCents(totalCents)}\n# maxAmountPerFile=${matchingPayoutProfile?.maxAmountPerFile ?? "none"} maxRowsPerFile=${maxRowsPerFile ?? "none"}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots} missingIdentitySnapshots=${validation.missingIdentitySnapshots}\n# syntheticDemoDestinations=${validation.syntheticDemoDestinations}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${rendered}`
       : rendered;
     return {
       filename,
@@ -450,10 +475,10 @@ export async function generateBankFile(
   });
 
   const combinedCents = renderedParts.reduce((sum, part) => sum + part.totalCents, 0);
-  const releasedCents = Math.round(Number(run.netPay) * 100);
-  if (!dryRun && combinedCents !== releasedCents) {
+  const releasedCents = payoutCentsFromNetPay(run.netPay);
+  if (!dryRun && (combinedCents !== releasedCents || combinedCents !== registerTotalCents)) {
     throw new Error(
-      `Split bank files do not reconcile to released payroll net pay: files PHP ${(combinedCents / 100).toFixed(2)} vs released PHP ${(releasedCents / 100).toFixed(2)}.`,
+      `Split bank files do not reconcile to released payroll net pay: files PHP ${formatExactPayoutCents(combinedCents)} vs released PHP ${formatExactPayoutCents(releasedCents)}.`,
     );
   }
 
@@ -467,7 +492,7 @@ export async function generateBankFile(
     files: renderedParts.map((part) => ({
       filename: part.filename,
       rowCount: part.rowCount,
-      totalNet: (part.totalCents / 100).toFixed(2),
+      totalNet: formatExactPayoutCents(part.totalCents),
     })),
   };
 
@@ -941,6 +966,45 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   const monthlyStatutoryEntries = [...statutoryLatestByEmployee.values()]
     .sort((a, b) => a.employee.id - b.employee.id);
 
+  // The remittance workspace displays a persisted monthly batch and member
+  // snapshot. If it exists, a worksheet must match those SAME frozen cents
+  // before any draft bytes leave the exporter; recalculation is not authority.
+  const verifyAgainstDisplayedRemittance = async (
+    agency: "SSS" | "PhilHealth" | "Pag-IBIG",
+    form: "R-3" | "RF-1" | "MCRF",
+    body: string,
+  ) => {
+    const applicableMonth = String(run.periodEnd).slice(0, 7);
+    const [frozen] = await db.select({
+      id: statutoryRemittanceBatches.id,
+      employeeCount: statutoryRemittanceBatches.employeeCount,
+      expectedTotal: statutoryRemittanceBatches.expectedTotal,
+    }).from(statutoryRemittanceBatches).where(and(
+      eq(statutoryRemittanceBatches.organizationId, run.organizationId),
+      eq(statutoryRemittanceBatches.legalEntityId, legalEntityId),
+      eq(statutoryRemittanceBatches.agency, agency),
+      eq(statutoryRemittanceBatches.applicableMonth, applicableMonth),
+    )).limit(1);
+    if (!frozen) return; // No remittance UI snapshot exists yet; still a draft.
+    if (monthPrefix !== applicableMonth) {
+      throw new Error("REMITTANCE_EXPORT_SNAPSHOT_MISMATCH: Filing pay month differs from the frozen remittance month.");
+    }
+    const members = await db.select({
+      employeeId: statutoryRemittanceMembers.employeeId,
+      totalContribution: statutoryRemittanceMembers.totalContribution,
+    }).from(statutoryRemittanceMembers).where(and(
+      eq(statutoryRemittanceMembers.organizationId, run.organizationId),
+      eq(statutoryRemittanceMembers.legalEntityId, legalEntityId),
+      eq(statutoryRemittanceMembers.batchId, frozen.id),
+    ));
+    assertMonthlyFilingMatchesRemittance({
+      agency, form, body, applicableMonth,
+      displayed: { employeeCount: frozen.employeeCount, expectedTotal: frozen.expectedTotal },
+      members,
+      exportedEmployeeIds: monthlyStatutoryEntries.map((row) => row.employee.id),
+    });
+  };
+
   const headerNote = [
     "# DRAFT ONLY, not a certified government submission file",
     `# kind=${kind}`,
@@ -993,10 +1057,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
         ].map(csv).join(",");
       }),
     ].join("\n");
+    const verifiedBody = `${headerNote}\n# SSS employer workflow uses My.SSS e-CL and a PRN. This worksheet is not an SSS acknowledgement or a certified R3 File Generator output.\n# Figures below are full monthly amounts (recomputed from basic pay), not this single cutoff's half-month deduction.\n${body}`;
+    await verifyAgainstDisplayedRemittance("SSS", "R-3", verifiedBody);
     return {
       filename: `sss-ecl-r3-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# SSS employer workflow uses My.SSS e-CL and a PRN. This worksheet is not an SSS acknowledgement or a certified R3 File Generator output.\n# Figures below are full monthly amounts (recomputed from basic pay), not this single cutoff's half-month deduction.\n${body}`,
+      body: verifiedBody,
     };
   }
 
@@ -1027,10 +1093,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
         ].map(csv).join(",");
       }),
     ].join("\n");
+    const verifiedBody = `${headerNote}\n# PhilHealth requires employers to use EPRS for premium reporting and payment. This worksheet is a portal-entry aid, not an EPRS acknowledgement.\n# Full monthly premium amounts are recomputed from monthly basic salary.\n${body}`;
+    await verifyAgainstDisplayedRemittance("PhilHealth", "RF-1", verifiedBody);
     return {
       filename: `philhealth-eprs-rf1-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# PhilHealth requires employers to use EPRS for premium reporting and payment. This worksheet is a portal-entry aid, not an EPRS acknowledgement.\n# Full monthly premium amounts are recomputed from monthly basic salary.\n${body}`,
+      body: verifiedBody,
     };
   }
 
@@ -1068,10 +1136,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
         ].map(csv).join(",");
       }),
     ].join("\n");
+    const verifiedBody = `${headerNote}\n# Columns now mirror Pag-IBIG's published MCRF encoding instructions: MID/RTN, account number, membership program, names, YYYYMM period covered, EE share, ER share and remarks. This remains an assisted CSV worksheet because Pag-IBIG prescribes its own spreadsheet/eSRS workflow rather than an arbitrary CSV upload.\n# Full monthly mandatory contributions are recomputed from monthly basic salary.\n${body}`;
+    await verifyAgainstDisplayedRemittance("Pag-IBIG", "MCRF", verifiedBody);
     return {
       filename: `pagibig-mcrf-esrs-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# Columns now mirror Pag-IBIG's published MCRF encoding instructions: MID/RTN, account number, membership program, names, YYYYMM period covered, EE share, ER share and remarks. This remains an assisted CSV worksheet because Pag-IBIG prescribes its own spreadsheet/eSRS workflow rather than an arbitrary CSV upload.\n# Full monthly mandatory contributions are recomputed from monthly basic salary.\n${body}`,
+      body: verifiedBody,
     };
   }
 

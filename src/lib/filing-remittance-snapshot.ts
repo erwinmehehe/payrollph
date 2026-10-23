@@ -98,6 +98,68 @@ export function summarizeMonthlyContributionFile(input: {
   };
 }
 
+/**
+ * The compliance UI displays statutory_remittance_batches.expected_total and its
+ * immutable member rows. Never export an independently recalculated worksheet
+ * when either its total OR any employee line disagrees with that same snapshot.
+ */
+export function assertMonthlyFilingMatchesRemittance(input: {
+  agency: string;
+  form: string;
+  applicableMonth: string;
+  body: string;
+  displayed: { employeeCount: number; expectedTotal: string };
+  members: readonly { employeeId: number; totalContribution: string }[];
+  exportedEmployeeIds: readonly number[];
+}): MonthlyFilingSnapshot {
+  const failure = () => new Error(
+    "REMITTANCE_EXPORT_SNAPSHOT_MISMATCH: Worksheet differs from the displayed frozen remittance liability. Review and reconcile before exporting.",
+  );
+  const cents = (value: string): number => {
+    if (!/^(?:0|[1-9]\d{0,13})(?:\.\d{1,2})?$/.test(value)) throw failure();
+    const [whole, fraction = ""] = value.split(".");
+    const result = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+    if (!Number.isSafeInteger(result)) throw failure();
+    return result;
+  };
+  const snapshot = summarizeMonthlyContributionFile({
+    agency: input.agency,
+    form: input.form,
+    body: input.body,
+    applicableMonth: input.applicableMonth,
+  });
+  const totalColumn = MONTHLY_TOTAL_COLUMNS[`${input.agency}:${input.form}`];
+  if (!snapshot || !totalColumn || !Number.isSafeInteger(input.displayed.employeeCount)
+    || snapshot.employeeCount !== input.displayed.employeeCount
+    || input.members.length !== input.displayed.employeeCount
+    || input.exportedEmployeeIds.length !== input.displayed.employeeCount) throw failure();
+
+  const rows = parseCsv(input.body.split(/\r?\n/).filter((line) => !line.startsWith("#")).join("\n"));
+  const column = rows[0]?.map((value) => value.trim()).indexOf(totalColumn) ?? -1;
+  if (column < 0 || rows.length !== input.displayed.employeeCount + 1) throw failure();
+  const expected = new Map<number, number>();
+  for (const member of input.members) {
+    if (!Number.isSafeInteger(member.employeeId) || expected.has(member.employeeId)) throw failure();
+    expected.set(member.employeeId, cents(member.totalContribution));
+  }
+  const expectedTotal = cents(input.displayed.expectedTotal);
+  const frozenTotal = [...expected.values()].reduce((sum, amount) => sum + amount, 0);
+  if (!Number.isSafeInteger(frozenTotal) || frozenTotal !== expectedTotal) throw failure();
+  let exportedTotal = 0;
+  for (let index = 0; index < input.exportedEmployeeIds.length; index += 1) {
+    const employeeId = input.exportedEmployeeIds[index];
+    const row = rows[index + 1];
+    const expectedAmount = expected.get(employeeId);
+    if (expectedAmount === undefined || !row || row[column] === undefined) throw failure();
+    const amount = cents(row[column]);
+    if (amount !== expectedAmount) throw failure();
+    exportedTotal += amount;
+  }
+  if (!Number.isSafeInteger(exportedTotal) || exportedTotal !== expectedTotal
+    || cents(snapshot.reportedTotal.toFixed(2)) !== expectedTotal) throw failure();
+  return snapshot;
+}
+
 export function compareFilingToRemittance(input: {
   filingEmployeeCount: number;
   filingTotal: number;
