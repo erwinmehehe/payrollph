@@ -230,7 +230,15 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  assert.equal(gaps.length, 352, "Retain 352 unproven methods after distinct BIR and employee-vault source-pinned proofs; merged #1303 receipts remain");
+  // #1341 adds exactly one independently source-pinned multi-entity group-report GET.
+  // Keep all other unproven methods OPEN; this sentinel must not silently fall.
+  assert.equal(gaps.length, 351,
+    "Retain 351 unproven methods after one provisional group-report GET credit; never certify the other gaps");
+  const reportMethod = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]
+    ?.methods.find(method => method.name === "GET");
+  assert.equal(reportMethod?.status, "COVERED", "Group-report GET credit must remain explicitly source-pinned");
+  assert.equal(reportMethod?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs",
+    "Group-report credit requires independently exercised three-tenant HTTP proof");
   const certifiedGovernance = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(certifiedGovernance?.status, "COVERED", "Closing a GAP requires independently exercised tenant-proof evidence");
   assert.equal(certifiedGovernance?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs", "HCM GET must retain the real authenticated own/foreign HTTP proof");
