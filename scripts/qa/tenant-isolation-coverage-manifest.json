@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-22",
-  "acceptanceStatus": "NOT ACCEPTED: 343 API methods and 19 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 140 COVERED / 10 PUBLIC-BY-DESIGN / 343 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 343 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 140 COVERED / 10 PUBLIC-BY-DESIGN / 343 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. Draft PR #1341 provisionally adds one source-pinned multi-entity group-report GET proof (own 200, independent foreign 403, non-null foreign employer 409 and unchanged victim records) on top of main's eight merged #1339 money-input methods. Combined 140 COVERED / 10 PUBLIC-BY-DESIGN / 343 GAP; 19 page/action gaps remain. This is NOT ACCEPTED pending exact-head CI and independent security/owner review; no live payout or production flag changes.",
+  "acceptanceStatus": "NOT ACCEPTED: 337 API methods and 19 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. MNY-02 contractor/EWT six-method partial sub-batch on this PR adds direct own/foreign and forged-selector PG16/HTTP test assertions, including a fictional cross-employer FK read integrity check. Six additional methods are PROVISIONAL until exact-head CI and independent security reviewer approval: 145 COVERED / 10 PUBLIC-BY-DESIGN / 338 GAP, 19 page/action GAPs. No production data, funds, provider or statutory filing touched. Draft PR #1341 provisionally adds one source-pinned multi-entity group-report GET proof (own 200, independent foreign 403, non-null foreign employer 409 and unchanged victim records) on top of main's eight merged #1339 money-input methods. Combined 146 COVERED / 10 PUBLIC-BY-DESIGN / 337 GAP; 19 page/action gaps remain. This is NOT ACCEPTED pending exact-head CI and independent security/owner review; no live payout or production flag changes.",
   "metrics": {
     "routeFiles": 290,
     "methods": 493,
     "coveredBefore": 20,
-    "coveredAfter": 140,
+    "coveredAfter": 146,
     "publicByDesign": 10,
-    "gap": 343,
+    "gap": 337,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -7151,22 +7151,44 @@
       ]
     },
     "src/app/api/contractors/payments/route.ts": {
-      "gitBlobSha": "dae73c2476bc2f6d45897ed3f92eb20598b0590e",
+      "gitBlobSha": "a2728c9546a263454f6803a65e5552c0c6a0dba8",
       "route": "contractors/payments",
       "methods": [
         {
           "name": "GET",
           "line": 42,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: MNY-02 contractor and EWT source-linked two-attacker real-HTTP/PG16 own-success, foreign-denial, forged-selector and unchanged-victim proof; no real payment, production acceptance or full batch closure. Requires exact-head CI and independent review.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-mny02-contractors-http.mjs",
+            "line": 194,
+            "ownPositiveLine": 194,
+            "foreignDenialLine": 201,
+            "forgedSelectorLine": 205,
+            "unchangedDbLine": 271,
+            "victimExistsLine": 127,
+            "victimIdOrderingLine": 121,
+            "scope": "Two independent fictional employer owners, populated owned contractor/payment records, persisted higher-ID victim records, real HTTP 201/200 vs foreign 403 and forged 404; one read-only foreign-FK corruption must produce 409 in both JSON and CSV. Victim SQL/Audit/Payroll invariant remains unchanged.",
+            "evidence": "Security HTTP Smoke on exact PR head (pending); source-only checks are not acceptance."
+          }
         },
         {
           "name": "POST",
-          "line": 173,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "line": 187,
+          "status": "COVERED",
+          "reason": "Provisional: MNY-02 contractor and EWT source-linked two-attacker real-HTTP/PG16 own-success, foreign-denial, forged-selector and unchanged-victim proof; no real payment, production acceptance or full batch closure. Requires exact-head CI and independent review.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-mny02-contractors-http.mjs",
+            "line": 73,
+            "ownPositiveLine": 73,
+            "foreignDenialLine": 220,
+            "forgedSelectorLine": 227,
+            "unchangedDbLine": 271,
+            "victimExistsLine": 127,
+            "victimIdOrderingLine": 121,
+            "scope": "Two independent fictional employer owners, populated owned contractor/payment records, persisted higher-ID victim records, real HTTP 201/200 vs foreign 403 and forged 404; one read-only foreign-FK corruption must produce 409 in both JSON and CSV. Victim SQL/Audit/Payroll invariant remains unchanged.",
+            "evidence": "Security HTTP Smoke on exact PR head (pending); source-only checks are not acceptance."
+          }
         }
       ],
       "employerSources": {
@@ -7206,19 +7228,19 @@
           "token": "getAccess"
         },
         {
-          "line": 174,
+          "line": 188,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 177,
+          "line": 191,
           "token": "getSessionUser"
         },
         {
-          "line": 197,
+          "line": 211,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 204,
+          "line": 218,
           "token": "getAccess"
         }
       ],
@@ -7228,7 +7250,7 @@
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 181,
+          "line": 195,
           "token": "body.organizationId"
         }
       ],
@@ -7266,31 +7288,31 @@
           "token": "organizationId"
         },
         {
-          "line": 181,
+          "line": 195,
           "token": "organizationId"
         },
         {
-          "line": 181,
+          "line": 195,
           "token": "organizationId"
         },
         {
-          "line": 186,
+          "line": 200,
           "token": "organizationId"
         },
         {
-          "line": 193,
+          "line": 207,
           "token": "organizationId"
         },
         {
-          "line": 199,
+          "line": 213,
           "token": "organizationId"
         },
         {
-          "line": 204,
+          "line": 218,
           "token": "organizationId"
         },
         {
-          "line": 211,
+          "line": 225,
           "token": "organizationId"
         }
       ]
@@ -7302,30 +7324,74 @@
         {
           "name": "GET",
           "line": 9,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: MNY-02 contractor and EWT source-linked two-attacker real-HTTP/PG16 own-success, foreign-denial, forged-selector and unchanged-victim proof; no real payment, production acceptance or full batch closure. Requires exact-head CI and independent review.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-mny02-contractors-http.mjs",
+            "line": 138,
+            "ownPositiveLine": 138,
+            "foreignDenialLine": 143,
+            "forgedSelectorLine": 146,
+            "unchangedDbLine": 271,
+            "victimExistsLine": 127,
+            "victimIdOrderingLine": 121,
+            "scope": "Two independent fictional employer owners, populated owned contractor/payment records, persisted higher-ID victim records, real HTTP 201/200 vs foreign 403 and forged 404; one read-only foreign-FK corruption must produce 409 in both JSON and CSV. Victim SQL/Audit/Payroll invariant remains unchanged.",
+            "evidence": "Security HTTP Smoke on exact PR head (pending); source-only checks are not acceptance."
+          }
         },
         {
           "name": "POST",
           "line": 38,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: MNY-02 contractor and EWT source-linked two-attacker real-HTTP/PG16 own-success, foreign-denial, forged-selector and unchanged-victim proof; no real payment, production acceptance or full batch closure. Requires exact-head CI and independent review.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-mny02-contractors-http.mjs",
+            "line": 54,
+            "ownPositiveLine": 54,
+            "foreignDenialLine": 152,
+            "forgedSelectorLine": 152,
+            "unchangedDbLine": 271,
+            "victimExistsLine": 127,
+            "victimIdOrderingLine": 121,
+            "scope": "Two independent fictional employer owners, populated owned contractor/payment records, persisted higher-ID victim records, real HTTP 201/200 vs foreign 403 and forged 404; one read-only foreign-FK corruption must produce 409 in both JSON and CSV. Victim SQL/Audit/Payroll invariant remains unchanged.",
+            "evidence": "Security HTTP Smoke on exact PR head (pending); source-only checks are not acceptance."
+          }
         },
         {
           "name": "PATCH",
           "line": 96,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: MNY-02 contractor and EWT source-linked two-attacker real-HTTP/PG16 own-success, foreign-denial, forged-selector and unchanged-victim proof; no real payment, production acceptance or full batch closure. Requires exact-head CI and independent review.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-mny02-contractors-http.mjs",
+            "line": 167,
+            "ownPositiveLine": 167,
+            "foreignDenialLine": 160,
+            "forgedSelectorLine": 167,
+            "unchangedDbLine": 271,
+            "victimExistsLine": 127,
+            "victimIdOrderingLine": 121,
+            "scope": "Two independent fictional employer owners, populated owned contractor/payment records, persisted higher-ID victim records, real HTTP 201/200 vs foreign 403 and forged 404; one read-only foreign-FK corruption must produce 409 in both JSON and CSV. Victim SQL/Audit/Payroll invariant remains unchanged.",
+            "evidence": "Security HTTP Smoke on exact PR head (pending); source-only checks are not acceptance."
+          }
         },
         {
           "name": "DELETE",
           "line": 167,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: MNY-02 contractor and EWT source-linked two-attacker real-HTTP/PG16 own-success, foreign-denial, forged-selector and unchanged-victim proof; no real payment, production acceptance or full batch closure. Requires exact-head CI and independent review.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-mny02-contractors-http.mjs",
+            "line": 186,
+            "ownPositiveLine": 186,
+            "foreignDenialLine": 180,
+            "forgedSelectorLine": 186,
+            "unchangedDbLine": 271,
+            "victimExistsLine": 127,
+            "victimIdOrderingLine": 121,
+            "scope": "Two independent fictional employer owners, populated owned contractor/payment records, persisted higher-ID victim records, real HTTP 201/200 vs foreign 403 and forged 404; one read-only foreign-FK corruption must produce 409 in both JSON and CSV. Victim SQL/Audit/Payroll invariant remains unchanged.",
+            "evidence": "Security HTTP Smoke on exact PR head (pending); source-only checks are not acceptance."
+          }
         }
       ],
       "employerSources": {

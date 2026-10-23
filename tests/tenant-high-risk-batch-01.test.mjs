@@ -211,14 +211,40 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(moneyMethods.length, 8, "Only eight separately executed money-input methods are credited");
   assert.ok(moneyMethods.every(m => m.status === "COVERED" && m.testedBy.ownPositiveLine &&
     m.testedBy.foreignDenialLine && m.testedBy.unchangedDbLine && m.testedBy.forgedSelectorLine));
+  // Six additional MNY-02 contractor/EWT methods are separately counted only
+  // when their exact real HTTP own/foreign proof is pinned to this specific
+  // reviewed suite. Do not weaken or change the historical 124/359 baseline.
+  const contractorProof = "scripts/qa/tenant-mny02-contractors-http.mjs";
+  const contractorSource = readFileSync(contractorProof, "utf8").split("\n");
+  const contractorKeys = [
+    "GET contractors", "POST contractors", "PATCH contractors", "DELETE contractors",
+    "GET contractors/payments", "POST contractors/payments",
+  ];
+  assert.match(harness, /verifyMny02ContractorTenantIsolation\(f, \{ request, expectStatus \}\)/);
+  let contractorMethods = 0;
+  for (const key of contractorKeys) {
+    const method = methodsByKey.get(key);
+    assert.equal(method?.status, "COVERED", key + ": own/victim proof required");
+    assert.equal(method.testedBy?.file, contractorProof, key + ": cannot borrow unrelated proof");
+    const p = method.testedBy;
+    assert.match(contractorSource[p.ownPositiveLine - 1] ?? "", /expectStatus\(await request\(/,
+      key + ": executed own-employer success required");
+    assert.match(contractorSource[p.foreignDenialLine - 1] ?? "", /expectStatus\(await request\(/,
+      key + ": executed real foreign-employer denial required");
+    assert.match(contractorSource[p.unchangedDbLine - 1] ?? "",
+      /assert\.deepEqual\(await victimSnapshot\(victim\.id\), originalVictim/,
+      key + ": unchanged victim DB records required");
+    contractorMethods++;
+  }
+  assert.equal(contractorMethods, 6);
   const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
   assert.equal(groupReport?.status, "COVERED", "Group report requires an independently sourced GET proof");
   assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs",
     "Only the real multi-entity browser acceptance may support this extra method credit");
   const groupReportCredits = 1;
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - groupReportCredits, 124,
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods - groupReportCredits, 124,
     "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + groupReportCredits, 359,
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods + groupReportCredits, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 343, "Keep all 344 unverified API method gaps after separate BIR and vault proofs");
-  assert.equal(manifest.metrics.coveredAfter, 140, "Count exact linked PG16 BIR and vault method proofs without treating GAPs as successes");
+  assert.equal(manifest.metrics.gap, 337, "Keep 337 remaining API method GAPs after the six MNY-02 and one #1341 group-report proofs");
+  assert.equal(manifest.metrics.coveredAfter, 146, "Count distinct provisional MNY-02 and group-report evidence without treating GAPs as successes");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
@@ -675,6 +675,64 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(workflow, /MONEY_PROOF_TRANSPORT: http/);
         assert.match(workflow, /npx tsx scripts\/qa\/tenant-money-lifecycle-http\.mjs/);
         assert.match(integration, /assert\.notEqual\(process\.env\.GITHUB_ACTIONS, "true"/);
+        continue;
+      }
+      // MNY-02 provisional contractor/EWT proofs: six fixed method signatures,
+      // real two-attacker HTTP positive/negative checks and a victim SQL invariant.
+      // Never allow arbitrary routes to claim this specialized proof source.
+      if (proof?.file === "scripts/qa/tenant-mny02-contractors-http.mjs") {
+        const specs = {
+          "GET contractors": [138, 143, 146, 200],
+          "POST contractors": [54, 152, 152, 201],
+          "PATCH contractors": [167, 160, 167, 200],
+          "DELETE contractors": [186, 180, 186, 200],
+          "GET contractors/payments": [194, 201, 205, 200],
+          "POST contractors/payments": [73, 220, 227, 201],
+        };
+        const key = method.name + " " + entry.route;
+        const spec = specs[key];
+        assert.ok(spec, path + ": unrelated route cannot borrow MNY-02 contractor evidence");
+        assert.ok([
+          "src/app/api/contractors/route.ts",
+          "src/app/api/contractors/payments/route.ts",
+        ].includes(path), "Only the two reviewed contractor API routes are in scope");
+        assert.deepEqual(
+          [proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+            proof.forgedSelectorLine, proof.unchangedDbLine],
+          [spec[0], spec[0], spec[1], spec[2], 271],
+          key + ": pinned method-specific evidence changed without review",
+        );
+        const script = readFileSync(proof.file, "utf8");
+        const proofLines = script.split("\n");
+        const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        assert.match(runner, /verifyMny02ContractorTenantIsolation\(f, \{ request, expectStatus \}\)/);
+        assert.match(script, /assert\.equal\(process\.env\.CI, "true"\)/);
+        assert.match(script, /assert\.equal\(process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"\)/);
+        assert.match(script, /assert\.equal\(pg\.pathname, "\/app_db"\)/);
+        assert.match(script, /for \(const idx of \[1, 2\]\)/);
+        assert.match(script, /victimContract\.id > 6 && victimPayment\.id > 6/);
+        assert.match(script, /const blockedJson = expectStatus\(await request\(/);
+        assert.match(script, /const blockedCsv = expectStatus\(await request\(/);
+        assert.match(proofLines[proof.unchangedDbLine - 1],
+          /assert\.deepEqual\(await victimSnapshot\(victim\.id\), originalVictim/);
+        const ownedStart = proofLines[spec[0] - 1];
+        const deniedStart = proofLines[spec[1] - 1];
+        assert.match(ownedStart, /expectStatus\(await request\(/, key + ": own proof must call HTTP");
+        assert.match(deniedStart, /expectStatus\(await request\(/, key + ": denial proof must call HTTP");
+        const span = n => proofLines.slice(n - 1, n + 9).join("\n");
+        const endpoint = "/api/" + entry.route;
+        assert.ok(span(spec[0]).includes(endpoint) && span(spec[1]).includes(endpoint),
+          key + ": both own and foreign calls must hit the same method route");
+        assert.ok(new RegExp("\\),\\s*" + spec[3] + ",").test(span(spec[0])),
+          key + ": positive must assert real owned HTTP success");
+        assert.match(span(spec[1]), /\)\s*,\s*403\s*,/,
+          key + ": foreign request must explicitly deny actual victim employer");
+        if (method.name !== "GET") {
+          assert.ok(span(spec[0]).includes('method: "' + method.name + '"') &&
+            span(spec[1]).includes('method: "' + method.name + '"'),
+            key + ": mutation proof must execute its actual HTTP method");
+        }
+        assert.match(script, /noVictimResponse\(foreign/, "Foreign response must be checked for leaked identity");
         continue;
       }
       // New method credits must be bound to an explicitly reviewed endpoint,
