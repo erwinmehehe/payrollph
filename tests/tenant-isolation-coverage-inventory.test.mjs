@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 332, "Keep all 332 unverified API method gaps after twelve separately linked MNY-02 financial-method proofs");
-  assert.equal(manifest.metrics.coveredAfter, 151, "Count twelve additional MNY-02 contractor/EWT and expenses/benefits method proofs without closing remaining gaps");
+  assert.equal(manifest.metrics.gap, 330, "Keep all 330 unverified API method gaps after six contractor/EWT, two underpayment and six expense/benefit proofs");
+  assert.equal(manifest.metrics.coveredAfter, 153, "Count twelve MNY-02 and two provisional underpayment method proofs, without closing remaining gaps");
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -603,6 +603,26 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (proof?.file === "scripts/qa/underpayment-posting-http.mjs") {
+        assert.equal(path, "src/app/api/payroll-underpayments/route.ts");
+        const spec = { POST: [136, 149], PATCH: [166, 155] }[method.name];
+        assert.ok(spec, "Only the two executed underpayment writes receive new credit");
+        assert.deepEqual([proof.ownPositiveLine, proof.foreignDenialLine], spec);
+        const lines = readableLines(proof.file);
+        assert.ok(lines[spec[0] - 1].includes(method.name === "POST" ? "status(await request" : "const winner = replies.find"));
+        assert.match(lines[spec[1] - 1], /await deny\(v,/);
+        assert.ok(lines[spec[1] - 1].includes("v.org.id"), "Foreign proof must select the actual victim employer");
+        assert.match(lines[proof.unchangedDbLine - 1], /assert\.deepEqual\(await snapshot\(v\), before/);
+        const integration = lines.join("\n");
+        assert.match(integration, /await journey\(v, a\); await journey\(v, b\)/);
+        assert.match(integration, /v\.claim\.id > Math\.max\(a\.claim\.id, b\.claim\.id, 6\)/);
+        assert.match(integration, /\[200, 409\]/);
+        const workflow = readFileSync(".github/workflows/underpayment-posting.yml", "utf8");
+        assert.match(workflow, /posting: \['false', 'true'\]/);
+        assert.match(workflow, /MONEY_PROOF_TRANSPORT: http/);
+        assert.match(workflow, /npx tsx scripts\/qa\/underpayment-posting-http\.mjs/);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-money-lifecycle-http.mjs") {
         // Bookkeeping for eight separately executed PG16/HTTP cases; this
         // source guard never substitutes for the required workflow receipt.
@@ -706,7 +726,7 @@ test("all credited proof links point to the claimed route and every recertified 
       // cannot substitute for the disposable three-employer PG16 HTTP run.
       if (proof?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs") {
         const specs = {
-          "GET expenses": [147, 153, 158, 200],
+          "GET expenses": [153, 153, 158, 200],
           "POST expenses": [57, 162, 169, 201],
           "PATCH expenses": [181, 192, 181, 200],
           "GET de-minimis": [199, 205, undefined, 200],

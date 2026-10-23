@@ -79,8 +79,8 @@ test("method-specific source links prove real own positive, foreign denial and e
   assert.deepEqual([
     manifest.metrics.methods, manifest.metrics.coveredAfter,
     manifest.metrics.publicByDesign, manifest.metrics.gap,
-  ], [493, 151, 10, 332]);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 332 API methods and 19 page\/action GAPs remain\./);
+  ], [493, 153, 10, 330]);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 330 API methods and 19 page\/action GAPs remain\./);
 });
 
 test("no provider payment or feature-ON claim is made from a flag-OFF expense test", () => {
