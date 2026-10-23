@@ -153,15 +153,23 @@ globalThis.fetch = async (url, options) => {
       assert.equal(payload.transfers[0].amount, 2800000); assertions++;
       assert.equal(payload.transfers[0].destination_account.number, '000000000001'); assertions++;
       retryFixture.posts.push(payload);
-      batches.set('batch_tr_retry_' + retryFixture.actor.source.id, { ...batches.get('batch_tr_synthetic_' + retryFixture.actor.source.id), id: 'tr_retry_' + retryFixture.actor.source.id, status: 'pending' });
+      if (retryFixture.timeout) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        throw new Error('Synthetic response lost after provider may have accepted retry');
+      }
+      if (retryFixture.overlap) await new Promise(resolve => setTimeout(resolve, 100));
+      const originalBatch = batches.get('batch_tr_synthetic_' + retryFixture.actor.source.id);
+      const failedTransfer = Array.isArray(originalBatch) ? originalBatch.find(row => row.status === 'failed') : originalBatch;
+      batches.set('batch_tr_retry_' + retryFixture.actor.source.id, { ...failedTransfer, id: 'tr_retry_' + retryFixture.actor.source.id, status: 'pending' });
       return Response.json({ data: { id: 'batch_tr_retry_' + retryFixture.actor.source.id,
-        transfers: [{ ...batches.get('batch_tr_synthetic_' + retryFixture.actor.source.id), status: 'pending' }] } });
+        transfers: [{ ...failedTransfer, status: 'pending' }] } });
     }
   }
   check(method === 'GET', 'Only the explicitly registered retry fixture may perform a synthetic POST');
   const batchId = String(url).replace('https://api.paymongo.com/v2/batch_transfers/', '');
   check(batches.has(batchId), 'Only an explicitly registered fictional provider read is allowed');
-  return Response.json({ data: { id: batchId, transfers: [batches.get(batchId)] } });
+  const transferRows = batches.get(batchId);
+  return Response.json({ data: { id: batchId, transfers: Array.isArray(transferRows) ? transferRows : [transferRows] } });
 };
 async function providerFixture(a) {
   const batchId = `batch_tr_synthetic_${a.source.id}`;
@@ -252,6 +260,79 @@ async function retryControls(a) {
   retryFixture = null;
   process.env.PAYMONGO_DISBURSEMENTS_ENABLED = 'false';
 }
+async function overlappingRetry(a, timeout) {
+  batches.get('batch_tr_synthetic_' + a.source.id).status = 'failed';
+  process.env.PAYMONGO_DISBURSEMENTS_ENABLED = 'true';
+  process.env.PAYMONGO_WALLET_ID = 'wallet_synthetic';
+  retryFixture = { actor: a, posts: [], timeout, overlap: true };
+  await db.insert(s.auditEvents).values({ organizationId: a.org.id, actor: a.maker.user.name,
+    action: 'PayMongo payroll preflight passed', resource: 'Synthetic overlapping retry', metadata: { runId: a.source.id } });
+  const path = `/api/payroll-runs/${a.source.id}/payout-reconciliation`;
+  const body = { action: 'retry-failed', confirm: true };
+  const responses = await Promise.all([1, 2].map(() => request(path, a.checker.cookie, 'POST', body)));
+  assert.deepEqual(responses.map(r => r.status).sort(), timeout ? [409, 502] : [200, 409],
+    'overlapping retry requests cannot both submit'); assertions++;
+  check(retryFixture.posts.length === 1, 'overlapping requests produce one synthetic provider instruction');
+  const receipts = await db.select().from(s.auditEvents).where(eq(s.auditEvents.organizationId, a.org.id));
+  check(receipts.filter(e => e.action === 'Payroll payout retry submission initiated via PayMongo').length === 1, 'exactly one durable retry intent');
+  if (timeout) {
+    check(receipts.filter(e => e.action === 'Payroll payout retry outcome unknown').length === 1, 'lost response records unknown outcome');
+    const unknown = receipts.find(e => e.action === 'Payroll payout retry outcome unknown');
+    check(unknown.metadata.providerOutcomeUnknown === true && unknown.metadata.moneyMovedByLinaw === null,
+      'unknown outcome is not represented as unpaid');
+    const replay = await request(path, a.checker.cookie, 'POST', body);
+    status(replay, 409, 'unknown retry requires investigation before resend');
+    check(replay.json.error.includes('OUTCOME_UNVERIFIED'), 'explicit unresolved outcome receipt');
+  } else {
+    status(await request(path, a.checker.cookie, 'POST', body), 409, 'acknowledged retry cannot be replayed');
+  }
+  const providerCount = providerCalls.length;
+  const bank = await request(`/api/payroll-runs/${a.source.id}/exports?kind=bank&dryRun=false`, a.maker.cookie);
+  status(bank, 409, 'retry evidence blocks replacement final bank file');
+  check(bank.json.code === 'PAYMONGO_PAYOUT_ALREADY_ATTEMPTED', 'cross-rail duplicate guard reached');
+  check(providerCalls.length === providerCount && retryFixture.posts.length === 1, 'no fallback bank/provider send');
+  successes.push({ organizationId: a.org.id, overlappingRetryOnce: true, timeout,
+    resendBlocked: true, finalBankReplacementBlocked: true, syntheticPosts: 1 });
+  retryFixture = null;
+  process.env.PAYMONGO_DISBURSEMENTS_ENABLED = 'false';
+}
+async function mixedBatch(a) {
+  const batchId = 'batch_tr_synthetic_' + a.source.id;
+  const rows = [{ ...batches.get(batchId), status: 'failed' }];
+  for (const state of ['succeeded', 'pending']) {
+    const [worker] = await db.insert(s.employees).values({ organizationId: a.org.id, legalEntityId: a.entity.id,
+      employeeNo: 'MIX-' + state, firstName: 'Fictional', lastName: state, title: 'Test worker',
+      avatarInitials: 'FW', basicRate: '60000.00', startDate: '2025-01-01',
+      bankCode: 'BPI', bankAccount: encryptBankAccount('000000000001') }).returning();
+    await db.insert(s.employeePayProfiles).values({ organizationId: a.org.id, employeeId: worker.id,
+      payBasis: 'monthly', rateAmount: '60000.00', standardWorkDaysPerMonth: '22.00', standardHoursPerDay: '8.00' });
+    await db.insert(s.payrollEntries).values({ payrollRunId: a.source.id, employeeId: worker.id,
+      grossPay: '30000.00', deductions: '2000.00', netPay: '28000.00',
+      lineItems: [{ code: 'BASIC', amount: 30000 }, { code: 'WHT', amount: -2000 }],
+      trace: { payment: { employeeName: worker.firstName + ' ' + worker.lastName,
+        employeeNo: worker.employeeNo, bankAccount: worker.bankAccount, bankCode: worker.bankCode, mobile: worker.mobile } } });
+    rows.push({ id: 'tr_' + state + '_' + a.source.id, reference_number: `PAY-${a.source.id}-${worker.employeeNo}`,
+      amount: 2800000, provider: 'pesonet', status: state });
+  }
+  await db.update(s.payrollRuns).set({ employeeCount: 3, grossPay: '90000.00', netPay: '84000.00' }).where(eq(s.payrollRuns.id, a.source.id));
+  batches.set(batchId, rows);
+  retryFixture = { actor: a, posts: [] };
+  process.env.PAYMONGO_DISBURSEMENTS_ENABLED = 'true';
+  process.env.PAYMONGO_WALLET_ID = 'wallet_synthetic';
+  await db.insert(s.auditEvents).values({ organizationId: a.org.id, actor: a.maker.user.name,
+    action: 'PayMongo payroll preflight passed', resource: 'Synthetic mixed batch', metadata: { runId: a.source.id } });
+  const response = await request(`/api/payroll-runs/${a.source.id}/payout-reconciliation`, a.checker.cookie,
+    'POST', { action: 'retry-failed', confirm: true });
+  const receipt = status(response, 200, 'mixed batch retries only confirmed failed worker');
+  check(receipt.failedOnly === true && receipt.reconciliation.succeeded === 1 && receipt.reconciliation.pending === 1,
+    'actual succeeded and pending rows were reconciled');
+  check(retryFixture.posts.length === 1 && retryFixture.posts[0].transfers.length === 1, 'one transfer in one instruction');
+  check(retryFixture.posts[0].transfers[0].reference_number === rows[0].reference_number,
+    'pending and succeeded references never enter retry payload');
+  successes.push({ organizationId: a.org.id, mixedStatuses: true, succeededExcluded: true, pendingExcluded: true });
+  retryFixture = null;
+  process.env.PAYMONGO_DISBURSEMENTS_ENABLED = 'false';
+}
 try {
   process.env.PAYMONGO_SECRET_KEY = 'sk_test_synthetic_no_network';
   const nonce = randomUUID().slice(0, 8);
@@ -264,6 +345,15 @@ try {
   await investigate(v, a); await investigate(v, b);
   for (const label of ['PM-RETRY-B', 'PM-RETRY-C']) {
     const actor = await seed(label, nonce); await providerFixture(actor); await retryControls(actor);
+  }
+  for (const timeout of [false, true]) {
+    for (const index of ['B', 'C']) {
+      const actor = await seed('PM-RACE-' + index, randomUUID().slice(0, 8));
+      await providerFixture(actor); await overlappingRetry(actor, timeout);
+    }
+  }
+  for (const label of ['PM-MIX-B', 'PM-MIX-C']) {
+    const actor = await seed(label, nonce); await providerFixture(actor); await mixedBatch(actor);
   }
   assert.deepEqual(await snapshot(v), initial, 'victim unchanged after complete investigation'); assertions++;
   await mkdir('outputs', { recursive: true });
