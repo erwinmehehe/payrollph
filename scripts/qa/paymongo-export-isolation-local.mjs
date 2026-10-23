@@ -130,6 +130,7 @@ async function deny(v, actor, path, method, body, expected, label) {
 
 const providerCalls = [];
 const batches = new Map();
+const responseOverrides = new Map();
 const originalFetch = globalThis.fetch;
 const priorSecret = process.env.PAYMONGO_SECRET_KEY;
 const priorEnabled = process.env.PAYMONGO_DISBURSEMENTS_ENABLED;
@@ -169,7 +170,8 @@ globalThis.fetch = async (url, options) => {
   const batchId = String(url).replace('https://api.paymongo.com/v2/batch_transfers/', '');
   check(batches.has(batchId), 'Only an explicitly registered fictional provider read is allowed');
   const transferRows = batches.get(batchId);
-  return Response.json({ data: { id: batchId, transfers: Array.isArray(transferRows) ? transferRows : [transferRows] } });
+  const body = { data: { id: batchId, transfers: Array.isArray(transferRows) ? transferRows : [transferRows] } };
+  return Response.json(responseOverrides.has(batchId) ? responseOverrides.get(batchId)(body) : body);
 };
 async function providerFixture(a) {
   const batchId = `batch_tr_synthetic_${a.source.id}`;
@@ -333,6 +335,53 @@ async function mixedBatch(a) {
   retryFixture = null;
   process.env.PAYMONGO_DISBURSEMENTS_ENABLED = 'false';
 }
+async function providerCorruption(a, victim) {
+  const batchId = 'batch_tr_synthetic_' + a.source.id;
+  const path = `/api/payroll-runs/${a.source.id}/payout-reconciliation`;
+  const victimBefore = await snapshot(victim);
+  const ownRegister = await db.select().from(s.payrollEntries).where(eq(s.payrollEntries.payrollRunId, a.source.id));
+  const cases = [
+    ['wrong-batch', p => ({ data: { ...p.data, id: 'batch_tr_other_employer' } })],
+    ['victim-reference', p => ({ data: { ...p.data, transfers: [{ ...p.data.transfers[0],
+      reference_number: `PAY-${victim.source.id}-${victim.worker.employeeNo}` }] } })],
+    ['one-cent-mismatch', p => ({ data: { ...p.data, transfers: [{ ...p.data.transfers[0], amount: 2800001 }] } })],
+    ['duplicate-transfer', p => ({ data: { ...p.data, transfers: [p.data.transfers[0], p.data.transfers[0]] } })],
+    ['missing-transfer', p => ({ data: { ...p.data, transfers: [] } })],
+    ['invalid-amount', p => ({ data: { ...p.data, transfers: [{ ...p.data.transfers[0], amount: 'bad' }] } })],
+  ];
+  const postCount = () => providerCalls.filter(c => c.method === 'POST').length;
+  const priorPosts = postCount();
+  for (const [label, transform] of cases) {
+    responseOverrides.set(batchId, transform);
+    // Separate fictional operators keep independent malformed-response cases
+    // below the real per-user rate limit; no limiter state is erased.
+    const reviewer = await login(a.org, label, randomUUID().slice(0, 8));
+    for (const action of ['reconcile', 'retry-failed']) {
+      const rejected = await request(path, reviewer.cookie, 'POST', { action, confirm: true });
+      status(rejected, 502, label + ' blocks ' + action);
+      check(postCount() === priorPosts, label + ' cannot initiate money movement');
+      const audit = await db.select().from(s.auditEvents).where(eq(s.auditEvents.organizationId, a.org.id));
+      check(audit.filter(e => e.action === 'Payroll payout completed via PayMongo').length === 0,
+        label + ' cannot create a completed payout receipt');
+      assert.deepEqual(await snapshot(victim), victimBefore, label + ' leaves victim unchanged'); assertions++;
+      assert.deepEqual(await db.select().from(s.payrollEntries).where(eq(s.payrollEntries.payrollRunId, a.source.id)),
+        ownRegister, label + ' leaves released register unchanged'); assertions++;
+    }
+  }
+  responseOverrides.set(batchId, p => ({ data: { ...p.data, transfers: [{ ...p.data.transfers[0], status: 'unrecognized_provider_state' }] } }));
+  const unknown = status(await request(path, a.checker.cookie, 'POST', { action: 'reconcile' }), 200, 'unknown provider state is explicitly unresolved');
+  check(unknown.reconciliation.unknown === 1 && unknown.reconciliation.completed === false &&
+    unknown.reconciliation.retryableReferences.length === 0, 'unknown is neither settled nor retryable');
+  status(await request(path, a.checker.cookie, 'POST', { action: 'retry-failed', confirm: true }), 409, 'unknown transfer cannot be retried');
+  check(postCount() === priorPosts, 'unknown status also makes no send');
+  responseOverrides.delete(batchId);
+  const valid = status(await request(path, a.checker.cookie, 'POST', { action: 'reconcile' }), 200, 'correct response recovers owned reconciliation');
+  check(valid.organizationId === a.org.id && valid.runId === a.source.id && valid.reconciliation.completed === true,
+    'recovery settles only the exact owned instruction');
+  assert.deepEqual(await snapshot(victim), victimBefore, 'provider correction leaves victim unchanged'); assertions++;
+  successes.push({ organizationId: a.org.id, malformedResponseCases: cases.map(c => c[0]),
+    unknownNotRetryable: true, correctedReadRecovery: true, noProviderPosts: true });
+}
 try {
   process.env.PAYMONGO_SECRET_KEY = 'sk_test_synthetic_no_network';
   const nonce = randomUUID().slice(0, 8);
@@ -354,6 +403,9 @@ try {
   }
   for (const label of ['PM-MIX-B', 'PM-MIX-C']) {
     const actor = await seed(label, nonce); await providerFixture(actor); await mixedBatch(actor);
+  }
+  for (const label of ['PM-BAD-B', 'PM-BAD-C']) {
+    const actor = await seed(label, nonce); await providerFixture(actor); await providerCorruption(actor, v);
   }
   assert.deepEqual(await snapshot(v), initial, 'victim unchanged after complete investigation'); assertions++;
   await mkdir('outputs', { recursive: true });
