@@ -418,6 +418,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Bind recalculation and input-change approval invalidation to exact employer/run identity rather than display-text prefixes",
     approval: "Executed exact-FK/legacy-token tests, default-off parity, PG16 real-HTTP unrelated-run and unchanged-victim proof; no production activation",
   },
+  xenditReconciliationIdentity: {
+    env: "XENDIT_RECONCILIATION_IDENTITY_ENABLED",
+    owner: "Treasury / Security",
+    risk: "Reject a read-only provider lookup whose returned payout ID differs from the requested transfer identity",
+    approval: "Executed exact-ID, mismatch and flag-off parity tests with synthetic provider responses; production activation separate",
+  },
 } as const;
 
 export type CriticalReleaseFlag = keyof typeof CRITICAL_RELEASE_FLAGS;
