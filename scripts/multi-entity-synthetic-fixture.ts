@@ -3,7 +3,7 @@ import { db } from "../src/db";
 import { eq, sql } from "drizzle-orm";
 import { hashPassword } from "../src/lib/crypto";
 import {
-  employees, employeePayProfiles, legalEntities, orgUnits, organizations, payrollRuns,
+  employeePayProfiles, employees, legalEntities, orgUnits, organizations, payrollRuns,
   userLegalEntityGrants, userOrganizations, users,
 } from "../src/db/schema";
 
@@ -81,7 +81,7 @@ async function main() {
     { organizationId: tenantA.id, userId: members[7].id, legalEntityId: a1.id },
     { organizationId: tenantA.id, userId: members[7].id, legalEntityId: a2.id },
   ]);
-  const staff = await db.insert(employees).values([
+  const seededEmployees = await db.insert(employees).values([
     { organizationId: tenantA.id, legalEntityId: a1.id, employeeNo: "A-01",
       firstName: "Alpha", lastName: "Synthetic", title: "Staff",
       avatarInitials: "AS", basicRate: "20000", startDate: "2026-01-01" },
@@ -91,15 +91,34 @@ async function main() {
     { organizationId: tenantB.id, legalEntityId: b1.id, employeeNo: "B-01",
       firstName: "Foreign", lastName: "Synthetic", title: "Staff",
       avatarInitials: "FS", basicRate: "28000", startDate: "2026-01-01" },
-  ]).returning();
-  // Request-time reads verify pay profiles; only the disposable test fixture
-  // creates them, and every fictional employee must receive one.
-  const payProfiles = await db.insert(employeePayProfiles).values(staff.map(worker => ({
-    organizationId: worker.organizationId, employeeId: worker.id,
-    payBasis: "monthly" as const, rateAmount: worker.basicRate,
-    standardWorkDaysPerMonth: "22.00", standardHoursPerDay: "8.00",
-  }))).returning({ employeeId: employeePayProfiles.employeeId });
-  assert.equal(payProfiles.length, staff.length,
+  ]).returning({
+    id: employees.id, organizationId: employees.organizationId,
+    employeeNo: employees.employeeNo, basicRate: employees.basicRate,
+  });
+  // CI-only verified roster: each fictional employee needs a tenant-bound pay
+  // profile before authenticated dashboard requests. Never backfill real payroll.
+  const expectedProfiles = [
+    { employeeNo: "A-01", organizationId: tenantA.id, rateAmount: "20000.00" },
+    { employeeNo: "A-02", organizationId: tenantA.id, rateAmount: "24000.00" },
+    { employeeNo: "B-01", organizationId: tenantB.id, rateAmount: "28000.00" },
+  ];
+  const byEmployeeNo = new Map(seededEmployees.map(worker => [worker.employeeNo, worker]));
+  assert.equal(seededEmployees.length, expectedProfiles.length, "Fictional worker count must be exact");
+  assert.equal(byEmployeeNo.size, expectedProfiles.length, "Fictional worker IDs must be unique");
+  const profiles = expectedProfiles.map(expected => {
+    const worker = byEmployeeNo.get(expected.employeeNo);
+    assert.ok(worker, "Missing verified fictional worker");
+    assert.equal(worker.organizationId, expected.organizationId, "Cross-tenant profile refused");
+    assert.equal(worker.basicRate, expected.rateAmount, "Fixture pay rate drift refused");
+    return {
+      employeeId: worker.id, organizationId: expected.organizationId,
+      payBasis: "monthly", rateAmount: expected.rateAmount,
+      standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+    };
+  });
+  const insertedProfiles = await db.insert(employeePayProfiles).values(profiles)
+    .returning({ employeeId: employeePayProfiles.employeeId });
+  assert.equal(insertedProfiles.length, expectedProfiles.length,
     "Every synthetic worker requires an explicit pay profile before an app request");
   await db.insert(payrollRuns).values([
     { organizationId: tenantA.id, legalEntityId: a1.id,

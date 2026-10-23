@@ -418,6 +418,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Bind recalculation and input-change approval invalidation to exact employer/run identity rather than display-text prefixes",
     approval: "Executed exact-FK/legacy-token tests, default-off parity, PG16 real-HTTP unrelated-run and unchanged-victim proof; no production activation",
   },
+  underpaymentDuplicateConflict: {
+    env: "UNDERPAYMENT_DUPLICATE_CONFLICT_ENABLED",
+    owner: "Payroll / Security",
+    risk: "Duplicate correction request returns a conflict instead of an unhandled unique violation",
+    approval: "Executed duplicate request, unchanged ledger and exact default-off parity; no production activation",
+  },
   xenditReconciliationIdentity: {
     env: "XENDIT_RECONCILIATION_IDENTITY_ENABLED",
     owner: "Treasury / Security",
