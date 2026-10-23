@@ -1,4 +1,3 @@
-import { coreSchemaCompatibilityMode } from "@/lib/core-schema-readonly";
 import { marketingLeadSchemaForRuntime, verifyRequestSchemaReadOnlyFromPool } from "@/lib/request-schema-readonly";
 import { pool } from "@/db";
 import { deliveryCapable } from "@/lib/mail-provider";
@@ -24,114 +23,13 @@ type MarketingLeadRow = {
   notification_attempts: number;
 };
 
-let schemaReady = false;
-let schemaInFlight: Promise<void> | null = null;
-
+/**
+ * Public lead capture never creates or alters schema at request time. The
+ * table comes only from reviewed numbered migrations; this checks the catalog
+ * on every call and fails closed if it is missing.
+ */
 export async function ensureMarketingLeadSchema() {
-  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
-  if (mode === "read-only") {
-    if (schemaInFlight) throw new Error("MARKETING_LEGACY_SCHEMA_WRITE_IN_PROGRESS");
-    await verifyRequestSchemaReadOnlyFromPool(pool, marketingLeadSchemaForRuntime());
-    return;
-  }
-  if (schemaReady) return;
-  if (schemaInFlight) return schemaInFlight;
-
-  schemaInFlight = (async () => {
-    const client = await pool.connect();
-    let transactionOpen = false;
-    let safeToReuse = false;
-    try {
-      await client.query("BEGIN");
-      transactionOpen = true;
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_marketing_leads_v1'))");
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS marketing_leads (
-          id serial PRIMARY KEY,
-          kind varchar(32) NOT NULL,
-          name varchar(120) NOT NULL,
-          email varchar(180) NOT NULL,
-          company varchar(160) NOT NULL,
-          headcount varchar(40),
-          payroll_frequency varchar(40),
-          entities varchar(40),
-          notes text,
-          source_path varchar(120) NOT NULL,
-          attribution jsonb NOT NULL DEFAULT '{}'::jsonb,
-          status varchar(24) NOT NULL DEFAULT 'new',
-          notification_status varchar(24) NOT NULL DEFAULT 'not-configured',
-          notification_provider varchar(40),
-          notification_outbox_id integer,
-          notification_attempts integer NOT NULL DEFAULT 0,
-          created_at timestamptz NOT NULL DEFAULT NOW(),
-          updated_at timestamptz NOT NULL DEFAULT NOW(),
-          CONSTRAINT marketing_leads_kind_check
-            CHECK (kind IN ('demo', 'trial-access', 'payroll-outsourcing')),
-          CONSTRAINT marketing_leads_status_check
-            CHECK (status IN ('new', 'contacted', 'qualified', 'closed')),
-          CONSTRAINT marketing_leads_notification_status_check
-            CHECK (notification_status IN ('not-configured', 'queued', 'sent', 'failed'))
-        )
-      `);
-      await client.query(`
-        ALTER TABLE marketing_leads
-          ADD COLUMN IF NOT EXISTS notification_attempts integer NOT NULL DEFAULT 0,
-          ADD COLUMN IF NOT EXISTS attribution jsonb NOT NULL DEFAULT '{}'::jsonb
-      `);
-      await client.query(`
-        DO $compat$
-        BEGIN
-          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'marketing_leads_kind_check') THEN
-            ALTER TABLE marketing_leads
-              ADD CONSTRAINT marketing_leads_kind_check
-              CHECK (kind IN ('demo', 'trial-access', 'payroll-outsourcing'));
-          END IF;
-          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'marketing_leads_status_check') THEN
-            ALTER TABLE marketing_leads
-              ADD CONSTRAINT marketing_leads_status_check
-              CHECK (status IN ('new', 'contacted', 'qualified', 'closed'));
-          END IF;
-          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'marketing_leads_notification_status_check') THEN
-            ALTER TABLE marketing_leads
-              ADD CONSTRAINT marketing_leads_notification_status_check
-              CHECK (notification_status IN ('not-configured', 'queued', 'sent', 'failed'));
-          END IF;
-        END
-        $compat$;
-      `);
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS marketing_leads_status_created_idx
-        ON marketing_leads(status, created_at DESC NULLS LAST)
-      `);
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS marketing_leads_kind_created_idx
-        ON marketing_leads(kind, created_at DESC NULLS LAST)
-      `);
-      await client.query("COMMIT");
-      transactionOpen = false;
-      safeToReuse = true;
-      schemaReady = true;
-    } catch (error) {
-      if (transactionOpen) {
-        try {
-          await client.query("ROLLBACK");
-          transactionOpen = false;
-          safeToReuse = true;
-        } catch {
-          // Never reuse a client with an uncertain open transaction.
-        }
-      }
-      throw error;
-    } finally {
-      client.release(!safeToReuse);
-    }
-  })().finally(() => {
-    // A failed pool.connect() or prerequisite schema preflight must not
-    // permanently poison this module's in-flight promise.
-    schemaInFlight = null;
-  });
-
-  return schemaInFlight;
+  await verifyRequestSchemaReadOnlyFromPool(pool, marketingLeadSchemaForRuntime());
 }
 
 export async function recordMarketingLead(input: {

@@ -130,12 +130,13 @@ test("server rechecks live remittance certification, BIR evidence, payout and in
   assert.ok(server.includes('finding.severity === "high"'));
 });
 
-test("month close self-initializes schema and is visible in Compliance Center", () => {
+test("month close checks its reviewed schema (never creates it) and is visible in Compliance Center", () => {
   const guard = readFileSync("src/lib/payroll-month-close-schema.ts", "utf8");
   const panels = readFileSync("src/components/workspace/panels.tsx", "utf8");
   const ui = readFileSync("src/components/workspace/payroll-month-close-panel.tsx", "utf8");
-  assert.ok(guard.includes("CREATE TABLE IF NOT EXISTS payroll_month_closures"));
-  assert.ok(guard.includes("pg_advisory_xact_lock"));
+  assert.ok(guard.includes("cachedRequestSchemaVerifier(pool, payrollMonthCloseSchemaSpec)"));
+  assert.ok(!/CREATE\s+TABLE|ALTER\s+TABLE|pg_advisory_xact_lock/i.test(guard), "no request-time DDL remains");
+  assert.ok(readFileSync("src/lib/request-schema-readonly.ts", "utf8").includes("payroll_month_closures"));
   assert.ok(panels.includes("PayrollMonthClosePanel"));
   assert.ok(ui.includes("One certificate for the month, backed by every underlying control."));
   assert.ok(ui.includes("not a government certification"));

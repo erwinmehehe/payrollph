@@ -5,7 +5,7 @@ import { db, pool } from "../src/db";
 import {
   organizations, employees, users, userOrganizations, subscriptions,
   legalEntities, payrollRuns, payrollEntries, yearEndAdjustments, separationRecords,
-  birWithholdingRemittanceBatches,
+  birWithholdingRemittanceBatches, employeePayProfiles,
 } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
 import { encryptTotpSecret } from "../src/lib/security-secret";
@@ -33,6 +33,11 @@ async function main() {
     tin: encryptGovernmentId("333222111", { required: true }),
     tinBranchCode: encryptGovernmentId("0000", { required: true }),
   }).returning();
+  // CI-only worker must have an explicit pay profile before opening /app.
+  await db.insert(employeePayProfiles).values({
+    employeeId: employee.id, organizationId: org.id, payBasis: "monthly",
+    rateAmount: "50000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+  });
   const [run] = await db.insert(payrollRuns).values({
     organizationId: org.id, legalEntityId: entity.id,
     periodLabel: "Synthetic December 2025",

@@ -1,9 +1,23 @@
 # P0-4 — Runtime schema writer source inventory
 
-Flag-off also preserves the historical NULLS LAST marketing index contract for
-explicit read-only callers. Only flag-on adopts canonical DESC/NULLS FIRST
-acceptance. The runtime selects the appropriate contract without changing
-indexes; synthetic PostgreSQL tests exercise both definitions and both modes.
+## October 22, 2026: sibling helpers retired
+
+The eleven sibling helpers (`dole-reporting`, `leave-payroll`, `migration`,
+`outbox`, `pay-basis`, `payroll-month-close`, `separation`,
+`statutory-remittance-correction`, `statutory-remittance-month-close`,
+`workforce-attendance-control` and `marketing-leads`) no longer contain any
+request-time DDL, advisory locks or backfills. Each keeps its exported name and
+only runs its catalog check (`cachedRequestSchemaVerifier` or
+`verifyRequestSchemaReadOnlyFromPool`) in every mode. The source audit drops
+from 251 to 192 findings, all in `core-schema-compat.ts`, which is retired
+separately. Missing pay profiles are no longer invented from the legacy monthly
+rate; they need a reviewed data backfill.
+
+Marketing index contract: flag-on accepts only the canonical DESC (NULLS FIRST)
+definition. Flag-off now accepts either the canonical definition or the
+historical runtime-created DESC NULLS LAST one, because nothing can create or
+repair these indexes at runtime any more; any other definition fails closed.
+Synthetic PostgreSQL tests exercise both definitions and both modes.
 
 ## October 18, 2026: default-off read-only rollout
 
