@@ -1,8 +1,8 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 352 API methods and 19 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 351 API methods and 19 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 352 method gaps and 19 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+> **NOT ACCEPTED**: 351 method gaps and 19 page/action gaps remain. This current-source snapshot combines prior source-pinned evidence with one additional provisional multi-entity group-report GET proof; it is not a release or global isolation acceptance. Overall tenant isolation remains unaccepted; no production approval is implied.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -12,7 +12,7 @@
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 352 method gaps and 19 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
+**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 351 method gaps and 19 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
 
 ## Approved-exit Separation evidence
 
@@ -36,9 +36,15 @@ The public demo-switch POST is **PUBLIC-BY-DESIGN only for a separately attested
 
 **PR #1325 BIR module GET/POST provisional-only:** The independent [disposable three-employer HTTP suite](../../scripts/qa/compliance-read-sweep-http.mjs) records real owned BIR annual module GET/POST positive responses, distinct victim-employer denials, real legal-employer ID isolation and unchanged victim PostgreSQL audit/payment records. BIR source/draft data never proves agency acceptance. These are the two method credits added by PR #1325; merged PR #1336 independently contributes employee-vault GET/DELETE. The already merged #1303 payment-evidence POST uses its existing independently verified `tenant-manifest-driven-http.mjs` proof unchanged. New HEAD must pass CI and independent security source review; **352 API method gaps and 19 page/action gaps remain NOT ACCEPTED.**
 
+## Multi-entity group report isolation — provisional 2026-10-23
+
+The flagged, read-only `GET /api/multi-entity/reports` previously rejected NULL legal-employer attribution but could silently omit employees or Released runs pointing to a **non-NULL legal employer outside the requesting tenant**. The revised route checks every nonempty grouped employee/run ID against legal employers actually owned by the requested tenant and returns `409 ENTITY_ATTRIBUTION_REQUIRED` rather than incomplete totals. Inactive historical employers remain included and exact-centavo arithmetic is unchanged. No automatic attribution, payroll posting, payouts or flags are enabled.
+
+[Three-tenant synthetic HTTPS/PG16 acceptance](../../scripts/multi-entity-synthetic-browser.mjs) uses two distinct actual authenticated group HR callers (B/C), populated own 200 responses, real foreign 403 denials and tenant-B employee IDs above six. It temporarily points a **fictional** tenant-A worker at B's legal-employer ID in disposable localhost PostgreSQL, expects the own tenant A group report to fail closed with 409, restores the row and confirms tenant-B rows did not change. [Pure policy regression](../../tests/multi-entity-behavior.test.ts) checks foreign/orphan NULL and non-NULL employee and Released-run aggregates. The API GET is **provisionally** credited as one method only; all other routes remain unchanged. GitHub Actions must execute the modified tests on the exact draft head, followed by independent owner/security review before any acceptance or merge.
+
 ## Source-pinned counts
 
-**Current provisional source-linked inventory (main #1303, merged #1336 employee-vault GET/DELETE, and PR #1325 BIR GET/POST): 131 COVERED / 10 PUBLIC-BY-DESIGN / 352 GAP** among 493 API methods, plus 19 page/action GAPs.
+**Current provisional source-linked inventory (plus this draft's group-report GET): 132 COVERED / 10 PUBLIC-BY-DESIGN / 351 GAP** among 493 API methods, plus 19 page/action GAPs.
 
 **DL-02 proof-strengthening in #1328:** Attacker A and B now have persisted own-employer IDs and distinguishable populations (2 and 3 employees) before victim-only objects are inserted (4 employees). Victim ID/order assertions compare actual DB rows against **both** attacker-owned IDs, rather than only `id > 6`. HCM and tenant report POST positives validate real populated own counts/rows, while their catalog GETs are explicitly role/tenant-gated metadata, not employer-record exports. Performance evidence GET verifies real review/cycle JSON, own employee/organization identifiers, section digests, and download SHA256. Denied writes preserve a broader victim snapshot including term decisions, employees, payroll and review records. Coverage counts remain **provisional until the modified suite passes on the PR's current commit**; this is not global tenant-isolation acceptance.
 
@@ -51,9 +57,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 290 |
 | methods | 493 |
 | coveredBefore | 20 |
-| coveredAfter | 131 |
+| coveredAfter | 132 |
 | publicByDesign | 10 |
-| gap | 352 |
+| gap | 351 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -432,7 +438,7 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`multi-entity/registration-changes` GET](../../src/app/api/multi-entity/registration-changes/route.ts#L43) | session, query, body | getSessionUser L8, assertOrganizationRole L9, enforceSameOriginMutation L13, assertOrganizationRole L27 | searchParams.get("organizationId") L48, searchParams.get("legalEntityId") L49, body.organizationId L97 | NO VALID METHOD PROOF | **GAP** |
 | [`multi-entity/registration-changes` POST](../../src/app/api/multi-entity/registration-changes/route.ts#L90) | session, query, body | getSessionUser L8, assertOrganizationRole L9, enforceSameOriginMutation L13, assertOrganizationRole L27 | searchParams.get("organizationId") L48, searchParams.get("legalEntityId") L49, body.organizationId L97 | NO VALID METHOD PROOF | **GAP** |
 | [`multi-entity/registration-changes` PATCH](../../src/app/api/multi-entity/registration-changes/route.ts#L160) | session, query, body | getSessionUser L8, assertOrganizationRole L9, enforceSameOriginMutation L13, assertOrganizationRole L27 | searchParams.get("organizationId") L48, searchParams.get("legalEntityId") L49, body.organizationId L97 | NO VALID METHOD PROOF | **GAP** |
-| [`multi-entity/reports` GET](../../src/app/api/multi-entity/reports/route.ts#L11) | session, query | getSessionUser L4, getSessionUser L14 | searchParams.get("organizationId") L16 | NO VALID METHOD PROOF | **GAP** |
+| [`multi-entity/reports` GET](../../src/app/api/multi-entity/reports/route.ts#L11) | session, query | getSessionUser L4, getSessionUser L14 | searchParams.get("organizationId") L16 | [flag-ON HTTPS own L173 / victim denial L179](../../scripts/multi-entity-synthetic-browser.mjs#L173), [cross-employer attribution 409](../../scripts/multi-entity-synthetic-browser.mjs#L225) | **COVERED (provisional; exact-head CI required)** |
 | [`multi-entity/settings` GET](../../src/app/api/multi-entity/settings/route.ts#L35) | session, query, body | getSessionUser L5, assertOrganizationRole L6, enforceSameOriginMutation L9, getSessionUser L37 | searchParams.get("organizationId") L39, body.organizationId L71, body.legalEntityId L72 | NO VALID METHOD PROOF | **GAP** |
 | [`multi-entity/settings` PATCH](../../src/app/api/multi-entity/settings/route.ts#L64) | session, query, body | getSessionUser L5, assertOrganizationRole L6, enforceSameOriginMutation L9, getSessionUser L37 | searchParams.get("organizationId") L39, body.organizationId L71, body.legalEntityId L72 | NO VALID METHOD PROOF | **GAP** |
 | [`multi-entity/transfers` GET](../../src/app/api/multi-entity/transfers/route.ts#L40) | session, query, body | getSessionUser L8, enforceSameOriginMutation L11, getSessionUser L42, enforceSameOriginMutation L94 | searchParams.get("organizationId") L44, body.organizationId L99, body.employeeId L100 | NO VALID METHOD PROOF | **GAP** |
