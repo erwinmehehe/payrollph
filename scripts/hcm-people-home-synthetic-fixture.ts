@@ -54,7 +54,7 @@ async function main() {
   await db.insert(userPermissionAssignments).values({
     organizationId: alpha.id, userOrganizationId: restrictedMembership.id, permissionSetId: deny.id,
   });
-  const [alphaWorker, betaWorker] = await db.insert(employees).values([
+  const [alphaWorker, betaWorker, betaSecond] = await db.insert(employees).values([
     {
       organizationId: alpha.id, employeeNo: "SHARED-001", firstName: "AlphaPrivate",
       lastName: "Worker", avatarInitials: "AP", title: "Staff",
@@ -75,8 +75,7 @@ async function main() {
   // pay profiles. Seed exactly this synthetic roster before browser acceptance;
   // never repair an employer's payroll data during request handling.
   assert.deepEqual(
-    [alphaWorker, betaWorker, (await db.select().from(employees)
-      .where(eq(employees.organizationId, beta.id)))[1]].map(worker => worker.organizationId),
+    [alphaWorker, betaWorker, betaSecond].map(worker => worker.organizationId),
     [alpha.id, beta.id, beta.id],
     "HCM QA pay-profile roster must contain two employers only",
   );
