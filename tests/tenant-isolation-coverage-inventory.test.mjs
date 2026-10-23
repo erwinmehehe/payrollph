@@ -701,6 +701,89 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(script, /noVictimResponse\(foreign/, "Foreign response must be checked for leaked identity");
         continue;
       }
+      // MNY-02 expense/benefit credits are limited to these six API methods.
+      // Exact source pins and statuses are mandatory; a source-only check
+      // cannot substitute for the disposable three-employer PG16 HTTP run.
+      if (proof?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs") {
+        const specs = {
+          "GET expenses": [147, 153, 158, 200],
+          "POST expenses": [57, 162, 169, 201],
+          "PATCH expenses": [181, 192, 181, 200],
+          "GET de-minimis": [199, 205, undefined, 200],
+          "POST de-minimis": [73, 209, 216, 201],
+          "DELETE de-minimis": [230, 224, 230, 200],
+        };
+        const key = method.name + " " + entry.route;
+        const spec = specs[key];
+        assert.ok(spec && [
+          "src/app/api/expenses/route.ts",
+          "src/app/api/de-minimis/route.ts",
+        ].includes(path), path + ": unrelated method cannot borrow expense/benefit evidence");
+        const [own, foreign, forged, ownStatus] = spec;
+        assert.deepEqual(
+          [proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+            proof.forgedSelectorLine, proof.unchangedDbLine,
+            proof.victimExistsLine, proof.victimIdOrderingLine],
+          [own, own, foreign, forged, 242, 141, 133],
+          key + ": source pins must match the reviewed method-specific proof",
+        );
+        const suite = readFileSync(proof.file, "utf8");
+        const lines = suite.split("\n");
+        const span = number => lines.slice(number - 1, number + 9).join("\n");
+        const endpoint = "/api/" + entry.route;
+        assert.match(lines[own - 1], /expectStatus\(await request\(/,
+          key + ": owned positive must be a real HTTP request");
+        assert.match(lines[foreign - 1], /expectStatus\(await request\(/,
+          key + ": victim denial must be a real HTTP request");
+        assert.ok(span(own).includes(endpoint) && span(foreign).includes(endpoint),
+          key + ": positive and negative must reach the claimed API route");
+        assert.match(span(own), new RegExp("\\)\\s*,\\s*" + ownStatus + "\\s*,"),
+          key + ": a real successful owned response is required");
+        assert.match(span(foreign), /\)\s*,\s*403\s*,/,
+          key + ": foreign employer denial must be a 403");
+        if (method.name !== "GET") {
+          assert.ok(span(own).includes('method: "' + method.name + '"') &&
+            span(foreign).includes('method: "' + method.name + '"'),
+            key + ": both requests must exercise the same mutation method");
+        }
+        if (forged !== undefined) {
+          const forgedSpan = lines.slice(Math.max(0, forged - 3), forged + 10).join("\n");
+          assert.ok(forgedSpan.includes("victimEmployee.id") ||
+            forgedSpan.includes("victimExpense.id") ||
+            forgedSpan.includes("victimGrant.id") ||
+            forgedSpan.includes("organizationId: victim.id"),
+            key + ": forged control must use a real victim identifier");
+          if (key === "POST expenses" || key === "POST de-minimis") {
+            assert.match(lines[forged - 1], /expectStatus\(await request\(/,
+              key + ": forged employee must be a separate HTTP request");
+            assert.match(span(forged), /\)\s*,\s*404\s*,/,
+              key + ": forged victim worker must fail with 404");
+          }
+        }
+        assert.match(lines[132], /assert\.ok\(victimExpense\.id > 6 && victimGrant\.id > 6/,
+          key + ": persisted victim IDs must be high real IDs");
+        assert.match(lines[140], /assert\.equal\(savedVictimExpense\.organizationId, victim\.id\)/,
+          key + ": victim-owned expense must exist in PostgreSQL");
+        assert.match(lines[141], /assert\.equal\(savedVictimGrant\.organizationId, victim\.id\)/,
+          key + ": victim-owned benefit must exist in PostgreSQL");
+        assert.match(lines[241], /assert\.deepEqual\(await victimSnapshot\(victim\.id\), baseline/,
+          key + ": victim finance/audit/payroll rows must remain unchanged");
+        assert.match(suite, /for \(const idx of \[1, 2\]\)/,
+          key + ": two independent authenticated attacker employers required");
+        assert.match(suite, /makeIndependentChecker\(org, makeSession\)/,
+          key + ": expense decisions require an independent checker");
+        assert.match(suite, /noVictimLeak\(foreign/,
+          key + ": foreign response must not expose victim-only information");
+        assert.match(suite, /process\.env\.CI, "true"/);
+        assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+        assert.match(suite, /pg\.pathname, "\/app_db"/);
+        assert.match(suite, /spendPayrollEnabled\(\), false/,
+          "Only legacy Spend flag-OFF is credited by this suite");
+        assert.match(source.join("\n"),
+          /verifyMny02ExpensesBenefitsIsolation\(f, \{ request, expectStatus, makeSession \}\)/,
+          key + ": the guarded production-mode real HTTP runner must invoke the suite");
+        continue;
+      }
       // New method credits must be bound to an explicitly reviewed endpoint,
       // real two-attacker HTTP runner, exact request/status lines, and a
       // persisted victim-before/after assertion for mutating methods. Do not
