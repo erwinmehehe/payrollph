@@ -18,7 +18,7 @@ import {
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
 import { assertReleasedPayoutTotals, frozenReleasedPayrollPayment } from "@/lib/payroll-payout-snapshot";
 import { payoutCentsFromNetPay } from "@/lib/payout-ledger-rules";
-import { summarizeMonthlyContributionFile, assertMonthlyFilingMatchesRemittance } from "@/lib/filing-remittance-snapshot";
+import { assertMonthlyFilingMatchesRemittance } from "@/lib/filing-remittance-snapshot";
 import { bankPartFilename, createStoredZip, splitRowsByBankLimits } from "@/lib/bank-file-bundle";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
@@ -953,6 +953,45 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   const monthlyStatutoryEntries = [...statutoryLatestByEmployee.values()]
     .sort((a, b) => a.employee.id - b.employee.id);
 
+  // The remittance workspace displays a persisted monthly batch and member
+  // snapshot. If it exists, a worksheet must match those SAME frozen cents
+  // before any draft bytes leave the exporter; recalculation is not authority.
+  const verifyAgainstDisplayedRemittance = async (
+    agency: "SSS" | "PhilHealth" | "Pag-IBIG",
+    form: "R-3" | "RF-1" | "MCRF",
+    body: string,
+  ) => {
+    const applicableMonth = String(run.periodEnd).slice(0, 7);
+    const [frozen] = await db.select({
+      id: statutoryRemittanceBatches.id,
+      employeeCount: statutoryRemittanceBatches.employeeCount,
+      expectedTotal: statutoryRemittanceBatches.expectedTotal,
+    }).from(statutoryRemittanceBatches).where(and(
+      eq(statutoryRemittanceBatches.organizationId, run.organizationId),
+      eq(statutoryRemittanceBatches.legalEntityId, legalEntityId),
+      eq(statutoryRemittanceBatches.agency, agency),
+      eq(statutoryRemittanceBatches.applicableMonth, applicableMonth),
+    )).limit(1);
+    if (!frozen) return; // No remittance UI snapshot exists yet; still a draft.
+    if (monthPrefix !== applicableMonth) {
+      throw new Error("REMITTANCE_EXPORT_SNAPSHOT_MISMATCH: Filing pay month differs from the frozen remittance month.");
+    }
+    const members = await db.select({
+      employeeId: statutoryRemittanceMembers.employeeId,
+      totalContribution: statutoryRemittanceMembers.totalContribution,
+    }).from(statutoryRemittanceMembers).where(and(
+      eq(statutoryRemittanceMembers.organizationId, run.organizationId),
+      eq(statutoryRemittanceMembers.legalEntityId, legalEntityId),
+      eq(statutoryRemittanceMembers.batchId, frozen.id),
+    ));
+    assertMonthlyFilingMatchesRemittance({
+      agency, form, body, applicableMonth,
+      displayed: { employeeCount: frozen.employeeCount, expectedTotal: frozen.expectedTotal },
+      members,
+      exportedEmployeeIds: monthlyStatutoryEntries.map((row) => row.employee.id),
+    });
+  };
+
   const headerNote = [
     "# DRAFT ONLY, not a certified government submission file",
     `# kind=${kind}`,
@@ -1005,10 +1044,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
         ].map(csv).join(",");
       }),
     ].join("\n");
+    const verifiedBody = `${headerNote}\n# SSS employer workflow uses My.SSS e-CL and a PRN. This worksheet is not an SSS acknowledgement or a certified R3 File Generator output.\n# Figures below are full monthly amounts (recomputed from basic pay), not this single cutoff's half-month deduction.\n${body}`;
+    await verifyAgainstDisplayedRemittance("SSS", "R-3", verifiedBody);
     return {
       filename: `sss-ecl-r3-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# SSS employer workflow uses My.SSS e-CL and a PRN. This worksheet is not an SSS acknowledgement or a certified R3 File Generator output.\n# Figures below are full monthly amounts (recomputed from basic pay), not this single cutoff's half-month deduction.\n${body}`,
+      body: verifiedBody,
     };
   }
 
@@ -1039,10 +1080,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
         ].map(csv).join(",");
       }),
     ].join("\n");
+    const verifiedBody = `${headerNote}\n# PhilHealth requires employers to use EPRS for premium reporting and payment. This worksheet is a portal-entry aid, not an EPRS acknowledgement.\n# Full monthly premium amounts are recomputed from monthly basic salary.\n${body}`;
+    await verifyAgainstDisplayedRemittance("PhilHealth", "RF-1", verifiedBody);
     return {
       filename: `philhealth-eprs-rf1-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# PhilHealth requires employers to use EPRS for premium reporting and payment. This worksheet is a portal-entry aid, not an EPRS acknowledgement.\n# Full monthly premium amounts are recomputed from monthly basic salary.\n${body}`,
+      body: verifiedBody,
     };
   }
 
@@ -1080,10 +1123,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
         ].map(csv).join(",");
       }),
     ].join("\n");
+    const verifiedBody = `${headerNote}\n# Columns now mirror Pag-IBIG's published MCRF encoding instructions: MID/RTN, account number, membership program, names, YYYYMM period covered, EE share, ER share and remarks. This remains an assisted CSV worksheet because Pag-IBIG prescribes its own spreadsheet/eSRS workflow rather than an arbitrary CSV upload.\n# Full monthly mandatory contributions are recomputed from monthly basic salary.\n${body}`;
+    await verifyAgainstDisplayedRemittance("Pag-IBIG", "MCRF", verifiedBody);
     return {
       filename: `pagibig-mcrf-esrs-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# Columns now mirror Pag-IBIG's published MCRF encoding instructions: MID/RTN, account number, membership program, names, YYYYMM period covered, EE share, ER share and remarks. This remains an assisted CSV worksheet because Pag-IBIG prescribes its own spreadsheet/eSRS workflow rather than an arbitrary CSV upload.\n# Full monthly mandatory contributions are recomputed from monthly basic salary.\n${body}`,
+      body: verifiedBody,
     };
   }
 
