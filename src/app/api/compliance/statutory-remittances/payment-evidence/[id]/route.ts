@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { statutoryRemittancePaymentEvidence } from "@/db/schema";
+import { statutoryRemittanceBatches, statutoryRemittancePaymentEvidence } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +30,26 @@ export async function GET(
     }, { status: 403 });
   }
 
-  const [row] = await db.select().from(statutoryRemittancePaymentEvidence).where(and(
+  // Bind the proof to its parent batch's tenant as well as the caller's tenant.
+  // A mismatched legacy batch FK must never authorize a file download.
+  const [record] = await db.select({
+    row: statutoryRemittancePaymentEvidence,
+    legalEntityId: statutoryRemittanceBatches.legalEntityId,
+  }).from(statutoryRemittancePaymentEvidence).innerJoin(statutoryRemittanceBatches, and(
+    eq(statutoryRemittancePaymentEvidence.batchId, statutoryRemittanceBatches.id),
+    eq(statutoryRemittancePaymentEvidence.organizationId, statutoryRemittanceBatches.organizationId),
+  )).where(and(
     eq(statutoryRemittancePaymentEvidence.id, id),
     eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
   )).limit(1);
-  if (!row) return Response.json({ error: "Payment proof not found." }, { status: 404 });
+  if (!record) return Response.json({ error: "Payment proof not found." }, { status: 404 });
 
+  const entityScope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!entityScope.ok) return entityScope.response;
+  const entityDenied = assertEntityResource(entityScope.context, record.legalEntityId);
+  if (entityDenied) return entityDenied;
+
+  const row = record.row;
   const bytes = Buffer.from(row.fileDataBase64, "base64");
   const actualSha256 = createHash("sha256").update(bytes).digest("hex");
   if (actualSha256 !== row.fileSha256) {
