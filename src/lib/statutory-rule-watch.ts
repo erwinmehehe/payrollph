@@ -47,6 +47,21 @@ const REVIEW_INTERVAL_DAYS = 90;
 const UPCOMING_WINDOW_DAYS = 30;
 const COVERAGE_WARNING_DAYS = 45;
 
+/** The payroll cutoff day changes at midnight in the Philippines (UTC+08:00). */
+export function philippineCalendarDay(at: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(at);
+  const part = (kind: "year" | "month" | "day") => parts.find(item => item.type === kind)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function validCalendarDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value + "T00:00:00.000Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 const LABELS: Record<RuleWatchFamily, string> = {
   sss: "SSS contribution schedule",
   philhealth: "PhilHealth premium schedule",
@@ -75,6 +90,7 @@ function packItem<T>(
   packs: readonly EffectiveRulePack<T>[],
   today: string,
   lastVerifiedOn: string | null,
+  verifiedAsOfDay: string,
 ): RuleWatchItem {
   const current = packs.find((pack) => pack.effectiveFrom <= today && (!pack.effectiveUntil || today <= pack.effectiveUntil));
   const base = {
@@ -87,6 +103,10 @@ function packItem<T>(
   if (!current) {
     return { ...base, status: "no-coverage", detail: "No approved rule pack covers today. Payroll for today's dates will fail closed until a verified pack is added." };
   }
+  // An expiring pack cannot appear merely advisory when its official-source
+  // verification is unrecorded or stale. Verification takes precedence.
+  const verification = verificationItem(base, today, verifiedAsOfDay);
+  if (verification.status !== "current") return verification;
   if (current.effectiveUntil) {
     const successor = packs.some((pack) => pack.effectiveFrom > current.effectiveUntil!);
     const daysLeft = dayNumber(current.effectiveUntil) - dayNumber(today);
@@ -94,12 +114,26 @@ function packItem<T>(
       return { ...base, status: "coverage-ending", detail: `The current pack ends ${current.effectiveUntil} (${daysLeft} days) and no successor pack is loaded.` };
     }
   }
-  return verificationItem(base, today);
+  return verification;
 }
 
-function verificationItem(base: Omit<RuleWatchItem, "status" | "detail">, today: string): RuleWatchItem {
+function verificationItem(
+  base: Omit<RuleWatchItem, "status" | "detail">,
+  today: string,
+  verifiedAsOfDay: string,
+): RuleWatchItem {
   if (!base.lastVerifiedOn) {
     return { ...base, status: "verification-unrecorded", detail: "No verification date is recorded. Confirm the pack against the official agency source and record the date." };
+  }
+  // A malformed or future-dated review record cannot establish official-source
+  // verification, even when the payroll pay date itself is in the future.
+  // Compare against the actual Philippine as-of day, not a projected pay date.
+  if (!validCalendarDay(base.lastVerifiedOn) || !validCalendarDay(verifiedAsOfDay)
+    || !validCalendarDay(today) || base.lastVerifiedOn > verifiedAsOfDay) {
+    return {
+      ...base, status: "verification-unrecorded",
+      detail: "The source-verification date is invalid or future-dated. Confirm the official agency source and record a valid review date.",
+    };
   }
   const age = dayNumber(today) - dayNumber(base.lastVerifiedOn);
   if (age > REVIEW_INTERVAL_DAYS) {
@@ -108,19 +142,21 @@ function verificationItem(base: Omit<RuleWatchItem, "status" | "detail">, today:
   return { ...base, status: "current", detail: `Verified ${base.lastVerifiedOn}.` };
 }
 
-export function buildStatutoryRuleWatch(today: string): RuleWatchItem[] {
+export function buildStatutoryRuleWatch(
+  today: string, verifiedAsOfDay: string = philippineCalendarDay(),
+): RuleWatchItem[] {
   const items: RuleWatchItem[] = [
-    packItem("sss", SSS_RULE_PACKS, today, RULE_FAMILY_LAST_VERIFIED.sss),
-    packItem("philhealth", PHILHEALTH_RULE_PACKS, today, RULE_FAMILY_LAST_VERIFIED.philhealth),
-    packItem("pagibig", PAGIBIG_RULE_PACKS, today, RULE_FAMILY_LAST_VERIFIED.pagibig),
-    packItem("bir-withholding", BIR_WITHHOLDING_RULE_PACKS, today, RULE_FAMILY_LAST_VERIFIED["bir-withholding"]),
+    packItem("sss", SSS_RULE_PACKS, today, RULE_FAMILY_LAST_VERIFIED.sss, verifiedAsOfDay),
+    packItem("philhealth", PHILHEALTH_RULE_PACKS, today, RULE_FAMILY_LAST_VERIFIED.philhealth, verifiedAsOfDay),
+    packItem("pagibig", PAGIBIG_RULE_PACKS, today, RULE_FAMILY_LAST_VERIFIED.pagibig, verifiedAsOfDay),
+    packItem("bir-withholding", BIR_WITHHOLDING_RULE_PACKS, today, RULE_FAMILY_LAST_VERIFIED["bir-withholding"], verifiedAsOfDay),
     verificationItem({
       family: "wage-orders",
       label: LABELS["wage-orders"],
       currentVersion: `${WAGE_ORDERS.length} regional orders`,
       sourceDocument: "NWPC/RTWPB current regional rates",
       lastVerifiedOn: RULE_FAMILY_LAST_VERIFIED["wage-orders"],
-    }, today),
+    }, today, verifiedAsOfDay),
   ];
 
   // A published rate that is already verified and loaded must not remain

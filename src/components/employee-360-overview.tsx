@@ -40,7 +40,7 @@ export function Employee360Overview({
 }) {
   return (
     <section aria-labelledby="employee-360-heading"
-      className="mb-4 rounded-xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm sm:p-5">
+      className="employee-360 mb-4 rounded-xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm sm:p-5">
       <header className="mb-4">
         <span className="text-xs font-bold uppercase tracking-widest text-emerald-800">
           People · {employeeNo}
@@ -53,12 +53,12 @@ export function Employee360Overview({
           its underlying source records.
         </p>
       </header>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="employee-360-grid">
         {cards.map((card) => {
           const Icon = ICONS[card.id];
           const isUnavailable = !card.available;
           return (
-            <button key={card.id} type="button" disabled={isUnavailable}
+            <button key={card.id} type="button" disabled={isUnavailable} data-tone={card.tone}
               aria-label={"Review " + card.title + " details"}
               aria-controls={card.available ? card.targetId : undefined}
               onClick={() => {
@@ -71,7 +71,7 @@ export function Employee360Overview({
                 );
               }}
               className={
-                "flex min-h-32 flex-col rounded-xl border p-3 text-left outline-offset-2 " +
+                "employee-360-card flex min-h-32 flex-col rounded-xl border p-3 text-left outline-offset-2 " +
                 "focus-visible:ring-2 focus-visible:ring-emerald-700 " +
                 (isUnavailable
                   ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-500"
@@ -79,26 +79,28 @@ export function Employee360Overview({
                     ? "border-amber-200 bg-amber-50 text-slate-900 hover:border-amber-400"
                     : "border-slate-200 bg-slate-50 text-slate-900 hover:border-emerald-500 hover:bg-emerald-50")
               }>
-              <span className="flex w-full items-center justify-between gap-2">
+              <span className="employee-360-card-heading flex w-full items-center justify-between gap-2">
                 <span className="flex items-center gap-2 text-xs font-semibold">
                   <Icon size={15} aria-hidden="true"/>
                   {card.title}
                 </span>
                 {card.available && <ArrowDownRight size={15} aria-hidden="true" className="text-slate-500"/>}
               </span>
-              <strong className="mt-2 text-sm font-semibold leading-5">{card.value}</strong>
-              <span className="mt-1 text-xs leading-5 text-slate-600">{card.detail}</span>
-              <span className="mt-auto pt-3 text-[10px] leading-4 text-slate-500">
+              <strong className="employee-360-value mt-2 text-sm font-semibold leading-5">{card.value}</strong>
+              <span className="employee-360-detail mt-1 text-xs leading-5 text-slate-600">{card.detail}</span>
+              <span className="employee-360-source mt-auto pt-3 text-[10px] leading-4 text-slate-500">
                 Source: {card.source}
               </span>
             </button>
           );
         })}
       </div>
-      <p className="mt-4 text-xs leading-5 text-slate-600">
-        These are scoped, potentially incomplete source snapshots. Missing history or an empty queue
-        is not proof of onboarding completion, verified documents, statutory compliance, or payroll settlement.
-      </p>
+      <details className="employee-360-context"><summary>About these source records</summary>
+        <p className="mt-4 text-xs leading-5 text-slate-600">
+          These are scoped, potentially incomplete source snapshots. Missing history or an empty queue
+          is not proof of onboarding completion, verified documents, statutory compliance, or payroll settlement.
+        </p>
+      </details>
     </section>
   );
 }

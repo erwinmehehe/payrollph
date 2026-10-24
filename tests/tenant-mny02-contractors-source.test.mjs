@@ -95,13 +95,17 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     assert.match(underpaymentSource[125] ?? "", /assert\.deepEqual\(await snapshot\(v\), before/);
   }
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 149, 10, 334]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 150, 10, 334]);
   // Group reports have a separate three-tenant source-pinned GET; they may
   // not borrow the contractor or underpayment execution receipt.
   const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(m => m.name === "GET");
   assert.equal(groupReport?.status, "COVERED");
   assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
   const groupReportCredits = 1;
+  const preRun = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"]?.methods.find(m => m.name === "GET");
+  assert.equal(preRun?.status, "COVERED", "Main source-pinned readiness GET must retain its independent credit");
+  assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
+  const preRunCredit = 1;
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find(method => method.name === "POST");
   assert.equal(closePost?.status, "COVERED",
@@ -125,9 +129,9 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
   const closePostCredits = 1;
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - closePostCredits,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - closePostCredits - preRunCredit,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + closePostCredits], [493, 145, 10, 338],
+    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + closePostCredits], [494, 145, 10, 338],
   "Previous six-contractor MNY-02 baseline must remain accounted for separately");
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 334 API methods/);
 });

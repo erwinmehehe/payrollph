@@ -352,6 +352,6 @@ test("planning UI exposes explicit scenario assumptions and quality boundaries",
   assert.ok(source.includes("It is not added to the labor plan again."));
   assert.ok(source.includes("PROJECTED CAPACITY"));
   assert.ok(source.includes("capacityGapAfterFills"));
-  assert.ok(source.includes("STAFFING PLAN APPROVAL"));
+  assert.ok(source.includes("1 · Save and review"));
   assert.ok(source.includes("/api/workforce-planning/scenarios"));
 });

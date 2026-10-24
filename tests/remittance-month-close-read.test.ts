@@ -101,11 +101,11 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
-  assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
+  assert.equal(manifest.metrics.methods, 494, "494 methods include the separately proven pre-run readiness GET");
   // Pin the current ledger exactly: the two DL-01 vault methods and eight
   // money-input methods retain their independent proofs; MNY-02 adds six
   // separately linked contractor/EWT methods; two underpayment methods add distinct
-  // source-linked proof; the independent group-report GET leaves 335 method GAPs.
+  // source-linked proof; the independent group-report and pre-run GETs leave 335 method GAPs.
   // This is provisional coverage; no production or global audit sign-off.
   for (const [vaultRoute, vaultMethod] of [
     ["src/app/api/employee-vault/route.ts", "GET"],
@@ -119,7 +119,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   }
   // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
   // PR #1325 contributes three other real HTTP proofs; never double-credit these.
-  assert.equal(manifest.metrics.coveredAfter, 148, "Preserve main/BIR/vault, eight money inputs and six source-pinned contractor methods");
+  assert.equal(manifest.metrics.coveredAfter, 149, "Preserve BIR, vault, group, money and distinct pre-run authorization proofs");
   assert.equal(manifest.metrics.publicByDesign, 10);
   assert.equal(manifest.metrics.gap, 335, "Retain the remaining unproven methods as GAP");
   // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
@@ -196,7 +196,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     methods: Array<{ status: string; testedBy?: { file: string } }>;
   }>).flatMap(route => route.methods).filter(method =>
     method.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs");
-  assert.equal(moneyMethods.length, 8, "Only the separately executed eight money-input cases are additional credits");
+  assert.equal(moneyMethods.length, 7, "The changed process POST has a new flag-ON blocked-source proof, leaving seven legacy money-input method credits");
   assert.ok(moneyMethods.every(method => method.status === "COVERED"));
   const underpaymentFile = "scripts/qa/underpayment-posting-http.mjs";
   const underpaymentLines = readFileSync(underpaymentFile, "utf8").split("\n");
@@ -269,11 +269,11 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
       /assert\.deepEqual\(await victimSnapshot\(victim\.id\), originalVictim/,
       key + ": victim SQL snapshot must remain identical");
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - contractorCases.length - underpaymentMethods.length - groupReportCredits, 129,
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - contractorCases.length - underpaymentMethods.length - groupReportCredits - 2, 129,
     "Keep all 129 independently source-pinned methods from merged main, not counting new MNY-02");
-  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + contractorCases.length + underpaymentMethods.length + groupReportCredits, 354,
+  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + contractorCases.length + underpaymentMethods.length + groupReportCredits + 1, 354,
     "Never reduce main's 354 originally open method GAPs without distinct own/victim HTTP proof");
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493);
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 494);
   const readLine = (number: number) => {
     assert.ok(Number.isInteger(number) && number > 0 && number <= harnessLines.length);
     return harnessLines[number - 1];

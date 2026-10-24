@@ -12,6 +12,8 @@ import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
 import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { approvalBelongsToPayrollRun } from "@/lib/payroll-approval-link";
+import { loadPayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness-server";
+import { payrollEmploymentStatus } from "@/lib/approved-exit-payroll";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(_request);
@@ -54,13 +56,27 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return Response.json({ error: `Payroll calculation is already in progress (currently ${run.status}).` }, { status: 409 });
   }
 
+  // Read-only pre-run checks happen BEFORE any Recalculating claim, approval
+  // invalidation, payroll enqueue or worker execution. UI checks are advisory
+  // only; direct POSTs must be subject to the same fail-closed readiness gate.
+  if (criticalReleaseFlagEnabled("payrollPreRunReadiness")) {
+    const preRunReadiness = await loadPayrollPreRunReadiness(run);
+    if (!preRunReadiness.ready) {
+      return Response.json({
+        error: "Pre-calculation readiness has blocking issues. Resolve them before calculating payroll.",
+        code: "PAYROLL_PRE_RUN_READINESS_BLOCKED",
+        readiness: preRunReadiness,
+      }, { status: 422, headers: { "Cache-Control": "private, no-store" } });
+    }
+  }
+
   const employeeRows = await db.select({ id: employees.id }).from(employees).where(
     run.scopeOrgUnitId == null
       ? and(
           eq(employees.organizationId, run.organizationId),
           criticalReleaseFlagEnabled("multiEntity") && run.legalEntityId !== null
             ? eq(employees.legalEntityId, run.legalEntityId) : undefined,
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         )
       : and(
@@ -68,7 +84,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
           eq(employees.orgUnitId, run.scopeOrgUnitId),
           criticalReleaseFlagEnabled("multiEntity") && run.legalEntityId !== null
             ? eq(employees.legalEntityId, run.legalEntityId) : undefined,
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         ),
   );

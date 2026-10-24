@@ -382,6 +382,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Owner-only fictional calculation and sample payslip UI; no payroll writes or payment authority",
     approval: "Executed canonical fixture, owner/tenant gates, default-off parity and desktop/390px browser tests; production activation separate",
   },
+  payrollPreRunReadiness: {
+    env: "PAYROLL_PRE_RUN_READINESS_ENABLED",
+    owner: "Payroll / Statutory Controls",
+    risk: "Pre-calculation source gate can block all payroll while statutory verification or required inputs are incomplete",
+    approval: "Flag-off calculation parity, flag-on create/process denial before writes, tenant isolation and official-source review before activation",
+  },
   payrollDraftPayoutDeferral: {
     env: "PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED",
     owner: "Payroll / Onboarding",

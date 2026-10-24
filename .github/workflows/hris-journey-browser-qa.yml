@@ -202,6 +202,19 @@ jobs:
           fi
       - name: Test HR Home, Employee 360, My Team, onboarding and approvals
         run: node scripts/hris-journey-synthetic-browser.mjs
+      - name: Diagnose isolated HRIS app after browser failure
+        if: failure()
+        shell: bash
+        run: |
+          # Synthetic localhost only. Redact credentials and only show error text,
+          # never fixture employee identities, cookies, SQL values or full stacks.
+          if [ -f /tmp/hris-journey-local.log ]; then
+            grep -Ei 'Error:|error code|relation .* does not exist|column .* does not exist|digest:|Cannot|TypeError:' /tmp/hris-journey-local.log |
+              # Avoid hiding a long symbolic error code, while masking real
+              # URLs, secrets, hashes, and quoted test-record values.
+              sed -E 's#postgres(ql)?://[^[:space:]]+#postgresql://[redacted]#g; s/(password|token|secret|cookie|authorization)[=:][^[:space:]]+/[redacted-key]/Ig; s/[0-9a-fA-F]{64,}/[redacted-hex]/g; s/[A-Za-z0-9_+-]{96,}/[redacted-long]/g' |
+              cut -c1-240 | tail -n 60 || true
+          fi
       - name: Add fictional self-serve owner after HRIS acceptance
         run: npx tsx scripts/first-payroll-mobile-synthetic-fixture.ts
       - name: Test first-payroll guide on mobile with owner and payroll roles

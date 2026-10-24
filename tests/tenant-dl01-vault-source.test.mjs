@@ -105,6 +105,23 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
     assert.ok(Number.isInteger(statutoryPost?.testedBy?.[key]) && statutoryPost.testedBy[key] > 0,
       "Payment POST requires source-pinned own, foreign and unchanged-victim proof: " + key);
   }
+  // Phase-1 pre-calculation readiness adds one *separately proven* GET,
+  // without erasing the inherited DL-01 vault/POST evidence or any GAP.
+  // The existing payroll process POST changes its credited proof source from
+  // successful calculation to the new actual own-422/foreign-403 gate, but
+  // remains a single (not double-counted) reviewed method.
+  const readiness = manifest.allApiRouteFiles[
+    "src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"
+  ]?.methods.find(row => row.name === "GET");
+  const processGate = manifest.allApiRouteFiles[
+    "src/app/api/payroll-runs/[id]/process/route.ts"
+  ]?.methods.find(row => row.name === "POST");
+  assert.equal(readiness?.status, "COVERED");
+  assert.equal(processGate?.status, "COVERED");
+  assert.equal(readiness?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
+  assert.equal(processGate?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
+  assert.match(processGate?.reason ?? "", /422.*403/, 
+    "Old positive calculation acceptance must not be credited for an unverified rate table");
   // #1361 adds exactly one *different* method: authorized accounting-close POST.
   // Its proof must not borrow either DL-01 vault method or the payroll-close GET.
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
@@ -133,8 +150,8 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
     /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
     "The additional payroll-close proof must run in the real PG16 HTTP harness");
   assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [149, 10, 334]);
-  assert.equal(manifest.metrics.methods, 493);
+    [150, 10, 334]);
+  assert.equal(manifest.metrics.methods, 494);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 334 API methods and 19 page\/action GAPs remain/);
   assert.equal(manifest.scopedPages.length, 20);
   assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 19);
