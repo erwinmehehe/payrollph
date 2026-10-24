@@ -95,19 +95,41 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     assert.match(underpaymentSource[125] ?? "", /assert\.deepEqual\(await snapshot\(v\), before/);
   }
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 148, 10, 335]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 149, 10, 334]);
   // Group reports have a separate three-tenant source-pinned GET; they may
   // not borrow the contractor or underpayment execution receipt.
   const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(m => m.name === "GET");
   assert.equal(groupReport?.status, "COVERED");
   assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
   const groupReportCredits = 1;
+  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find(method => method.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "Only separately source-pinned successful close POST can add a provisional credit");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  const closeSource = readFileSync(closePost.testedBy.file, "utf8");
+  const closeLines = closeSource.split("\n");
+  assert.match(closeLines[closePost.testedBy.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(closePost.testedBy.ownPositiveLine - 1,
+    closePost.testedBy.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/);
+  assert.match(closeLines[closePost.testedBy.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closePost.testedBy.foreignDenialLine - 1,
+    closePost.testedBy.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/);
+  assert.match(closeLines[closePost.testedBy.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/);
+  assert.match(closeSource,
+    /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
+  const closePostCredits = 1;
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - closePostCredits,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits], [493, 145, 10, 338],
+    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + closePostCredits], [493, 145, 10, 338],
   "Previous six-contractor MNY-02 baseline must remain accounted for separately");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 335 API methods/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 334 API methods/);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {
