@@ -47,13 +47,14 @@ test("migration creates a primary employer for existing organizations and backfi
   assert.ok(migration.includes('WHERE pr."legal_entity_id" IS NULL'));
 });
 
-test("production compatibility schema carries the same additive migration", () => {
-  assert.match(compat, /linaw_core_schema_compat_v(?:1[6-9]|[2-9]\\d+)/);
-  assert.ok(compat.includes("CREATE TABLE IF NOT EXISTS legal_entities"));
-  assert.ok(compat.includes("ALTER TABLE employees"));
-  assert.ok(compat.includes("ADD COLUMN IF NOT EXISTS legal_entity_id"));
-  assert.ok(compat.includes("UPDATE payroll_runs pr"));
-  assert.ok(compat.includes("legal_entities_org_primary_unique"));
+test("canonical legal-entity migration owns DDL and backfill; request core only verifies", () => {
+  assert.ok(schema.includes('"legal_entities"'));
+  assert.ok(migration.includes('CREATE TABLE IF NOT EXISTS "legal_entities"'));
+  assert.ok(migration.includes('ALTER TABLE "employees"'));
+  assert.ok(migration.includes('ALTER TABLE "payroll_runs"'));
+  assert.ok(migration.includes("legal_entities_org_primary_unique"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b|\bUPDATE\s+\w+\s+SET/i);
 });
 
 test("newly created organizations lazily receive an idempotent PRIMARY employer", () => {

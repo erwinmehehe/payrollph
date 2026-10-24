@@ -124,7 +124,7 @@ test("MWE classification uses maker-checker approval and persists effective wage
 });
 
 
-test("MWE governance is enforced consistently in migration, schema, compatibility upgrade and payroll runtime", () => {
+test("MWE governance is owned by migration and schema, with read-only core gate and guarded payroll runtime", () => {
   const migration = readFileSync("drizzle/0093_mwe_classification_governance.sql", "utf8");
   const schema = readFileSync("src/db/schema.ts", "utf8");
   const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
@@ -133,7 +133,7 @@ test("MWE governance is enforced consistently in migration, schema, compatibilit
   const requestRoute = readFileSync("src/app/api/employees/[id]/mwe-classifications/route.ts", "utf8");
   const decisionRoute = readFileSync("src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts", "utf8");
 
-  for (const source of [migration, schema, compat]) {
+  for (const source of [migration, schema]) {
     assert.ok(source.includes("employee_mwe_classifications"));
     assert.ok(source.includes("wage_order_reference"));
     assert.ok(source.includes("evidence_reference"));
@@ -141,8 +141,8 @@ test("MWE governance is enforced consistently in migration, schema, compatibilit
     assert.ok(source.includes("decided_by_user_id"));
   }
   assert.ok(migration.includes("employee_mwe_classifications_no_approved_overlap"));
-  assert.ok(compat.includes("employee_mwe_classifications_no_approved_overlap"));
-  assert.ok(compat.includes("WHEN duplicate_table THEN NULL"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b|\bALTER\s+TABLE\b/i);
   assert.ok(migration.includes("WHEN duplicate_table THEN NULL"));
   assert.ok(engine.includes("resolveMweClassification"));
   assert.ok(engine.includes("mweClassificationSource="));

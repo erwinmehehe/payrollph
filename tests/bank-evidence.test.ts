@@ -60,12 +60,37 @@ test("manual corporate bank acceptance can satisfy bank readiness but generation
   assert.ok(readiness.includes("/api/compliance/bank-validations"));
 });
 
-test("production compatibility creates the bank validation evidence table", () => {
+test("reviewed migration owns bank-validation schema and runtime core only checks readiness", () => {
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  const migration = readFileSync("drizzle/0013_operational_compliance.sql", "utf8");
   const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
-  assert.match(compat, /linaw_core_schema_compat_v\d+/);
-  assert.ok(compat.includes("CREATE TABLE IF NOT EXISTS bank_file_validations"));
-  assert.ok(compat.includes("bank_file_validation_unique"));
-  assert.ok(compat.includes("bank_file_validations_status_check"));
+  assert.ok(schema.includes("bank_file_validations"));
+  assert.ok(schema.includes("bank_file_validation_unique"));
+  assert.ok(migration.includes("CREATE TABLE IF NOT EXISTS bank_file_validations"));
+  assert.ok(migration.includes("bank_file_validation_unique"));
+  assert.ok(migration.includes("bank_file_validations_status_check"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
+});
+
+
+test("bank UAT ownership is rechecked at record, payroll-run and acceptance boundaries", () => {
+  const store = readFileSync("src/lib/bank-evidence-store.ts", "utf8");
+  assert.match(store, /function sourceRunBelongsToValidationTenant\(\)/);
+  assert.ok(store.includes("eq(payrollRuns.id, bankFileValidations.payrollRunId)"));
+  assert.ok(store.includes("eq(payrollRuns.organizationId, bankFileValidations.organizationId)"));
+  assert.ok(store.includes("or(isNull(bankFileValidations.payrollRunId), sourceRunBelongsToValidationTenant())"),
+    "historical orphaned evidence may be read, never confused with a foreign run");
+  assert.ok(store.includes("eq(bankFileValidations.status, \"generated\"),"));
+  assert.ok(store.includes("sourceRunBelongsToValidationTenant(),"),
+    "the conditional outcome UPDATE and acceptance count cannot skip source-run ownership");
+  assert.ok(store.includes("eq(bankFileValidations.payrollRunId, row.payrollRunId)"),
+    "bank regeneration must re-read the persisted source ID");
+  assert.ok(store.includes("existing.payrollRunId !== run.id"),
+    "content-addressed records cannot be reused for a different source run");
+  assert.match(store, /BANK_VALIDATION_SOURCE_RUN_MISMATCH/);
+  assert.doesNotMatch(store, /\bCREATE\s+TABLE\b|\bALTER\s+TABLE\b/i,
+    "tenant defense must not reintroduce runtime schema writes");
 });
 
 

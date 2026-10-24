@@ -106,18 +106,13 @@ test("flag-on read-only cutover rejects legacy even in a spoofed GitHub fixture 
   }
 });
 
-test("all retained core CREATE TABLE targets have canonical Drizzle declarations", () => {
-  // Name-level guard only: catalog/index/FK parity and deployment receipts
-  // remain separate DBA checks. Legacy SQL must not be run by requests.
-  const legacy = readFileSync("src/lib/core-schema-compat.ts", "utf8");
-  const schema = readFileSync("src/db/schema.ts", "utf8");
-  const created = [...legacy.matchAll(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+"?([a-z_][a-z0-9_]*)"?\s*\(/gi)]
-    .map(match => match[1]);
-  const declared = new Set([...schema.matchAll(/pgTable\(\s*"([a-z_][a-z0-9_]*)"/gi)]
-    .map(match => match[1]));
-  assert.ok(created.length >= 50, "must inspect the whole historical core creator");
-  assert.deepEqual(created.filter(name => !declared.has(name)), [],
-    "historical core table identifiers cannot drift beyond src/db/schema.ts");
+test("core compatibility no longer contains a runtime table creator", () => {
+  const source = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  assert.doesNotMatch(source, /\bCREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\b/i);
+  assert.doesNotMatch(source, /\bALTER\s+TABLE\b|pg_advisory_xact_lock/i);
+  assert.ok(source.includes("await verifyCoreSchemaReadOnly("));
+  assert.ok(!source.includes("backfillBankDataEncryption"));
+  assert.ok(!source.includes("backfillGovernmentIdEncryption"));
 });
 
 test("read-only catalog preconditions pass with all required release structures, never mutate", async () => {
@@ -166,38 +161,32 @@ test("failed ROLLBACK cannot produce a successful readiness signal", async () =>
     "catalog validation must execute before rollback rejection");
 });
 
-test("dashboard and demo are still gated through the shared compatibility helper", () => {
+test("dashboard and demo always use the catalog-only core compatibility gate", () => {
   const source = readFileSync("src/lib/core-schema-compat.ts", "utf8");
   const dashboard = readFileSync("src/lib/dashboard-data.ts", "utf8");
   const demo = readFileSync("src/app/api/auth/demo-switch/route.ts", "utf8");
-  assert.ok(source.includes('coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE)'));
-  assert.ok(source.includes('if (mode === "read-only")'));
-  assert.ok(source.indexOf('if (mode === "read-only")') <
-    source.indexOf('await client.query("BEGIN")'),
-    "read-only mode must run before any legacy schema transaction");
-  assert.ok(source.includes('await verifyCoreSchemaReadOnly('));
-  assert.ok(source.includes('client?.release(!verifiedAndRolledBack)'),
-    "failed read-only verification must discard the pooled connection");
+  assert.ok(source.includes("coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE)"));
+  assert.ok(source.includes("await verifyCoreSchemaReadOnly("));
+  assert.ok(source.includes("client?.release(!verifiedAndRolledBack)"),
+    "failed catalog verification or rollback must discard the pooled connection");
+  assert.ok(!source.includes('if (mode === "read-only")'),
+    "even flag-off legacy selection must not invoke runtime DDL");
   assert.ok(dashboard.includes("await ensureCoreCompatibilitySchema()"));
   assert.ok(demo.includes("await ensureCoreCompatibilitySchema()"));
 });
 
-
-test("read-only core readiness is independent of cached legacy DDL and cannot backfill secrets", () => {
+test("core readiness caches only successful read-only checks and never backfills", () => {
   const source = readFileSync("src/lib/core-schema-compat.ts", "utf8");
   assert.match(source, /let coreSchemaReadOnlyReady = false/);
   assert.match(source, /let coreSchemaReadOnlyInFlight: Promise<void> \| null = null/);
-  assert.ok(source.indexOf('if (mode === "read-only")') < source.indexOf('if (coreSchemaReady) return'),
-    "legacy readiness cache must not bypass a new read-only catalog check");
-  assert.match(source, /coreSchemaReadOnlyReady = true/);
+  assert.ok(source.indexOf("coreSchemaCompatibilityMode(") <
+    source.indexOf("if (coreSchemaReadOnlyReady) return"),
+    "mode validation must run before consulting the cache");
+  assert.ok(source.indexOf("await verifyCoreSchemaReadOnly(") <
+    source.indexOf("coreSchemaReadOnlyReady = true"));
   assert.match(source, /coreSchemaReadOnlyInFlight = null/);
-  assert.match(source, /CORE_SCHEMA_LEGACY_MIGRATION_INFLIGHT/);
-  for (const name of [
-    "CORE_SCHEMA_READONLY_BANK_BACKFILL_FORBIDDEN",
-    "CORE_SCHEMA_READONLY_GOVERNMENT_ID_BACKFILL_FORBIDDEN",
-  ]) assert.ok(source.includes(name), name);
-  assert.ok(source.includes("client?.release(!safeToReuse)"),
-    "aborted or indeterminate compatibility DDL transactions must discard the pool client");
-  assert.ok(source.includes('await client.query("ROLLBACK")'),
-    "legacy migration failure still requires rollback");
+  assert.ok(source.includes("client?.release(!verifiedAndRolledBack)"));
+  assert.doesNotMatch(source, /backfill(?:BankData|GovernmentId)Encryption/);
+  assert.ok(!source.includes("let coreSchemaReady"));
+  assert.ok(!source.includes("coreSchemaInFlight"));
 });

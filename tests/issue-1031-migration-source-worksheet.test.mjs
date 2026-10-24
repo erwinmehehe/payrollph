@@ -16,6 +16,15 @@ test("source-only worksheet covers every drizzle file with current byte SHA and 
   assert.equal(result.summary.sqlFiles, 151);
   assert.equal(result.summary.sourceSchemaTables, 273);
   assert.equal(result.summary.duplicatePrefixGroups, 13);
+  // P0-4 step 3: no request-time schema creator remains in the source inventory.
+  assert.deepEqual(result.ambiguities.runtimeOnlyTables, []);
+  assert.deepEqual(result.ambiguities.runtimeOnlyFiles, []);
+  assert.ok(result.migrationRows.every(row => row.runtime_only_ddl_candidates === ""),
+    "migration worksheet must not invent retired runtime-compatibility DDL");
+  assert.ok(result.tableRows.every(row =>
+    row.runtime_compatibility_create_sources === "" &&
+    row.runtime_only_without_numbered_migration === ""),
+    "table crosswalk must not claim a retired request-time creator");
   assert.ok(result.migrationRows.some(row => row.file_path === "drizzle/0127_year_end_prior_evidence.sql" && row.creates_objects.includes("year_end_prior_evidence")));
   assert.ok(result.tableRows.some(row => row.schema_table === "year_end_prior_evidence"));
   // A new numbered source must be included without assigning an apply receipt.
