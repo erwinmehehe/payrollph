@@ -146,7 +146,7 @@ export async function verifyPiiIdentifierReviewIsolation(f, { request, expectSta
     "Own successful GET must contain a persisted employee identifier request");
     assert.ok(ownGet.json.requests.every(r => r.employeeId === a.worker.id &&
       r.id !== victimRequest.id), "Owner may not list victim's identifier request");
-    assert.match(ownGet.headers.get("cache-control") ?? "", /private.*no-store/);
+    assert.match(ownGet.headers.get("cache-control") ?? "", /^(?!.*\b(?:public|s-maxage)\b)(?=.*\bno-store\b)/i); // Next.js applies global no-store API policy.
 
     const foreignGet = expectStatus(await request(
       "/api/employee-identifier-requests?organizationId=" + victim.id,

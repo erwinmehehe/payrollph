@@ -227,8 +227,18 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap + 3, 335, "Preserve all 335 main API method GAPs except three separately proven BIR 2316 document methods");
-  assert.equal(manifest.metrics.coveredAfter - 3, 149, "Keep 149 separate main sources including pre-run readiness plus three BIR 2316 methods");
+  // PII-01 must contribute only two distinct, source-pinned identifier review methods.
+  // Its method evidence is independently checked in tenant-pii01-identifiers-source.test.mjs
+  // and executed over real isolated PostgreSQL/HTTP; it cannot borrow BIR proof credit.
+  const piiReview = manifest.allApiRouteFiles["src/app/api/employee-identifier-requests/route.ts"]?.methods;
+  assert.deepEqual(piiReview?.map(method => [method.name, method.status, method.testedBy?.file]), [
+    ["GET", "COVERED", "scripts/qa/tenant-pii01-identifier-review-http.mjs"],
+    ["POST", "COVERED", "scripts/qa/tenant-pii01-identifier-review-http.mjs"],
+  ], "Only the separate GET and POST identifier review proofs add provisional method credits");
+  assert.equal(manifest.metrics.gap + 3 + piiReview.length, 335,
+    "Preserve 335 historic main method gaps except three BIR 2316 and two PII-01 proofs");
+  assert.equal(manifest.metrics.coveredAfter - 3 - piiReview.length, 149,
+    "Preserve 149 baseline covered methods plus three BIR 2316 and two PII-01 proofs");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {

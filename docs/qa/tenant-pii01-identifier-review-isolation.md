@@ -12,6 +12,8 @@ The new [three-employer proof](../../scripts/qa/tenant-pii01-identifier-review-h
 - Foreign POST: each attacker sends the victim organization's actual pending request and receives 403; sending the real higher-ID victim `requestId` under its own organization returns 404. A separate forged victim `employeeId` paired with a real own request must decide only the owned row.
 - Persistence and non-disclosure: eight real victim pending requests are seeded after the attacker-owned rows. Their request IDs exceed both attackers' owned IDs and six. Full victim request/identifier/employee/audit/payroll PostgreSQL snapshots are deep-equal before and after attempted foreign/forged reads and writes. Response bodies and headers cannot include victim-only identifiers.
 
+The identifier-review route requests `Cache-Control: private, no-store`, while the deployed Next.js API-wide header policy emits `no-store, max-age=0`. The real-HTTP proof checks that the **actual response** contains `no-store` without `public` or `s-maxage`; it does not require the framework to retain the route-level `private` token. No identifier response may be cached.
+
 ## Source-pinned ledger
 
 | Method | Own positive | Foreign denial | Forged selector | Victim unchanged |
