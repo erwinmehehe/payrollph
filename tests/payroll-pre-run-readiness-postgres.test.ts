@@ -8,7 +8,7 @@ import {
   organizations, payrollRuns, workforceTimesheets,
 } from "../src/db/schema";
 import { loadPayrollPreRunReadiness } from "../src/lib/payroll-pre-run-readiness-server";
-import { buildStatutoryRuleWatch } from "../src/lib/statutory-rule-watch";
+import { buildStatutoryRuleWatch, philippineCalendarDay } from "../src/lib/statutory-rule-watch";
 
 // Disposable, synthetic localhost PG ONLY; never run against hosted or Neon DB.
 const disposable = (() => {
@@ -98,8 +98,8 @@ test("real PostgreSQL pre-run loader scopes evidence to employer, employee, cuto
       "update-overdue": "PRERUN_STATUTORY_UPDATE_OVERDUE",
       "no-coverage": "PRERUN_STATUTORY_NO_COVERAGE",
     };
-    const today = new Date().toISOString().slice(0, 10);
-    const expected = buildStatutoryRuleWatch(today)
+    const today = philippineCalendarDay();
+    const expected = buildStatutoryRuleWatch(today, today)
       .map(row => statusCode[row.status]).filter(Boolean).sort();
     const actual = first.findings
       .filter(f => f.code.startsWith("PRERUN_STATUTORY_")).map(f => f.code).sort();
