@@ -17,6 +17,7 @@ import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { enforceSensitiveActionRateLimit } from "@/lib/security-request";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { buildContributionEvidencePack } from "@/lib/statutory-contribution-evidence-pack";
 import {
   statutorySharesForEntry,
@@ -65,6 +66,11 @@ export async function GET(request: Request) {
   });
   if (rateDenied) return rateDenied;
 
+  // A company-wide payroll role is not a grant for every legal employer.
+  // Resolve the session-bound selection before loading any case evidence.
+  const entityScope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!entityScope.ok) return entityScope.response;
+
   const [row] = await db.select({
     issue: statutoryContributionIssueCases,
     employeeNo: employees.employeeNo,
@@ -83,6 +89,8 @@ export async function GET(request: Request) {
   if (!row) return Response.json({ error: "Contribution issue case not found." }, { status: 404 });
 
   const issue = row.issue;
+  const entityDenied = assertEntityResource(entityScope.context, issue.legalEntityId);
+  if (entityDenied) return entityDenied;
   const agency = issue.agency as StatutoryAgency;
   const applicableMonth = issue.applicableMonth;
   const start = monthStart(applicableMonth);
