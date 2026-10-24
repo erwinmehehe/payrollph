@@ -2,7 +2,7 @@
  * Exploratory three-employer HTML navigation probe over every business-ID page
  * in the full manifest. This is NOT page authorization certification: many
  * feature-disabled 403/404/redirects cannot serve as valid own-page positives.
- * Record the outstanding 20 GAPs and require proper browser/action adapters.
+ * Record the outstanding 18 GAPs and require proper browser/action adapters.
  * No production traffic or real accounts.
  */
 import assert from "node:assert/strict";
@@ -26,7 +26,7 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
   const pages = manifest.scopedPages;
   assert.equal(pages.length, 20);
   const pageGaps = pages.filter((page) => page.status === "GAP");
-  assert.equal(pageGaps.length, 19, "The manager inbox has a separate flag-ON HTTP proof");
+  assert.equal(pageGaps.length, 18, "Manager inbox and the workspace have strict own/foreign HTTP proofs");
   const runSnapshot = await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
   const employeeSnapshot = await db.select().from(employees)
@@ -68,6 +68,16 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
       const cookie = employeePage ? employeeCookie : ownerCookie;
       const ownRes = await request(pageUrl(path, own.id), { cookie });
       const foreignRes = await request(pageUrl(path, victim.id), { cookie });
+      if (path === "src/app/app/page.tsx") {
+        // A 200 error shell is not an authorized positive. Require the actual
+        // persisted employer and worker in the server-rendered workspace.
+        expectStatus(ownRes, 200, "Owned workspace SSR must load the verified snapshot");
+        assert.match(ownRes.headers.get("content-type") ?? "", /text\/html/i);
+        assert.ok(ownRes.text.includes(own.name), "Own persisted employer must render");
+        assert.ok(ownRes.text.includes(f.ownedEmployees[idx - 1].employeeNo), "Own seeded worker must render");
+        assert.ok(!ownRes.text.includes("Workspace unavailable"), "Unavailable cannot count as owned success");
+        expectStatus(foreignRes, 404, "Foreign employer workspace must be denied before snapshot loading");
+      }
       assert.ok(ownRes.status >= 200 && ownRes.status < 500,
         path + " own employer request returned server error HTTP " + ownRes.status);
       assert.ok(foreignRes.status >= 200 && foreignRes.status < 500,

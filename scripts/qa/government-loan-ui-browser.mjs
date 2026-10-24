@@ -25,10 +25,11 @@ for (const variant of ["legacy", "off", "on"]) {
             legalEntities: [{id:18,code:'PRIMARY',displayName:'Fictional Employer',active:true,primaryEntity:true},
               ...(mode === 'multi' ? [{id:19,code:'SECOND',displayName:'Second Fictional Employer',active:true,primaryEntity:false}] : [])]})};
       }
+      if (mode === "loading") return new Promise(()=>{});
       loanCalls++;
       const failed = mode === 'error' || (mode === 'retry' && loanCalls === 1);
       const foreign = mode === 'foreign';
-      const selected = Number(new URL(url,'http://fixture.test').searchParams.get('legalEntityId') || 0);
+      const selected = Number(new URL(url,'http://fixture.test').searchParams.get('legalEntityId') || 18);
       if (mode === 'multi' && selected === 18 && window.__qaHoldLoanRead) {
         // Transport deliberately ignores AbortSignal: a late old-employer error
         // must not poison the currently selected employer's verified evidence.
@@ -58,7 +59,7 @@ const url = "http://127.0.0.1:"+server.address().port;
 console.log("Synthetic component fixture: "+url);
 if (!process.argv.includes("--serve")) {
   mkdirSync("qa-artifacts",{recursive:true});
-  const { chromium } = await import("playwright");
+  const { chromium } = await import(process.env.QA_PLAYWRIGHT_MODULE ?? "playwright");
   const browser = await chromium.launch({headless:true,...(process.env.QA_CHROMIUM_EXECUTABLE ? {executablePath:process.env.QA_CHROMIUM_EXECUTABLE} : {})});
   const report = {head:process.env.PR_HEAD_SHA??"local",synthetic:true,checks:[]};
   try {
@@ -77,11 +78,21 @@ if (!process.argv.includes("--serve")) {
             await page.getByText(/No remittance batch is recorded/).waitFor();
           } else if (variant === "on") {
             await page.getByRole("alert").first().waitFor();
-          } else if (mode === "denied") {
-            await page.waitForFunction(()=>document.querySelector("#root main")?.textContent === "");
+          } else if (["error","foreign","denied","retry"].includes(mode)) {
+            await page.getByRole("heading",{name:"Government loan remittances unavailable"}).waitFor();
+          } else {
+            await page.getByText(/No remittance batch is recorded/).waitFor();
           }
         }
         html[variant] = await page.locator("#root").innerHTML();
+        if (variant !== "on" && ["error","foreign","denied","retry"].includes(mode)) {
+          assert.equal(await page.getByRole("button",{name:/Open.*loan remittance/}).count(),0);
+          if(mode === "retry") {
+            await page.getByRole("button",{name:"Retry remittances"}).click();
+            await page.getByText(/No remittance batch is recorded/).waitFor();
+            assert.equal(await page.getByRole("button",{name:"Open SSS loan remittance",exact:true}).isEnabled(),true);
+          }
+        }
         if (variant === "on") {
           if (mode === "loading") await page.getByText(/Checking authorized legal employers/).waitFor();
           if (["error","foreign","retry"].includes(mode)) {

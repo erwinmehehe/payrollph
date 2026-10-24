@@ -1,3 +1,4 @@
+import { parseDashboardSnapshotRead } from "@/lib/dashboard-snapshot-read";
 import { getDashboardData } from "@/lib/dashboard-data";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 import { assertMembership, getAccess } from "@/lib/access";
@@ -21,6 +22,14 @@ export async function GET(request: Request) {
   if (access.role === "manager" && deriveMyTeamScope(access)?.kind !== "unit") {
     return Response.json({ error: "Assign a supervisory unit before opening the manager dashboard." }, { status: 403 });
   }
-  const data = await getDashboardData(Number.isFinite(organizationId) && organizationId > 0 ? organizationId : undefined, request);
-  return Response.json(data);
+  let data;
+  try {
+    data = parseDashboardSnapshotRead(true, await getDashboardData(organizationId, request), organizationId);
+  } catch {
+    data = null;
+  }
+  if (!data) return Response.json({ error: "Workspace unavailable. Retry." }, {
+    status: 503, headers: { "Cache-Control": "private, no-store" },
+  });
+  return Response.json(data, { headers: { "Cache-Control": "private, no-store" } });
 }
