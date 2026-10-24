@@ -95,13 +95,19 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     assert.match(underpaymentSource[125] ?? "", /assert\.deepEqual\(await snapshot\(v\), before/);
   }
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 147, 10, 336]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 148, 10, 335]);
+  // Group reports have a separate three-tenant source-pinned GET; they may
+  // not borrow the contractor or underpayment execution receipt.
+  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(m => m.name === "GET");
+  assert.equal(groupReport?.status, "COVERED");
+  assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
+  const groupReportCredits = 1;
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length], [493, 145, 10, 338],
+    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits], [493, 145, 10, 338],
   "Previous six-contractor MNY-02 baseline must remain accounted for separately");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 336 API methods/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 335 API methods/);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {
