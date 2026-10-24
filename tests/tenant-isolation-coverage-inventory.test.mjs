@@ -703,7 +703,7 @@ test("all credited proof links point to the claimed route and every recertified 
       if (proof?.file === "scripts/qa/tenant-mny02-contractors-http.mjs") {
         const specs = {
           "GET contractors": [138, 143, 146, 200],
-          "POST contractors": [54, 158, 158, 201],
+          "POST contractors": [54, 152, 152, 201],
           "PATCH contractors": [167, 160, 167, 200],
           "DELETE contractors": [186, 180, 186, 200],
           "GET contractors/payments": [194, 201, 205, 200],
