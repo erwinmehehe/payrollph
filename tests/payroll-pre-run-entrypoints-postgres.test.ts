@@ -27,6 +27,7 @@ test("PG: Create & process cannot bypass readiness; separating-only and mixed co
   const s = await import("../src/db/schema");
   const { eq } = await import("drizzle-orm");
   const { loadPayrollPreRunReadiness } = await import("../src/lib/payroll-pre-run-readiness-server");
+  const { buildStatutoryRuleWatch, philippineCalendarDay } = await import("../src/lib/statutory-rule-watch");
   const create = require("../src/app/api/payroll-runs/route.ts").POST;
   const nonce = randomBytes(8).toString("hex");
   const saved = { APP_BASE_URL: process.env.APP_BASE_URL, APPROVED_EXIT_PAYROLL_ENABLED: process.env.APPROVED_EXIT_PAYROLL_ENABLED };
@@ -64,7 +65,23 @@ test("PG: Create & process cannot bypass readiness; separating-only and mixed co
     assert.equal(blocked.status, 422);
     assert.equal(evidence.code, "PAYROLL_PRE_RUN_READINESS_BLOCKED");
     assert.ok(evidence.readiness.findings.some((f: { code: string }) => f.code === "PRERUN_PAY_PROFILE_MISSING"));
-    assert.ok(evidence.readiness.findings.some((f: { code: string }) => f.code.startsWith("PRERUN_STATUTORY_")));
+    // Compare with actual current agency-watch evidence. Official-source dates
+    // are deliberately null today, but future genuine verification must not
+    // break this regression or be silently represented as still missing.
+    const asOfDay = philippineCalendarDay();
+    const statutoryBlockingCodes: Record<string, string> = {
+      "verification-unrecorded": "PRERUN_STATUTORY_VERIFICATION_UNRECORDED",
+      "review-due": "PRERUN_STATUTORY_REVIEW_DUE",
+      "update-overdue": "PRERUN_STATUTORY_UPDATE_OVERDUE",
+      "no-coverage": "PRERUN_STATUTORY_NO_COVERAGE",
+    };
+    const payDate = body.payDate > asOfDay ? body.payDate : asOfDay;
+    const expectedStatutory = buildStatutoryRuleWatch(payDate, asOfDay)
+      .map(row => statutoryBlockingCodes[row.status]).filter(Boolean).sort();
+    const actualStatutory = (evidence.readiness.findings as { code: string }[])
+      .map(finding => finding.code).filter(code => code.startsWith("PRERUN_STATUTORY_")).sort();
+    assert.deepEqual(actualStatutory, expectedStatutory,
+      "Create & process must report the live statutory source blockers without fabricated approvals");
     for (const org of [own, foreign]) {
       assert.equal((await db.select().from(s.payrollRuns).where(eq(s.payrollRuns.organizationId, org.id))).length, 0);
       assert.equal((await db.select().from(s.auditEvents).where(eq(s.auditEvents.organizationId, org.id))).length, 0);
