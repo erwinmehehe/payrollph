@@ -327,7 +327,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
       await refresh();
       setNewPayrollOpen(false);
       setPage("Payroll");
-      notify("Run created and queued through the chunked background worker.");
+      notify(payload.payoutReadiness?.deferred === true
+        ? "Draft created for calculation. Complete payout details and resolve assurance findings before approval or release."
+        : "Run created and queued through the chunked background worker.");
     } catch {
       notify("Could not reach the payroll service.", "err");
     } finally {
