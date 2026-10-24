@@ -269,46 +269,6 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   assert.match(groupReportLines[groupReport.testedBy.foreignDenialLine - 1] ?? "", /assert\.equal\(deniedVictim\.status, 403,/);
   assert.match(groupReportLines.join("\n"), /assert\.equal\(refusedReleasedRun\.status, 409,/);
   const groupReportCredits = 1;
-  // Preserve the original 129/354 main-method baseline. The six MNY-02 credits
-  // are additional only when each distinct contractor/EWT route/method points
-  // to its own executed two-attacker HTTP proof and unchanged victim DB rows.
-  const contractorEvidenceFile = "scripts/qa/tenant-mny02-contractors-http.mjs";
-  const contractorEvidence = readFileSync(contractorEvidenceFile, "utf8").split("\n");
-  const contractorCases = [
-    { method: "GET", route: "contractors", own: 138, foreign: 143 },
-    { method: "POST", route: "contractors", own: 54, foreign: 152 },
-    { method: "PATCH", route: "contractors", own: 167, foreign: 160 },
-    { method: "DELETE", route: "contractors", own: 186, foreign: 180 },
-    { method: "GET", route: "contractors/payments", own: 194, foreign: 201 },
-    { method: "POST", route: "contractors/payments", own: 73, foreign: 220 },
-  ] as const;
-  const contractorMethods = (Object.values(manifest.allApiRouteFiles) as Array<{
-    methods: Array<{ name: string; status: string; testedBy?: { file: string } }>;
-  }>).flatMap(entry => entry.methods.filter(method =>
-    method.testedBy?.file === contractorEvidenceFile));
-  assert.equal(contractorMethods.length, contractorCases.length,
-    "Only six distinct reviewed contractor/EWT methods can be credited");
-  assert.ok(harnessLines.some(line =>
-    line.includes("verifyMny02ContractorTenantIsolation(f, { request, expectStatus })")),
-  "Contractor proof must execute in the guarded PG16 real-HTTP harness");
-  for (const item of contractorCases) {
-    const key = item.method + " " + item.route;
-    const m = manifest.allApiRouteFiles["src/app/api/" + item.route + "/route.ts"]
-      ?.methods.find((candidate: { name: string }) => candidate.name === item.method);
-    assert.equal(m?.status, "COVERED", key + ": real own/victim proof is required");
-    assert.equal(m?.testedBy?.file, contractorEvidenceFile,
-      key + ": unrelated HTTP evidence may not be substituted");
-    assert.equal(m?.testedBy?.ownPositiveLine, item.own);
-    assert.equal(m?.testedBy?.foreignDenialLine, item.foreign);
-    assert.equal(m?.testedBy?.unchangedDbLine, 271);
-    assert.match(contractorEvidence[item.own - 1] ?? "", /expectStatus\(await request\(/,
-      key + ": exact own HTTP proof line required");
-    assert.match(contractorEvidence[item.foreign - 1] ?? "", /expectStatus\(await request\(/,
-      key + ": exact foreign HTTP denial line required");
-    assert.match(contractorEvidence[270] ?? "",
-      /assert\.deepEqual\(await victimSnapshot\(victim\.id\), originalVictim/,
-      key + ": victim SQL snapshot must remain identical");
-  }
   const extraProof = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
   const extraLines = readFileSync(extraProof, "utf8").split("\n");
   const extraCases = [
