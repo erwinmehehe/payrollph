@@ -1,3 +1,4 @@
+import { parseDashboardSnapshotRead } from "@/lib/dashboard-snapshot-read";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -84,7 +85,20 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       (managerAccess.role === "manager" && deriveMyTeamScope(managerAccess)?.kind !== "unit")) {
     notFound();
   }
-  const data = await getDashboardData(companyOrganizationId);
+  let data: Awaited<ReturnType<typeof getDashboardData>> | null;
+  try {
+    const snapshot = await getDashboardData(companyOrganizationId);
+    data = parseDashboardSnapshotRead(true, snapshot, companyOrganizationId) ? snapshot : null;
+  } catch {
+    data = null;
+  }
+  if (!data) return (
+    <main className="mx-auto max-w-xl p-8" role="alert">
+      <h1>Workspace unavailable</h1>
+      <p>Payroll amounts and employee counts could not be verified for this employer.</p>
+      <Link href={`/app?organizationId=${companyOrganizationId}`}>Retry workspace</Link>
+    </main>
+  );
   const pilotFocusEnabled = pilotFocusEnabledForOrganization(companyOrganizationId);
   const access = data.access;
   const inlineFirstPayrollEnabled = isSelfServe && !!data.firstPayrollReadiness && await firstPayrollInlineAvailable();
