@@ -1,0 +1,101 @@
+name: Statutory action legal-employer tenant isolation (disposable PG16)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/api/compliance/remittance-actions/route.ts"
+      - "src/lib/statutory-remittance-task-scope.ts"
+      - "src/lib/statutory-remittance-actions.ts"
+      - "src/lib/statutory-remittance-escalations.ts"
+      - "scripts/qa/remittance-action-entity-http.mjs"
+      - "tests/statutory-remittance-task-scope.test.ts"
+      - ".github/workflows/remittance-action-tenant-isolation.yml"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: statutory-action-tenant-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  remittance-action-pg16:
+    name: statutory-action-pg16-${{ matrix.multi_entity }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        multi_entity: ['false', 'true']
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CI: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3019
+      REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019
+      REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only
+      MULTI_ENTITY_ENABLED: ${{ matrix.multi_entity }}
+      MULTI_ENTITY_REGISTRATIONS_ENABLED: 'false'
+      MULTI_ENTITY_TRANSFERS_ENABLED: 'false'
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      TOTP_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      PII_ENCRYPTION_KEY: '2222222222222222222222222222222222222222222222222222222222222222'
+      BANK_DATA_ENCRYPTION_KEY: '3333333333333333333333333333333333333333333333333333333333333333'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      SMTP_URL: ''
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Check exact method guards, source-key policy and proof script
+        run: |
+          node --check scripts/qa/remittance-action-entity-http.mjs
+          npx tsx --test tests/statutory-remittance-task-scope.test.ts
+      - name: Create disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Apply reviewed isolated audit chain and supplement
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build actual Next.js production-mode app
+        run: npm run build
+      - name: Execute signed-in GET/POST, cross-tenant, grants and no-email evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm start -- -H 127.0.0.1 -p 3019 > /tmp/remittance-action-entity.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:3019/login >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          npx tsx scripts/qa/remittance-action-entity-http.mjs
+      - name: Synthetic server diagnostics on failure
+        if: failure()
+        run: tail -n 180 /tmp/remittance-action-entity.log || true

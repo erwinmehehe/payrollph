@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 335, "Retain 335 unverified methods after MNY-02, two underpayment writes and #1341 group-report GET");
-  assert.equal(manifest.metrics.coveredAfter, 148, "Retain distinct provisional MNY-02, underpayment and group-report method proofs");
+  assert.equal(manifest.metrics.gap, 333, "Retain 335 unverified methods after MNY-02, two underpayment writes and #1341 group-report GET");
+  assert.equal(manifest.metrics.coveredAfter, 150, "Retain distinct provisional MNY-02, underpayment and group-report method proofs");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
@@ -695,6 +695,42 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(workflow, /MONEY_PROOF_TRANSPORT: http/);
         assert.match(workflow, /npx tsx scripts\/qa\/tenant-money-lifecycle-http\.mjs/);
         assert.match(integration, /assert\.notEqual\(process\.env\.GITHUB_ACTIONS, "true"/);
+        continue;
+      }
+      // Only statutory remittance action GET+POST may use the new independently
+      // gated multi-entity ON/OFF PostgreSQL-16 real-HTTP proof source.
+      if (proof?.file === "scripts/qa/remittance-action-entity-http.mjs") {
+        assert.equal(path, "src/app/api/compliance/remittance-actions/route.ts",
+          "No unrelated route may reuse the remittance-action evidence");
+        const pins = method.name === "GET" ? [138, 210] :
+          method.name === "POST" ? [186, 213] : null;
+        assert.ok(pins, "Only GET and POST are included in this batch");
+        assert.deepEqual([proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+          proof.unchangedDbLine], [pins[0], pins[0], pins[1], 237],
+          "Exact own/victim proof pointers require independent re-review on movement");
+        const script = readFileSync(proof.file, "utf8");
+        const lines = script.split("\n");
+        const span = n => lines.slice(n - 1, n + 5).join("\n");
+        const own = span(pins[0]), foreign = span(pins[1]);
+        assert.match(own, /expectStatus\(await request\("\/api\/compliance\/remittance-actions/);
+        assert.match(foreign, /expectStatus\(await request\("\/api\/compliance\/remittance-actions/);
+        assert.match(own, /\), 200,/);
+        assert.match(foreign, /\), 403,/);
+        if (method.name === "POST") {
+          assert.match(own, /method: "POST"/);
+          assert.match(foreign, /method: "POST"/);
+        }
+        assert.match(lines[236], /assert\.deepEqual\(await snapshot\(victim\.id\), before,/);
+        assert.match(script, /for \(const attacker of \[attackerA, attackerB\]\)/);
+        assert.match(script, /realVictim\.id > Math\.max\(6, ownTask\.id\)/);
+        assert.match(script, /queueStatutoryComplianceEscalations/);
+        assert.match(script, /process\.env\.GITHUB_ACTIONS/);
+        assert.match(script, /process\.env\.REMITTANCE_ACTION_PROOF_MODE/);
+        assert.match(script, /process\.env\.PAYMONGO_DISBURSEMENTS_ENABLED/);
+        const wf = readFileSync(".github/workflows/remittance-action-tenant-isolation.yml", "utf8");
+        assert.match(wf, /multi_entity: \['false', 'true'\]/);
+        assert.match(wf, /image: postgres:16/);
+        assert.match(wf, /npx tsx scripts\/qa\/remittance-action-entity-http\.mjs/);
         continue;
       }
       // MNY-02 provisional contractor/EWT proofs: six fixed method signatures,
