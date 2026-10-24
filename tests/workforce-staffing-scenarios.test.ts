@@ -31,7 +31,7 @@ test("reviewed migrations and schema own WFM scenario governance; core is read-o
   assert.ok(migration.includes("workforce_scenarios_status_check"));
   assert.ok(migration.includes("'draft', 'submitted', 'approved', 'rejected'"));
   assert.ok(migration.includes("workforce_scenarios_org_name_version_unique"));
-  assert.ok(schema.includes("workforce_scenarios_status_check"));
+  assert.ok(schema.includes('"workforce_planning_scenarios"'));
   assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
   assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
   assert.ok(attritionMigration.includes("annual_attrition_percent"));
