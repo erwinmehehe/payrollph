@@ -262,10 +262,22 @@ test('try-finally read-only validation with mandatory return protects a later ba
   assert.equal(findings[0].state, 'early-readonly-exit');
 });
 
-test('retired sibling schema helpers contain no request-time schema writers', () => {
-  // Only core-schema-compat.ts may still carry legacy writers until it is retired.
+test('all runtime sources are free of schema writers and implicit backfills', () => {
   const report = auditDirectory(fileURLToPath(new URL('../src', import.meta.url)), fileURLToPath(new URL('..', import.meta.url)));
-  const files = [...new Set(report.findings.map(f => f.file.replaceAll('\\', '/')))];
-  assert.deepEqual(files, ['src/lib/core-schema-compat.ts']);
+  assert.deepEqual(report.findings, []);
   assert.equal(report.unguarded, 0);
+  assert.equal(report.earlyReadOnlyExit, 0);
+  assert.equal(report.databaseConnected, false);
+  assert.equal(report.productionReleaseApproved, false);
+});
+
+test('strict CLI whole-src audit reports zero findings', () => {
+  const script = fileURLToPath(new URL('../scripts/audit-runtime-schema-writers.mjs', import.meta.url));
+  const root = fileURLToPath(new URL('../src', import.meta.url));
+  const result = spawnSync(process.execPath, [script, '--strict', root], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.deepEqual(report.findings, []);
+  assert.equal(report.unguarded, 0);
+  assert.equal(report.earlyReadOnlyExit, 0);
 });
