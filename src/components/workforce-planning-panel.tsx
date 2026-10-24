@@ -907,7 +907,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
   }
 
   return (
-    <div>
+    <div className="workspace-panel planning-workspace">
       <div className="page-heading">
         <div>
           <div className="eyebrow">HCM STRUCTURE &amp; WORKFORCE PLANNING</div>
@@ -923,14 +923,14 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
         </div>
       </div>
 
-      <section className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+      <section className="stats-grid workspace-metrics">
         <article className="stat-card"><div className="stat-icon purple"><BriefcaseBusiness size={19} /></div><p>POSITIONS</p><h3>{positions.length}</h3><span>{profiles.length} job profiles</span></article>
         <article className="stat-card"><div className="stat-icon blue"><UsersRound size={19} /></div><p>APPROVED / OPEN</p><h3>{approvedOpen}</h3><span>Ready for recruiting</span></article>
         <article className="stat-card"><div className="stat-icon mint"><UserCheck size={19} /></div><p>FILLED</p><h3>{filled}</h3><span>{positions.length ? Math.round((filled / positions.length) * 100) : 0}% fill rate</span></article>
         <article className="stat-card"><div className="stat-icon orange"><CircleDollarSign size={19} /></div><p>PLANNED ANNUAL COST</p><h3>{peso(plannedCost)}</h3><span>Position salary budgets</span></article>
       </section>
 
-      <article className="card" style={{ padding: 20, marginBottom: 16 }}>
+      <article className="card planning-handoff" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <div>
             <div className="card-kicker">HCM → WFM DEMAND HANDOFF</div>

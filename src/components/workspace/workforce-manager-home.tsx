@@ -28,7 +28,7 @@ export function WorkforceManagerHome({
   ];
 
   return (
-    <section data-wfm-manager-home={mode} aria-label={mode === "today" ? "Today’s workforce" : "Workforce approval reviews"}>
+    <section className="workspace-panel workforce-manager" data-wfm-manager-home={mode} aria-label={mode === "today" ? "Today’s workforce" : "Workforce approval reviews"}>
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
           <div>
@@ -37,14 +37,14 @@ export function WorkforceManagerHome({
             <p>{mode === "today" ? "Check recorded time, plan coverage and resolve issues before the cutoff." : "Open the original request to inspect its evidence and make a decision."}</p>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 230px), 1fr))", gap: 12, padding: "0 18px 18px" }}>
+        <div className="workforce-action-grid">
           {actions.map(({ tab, title, detail, icon: Icon }) => (
-            <button key={tab} type="button" className="secondary-button" style={{ textAlign: "left", whiteSpace: "normal", alignItems: "flex-start", padding: 16 }} onClick={() => onOpenTab(tab)}>
+            <button key={tab} type="button" className="workspace-choice workforce-action" onClick={() => onOpenTab(tab)}>
               <Icon size={18} aria-hidden="true" style={{ flexShrink: 0 }} />
               <span><strong style={{ display: "block" }}>{title} →</strong><span style={{ display: "block", marginTop: 6, fontWeight: 400 }}>{detail}</span></span>
             </button>
           ))}
-          {mode === "approvals" && <button type="button" className="secondary-button" style={{ textAlign: "left", whiteSpace: "normal", padding: 16 }} onClick={onOpenAttendance}>
+          {mode === "approvals" && <button type="button" className="workspace-choice workforce-action" onClick={onOpenAttendance}>
             <Clock3 size={18} aria-hidden="true" /><span><strong style={{ display: "block" }}>Attendance corrections →</strong><span style={{ display: "block", marginTop: 6, fontWeight: 400 }}>Inspect the original punch and correction evidence.</span></span>
           </button>}
         </div>
