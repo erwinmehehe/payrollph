@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright";
+import { verifyMultiEntityReportTenantIsolation } from "./qa/multi-entity-group-report-http.mjs";
 
 /**
  * Actual authenticated UI + HTTP acceptance, but ONLY against disposable
@@ -17,6 +18,7 @@ const syntheticLoginIp = email => {
     "entity-owner@example.test", "entity-hr@example.test",
     "entity-payroll@example.test", "entity-nogrant@example.test",
     "entity-foreign@example.test", "entity-checker@example.test",
+    "entity-attacker-b@example.test", "entity-attacker-c@example.test",
   ];
   const index = personas.indexOf(email);
   assert.notEqual(index, -1, "Unknown synthetic login persona");
@@ -147,6 +149,11 @@ try {
   assert.equal(groupReport.status, 200);
   assert.equal(groupReport.data.totals.headcount, 2);
   assert.equal(groupReport.data.totals.gross, "0.00");
+
+  await verifyMultiEntityReportTenantIsolation({
+    newSyntheticContext, login, request, group, on, checks,
+  });
+
   const groupSettings = await request(group, on, "/api/multi-entity/settings?organizationId=1");
   assert.equal(groupSettings.status, 200);
   assert.equal(groupSettings.data.canEdit, false);

@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import test from "node:test";
 import { canActOnEntityTransfer, decideEntityAccess, entityResourceAllowed, entityConfirmationMatches, summarizeEntityTransfer, validateLegalEmployerSettingsPatch, VERSIONED_EMPLOYER_FIELDS } from "../src/lib/multi-entity-policy";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
-import { sumPayrollAmounts } from "../src/lib/multi-entity-money";
+import { groupReportHasUnattributedRows, sumPayrollAmounts } from "../src/lib/multi-entity-money";
 import { parseCompanyExportKind } from "../src/lib/company-export-kind";
 import { validateEmployerProfileChanges } from "../src/lib/multi-entity-registration";
 import { EntityBadge, EntitySwitcher, EntityFilter } from "../src/components/workspace/multi-entity-ui";
@@ -167,6 +167,27 @@ test("group payroll cost totals use exact centavos, including negatives and larg
   for (const invalid of ["", "1e4", "Infinity", "NaN", "1.005", "0.00400", "1,000.00"]) {
     assert.throws(() => sumPayrollAmounts([invalid]), /not a valid decimal|sub-centavo/);
   }
+});
+
+
+test("group reports refuse non-null foreign and orphan employer attribution instead of dropping money", () => {
+  const legalEntityIds = [11, 22];
+  const actualPeople = [{ legalEntityId: 11, total: 2 }, { legalEntityId: 22, total: 1 }];
+  const released = [{ legalEntityId: 11, runs: 1 }, { legalEntityId: 22, runs: 3 }];
+  assert.equal(groupReportHasUnattributedRows(legalEntityIds, actualPeople, released), false);
+  // Inactive historical legal employers remain valid when included in the
+  // requesting tenant's server-owned legal-entity inventory.
+  assert.equal(groupReportHasUnattributedRows([11, 22, 55],
+    [...actualPeople, { legalEntityId: 55, total: 1 }], released), false);
+  for (const badEntityId of [null, 33, 999999, -1, 0, 1.5]) {
+    assert.equal(groupReportHasUnattributedRows(legalEntityIds,
+      [...actualPeople, { legalEntityId: badEntityId, total: 1 }], released), true);
+    assert.equal(groupReportHasUnattributedRows(legalEntityIds, actualPeople,
+      [...released, { legalEntityId: badEntityId, runs: 1 }]), true);
+  }
+  assert.equal(groupReportHasUnattributedRows(legalEntityIds,
+    [...actualPeople, { legalEntityId: null, total: 0 }],
+    [...released, { legalEntityId: 33, runs: 0 }]), false);
 });
 
 test("employer profile patch rejects masked, empty and incomplete statutory or bank identities", () => {

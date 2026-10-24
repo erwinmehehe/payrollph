@@ -132,10 +132,10 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
     assert.ok(overviewHasLink(spec.route, spec.method, proof.ownPositiveLine),
       spec.route + ": client-facing inventory lacks exact method proof");
   }
-  // Phase-1 readiness adds exactly one proof-linked GET; all 338 GAPs remain after the separate MNY-02 proofs.
+  // Phase-1 adds a separately proven pre-run GET; the group-report GET is independent. The remaining 335 method GAPs stay unaccepted.
   assert.equal(manifest.metrics.methods, 494);
   assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [148, 10, 336]);
+    [149, 10, 335]);
   const preRun = manifest.allApiRouteFiles[
     "src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"
   ]?.methods.find(row => row.name === "GET");

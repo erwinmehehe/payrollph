@@ -195,7 +195,7 @@ function MigrationCenterView({
   const validPreview = preview && !preview.error && preview.dryRun === true;
 
   return (
-    <>
+    <div className="workspace-panel migration-workspace">
       <PageHeading
         eyebrow="Migration"
         title="Switch payroll without rebuilding everything."
@@ -211,12 +211,13 @@ function MigrationCenterView({
           </div>
           <Database size={20} className="i-purple" />
         </div>
-        <div style={{ padding: "0 17px 17px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8 }}>
+        <div className="migration-choice-grid">
           {MIGRATION_SOURCES.map((item) => (
             <button
               key={item.id}
-              className={source === item.id ? "primary-button" : "secondary-button"}
-              style={{ minHeight: 58, textAlign: "left", justifyContent: "flex-start" }}
+              type="button" aria-pressed={source === item.id}
+              className="workspace-choice"
+
               onClick={() => {
                 setSource(item.id);
                 setPreview(null);
@@ -239,12 +240,13 @@ function MigrationCenterView({
             <p>Employees first. History, balances and loans can then match against the original employee ID.</p>
           </div>
         </div>
-        <div style={{ padding: "0 17px 17px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(205px, 1fr))", gap: 8 }}>
+        <div className="migration-choice-grid migration-kind-grid">
           {KINDS.map((item, index) => (
             <button
               key={item.id}
-              className={kind === item.id ? "primary-button" : "secondary-button"}
-              style={{ minHeight: 68, textAlign: "left", justifyContent: "flex-start" }}
+              type="button" aria-pressed={kind === item.id}
+              className="workspace-choice"
+
               onClick={() => {
                 setKind(item.id);
                 setPreview(null);
@@ -464,6 +466,6 @@ function MigrationCenterView({
           ))}
         </div>
       </section>
-    </>
+    </div>
   );
 }
