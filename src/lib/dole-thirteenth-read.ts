@@ -40,6 +40,12 @@ const amount = (v: unknown): v is number => typeof v === "number" && Number.isFi
 const sha = (v: unknown): v is string => typeof v === "string" && /^[a-f0-9]{64}$/i.test(v);
 const stamp = (v: unknown) => typeof v === "string" && Number.isFinite(Date.parse(v));
 const fields = ["establishmentAddress","principalBusiness","contactName","contactPosition","contactPhone"] as const;
+
+export function parseDoleThirteenthRead(
+  ok: boolean, value: unknown, organizationId: number, taxYear: number,
+): VerifiedDoleRead | null {
+  return ok && isVerifiedDoleThirteenthRead(value, organizationId, taxYear) ? value : null;
+}
 const profile = (v: unknown): v is DoleProfile => obj(v) && fields.every(key => typeof v[key] === "string");
 const employee = (v: unknown) => obj(v) && text(v.employeeNo) && text(v.employeeName) && amount(v.amountGranted);
 const submission = (v: unknown, org: number): v is DoleSubmission =>

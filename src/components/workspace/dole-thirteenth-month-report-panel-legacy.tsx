@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
+import { parseDoleThirteenthRead } from "@/lib/dole-thirteenth-read";
 
 type State = {
   profile: {
@@ -146,9 +147,10 @@ function ScopedDoleThirteenthMonthReportPanel({
         `/api/compliance/dole-13th-month?organizationId=${organizationId}&taxYear=${taxYear}`,
         { cache: "no-store", signal: controller.signal },
       );
-      const body = await response.json().catch(() => ({}));
+      const value: unknown = await response.json().catch(() => null);
       if (!isCurrent()) return false;
-      if (!response.ok) throw new Error(body.error ?? "DOLE 13th-month report could not be loaded.");
+      const body = parseDoleThirteenthRead(response.ok, value, organizationId, taxYear);
+      if (!body) throw new Error("DOLE report unavailable: employer, totals or submission history could not be verified. Retry.");
       setState(body);
       setProfile({
         establishmentAddress: body.profile?.establishmentAddress ?? "",
@@ -180,7 +182,7 @@ function ScopedDoleThirteenthMonthReportPanel({
   }, [load]);
 
   async function mutate(action: "save_profile" | "record_submission", extra: Record<string, unknown>) {
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || loading || error || !state) return;
     const revision = ++mutationRevisionRef.current;
     const readRevision = loadRevisionRef.current;
     const isCurrentMutation = () =>
@@ -239,6 +241,7 @@ function ScopedDoleThirteenthMonthReportPanel({
         <div className="card-body" style={{ paddingTop: 0 }}>
           <div className="notice notice-red" style={{ margin: 0 }}>
             <ShieldAlert size={15} /><span>{error}</span>
+            <button type="button" className="secondary-button" onClick={() => void load()}>Retry report</button>
           </div>
         </div>
       ) : state ? (

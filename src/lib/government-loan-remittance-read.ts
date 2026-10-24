@@ -28,6 +28,12 @@ export type GovernmentLoanRead = {
 };
 const obj = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
+
+export function parseGovernmentLoanRemittanceRead(
+  ok: boolean, value: unknown, organizationId: number,
+): GovernmentLoanRead | null {
+  return ok && isVerifiedGovernmentLoanRemittanceRead(value, organizationId) ? value : null;
+}
 const id = (v: unknown): v is number =>
   typeof v === "number" && Number.isSafeInteger(v) && v > 0;
 const nonnegative = (v: unknown): v is number =>
