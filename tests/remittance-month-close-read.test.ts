@@ -105,7 +105,8 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   // Pin the current ledger exactly: the two DL-01 vault methods and eight
   // money-input methods retain their independent proofs; MNY-02 adds six
   // separately linked contractor/EWT methods; two underpayment methods add distinct
-  // source-linked proof; the independent group-report and pre-run GETs leave 335 method GAPs.
+  // source-linked proof; the independent group-report and pre-run GETs plus
+  // #1361's distinct successful accounting-close POST leave 334 method GAPs.
   // This is provisional coverage; no production or global audit sign-off.
   for (const [vaultRoute, vaultMethod] of [
     ["src/app/api/employee-vault/route.ts", "GET"],
@@ -119,9 +120,10 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   }
   // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
   // PR #1325 contributes three other real HTTP proofs; never double-credit these.
-  assert.equal(manifest.metrics.coveredAfter, 149, "Preserve BIR, vault, group, money and distinct pre-run authorization proofs");
+  assert.equal(manifest.metrics.coveredAfter, 150,
+    "Preserve BIR, vault, group, money, pre-run GET and distinct successful close POST proofs");
   assert.equal(manifest.metrics.publicByDesign, 10);
-  assert.equal(manifest.metrics.gap, 335, "Retain the remaining unproven methods as GAP");
+  assert.equal(manifest.metrics.gap, 334, "Retain 334 remaining unproven methods as GAP");
   // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
   // can only close GAPs if every method cites the corresponding isolated HTTP
   // suite, executed for both attacker employers against real victim rows.
@@ -229,6 +231,39 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   assert.match(groupReportLines[groupReport.testedBy.foreignDenialLine - 1] ?? "", /assert\.equal\(deniedVictim\.status, 403,/);
   assert.match(groupReportLines.join("\n"), /assert\.equal\(refusedReleasedRun\.status, 409,/);
   const groupReportCredits = 1;
+  // #1361 adds a separate accounting-close POST. Its real own-success and
+  // victim-denial evidence must not be borrowed from the existing close GET.
+  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find((method: { name: string }) => method.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "One additional credit requires its own successful close POST proof");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs",
+    "Close POST must use the guarded two-attacker payroll-close HTTP proof");
+  const closeSource = readFileSync(closePost.testedBy.file, "utf8");
+  const closeLines = closeSource.split("\n");
+  const closeProof = closePost.testedBy;
+  assert.deepEqual([closeProof.ownPositiveLine, closeProof.foreignDenialLine,
+    closeProof.unchangedDbLine], [444, 456, 465],
+    "Reviewed payroll-close POST proof links must remain exact");
+  assert.match(closeLines[closeProof.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(closeProof.ownPositiveLine - 1,
+    closeProof.ownPositiveLine + 3).join("\n"), /cookie, method: "POST"[\s\S]*\}\), 200,/,
+    "Credit a real successful own POST, never a denied/preview response");
+  assert.match(closeLines[closeProof.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closeProof.foreignDenialLine - 1,
+    closeProof.foreignDenialLine + 7).join("\n"), /cookie, method: "POST"[\s\S]*\}\), 403,/,
+    "Foreign victim-only payroll-close POST must be denied");
+  assert.match(closeLines[closeProof.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/,
+    "Denied foreign mutation must preserve real victim PostgreSQL state");
+  assert.match(closeSource,
+    /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
+    "Accounting-close POST evidence must execute in the isolated HTTP harness");
+  assert.match(closeSource, /event\.action === "Payroll close completed"/,
+    "Owned close must persist the exact accounting audit receipt");
+  const closePostCredits = 1;
   // Preserve the original 129/354 main-method baseline. The six MNY-02 credits
   // are additional only when each distinct contractor/EWT route/method points
   // to its own executed two-attacker HTTP proof and unchanged victim DB rows.
@@ -269,9 +304,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
       /assert\.deepEqual\(await victimSnapshot\(victim\.id\), originalVictim/,
       key + ": victim SQL snapshot must remain identical");
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - contractorCases.length - underpaymentMethods.length - groupReportCredits - 2, 129,
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - contractorCases.length - underpaymentMethods.length - groupReportCredits - closePostCredits - 2, 129,
     "Keep all 129 independently source-pinned methods from merged main, not counting new MNY-02");
-  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + contractorCases.length + underpaymentMethods.length + groupReportCredits + 1, 354,
+  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + contractorCases.length + underpaymentMethods.length + groupReportCredits + closePostCredits + 1, 354,
     "Never reduce main's 354 originally open method GAPs without distinct own/victim HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 494);
   const readLine = (number: number) => {
