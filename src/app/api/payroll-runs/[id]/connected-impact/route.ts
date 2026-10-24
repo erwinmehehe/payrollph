@@ -15,7 +15,6 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { buildPayrollConnectedImpact } from "@/lib/payroll-connected-impact";
-import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 
 export const dynamic = "force-dynamic";
 const ROW_CAP = 500;
@@ -25,7 +24,7 @@ const ROW_CAP = 500;
  * gate; never changes an employee or payroll run. Explicitly require a
  * company-wide run rather than silently screening only the current org unit.
  */
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const runId = Number(id);
   if (!Number.isSafeInteger(runId) || runId <= 0) {
@@ -53,11 +52,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     "This payroll run is outside your assigned organization unit.",
   );
   if (scopeDenied) return scopeDenied;
-  // Reject an ungranted legal employer even on the advisory/read-only path.
-  const employerDenied = await requireRunEmployer({
-    request, userId: user.id, organizationId: run.organizationId, legalEntityId: run.legalEntityId,
-  });
-  if (employerDenied) return employerDenied;
   if (run.scopeOrgUnitId !== null) {
     return Response.json({ error: "This version cannot safely reconcile org-unit payroll history; use the established payroll assurance checks." }, {
       status: 409, headers: { "Cache-Control": "private, no-store" },
