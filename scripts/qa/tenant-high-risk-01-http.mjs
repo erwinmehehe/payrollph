@@ -10,7 +10,6 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
-import { recordAuditEvent } from "../../src/lib/audit";
 import {
   auditEvents, documents, employees, legalEntities, payrollEntries,
   payrollRuns, userOrganizations, users,
@@ -385,6 +384,7 @@ export async function verifyHighRiskBatchOne(f, { request, expectStatus, makeSes
  * Never accept a denied/blocked own POST as an own-positive mutation proof.
  */
 async function verifyPayrollClosePostIsolation(f, { request, expectStatus, makeSession }) {
+  const { recordAuditEvent } = await import("../../src/lib/audit");
   assert.equal(process.env.CI, "true");
   assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only");
   assert.equal(new URL(process.env.DATABASE_URL).pathname, "/app_db");
