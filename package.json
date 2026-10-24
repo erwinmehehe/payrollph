@@ -33,7 +33,9 @@
     "compensation:expiry:audit": "tsx scripts/audit-compensation-expiry-evidence.ts",
     "test": "tsx --test --test-concurrency=1 tests/*.test.ts && node --test --test-concurrency=1 tests/*.test.mjs",
     "source:size:check": "node scripts/check-source-size.mjs",
-    "scheduler:watchdog": "node scripts/scheduler-watchdog.mjs"
+    "scheduler:watchdog": "node scripts/scheduler-watchdog.mjs",
+    "tenant:repin": "node scripts/qa/tenant-manifest-repin.mjs --write",
+    "tenant:repin:check": "node scripts/qa/tenant-manifest-repin.mjs"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",

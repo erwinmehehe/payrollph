@@ -52,9 +52,13 @@ test("revocation uses the same authenticated session and preserves formerly owne
 
 test("unexecuted candidate cannot inflate coverage or claim catalogue/HMO acceptance", () => {
   const methods = manifest.allApiRouteFiles["src/app/api/benefits/route.ts"].methods;
-  for (const method of ["GET", "POST", "DELETE", "PUT"]) {
+  for (const method of ["POST", "DELETE", "PUT"]) {
     assert.equal(methods.find(row => row.name === method)?.status, "GAP");
   }
+  // GET may close only through the separate own-marker table proof, never through this candidate suite.
+  const get = methods.find(row => row.name === "GET");
+  assert.ok(get?.status === "GAP" || (get?.status === "COVERED" && get.testedBy?.file === "scripts/qa/tenant-table-http.mjs"),
+    "benefits GET cannot be credited by the unexecuted enrolment candidate");
   assert.match(suite, /inventoryCreditsAdded: 0/);
   assert.ok(!suite.includes('method: "PUT"'));
   assert.ok(!suite.includes("/api/benefits/hmo"));
