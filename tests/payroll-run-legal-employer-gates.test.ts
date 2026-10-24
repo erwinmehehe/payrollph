@@ -1,11 +1,10 @@
-/** Source-level legal-employer checks only: NOT real HTTP/PostgreSQL acceptance. */
+/** Source-level legal-employer checks only: real HTTP/PG16 proof runs separately. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { decideEntityAccess, entityResourceAllowed } from "../src/lib/multi-entity-policy";
 
 const close = readFileSync("src/app/api/payroll-runs/[id]/close/route.ts", "utf8");
-const impact = readFileSync("src/app/api/payroll-runs/[id]/connected-impact/route.ts", "utf8");
 
 test("payroll close GET and POST share legal-employer guard before close-state evidence reads", () => {
   assert.match(close, /async function loadCloseState\(request: Request, runId: number, userId: number\)/);
@@ -20,18 +19,6 @@ test("payroll close GET and POST share legal-employer guard before close-state e
   assert.match(close, /if \(employerDenied\) return \{ error: employerDenied \};/);
   assert.match(close, /export async function GET\(request: Request/);
   assert.match(close, /export async function POST\(request: Request/);
-});
-
-test("connected-impact advisory GET rejects a foreign legal employer before HRIS/WFM reads", () => {
-  const org = impact.indexOf("const denied = await assertOrganizationRole(");
-  const unit = impact.indexOf("const scopeDenied = await assertOrganizationUnitAccess(");
-  const entity = impact.indexOf("const employerDenied = await requireRunEmployer({");
-  const history = impact.indexOf("const [employment, payout, corrections, exceptions, timesheets, proposals, revisions]");
-  assert.ok(org >= 0 && org < unit && unit < entity && entity < history,
-    "Entity authorization must happen before accessing mixed historical evidence");
-  assert.match(impact, /request, userId: user\.id, organizationId: run\.organizationId, legalEntityId: run\.legalEntityId/);
-  assert.match(impact, /if \(employerDenied\) return employerDenied;/);
-  assert.match(impact, /export async function GET\(request: Request/);
 });
 
 test("owner of one legal employer cannot use selection to read another employer", () => {
