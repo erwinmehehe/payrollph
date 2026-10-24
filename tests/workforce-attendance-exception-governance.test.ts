@@ -49,7 +49,7 @@ test("WFM attendance exception governance persists owner SLA and resolution evid
   const baseline = readFileSync("drizzle/baseline.sql", "utf8");
   const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
 
-  for (const source of [schema, migration, baseline, compat]) {
+  for (const source of [schema, migration, baseline]) {
     assert.ok(source.includes("owner_user_id"));
     assert.ok(source.includes("sla_due_at"));
     assert.ok(source.includes("resolution_note"));
@@ -58,6 +58,8 @@ test("WFM attendance exception governance persists owner SLA and resolution evid
   }
   assert.ok(migration.includes("attendance_exception_events_owner_idx"));
   assert.ok(migration.includes("attendance_exception_events_sla_idx"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bALTER\s+TABLE\b/i);
 });
 
 test("WFM attendance exception operations are scoped MFA-gated and audited", () => {
