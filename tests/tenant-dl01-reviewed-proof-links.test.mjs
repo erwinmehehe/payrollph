@@ -77,11 +77,11 @@ for (const spec of specs) {
   });
 }
 
-test('DL-01, DL-02 and HCM method proofs remain intact with one guarded scoped page', () => {
+test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped pages', () => {
   const methods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods);
   assert.equal(methods.length, 494);
-  assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), [149,10,335]);
-  assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], [149,10,335]);
+  assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), [152,10,332]);
+  assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], [152,10,332]);
   const readiness = manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts']
     ?.methods.find(m => m.name === 'GET');
   const changedProcess = manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/process/route.ts']
@@ -90,13 +90,13 @@ test('DL-01, DL-02 and HCM method proofs remain intact with one guarded scoped p
   assert.equal(changedProcess?.testedBy?.file, 'scripts/qa/tenant-second-pass-http.mjs');
   assert.match(changedProcess?.reason ?? '', /422.*403/,
     'Pre-run fail-closed proof must not be presented as successful money computation');
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 335 API methods and 19 page\/action GAPs remain\./);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 332 API methods and 18 page\/action GAPs remain\./);
   assert.equal(manifest.scopedPages.length, 20);
   const coveredPage = manifest.scopedPages.find(p =>
     p.path === 'src/app/hcm/manager-decision-inbox/page.tsx');
   assert.equal(coveredPage.status, 'COVERED');
   assert.equal(coveredPage.testedBy?.file, 'scripts/qa/hcm-manager-inbox-page-http.mjs');
-  assert.equal(manifest.scopedPages.filter(p => p.status === 'GAP').length, 19);
+  assert.equal(manifest.scopedPages.filter(p => p.status === 'GAP').length, 18);
   const probation = manifest.allApiRouteFiles['src/app/api/hcm/probation-reviews/route.ts'].methods;
   assert.deepEqual(probation.map(method => method.name), ['GET','POST','PATCH']);
   assert.ok(probation.every(method =>
@@ -105,6 +105,6 @@ test('DL-01, DL-02 and HCM method proofs remain intact with one guarded scoped p
   const importPost = manifest.allApiRouteFiles['src/app/api/employees/import/route.ts'].methods.find(m => m.name === 'POST');
   assert.equal(importPost.status, 'GAP', 'GET proof cannot cover the import write');
   assert.equal(importPost.testedBy, null);
-  assert.ok(overview.includes('| coveredAfter | 149 |'));
-  assert.ok(overview.includes('| gap | 335 |'));
+  assert.ok(overview.includes('| coveredAfter | 152 |'));
+  assert.ok(overview.includes('| gap | 332 |'));
 });
