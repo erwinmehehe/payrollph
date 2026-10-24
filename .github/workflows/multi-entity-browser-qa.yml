@@ -31,6 +31,7 @@ on:
       - "src/db/schema.ts"
       - "tests/multi-entity-*.test.ts"
       - "scripts/multi-entity-synthetic-*"
+      - "scripts/qa/multi-entity-group-report-http.mjs"
       - "scripts/multi-entity-registration-synthetic-http.mjs"
       - "scripts/multi-entity-loopback-https.mjs"
       - ".github/workflows/multi-entity-browser-qa.yml"

@@ -230,6 +230,11 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
       underpaymentLines[foreignLine - 1].includes("v.org.id"));
     assert.ok(underpaymentLines[method.testedBy.unchangedDbLine - 1].includes("assert.deepEqual(await snapshot(v), before"));
   }
+  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
+  assert.equal(groupReport?.status, "COVERED", "Group report requires an independently sourced GET proof");
+  assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs",
+    "Only the real multi-entity browser acceptance may support this extra method credit");
+  const groupReportCredits = 1;
   const bir2316Methods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
     .filter(m => m.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
   assert.equal(bir2316Methods.length, 3, "Three source-pinned real signed-in BIR2316 HTTP methods");
@@ -263,9 +268,9 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     contractorMethods++;
   }
   assert.equal(contractorMethods, 6);
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods - underpaymentMethods.length - bir2316Methods.length, 124,
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods - underpaymentMethods.length - bir2316Methods.length - groupReportCredits, 124,
     "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods + underpaymentMethods.length + bir2316Methods.length, 359,
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods + underpaymentMethods.length + bir2316Methods.length + groupReportCredits, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

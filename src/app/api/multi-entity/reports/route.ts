@@ -4,7 +4,7 @@ import { employees, legalEntities, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canReadGroupReport, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { sumPayrollAmounts } from "@/lib/multi-entity-money";
+import { groupReportHasUnattributedRows, sumPayrollAmounts } from "@/lib/multi-entity-money";
 
 export const dynamic = "force-dynamic";
 
@@ -55,8 +55,9 @@ export async function GET(request: Request) {
     };
   });
   // Unattributed payroll MUST NOT be silently grouped under PRIMARY.
-  const unassigned = headcounts.some(row => row.legalEntityId === null && row.total > 0)
-    || payrollCosts.some(row => row.legalEntityId === null && row.runs > 0);
+  const unassigned = groupReportHasUnattributedRows(
+    entities.map(entity => entity.id), headcounts, payrollCosts,
+  );
   if (unassigned) return Response.json({
     error: "Unattributed legacy records must be reconciled before group totals are shown.",
     code: "ENTITY_ATTRIBUTION_REQUIRED",

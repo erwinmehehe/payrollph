@@ -7,6 +7,7 @@ import "./globals.css";
 import "./workspace-theme.css";
 import "./dashboard-design.css";
 import "./workspace-panels.css";
+import "./workspace-operations-layout.css";
 import "./ess-mobile.css";
 import "./premium-dashboard.css";
 import "./phase-two.css";

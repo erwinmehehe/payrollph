@@ -402,7 +402,7 @@ function ScopedCompensationPanel({
   }
 
   return (
-    <div>
+    <div className="workspace-panel compensation-workspace">
       <div className="page-heading">
         <div>
           <div className="eyebrow">HCM COMPENSATION</div>
@@ -428,7 +428,7 @@ function ScopedCompensationPanel({
         </span>
       </div>
 
-      <section className="stats-grid" style={{ marginBottom: 16 }}>
+      <section className="stats-grid workspace-metrics" style={{ marginBottom: 16 }}>
         <article className="stat-card">
           <span>Active salary bands</span>
           <strong>{bands.filter((band) => band.active).length}</strong>
@@ -475,7 +475,7 @@ function ScopedCompensationPanel({
         </div>
       )}
 
-      <section className="module-grid three">
+      <section className="module-grid three compensation-forms">
         {advancedConfigurationAllowed ? <>
         <article className="card">
           <div className="card-header">
@@ -486,13 +486,13 @@ function ScopedCompensationPanel({
             <BadgeDollarSign size={18} />
           </div>
           <div className="card-body" style={{ display: "grid", gap: 8 }}>
-            <select value={bandForm.gradeId} onChange={(event) => setBandForm({ ...bandForm, gradeId: event.target.value })}>
+            <select aria-label="Salary band job grade" value={bandForm.gradeId} onChange={(event) => setBandForm({ ...bandForm, gradeId: event.target.value })}>
               <option value="">Job grade</option>
               {jobGrades.filter((grade) => grade.active).map((grade) => (
                 <option key={grade.id} value={grade.id}>{grade.code} · {grade.name}</option>
               ))}
             </select>
-            <select value={bandForm.jobProfileId} onChange={(event) => setBandForm({ ...bandForm, jobProfileId: event.target.value })}>
+            <select aria-label="Salary band job profile" value={bandForm.jobProfileId} onChange={(event) => setBandForm({ ...bandForm, jobProfileId: event.target.value })}>
               <option value="">All profiles in grade</option>
               {jobProfiles
                 .filter((profile) => !bandForm.gradeId || profile.gradeId === Number(bandForm.gradeId))
@@ -500,7 +500,7 @@ function ScopedCompensationPanel({
                   <option key={profile.id} value={profile.id}>{profile.title} · {profile.level}</option>
                 ))}
             </select>
-            <select value={bandForm.legalEntityId} onChange={(event) => setBandForm({ ...bandForm, legalEntityId: event.target.value })}>
+            <select aria-label="Salary band legal employer" value={bandForm.legalEntityId} onChange={(event) => setBandForm({ ...bandForm, legalEntityId: event.target.value })}>
               <option value="">All legal employers</option>
               {legalEntities.map((entity) => (
                 <option key={entity.id} value={entity.id}>{entity.code} · {entity.displayName}</option>
@@ -595,7 +595,7 @@ function ScopedCompensationPanel({
             </div>
           </div>
           <div className="card-body" style={{ display: "grid", gap: 8 }}>
-            <select value={proposalForm.employeeId} onChange={(event) => setProposalForm({ ...proposalForm, employeeId: event.target.value, workerEffectiveChangeId: "" })}>
+            <select aria-label="Pay proposal employee" value={proposalForm.employeeId} onChange={(event) => setProposalForm({ ...proposalForm, employeeId: event.target.value, workerEffectiveChangeId: "" })}>
               <option value="">Employee</option>
               {employees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
@@ -610,13 +610,13 @@ function ScopedCompensationPanel({
                 </span>
               </div>
             )}
-            <select value={proposalForm.cycleId} onChange={(event) => setProposalForm({ ...proposalForm, cycleId: event.target.value })}>
+            <select aria-label="Pay proposal review cycle" value={proposalForm.cycleId} onChange={(event) => setProposalForm({ ...proposalForm, cycleId: event.target.value })}>
               <option value="">Cycle</option>
               {cycles.filter((cycle) => cycle.status === "active").map((cycle) => (
                 <option key={cycle.id} value={cycle.id}>{cycle.name} · effective {cycle.effectiveDate}</option>
               ))}
             </select>
-            <select value={proposalForm.workerEffectiveChangeId} onChange={(event) => setProposalForm({ ...proposalForm, workerEffectiveChangeId: event.target.value })}>
+            <select aria-label="Pay proposal promotion" value={proposalForm.workerEffectiveChangeId} onChange={(event) => setProposalForm({ ...proposalForm, workerEffectiveChangeId: event.target.value })}>
               <option value="">Not linked to a promotion</option>
               {selectedPromotionOptions.map((promotion) => (
                 <option key={promotion.id} value={promotion.id}>
@@ -624,7 +624,7 @@ function ScopedCompensationPanel({
                 </option>
               ))}
             </select>
-            <select value={proposalForm.bandId} onChange={(event) => setProposalForm({ ...proposalForm, bandId: event.target.value })}>
+            <select aria-label="Pay proposal salary band" value={proposalForm.bandId} onChange={(event) => setProposalForm({ ...proposalForm, bandId: event.target.value })}>
               <option value="">Salary band</option>
               {bands.filter((band) => band.active).map((band) => {
                 const grade = jobGrades.find((row) => row.id === band.gradeId);
@@ -716,11 +716,11 @@ function ScopedCompensationPanel({
             </div>
           </div>
           <div className="card-body" style={{ display: "grid", gap: 8 }}>
-            <select value={assignmentForm.employeeId} onChange={(event) => setAssignmentForm({ ...assignmentForm, employeeId: event.target.value })}>
+            <select aria-label="Recurring component employee" value={assignmentForm.employeeId} onChange={(event) => setAssignmentForm({ ...assignmentForm, employeeId: event.target.value })}>
               <option value="">Employee</option>
               {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}
             </select>
-            <select value={assignmentForm.componentId} onChange={(event) => setAssignmentForm({ ...assignmentForm, componentId: event.target.value })}>
+            <select aria-label="Recurring component type" value={assignmentForm.componentId} onChange={(event) => setAssignmentForm({ ...assignmentForm, componentId: event.target.value })}>
               <option value="">Compensation component</option>
               {components.filter((component) => component.active).map((component) => (
                 <option key={component.id} value={component.id}>{component.code} · {component.name} · {component.amountFrequency.replaceAll("_", " ")}</option>

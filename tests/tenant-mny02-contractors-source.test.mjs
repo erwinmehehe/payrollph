@@ -94,6 +94,12 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     assert.match(underpaymentSource[foreign - 1] ?? "", /await deny\(v,/);
     assert.match(underpaymentSource[125] ?? "", /assert\.deepEqual\(await snapshot\(v\), before/);
   }
+  // Group reports have a separate three-tenant source-pinned GET; they may
+  // not borrow the contractor or underpayment execution receipt.
+  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(m => m.name === "GET");
+  assert.equal(groupReport?.status, "COVERED");
+  assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
+  const groupReportCredits = 1;
   const bir2316Methods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
     .filter(method => method.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
   assert.deepEqual(bir2316Methods.map(method => method.name).sort(), ["GET", "GET", "POST"],
@@ -102,13 +108,13 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     Number.isInteger(method.testedBy?.ownPositiveLine) &&
     Number.isInteger(method.testedBy?.foreignDenialLine)));
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 150, 10, 333]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 151, 10, 332]);
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - bir2316Methods.length,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - bir2316Methods.length - groupReportCredits,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + bir2316Methods.length], [493, 145, 10, 338],
+    manifest.metrics.gap + creditedUnderpayments.length + bir2316Methods.length + groupReportCredits], [493, 145, 10, 338],
   "Previous six-contractor MNY-02 baseline must remain accounted for separately");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 333 API methods/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 332 API methods/);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {
