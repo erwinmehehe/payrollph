@@ -91,7 +91,7 @@ export function WorkforceOperationsInbox({
   const bothAvailable = attendance !== null && timesheets !== null;
 
   return (
-    <article className="card" style={{ marginTop: 16 }} data-wfm-operations-inbox>
+    <article className="card workforce-triage" style={{ marginTop: 16 }} data-wfm-operations-inbox>
       <div className="card-header">
         <div>
           <div className="card-kicker">Workforce operations · read-only manager triage</div>
@@ -122,7 +122,7 @@ export function WorkforceOperationsInbox({
               Unavailable does not mean zero open cases or payroll-ready.
             </div>
           )}
-          <section className="stats-grid" style={{ padding: "0 18px 18px" }}>
+          <section className="stats-grid workspace-metrics workforce-triage-metrics" style={{ padding: "0 18px 18px" }}>
             <Metric label="Open attendance cases" value={attendance ? String(attendance.open) : "—"} hint="last 14 PH work dates" icon={<AlertTriangle size={15}/>} tone={attendance?.open ? "amber" : "slate"}/>
             <Metric label="Overdue attendance" value={attendance ? String(attendance.overdue) : "—"} hint="source case SLA" icon={<Clock3 size={15}/>} tone={attendance?.overdue ? "amber" : "slate"}/>
             <Metric label="Awaiting checker" value={timesheets ? String(timesheets.pendingReview) : "—"} hint="selected timesheet period" icon={<Clock3 size={15}/>} tone={timesheets?.pendingReview ? "amber" : "slate"}/>
@@ -133,8 +133,8 @@ export function WorkforceOperationsInbox({
             Timesheet policy: <strong>{timesheets.enforcement === "block" ? "blocking when required" : "advisory"}</strong>. This screen does not verify all payroll release controls.
           </div>}
           {signals.length > 0 ? (
-            <div className="policy-lines" style={{ padding: "0 18px 18px" }}>
-              {signals.map(item => <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div className="policy-lines workforce-triage-signals" style={{ padding: "0 18px 18px" }}>
+              {signals.map(item => <div key={item.id} className="workforce-triage-signal">
                 <div><Status value={item.priority === "urgent" ? "Urgent" : "Review"}/> <strong>{item.count} · {item.label}</strong></div>
                 <button type="button" className="secondary-button" onClick={() => item.destination === "attendance" ? onOpenAttendance() : onOpenTab("timesheets", { periodStart, periodEnd })}>
                   Open source review →

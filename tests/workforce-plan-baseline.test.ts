@@ -207,7 +207,7 @@ test("baseline reads reconcile locked plan evidence against current actuals with
 test("planning UI publishes baselines and drills plan variance down by org unit and cost center", () => {
   const panel = readFileSync("src/components/workforce-planning-panel.tsx", "utf8");
 
-  assert.ok(panel.includes("PUBLISHED HEADCOUNT PLAN"));
+  assert.ok(panel.includes("2 · Publish a baseline"));
   assert.ok(panel.includes("Baseline vs live workforce"));
   assert.ok(panel.includes('fetch("/api/workforce-planning/baselines"'));
   assert.ok(panel.includes("Publish baseline"));
