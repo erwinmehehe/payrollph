@@ -227,8 +227,18 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap + 3, 335, "Preserve all 335 main API method GAPs except three separately proven BIR 2316 document methods");
-  assert.equal(manifest.metrics.coveredAfter - 3, 149, "Keep 149 separate main sources including pre-run readiness plus three BIR 2316 methods");
+  // PII-01 must contribute only two distinct, source-pinned identifier review methods.
+  // Its method evidence is independently checked in tenant-pii01-identifiers-source.test.mjs
+  // and executed over real isolated PostgreSQL/HTTP; it cannot borrow BIR proof credit.
+  const piiReview = manifest.allApiRouteFiles["src/app/api/employee-identifier-requests/route.ts"]?.methods;
+  assert.deepEqual(piiReview?.map(method => [method.name, method.status, method.testedBy?.file]), [
+    ["GET", "COVERED", "scripts/qa/tenant-pii01-identifier-review-http.mjs"],
+    ["POST", "COVERED", "scripts/qa/tenant-pii01-identifier-review-http.mjs"],
+  ], "Only the separate GET and POST identifier review proofs add provisional method credits");
+  assert.equal(manifest.metrics.gap + 3 + piiReview.length, 335,
+    "Preserve 335 historic main method gaps except three BIR 2316 and two PII-01 proofs");
+  assert.equal(manifest.metrics.coveredAfter - 3 - piiReview.length, 149,
+    "Preserve 149 baseline covered methods plus three BIR 2316 and two PII-01 proofs");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
@@ -753,6 +763,38 @@ test("all credited proof links point to the claimed route and every recertified 
             key + ": mutation proof must execute its actual HTTP method");
         }
         assert.match(script, /noVictimResponse\(foreign/, "Foreign response must be checked for leaked identity");
+        continue;
+      }
+      // PII-01: only HR identifier review GET and rejection POST may claim
+      // this distinct real HTTP / disposable PostgreSQL source.
+      if (proof?.file === "scripts/qa/tenant-pii01-identifier-review-http.mjs") {
+        assert.equal(path, "src/app/api/employee-identifier-requests/route.ts");
+        const specs = {
+          GET: [140, 151, 157],
+          POST: [167, 176, 181],
+        };
+        const spec = specs[method.name];
+        assert.ok(spec, "Only GET and POST review methods may use PII-01 evidence");
+        assert.deepEqual([
+          proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+          proof.forgedSelectorLine, proof.victimExistsLine,
+          proof.victimIdOrderingLine, proof.unchangedDbLine,
+        ], [spec[0], spec[0], spec[1], spec[2], 123, 117, 196]);
+        const evidence = readFileSync(proof.file, "utf8");
+        const lines = evidence.split("\n");
+        assert.match(lines[spec[0] - 1] ?? "", /expectStatus\(await request\(/);
+        assert.match(lines[spec[1] - 1] ?? "", /expectStatus\(await request\(/);
+        assert.match(lines[spec[2] - 1] ?? "", /expectStatus\(await request\(/);
+        assert.match(lines.slice(spec[0] - 1, spec[0] + 4).join("\n"), /\)\s*,\s*200\s*,/);
+        assert.match(lines.slice(spec[1] - 1, spec[1] + 4).join("\n"), /\)\s*,\s*403\s*,/);
+        assert.match(evidence, /for \(const a of own\)/);
+        assert.match(evidence, /victimRequest\.id > Math\.max\(6/);
+        assert.match(evidence, /assert\.deepEqual\(await victimSnapshot\(victim\.id\), baseline/);
+        assert.match(source.join("\n"), /verifyPiiIdentifierReviewIsolation\(f, \{ request, expectStatus \}\)/);
+        if (method.name === "POST") {
+          assert.match(lines.slice(spec[2] - 1, spec[2] + 4).join("\n"), /\)\s*,\s*404\s*,/);
+          assert.match(lines.slice(spec[0] - 1, spec[0] + 4).join("\n"), /method: "POST"/);
+        }
         continue;
       }
       // BIR 2316: only these three independently executed HTTPS/PG16 document
