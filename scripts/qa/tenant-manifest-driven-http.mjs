@@ -230,8 +230,6 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  // The two remittance-action methods now have their own isolated PG16 ON/OFF
-  // exact-HTTP workflow; this shared batch still runs them as regressions.
   assert.equal(gaps.length, 333, "Retain 333 unproven methods, including all unverified BIR/vault and page/action surfaces; remittance-action GET/POST have separate provisional PG16 proofs");
   const certifiedGovernance = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(certifiedGovernance?.status, "COVERED", "Closing a GAP requires independently exercised tenant-proof evidence");
