@@ -109,7 +109,7 @@ export async function verifyWorksiteIsolation(f, { request, expectStatus, makeSe
     assert.ok(forged.json.assignments.every(row => row.organizationId === org.id));
 
     const createBody = { organizationId: org.id, action: "create_worksite",
-      code: "NEW-" + nonce + "-" + idx, name: "Fictional created site " + idx,
+      code: ("NEW-" + nonce + "-" + idx).toUpperCase(), name: "Fictional created site " + idx,
       orgUnitId: f.ownedUnits[idx].id, siteType: "office", timezone: "Asia/Manila" };
     assert.notEqual(createBody.code, site.code, "Positive create must not duplicate seeded unique code");
     const created = expectStatus(await request(PATH, { method: "POST", cookie, body: createBody }),

@@ -70,3 +70,9 @@ test("fixture unique keys cannot collide and unexecuted partial actions cannot i
   assert.match(suite, /inventoryCreditsAdded: 0/);
   assert.match(suite, /remainingWorksiteActionsUnaccepted: true/);
 });
+
+test("create fixture uses canonical uppercase worksite code and verifies exact persistence", () => {
+  assert.match(route, /function cleanCode[\s\S]*?\.toUpperCase\(\)/);
+  assert.match(suite, /code: \("NEW-" \+ nonce \+ "-" \+ idx\)\.toUpperCase\(\)/);
+  assert.match(suite, /assert.equal\(persisted.code, createBody.code\)/);
+});
