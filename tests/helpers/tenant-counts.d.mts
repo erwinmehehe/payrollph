@@ -7,8 +7,11 @@ type Tally = {
   routeFiles: number; methods: number; coveredAfter: number; publicByDesign: number; gap: number;
   byKey: Map<string, { key: string; status: string; path: string }>;
 };
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Manifest = any;
+type Manifest = {
+  acceptanceStatus: string;
+  metrics: Record<string, unknown>;
+  allApiRouteFiles: Record<string, { route: string; methods: { name: string; status: string }[] }>;
+};
 export function tallyTenantManifest(manifest: Manifest): Tally;
 export function baseTenantManifest(env?: Record<string, string | undefined>): { ref: string; manifest: Manifest } | null;
 export function assertLiveTenantCounts(
