@@ -408,8 +408,8 @@ async function verifyPayrollClosePostIsolation(f, { request, expectStatus, makeS
       organizationId: org.id,
       legalEntityId: f.entities[idx].id,
       periodLabel: "CI-ACCOUNTING-CLOSE-" + org.id + "-" + idx,
-      periodStart: "2026-11-01", periodEnd: "2026-11-15",
-      payDate: "2026-11-16",
+      periodStart: "2028-07-01", periodEnd: "2028-07-15", // Outside the 2026-11 Create/process readiness probe.
+      payDate: "2028-07-16",
       status: "Released",
       grossPay: "5000.00", netPay: "5000.00", employeeCount: 1,
     }).returning({ id: payrollRuns.id, organizationId: payrollRuns.organizationId });
@@ -429,7 +429,7 @@ async function verifyPayrollClosePostIsolation(f, { request, expectStatus, makeS
       metadata: {
         runId: fixture.id, method: "fictional-bank-file",
         reference: "CI-SYNTHETIC-NO-TRANSFER-" + fixture.id,
-        completedAt: "2026-11-16T00:00:00.000Z",
+        completedAt: "2028-07-16T00:00:00.000Z",
       },
     });
     const closeUrl = "/api/payroll-runs/" + fixture.id + "/close";
