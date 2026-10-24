@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, exists, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import { bankFileValidations, payrollRuns } from "@/db/schema";
 import { generateBankFile } from "@/lib/exporters";
@@ -52,9 +52,28 @@ export async function recordGeneratedBankFile(input: {
   return { record: existing, created: false, file };
 }
 
+/**
+ * Protect against an inconsistent historical bank-validation row whose tenant
+ * matches the caller but whose payroll_run_id points at another employer.
+ * This is a correlated, read-only ownership check; it does not repair rows.
+ * Null source runs remain visible for historical inspection, never acceptable
+ * as current proof of an executable/accepted bank file.
+ */
+function sourceRunBelongsToValidationTenant() {
+  return exists(
+    db.select({ id: payrollRuns.id }).from(payrollRuns).where(and(
+      eq(payrollRuns.id, bankFileValidations.payrollRunId),
+      eq(payrollRuns.organizationId, bankFileValidations.organizationId),
+    )),
+  );
+}
+
 export async function listBankFileValidations(organizationId: number) {
   return db.select().from(bankFileValidations)
-    .where(eq(bankFileValidations.organizationId, organizationId))
+    .where(and(
+      eq(bankFileValidations.organizationId, organizationId),
+      or(isNull(bankFileValidations.payrollRunId), sourceRunBelongsToValidationTenant()),
+    ))
     .orderBy(desc(bankFileValidations.createdAt), desc(bankFileValidations.id))
     .limit(100);
 }
@@ -63,6 +82,7 @@ export async function getBankFileValidation(organizationId: number, id: number) 
   const [row] = await db.select().from(bankFileValidations).where(and(
     eq(bankFileValidations.id, id),
     eq(bankFileValidations.organizationId, organizationId),
+    or(isNull(bankFileValidations.payrollRunId), sourceRunBelongsToValidationTenant()),
   )).limit(1);
   return row ?? null;
 }
@@ -146,6 +166,10 @@ export async function recordBankPortalOutcome(input: {
     eq(bankFileValidations.id, input.id),
     eq(bankFileValidations.organizationId, input.organizationId),
     eq(bankFileValidations.status, "generated"),
+    // Revalidate the source inside the conditional UPDATE, not just the
+    // earlier GET: stale, deleted or foreign-tenant runs can never turn a
+    // bank-portal status into accepted release evidence.
+    sourceRunBelongsToValidationTenant(),
   )).returning();
   return updated ?? null;
 }
@@ -153,6 +177,9 @@ export async function recordBankPortalOutcome(input: {
 export async function acceptedBankFileValidationCount() {
   const rows = await db.select({ id: bankFileValidations.id })
     .from(bankFileValidations)
-    .where(eq(bankFileValidations.status, "accepted"));
+    .where(and(
+      eq(bankFileValidations.status, "accepted"),
+      sourceRunBelongsToValidationTenant(),
+    ));
   return rows.length;
 }
