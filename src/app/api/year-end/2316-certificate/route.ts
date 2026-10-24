@@ -1,4 +1,9 @@
 import { getSessionUser } from "@/lib/auth";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { separationRecords } from "@/db/schema";
+import { frozenFinalPayLegalEntityId } from "@/lib/bir-2316-employer";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
@@ -23,8 +28,33 @@ async function respond(request: Request, mode: "source" | "pdf") {
   if (denied) return denied;
   if (!(await getAccess(user.id, scope.organizationId))?.companyWide) return Response.json({ error: "Company-wide payroll access required." }, { status: 403, headers });
   const mfa = requireSensitiveActionMfa(user); if (mfa) return mfa;
+  const entityScope = await resolveMultiEntityContext({
+    userId: user.id, organizationId: scope.organizationId, request,
+  });
+  if (!entityScope.ok) return entityScope.response;
+  if (entityScope.context.enabled) {
+    // Tenant-wide annual 2316 is deferred. Only a frozen final-pay employer
+    // may authorize a draft before any private certificate source is assembled.
+    if (scope.separationId === undefined) {
+      return Response.json({ error: "Select a released separation for employer-scoped 2316.",
+        code: "ENTITY_YEAR_END_DEFERRED" }, { status: 409, headers });
+    }
+    const [frozen] = await db.select({ snapshot: separationRecords.computationSnapshot })
+      .from(separationRecords).where(and(
+        eq(separationRecords.id, scope.separationId),
+        eq(separationRecords.organizationId, scope.organizationId),
+        eq(separationRecords.employeeId, scope.employeeId),
+      )).limit(1);
+    if (!frozen) return Response.json({ error: "Certificate source not found." }, { status: 404, headers });
+    const earlyDenied = assertEntityResource(entityScope.context, frozenFinalPayLegalEntityId(frozen.snapshot));
+    if (earlyDenied) return earlyDenied;
+  }
   try {
     const source = await load2316CertificateSource(scope);
+    // Second check binds the transactional certificate source, preventing
+    // changed attribution between the preliminary guard and the response.
+    const sourceDenied = assertEntityResource(entityScope.context, source.legalEntityId);
+    if (sourceDenied) return sourceDenied;
     const sourceDigest = certificateSourceDigest(source);
     if (mode === "source") {
       await recordAuditEvent({ organizationId: scope.organizationId, actor: user.name, action: "BIR 2316 preparer source viewed", resource: `Employee #${scope.employeeId} / ${scope.taxYear}`, metadata: { ...scope, plaintextPersisted: false } });
