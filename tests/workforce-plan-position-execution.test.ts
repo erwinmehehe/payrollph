@@ -171,7 +171,7 @@ test("published baseline freezes exact position specifications for execution", (
   assert.ok(route.includes("annualBudget: null"));
 });
 
-test("position execution persistence exists in schema, migration, fresh baseline and compatibility path", () => {
+test("position execution persistence is canonical, with no request-time creator", () => {
   const schema = readFileSync("src/db/schema.ts", "utf8");
   const migration = readFileSync("drizzle/0094_workforce_plan_position_executions.sql", "utf8");
   const baseline = readFileSync("drizzle/baseline.sql", "utf8");
@@ -184,7 +184,8 @@ test("position execution persistence exists in schema, migration, fresh baseline
   assert.ok(migration.includes('CREATE TABLE IF NOT EXISTS "workforce_plan_position_executions"'));
   assert.ok(migration.includes("workforce_plan_position_executions_org_hash_unique"));
   assert.ok(baseline.includes('CREATE TABLE IF NOT EXISTS "workforce_plan_position_executions"'));
-  assert.ok(compat.includes("CREATE TABLE IF NOT EXISTS workforce_plan_position_executions"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });
 
 test("execution API is preview first, company-wide, MFA gated and exact-state revalidated", () => {

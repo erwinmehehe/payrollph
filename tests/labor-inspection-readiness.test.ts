@@ -149,15 +149,17 @@ test("inspection API requires company-wide role, fresh evidence and MFA-protecte
   assert.ok(route.includes("recordAuditEvent"));
 });
 
-test("remediation schema is additive in migration, baseline and compatibility upgrade", () => {
+test("remediation schema is declared in migration, baseline and canonical Drizzle only", () => {
   for (const path of [
     "drizzle/0024_labor_inspection_readiness.sql",
     "drizzle/baseline.sql",
-    "src/lib/core-schema-compat.ts",
     "src/db/schema.ts",
   ]) {
     assert.ok(readFileSync(path, "utf8").includes("labor_inspection_remediations"), path);
   }
+  const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });
 
 test("Compliance Center renders the inspection readiness panel", () => {
