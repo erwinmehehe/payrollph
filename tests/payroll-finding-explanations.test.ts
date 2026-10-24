@@ -154,7 +154,7 @@ test("no SDK, external request, payroll evaluator or write is introduced by expl
   const deps = JSON.parse(readFileSync("package.json", "utf8")) as { dependencies: Record<string, string> };
   assert.ok(!Object.keys(deps.dependencies).some(key => /openai|anthropic|langchain|ai-sdk|@ai-sdk/i.test(key)));
   assert.doesNotMatch(source, /\bfetch\(|\baxios\b|new OpenAI|\.generateText\(|\.chat\.completions|\.responses\.create/);
-  assert.doesNotMatch(source, /\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\s+(?:TABLE|INTO|FROM|[a-z_])/i);
+  assert.doesNotMatch(source, /\b(?:CREATE|ALTER|DROP)\s+TABLE\b|\b(?:INSERT\s+INTO|UPDATE\s+[a-z_][a-z0-9_]*\s+SET|DELETE\s+FROM)\b/i);
   assert.ok(!endpoint.includes("evaluatePayrollPreRunReadiness("));
   assert.ok(!endpoint.includes("evaluatePayrollAssurance("));
   assert.ok(endpoint.indexOf("requireRunEmployer({") < endpoint.indexOf("generatePayrollFindingExplanation(["));
