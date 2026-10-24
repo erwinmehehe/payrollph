@@ -41,7 +41,7 @@ test("DOLE multi-entity GET, CSV, POST and direct builder deny regardless of UI 
 
 test("browser QA checks source-parity and actual 390px/desktop state suppression", () => {
   const proof = readFileSync("scripts/qa/dole-attribution-state-browser.mjs","utf8");
-  assert.match(proof,/baselineSha="06dbf527dd3c8f0c29f0ae1f4dbc68833037a76c"/);
+  assert.match(proof,/baselineSource="src\/components\/workspace\/dole-thirteenth-month-report-panel-legacy\.tsx"/);
   assert.match(proof,/widths:\[1280,390\]/);
   assert.match(proof,/assert\.equal\(markup\.off,markup\.legacy/);
   assert.match(proof,/page\.screenshot/);

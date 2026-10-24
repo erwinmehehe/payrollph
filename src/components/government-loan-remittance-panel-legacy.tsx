@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
+
+import { isConfirmedGovernmentLoanMutation, parseGovernmentLoanRemittanceRead } from "@/lib/government-loan-remittance-read";
+import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
 
 type Agency = "SSS" | "Pag-IBIG";
 
@@ -58,11 +61,8 @@ function GovernmentLoanRemittancePanelContent({
   organizationId: number;
   setNotice: (message: string) => void;
 }) {
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
   const [month, setMonth] = useState(previousMonth());
   const [busy, setBusy] = useState<string | null>(null);
-  const [forbidden, setForbidden] = useState(false);
   const [paymentBatchId, setPaymentBatchId] = useState<number | null>(null);
   const [amountPaid, setAmountPaid] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
@@ -73,43 +73,26 @@ function GovernmentLoanRemittancePanelContent({
   const [postingReference, setPostingReference] = useState("");
   const [exceptionNote, setExceptionNote] = useState("");
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (signal: AbortSignal) => {
     const response = await fetch(
       `/api/compliance/government-loan-remittances?organizationId=${organizationId}`,
       { cache: "no-store", signal },
     );
-    const body = await response.json().catch(() => ({}));
-    if (signal?.aborted) return;
-    if (response.status === 403) {
-      setForbidden(true);
-      return;
-    }
-    if (!response.ok) throw new Error(body.error ?? "Could not load government loan remittances.");
-    setForbidden(false);
-    setBatches(Array.isArray(body.batches) ? body.batches : []);
-    setMembers(Array.isArray(body.members) ? body.members : []);
+    const value: unknown = await response.json().catch(() => null);
+    const verified = parseGovernmentLoanRemittanceRead(response.ok, value, organizationId);
+    if (!verified) throw new Error("Government loan remittances unavailable. Retry to verify this employer's payment and posting evidence.");
+    return verified;
   }, [organizationId]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    // The request runs after effect setup, never in its synchronous phase.
-    // Strict Mode cleanup can cancel this scheduled read before it starts.
-    queueMicrotask(() => {
-      if (controller.signal.aborted) return;
-      void load(controller.signal).catch((error) => {
-        if (controller.signal.aborted) return;
-        setNotice(error instanceof Error ? error.message : "Could not load government loan remittances.");
-      });
-    });
-    return () => controller.abort();
-  }, [load, setNotice]);
+  const resource = useScopedAsyncResource(`government-loans:${organizationId}`, load);
+  const members = resource.data?.members ?? [];
 
   const monthBatches = useMemo(
-    () => batches.filter((batch) => batch.applicableMonth === month),
-    [batches, month],
+    () => resource.data?.batches.filter((batch) => batch.applicableMonth === month) ?? [],
+    [resource.data, month],
   );
 
   async function mutate(action: string, payload: Record<string, unknown>, success: string) {
+    if (!resource.data || resource.loading || resource.error || busy) return false;
     setBusy(action);
     try {
       const response = await fetch("/api/compliance/government-loan-remittances", {
@@ -119,14 +102,21 @@ function GovernmentLoanRemittancePanelContent({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Government loan remittance action failed.");
+      if (!resource.isCurrent()) return false;
+      const refreshed = await resource.reloadWithOutcome();
+      if (!resource.isCurrent()) return false;
+      if (!refreshed?.data || !isConfirmedGovernmentLoanMutation(action, payload, body, refreshed.data)) {
+        setNotice("The action may have taken effect, but refreshed evidence is unavailable. Reload and review before retrying.");
+        return false;
+      }
       setNotice(success);
-      await load();
       return true;
     } catch (error) {
+      if (!resource.isCurrent()) return false;
       setNotice(error instanceof Error ? error.message : "Government loan remittance action failed.");
       return false;
     } finally {
-      setBusy(null);
+      if (resource.isCurrent()) setBusy(null);
     }
   }
 
@@ -182,7 +172,15 @@ function GovernmentLoanRemittancePanelContent({
     }
   }
 
-  if (forbidden) return null;
+  if (!resource.data) return (
+    <article className="card" data-government-loan-remittance>
+      <div className="card-body" role={resource.error ? "alert" : "status"}>
+        <h2>{resource.error ? "Government loan remittances unavailable" : "Checking government loan evidence…"}</h2>
+        <p>Payment totals and posting actions require verified evidence for this employer.</p>
+        {resource.error && <button type="button" className="secondary-button" onClick={() => void resource.reload()}>Retry remittances</button>}
+      </div>
+    </article>
+  );
 
   return (
     <article className="card" style={{ marginTop: 18 }} data-government-loan-remittance>
@@ -194,7 +192,7 @@ function GovernmentLoanRemittancePanelContent({
             Reconcile SSS Salary/Calamity Loans and Pag-IBIG MPL/Calamity Loans from released payroll to employer payment and member posting.
           </p>
         </div>
-        <button className="secondary-button" onClick={() => void load()} disabled={busy !== null}>
+        <button className="secondary-button" onClick={() => void resource.reload()} disabled={busy !== null || resource.loading}>
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
@@ -225,6 +223,7 @@ function GovernmentLoanRemittancePanelContent({
           ))}
         </div>
 
+        {monthBatches.length === 0 && <p role="status">No remittance batch is recorded for this month. This is not proof that loan liabilities are zero.</p>}
         {monthBatches.map((batch) => {
           const rows = members.filter((member) => member.batchId === batch.id);
           const paymentOpen = paymentBatchId === batch.id;
