@@ -105,7 +105,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   // Pin the current ledger exactly: the two DL-01 vault methods and eight
   // money-input methods retain their independent proofs; MNY-02 adds six
   // separately linked contractor/EWT methods; two underpayment methods add distinct
-  // source-linked proof, leaving 336 method GAPs.
+  // source-linked proof; main has 335 GAPs before three independent 2316 proofs.
   // This is provisional coverage; no production or global audit sign-off.
   for (const [vaultRoute, vaultMethod] of [
     ["src/app/api/employee-vault/route.ts", "GET"],
@@ -119,9 +119,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   }
   // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
   // PR #1325 contributes three other real HTTP proofs; never double-credit these.
-  assert.equal(manifest.metrics.coveredAfter - 3, 148, "Keep the 147 independently proven main methods plus three separate BIR 2316 document methods");
+  assert.equal(manifest.metrics.coveredAfter - 3, 148, "Keep the 148 independently proven main methods plus three separate BIR 2316 document methods");
   assert.equal(manifest.metrics.publicByDesign, 10);
-  assert.equal(manifest.metrics.gap + 3, 335, "Retain all 336 main unproven methods except three source-pinned BIR 2316 methods");
+  assert.equal(manifest.metrics.gap + 3, 335, "Retain all 335 main unproven methods except three source-pinned BIR 2316 methods");
   // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
   // can only close GAPs if every method cites the corresponding isolated HTTP
   // suite, executed for both attacker employers against real victim rows.
