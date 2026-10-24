@@ -240,8 +240,13 @@ async function main() {
 
   const victimTaskBeforeSync = (await db.select().from(complianceActionTasks)
     .where(eq(complianceActionTasks.id, realVictim.id)))[0];
-  const victimOutboxBeforeSync = await db.select().from(outbox)
-    .where(eq(outbox.organizationId, victim.id)).orderBy(outbox.id);
+  // Compare only B-employer notifications; A's legitimate sync may create
+  // new A-employer alerts and outbox rows without violating tenant isolation.
+  const employerBMessages = rows => rows.filter(row =>
+    row.recipient === ownerB.email
+    || String(row.metadata?.sourceKey ?? "").startsWith("legal-entity:" + entityB.id + ":"));
+  const victimOutboxBeforeSync = employerBMessages(await db.select().from(outbox)
+    .where(eq(outbox.organizationId, victim.id)).orderBy(outbox.id));
   const ownedSync = expectStatus(await request("/api/compliance/remittance-actions", {
     method: "POST", cookie: ownerA.cookie,
     body: { organizationId: victim.id, action: "sync" },
@@ -253,9 +258,9 @@ async function main() {
       .where(eq(complianceActionTasks.id, realVictim.id)))[0], victimTaskBeforeSync,
       "Sync of employer A never resolves or rewrites real employer B task");
     assertions++;
-    assert.deepEqual(await db.select().from(outbox)
-      .where(eq(outbox.organizationId, victim.id)).orderBy(outbox.id), victimOutboxBeforeSync,
-      "Sync of employer A never queues employer B notices");
+    assert.deepEqual(employerBMessages(await db.select().from(outbox)
+      .where(eq(outbox.organizationId, victim.id)).orderBy(outbox.id)), victimOutboxBeforeSync,
+      "Sync of employer A must not queue or change employer B notices");
     assertions++;
   } else {
     eqActual(ownedSync.json?.sync?.missingOrganization, false, "Flag OFF all-employer sync preserved");
