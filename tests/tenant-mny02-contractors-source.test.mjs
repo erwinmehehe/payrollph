@@ -99,24 +99,31 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     .flatMap(route => route.methods).filter(method => method.testedBy?.file === extraFile);
   assert.equal(sixExpensesBenefits.length, 6,
     "Exactly six independently executed expense/benefit methods may receive provisional credit");
-  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]
-    ?.methods.find(method => method.name === "GET");
+  // Group reports have a separate three-tenant source-pinned GET; they may
+  // not borrow the contractor or underpayment execution receipt.
+  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(m => m.name === "GET");
   assert.equal(groupReport?.status, "COVERED");
   assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
-  const preRun = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"]
-    ?.methods.find(method => method.name === "GET");
-  assert.equal(preRun?.status, "COVERED");
-  assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs",
-    "Merged main's independent pre-run readiness proof cannot be borrowed by MNY-02");
+  const groupReportCredits = 1;
+  const bir2316Methods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
+    .filter(method => method.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
+  assert.deepEqual(bir2316Methods.map(method => method.name).sort(), ["GET", "GET", "POST"],
+    "Exactly three distinct BIR 2316 document methods are separate from both underpayment and MNY-02 proofs");
+  assert.ok(bir2316Methods.every(method => method.status === "COVERED" &&
+    Number.isInteger(method.testedBy?.ownPositiveLine) &&
+    Number.isInteger(method.testedBy?.foreignDenialLine)));
+  const preRun = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"]?.methods.find(m => m.name === "GET");
+  assert.equal(preRun?.status, "COVERED", "Merged main's pre-run GET remains independently covered");
+  assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 155, 10, 329]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 158, 10, 326]);
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - sixExpensesBenefits.length - 1,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - sixExpensesBenefits.length - groupReportCredits - bir2316Methods.length,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + sixExpensesBenefits.length + 1],
+    manifest.metrics.gap + creditedUnderpayments.length + sixExpensesBenefits.length + groupReportCredits + bir2316Methods.length],
     [494, 146, 10, 338],
     "Separate underpayment, six expenses/benefit and group-report credits while retaining main's pre-run GET");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 329 API methods/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 326 API methods/);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {

@@ -34,9 +34,9 @@ No live employees, bank credentials, external payout providers, payroll release,
 | Metric | Prior merged main | This draft |
 |---|---:|---:|
 | API method inventory | 494 | 494 |
-| Method-specific provisional COVERED | 149 | **155** |
+| Method-specific provisional COVERED | 152 | **158** |
 | PUBLIC-BY-DESIGN | 10 | 10 |
-| Remaining API GAP | 335 | **329** |
+| Remaining API GAP | 332 | **326** |
 | Remaining page/action GAP | 18 | **18** |
 | Confirmed live tenant leaks fixed by this PR | 0 | **0** |
 
