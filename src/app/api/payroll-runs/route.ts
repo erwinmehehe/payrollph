@@ -290,7 +290,10 @@ export async function POST(request: Request) {
     const hasMobileWallet = Boolean(employee.mobile?.trim());
     return !hasBank && !hasMobileWallet;
   });
-  if (missingPayout.length > 0) {
+  // Incomplete payout destinations must not prevent saving a draft. They
+  // remain mandatory for "Create & process" and under the release assurance
+  // gate; a draft by itself never calculates or sends money.
+  if (processNow && missingPayout.length > 0) {
     return Response.json({
       error: `${missingPayout.length} active employee${missingPayout.length === 1 ? " is" : "s are"} missing a usable bank account or mobile-wallet destination. Complete payout details before starting payroll.`,
       code: "PAYOUT_DETAILS_REQUIRED",
