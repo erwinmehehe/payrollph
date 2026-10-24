@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 333, "Retain 333 unverified methods after MNY-02, two underpayment writes and #1341 group-report GET");
-  assert.equal(manifest.metrics.coveredAfter, 151, "Retain independent MNY-02, underpayment, group-report and pre-run source GET proofs");
+  assert.equal(manifest.metrics.gap + 3 + 2, 335, "Preserve all 335 main API method GAPs except three separately proven BIR 2316 document methods");
+  assert.equal(manifest.metrics.coveredAfter - 3 - 2, 149, "Keep 149 separate main sources including pre-run readiness plus three BIR 2316 methods");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
@@ -755,6 +755,74 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(script, /noVictimResponse\(foreign/, "Foreign response must be checked for leaked identity");
         continue;
       }
+      // BIR 2316: only these three independently executed HTTPS/PG16 document
+      // methods may use helper-built paths instead of literal "/api" URLs at
+      // each source line. Preserve the generic route-fragment guard for ALL
+      // other proof suites and require actual owned responses, not just 403.
+      if (proof?.file === "scripts/qa/tenant-bir2316-http.mjs") {
+        const specs = {
+          "GET separation/[id]/2316": ["ownDraft", "foreignDraft", 259, 284],
+          "GET year-end/2316-certificate": ["ownSource", "foreignSource", 266, 286],
+          "POST year-end/2316-certificate": ["ownPdf", "foreignPdf", 273, 288],
+        };
+        const key = method.name + " " + entry.route;
+        const expected = specs[key];
+        assert.ok(expected, key + ": BIR proof cannot authorize unrelated routes");
+        assert.ok([
+          "src/app/api/separation/[id]/2316/route.ts",
+          "src/app/api/year-end/2316-certificate/route.ts",
+        ].includes(path), key + ": only reviewed 2316 document endpoints qualify");
+        assert.deepEqual([
+          proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+          proof.unchangedDbLine ?? null,
+        ], [expected[2], expected[2], expected[3],
+          method.name === "POST" ? 356 : null],
+        key + ": method-specific HTTP line pins changed without review");
+        const integration = readFileSync(proof.file, "utf8");
+        const lines = integration.split("\n");
+        const own = evidenceLine(proof.file, proof.ownPositiveLine, key + " own");
+        const foreign = evidenceLine(proof.file, proof.foreignDenialLine, key + " victim");
+        assert.ok(own.includes("const " + expected[0] + " = expectStatus(await request("),
+          key + ": real authenticated own HTTP request required");
+        assert.ok(foreign.includes("const " + expected[1] + " = expectStatus(await request("),
+          key + ": real victim-only HTTP denial required");
+        const span = n => lines.slice(n - 1, n + 9).join("\n");
+        assert.match(span(proof.ownPositiveLine), /\)\s*,\s*200\s*,/,
+          key + ": owned 2316 text/source/PDF must succeed, not return empty denial");
+        assert.match(span(proof.foreignDenialLine), /\)\s*,\s*403\s*,/,
+          key + ": real high-ID foreign victim must be rejected");
+        assert.match(integration, /function sourcePath\(row\)/);
+        assert.match(integration, /"\/api\/year-end\/2316-certificate\?organizationId="/);
+        assert.match(integration, /function draftPath\(row\)/);
+        assert.match(integration, /"\/api\/separation\/" \+ row\.id \+ "\/2316"/);
+        assert.match(integration, /for \(const idx of \[0, 1\]\)/);
+        assert.match(integration, /rows\[4\]\.id > 6 && rows\[4\]\.id > rows\[0\]\.id && rows\[4\]\.id > rows\[1\]\.id/);
+        assert.match(integration, /const draftFillers = \[0, 1, 0\]/);
+        assert.match(integration, /values\(\[\.\.\.draftFillers, \.\.\.separationValues\]\)/);
+        assert.match(integration, /const victimBefore = await snapshotVictim/);
+        assert.match(integration, /assert\.deepEqual\(victimAfter, victimBefore/);
+        assert.match(integration, /Revoked historical employer grant denies existing signed-in/);
+        assert.match(integration, /Transferred employee retains original frozen employer/);
+        assert.match(integration, /PAYMONGO_DISBURSEMENTS_ENABLED, "false"/);
+        assert.match(integration, /XENDIT_PAYOUTS_ENABLED, "false"/);
+        const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
+        assert.match(workflow, /run: npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/,
+          key + ": evidence must execute in isolated multi-entity HTTPS/PG16 CI");
+        assert.match(workflow, /MULTI_ENTITY_QA_MODE: synthetic-postgres-only/);
+        assert.match(workflow, /DATABASE_URL: postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db/);
+        if (method.name === "POST") {
+          assert.match(span(proof.ownPositiveLine), /method: "POST"/,
+            "Must generate real unsigned PDF, not a GET labeled as POST");
+          assert.match(span(proof.foreignDenialLine), /method: "POST"/,
+            "Foreign victim must be denied on actual POST");
+          const invariant = evidenceLine(proof.file, proof.unchangedDbLine, key + " victim snapshot");
+          assert.match(invariant, /assert\.deepEqual\(victimAfter, victimBefore/,
+            key + ": foreign/forged PDF request cannot mutate victim SQL/audit");
+          assert.match(integration, /"[%]PDF"|=== "%PDF"/,
+            "Owned POST must validate returned PDF bytes");
+        }
+        continue;
+      }
       // New method credits must be bound to an explicitly reviewed endpoint,
       // real two-attacker HTTP runner, exact request/status lines, and a
       // persisted victim-before/after assertion for mutating methods. Do not
@@ -936,6 +1004,61 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(browser, /await verifyMultiEntityReportTenantIsolation\(\{/);
         const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
         assert.match(workflow, /node scripts\/multi-entity-synthetic-browser\.mjs/);
+        continue;
+      }
+      if (proof?.file === "scripts/qa/payout-destination-entity-http.mjs") {
+        // PR #1367: this NEW evidence source is not a general-purpose bypass.
+        // Only the exact two changed payout endpoints may cite this dedicated
+        // production-mode authenticated HTTPS / synthetic PostgreSQL 16 suite.
+        const pins = {
+          "GET payout-destination-changes": {
+            route: "src/app/api/payout-destination-changes/route.ts",
+            fields: [12, 208, 216, 218, 229, 193],
+          },
+          "PATCH payout-destination-changes/[id]": {
+            route: "src/app/api/payout-destination-changes/[id]/route.ts",
+            fields: [12, 234, 222, 226, 229, 193],
+          },
+        }[method.name + " " + entry.route];
+        assert.ok(pins && pins.route === path,
+          path + " " + method.name + ": payout evidence may not certify an unrelated method");
+        assert.deepEqual([proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+          proof.forgedSelectorLine, proof.unchangedDbLine, proof.victimIdOrderingLine],
+        pins.fields, "Reviewed payout evidence line pins may not drift");
+        const suite = readFileSync(proof.file, "utf8");
+        const lines = suite.split("\n");
+        assert.match(lines[11], /export const PAYOUT_ENTITY_METHODS/);
+        assert.match(lines[192], /check\(aAlpha\.evidence\.id > 6 && aAlpha\.evidence\.id > bRows\.at\(-1\)\.evidence\.id/);
+        assert.match(lines[207], /const getB = ownRequests\(await request\(b, ON, ownB\)/);
+        assert.match(lines[208], /const getC = ownRequests\(await request\(c, ON, ownC\)/);
+        assert.match(lines[215], /await deniedAndUnchanged\(actor, ON, victimList, "GET", undefined, 403, victimA/);
+        assert.match(lines[217], /await deniedAndUnchanged\(actor, ON, own \+ "&employeeId=" \+ aAlpha\.worker\.id/);
+        assert.match(lines[221], /await deniedAndUnchanged\(actor, ON, patch\(aAlpha\.evidence\.id\)/);
+        assert.match(lines[225], /await deniedAndUnchanged\(actor, ON, patch\(item\.evidence\.id\)/);
+        assert.match(lines[228], /assert\.deepEqual\(await snapshot\(victimA\), victimBefore/);
+        assert.match(lines[233], /const positivePatchB = expectStatus\(await request\(b, ON, patch\(bRows\[0\]\.evidence\.id\)/);
+        assert.match(lines[236], /const positivePatchC = expectStatus\(await request\(c, ON, patch\(cRows\[0\]\.evidence\.id\)/);
+        assert.match(lines.slice(233, 237).join("\n"), /"PATCH", decision\(attackerB, bEntity\)\), 200/);
+        assert.match(lines.slice(236, 240).join("\n"), /"PATCH", decision\(attackerC, cEntity\)\), 200/);
+        assert.match(lines.slice(221, 225).join("\n"), /"PATCH", decision\(orgId, entity\), 404/);
+        assert.match(suite, /const victimBefore = await snapshot\(victimA\)/);
+        assert.match(suite, /sql\.query\("SELECT to_jsonb\(a\) AS row FROM audit_events a/);
+        assert.match(suite, /const b = await signedIn\(checkers\.b, ON\), c = await signedIn\(checkers\.c, ON\)/);
+        assert.match(suite, /"\/api\/auth\/login"/);
+        assert.match(suite, /session\?\.secure && session\.httpOnly/);
+        assert.match(suite, /assert\.equal\(process\.env\.GITHUB_ACTIONS, "true"\)/);
+        assert.match(suite, /assert\.equal\(process\.env\.CI, "true"\)/);
+        assert.match(suite, /assert\.equal\(process\.env\.MULTI_ENTITY_ENABLED, "true"\)/);
+        assert.match(suite, /postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db/);
+        assert.match(suite, /await deniedAndUnchanged\(pa, ON, patch\(legacy\.evidence\.id\)/);
+        assert.match(suite, /await deniedAndUnchanged\(pb, ON, patch\(transferred\.evidence\.id\)/);
+        assert.match(suite, /Revoked employer grant denies same signed-in session GET/);
+        assert.match(suite, /Flag-OFF legacy read compatibility/);
+        assert.match(suite, /realPayout: false, productionApproved: false/);
+        const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
+        assert.match(workflow, /MULTI_ENTITY_QA_MODE: synthetic-postgres-only/);
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /node scripts\/qa\/payout-destination-entity-http\.mjs/);
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",

@@ -12,7 +12,13 @@ on:
       - "src/lib/payout-destination-controls.ts"
       - "src/app/api/payout-destination-changes/**"
       - "tests/payout-destination-legal-employer.test.ts"
+      - "tests/payout-destination-entity-manifest.test.mjs"
       - "scripts/qa/payout-destination-entity-http.mjs"
+      - "src/lib/bir-2316-employer.ts"
+      - "src/app/api/separation/**/2316/route.ts"
+      - "src/app/api/year-end/2316-certificate/route.ts"
+      - "tests/bir-2316-tenant-boundary.test.ts"
+      - "scripts/qa/tenant-bir2316-http.mjs"
       # Deferred HCM stays blocked in the live app. In CI, independently
       # exercise its employer-scoped service and synthetic browser contracts.
       - "src/lib/hcm-*.ts"
@@ -134,6 +140,12 @@ jobs:
           nohup node scripts/multi-entity-loopback-https.mjs > /tmp/multi-entity-https-ci.log 2>&1 &
       - name: Start flag-ON localhost-only app
         shell: bash
+        # ONLY this disposable PG16 server exercises unsigned 2316 generation.
+        # No production activation, BIR submission or payout provider.
+        env:
+          BIR_2316_CERTIFICATE_DRAFT_ENABLED: "true"
+          BIR_2316_RECONCILIATION_ENABLED: "true"
+          BIR_2316_WITHHOLDING_EVIDENCE_ENABLED: "true"
         run: |
           nohup npm start -- -p 3100 -H 127.0.0.1 > /tmp/multi-entity-on-ci.log 2>&1 &
           for attempt in {1..45}; do
@@ -157,14 +169,36 @@ jobs:
           echo "Disposable flag-off app did not start"
           exit 1
       - name: Verify real authenticated UI, scoped API denials, role controls and mobile widths
+        id: existing_browser
+        continue-on-error: true
         run: node scripts/multi-entity-synthetic-browser.mjs
-      - name: Real HTTPS/PG16 payout-change GET and PATCH employer isolation
-        # Three fictional organizations, two employers in one tenant, and two
-        # independent owned PATCH successes; preserves maker/checker and MFA gates.
-        # Flag ON/OFF localhost only; no provider, migration or money operations.
+      - name: Print bounded fictional localhost application error diagnostics
+        if: steps.existing_browser.outcome == 'failure'
+        shell: bash
+        run: |
+          for file in /tmp/multi-entity-on-ci.log /tmp/multi-entity-off-ci.log; do
+            echo "Error lines from synthetic-only local app: $file"
+            if test -f "$file"; then
+              grep -Ei 'Error:|cause:|code:|does not exist|Failed|digest:|cannot|TypeError:' "$file" | tail -n 45 | cut -c 1-240 || true
+            fi
+          done
+      - name: Verify actual signed-in BIR 2316 frozen-employer GET/POST isolation
+        env:
+          BIR_2316_CERTIFICATE_DRAFT_ENABLED: "true"
+          BIR_2316_RECONCILIATION_ENABLED: "true"
+          BIR_2316_WITHHOLDING_EVIDENCE_ENABLED: "true"
+        run: npx tsx scripts/qa/tenant-bir2316-http.mjs
+      - name: Prove payout destination GET/PATCH across legal employers over real HTTPS and PG16
+        # Two independently signed-in attacker organizations, a distinct victim,
+        # and two legal employers within one tenant. No live money/provider calls.
         run: |
           node --check scripts/qa/payout-destination-entity-http.mjs
           node scripts/qa/payout-destination-entity-http.mjs
+      - name: Enforce existing UI/browser acceptance remains green
+        if: steps.existing_browser.outcome == 'failure'
+        run: |
+          echo "Existing multi-entity synthetic browser failed; keep the job red."
+          exit 1
       - name: Exercise isolated HCM employer switching in the synthetic browser
         # Intercepted requests/fictional names; NOT actual HCM route access.
         # Real flag-ON HCM routes remain 403 ENTITY_HCM_DEFERRED.
