@@ -15,8 +15,8 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 494 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 494, "494 actual methods include source-pinned pre-run readiness GET and inherited handlers");
-  assert.equal(manifest.metrics.gap + 3, 335, "Retain every unverified method GAP after eight MNY-01, six MNY-02, two underpayment and one group-report proofs");
-  assert.equal(manifest.metrics.coveredAfter - 3, 149, "Retain BIR, vault, group-report, pre-run readiness, MNY-01, MNY-02 and underpayment proofs");
+  assert.equal(manifest.metrics.gap + 5, 335, "Retain every unverified method GAP after eight MNY-01, six MNY-02, two underpayment and one group-report proofs");
+  assert.equal(manifest.metrics.coveredAfter - 5, 149, "Retain BIR, vault, group-report, pre-run readiness, MNY-01, MNY-02 and underpayment proofs");
   const report = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
   assert.equal(report?.status, "COVERED");
   assert.equal(report?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
@@ -58,8 +58,9 @@ test("single table-driven test reads ALL 494 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), ["GET compliance/remittance-actions"]);
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), [], "The remittance-action GET has independent PG16 coverage");
   const expectedCovered = [
+    "GET compliance/remittance-actions",
     "GET compliance/bir-1601c-remittances",
     "GET compliance/government-loan-remittances",
     "GET compliance/statutory-remittances",
@@ -68,7 +69,7 @@ test("single table-driven test reads ALL 494 methods without claiming precovered
     "GET compliance/statutory-remittances/posting-evidence/[id]",
   ];
   assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "COVERED").sort(),
-    expectedCovered.sort(), "Preserve all six independently verified HTTP GET adapters");
+    expectedCovered.sort(), "Preserve all seven independently verified HTTP GET adapters");
   for (const spec of expectedCovered) {
     const proof = registry.get(spec).testedBy;
     assert.ok(proof?.file && proof.ownPositiveLine && proof.foreignDenialLine,

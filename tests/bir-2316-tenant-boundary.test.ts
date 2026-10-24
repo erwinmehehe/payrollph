@@ -129,13 +129,22 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
       }
     }
   }
-  // Main already proves 149 methods (including the independent group-report GET); this
-  // draft adds exactly three separately evidenced BIR 2316 GET/GET/POST methods.
-  // Preserve the main baseline and every remaining GAP after syncing the branch.
+  // Preserve the 149-method pre-BIR, pre-remittance-action baseline without
+  // double-crediting the three BIR 2316 and two independently proven action methods.
+  const statutoryActions = inventory.allApiRouteFiles[
+    "src/app/api/compliance/remittance-actions/route.ts"
+  ]?.methods ?? [];
+  assert.deepEqual(statutoryActions.map((method: { name: string }) => method.name), ["GET", "POST"]);
+  assert.ok(statutoryActions.every((method: {
+    status: string; testedBy?: { file: string; ownPositiveLine: number; foreignDenialLine: number }
+  }) => method.status === "COVERED" &&
+    method.testedBy?.file === "scripts/qa/remittance-action-entity-http.mjs" &&
+    Number.isInteger(method.testedBy?.ownPositiveLine) &&
+    Number.isInteger(method.testedBy?.foreignDenialLine)));
   assert.equal(inventory.metrics.methods, 494);
-  assert.equal(inventory.metrics.coveredAfter - 3, 149);
-  assert.equal(inventory.metrics.gap + 3, 335);
+  assert.equal(inventory.metrics.coveredAfter - 3 - statutoryActions.length, 149);
+  assert.equal(inventory.metrics.gap + 3 + statutoryActions.length, 335);
   assert.equal(inventory.metrics.publicByDesign, 10);
   assert.equal(inventory.metrics.coveredAfter + inventory.metrics.publicByDesign + inventory.metrics.gap, inventory.metrics.methods);
-  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED: 332 API methods and 18 page\/action GAPs remain\./);
+  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED: 330 API methods and 18 page\/action GAPs remain\./);
 });

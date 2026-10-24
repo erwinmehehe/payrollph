@@ -473,8 +473,28 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
         "Unsigned PDF POST must leave the real victim database and audit untouched");
     }
   }
-  assert.equal(gaps.length + bir2316Methods.length, 335,
-    "Preserve all 335 current main GAPs except three exact source-pinned 2316 GET/GET/POST proofs");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length, 149,
+  // Retain the distinct statutory action real-HTTP/PG16 flag ON/OFF proof.
+  // These two GET/POST methods are separate from the BIR 2316 document proofs.
+  const actionPath = "src/app/api/compliance/remittance-actions/route.ts";
+  const actionMethods = manifest.allApiRouteFiles[actionPath]?.methods ?? [];
+  const actionProofFile = "scripts/qa/remittance-action-entity-http.mjs";
+  const actionLines = readFileSync(actionProofFile, "utf8").split("\n");
+  assert.deepEqual(actionMethods.map(m => m.name).sort(), ["GET", "POST"]);
+  for (const method of actionMethods) {
+    const [own, foreign] = method.name === "GET" ? [138, 210] : [186, 213];
+    assert.equal(method.status, "COVERED", method.name + ": own/victim source proof required");
+    assert.equal(method.testedBy?.file, actionProofFile);
+    assert.deepEqual([
+      method.testedBy.ownPositiveLine, method.testedBy.foreignDenialLine,
+      method.testedBy.unchangedDbLine,
+    ], [own, foreign, 237], "Remittance action source pins must remain exact");
+    assert.match(actionLines[own - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(actionLines[foreign - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(actionLines[236] ?? "", /assert\.deepEqual\(await snapshot\(victim\.id\), before,/);
+  }
+  const actionCredits = actionMethods.length;
+  assert.equal(gaps.length + bir2316Methods.length + actionCredits, 335,
+    "Preserve all 335 historical GAPs except three BIR 2316 and two remittance-action exact-method proofs");
+  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - actionCredits, 149,
     "All 149 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
 }

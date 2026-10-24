@@ -111,14 +111,19 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   assert.equal(preRun?.status, "COVERED", "Merged main's pre-run GET remains independently covered");
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 152, 10, 332]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 154, 10, 330]);
+  const actionMethods = manifest.allApiRouteFiles["src/app/api/compliance/remittance-actions/route.ts"]?.methods ?? [];
+  assert.deepEqual(actionMethods.map(method => method.name), ["GET", "POST"]);
+  assert.ok(actionMethods.every(method => method.status === "COVERED" &&
+    method.testedBy?.file === "scripts/qa/remittance-action-entity-http.mjs"),
+    "Two new action methods require separately source-pinned PostgreSQL/HTTP proof");
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - bir2316Methods.length,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - bir2316Methods.length - actionMethods.length,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + bir2316Methods.length],
+    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + bir2316Methods.length + actionMethods.length],
     [494, 146, 10, 338],
     "Keep prior contractor credits, independently merged group-report, pre-run GET and three BIR methods separate");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 332 API methods/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 330 API methods/);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {
