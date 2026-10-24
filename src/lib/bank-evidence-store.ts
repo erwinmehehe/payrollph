@@ -49,6 +49,11 @@ export async function recordGeneratedBankFile(input: {
     eq(bankFileValidations.fileSha256, fileSha256),
   )).limit(1);
   if (!existing) throw new Error("Bank validation record could not be created.");
+  if (existing.payrollRunId !== run.id) {
+    // Content-addressed UAT cannot silently borrow evidence from another
+    // payroll run, even when both runs belong to one tenant.
+    throw new Error("BANK_VALIDATION_SOURCE_RUN_MISMATCH");
+  }
   return { record: existing, created: false, file };
 }
 
