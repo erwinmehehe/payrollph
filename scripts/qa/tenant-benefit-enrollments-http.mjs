@@ -10,6 +10,7 @@ import { auditEvents, benefitEnrollments, benefitPlans, employees, payrollRuns,
 
 const PATH = "/api/benefits";
 const START = "2026-10-01";
+const CREATE_START = "2026-10-16";
 
 function requireIsolated() {
   assert.equal(process.env.CI, "true");
@@ -77,7 +78,7 @@ export async function verifyBenefitEnrollmentIsolation(f, { request, expectStatu
   const before = await snapshot(victim.id);
   const endpoint = id => PATH + "?organizationId=" + id;
   const body = (org, employeeId, planId) => ({ organizationId: org.id,
-    employeeId, planId, monthlyContribution: 100, startedOn: START });
+    employeeId, planId, monthlyContribution: 100, startedOn: CREATE_START });
   async function denied(path, options, status, label) {
     const response = expectStatus(await request(path, options), status, label);
     noVictim(response, marker);
@@ -105,8 +106,11 @@ export async function verifyBenefitEnrollmentIsolation(f, { request, expectStatu
     assert.ok(forged.json.plans.some(p => p.id === plan.id));
     assert.ok(!forged.json.employees.some(e => e.id === f.victimEmployee.id));
 
+    const createBody = body(org, employee.id, plan.id);
+    assert.notEqual(createBody.startedOn, existing.startedOn,
+      "POST positive must not reuse the seeded employee/plan/start-date unique key");
     const created = expectStatus(await request(PATH, { method: "POST", cookie,
-      body: body(org, employee.id, plan.id) }), 201, "POST owned benefit enrollment succeeds");
+      body: createBody }), 201, "POST owned benefit enrollment succeeds");
     assert.equal(created.json.organizationId, org.id);
     assert.equal(created.json.employeeId, employee.id);
     assert.equal(created.json.planId, plan.id);
@@ -114,6 +118,7 @@ export async function verifyBenefitEnrollmentIsolation(f, { request, expectStatu
     assert.equal(persisted.organizationId, org.id);
     assert.equal(persisted.employeeId, employee.id);
     assert.equal(persisted.monthlyContribution, "100.00");
+    assert.equal(persisted.startedOn, CREATE_START);
     assert.equal(persisted.status, "active");
     await denied(PATH, { method: "POST", cookie,
       body: body(victim, f.victimEmployee.id, victimPlan.id) }, 403, "POST victim employer denied");

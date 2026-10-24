@@ -13,3 +13,7 @@ No production SQL, Neon operations, provider requests, money flags, payroll calc
 **Prepared evidence only; NOT ACCEPTED.** The HTTP suite has not run locally. Syntax and source-contract tests do not substitute for the actual production-mode localhost HTTP/disposable-PG16 job. All three methods stay GAP in the shared manifest: **zero new method credits**, current main baseline **149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP** among 494 methods, plus 19 page/action gaps. After exact-head CI passes, method-specific proof links and an explicit reviewed ledger reconciliation are required before any reclassification. No whole-system isolation or production approval is implied.
 
 Source contract: `tests/tenant-benefit-enrollments-source.test.mjs`. Rollback is removal of the additive QA suite, runner call and documentation; application behavior is unchanged.
+
+## First CI execution and fixture correction
+
+Initial head `4e7849441` reached the new real HTTP POST in Security HTTP Smoke, DL-02 and salary-correction-case CI. Each returned 500 because the positive POST reused the seeded enrolment's unique `(employee_id, plan_id, started_on)` key. The fixture now uses October 1 for the populated read row and October 16 for the new enrolment, asserts their keys differ before POST, and checks the persisted date. The schema constraint and required HTTP 201 remain unchanged. Fresh exact-head CI must pass; the initial failed executions grant no coverage credit.

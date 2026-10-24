@@ -68,3 +68,13 @@ test("ordinary employees and anonymous callers cannot access administrative bene
   assert.match(suite, /401, "Anonymous " \+ method \+ " denied"/);
   assert.match(suite, /assert.deepEqual\(await snapshot\(org.id\), ownedBeforeDenials/);
 });
+
+test("POST positive uses a distinct enrolment unique key from its populated GET fixture", () => {
+  const seededDate = suite.match(/const START = "(\d{4}-\d{2}-\d{2})";/)?.[1];
+  const createDate = suite.match(/const CREATE_START = "(\d{4}-\d{2}-\d{2})";/)?.[1];
+  assert.ok(seededDate && createDate);
+  assert.notEqual(createDate, seededDate, "employee/plan/start-date cannot duplicate the seeded enrolment");
+  assert.match(suite, /employeeId, planId, monthlyContribution: 100, startedOn: CREATE_START/);
+  assert.match(suite, /assert.notEqual\(createBody.startedOn, existing.startedOn/);
+  assert.match(suite, /assert.equal\(persisted.startedOn, CREATE_START\)/);
+});
