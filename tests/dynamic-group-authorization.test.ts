@@ -147,16 +147,18 @@ test("changing a group cannot silently rewrite approval or permission policy dep
   assert.ok(ui.includes("activeApprovalPolicyCount"));
 });
 
-test("schema, migration, fresh DB and compatibility path persist versioned authorization bindings", () => {
+test("schema, migration and fresh DB persist versioned authorization bindings without runtime repair", () => {
   const schema = read("src/db/schema.ts");
   const migration = read("drizzle/0095_dynamic_group_authorization.sql");
   const baseline = read("drizzle/baseline.sql");
   const compat = read("src/lib/core-schema-compat.ts");
-  for (const file of [schema, migration, baseline, compat]) {
+  for (const file of [schema, migration, baseline]) {
     assert.ok(file.includes("worker_employee_id"));
     assert.ok(file.includes("dynamic_group_id"));
     assert.ok(file.includes("dynamic_group_version"));
     assert.ok(file.includes("user_org_worker_employee_unique"));
     assert.ok(file.includes("user_permission_assignments_group_pair_check"));
   }
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });
