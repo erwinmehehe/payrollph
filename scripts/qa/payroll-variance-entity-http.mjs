@@ -62,16 +62,15 @@ async function changeSyntheticRow(db, table, id, column, value) {
 }
 
 async function snapshotTenant(db, organizationId) {
-  const [staff, runs, entries, audit] = await Promise.all([
-    db.query("SELECT to_jsonb(e) AS row FROM employees e WHERE organization_id=$1 ORDER BY id",
-      [organizationId]),
-    db.query("SELECT to_jsonb(r) AS row FROM payroll_runs r WHERE organization_id=$1 ORDER BY id",
-      [organizationId]),
-    db.query("SELECT to_jsonb(p) AS row FROM payroll_entries p JOIN payroll_runs r ON r.id=p.payroll_run_id WHERE r.organization_id=$1 ORDER BY p.id",
-      [organizationId]),
-    db.query("SELECT to_jsonb(a) AS row FROM audit_events a WHERE organization_id=$1 ORDER BY id",
-      [organizationId]),
-  ]);
+  // pg.Client is one connection: never launch concurrent queries on it.
+  const staff = await db.query("SELECT to_jsonb(e) AS row FROM employees e WHERE organization_id=$1 ORDER BY id",
+    [organizationId]);
+  const runs = await db.query("SELECT to_jsonb(r) AS row FROM payroll_runs r WHERE organization_id=$1 ORDER BY id",
+    [organizationId]);
+  const entries = await db.query("SELECT to_jsonb(p) AS row FROM payroll_entries p JOIN payroll_runs r ON r.id=p.payroll_run_id WHERE r.organization_id=$1 ORDER BY p.id",
+    [organizationId]);
+  const audit = await db.query("SELECT to_jsonb(a) AS row FROM audit_events a WHERE organization_id=$1 ORDER BY id",
+    [organizationId]);
   return [staff.rows, runs.rows, entries.rows, audit.rows];
 }
 
@@ -92,14 +91,12 @@ export async function verifyPayrollVarianceEmployerIsolation({
   let mutatedEntryId = null;
   await database.connect();
   try {
-    const [entities, workers] = await Promise.all([
-      database.query(
-        "SELECT id, organization_id, primary_entity FROM legal_entities WHERE organization_id IN (1,2,3) ORDER BY id",
-      ),
-      database.query(
-        "SELECT id, organization_id, legal_entity_id, employee_no FROM employees WHERE employee_no IN ('A-01','A-02','B-01','C-01') ORDER BY id",
-      ),
-    ]);
+    const entities = await database.query(
+      "SELECT id, organization_id, primary_entity FROM legal_entities WHERE organization_id IN (1,2,3) ORDER BY id",
+    );
+    const workers = await database.query(
+      "SELECT id, organization_id, legal_entity_id, employee_no FROM employees WHERE employee_no IN ('A-01','A-02','B-01','C-01') ORDER BY id",
+    );
     const employer = org => entities.rows.find(row => row.organization_id === org && row.primary_entity === true);
     const a1 = employer(1), b1 = employer(2), c1 = employer(3);
     const a2 = entities.rows.find(row => row.organization_id === 1 && row.id !== a1?.id);
@@ -185,7 +182,12 @@ export async function verifyPayrollVarianceEmployerIsolation({
     const priorRun = await insertRun(1, a1.id,
       "variance-prior-wrong-employer-" + nonce, "2026-05-01", "2026-05-15", 1);
     await database.query("UPDATE payroll_runs SET status='Released' WHERE id=$1 AND organization_id=1", [priorRun]);
-    await insertEntry(priorRun, worker("A-02").id, a2.id, "4321.00");
+    // Respect the reviewed composite payroll-run/employer FK at creation.
+    // Only afterwards simulate a corrupted imported entry in LOCAL CI with
+    // session_replication_role=replica, and restore it in the finally path.
+    const priorEntry = await insertEntry(priorRun, worker("A-01").id, a1.id, "4321.00");
+    await changeSyntheticRow(database, "payroll_entries", priorEntry,
+      "employee_id", worker("A-02").id);
     try {
       const wrongPrior = await request(a, on, path(aRun) + "?legalEntityId=" + a1.id);
       assert.equal(wrongPrior.status, 409,
@@ -193,6 +195,8 @@ export async function verifyPayrollVarianceEmployerIsolation({
       assert.equal(wrongPrior.data?.code, "PAYROLL_VARIANCE_ENTITY_RECONCILIATION_REQUIRED");
       checks.push("Prior-run wrong-employer payroll entry blocked before salary comparison");
     } finally {
+      await changeSyntheticRow(database, "payroll_entries", priorEntry,
+        "employee_id", worker("A-01").id);
       await database.query("DELETE FROM payroll_entries WHERE payroll_run_id=$1", [priorRun]);
       await database.query("DELETE FROM payroll_runs WHERE id=$1", [priorRun]);
     }
