@@ -19233,12 +19233,12 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/close/route.ts": {
-      "gitBlobSha": "0f0368ccfcd84162a7840761eb0621786c1c9197",
+      "gitBlobSha": "8012f0f7ef684d34498647c33743b8f2843c7eca",
       "route": "payroll-runs/[id]/close",
       "methods": [
         {
           "name": "GET",
-          "line": 135,
+          "line": 143,
           "status": "COVERED",
           "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -19253,7 +19253,7 @@
         },
         {
           "name": "POST",
-          "line": 148,
+          "line": 156,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null
@@ -19280,101 +19280,105 @@
           "token": "getSessionUser"
         },
         {
-          "line": 12,
+          "line": 13,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 20,
+          "line": 21,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 28,
+          "line": 29,
           "token": "assertOrganizationUnitAccess"
         },
         {
-          "line": 140,
+          "line": 39,
+          "token": "requireRunEmployer"
+        },
+        {
+          "line": 148,
           "token": "getSessionUser"
         },
         {
-          "line": 149,
+          "line": 157,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 156,
+          "line": 164,
           "token": "getSessionUser"
         }
       ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 16,
-          "token": "runId"
-        },
-        {
           "line": 17,
           "token": "runId"
         },
         {
-          "line": 22,
+          "line": 18,
+          "token": "runId"
+        },
+        {
+          "line": 23,
           "token": "organizationId"
         },
         {
-          "line": 30,
+          "line": 31,
           "token": "organizationId"
         },
         {
-          "line": 38,
+          "line": 46,
           "token": "organizationId"
         },
         {
-          "line": 38,
+          "line": 46,
           "token": "organizationId"
-        },
-        {
-          "line": 42,
-          "token": "organizationId"
-        },
-        {
-          "line": 42,
-          "token": "organizationId"
-        },
-        {
-          "line": 43,
-          "token": "payrollRunId"
         },
         {
           "line": 50,
+          "token": "organizationId"
+        },
+        {
+          "line": 50,
+          "token": "organizationId"
+        },
+        {
+          "line": 51,
+          "token": "payrollRunId"
+        },
+        {
+          "line": 58,
           "token": "runId"
         },
         {
-          "line": 137,
+          "line": 145,
           "token": "runId"
         },
         {
-          "line": 138,
+          "line": 146,
           "token": "runId"
         },
         {
-          "line": 143,
+          "line": 151,
           "token": "runId"
         },
         {
-          "line": 153,
+          "line": 161,
           "token": "runId"
         },
         {
-          "line": 154,
+          "line": 162,
           "token": "runId"
         }
       ]
     },
     "src/app/api/payroll-runs/[id]/connected-impact/route.ts": {
-      "gitBlobSha": "d91560c385b7375975bd9319220b0b8df7f13c8f",
+      "gitBlobSha": "f6e277c78e06382de16655d09dd3122969e201d4",
       "route": "payroll-runs/[id]/connected-impact",
       "methods": [
         {
           "name": "GET",
-          "line": 27,
+          "line": 28,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null
@@ -19401,78 +19405,82 @@
           "token": "assertOrganizationUnitAccess"
         },
         {
-          "line": 33,
+          "line": 34,
           "token": "getSessionUser"
         },
         {
-          "line": 45,
+          "line": 46,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 50,
+          "line": 51,
           "token": "assertOrganizationUnitAccess"
+        },
+        {
+          "line": 57,
+          "token": "requireRunEmployer"
         }
       ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 29,
-          "token": "runId"
-        },
-        {
           "line": 30,
           "token": "runId"
         },
         {
-          "line": 30,
+          "line": 31,
           "token": "runId"
         },
         {
-          "line": 43,
+          "line": 31,
           "token": "runId"
         },
         {
-          "line": 46,
+          "line": 44,
+          "token": "runId"
+        },
+        {
+          "line": 47,
           "token": "organizationId"
         },
         {
-          "line": 51,
+          "line": 52,
           "token": "organizationId"
         },
         {
-          "line": 63,
+          "line": 69,
           "token": "legalEntityId"
         },
         {
-          "line": 69,
+          "line": 75,
           "token": "organizationId"
         },
         {
-          "line": 69,
+          "line": 75,
           "token": "organizationId"
         },
         {
-          "line": 72,
+          "line": 78,
           "token": "employeeId"
         },
         {
-          "line": 72,
+          "line": 78,
           "token": "employeeId"
         },
         {
-          "line": 76,
+          "line": 82,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 82,
           "token": "organizationId"
         },
         {
-          "line": 84,
+          "line": 90,
           "token": "employeeId"
         },
         {
-          "line": 84,
+          "line": 90,
           "token": "employeeId"
         }
       ]
