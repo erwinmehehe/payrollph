@@ -7,7 +7,7 @@ import {
 } from "@/db/schema";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
-import { buildStatutoryRuleWatch } from "@/lib/statutory-rule-watch";
+import { buildStatutoryRuleWatch, philippineCalendarDay } from "@/lib/statutory-rule-watch";
 import { evaluatePayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness";
 import { payrollEmploymentStatus } from "@/lib/approved-exit-payroll";
 
@@ -158,7 +158,7 @@ export async function loadPayrollPreRunReadiness(
     || (ids.includes(row.counterpartyEmployeeId)
       && row.counterpartyWorkDate >= periodStart && row.counterpartyWorkDate <= periodEnd));
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = philippineCalendarDay();
   return evaluatePayrollPreRunReadiness({
     run: {
       id: run.id, organizationId, legalEntityId: run.legalEntityId,
@@ -177,6 +177,6 @@ export async function loadPayrollPreRunReadiness(
     periodConflict: conflict
       ? { id: conflict.id, periodLabel: conflict.periodLabel, status: conflict.status }
       : null,
-    ruleWatch: buildStatutoryRuleWatch(payDate > today ? payDate : today),
+    ruleWatch: buildStatutoryRuleWatch(payDate > today ? payDate : today, today),
   });
 }
