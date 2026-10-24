@@ -1,0 +1,92 @@
+name: Tenant table proof (fictional PostgreSQL, real HTTP, no money)
+
+# One shared job for every table-credited organization-scoped read. Rows live in
+# scripts/qa/tenant-table-http.mjs; server flags per profile live in scripts/qa/tenant-table-env.mjs,
+# which the local runner reads too, so a row is proven under the same flags wherever it is credited.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-table-proof.yml'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'src/app/api/**'
+      - 'src/lib/**'
+      - 'src/db/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-table-proof-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  table:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [default]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export the disposable profile environment (single source shared with the local runner)
+        run: node scripts/qa/tenant-table-env.mjs "${{ matrix.profile }}" >> "$GITHUB_ENV"
+      - name: Ephemeral encryption keys for disposable CI only
+        shell: bash
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement)
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Start isolated production-mode localhost server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-table-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-table-server.log
+          exit 1
+      - name: Every table row, two attacker employers, own data proven and victim denied
+        run: npx tsx scripts/qa/tenant-table-http.mjs
+      - name: Show isolated server log on failure
+        if: failure()
+        run: cat /tmp/tenant-table-server.log || true
