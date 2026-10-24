@@ -5,12 +5,18 @@ on:
       - 'src/lib/saas-workspace-access.ts'
       - 'src/lib/first-payroll-run-navigation.ts'
       - 'src/lib/critical-release-flags.ts'
+      - 'src/lib/payroll-draft-payout-readiness.ts'
+      - 'src/app/api/payroll-runs/route.ts'
+      - 'src/lib/payroll-assurance*.ts'
+      - 'src/lib/payroll-release-checklist.ts'
+      - 'src/app/api/payroll-runs/*/submit-review/route.ts'
       - 'src/app/api/signup/**'
       - 'src/components/linaw-workspace.tsx'
       - 'src/components/workspace/first-payroll-*.tsx'
       - 'src/components/workspace/payroll-run.tsx'
       - 'tests/first-payroll-invited-pilot-postgres.test.ts'
       - 'tests/first-payroll-run-navigation.test.ts'
+      - 'tests/payroll-draft-payout-*.test.ts'
       - 'scripts/qa/first-payroll-connected-browser.mjs'
       - '.github/workflows/first-payroll-connected.yml'
 permissions:
@@ -28,6 +34,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
       XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYROLL_DRAFT_PROOF_MODE: disposable-only
     services:
       postgres:
         image: postgres:${{ matrix.postgres }}
@@ -59,7 +66,7 @@ jobs:
       - run: npm run db:push
       - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
         run: node scripts/qa/apply-isolated-baseline.mjs
-      - run: npx tsx --test --test-concurrency=1 tests/first-payroll-invited-pilot-postgres.test.ts tests/first-payroll-run-navigation.test.ts tests/critical-release-flags.test.ts
+      - run: npx tsx --test --test-concurrency=1 tests/first-payroll-invited-pilot-postgres.test.ts tests/first-payroll-run-navigation.test.ts tests/critical-release-flags.test.ts tests/payroll-draft-payout-readiness.test.ts tests/payroll-draft-payout-postgres.test.ts
       - run: npm install --no-save --package-lock=false playwright@1.55.0
       - run: npx playwright install --with-deps chromium
       - run: node scripts/qa/first-payroll-connected-browser.mjs
