@@ -15,8 +15,28 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
-  assert.equal(manifest.metrics.gap, 335, "Retain every unverified method GAP after eight MNY-01, six MNY-02, two underpayment and one group-report proofs");
-  assert.equal(manifest.metrics.coveredAfter, 148, "Maintain independent BIR, vault, MNY-01, MNY-02, underpayment and group-report proofs");
+  assert.equal(manifest.metrics.gap, 334,
+    "Retain all remaining GAPs; #1361 payroll-close POST is distinct from group-report GET");
+  assert.equal(manifest.metrics.coveredAfter, 149,
+    "Only the separate accounting-close POST proof adds one provisional method to the merged ledger");
+  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find(method => method.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "Do not lower the GAP count unless the accounting-close POST has its own evidence");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  const closeLines = readFileSync(closePost.testedBy.file, "utf8").split("\n");
+  assert.match(closeLines[closePost.testedBy.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(closePost.testedBy.ownPositiveLine - 1,
+    closePost.testedBy.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/);
+  assert.match(closeLines[closePost.testedBy.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closePost.testedBy.foreignDenialLine - 1,
+    closePost.testedBy.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/);
+  assert.match(closeLines[closePost.testedBy.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/);
   const report = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
   assert.equal(report?.status, "COVERED");
   assert.equal(report?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
