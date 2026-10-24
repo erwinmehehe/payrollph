@@ -34301,14 +34301,14 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts": {
-      "gitBlobSha": "6052c91201be37794510d265e3c022586d627bac",
+      "gitBlobSha": "dc16c600daa77273731ad6620511146c7dd84c41",
       "route": "payroll-runs/[id]/pre-run-readiness",
       "methods": [
         {
           "name": "GET",
           "line": 12,
           "status": "COVERED",
-          "reason": "Provisional, actual PG16 production-mode HTTP with two independent signed-in owned legal employers returning 200 and nonempty statutory/employee findings; real unrelated victim run returns 403 before source reads. HTTP test checks tenant/run/employer IDs and unchanged victim financial rows. No release or payroll computation.",
+          "reason": "Provisional flag-OFF real PG16 HTTP: independently signed-in owned employers return 200, unrelated victim returns 403 before reads, and financial rows remain unchanged. New flag-ON ?explain=true pathway is separately consent-gated and is NOT certified by this original HTTP receipt; requires exact-head synthetic testing and independent privacy/security review. No release or payroll computation.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "line": 1381,
