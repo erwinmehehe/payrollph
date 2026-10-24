@@ -94,6 +94,11 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     assert.match(underpaymentSource[foreign - 1] ?? "", /await deny\(v,/);
     assert.match(underpaymentSource[125] ?? "", /assert\.deepEqual\(await snapshot\(v\), before/);
   }
+  const extraFile = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
+  const sixExpensesBenefits = Object.values(manifest.allApiRouteFiles)
+    .flatMap(route => route.methods).filter(method => method.testedBy?.file === extraFile);
+  assert.equal(sixExpensesBenefits.length, 6,
+    "Exactly six independently executed expense/benefit methods may receive provisional credit");
   // Group reports have a separate three-tenant source-pinned GET; they may
   // not borrow the contractor or underpayment execution receipt.
   const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(m => m.name === "GET");
@@ -111,14 +116,14 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   assert.equal(preRun?.status, "COVERED", "Merged main's pre-run GET remains independently covered");
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 152, 10, 332]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 158, 10, 326]);
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - bir2316Methods.length,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - sixExpensesBenefits.length - groupReportCredits - bir2316Methods.length,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + bir2316Methods.length],
+    manifest.metrics.gap + creditedUnderpayments.length + sixExpensesBenefits.length + groupReportCredits + bir2316Methods.length],
     [494, 146, 10, 338],
-    "Keep prior contractor credits, independently merged group-report, pre-run GET and three BIR methods separate");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 332 API methods/);
+    "Separate underpayment, six expenses/benefit and group-report credits while retaining main's pre-run GET");
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 326 API methods/);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {
