@@ -32,8 +32,8 @@ function isolated() {
     "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "XENDIT_PAYOUT_SECRET_KEY"]) {
     truthy(!process.env[key], "No external provider credential: " + key);
   }
-  for (const key of ["PAYMONGO_DISBURSEMENTS_ENABLED", "XENDIT_PAYOUTS_ENABLED"])
-    eqActual(process.env[key], "false", "No money movement");
+  eqActual(process.env.PAYMONGO_DISBURSEMENTS_ENABLED, "false", "PayMongo disbursements disabled");
+  eqActual(process.env.XENDIT_PAYOUTS_ENABLED, "false", "Xendit payouts disabled");
 }
 async function request(path, { cookie, method = "GET", body, headers = {} } = {}) {
   const h = { ...headers };
