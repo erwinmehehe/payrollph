@@ -89,10 +89,23 @@ export async function getBankFileValidation(organizationId: number, id: number) 
 
 export async function regenerateRecordedBankFile(row: BankFileValidationRow) {
   if (!row.payrollRunId) throw new Error("This bank-file validation can no longer be regenerated.");
-  const file = await generateBankFile(row.payrollRunId, row.templateName, false);
+
+  // A caller-provided/stale row must never select a different tenant's run or
+  // override the original file identity. Re-read the persisted source mapping.
+  const [record] = await db.select().from(bankFileValidations).where(and(
+    eq(bankFileValidations.id, row.id),
+    eq(bankFileValidations.organizationId, row.organizationId),
+    eq(bankFileValidations.payrollRunId, row.payrollRunId),
+    sourceRunBelongsToValidationTenant(),
+  )).limit(1);
+  if (!record?.payrollRunId) {
+    throw new Error("Bank validation source no longer belongs to this workspace.");
+  }
+
+  const file = await generateBankFile(record.payrollRunId, record.templateName, false);
   if (
-    String(file.validation.version) !== row.templateVersion
-    || bankFileSha256(file.body) !== row.fileSha256
+    String(file.validation.version) !== record.templateVersion
+    || bankFileSha256(file.body) !== record.fileSha256
   ) {
     throw new Error(
       "Payroll or bank-template data changed since this validation record was created. Generate a new record and submit that file instead.",
