@@ -236,6 +236,34 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     method.testedBy?.ownPositiveLine && method.testedBy?.foreignDenialLine));
   assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
     /npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/);
+  const extraProof = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
+  const extraLines = readFileSync(extraProof, "utf8").split("\n");
+  const extraCases = [
+    { method: "GET", route: "expenses" },
+    { method: "POST", route: "expenses" },
+    { method: "PATCH", route: "expenses" },
+    { method: "GET", route: "de-minimis" },
+    { method: "POST", route: "de-minimis" },
+    { method: "DELETE", route: "de-minimis" },
+  ] as const;
+  assert.ok(harnessLines.some(line =>
+    line.includes("verifyMny02ExpensesBenefitsIsolation(f, { request, expectStatus, makeSession })")),
+    "Six additional MNY-02 methods must run in the disposable PG16 HTTP harness");
+  for (const item of extraCases) {
+    const key = item.method + " " + item.route;
+    const method = manifest.allApiRouteFiles["src/app/api/" + item.route + "/route.ts"]
+      ?.methods.find((candidate: { name: string }) => candidate.name === item.method);
+    assert.equal(method?.status, "COVERED", key + ": actual own/foreign proof required");
+    assert.equal(method?.testedBy?.file, extraProof);
+    assert.match(extraLines[method.testedBy.ownPositiveLine - 1] ?? "",
+      /expectStatus\(await request\(/, key + ": successful same-method own control required");
+    assert.match(extraLines[method.testedBy.foreignDenialLine - 1] ?? "",
+      /expectStatus\(await request\(/, key + ": actual foreign victim denial required");
+    assert.match(extraLines[method.testedBy.unchangedDbLine - 1] ?? "",
+      /assert\.deepEqual\(await victimSnapshot\(victim\.id\), baseline/,
+      key + ": victim financial DB and audit rows must remain unchanged");
+  }
+  const newlyCoveredExpensesBenefits = extraCases.length;
   // Preserve the original 129/354 main-method baseline. The six MNY-02 credits
   // are additional only when each distinct contractor/EWT route/method points
   // to its own executed two-attacker HTTP proof and unchanged victim DB rows.

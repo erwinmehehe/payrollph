@@ -4,52 +4,39 @@ import { readFileSync } from "node:fs";
 
 const source = readFileSync("src/lib/core-schema-compat.ts", "utf8");
 
-test("production compatibility schema includes all compliance-hardening migrations", () => {
-  for (const marker of [
-    "statutory_deduction_timing",
-    "pagibig_voluntary_monthly",
-    "fulfillment_action",
-    "fulfillment_evidence",
-    "legal_retention_applied",
-    "withholding_atc",
-    "withholding_rate",
-    "CREATE TABLE IF NOT EXISTS contractor_payments",
-    "break_start",
-    "break_end",
-    "payroll_calendar_mode",
-    "org_unit_id",
-    "CREATE TABLE IF NOT EXISTS supplementary_earnings",
-    "include_in_sss_base",
-    "include_in_pagibig_base",
-    "ALTER COLUMN tin TYPE varchar(180)",
-    "ALTER COLUMN tin_branch_code TYPE varchar(180)",
-    "ALTER COLUMN sss_no TYPE varchar(180)",
-    "ALTER COLUMN philhealth_no TYPE varchar(180)",
-    "ALTER COLUMN pagibig_no TYPE varchar(180)",
-    "CREATE TABLE IF NOT EXISTS shift_definitions",
-    "CREATE TABLE IF NOT EXISTS schedule_patterns",
-    "CREATE TABLE IF NOT EXISTS schedule_pattern_days",
-    "CREATE TABLE IF NOT EXISTS schedule_pattern_segments",
-    "CREATE TABLE IF NOT EXISTS employee_schedule_assignments",
-    "CREATE TABLE IF NOT EXISTS schedule_overrides",
+test("canonical Drizzle declarations own formerly auto-created compliance tables", () => {
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  for (const table of [
+    "contractor_payments",
+    "supplementary_earnings",
+    "shift_definitions",
+    "schedule_patterns",
+    "schedule_pattern_days",
+    "schedule_pattern_segments",
+    "employee_schedule_assignments",
+    "schedule_overrides",
+    "legal_entities",
+    "historical_payroll_entries",
   ]) {
-    assert.ok(source.includes(marker), `production compatibility schema is missing ${marker}`);
+    assert.match(schema, new RegExp('pgTable\\(\\s*"' + table + '"'),
+      "canonical schema is missing " + table);
   }
+  assert.ok(source.includes("await verifyCoreSchemaReadOnly("),
+    "request paths must verify the canonical catalog rather than auto-create tables");
 });
 
-test("production compatibility schema only backfills government IDs when a stable key exists", () => {
-  assert.ok(source.includes("governmentIdEncryptionConfigured()"));
-  assert.ok(source.includes("backfillGovernmentIdEncryption(client)"));
-  assert.ok(source.includes("encryptGovernmentId"));
-  assert.ok(source.includes("decryptGovernmentId"));
-  assert.ok(source.includes("isEncryptedGovernmentId"));
-  assert.ok(source.includes("Government-ID encryption round-trip failed"));
+test("core request compatibility never backfills bank or government identifiers", () => {
+  assert.ok(source.includes("export async function bankDataEncryptionReady()"));
+  assert.ok(source.includes("await ensureCoreCompatibilitySchema()"));
+  assert.ok(source.includes("bank_account NOT LIKE 'enc:v1:%'"));
+  assert.doesNotMatch(source, /backfillBankDataEncryption|backfillGovernmentIdEncryption/);
+  assert.doesNotMatch(source, /encryptBankAccount\(|encryptGovernmentId\(|decryptGovernmentId\(/);
+  assert.doesNotMatch(source, /\bUPDATE\b|\bINSERT\b|\bDELETE\b/i);
 });
 
-test("production compatibility migration remains advisory-locked and idempotent", () => {
-  assert.match(source, /linaw_core_schema_compat_v\d+/);
-  assert.ok(source.includes("pg_advisory_xact_lock"));
-  assert.ok(source.includes("ADD COLUMN IF NOT EXISTS"));
-  assert.ok(source.includes("CREATE TABLE IF NOT EXISTS"));
-  assert.ok(source.includes("CREATE INDEX IF NOT EXISTS"));
+test("core request compatibility never locks or modifies database structures", () => {
+  assert.ok(source.includes("coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE)"));
+  assert.ok(source.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(source, /pg_advisory_xact_lock/);
+  assert.doesNotMatch(source, /\b(?:CREATE|ALTER|DROP|TRUNCATE)\s+(?:TABLE|INDEX|SCHEMA|VIEW|TRIGGER)\b/i);
 });
