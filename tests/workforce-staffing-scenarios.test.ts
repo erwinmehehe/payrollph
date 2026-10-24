@@ -26,20 +26,20 @@ test("staffing scenarios persist immutable forecast evidence and approval state"
   assert.ok(schema.includes('attritionBackfillPercent: numeric("attrition_backfill_percent"'));
 });
 
-test("migration and production compatibility schema carry WFM scenario governance", () => {
+test("reviewed migrations and schema own WFM scenario governance; core is read-only", () => {
   assert.ok(migration.includes('CREATE TABLE IF NOT EXISTS "workforce_planning_scenarios"'));
   assert.ok(migration.includes("workforce_scenarios_status_check"));
   assert.ok(migration.includes("'draft', 'submitted', 'approved', 'rejected'"));
   assert.ok(migration.includes("workforce_scenarios_org_name_version_unique"));
-  assert.ok(compat.includes("linaw_core_schema_compat_v19"));
-  assert.ok(compat.includes("CREATE TABLE IF NOT EXISTS workforce_planning_scenarios"));
-  assert.ok(compat.includes("workforce_scenarios_status_check"));
+  assert.ok(schema.includes("workforce_scenarios_status_check"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
   assert.ok(attritionMigration.includes("annual_attrition_percent"));
   assert.ok(attritionMigration.includes("attrition_backfill_percent"));
   assert.ok(attritionMigration.includes("workforce_scenarios_annual_attrition_check"));
   assert.ok(attritionMigration.includes("workforce_scenarios_attrition_backfill_check"));
-  assert.ok(compat.includes("ADD COLUMN IF NOT EXISTS annual_attrition_percent"));
-  assert.ok(compat.includes("ADD COLUMN IF NOT EXISTS attrition_backfill_percent"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bALTER\s+TABLE\b/i);
 });
 
 test("scenario snapshots are recalculated server-side and hashed before save", () => {
