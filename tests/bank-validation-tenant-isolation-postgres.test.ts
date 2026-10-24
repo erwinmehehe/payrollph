@@ -5,7 +5,7 @@ import test from "node:test";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../src/db";
 import {
-  bankFileValidations, organizations, payrollRuns, users, userOrganizations,
+  bankFileValidations, orgUnits, organizations, payrollRuns, users, userOrganizations,
 } from "../src/db/schema";
 import {
   getBankFileValidation, listBankFileValidations,
@@ -123,16 +123,24 @@ test("bank validation evidence is tenant-isolated for read, file, mutation, and 
     }
     assert.equal((await getBankFileValidation(beta.id, victim.id))?.status, "generated");
 
+    const [restrictedUnit] = await db.insert(orgUnits).values({
+      organizationId: alpha.id, type: "department",
+      name: "Fictional restricted payroll team", code: "BANKISO-" + suffix,
+    }).returning();
     const people = await db.insert(users).values([
       { email: `bank-iso-a-${randomUUID()}@example.test`, name: "Synthetic Owner A",
         passwordHash: "not-a-real-login", role: "owner" },
       { email: `bank-iso-b-${randomUUID()}@example.test`, name: "Synthetic Owner B",
         passwordHash: "not-a-real-login", role: "owner" },
+      { email: `bank-iso-unit-${randomUUID()}@example.test`, name: "Synthetic Unit Payroll Staff",
+        passwordHash: "not-a-real-login", role: "payroll" },
     ]).returning();
     userIds = people.map(person => person.id);
     await db.insert(userOrganizations).values([
       { organizationId: alpha.id, userId: people[0].id, role: "owner", active: true },
       { organizationId: beta.id, userId: people[1].id, role: "owner", active: true },
+      { organizationId: alpha.id, userId: people[2].id, role: "payroll",
+        orgUnitId: restrictedUnit.id, active: true },
     ]);
 
     // Mock ONLY the framework session adapter. Role gates, tenant predicates,
@@ -196,6 +204,14 @@ test("bank validation evidence is tenant-isolated for read, file, mutation, and 
         .map(record => record.id), [victim.id]);
       assert.equal((await listGet(target("", alpha.id))).status, 403);
       assert.equal((await outcomePatch(patch(own.id, beta.id), params(own.id))).status, 404);
+
+      // A payroll user limited to one department must not obtain corporate
+      // bank-file evidence or mutate owner-only portal outcomes.
+      caller = session(people[2]);
+      assert.equal((await listGet(target("", alpha.id))).status, 403);
+      assert.equal((await fileGet(target(`/${own.id}/file`, alpha.id), params(own.id))).status, 403);
+      assert.equal((await outcomePatch(patch(own.id, alpha.id), params(own.id))).status, 403);
+      assert.equal((await listGet(target("", beta.id))).status, 403);
     } finally {
       cache.exports = originalExports;
       if (originalOrigins === undefined) delete process.env.TRUSTED_APP_ORIGINS;
