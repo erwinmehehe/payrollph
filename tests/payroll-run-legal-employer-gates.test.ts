@@ -39,3 +39,15 @@ test("owner of one legal employer cannot use selection to read another employer"
   assert.equal(entityResourceAllowed(multiGrant, 102), false,
     "Having both grants never bypasses the explicit single-employer selection");
 });
+
+test("payroll close limits audit evidence at SQL and payout-parser layers before returning private data", () => {
+  const employer = close.indexOf("const employerDenied = await requireRunEmployer({");
+  const events = close.indexOf("const [events, filingRows] = await Promise.all([");
+  const sqlScope = close.indexOf("sql`" + "${auditEvents.metadata} ->> 'runId' = ${String(run.id)}" + "`");
+  const parsed = close.indexOf("const payout = derivePayrollPayoutState(runEvents, run.id);");
+  assert.ok(employer >= 0 && employer < events && events < sqlScope && sqlScope < parsed,
+    "The checked run must scope SQL audit rows before constructing payroll payout state");
+  assert.match(close, /eq\(auditEvents\.organizationId, run\.organizationId\)/);
+  assert.match(close, /derivePayrollPayoutState\(runEvents, run\.id\)/);
+  assert.match(close, /return Response\.json\(result, \{ headers: \{ "Cache-Control": "private, no-store, max-age=0" \} \}\);/);
+});

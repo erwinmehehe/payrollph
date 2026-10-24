@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, governmentFilingValidations, payrollRuns } from "@/db/schema";
 import { ORG_ADMIN_ROLES, assertOrganizationRole, assertOrganizationUnitAccess } from "@/lib/access";
@@ -43,7 +43,7 @@ async function loadCloseState(request: Request, runId: number, userId: number) {
 
   const [events, filingRows] = await Promise.all([
     db.select().from(auditEvents)
-      .where(eq(auditEvents.organizationId, run.organizationId))
+      .where(and(eq(auditEvents.organizationId, run.organizationId), sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`))
       .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id)),
     db.select().from(governmentFilingValidations)
       .where(and(
@@ -57,7 +57,7 @@ async function loadCloseState(request: Request, runId: number, userId: number) {
     if (!event.metadata || typeof event.metadata !== "object") return false;
     return Number((event.metadata as Record<string, unknown>).runId) === run.id;
   });
-  const payout = derivePayrollPayoutState(events, run.id);
+  const payout = derivePayrollPayoutState(runEvents, run.id);
   const journalEvent = runEvents.find((event) => event.action === "journal export generated") ?? null;
   const closeEvent = runEvents.find((event) => event.action === "Payroll close completed") ?? null;
   const governmentExports = runEvents.filter((event) => event.action === "government export generated");
@@ -150,7 +150,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const result = await loadCloseState(request, runId, user.id);
   if ("error" in result) return result.error;
-  return Response.json(result);
+  return Response.json(result, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
