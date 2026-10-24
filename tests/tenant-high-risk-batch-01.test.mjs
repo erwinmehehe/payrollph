@@ -347,3 +347,31 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.match(source, /assert\.equal\(passed\.size, 36/);
   assert.match(source, /assert\.deepEqual\(victimAfter, victimBefore/);
 });
+test("fictional payroll accounting close and pre-run readiness cannot share an overlapping period", () => {
+  // An accounting close's Released fixture persists for the whole HTTP suite.
+  // If its cutoff collides with the readiness Create & process probe, the API
+  // correctly returns 409 period-conflict rather than exercising the expected
+  // own-employer unverified-source 422. Keep both genuine controls testable.
+  const fixture = source.match(
+    /periodLabel: "CI-ACCOUNTING-CLOSE-"[^\n]*\n\s*periodStart: "(\d{4}-\d{2}-\d{2})", periodEnd: "(\d{4}-\d{2}-\d{2})",[^\n]*\n\s*payDate: "(\d{4}-\d{2}-\d{2})"/,
+  );
+  const readiness = harness.match(
+    /const createBody = \{ organizationId: org\.id, legalEntityId: f\.entities\[idx\]\.id,[^\n]*\n\s*periodStart: "(\d{4}-\d{2}-\d{2})", periodEnd: "(\d{4}-\d{2}-\d{2})", payDate: "(\d{4}-\d{2}-\d{2})", processNow: true \};/,
+  );
+  assert.ok(fixture && readiness, "Both independently populated real-HTTP fixture periods must remain explicit");
+  const [, closeStart, closeEnd, closePayDate] = fixture;
+  const [, readinessStart, readinessEnd] = readiness;
+  assert.ok(closeStart <= closeEnd && readinessStart <= readinessEnd,
+    "Both payroll ranges must remain chronological");
+  assert.ok(closeEnd < readinessStart || readinessEnd < closeStart,
+    "Fictional Released close payroll must never shadow readiness Create & process with a 409 overlap");
+  assert.ok(closePayDate > closeEnd);
+  assert.ok(source.includes('completedAt: "' + closePayDate + 'T00:00:00.000Z"'),
+    "Fictional audit settlement reference must use the same pay date; never claim a real transfer");
+  const closeCall = harness.indexOf(
+    'await (await import("./tenant-high-risk-01-http.mjs")).verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });',
+  );
+  const readinessCall = harness.indexOf("await verifyPreRunReadinessTenantRead(f);");
+  assert.ok(closeCall >= 0 && readinessCall > closeCall,
+    "The close fixture persists before the readiness proof; their periods must stay isolated");
+});
