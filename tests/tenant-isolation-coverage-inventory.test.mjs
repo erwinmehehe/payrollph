@@ -227,8 +227,42 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 336, "Keep the 336 unverified API method gaps after six contractor/EWT and two underpayment proofs");
-  assert.equal(manifest.metrics.coveredAfter, 147, "Count six MNY-02 and two provisional underpayment method proofs, without closing remaining gaps");
+  assert.equal(manifest.metrics.gap, 335, "Retain 335 unverified methods after MNY-02, two underpayment writes and #1341 group-report GET");
+  assert.equal(manifest.metrics.coveredAfter, 148, "Retain distinct provisional MNY-02, underpayment and group-report method proofs");
+});
+
+test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
+  const path = "src/app/api/multi-entity/reports/route.ts";
+  const method = manifest.allApiRouteFiles[path].methods.find(item => item.name === "GET");
+  assert.equal(method?.status, "COVERED");
+  assert.equal(method.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
+  const proof = method.testedBy;
+  assert.match(evidenceLine(proof.file, proof.ownPositiveLine, "group own GET"),
+    /const ownReport = await request\(caller, on, "\/api\/multi-entity\/reports/);
+  assert.match(evidenceLine(proof.file, proof.foreignDenialLine, "group foreign GET"),
+    /assert\.equal\(deniedVictim\.status, 403/);
+  assert.match(readFileSync(proof.file, "utf8"),
+    /const deniedVictim = await request\(caller, on, "\/api\/multi-entity\/reports/);
+  const harness = readFileSync(proof.file, "utf8");
+  assert.match(harness, /"entity-attacker-b@example\.test"/);
+  assert.match(harness, /"entity-attacker-c@example\.test"/);
+  assert.match(harness, /bVictims\.rows\.length >= 5/);
+  assert.match(harness, /assert\.equal\(ownReport\.status, 200/);
+  assert.match(harness, /assert\.equal\(deniedVictim\.status, 403/);
+  assert.match(harness, /assert\.equal\(refused\.status, 409/);
+  assert.match(harness, /assert\.equal\(refusedReleasedRun\.status, 409/);
+  assert.match(harness, /assert\.equal\(afterReleasedTest\.status, 200/);
+  assert.match(harness, /assert\.deepEqual\(intact\.rows, untouchedVictim\.rows/);
+  const route = readFileSync(path, "utf8");
+  assert.match(route, /groupReportHasUnattributedRows/);
+  assert.match(route, /ENTITY_ATTRIBUTION_REQUIRED/);
+  const runner = readFileSync("scripts/multi-entity-synthetic-browser.mjs", "utf8");
+  assert.match(runner, /verifyMultiEntityReportTenantIsolation\(/);
+  assert.match(runner, /\.\/qa\/multi-entity-group-report-http\.mjs/);
+  const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
+  assert.match(workflow, /MULTI_ENTITY_ENABLED: "true"/);
+  assert.match(workflow, /node scripts\/multi-entity-synthetic-browser\.mjs/);
+  // These source pins never replace executed CI and independent security review.
 });
 
 test("#641 correction cases prove own success, victim denial and unchanged victim rows over real HTTP", () => {
@@ -854,6 +888,54 @@ test("all credited proof links point to the claimed route and every recertified 
         const smoke = readFileSync(".github/workflows/security-http-smoke.yml", "utf8");
         assert.match(smoke, /TENANT_DL01_VAULT_PROOF: isolated-ci-only/);
         assert.match(smoke, /EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"/);
+        continue;
+      }
+      if (proof?.file === "scripts/qa/multi-entity-group-report-http.mjs") {
+        // #1341's HTTPS Playwright proof uses request(caller, on, route) and
+        // assert.equal(status, code), not the older expectStatus HTTP adapter.
+        // Only this exact read method may use that distinct evidence source.
+        assert.equal(path, "src/app/api/multi-entity/reports/route.ts",
+          "No unrelated API may borrow the group-report browser proof");
+        assert.equal(method.name, "GET", "A read proof cannot certify a mutation");
+        assert.deepEqual([proof.line, proof.ownPositiveLine, proof.foreignDenialLine],
+          [28, 41, 48], "Exact reviewed evidence positions must not drift");
+        const suite = readFileSync(proof.file, "utf8");
+        assert.match(evidenceLine(proof.file, proof.line, path + " high-ID victim fixture"),
+          /const bVictims = await database\.query\(/);
+        assert.match(evidenceLine(proof.file, proof.ownPositiveLine, path + " own 200"),
+          /const ownReport = await request\(caller, on, "\/api\/multi-entity\/reports\?organizationId=" \+ actor\.ownId\)/);
+        assert.match(evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign 403"),
+          /assert\.equal\(deniedVictim\.status, 403,/);
+        assert.match(suite, /assert\.equal\(process\.env\.CI, "true"\)/);
+        assert.match(suite, /assert\.equal\(process\.env\.MULTI_ENTITY_QA_MODE, "synthetic-postgres-only"\)/);
+        // #1332's enforced composite FKs must not be removed for a green test.
+        // The synthetic historical-row injector must remain disposable/transaction-local.
+        assert.match(suite, /assert\.equal\(process\.env\.GITHUB_ACTIONS, "true"\)/);
+        assert.match(suite, /postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db/);
+        assert.match(suite, /current_database\(\) AS database_name/);
+        assert.match(suite, /SELECT contype FROM pg_constraint/);
+        assert.match(suite, /employees_tenant_employer_fk/);
+        assert.match(suite, /payroll_runs_tenant_employer_fk/);
+        assert.match(suite, /assert\.rejects\(/);
+        assert.match(suite, /error\?\.code === "23503"/);
+        assert.match(suite, /SET LOCAL session_replication_role = replica/);
+        assert.match(suite, /await database\.query\("ROLLBACK"\)/);
+        assert.match(suite, /assert\.equal\(after\.trigger_mode, "origin"/);
+        assert.match(suite, /bVictims\.rows\.length >= 5/);
+        assert.match(suite, /"entity-attacker-b@example\.test"/);
+        assert.match(suite, /"entity-attacker-c@example\.test"/);
+        assert.match(suite, /assert\.equal\(ownReport\.status, 200,/);
+        assert.match(suite, /assert\.equal\(deniedOther\.status, 403,/);
+        assert.match(suite, /assert\.equal\(refused\.status, 409,/);
+        assert.match(suite, /assert\.equal\(refusedReleasedRun\.status, 409,/);
+        assert.match(suite, /assert\.deepEqual\(intact\.rows, untouchedVictim\.rows,/);
+        assert.match(suite, /assert\.equal\(restored\.status, 200,/);
+        assert.match(suite, /assert\.equal\(afterReleasedTest\.status, 200\);/);
+        const browser = readFileSync("scripts/multi-entity-synthetic-browser.mjs", "utf8");
+        assert.match(browser, /import \{ verifyMultiEntityReportTenantIsolation \} from "\.\/qa\/multi-entity-group-report-http\.mjs"/);
+        assert.match(browser, /await verifyMultiEntityReportTenantIsolation\(\{/);
+        const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
+        assert.match(workflow, /node scripts\/multi-entity-synthetic-browser\.mjs/);
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",

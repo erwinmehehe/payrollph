@@ -23,20 +23,18 @@ export function WorkforceWorkflowShortcuts({
 }) {
   return (
     <nav aria-label="Workforce task shortcuts" data-wfm-workflow-shortcuts
-      className="rounded-xl border p-3" style={{ marginTop: 12, borderColor: "var(--line)" }}>
+      className="workforce-shortcuts">
       <p className="text-xs" style={{ margin: "0 0 10px", color: "var(--muted)" }}>
         <strong>Everyday workflow</strong> · Jump directly between tasks. Review and approval remain in their original screens.
       </p>
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))" }}>
+      <div className="workforce-shortcut-grid">
         {WORKFORCE_QUICK_TASKS.map((task, index) => {
           const Icon = task.icon;
           const active = task.tab === activeTab;
           return (
-            <button key={task.tab} type="button" className="secondary-button"
+            <button key={task.tab} type="button" className="workspace-choice workforce-shortcut"
               data-wfm-task={task.tab} aria-pressed={active} onClick={() => onNavigate(task.tab)}
-              style={{ padding: 12, minWidth: 0, whiteSpace: "normal", textAlign: "left",
-                alignItems: "flex-start", gap: 10,
-                background: active ? "var(--canvas-subtle)" : undefined }}>
+>
               <Icon size={17} aria-hidden="true" style={{ flexShrink: 0 }} />
               <span style={{ flex: 1, minWidth: 0 }}>
                 <strong style={{ display: "block", fontSize: 13 }}>{index + 1}. {task.label}</strong>

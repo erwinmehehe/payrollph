@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CalendarDays, ClipboardList, RefreshCw, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CalendarDays, CheckCheck, ChevronDown, ClipboardList, RefreshCw, Search, ShieldCheck, UsersRound } from "lucide-react";
 import {
   hcmReadScopeKey, hcmReadScopeParams, hcmReadScopeValid,
   hcmResponseMatchesReadScope, type HcmReadScope,
@@ -49,7 +49,7 @@ function priorityLabel(priority: PeopleOpsPriority) {
 }
 
 function dueLabel(daysUntil: number | null, dueDate: string | null) {
-  if (!dueDate) return "—";
+  if (!dueDate) return "No source date";
   if (daysUntil == null) return dueDate;
   if (daysUntil < 0) return dueDate + " · " + Math.abs(daysUntil) + " days overdue";
   if (daysUntil === 0) return dueDate + " · due today";
@@ -152,25 +152,27 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
   const loading = active === null;
   const error = active?.error ?? "";
   const dueTiles: Array<{ label: string; count: number; window: PeopleOpsDueWindow; note: string }> = data ? [
-    { label: "PAST SOURCE DATE", count: data.attention.overdue, window: "overdue", note: "Review source status before action" },
-    { label: "DUE TODAY", count: data.attention.dueToday, window: "today", note: "Based on Philippine business date" },
-    { label: "TODAY + NEXT 7", count: data.attention.dueToday + data.attention.dueNext7, window: "next7", note: "Within 7 calendar days" },
-    { label: "TODAY + NEXT 30", count: data.attention.dueToday + data.attention.dueNext7 + data.attention.dueNext30, window: "next30", note: "Within 30 calendar days" },
-    { label: "NO SOURCE DATE", count: data.attention.undated, window: "unscheduled", note: "Not an SLA breach" },
+    { label: "Past source date", count: data.attention.overdue, window: "overdue", note: "Review source status before action" },
+    { label: "Due today", count: data.attention.dueToday, window: "today", note: "Based on Philippine business date" },
+    { label: "Today + next 7", count: data.attention.dueToday + data.attention.dueNext7, window: "next7", note: "Within 7 calendar days" },
+    { label: "Today + next 30", count: data.attention.dueToday + data.attention.dueNext7 + data.attention.dueNext30, window: "next30", note: "Within 30 calendar days" },
+    { label: "No source date", count: data.attention.undated, window: "unscheduled", note: "Not an SLA breach" },
   ] : [];
 
   return (
-    <section className="card" aria-label="People Operations Inbox" style={{ marginBottom: 18 }}>
-      <div className="card-header">
-        <div>
-          <div className="card-kicker">HCM · COMPANY-WIDE PEOPLE OPERATIONS</div>
-          <h2>People Operations Inbox</h2>
-          <p>Review source-linked HR follow-ups across employment terms, onboarding,
-            positions, performance and separation. Existing approval workflows remain authoritative.</p>
+    <section className="people-ops-inbox" aria-label="People Operations Inbox" aria-busy={loading}>
+      <div className="people-ops-header">
+        <div className="people-ops-heading">
+          <span className="people-ops-headingIcon"><ClipboardList size={21} aria-hidden="true" /></span>
+          <div>
+            <div className="people-ops-eyebrow">PEOPLE OPERATIONS</div>
+            <h2>People Operations Inbox</h2>
+            <p>A clear view of what needs attention, and where to go next.</p>
+          </div>
         </div>
         <button
           type="button"
-          className="secondary-button"
+          className="people-ops-refresh"
           disabled={loading}
           onClick={() => setRefreshVersion((value) => value + 1)}
         >
@@ -186,61 +188,40 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
 
       {data && (
         <>
-          <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginBottom: 14 }}>
-            <article className="stat-card">
-              <div className="stat-icon blue"><ClipboardList size={18} /></div>
-              <p>OPEN FOLLOW-UPS</p>
-              <h3>{data.summary.total}</h3>
-              <span>Across {data.summary.employeesAffected} workers</span>
-            </article>
-            <article className="stat-card">
-              <div className="stat-icon orange"><AlertTriangle size={18} /></div>
-              <p>NEEDS REVIEW</p>
-              <h3>{data.summary.review}</h3>
-              <span>Review source evidence first</span>
-            </article>
-            <article className="stat-card">
-              <div className="stat-icon purple"><ClipboardList size={18} /></div>
-              <p>FOLLOW UP</p>
-              <h3>{data.summary.followUp}</h3>
-              <span>Existing tasks or approvals</span>
-            </article>
-            <article className="stat-card">
-              <div className="stat-icon blue"><ClipboardList size={18} /></div>
-              <p>SOURCE CHECKS</p>
-              <h3>{data.summary.sourceCheck}</h3>
-              <span>Optional historical verification</span>
-            </article>
+          <div className="people-ops-overview">
+            {[
+              { label: "Open follow-ups", count: data.summary.total, note: "Across " + data.summary.employeesAffected + (data.summary.employeesAffected === 1 ? " worker" : " workers"), tone: "total" },
+              { label: "Needs review", count: data.summary.review, note: "Review source evidence first", tone: "review" },
+              { label: "Follow up", count: data.summary.followUp, note: "Existing tasks or approvals", tone: "follow_up" },
+              { label: "Source checks", count: data.summary.sourceCheck, note: "Historical verification", tone: "source_check" },
+            ].map(stat => <div key={stat.tone} className="people-ops-metric" data-tone={stat.tone}>
+              <span className="people-ops-metricLabel"><i aria-hidden="true" />{stat.label}</span>
+              <strong>{stat.count}</strong><small>{stat.note}</small>
+            </div>)}
           </div>
-          <div style={{ marginTop: 16, marginBottom: 8 }}>
-            <h3 style={{ fontSize: 15, marginBottom: 3 }}>HR daily triage</h3>
-            <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>
-              Source milestones only — these are not assigned SLAs, legal compliance findings, or automatic approvals.
-              Combined 7/30-day cards include today and overlap by design; they are filters, not additive counts.
-            </p>
-            <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", marginBottom: 12 }}>
+          <div className="people-ops-triage">
+            <div className="people-ops-sectionTitle"><CalendarDays size={15} aria-hidden="true" /><h3>HR daily triage</h3><span>Filter by source date</span></div>
+            <div className="people-ops-dateFilters">
               {dueTiles.map((tile) => (
                 <button
                   key={tile.window}
                   type="button"
-                  className="stat-card"
-                  style={{ textAlign: "left", cursor: "pointer", width: "100%" }}
+                  className="people-ops-dateFilter"
+                  aria-pressed={filters.dueWindow === tile.window}
                   aria-label={tile.label + ": " + tile.count + ". Filter the HR inbox."}
+                  title={tile.note}
                   onClick={() => setFilters((current) => ({
                     ...current, dueWindow: tile.window, page: 1,
                   }))}
                 >
-                  <div className="stat-icon blue"><CalendarDays size={17} /></div>
-                  <p>{tile.label}</p><h3>{tile.count}</h3>
-                  <span>{tile.note}</span>
+                  <span>{tile.label}</span><strong>{tile.count}</strong>
                 </button>
               ))}
             </div>
+            <p className="people-ops-dateNote">Source milestones, not assigned SLAs. The 7- and 30-day windows include today and overlap.</p>
             {data.teamLoad.length > 0 && (
-              <details style={{ marginBottom: 10 }}>
-                <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: 8 }}>
-                  <UsersRound size={15} style={{ verticalAlign: "middle" }} /> Team workload across the organization
-                </summary>
+              <details className="people-ops-teamLoad">
+                <summary><UsersRound size={15} aria-hidden="true" /> Team workload across the organization<ChevronDown size={15} className="people-ops-chevron" aria-hidden="true" /></summary>
                 <div className="data-table-wrap">
                   <table className="data-table">
                     <thead><tr>
@@ -266,14 +247,13 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
       )}
 
       <form
-        className="run-actions"
-        style={{ marginBottom: 12, flexWrap: "wrap", alignItems: "end" }}
+        className="people-ops-filters"
         onSubmit={(event) => {
           event.preventDefault();
           setFilters((current) => ({ ...current, query: draftQuery.trim().slice(0, 80), page: 1 }));
         }}
       >
-        <label style={{ display: "grid", gap: 3 }}>
+        <label className="people-ops-filterField">
           <small>Workflow</small>
           <select
             aria-label="Filter People Operations by workflow"
@@ -286,7 +266,7 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
             {CATEGORIES.map((category) => <option value={category.value} key={category.value}>{category.label}</option>)}
           </select>
         </label>
-        <label style={{ display: "grid", gap: 3 }}>
+        <label className="people-ops-filterField">
           <small>Priority</small>
           <select
             aria-label="Filter People Operations by priority"
@@ -299,8 +279,8 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
             {PRIORITIES.map((priority) => <option value={priority.value} key={priority.value}>{priority.label}</option>)}
           </select>
         </label>
-        <label style={{ display: "grid", gap: 3 }}>
-          <small>Responsible source team</small>
+        <label className="people-ops-filterField">
+          <small>Responsible team</small>
           <select
             aria-label="Filter People Operations by responsible team"
             value={filters.team}
@@ -312,8 +292,8 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
             {PEOPLE_OPS_TEAMS.map((team) => <option value={team} key={team}>{team}</option>)}
           </select>
         </label>
-        <label style={{ display: "grid", gap: 3 }}>
-          <small>Source due date</small>
+        <label className="people-ops-filterField">
+          <small>Source date</small>
           <select
             aria-label="Filter People Operations by source due date"
             value={filters.dueWindow}
@@ -324,18 +304,18 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
             {DUE_WINDOWS.map((window) => <option value={window.value} key={window.value}>{window.label}</option>)}
           </select>
         </label>
-        <label style={{ display: "grid", gap: 3, minWidth: 180 }}>
-          <small>Employee name or number</small>
-          <input
+        <label className="people-ops-searchField">
+          <small>Find an employee</small>
+          <span className="people-ops-searchInput"><Search size={16} aria-hidden="true" /><input
             aria-label="Search employees in People Operations Inbox"
             value={draftQuery}
             maxLength={80}
             onChange={(event) => setDraftQuery(event.target.value)}
-            placeholder="Search this organization"
-          />
+            placeholder="Search name or employee number"
+          /></span>
         </label>
-        <button type="submit" className="secondary-button">Apply search</button>
-        <button type="button" className="secondary-button" onClick={() => {
+        <button type="submit" className="people-ops-searchButton">Apply search</button>
+        <button type="button" className="people-ops-clearButton" onClick={() => {
           setDraftQuery("");
           setFilters({ priority: "all", category: "all", dueWindow: "all", team: "all", query: "", page: 1 });
         }}>Clear filters</button>
@@ -345,25 +325,18 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
 
       {!loading && data && (
         <>
-          <p style={{ fontSize: 12, marginBottom: 10 }}>
-            Showing {data.rows.length} of {data.filteredTotal} matching items.
-            Sorted by priority, then due date. Reference date: {data.today}.
-          </p>
-          <div className="data-table-wrap">
-            <table className="data-table">
+          <div className="people-ops-listHeading"><h3>Employee follow-ups <span>{data.filteredTotal}</span></h3><p>Showing {data.rows.length} of {data.filteredTotal} · Priority, then due date · {data.today}</p></div>
+          <div className="people-ops-tableWrap">
+            <table className="people-ops-table">
               <thead>
                 <tr>
-                  <th>EMPLOYEE</th>
-                  <th>WORKFLOW</th>
-                  <th>NEXT REVIEW</th>
-                  <th>PRIORITY / DUE</th>
-                  <th>ACTION</th>
+                  <th>Employee</th><th>Workflow</th><th>Next step</th><th>Priority / source date</th><th><span className="people-ops-srOnly">Action</span></th>
                 </tr>
               </thead>
               <tbody>
                 {data.rows.length === 0 && (
                   <tr><td colSpan={5}>
-                    <div className="empty-state">
+                    <div className="people-ops-empty"><CheckCheck size={24} aria-hidden="true" />
                       No source-linked follow-ups match these filters.
                       This is not evidence that every HR requirement is complete.
                     </div>
@@ -371,28 +344,25 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
                 )}
                 {data.rows.map((row) => (
                   <tr key={row.id}>
-                    <td>
-                      <strong>{row.employeeName}</strong>
-                      <small style={{ display: "block", color: "var(--muted)" }}>{row.employeeNo}</small>
-                    </td>
-                    <td style={{ textTransform: "capitalize" }}>{row.category.replaceAll("_", " ")}</td>
-                    <td>
+                    <td data-label="Employee"><div className="people-ops-employee"><span className="people-ops-avatar" aria-hidden="true">{row.employeeName.split(/\s+/).slice(0, 2).map(part => part[0]).join("")}</span><div><strong>{row.employeeName}</strong><small>{row.employeeNo}</small></div></div></td>
+                    <td data-label="Workflow"><span className="people-ops-workflow">{row.category.replaceAll("_", " ")}</span></td>
+                    <td data-label="Next step" className="people-ops-nextStep">
                       <strong>{row.title}</strong>
-                      <small style={{ display: "block", color: "var(--muted)", maxWidth: 440 }}>{row.detail}</small>
-                      <small style={{ display: "block", color: "var(--muted)" }}>
-                        Responsible: {row.responsibleTeam}
+                      <small className="people-ops-detail">{row.detail}</small>
+                      <small className="people-ops-owner">
+                        {row.responsibleTeam}
                       </small>
                     </td>
-                    <td>
-                      <strong>{priorityLabel(row.priority)}</strong>
-                      <small style={{ display: "block", color: "var(--muted)" }}>
+                    <td data-label="Priority / source date">
+                      <span className="people-ops-priority" data-priority={row.priority}>{priorityLabel(row.priority)}</span>
+                      <small className="people-ops-dueDate">
                         {dueLabel(row.daysUntil, row.dueDate)}
                       </small>
                     </td>
-                    <td>
+                    <td className="people-ops-actionCell">
                       <button
                         type="button"
-                        className="secondary-button"
+                        className="people-ops-rowAction"
                         onClick={() => {
                           if (row.page === "People") {
                             if (!onOpenWorker(row.employeeId)) onPage("People");
@@ -401,7 +371,7 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
                           }
                         }}
                       >
-                        {row.page === "People" ? "View worker" : "Open " + row.page}
+                        {row.page === "People" ? "View worker" : "Open " + row.page}<ArrowUpRight size={14} aria-hidden="true" />
                       </button>
                     </td>
                   </tr>
@@ -425,7 +395,7 @@ function ScopedPeopleOperationsInbox({ scope, onOpenWorker, onPage }: {
               >Next</button>
             </div>
           )}
-          <div className="modal-note" style={{ marginTop: 12 }}>{data.disclaimer}</div>
+          <div className="people-ops-footer"><ShieldCheck size={16} aria-hidden="true" /><span>{data.disclaimer}</span></div>
         </>
       )}
     </section>
