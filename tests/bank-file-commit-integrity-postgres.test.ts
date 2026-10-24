@@ -36,7 +36,10 @@ test("final bank bytes refuse one-cent corruption, a missing row and a committed
       organizationId: org.id, code: "BANKFIC", legalName: "Fictional Employer",
       displayName: "Fictional Employer", primaryEntity: true,
     }).returning({ id: legalEntities.id });
-    const templateName = "GCash Synthetic " + randomUUID();
+    // Hex UUIDs can contain "cbc", which the exporter intentionally treats
+    // as a proprietary China Bank adapter. Preserve uniqueness using decimal
+    // digits so this GCash fixture never randomly selects a different bank.
+    const templateName = "GCash Synthetic " + BigInt("0x" + randomUUID().replaceAll("-", "")).toString(10);
     const [template] = await db.insert(bankTemplates).values({
       name: templateName, version: "v1", format: "CSV", active: true,
     }).returning({ id: bankTemplates.id });
