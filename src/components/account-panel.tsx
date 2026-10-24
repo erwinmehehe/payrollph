@@ -77,7 +77,7 @@ export function AccountPanel({ onNotice }: { onNotice: (message: string) => void
   }
 
   return (
-    <>
+    <section className="account-workspace">
       <div className="setting-form" style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))" }}>
         <ReadOnly label="Signed in as" value={account.profile.email} />
         <ReadOnly label="Role" value={account.profile.role} />
@@ -92,7 +92,7 @@ export function AccountPanel({ onNotice }: { onNotice: (message: string) => void
         <TwoFactor enabled={account.security.totpEnabled} backupCodes={account.security.backupCodes} onDone={async () => { await load(); onNotice("Two-factor authentication enabled."); }} />
         <SessionsPanel sessions={account.sessions} summary={account.summary} onChanged={load} onNotice={onNotice} />
       </div>
-    </>
+    </section>
   );
 }
 
@@ -229,7 +229,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
 
   return (
     <Section title="Password" copy="You stay signed in here; every other device is signed out.">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8, alignItems: "flex-end" }}>
+      <div className="account-password-fields">
         <label className="input-label" style={{ margin: 0 }}>
           Current password
           <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />

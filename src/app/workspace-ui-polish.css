@@ -1,0 +1,119 @@
+/* Scoped workspace fixes. Loaded after the legacy shell and panel styles. */
+.app-shell.clean-shell .topbar { background: #fff; isolation: isolate; }
+.app-shell.clean-shell .side-profile { background: #f3f7f4; border: 1px solid #e2e9e4; border-radius: 12px; padding: 12px; gap: 10px; }
+.app-shell.clean-shell .side-profile > div { min-width: 0; text-align: left; }
+.app-shell.clean-shell .side-profile > div > strong { color: #203b32; font-size: 12px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; }
+.app-shell.clean-shell .side-profile > div > span { color: #607569; font-size: 11px; line-height: 1.6; }
+.app-shell.clean-shell .side-profile > svg { color: #607569; flex-shrink: 0; }
+.app-shell.clean-shell .side-profile:hover { background: #eaf2ed; }
+
+/* Recorded time and triage share a predictable content inset and filter row. */
+.workforce-live-floor { margin: 0 0 18px; }
+.workforce-floor-content { padding: 0 22px 20px; }
+.workforce-floor-content > .id { padding: 0 0 14px; color: #607569; font-size: 11px; line-height: 1.6; }
+.workforce-floor-content .workspace-metrics { margin: 0 0 20px; }
+.workforce-floor-filters { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(240px, 1.4fr) auto; gap: 14px; align-items: end; padding: 0 0 16px; }
+.workforce-floor-filters > label { display: grid; gap: 7px; min-width: 0; font-size: 12px; }
+.workforce-floor-filters :is(input, select) { width: 100%; min-width: 0; }
+.workforce-floor-filters > .id { padding-bottom: 10px; font-size: 11px; }
+.workforce-floor-pagination { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #e4ebe6; }
+.workforce-floor-pagination > .id:last-child { flex-basis: 100%; color: #607569; font-size: 11px; line-height: 1.6; }
+.workspace-panel .workforce-triage-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.workforce-triage .setting-form > small { grid-column: 1 / -1; color: #607569; line-height: 1.65; }
+.workforce-triage > .notice { display: block; line-height: 1.7; }
+.workforce-triage > .notice button { margin-left: 8px; }
+.workforce-triage-signals { display: grid; gap: 10px; }
+.workforce-triage-signal { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 15px; border: 1px solid #e1e9e3; border-radius: 10px; background: #fbfcfa; }
+.workforce-triage-signal > div { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; min-width: 0; }
+.workforce-triage-signal strong { color: #284436; font-size: 12px; line-height: 1.6; }
+.workforce-triage-signals .secondary-button { display: inline-flex; color: #28543e; background: #fff; border: 1px solid #cfded3; white-space: normal; height: auto; min-height: 38px; flex-shrink: 0; }
+
+/* Empty planning stages are useful next steps, rather than blank table shells. */
+.planning-workspace .planning-stage .card-header { padding-bottom: 12px; }
+.planning-workspace .planning-stage .card-header p { font-size: 12px; line-height: 1.65; margin-top: 6px; }
+.planning-workspace .planning-stage .card-header h2 { font-size: 17px; letter-spacing: -.025em; }
+.planning-stage .data-table:has(.planning-empty) thead { display: none; }
+.planning-stage .data-table:has(.planning-empty) td { padding: 0 22px 20px; border: 0; }
+.planning-workspace .planning-stage .planning-empty { display: flex; align-items: flex-start; justify-content: center; gap: 5px; flex-direction: column; min-height: 0; padding: 18px 20px; border: 1px dashed #ceddd1; border-radius: 10px; background: #f7faf6; text-align: left; }
+.planning-workspace .planning-empty strong { color: #345a43; font-size: 13px; }
+.planning-workspace .planning-empty p { max-width: none; color: #607569; font-size: 12px; line-height: 1.65; }
+.planning-stage > .notice { margin: 0 22px 16px; }
+
+/* Labels own their controls, including checkboxes; controls never inherit full width. */
+.compensation-workspace .card-body .component-option { display: flex; align-items: center; justify-content: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid #e0e8e1; border-radius: 8px; background: #f7faf6; color: #345143; font-size: 12px; cursor: pointer; }
+.compensation-workspace .component-option input[type="checkbox"] { width: 16px; height: 16px; min-width: 16px; margin: 0; accent-color: #287452; flex: 0 0 16px; }
+.spend-workspace { display: grid; gap: 20px; min-width: 0; }
+.spend-workspace > * { min-width: 0; }
+.spend-workspace .card:has(> .data-table), .spend-workspace .table-card { min-width: 0; max-width: 100%; overflow-x: auto; }
+.spend-workspace .empty-state { padding: 20px 16px; min-height: 0; }
+.spend-workspace > header { max-width: 760px; }
+.spend-workspace > header h2 { font-size: 24px; letter-spacing: -.035em; margin-bottom: 8px; }
+.spend-workspace > header p, .spend-workspace .card > p { color: #64776b; font-size: 12px; line-height: 1.7; margin: 6px 0 18px; }
+.spend-workspace .card { min-width: 0; box-shadow: none; border-radius: 14px; }
+.spend-workspace .card > h3 { margin: 2px 0 16px; font-size: 16px; font-weight: 650; letter-spacing: -.02em; }
+.spend-workspace .spend-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); align-items: end; gap: 14px; margin: 12px 0 20px; }
+.spend-workspace label, .account-workspace label { display: grid; gap: 7px; min-width: 0; font-size: 12px; font-weight: 550; line-height: 1.6; color: #395547; }
+.spend-workspace :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea), .account-workspace :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { display: block; width: 100%; min-width: 0; min-height: 42px; padding: 10px 12px; border: 1px solid #d4e0d7; border-radius: 8px; background: #fff; color: #203b32; font: inherit; font-size: 13px; line-height: 1.5; }
+.spend-workspace :is(input, select, button):focus-visible, .account-workspace :is(input, select, button):focus-visible { outline: 2px solid #32865c; outline-offset: 3px; }
+.spend-workspace label:has(input[type="checkbox"]) { display: flex; align-items: center; gap: 10px; }
+.spend-workspace input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; accent-color: #287452; }
+.spend-workspace .spend-form > button { min-height: 42px; height: auto; white-space: normal; padding: 10px 16px; justify-self: start; }
+.spend-workspace .spend-report-form { grid-template-columns: minmax(0, 1fr) auto; }
+.spend-table-wrap { width: 100%; min-width: 0; overflow-x: auto; }
+.spend-table-wrap .data-table { min-width: 520px; }
+.spend-workspace .spend-empty { padding: 14px 0; margin: 0; color: #64776b; font-size: 12px; line-height: 1.6; }
+.account-workspace { min-width: 0; }
+.account-password-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 12px; }
+.account-workspace .input-label { display: grid; gap: 7px; }
+.account-workspace input[readonly] { background: #f7faf7; color: #50695a; }
+.account-workspace .secondary-button { min-height: 42px; }
+
+/* Explicit card styles also work inside drawers where legacy button resets win. */
+.employee-360 { padding: 20px; border: 1px solid #dce7df; border-radius: 14px; background: #fff; color: #213c30; container-type: inline-size; }
+.employee-360 > header { margin-bottom: 18px; }
+.employee-360 > header p { max-width: 600px; color: #64776b; line-height: 1.65; }
+.employee-360-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.employee-360 .employee-360-card { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0; width: 100%; height: auto; min-height: 160px; margin: 0; padding: 16px; border: 1px solid #dbe7df; border-radius: 10px; background: #f7faf6; text-align: left; white-space: normal; box-shadow: none; color: #203b32; font: inherit; cursor: pointer; }
+.employee-360 .employee-360-card:hover:not(:disabled) { border-color: #8fbaa0; background: #edf5ee; }
+.employee-360 .employee-360-card:focus-visible { outline: 2px solid #287452; outline-offset: 3px; }
+.employee-360 .employee-360-card:disabled { opacity: 1; background: #fafbf9; color: #64776b; cursor: default; border-style: dashed; }
+.employee-360 .employee-360-card[data-tone="attention"] { background: #fff9eb; border-color: #e8cf9a; }
+.employee-360-card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; font-size: 12px; font-weight: 650; line-height: 1.5; }
+.employee-360-card-heading > span { display: flex; align-items: center; gap: 8px; }
+.employee-360-card-heading svg { flex-shrink: 0; color: #52795e; }
+.employee-360 .employee-360-value { display: block; margin: 12px 0 6px; color: inherit; font-size: 14px; font-weight: 650; line-height: 1.5; }
+.employee-360 .employee-360-detail { color: #536d5d; font-size: 12px; line-height: 1.65; }
+.employee-360 .employee-360-source { display: block; margin-top: auto; padding-top: 12px; color: #6c8073; font-size: 10px; line-height: 1.6; }
+.employee-360-context { margin-top: 16px; padding-top: 14px; border-top: 1px solid #e3ebe5; color: #607569; font-size: 11px; line-height: 1.7; }
+.employee-360-context summary { cursor: pointer; font-weight: 600; }
+@container (max-width: 420px) { .employee-360-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1100px) {
+  .workspace-panel .workforce-triage-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .workforce-floor-filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .workforce-floor-filters > .id { grid-column: 1 / -1; padding: 0; }
+}
+@media (max-width: 620px) {
+  .app-shell.clean-shell .topbar { padding-left: 10px; padding-right: 10px; gap: 6px; }
+  .app-shell.clean-shell .topbar-left { flex: 1 1 0; gap: 6px; min-width: 0; }
+  .app-shell.clean-shell .topbar-actions { flex: 0 0 auto; gap: 3px; }
+  .app-shell.clean-shell .topbar-left .company-switcher-wrap { min-width: 0; }
+  .app-shell.clean-shell .company-switcher { min-width: 0; max-width: 100%; gap: 6px; }
+  .app-shell.clean-shell .company-switcher > span:nth-child(2) { min-width: 0; }
+  .app-shell.clean-shell .company-switcher strong { max-width: 110px; }
+  .account-password-fields { grid-template-columns: minmax(0, 1fr); }
+  .workforce-triage > .notice button { display: flex; margin: 10px 0 0; }
+  .workspace-panel .workforce-triage-metrics > :last-child { grid-column: 1 / -1; }
+
+  .workforce-floor-content { padding: 0 16px 18px; }
+  .workforce-floor-filters { grid-template-columns: minmax(0, 1fr); }
+  .workspace-panel .workforce-triage-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workforce-triage-signal { align-items: flex-start; flex-direction: column; }
+  .planning-stage .data-table:has(.planning-empty) { min-width: 0; }
+  .planning-stage .data-table:has(.planning-empty) td { padding: 0 16px 16px; }
+  .planning-stage > .notice { margin-left: 16px; margin-right: 16px; }
+  .spend-workspace .spend-form, .spend-workspace .spend-report-form, .account-workspace > .setting-form { grid-template-columns: minmax(0, 1fr) !important; }
+  .spend-workspace .spend-form > button { width: 100%; }
+  .spend-workspace .stats-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .account-workspace .input-label { min-width: 0 !important; flex-basis: 100% !important; }
+  .employee-360 { padding: 16px; }
+}

@@ -38,7 +38,7 @@ test("live-floor manual refresh and polling use one abortable request owner", ()
     "if (value?.page !== page)",
     "if (document.visibilityState === \"visible\") void load();",
     "return () => { active = false; pendingRequest.current?.abort(); clearInterval(interval); };",
-    "{activeSnapshot && <>",
+    '{activeSnapshot && <div className="workforce-floor-content">',
   ]) {
     assert.ok(code.includes(token), `missing client guard: ${token}`);
   }

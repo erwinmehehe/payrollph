@@ -675,21 +675,21 @@ function ScopedCompensationPanel({
             <Layers3 size={18} />
           </div>
           <div className="card-body" style={{ display: "grid", gap: 8 }}>
-            <input value={componentForm.code} onChange={(event) => setComponentForm({ ...componentForm, code: event.target.value })} placeholder="Code, e.g. TRANSPO" />
-            <input value={componentForm.name} onChange={(event) => setComponentForm({ ...componentForm, name: event.target.value })} placeholder="Transportation Allowance" />
-            <select value={componentForm.kind} onChange={(event) => setComponentForm({ ...componentForm, kind: event.target.value })}>
+            <input aria-label="Component code" value={componentForm.code} onChange={(event) => setComponentForm({ ...componentForm, code: event.target.value })} placeholder="Code, e.g. TRANSPO" />
+            <input aria-label="Component name" value={componentForm.name} onChange={(event) => setComponentForm({ ...componentForm, name: event.target.value })} placeholder="Transportation Allowance" />
+            <select aria-label="Component type" value={componentForm.kind} onChange={(event) => setComponentForm({ ...componentForm, kind: event.target.value })}>
               <option value="allowance">Allowance</option>
               <option value="stipend">Stipend</option>
               <option value="recurring_bonus">Recurring bonus</option>
               <option value="other_cash">Other cash component</option>
             </select>
-            <select value={componentForm.amountFrequency} onChange={(event) => setComponentForm({ ...componentForm, amountFrequency: event.target.value })}>
+            <select aria-label="Amount frequency" value={componentForm.amountFrequency} onChange={(event) => setComponentForm({ ...componentForm, amountFrequency: event.target.value })}>
               <option value="monthly">Monthly amount · split across semi-monthly cutoffs</option>
               <option value="per_cutoff">Amount per cutoff</option>
             </select>
-            <label><input type="checkbox" checked={componentForm.taxable} onChange={(event) => setComponentForm({ ...componentForm, taxable: event.target.checked })} /> Taxable</label>
-            <label><input type="checkbox" checked={componentForm.includeInSssBase} onChange={(event) => setComponentForm({ ...componentForm, includeInSssBase: event.target.checked })} /> Include in SSS base</label>
-            <label><input type="checkbox" checked={componentForm.includeInPagIbigBase} onChange={(event) => setComponentForm({ ...componentForm, includeInPagIbigBase: event.target.checked })} /> Include in Pag-IBIG base</label>
+            <label className="component-option"><input type="checkbox" checked={componentForm.taxable} onChange={(event) => setComponentForm({ ...componentForm, taxable: event.target.checked })} /> Taxable</label>
+            <label className="component-option"><input type="checkbox" checked={componentForm.includeInSssBase} onChange={(event) => setComponentForm({ ...componentForm, includeInSssBase: event.target.checked })} /> Include in SSS base</label>
+            <label className="component-option"><input type="checkbox" checked={componentForm.includeInPagIbigBase} onChange={(event) => setComponentForm({ ...componentForm, includeInPagIbigBase: event.target.checked })} /> Include in Pag-IBIG base</label>
             <button
               className="secondary-button"
               onClick={async () => {

@@ -349,6 +349,7 @@ export type DashboardData = {
   practicePayroll?: import("@/lib/practice-payroll").PracticePayload;
   payrollEmployerSetupNavigationEnabled?: boolean;
   firstPayrollConnectedEnabled?: boolean;
+  payrollPreRunReadinessEnabled?: boolean;
   advancedPlanningAllowed?: boolean;
   coreModuleNavigationEnabled?: boolean;
   employeeImportPreviewEnabled?: boolean;

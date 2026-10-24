@@ -102,7 +102,7 @@ test("planning UI submits scenarios into the shared Approvals business process",
   assert.ok(panel.includes("Annual attrition %"));
   assert.ok(panel.includes("Attrition backfill %"));
   assert.ok(panel.includes("Governed backfill boundary."));
-  assert.ok(panel.includes("STAFFING PLAN APPROVAL"));
+  assert.ok(panel.includes("1 · Save and review"));
   assert.ok(panel.includes('scenarioAction(scenario.id, "submit")'));
   assert.equal(panel.includes('scenarioAction(scenario.id, "approve")'), false);
   assert.equal(panel.includes('scenarioAction(scenario.id, "reject")'), false);
