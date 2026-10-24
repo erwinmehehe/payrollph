@@ -20437,14 +20437,14 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/variance/route.ts": {
-      "gitBlobSha": "3b2e99674cf75cbee8c53c453194369e92863301",
+      "gitBlobSha": "c11a0a144162a69f0e886e9fe1c7dfd6dfa9b54b",
       "route": "payroll-runs/[id]/variance",
       "methods": [
         {
           "name": "GET",
           "line": 57,
           "status": "COVERED",
-          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required. The 2026-10-24 follow-up strengthens the exact same GET (NO new method credit): under feature-ON, current and prior run employee roster must match the frozen run legal employer and parent tenant; missing, transferred, null or same-tenant mismatched attribution returns an uncacheable 409 before salary revisions/audit processing. Supplemental genuine signed-in disposable HTTPS/PG16 own 200, foreign real-ID 403, wrong-selected employer 403, transferred/same-tenant mismatch/legacy cross-tenant FK 409 and immutable victim snapshot: scripts/qa/payroll-variance-entity-http.mjs; exact-head CI and independent security review still required.",
           "testedBy": {
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 180,
