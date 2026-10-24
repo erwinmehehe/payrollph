@@ -223,7 +223,7 @@ test("execution mutates positions only and leaves recruitment, incumbency and pa
 test("planning workspace exposes preview, blockers, hashes and explicit apply/cancel controls", () => {
   const panel = readFileSync("src/components/workforce-planning-panel.tsx", "utf8");
 
-  assert.ok(panel.includes("CONTROLLED PLAN EXECUTION"));
+  assert.ok(panel.includes("3 · Preview position changes"));
   assert.ok(panel.includes("Published plan → position ledger"));
   assert.ok(panel.includes("Preview position execution"));
   assert.ok(panel.includes("/api/workforce-planning/position-executions"));

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { KNOWN_PENDING_RULE_CHANGES, buildStatutoryRuleWatch } from "../src/lib/statutory-rule-watch";
+import { KNOWN_PENDING_RULE_CHANGES, RULE_FAMILY_LAST_VERIFIED, buildStatutoryRuleWatch, philippineCalendarDay } from "../src/lib/statutory-rule-watch";
 import { WAGE_ORDERS } from "../src/lib/wage-orders";
 
 test("every statutory family has coverage today and unrecorded verification is flagged, not assumed", () => {
@@ -38,4 +38,37 @@ test("loaded ROVII-27 no longer appears among missing statutory rule changes", (
   assert.equal(WAGE_ORDERS.length, 17, "current regional baseline remains intact");
   assert.equal(buildStatutoryRuleWatch("2026-10-10").find((row) => row.sourceDocument === "WO-ROVII-27")?.currentVersion,
     "scheduled WO-ROVII-27");
+});
+
+test("Philippine payroll day rolls over at 16:00 UTC, not UTC midnight", () => {
+  assert.equal(philippineCalendarDay(new Date("2026-10-23T15:59:59.999Z")), "2026-10-23");
+  assert.equal(philippineCalendarDay(new Date("2026-10-23T16:00:00.000Z")), "2026-10-24");
+});
+
+test("malformed or impossible future verification dates cannot become current", () => {
+  const originalSss = RULE_FAMILY_LAST_VERIFIED.sss;
+  const originalWages = RULE_FAMILY_LAST_VERIFIED["wage-orders"];
+  try {
+    for (const date of ["not-a-date", "2026-02-30", "2026-10-11", "2027-01-01"]) {
+      RULE_FAMILY_LAST_VERIFIED.sss = date;
+      RULE_FAMILY_LAST_VERIFIED["wage-orders"] = date;
+      // Projected pay date is later than the actual synthetic review-as-of day.
+      const watch = buildStatutoryRuleWatch("2026-11-10", "2026-10-10");
+      for (const family of ["sss", "wage-orders"]) {
+        const baseline = watch.find(row => row.family === family
+          && row.status !== "change-upcoming" && row.status !== "update-overdue");
+        assert.equal(baseline?.status, "verification-unrecorded",
+          `${family}: ${date} is not genuine prior verification evidence`);
+      }
+    }
+  } finally {
+    RULE_FAMILY_LAST_VERIFIED.sss = originalSss;
+    RULE_FAMILY_LAST_VERIFIED["wage-orders"] = originalWages;
+  }
+});
+
+test("a valid previously recorded wage review retains normal freshness evaluation", () => {
+  assert.equal(buildStatutoryRuleWatch("2026-10-20", "2026-10-24")
+    .find(row => row.family === "wage-orders" && row.status !== "change-upcoming")?.status,
+  "current");
 });

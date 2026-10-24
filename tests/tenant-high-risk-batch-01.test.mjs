@@ -208,9 +208,51 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(vaultSourcePinnedMethods, 2, "No partial or double-credited vault closeout");
   const moneyMethods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods)
     .filter(m => m.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs");
-  assert.equal(moneyMethods.length, 8, "Only eight separately executed money-input methods are credited");
+  assert.equal(moneyMethods.length, 7,
+    "The seven non-process money methods retain their exact own-success/foreign-denial proofs");
   assert.ok(moneyMethods.every(m => m.status === "COVERED" && m.testedBy.ownPositiveLine &&
     m.testedBy.foreignDenialLine && m.testedBy.unchangedDbLine && m.testedBy.forgedSelectorLine));
+
+  // The process route was modified to REFUSE calculation until its statutory
+  // packs are independently verified. Its original positive-money proof is
+  // historical, not current. Credit the source-pinned own-422/foreign-403
+  // boundary separately; do not call it a successful calculation.
+  const processMethod = methodsByKey.get("POST payroll-runs/[id]/process");
+  const preRunMethod = methodsByKey.get("GET payroll-runs/[id]/pre-run-readiness");
+  const preRunProofFile = "scripts/qa/tenant-second-pass-http.mjs";
+  const preRunLines = readFileSync(preRunProofFile, "utf8").split("\n");
+  assert.equal(processMethod?.status, "COVERED", "Calculation entry must retain method-specific tenant authorization");
+  assert.equal(preRunMethod?.status, "COVERED", "Readiness GET must retain method-specific tenant authorization");
+  assert.equal(processMethod?.testedBy?.file, preRunProofFile);
+  assert.equal(preRunMethod?.testedBy?.file, preRunProofFile);
+  assert.match(harness, /await verifyPreRunReadinessTenantRead\(f\)/,
+    "The new tenant-owned/foreign HTTP proof must be executed, not merely declared");
+  const processOwn = preRunLines.slice(processMethod.testedBy.ownPositiveLine - 1,
+    processMethod.testedBy.ownPositiveLine + 2).join("\n");
+  const processForeign = preRunLines.slice(processMethod.testedBy.foreignDenialLine - 1,
+    processMethod.testedBy.foreignDenialLine + 2).join("\n");
+  const readinessOwn = preRunLines.slice(preRunMethod.testedBy.ownPositiveLine - 1,
+    preRunMethod.testedBy.ownPositiveLine + 2).join("\n");
+  const readinessForeign = preRunLines.slice(preRunMethod.testedBy.foreignDenialLine - 1,
+    preRunMethod.testedBy.foreignDenialLine + 2).join("\n");
+  assert.match(processOwn, /ownBlockedProcess = expectStatus\(await request\(/);
+  assert.match(processOwn, /\), 422,/,
+    "A valid owned Draft with unverified rules MUST fail closed, not calculate");
+  assert.match(processForeign, /foreignBlockedProcess = expectStatus\(await request\(/);
+  assert.match(processForeign, /\), 403,/);
+  assert.match(readinessOwn, /ownPreRun = expectStatus\(await request\(/);
+  assert.match(readinessOwn, /\), 200,/);
+  assert.match(readinessForeign, /foreignPreRun = expectStatus\(await request\(/);
+  assert.match(readinessForeign, /\), 403,/);
+  assert.match(preRunLines[processMethod.testedBy.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(ownedAfter, ownedBefore/,
+    "Rejected owned process POST must not mutate the payroll run");
+  assert.match(preRunLines[preRunMethod.testedBy.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/,
+    "Denied cross-tenant pre-run read must leave victim rows unchanged");
+  assert.match(harness, /PRERUN_STATUTORY_VERIFICATION_UNRECORDED/,
+    "No source-only test may invent official verification to pass money CI");
+
   const underpaymentFile = "scripts/qa/underpayment-posting-http.mjs";
   const underpaymentLines = readFileSync(underpaymentFile, "utf8").split("\n");
   const underpaymentWorkflow = readFileSync(".github/workflows/underpayment-posting.yml", "utf8");
@@ -256,10 +298,11 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     contractorMethods++;
   }
   assert.equal(contractorMethods, 6);
-  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
-  assert.equal(groupReport?.status, "COVERED", "Group report requires an independently sourced GET proof");
-  assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs",
-    "Only the real multi-entity browser acceptance may support this extra method credit");
+  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]
+    ?.methods.find(method => method.name === "GET");
+  assert.equal(groupReport?.status, "COVERED",
+    "Group report needs a distinct reviewed own/foreign and unattributed-employer denial proof");
+  assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
   const groupReportCredits = 1;
   // The next six MNY-02 expense/benefit methods have their own executable
   // three-employer proof. Do not count a generic 403 or a source-only check.
@@ -283,10 +326,12 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     expenseBenefitMethods++;
   }
   assert.equal(expenseBenefitMethods, 6);
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods - underpaymentMethods.length - expenseBenefitMethods - groupReportCredits, 124,
-    "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods + underpaymentMethods.length + expenseBenefitMethods + groupReportCredits, 359,
-    "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
+    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods, 124,
+    "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
+    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods, 359,
+    "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
   assert.match(source, /assert\.equal\(passed\.size, 36/);

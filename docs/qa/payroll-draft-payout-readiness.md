@@ -12,8 +12,11 @@ that payout setup is deferred, and the creation audit records the missing count.
 The workspace notification identifies the result as a draft requiring payout
 details and assurance remediation before approval/release.
 
-With the flag absent or false, missing destinations still return the same 422
-code, message and employee IDs, and create no run. Complete-destination success
+With the flag absent or false, **Create & process** with missing destinations
+still returns the same payout 422, message and employee IDs, and creates no run.
+**Draft-only** creation (`processNow: false`) remains possible even with
+incomplete destinations and never calculates or sends money.
+Complete-destination success
 responses and audit metadata retain their existing shape.
 
 The route still resolves employer, organization-unit scope, subscription,
@@ -47,3 +50,12 @@ Production activation and a browser rerun are separate. Until the source is
 reviewed, merged, deployed and explicitly enabled, the deployed guard remains.
 Real employer reconciliation and bank/provider settlement are not demonstrated
 by this work.
+
+## PR #1350 pre-calculation source gate
+
+Before any calculation is created or queued, the new statutory-source,
+pay-profile and attendance checks must pass. Enabling payout deferral never
+waives missing official-source verification. As of this integration,
+SSS/PhilHealth/Pag-IBIG/BIR source reviews are unrecorded, so a calculation
+remains blocked with HTTP 422. Separate official agency and independent
+financial approvals are required before positive payroll acceptance.

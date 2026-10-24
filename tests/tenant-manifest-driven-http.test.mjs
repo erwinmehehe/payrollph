@@ -13,10 +13,10 @@ const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
-test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
-  assert.equal(manifest.metrics.gap, 329, "Retain unverified method GAPs after eight MNY-01, six MNY-02 and two underpayment proofs");
-  assert.equal(manifest.metrics.coveredAfter, 154, "Maintain BIR, vault, MNY-01, six MNY-02 and two underpayment method proofs");
+test("single table-driven test reads ALL 494 methods without claiming precovered GET as a new GAP", () => {
+  assert.equal(manifest.metrics.methods, 494, "494 actual methods include source-pinned pre-run readiness GET and inherited handlers");
+  assert.equal(manifest.metrics.gap, 329, "Retain every unverified method GAP after eight MNY-01, six MNY-02, two underpayment and one group-report proofs");
+  assert.equal(manifest.metrics.coveredAfter, 155, "Retain BIR, vault, group-report, pre-run readiness, MNY-01, MNY-02 and underpayment proofs");
   const report = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
   assert.equal(report?.status, "COVERED");
   assert.equal(report?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
@@ -45,8 +45,8 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
   assert.match(proofLines[governanceMethod.testedBy.ownPositiveLine - 1], /\/api\/hcm\/governance-readiness.*\), 200,/);
   assert.match(proofLines[governanceMethod.testedBy.foreignDenialLine - 1], /\/api\/hcm\/governance-readiness.*victim\.id.*\), 403,/);
   assert.match(harness, /await verifyGovernanceTenantRead\(f\)/);
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493,
-    "No method may disappear from the audited 493-route-method inventory");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 494,
+    "No method may disappear from the audited 494-route-method inventory");
   assert.equal(manifest.sourceTraceCandidates.length, 34);
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>

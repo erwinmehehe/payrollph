@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 329, "Keep all 329 unverified API method gaps after six contractor/EWT, two underpayment and six expense/benefit proofs");
-  assert.equal(manifest.metrics.coveredAfter, 154, "Count twelve MNY-02 and two provisional underpayment method proofs, without closing remaining gaps");
+  assert.equal(manifest.metrics.gap, 329, "Keep 329 unverified API methods after six independent expense/benefit proofs");
+  assert.equal(manifest.metrics.coveredAfter, 155, "Retain 149 main source-pinned proofs plus six independent expense/benefit methods");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {

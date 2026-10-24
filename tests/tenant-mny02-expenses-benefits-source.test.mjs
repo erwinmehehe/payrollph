@@ -79,7 +79,7 @@ test("method-specific source links prove real own positive, foreign denial and e
   assert.deepEqual([
     manifest.metrics.methods, manifest.metrics.coveredAfter,
     manifest.metrics.publicByDesign, manifest.metrics.gap,
-  ], [493, 154, 10, 329]);
+  ], [494, 155, 10, 329]);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 329 API methods and 19 page\/action GAPs remain\./);
 });
 
