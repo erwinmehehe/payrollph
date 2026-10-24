@@ -230,10 +230,13 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  assert.equal(gaps.length, 335, "Preserve 335 unproven methods: only payroll-close POST gains provisional own-200/victim-403 proof; BIR/vault and all other GAPs stay open");
+  assert.equal(gaps.length, 334, "Retain 334 unresolved methods: #1341 group-report GET and #1361 payroll-close POST have distinct provisional proofs; all remaining GAPs stay open");
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]?.methods.find((method) => method.name === "POST");
-  assert.equal(closePost?.status, "COVERED", "Only an executed own-success/victim-denial close POST may receive provisional credit");
-  assert.equal(closePost?.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs", "Close POST must retain its exact HTTP proof source");
+  assert.equal(closePost?.status, "COVERED", "Close POST needs distinct successful real-HTTP proof");
+  assert.equal(closePost?.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs", "Close POST cannot borrow unrelated method proof");
+  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find((method) => method.name === "GET");
+  assert.equal(groupReport?.status, "COVERED", "Keep the separately reviewed group-report GET provisional proof");
+  assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
   const certifiedGovernance = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(certifiedGovernance?.status, "COVERED", "Closing a GAP requires independently exercised tenant-proof evidence");
   assert.equal(certifiedGovernance?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs", "HCM GET must retain the real authenticated own/foreign HTTP proof");
