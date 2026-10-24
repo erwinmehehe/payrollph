@@ -9,6 +9,10 @@ on:
       - "src/components/workspace/multi-entity-ui.tsx"
       - "src/components/linaw-workspace.tsx"
       - "src/lib/critical-release-flags.ts"
+      - "src/lib/payout-destination-controls.ts"
+      - "src/app/api/payout-destination-changes/**"
+      - "tests/payout-destination-legal-employer.test.ts"
+      - "scripts/qa/payout-destination-entity-http.mjs"
       # Deferred HCM stays blocked in the live app. In CI, independently
       # exercise its employer-scoped service and synthetic browser contracts.
       - "src/lib/hcm-*.ts"
@@ -154,6 +158,13 @@ jobs:
           exit 1
       - name: Verify real authenticated UI, scoped API denials, role controls and mobile widths
         run: node scripts/multi-entity-synthetic-browser.mjs
+      - name: Real HTTPS/PG16 payout-change GET and PATCH employer isolation
+        # Three fictional organizations, two employers in one tenant, and two
+        # independent owned PATCH successes; preserves maker/checker and MFA gates.
+        # Flag ON/OFF localhost only; no provider, migration or money operations.
+        run: |
+          node --check scripts/qa/payout-destination-entity-http.mjs
+          node scripts/qa/payout-destination-entity-http.mjs
       - name: Exercise isolated HCM employer switching in the synthetic browser
         # Intercepted requests/fictional names; NOT actual HCM route access.
         # Real flag-ON HCM routes remain 403 ENTITY_HCM_DEFERRED.
