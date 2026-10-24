@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "src/lib/payroll-pre-run-readiness.ts"
+      - "src/lib/payroll-finding-explanations.ts"
+      - "src/lib/automation-model-consent.ts"
       - "src/lib/critical-release-flags.ts"
       - "tests/payroll-draft-payout-postgres.test.ts"
       - "src/lib/payroll-pre-run-readiness-server.ts"
@@ -13,6 +15,7 @@ on:
       - "src/app/api/payroll-runs/route.ts"
       - "src/components/workspace/payroll-run.tsx"
       - "tests/payroll-pre-run-readiness*.test.ts"
+      - "tests/payroll-finding-explanations*.test.ts"
       - "tests/payroll-pre-run-entrypoints-postgres.test.ts"
       - ".github/workflows/payroll-pre-run-readiness.yml"
   workflow_dispatch:
@@ -81,5 +84,7 @@ jobs:
           npx tsx --test --test-concurrency=1
           tests/payroll-pre-run-readiness.test.ts
           tests/payroll-pre-run-readiness-postgres.test.ts
+          tests/payroll-finding-explanations.test.ts
+          tests/payroll-finding-explanations-postgres.test.ts
           tests/payroll-pre-run-entrypoints-postgres.test.ts
           tests/payroll-draft-payout-postgres.test.ts
