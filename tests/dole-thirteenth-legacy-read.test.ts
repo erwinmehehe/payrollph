@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { doleThirteenthReadFailure, parseDoleThirteenthRead } from "../src/lib/dole-thirteenth-read";
 
@@ -31,4 +32,18 @@ test("DOLE attribution refusal retains the governed notice without accepting evi
   assert.doesNotMatch(doleThirteenthReadFailure(503, denied), /PRIVATE/);
   assert.doesNotMatch(doleThirteenthReadFailure(200, denied), /until historical payroll/);
   assert.doesNotMatch(doleThirteenthReadFailure(503, {error:denied.error}), /PRIVATE/);
+});
+
+test("both DOLE branches require matching mutation receipts before showing success", () => {
+  for (const path of [
+    "src/components/workspace/dole-thirteenth-month-report-panel-legacy.tsx",
+    "src/components/workspace/dole-thirteenth-month-report-panel.tsx",
+  ]) {
+    const source = readFileSync(path, "utf8");
+    assert.match(source, /const refreshed = await load\(\(fresh\) => \{/);
+    assert.match(source, /if \(expected && !expected\(body\)\) throw new Error/);
+    assert.match(source, /saved\?\.organizationId === organizationId && fresh\.profile !== null/);
+    assert.match(source, /fresh\.submissionHistory\.some\(row => row\.id === saved\.id/);
+    assert.match(source, /if \(!refreshed\) \{\s*notify\("The DOLE update may have been recorded, but its current state could not be verified/);
+  }
 });
