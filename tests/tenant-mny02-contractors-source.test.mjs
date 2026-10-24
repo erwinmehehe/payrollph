@@ -95,6 +95,11 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     assert.match(underpaymentSource[foreign - 1] ?? "", /await deny\(v,/);
     assert.match(underpaymentSource[125] ?? "", /assert\.deepEqual\(await snapshot\(v\), before/);
   }
+  const extraFile = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
+  const sixExpensesBenefits = Object.values(manifest.allApiRouteFiles)
+    .flatMap(route => route.methods).filter(method => method.testedBy?.file === extraFile);
+  assert.equal(sixExpensesBenefits.length, 6,
+    "Exactly six independently executed expense/benefit methods may receive provisional credit");
   // Group reports have a separate three-tenant source-pinned GET; they may
   // not borrow the contractor or underpayment execution receipt.
   const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(m => m.name === "GET");

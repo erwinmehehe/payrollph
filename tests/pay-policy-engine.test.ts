@@ -173,12 +173,18 @@ test("policy trace preserves effective-date and scope evidence", () => {
   }]);
 });
 
-test("production compatibility schema includes pay policy tables and guards", () => {
-  const source = readFileSync("src/lib/core-schema-compat.ts", "utf8");
-  assert.ok(source.includes("CREATE TABLE IF NOT EXISTS pay_policies"));
-  assert.ok(source.includes("CREATE TABLE IF NOT EXISTS pay_policy_rules"));
-  assert.ok(source.includes("pay_policies_dates_check"));
-  assert.ok(source.includes("pay_policies_scope_check"));
+test("numbered pay-policy migration owns guarded tables; request core has no creator", () => {
+  const migration = readFileSync("drizzle/0041_enterprise_pay_rules.sql", "utf8");
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  assert.ok(migration.includes('CREATE TABLE IF NOT EXISTS "pay_policies"'));
+  assert.ok(migration.includes('CREATE TABLE IF NOT EXISTS "pay_policy_rules"'));
+  assert.ok(migration.includes("pay_policies_dates_check"));
+  assert.ok(migration.includes("pay_policies_scope_check"));
+  assert.ok(schema.includes('"pay_policies"'));
+  assert.ok(schema.includes('"pay_policy_rules"'));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });
 
 
