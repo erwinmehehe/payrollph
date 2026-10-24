@@ -111,14 +111,14 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   assert.equal(preRun?.status, "COVERED", "Merged main's pre-run GET remains independently covered");
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 152, 10, 332]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 154, 10, 330]);
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - bir2316Methods.length,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - bir2316Methods.length - 2,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + bir2316Methods.length],
+    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + bir2316Methods.length + 2],
     [494, 146, 10, 338],
     "Keep prior contractor credits, independently merged group-report, pre-run GET and three BIR methods separate");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 332 API methods/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 330 API methods/);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {

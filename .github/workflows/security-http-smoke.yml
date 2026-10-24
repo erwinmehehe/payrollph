@@ -65,7 +65,7 @@ jobs:
 
       - run: npm ci
       - name: Reject committed webhook secrets and unreviewed tenant routes
-        run: node --test tests/tenant-second-pass-inventory.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
+        run: node --test tests/tenant-second-pass-inventory.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs tests/tenant-pii01-identifiers-source.test.mjs
       - name: Pin first high-risk 16-method HTTP proof contract
         run: |
           node --check scripts/qa/tenant-high-risk-01-http.mjs

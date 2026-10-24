@@ -473,8 +473,13 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
         "Unsigned PDF POST must leave the real victim database and audit untouched");
     }
   }
-  assert.equal(gaps.length + bir2316Methods.length, 335,
+  const piiReviewMethods = manifest.allApiRouteFiles["src/app/api/employee-identifier-requests/route.ts"]?.methods.filter(
+    method => method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-pii01-identifier-review-http.mjs",
+  ) ?? [];
+  assert.deepEqual(piiReviewMethods.map(method => method.name), ["GET", "POST"],
+    "Two distinct PII identifier review HTTP proofs must not be double-counted");
+  assert.equal(gaps.length + bir2316Methods.length + piiReviewMethods.length, 335,
     "Preserve all 335 current main GAPs except three exact source-pinned 2316 GET/GET/POST proofs");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length, 149,
+  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - piiReviewMethods.length, 149,
     "All 149 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
 }
