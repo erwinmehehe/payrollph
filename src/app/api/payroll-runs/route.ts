@@ -21,6 +21,7 @@ import { nationalHolidayCalendarForDate } from "@/lib/wage-orders";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { createTimesheetExpectationsForPayrollRun } from "@/lib/workforce-timesheet-expectations";
 import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
+import { payrollDraftPayoutReadiness } from "@/lib/payroll-draft-payout-readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -268,16 +269,12 @@ export async function POST(request: Request) {
     return Response.json({ error: `The selected payroll scope has no active employees assigned to ${legalEntity.displayName}.` }, { status: 400 });
   }
 
-  const missingPayout = employeesInScope.filter((employee) => {
-    const hasBank = Boolean(employee.bankAccount?.trim() && employee.bankCode?.trim());
-    const hasMobileWallet = Boolean(employee.mobile?.trim());
-    return !hasBank && !hasMobileWallet;
-  });
-  if (missingPayout.length > 0) {
+  const payoutReadiness = payrollDraftPayoutReadiness(employeesInScope);
+  if (!payoutReadiness.allowed) {
     return Response.json({
-      error: `${missingPayout.length} active employee${missingPayout.length === 1 ? " is" : "s are"} missing a usable bank account or mobile-wallet destination. Complete payout details before starting payroll.`,
+      error: payoutReadiness.message,
       code: "PAYOUT_DETAILS_REQUIRED",
-      missingEmployeeIds: missingPayout.map((employee) => employee.id),
+      missingEmployeeIds: payoutReadiness.missingEmployeeIds,
     }, { status: 422 });
   }
 
@@ -370,6 +367,10 @@ export async function POST(request: Request) {
       legalEntityName: legalEntity.displayName,
       ruleVersion: PAYROLL_RULE_VERSION,
       attendanceCutoffPolicy: attendanceCutoffGate.policy,
+      ...(payoutReadiness.deferred ? {
+        payoutSetupDeferred: true,
+        payoutSetupMissingEmployeeCount: payoutReadiness.missingEmployeeIds.length,
+      } : {}),
       attendanceCutoffGate: attendanceCutoffGate.gate,
       timesheetPolicy: timesheetGate.policy,
       timesheetGate: timesheetGate.gate,
@@ -404,6 +405,8 @@ export async function POST(request: Request) {
   }
 
   const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
-  return Response.json({ run: fresh, queue: queueMeta, processResult, attendanceCutoffGate, timesheetGate, automation }, { status: 201 });
+  return Response.json({ run: fresh, queue: queueMeta, processResult, attendanceCutoffGate, timesheetGate, automation,
+    ...(payoutReadiness.deferred ? { payoutReadiness } : {}),
+  }, { status: 201 });
 }
 
