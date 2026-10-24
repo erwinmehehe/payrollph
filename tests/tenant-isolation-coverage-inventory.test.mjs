@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 335, "Retain 335 unverified methods after MNY-02, two underpayment writes and #1341 group-report GET");
-  assert.equal(manifest.metrics.coveredAfter, 149, "Retain independent MNY-02, underpayment, group-report and pre-run source GET proofs");
+  assert.equal(manifest.metrics.gap, 333, "Retain 333 unverified methods after MNY-02, two underpayment writes and #1341 group-report GET");
+  assert.equal(manifest.metrics.coveredAfter, 151, "Retain independent MNY-02, underpayment, group-report and pre-run source GET proofs");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
