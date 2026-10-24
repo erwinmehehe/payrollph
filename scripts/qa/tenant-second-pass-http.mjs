@@ -1089,7 +1089,7 @@ async function main() {
   await (await import("./tenant-high-risk-01-http.mjs")).verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });
   await verifyRemittanceMonthCloseTenantProof(f); await (await import("./bank-tenant-http.mjs")).verifyBankTenantIsolation(f, { request, expectStatus, makeSession }); await (await import("./owner-practice-http.mjs")).verifyOwnerPracticeHttp(f, { request, expectStatus });
   await (await import("./payroll-read-sweep-http.mjs")).verifyPayrollReadSweep(f, { request, expectStatus }); if (process.env.TENANT_DL02_PROOF === "isolated-ci-only") await (await import("./tenant-dl02-http.mjs")).verifyDl02TenantIsolation(f, { request, expectStatus, makeSession });
-  await (await import("./tenant-manifest-driven-http.mjs")).verifyManifestDrivenStatutoryBatch(f, { request, expectStatus, makeSession }); await (await import("./tenant-dl01-batch2-http.mjs")).verifyDl01Batch2(f, { request, expectStatus }); if (process.env.TENANT_DL01_VAULT_PROOF === "isolated-ci-only") await (await import("./tenant-dl01-vault-http.mjs")).verifyDl01Vault(f, { request, expectStatus }); await verifySelfExplanationTenantRead(f); await verifyPayoutStatusTenantRead(f); await (await import("./tenant-static-template-http.mjs")).verifyTenantIndependentImportTemplate(f, { request, expectStatus });
+  await (await import("./tenant-manifest-driven-http.mjs")).verifyManifestDrivenStatutoryBatch(f, { request, expectStatus, makeSession }); await (await import("./tenant-dl01-batch2-http.mjs")).verifyDl01Batch2(f, { request, expectStatus }); if (process.env.TENANT_DL01_VAULT_PROOF === "isolated-ci-only") await (await import("./tenant-dl01-vault-http.mjs")).verifyDl01Vault(f, { request, expectStatus }); await verifySelfExplanationTenantRead(f); await verifyPreRunReadinessTenantRead(f); await verifyPayoutStatusTenantRead(f); await (await import("./tenant-static-template-http.mjs")).verifyTenantIndependentImportTemplate(f, { request, expectStatus });
   await (await import("./tenant-scoped-page-probes.mjs")).probeManifestBusinessPages(f, { request, makeSession, expectStatus });
   await (await import("./hcm-manager-inbox-page-http.mjs")).verifyHcmManagerInboxPage(f);
   if (process.env.TENANT_1302_FIRST_PAYROLL_PROOF === "isolated-ci-only") {
@@ -1363,4 +1363,70 @@ async function seedSecondPassCoworkerProfile(organizationId, employeeId) {
     organizationId, employeeId, payBasis: "monthly", rateAmount: "19000.00",
     standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
   });
+}
+
+/**
+ * Actual localhost HTTP proof for the new read-only pre-calculation endpoint:
+ * two distinct owned employers receive populated readiness evidence, while
+ * both signed-in attackers receive a 403 for the real victim-only run.
+ * The rejection is policy-based, not a guessed ID, empty list or anonymous 401.
+ */
+async function verifyPreRunReadinessTenantRead(f) {
+  const victimBefore = await db.select().from(payrollRuns)
+    .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
+  for (const idx of [1, 2]) {
+    const org = f.orgs[idx];
+    const run = f.ownRuns[idx];
+    const cookie = f.ownerSessions[idx].cookie;
+    const ownPreRun = expectStatus(await request("/api/payroll-runs/" + run.id + "/pre-run-readiness", { cookie }), 200,
+      "Authenticated owner must read actual scoped pre-calculation findings");
+    assert.equal(ownPreRun.json?.organizationId, org.id, "Own pre-run response must echo the real employer");
+    assert.equal(ownPreRun.json?.runId, run.id, "Own pre-run response must bind the run");
+    assert.equal(ownPreRun.json?.legalEntityId, f.entities[idx].id, "Own pre-run must bind the run's legal employer");
+    assert.ok(ownPreRun.json?.findings?.some(row => row.code === "PRERUN_STATUTORY_VERIFICATION_UNRECORDED"),
+      "Owned response must contain real rule-watch findings, not a fake empty 200");
+    const foreignPreRun = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/pre-run-readiness", { cookie }), 403,
+      "Real victim-only pre-run readiness denied to a different signed-in employer");
+    assert.ok(!foreignPreRun.text.includes("VictimExclusive"), "No victim employee readiness evidence may leak");
+    // Create & process must fail before it inserts any draft, not only when
+    // callers later use the resource-addressed /process endpoint.
+    const createBody = { organizationId: org.id, legalEntityId: f.entities[idx].id,
+      periodStart: "2026-11-01", periodEnd: "2026-11-15", payDate: "2026-11-15", processNow: true };
+    // Seed only this disposable own employer past the independent payout setup guard.
+    const { encryptBankAccount } = await import("../../src/lib/bank-account-crypto");
+    await db.update(employees).set({ bankCode: "BPI", bankAccount: encryptBankAccount("000000000001") }).where(eq(employees.organizationId, org.id));
+    const beforeCreate = await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, org.id));
+    const createBlocked = expectStatus(await request("/api/payroll-runs", {
+      method: "POST", cookie, body: createBody,
+    }), 422, "Owned Create & process must enforce real unverified-source readiness");
+    assert.equal(createBlocked.json?.code, "PAYROLL_PRE_RUN_READINESS_BLOCKED");
+    expectStatus(await request("/api/payroll-runs", {
+      method: "POST", cookie, body: { ...createBody, organizationId: f.orgs[0].id, legalEntityId: f.victimRun.legalEntityId },
+    }), 403, "Foreign Create & process must fail authorization before exposing readiness");
+    const afterCreate = await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, org.id));
+    assert.deepEqual(afterCreate, beforeCreate, "Rejected creation must not persist a run");
+    // A legitimate owned Draft reaches the new pre-run gate; with statutory
+    // verification unrecorded, it MUST be rejected before any calculation.
+    const [draft] = await db.insert(payrollRuns).values({
+      organizationId: org.id, legalEntityId: f.entities[idx].id,
+      periodLabel: "Fictional pre-run gate evidence " + idx,
+      periodStart: "2026-10-16", periodEnd: "2026-10-31",
+      payDate: "2026-11-02", status: "Draft",
+    }).returning();
+    const ownedBefore = await db.select().from(payrollRuns).where(eq(payrollRuns.id, draft.id));
+    const ownBlockedProcess = expectStatus(await request("/api/payroll-runs/" + draft.id + "/process", {
+      method: "POST", cookie, body: {},
+    }), 422, "Owned calculation must be blocked by unverified rule-watch evidence");
+    assert.equal(ownBlockedProcess.json?.code, "PAYROLL_PRE_RUN_READINESS_BLOCKED");
+    assert.ok(ownBlockedProcess.json?.readiness?.findings?.some(row =>
+      row.code === "PRERUN_STATUTORY_VERIFICATION_UNRECORDED"));
+    const foreignBlockedProcess = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/process", {
+      method: "POST", cookie, body: {},
+    }), 403, "Other employer's calculation must be rejected BEFORE the pre-run gate");
+    const ownedAfter = await db.select().from(payrollRuns).where(eq(payrollRuns.id, draft.id));
+    assert.deepEqual(ownedAfter, ownedBefore, "Rejected owned calculation must not claim a run or supersede approval");
+  }
+  const victimAfter = await db.select().from(payrollRuns)
+    .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
+  assert.deepEqual(victimAfter, victimBefore, "Read-only readiness and victim denial cannot change any victim run");
 }

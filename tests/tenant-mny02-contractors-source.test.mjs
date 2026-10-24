@@ -95,18 +95,12 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     assert.match(underpaymentSource[125] ?? "", /assert\.deepEqual\(await snapshot\(v\), before/);
   }
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 148, 10, 335]);
-  // Group reports have a separate three-tenant source-pinned GET; they may
-  // not borrow the contractor or underpayment execution receipt.
-  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(m => m.name === "GET");
-  assert.equal(groupReport?.status, "COVERED");
-  assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
-  const groupReportCredits = 1;
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 149, 10, 335]);
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits], [493, 145, 10, 338],
-  "Previous six-contractor MNY-02 baseline must remain accounted for separately");
+    manifest.metrics.gap + creditedUnderpayments.length], [494, 147, 10, 337],
+  "Pre-underpayment ledger retains the separately sourced group report and pre-run GET");
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 335 API methods/);
 });
 
