@@ -639,7 +639,7 @@ test("all credited proof links point to the claimed route and every recertified 
       const proof = method.testedBy;
       if (proof?.file === "scripts/qa/underpayment-posting-http.mjs") {
         assert.equal(path, "src/app/api/payroll-underpayments/route.ts");
-        const spec = { POST: [136, 149], PATCH: [166, 158] }[method.name];
+        const spec = { POST: [136, 149], PATCH: [166, 155] }[method.name];
         assert.ok(spec, "Only the two executed underpayment writes receive new credit");
         assert.deepEqual([proof.ownPositiveLine, proof.foreignDenialLine], spec);
         const lines = readableLines(proof.file);
