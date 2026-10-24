@@ -1,3 +1,4 @@
+import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 /**
  * Complete-surface tenant-isolation manifest and drift guard.
  *
@@ -19,6 +20,7 @@ const ROOT = "src/app";
 const API = "src/app/api";
 const BASE = "8c2a62135fd6e23db4603197822339cc1020ec27";
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const mergedProofCredits = verifyMergedProofCredits(manifest);
 const baseline = JSON.parse(readFileSync("scripts/qa/tenant-isolation-inventory/baseline.json", "utf8"));
 
 function normalize(value) { return value.split(sep).join("/"); }
@@ -227,8 +229,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap + 3, 335, "Preserve all 335 main API method GAPs except three separately proven BIR 2316 document methods");
-  assert.equal(manifest.metrics.coveredAfter - 3, 149, "Keep 149 separate main sources including pre-run readiness plus three BIR 2316 methods");
+  assert.equal(manifest.metrics.gap + 3 + mergedProofCredits, 335, "Preserve all 335 main API method GAPs except three separately proven BIR 2316 document methods");
+  assert.equal(manifest.metrics.coveredAfter - 3 - mergedProofCredits, 149, "Keep 149 separate main sources including pre-run readiness plus three BIR 2316 methods");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
@@ -637,6 +639,10 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (["scripts/qa/tenant-benefit-enrollments-http.mjs", "scripts/qa/tenant-worksites-http.mjs"].includes(proof?.file)) {
+        assert.equal(verifyMergedProofCredits(manifest), 4);
+        continue;
+      }
       if (proof?.file === "scripts/qa/underpayment-posting-http.mjs") {
         assert.equal(path, "src/app/api/payroll-underpayments/route.ts");
         const spec = { POST: [136, 149], PATCH: [166, 155] }[method.name];

@@ -65,7 +65,7 @@ test("fixture unique keys cannot collide and unexecuted partial actions cannot i
   const next = suite.match(/const NEXT_START = "([\d-]+)";/)?.[1];
   assert.ok(prior && next && next > prior);
   for (const method of manifest.allApiRouteFiles["src/app/api/workforce/worksites/route.ts"].methods) {
-    assert.equal(method.status, "GAP");
+    assert.equal(method.status, method.name === "GET" ? "COVERED" : "GAP");
   }
   assert.match(suite, /inventoryCreditsAdded: 0/);
   assert.match(suite, /remainingWorksiteActionsUnaccepted: true/);

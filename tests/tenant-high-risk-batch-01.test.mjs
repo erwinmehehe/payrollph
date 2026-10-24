@@ -1,3 +1,4 @@
+import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 /**
  * Static proof-integrity gate for the first high-risk tenant audit batch.
  * Does not claim HTTP coverage; live results must pass the original Security
@@ -62,6 +63,7 @@ test("self-service routes use real employee sessions and revoke real memberships
 
 test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant proofs", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const mergedProofCredits = verifyMergedProofCredits(manifest);
   const cases = [...source.matchAll(/^\s+"(GET [^"]+)",$/gm)].map((m) => m[1]);
   assert.equal(cases.length, 16, "Never silently narrow the tested Batch 01 method set");
   assert.equal(new Set(cases).size, 16);
@@ -312,10 +314,10 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
     /npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/);
   assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
-    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - bir2316Methods.length, 124,
+    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - bir2316Methods.length - mergedProofCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
-    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + bir2316Methods.length, 359,
+    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + bir2316Methods.length + mergedProofCredits, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

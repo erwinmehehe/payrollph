@@ -1,3 +1,4 @@
+import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 /**
  * Source-only review gate for six MNY-02 contractor/EWT API methods.
  * It does NOT replace disposable PG16 authenticated HTTP/SQL evidence.
@@ -12,6 +13,7 @@ const lines = suite.split("\n");
 const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const source = readFileSync("src/app/api/contractors/payments/route.ts", "utf8");
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const mergedProofCredits = verifyMergedProofCredits(manifest);
 
 const cases = [
   ["GET contractors", 138, 143, 146],
@@ -111,14 +113,14 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   assert.equal(preRun?.status, "COVERED", "Merged main's pre-run GET remains independently covered");
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 152, 10, 332]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 156, 10, 328]);
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - bir2316Methods.length,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - bir2316Methods.length - mergedProofCredits,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + bir2316Methods.length],
+    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + bir2316Methods.length + mergedProofCredits],
     [494, 146, 10, 338],
     "Keep prior contractor credits, independently merged group-report, pre-run GET and three BIR methods separate");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 332 API methods/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 328 API methods/);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {

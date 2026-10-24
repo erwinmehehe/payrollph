@@ -50,10 +50,10 @@ test("revocation uses the same authenticated session and preserves formerly owne
   assert.match(suite, /assert.deepEqual\(untouched, existing/);
 });
 
-test("unexecuted candidate cannot inflate coverage or claim catalogue/HMO acceptance", () => {
+test("reviewed methods cannot credit unexecuted catalogue/HMO siblings", () => {
   const methods = manifest.allApiRouteFiles["src/app/api/benefits/route.ts"].methods;
   for (const method of ["GET", "POST", "DELETE", "PUT"]) {
-    assert.equal(methods.find(row => row.name === method)?.status, "GAP");
+    assert.equal(methods.find(row => row.name === method)?.status, method === "PUT" ? "GAP" : "COVERED");
   }
   assert.match(suite, /inventoryCreditsAdded: 0/);
   assert.ok(!suite.includes('method: "PUT"'));

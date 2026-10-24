@@ -473,8 +473,12 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
         "Unsigned PDF POST must leave the real victim database and audit untouched");
     }
   }
-  assert.equal(gaps.length + bir2316Methods.length, 335,
+  assert.equal(gaps.length + bir2316Methods.length + mergedProofCredits, 335,
     "Preserve all 335 current main GAPs except three exact source-pinned 2316 GET/GET/POST proofs");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length, 149,
+  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - mergedProofCredits, 149,
     "All 149 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
 }
+
+// Appended to preserve existing executable proof line pins above.
+import { verifyMergedProofCredits } from "./tenant-merged-proof-credits.mjs";
+const mergedProofCredits = verifyMergedProofCredits(manifest);
