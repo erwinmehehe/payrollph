@@ -118,6 +118,7 @@ jobs:
         run: >-
           npx tsx --test --test-concurrency=1
           tests/multi-entity-isolation-db.test.ts
+          tests/payroll-run-legal-employer-gates.test.ts
           tests/hcm-client-employer-scope.test.ts
           tests/multi-entity-hcm-hold.test.ts
       - name: Build actual protected Next.js workspace
