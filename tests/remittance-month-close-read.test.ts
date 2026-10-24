@@ -278,9 +278,36 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
       /assert\.deepEqual\(await victimSnapshot\(victim\.id\), originalVictim/,
       key + ": victim SQL snapshot must remain identical");
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - contractorCases.length - underpaymentMethods.length - groupReportCredits - bir2316Methods.length - 2, 129,
-    "Keep all 129 independently source-pinned methods from merged main, not counting new MNY-02");
-  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + contractorCases.length + underpaymentMethods.length + groupReportCredits + bir2316Methods.length + 1, 354,
+  // Both new payout methods require their OWN authenticated production-mode HTTPS
+  // and disposable PG16 receipts; do not merely subtract two unexplained credits.
+  const payoutCases = [
+    ["src/app/api/payout-destination-changes/route.ts", "GET", 208, 216],
+    ["src/app/api/payout-destination-changes/[id]/route.ts", "PATCH", 234, 222],
+  ] as const;
+  const payoutSuite = readFileSync("scripts/qa/payout-destination-entity-http.mjs", "utf8").split("\n");
+  for (const [route, verb, own, foreign] of payoutCases) {
+    const method = manifest.allApiRouteFiles[route]?.methods.find(
+      (item: { name: string }) => item.name === verb,
+    );
+    assert.equal(method?.status, "COVERED", route + " " + verb + ": only a verified own/foreign method may be credited");
+    assert.equal(method?.testedBy?.file, "scripts/qa/payout-destination-entity-http.mjs",
+      route + " " + verb + ": proof must be the specific real HTTPS suite");
+    assert.deepEqual([method.testedBy.ownPositiveLine, method.testedBy.foreignDenialLine,
+      method.testedBy.unchangedDbLine], [own, foreign, 229]);
+    assert.match(payoutSuite[own - 1] ?? "",
+      verb === "GET" ? /const getB = ownRequests\(await request\(b, ON, ownB\)/
+        : /const positivePatchB = expectStatus\(await request\(b, ON, patch\(bRows\[0\]\.evidence\.id\)/);
+    assert.match(payoutSuite[foreign - 1] ?? "",
+      verb === "GET" ? /await deniedAndUnchanged\(actor, ON, victimList, "GET"/
+        : /await deniedAndUnchanged\(actor, ON, patch\(aAlpha\.evidence\.id\)/);
+    assert.match(payoutSuite[228], /assert\.deepEqual\(await snapshot\(victimA\), victimBefore/);
+  }
+  assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
+    /node scripts\/qa\/payout-destination-entity-http\.mjs/,
+    "Exact payout HTTP tests must run in the guarded isolated CI job");
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - contractorCases.length - underpaymentMethods.length - groupReportCredits - bir2316Methods.length - payoutCases.length - 2, 129,
+    "Keep all 129 historically credited methods after independently subtracting MNY-02, BIR 2316 and payout GET/PATCH proof credits");
+  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + contractorCases.length + underpaymentMethods.length + groupReportCredits + bir2316Methods.length + payoutCases.length + 1, 354,
     "Never reduce main's 354 originally open method GAPs without distinct own/victim HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 494);
   const readLine = (number: number) => {

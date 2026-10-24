@@ -112,12 +112,36 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
     manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 154, 10, 330]);
+  // Payout GET and PATCH are two OTHER independent, exact-method source credits.
+  // Require actual owned-positive, victim-denied and unchanged-victim lines, not
+  // a phantom offset in the historical contractor/EWT coverage ledger.
+  const payoutClaims = [
+    ["src/app/api/payout-destination-changes/route.ts", "GET", 208, 216],
+    ["src/app/api/payout-destination-changes/[id]/route.ts", "PATCH", 234, 222],
+  ];
+  const payoutProof = readFileSync("scripts/qa/payout-destination-entity-http.mjs", "utf8").split("\n");
+  for (const [route, methodName, own, foreign] of payoutClaims) {
+    const method = manifest.allApiRouteFiles[route]?.methods.find(m => m.name === methodName);
+    assert.equal(method?.status, "COVERED", "Payout proof must remain a separate real method");
+    assert.equal(method?.testedBy?.file, "scripts/qa/payout-destination-entity-http.mjs");
+    assert.deepEqual([method.testedBy.ownPositiveLine, method.testedBy.foreignDenialLine,
+      method.testedBy.unchangedDbLine], [own, foreign, 229]);
+    assert.match(payoutProof[own - 1] ?? "",
+      methodName === "GET" ? /const getB = ownRequests\(await request\(b, ON, ownB\)/
+        : /const positivePatchB = expectStatus\(await request\(b, ON, patch\(bRows\[0\]\.evidence\.id\)/);
+    assert.match(payoutProof[foreign - 1] ?? "",
+      methodName === "GET" ? /await deniedAndUnchanged\(actor, ON, victimList, "GET"/
+        : /await deniedAndUnchanged\(actor, ON, patch\(aAlpha\.evidence\.id\)/);
+    assert.match(payoutProof[228], /assert\.deepEqual\(await snapshot\(victimA\), victimBefore/);
+  }
+  assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
+    /node scripts\/qa\/payout-destination-entity-http\.mjs/);
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - bir2316Methods.length,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - bir2316Methods.length - payoutClaims.length,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + bir2316Methods.length],
+    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + bir2316Methods.length + payoutClaims.length],
     [494, 146, 10, 338],
-    "Keep prior contractor credits, independently merged group-report, pre-run GET and three BIR methods separate");
+    "Keep prior contractor/EWT, underpayment, BIR 2316 and payout method proofs separately source-pinned");
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 330 API methods/);
 });
 
