@@ -743,6 +743,10 @@ Three previously uncredited GET methods are now source-linked: employee import h
 
 At the historical PR #1322 checkpoint, the frozen DL-01 queue had 7 COVERED, 2 PUBLIC-BY-DESIGN, 17 GAP, with 387 API GAPs and 20 page/action GAPs in the repository. No new confirmed leak, payroll logic, production flag, provider call or money movement is claimed. This reviewer closeout does not replace independent owner acceptance; the manifest remains NOT ACCEPTED.
 
+## Prepared worksite HTTP batch (2026-10-24; no coverage credits)
+
+`GET/POST /api/workforce/worksites` now have a separate [HTTP candidate](../../scripts/qa/tenant-worksites-http.mjs), [source contract](../../tests/tenant-worksites-source.test.mjs) and [acceptance scope](../qa/tenant-worksites-http.md). Two independent employers exercise populated reads, persisted create/update/assignment actions, foreign IDs, forged selectors, role/unit/MFA and membership revocation, with exact unchanged victim workforce/payroll/audit rows. **Prepared only: exact-head HTTP CI pending; both methods remain GAP and no coverage count changes.** All other POST actions, global tenant isolation and production activation remain unaccepted. Independent of the benefits batch #1366.
+
 ## Prepared benefits-enrolment HTTP batch (2026-10-24; no coverage credits)
 
 Three GAP methods, `GET/POST/DELETE /api/benefits`, now have an additive [disposable three-employer HTTP candidate](../../scripts/qa/tenant-benefit-enrollments-http.mjs) and [source contract](../../tests/tenant-benefit-enrollments-source.test.mjs). It requires populated own reads, persisted own enrolment creation/ending, real higher-ID victim denials, forged worker/plan selectors, employee-role and anonymous denial, same-session membership revocation and exact unchanged victim benefits/payroll/audit snapshots. See [acceptance scope](../qa/tenant-benefit-enrollments-http.md). **Prepared only: exact-head HTTP CI has not yet passed; all three remain GAP, no new COVERED credits, global NOT ACCEPTED status and existing summary counts unchanged.** Catalogue PUT and HMO workflows remain unproven. No production operations or feature activation.
