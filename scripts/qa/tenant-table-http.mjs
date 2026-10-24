@@ -19,7 +19,7 @@ import {
   apiKeys, auditEvents, biometricDevices, deMinimisGrants, employeePayProfiles, employees, engagementSurveys,
   hcmBusinessProcessDefinitions, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, importBatches,
   integrationConnectors, invoices, laborInspectionDrills, leaveRequests, legalEntities, organizations, orgUnits, outbox,
-  performanceCycles, scheduleSwapRequests, sessions, userOrganizations, users, workforcePlanAllocations,
+  performanceCycles, scheduleSwapRequests, sessions, userLegalEntityGrants, userOrganizations, users, workforcePlanAllocations,
   workforcePlanBaselines, workforcePlanPositionExecutions, workforcePlanningScenarios, workforcePlans,
   workforceScheduleGuardrailPolicies, worksites,
 } from "../../src/db/schema";
@@ -42,6 +42,9 @@ const activeWorkers = async (orgId) => Number((await db.select({ n: count() }).f
   .where(and(eq(employees.organizationId, orgId), eq(employees.status, "Active"))))[0].n);
 const auditCount = async (orgId) => Number((await db.select({ n: count() }).from(auditEvents)
   .where(eq(auditEvents.organizationId, orgId)))[0].n);
+/** Multi-entity scopes a non-group role to its granted legal employer: grant the owner its own one. */
+const grantOwnEntity = (e) => db.insert(userLegalEntityGrants)
+  .values({ organizationId: e.org.id, userId: e.owner.id, legalEntityId: e.entity.id }).onConflictDoNothing();
 async function seedPlan(e, purpose) {
   const [plan] = await db.insert(workforcePlans).values({ organizationId: e.org.id, name: e.marker + " " + purpose,
     startDate: "2026-01-01", endDate: "2026-12-31" }).returning();
@@ -71,6 +74,9 @@ const proofs = {
     for (const key of keys) assert.ok(key in r.json, "response must carry " + key);
   },
   all: (...checks) => async (r, c) => { for (const check of checks) await check(r, c); },
+  /** The value at `path` is this employer's own fixture id (`ctxField`, e.g. entityId). */
+  echoesOwn: (path, ctxField) => (r, c) =>
+    assert.equal(Number(path.split(".").reduce((v, k) => v?.[k], r.json)), c[ctxField], path + " must be the own " + ctxField),
   /** The value at `path` equals what this employer's row seed stored (distinct per employer). */
   equalsOwnSeed: (path) => (r, c) =>
     assert.deepEqual(path.split(".").reduce((v, k) => v?.[k], r.json), c.seeded, path + " must equal the own employer's seeded value"),
@@ -241,6 +247,13 @@ export const TENANT_TABLE = Object.freeze([
   { key: "GET workforce/worksites",
     seed: (e) => db.insert(worksites).values({ organizationId: e.org.id, code: e.marker, name: e.marker }),
     prove: proofs.listsOwnMarker("worksites", "name") },
+  // Multi-entity profile (its own server: the flag changes entity holds elsewhere).
+  { key: "GET multi-entity/context", profile: "multi-entity", flags: ["MULTI_ENTITY_ENABLED"], seed: grantOwnEntity,
+    prove: proofs.all(proofs.echoesOrganization(), proofs.echoesOwn("legalEntityId", "entityId"), proofs.listsOwnMarker("entities", "legalName")) },
+  { key: "GET multi-entity/settings", profile: "multi-entity", flags: ["MULTI_ENTITY_ENABLED"], seed: grantOwnEntity,
+    prove: proofs.listsOwnMarker("entities", "legalName") },
+  { key: "GET multi-entity/transfers", profile: "multi-entity", flags: ["MULTI_ENTITY_ENABLED"], seed: grantOwnEntity,
+    prove: proofs.listsOwnMarker("destinations", "legalName") },
 ]);
 
 const BASE = process.env.SECURITY_SMOKE_URL ?? "";

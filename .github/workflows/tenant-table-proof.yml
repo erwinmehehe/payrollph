@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [default]
+        profile: [default, multi-entity]
     services:
       postgres:
         image: postgres:16
