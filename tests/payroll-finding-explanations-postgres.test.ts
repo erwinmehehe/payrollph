@@ -100,6 +100,7 @@ test("real guarded pre-run GET: flag-off bytes unchanged, consent denied, opt-in
         "flag-off cannot append text even when the caller requests an explanation");
 
       process.env.PAYROLL_EXPLANATION_AI_ENABLED = "true";
+      process.env.OPENAI_AUTOMATION_APPROVED_ORG_IDS = "";
       const noConsent = await GET(request(run.id, "?explain=true"), params(run.id));
       assert.equal(noConsent.status, 403);
       assert.equal((await noConsent.json()).error, "PAYROLL_EXPLANATION_CONSENT_REQUIRED");
