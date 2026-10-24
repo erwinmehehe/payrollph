@@ -20766,12 +20766,12 @@
       ]
     },
     "src/app/api/payroll-runs/route.ts": {
-      "gitBlobSha": "ce8f506ced06056a59295810438c9fdf005d74b2",
+      "gitBlobSha": "773dea16707412b4941c71624b7def040f04462d",
       "route": "payroll-runs",
       "methods": [
         {
           "name": "GET",
-          "line": 27,
+          "line": 28,
           "status": "COVERED",
           "reason": "Own payroll runs 200 and victim-organization 403 plus direct foreign register denial",
           "testedBy": {
@@ -20784,7 +20784,7 @@
         },
         {
           "name": "POST",
-          "line": 99,
+          "line": 100,
           "status": "COVERED",
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
@@ -20826,127 +20826,127 @@
           "token": "getAccess"
         },
         {
-          "line": 27,
+          "line": 28,
           "token": "getSessionUser"
         },
         {
-          "line": 39,
+          "line": 40,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 46,
+          "line": 47,
           "token": "assertOrganizationUnitAccess"
         },
         {
-          "line": 75,
+          "line": 76,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 82,
+          "line": 83,
           "token": "getAccess"
         },
         {
-          "line": 99,
+          "line": 100,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 151,
+          "line": 152,
           "token": "getSessionUser"
         },
         {
-          "line": 155,
+          "line": 156,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 164,
+          "line": 165,
           "token": "getAccess"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 30,
+          "line": 31,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 31,
+          "line": 32,
           "token": "searchParams.get(\"runId\")"
         },
         {
-          "line": 103,
+          "line": 104,
           "token": "body.organizationId"
         },
         {
-          "line": 108,
+          "line": 109,
           "token": "body.legalEntityId"
         },
         {
-          "line": 108,
+          "line": 109,
           "token": "body.legalEntityId"
         },
         {
-          "line": 108,
+          "line": 109,
           "token": "body.legalEntityId"
         }
       ],
       "businessIds": [
         {
-          "line": 30,
-          "token": "organizationId"
-        },
-        {
-          "line": 30,
+          "line": 31,
           "token": "organizationId"
         },
         {
           "line": 31,
-          "token": "runId"
-        },
-        {
-          "line": 31,
-          "token": "runId"
-        },
-        {
-          "line": 35,
-          "token": "runId"
-        },
-        {
-          "line": 36,
           "token": "organizationId"
         },
         {
+          "line": 32,
+          "token": "runId"
+        },
+        {
+          "line": 32,
+          "token": "runId"
+        },
+        {
           "line": 36,
+          "token": "runId"
+        },
+        {
+          "line": 37,
           "token": "organizationId"
         },
         {
-          "line": 36,
-          "token": "legalEntityId"
+          "line": 37,
+          "token": "organizationId"
         },
         {
-          "line": 36,
+          "line": 37,
           "token": "legalEntityId"
         },
         {
           "line": 37,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 38,
           "token": "runId"
         },
         {
-          "line": 41,
+          "line": 42,
           "token": "organizationId"
         },
         {
-          "line": 48,
+          "line": 49,
           "token": "organizationId"
         },
         {
-          "line": 53,
+          "line": 54,
           "token": "organizationId"
         },
         {
-          "line": 53,
+          "line": 54,
           "token": "organizationId"
         },
         {
-          "line": 55,
+          "line": 56,
           "token": "legalEntityId"
         }
       ]
