@@ -107,13 +107,17 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   assert.ok(bir2316Methods.every(method => method.status === "COVERED" &&
     Number.isInteger(method.testedBy?.ownPositiveLine) &&
     Number.isInteger(method.testedBy?.foreignDenialLine)));
+  const preRun = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"]?.methods.find(m => m.name === "GET");
+  assert.equal(preRun?.status, "COVERED", "Merged main's pre-run GET remains independently covered");
+  assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [493, 151, 10, 332]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 152, 10, 332]);
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - bir2316Methods.length - groupReportCredits,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - bir2316Methods.length,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + bir2316Methods.length + groupReportCredits], [493, 145, 10, 338],
-  "Previous six-contractor MNY-02 baseline must remain accounted for separately");
+    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + bir2316Methods.length],
+    [494, 146, 10, 338],
+    "Keep prior contractor credits, independently merged group-report, pre-run GET and three BIR methods separate");
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 332 API methods/);
 });
 

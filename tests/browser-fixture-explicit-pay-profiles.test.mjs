@@ -138,3 +138,23 @@ test("multi-entity browser fixture creates explicit tenant-bound profiles for al
   assert.match(source, /assert\.equal\(profile\.organizationId, worker\.organizationId/);
   assert.match(source, /assert\.equal\(profile\.rateAmount, worker\.basicRate/);
 });
+
+test("HRIS integrated browser's three-person roster seeds reviewed fictional pay profiles explicitly", () => {
+  const fixture = readFileSync("scripts/hcm-people-home-synthetic-fixture.ts", "utf8");
+  const workflow = readFileSync(".github/workflows/hris-journey-browser-qa.yml", "utf8");
+  assert.match(workflow, /Seed disposable HCM baseline/);
+  assert.match(workflow, /npx tsx scripts\/hcm-people-home-synthetic-fixture\.ts/);
+  assert.match(fixture, /process\.env\.CI, "true"/);
+  assert.match(fixture, /HCM_PEOPLE_HOME_ACCEPTANCE_MODE, "synthetic-postgres-only"/);
+  assert.match(fixture, /dbUrl\.pathname === "\/app_db"/);
+  assert.match(fixture, /db\.insert\(employeePayProfiles\)\.values\(explicitProfiles\)/);
+  assert.match(fixture, /seededRoster\.length, expectedRoster\.size/);
+  assert.match(fixture, /HCM_QA_PAY_PROFILE_ROSTER_UNVERIFIED/);
+  assert.match(fixture, /payBasis: "monthly"/);
+  assert.match(fixture, /standardWorkDaysPerMonth: "22"/);
+  assert.match(fixture, /standardHoursPerDay: "8"/);
+  assert.match(fixture, /"SHARED-001:" \+ alpha\.id, "10000\.00"/);
+  assert.match(fixture, /"SHARED-001:" \+ beta\.id, "99000\.00"/);
+  assert.match(fixture, /"BETA-002:" \+ beta\.id, "88000\.00"/);
+  assert.doesNotMatch(fixture, /ON CONFLICT|db\.update\(employeePayProfiles\)/);
+});

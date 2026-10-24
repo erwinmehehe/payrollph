@@ -1146,10 +1146,10 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
         )}
       </article>
 
-      <article className="card" style={{ marginBottom: 16 }}>
+      <article className="card planning-stage" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <div>
-            <div className="card-kicker">STAFFING PLAN APPROVAL</div>
+            <div className="card-kicker">1 · Save and review</div>
             <h2>Saved scenario evidence</h2>
             <p>Drafts enter the configured HCM business process. Approval steps are routed by incremental annual labor cost, use the shared Approvals inbox, and preserve maker-checker separation.</p>
           </div>
@@ -1219,16 +1219,16 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
                   </tr>
                 );
               })}
-              {scenarios.length === 0 && <tr><td colSpan={5}><div className="empty-state">No saved staffing scenarios yet. Run a forecast, name it, and save the snapshot.</div></td></tr>}
+              {scenarios.length === 0 && <tr><td colSpan={5}><div className="empty-state planning-empty"><strong>No saved scenarios yet</strong><p>Run a forecast above, name the scenario and save it for review.</p></div></td></tr>}
             </tbody>
           </table>
         </div>
       </article>
 
-      <article className="card" style={{ marginBottom: 16 }}>
+      <article className="card planning-stage" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <div>
-            <div className="card-kicker">PUBLISHED HEADCOUNT PLAN</div>
+            <div className="card-kicker">2 · Publish a baseline</div>
             <h2>Baseline vs live workforce</h2>
             <p>Approved company-wide scenarios become immutable planning baselines. Live positions and assignments remain operational records and are reconciled here without rewriting the approved evidence.</p>
           </div>
@@ -1291,16 +1291,16 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
                   </tr>
                 );
               })}
-              {baselines.length === 0 && <tr><td colSpan={5}><div className="empty-state">No published headcount baseline yet. Approve a company-wide scenario linked to a workforce plan, then publish it here.</div></td></tr>}
+              {baselines.length === 0 && <tr><td colSpan={5}><div className="empty-state planning-empty"><strong>No published baseline yet</strong><p>Approve a company-wide scenario linked to a workforce plan, then publish it here.</p></div></td></tr>}
             </tbody>
           </table>
         </div>
       </article>
 
-      <article className="card" style={{ marginBottom: 16 }}>
+      <article className="card planning-stage" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <div>
-            <div className="card-kicker">CONTROLLED PLAN EXECUTION</div>
+            <div className="card-kicker">3 · Preview position changes</div>
             <h2>Published plan → position ledger</h2>
             <p>
               Preview the exact creates and changes authorized by the current published baseline. Apply is an explicit MFA-gated action and revalidates the baseline, live position state, active incumbents, and recruiting state before committing anything.
@@ -1388,7 +1388,7 @@ function WorkforcePlanningPanelForOrganization({ organizationId, setNotice, onPa
                 );
               })}
               {positionExecutions.length === 0 && (
-                <tr><td colSpan={5}><div className="empty-state">No position execution preview yet. Use a current published baseline to generate one.</div></td></tr>
+                <tr><td colSpan={5}><div className="empty-state planning-empty"><strong>No position preview yet</strong><p>Publish a baseline first, then preview its position changes here.</p></div></td></tr>
               )}
             </tbody>
           </table>

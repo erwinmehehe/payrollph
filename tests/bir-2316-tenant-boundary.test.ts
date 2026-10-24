@@ -129,11 +129,11 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
       }
     }
   }
-  // Main already proves 148 methods (including the independent group-report GET); this
+  // Main already proves 149 methods (including the independent group-report GET); this
   // draft adds exactly three separately evidenced BIR 2316 GET/GET/POST methods.
   // Preserve the main baseline and every remaining GAP after syncing the branch.
-  assert.equal(inventory.metrics.methods, 493);
-  assert.equal(inventory.metrics.coveredAfter - 3, 148);
+  assert.equal(inventory.metrics.methods, 494);
+  assert.equal(inventory.metrics.coveredAfter - 3, 149);
   assert.equal(inventory.metrics.gap + 3, 335);
   assert.equal(inventory.metrics.publicByDesign, 10);
   assert.equal(inventory.metrics.coveredAfter + inventory.metrics.publicByDesign + inventory.metrics.gap, inventory.metrics.methods);

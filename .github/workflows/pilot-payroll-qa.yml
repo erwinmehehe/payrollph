@@ -81,6 +81,9 @@ jobs:
       APP_BASE_URL: http://127.0.0.1:3000
       TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
       DEMO_MODE: "false"
+      # Positive no-money lifecycle uses the legacy timesheet guard. Strict
+      # flag-ON pre-run source rejection is separately proven on disposable PG.
+      PAYROLL_PRE_RUN_READINESS_ENABLED: "false"
       PAYMONGO_DISBURSEMENTS_ENABLED: "false"
       XENDIT_PAYOUTS_ENABLED: "false"
       XENDIT_PAYOUTS_LIVE_APPROVED: "false"

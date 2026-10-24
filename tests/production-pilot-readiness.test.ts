@@ -49,6 +49,22 @@ test("real employee payout details are captured and encrypted", () => {
   assert.ok(people.includes("replacementBankAccount"));
 });
 
+test("pilot preserves default-off timesheet enforcement and isolates strict source verification", () => {
+  const pilot = read("scripts/pilot-payroll-qa.ts");
+  const workflow = read(".github/workflows/pilot-payroll-qa.yml");
+  const strict = read(".github/workflows/payroll-pre-run-readiness.yml");
+  assert.match(workflow, /PAYROLL_PRE_RUN_READINESS_ENABLED:\s*["']false["']/);
+  assert.match(strict, /PAYROLL_PRE_RUN_READINESS_ENABLED:\s*["']true["']/);
+  assert.ok(pilot.includes('assert.notEqual(process.env.PAYROLL_PRE_RUN_READINESS_ENABLED, "true"'));
+  assert.ok(pilot.includes('assert.equal(blockedRun.payload.code, "TIMESHEET_APPROVAL_REQUIRED")'));
+  assert.ok(pilot.includes('assert.equal(staleRun.payload.code, "TIMESHEET_APPROVAL_REQUIRED")'));
+  assert.ok(pilot.includes("timesheetGate?.missingEmployeeIds"));
+  assert.ok(pilot.includes("timesheetGate?.nonApprovedEmployeeIds"));
+  assert.ok(pilot.includes("timesheetGate?.approvedEmployeeIds"));
+  assert.ok(pilot.includes('assert.equal(Number(runPayload.run?.exceptions), 0'));
+  assert.ok(pilot.includes('(report.lifecycle as string[]).push("payroll-calculated")'));
+});
+
 test("fresh tenant pilot stays out of demo provisioning and proves the five handoff stages", () => {
   const pilot = read("scripts/pilot-payroll-qa.ts");
   const workflow = read(".github/workflows/pilot-payroll-qa.yml");

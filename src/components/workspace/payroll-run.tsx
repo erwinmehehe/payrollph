@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -29,6 +29,7 @@ import { readVerifiedPayrollRegister } from "@/lib/payroll-register-read";
 import { isVerifiedReleaseChecklist, type VerifiedReleaseChecklist } from "@/lib/payroll-read-contracts";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
+import type { PayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness";
 import { StatutoryRemittancePanel } from "./statutory-remittance-panel";
 import { StatutoryRemittanceActionQueue } from "./statutory-remittance-action-queue";
 import { StatutoryRemittanceCorrectionsPanel } from "./statutory-remittance-corrections-panel";
@@ -107,6 +108,22 @@ export function PayrollRunView({
   const [checklistRevision, setChecklistRevision] = useState(0);
   const [releaseReceipt, setReleaseReceipt] = useState<PayrollReleaseReceipt | null>(null);
   const [releaseFailure, setReleaseFailure] = useState<{ runId: number; error: string } | null>(null);
+  const [preRunResult, setPreRunResult] = useState<{ scope: string; readiness: PayrollPreRunReadiness } | null>(null);
+  const [preRunError, setPreRunError] = useState<{ scope: string; message: string } | null>(null);
+  const [preRunBusy, setPreRunBusy] = useState<{ scope: string; nonce: string } | null>(null);
+  const startedPreRunRequests = useRef(new Set<string>());
+  // Each request owns the callbacks and scope captured by the user's click.
+  // An effect aborts it on run/employer changes; no refs are read in render.
+  const [preRunRequest, setPreRunRequest] = useState<{
+    scope: string;
+    id: number;
+    nonce: string;
+    calculate: boolean;
+    orgId: number;
+    legalEntityId: number | null;
+    process: () => Promise<void>;
+    onBlocked: (message: string) => void;
+  } | null>(null);
 
   // Derived, not synced: if the selected run disappears (client switch, new
   // run) the first run takes over without an effect round-trip.
@@ -122,6 +139,86 @@ export function PayrollRunView({
     ? data.multiEntity.legalEntityId : run?.legalEntityId ?? null;
   const selectedEmployerMatches = !data.multiEntity?.enabled ||
     (expectedLegalEntityId !== null && expectedLegalEntityId === run?.legalEntityId);
+  const preRunScope = JSON.stringify([
+    data.selectedOrganization.id, run?.id ?? null, run?.legalEntityId ?? null,
+    expectedLegalEntityId, run?.periodStart, run?.periodEnd, run?.payDate, run?.status,
+    data.payrollPreRunReadinessEnabled === true,
+  ]);
+  const visiblePreRun = preRunResult?.scope === preRunScope ? preRunResult.readiness : null;
+  const visiblePreRunError = preRunError?.scope === preRunScope ? preRunError.message : null;
+  const preRunChecking = preRunBusy?.scope === preRunScope
+    && preRunBusy.nonce === preRunRequest?.nonce;
+
+  function checkPreRunAndMaybeCalculate(id: number, calculate: boolean) {
+    if (!run || run.id !== id || !selectedEmployerMatches || preRunChecking || busy) return;
+    if (calculate && data.payrollPreRunReadinessEnabled !== true) {
+      void onProcess(id);
+      return;
+    }
+    const nonce = crypto.randomUUID();
+    setPreRunBusy({ scope: preRunScope, nonce });
+    setPreRunError(null);
+    setPreRunResult(null);
+    setPreRunRequest({
+      scope: preRunScope,
+      id,
+      nonce,
+      calculate,
+      orgId: data.selectedOrganization.id,
+      legalEntityId: run.legalEntityId ?? null,
+      process: () => onProcess(id),
+      onBlocked: (message) => notify(message, "err"),
+    });
+  }
+
+  useEffect(() => {
+    const request = preRunRequest;
+    if (!request || request.scope !== preRunScope
+      || !selectedEmployerMatches || run?.id !== request.id) return;
+    if (startedPreRunRequests.current.has(request.nonce)) return;
+    startedPreRunRequests.current.add(request.nonce);
+    const controller = new AbortController();
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/payroll-runs/" + request.id + "/pre-run-readiness", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Readiness could not be verified for this employer and run.");
+        const body: PayrollPreRunReadiness = await response.json();
+        if (body.runId !== request.id || body.organizationId !== request.orgId
+          || body.legalEntityId !== request.legalEntityId
+          || typeof body.ready !== "boolean" || !Array.isArray(body.findings)
+          || typeof body.summary?.blocking !== "number") {
+          throw new Error("Readiness returned incomplete or mismatched employer evidence.");
+        }
+        if (!active) return;
+        setPreRunResult({ scope: request.scope, readiness: body });
+        if (!body.ready) {
+          if (request.calculate) request.onBlocked("Calculation blocked: resolve pre-run readiness findings first.");
+          return;
+        }
+        if (request.calculate) await request.process();
+      } catch (error) {
+        if (!active) return;
+        setPreRunError({
+          scope: request.scope,
+          message: error instanceof Error ? error.message : "Pre-run readiness unavailable.",
+        });
+        if (request.calculate) request.onBlocked("Calculation blocked: pre-run readiness could not be verified.");
+      } finally {
+        // Clear only this request: an older aborted fetch cannot unlock a newer run.
+        setPreRunBusy((current) => current?.nonce === request.nonce ? null : current);
+        setPreRunRequest((current) => current?.nonce === request.nonce ? null : current);
+      }
+    })();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [preRunRequest, preRunScope, selectedEmployerMatches, run?.id]);
+
   // A changed employer, payroll snapshot or retry instantly invalidates the
   // old register before React can execute a new effect.
   const registerScopeKey = JSON.stringify({
@@ -356,7 +453,7 @@ export function PayrollRunView({
       title: "Calculation failed",
       detail: "The payroll worker could not finish this run. No failed calculation can move forward to checker review or release.",
       actionLabel: "Retry calculation",
-      onAction: () => void onProcess(run.id),
+      onAction: () => void checkPreRunAndMaybeCalculate(run.id, true),
     });
   }
 
@@ -391,7 +488,7 @@ export function PayrollRunView({
       detail: releaseFailure.error,
       actionLabel: needsRecalculation ? "Recalculate payroll" : "Review release checks",
       onAction: needsRecalculation
-        ? () => void onProcess(run.id)
+        ? () => void checkPreRunAndMaybeCalculate(run.id, true)
         : () => document.getElementById("release-checklist")?.scrollIntoView({ behavior: "smooth", block: "center" }),
     });
   } else if (!released && hardChecklistBlocked && failedChecklistItem) {
@@ -510,7 +607,7 @@ export function PayrollRunView({
           relatedTask={relatedTask}
           calculated={calculated}
           busy={busy || !entriesVerified}
-          onCalculate={() => void onProcess(run.id)}
+          onCalculate={() => void checkPreRunAndMaybeCalculate(run.id, true)}
           onSubmit={() => void openReviewSubmission()}
           onOpenApproval={() => onPage("Approvals")}
           onPage={onPage}
@@ -786,6 +883,42 @@ export function PayrollRunView({
             )}
           </div>}
 
+          {data.payrollPreRunReadinessEnabled === true && !ownerMode && !released && (
+            <div className="card-body" id="pre-run-readiness" style={{ paddingTop: 0 }}>
+              <div className="line-title" style={{ margin: 0 }}>
+                <div>
+                  <strong>Pre-calculation readiness</strong>
+                  <span>Checks the employee cohort, rule verification, attendance and cutoff before Calculate.</span>
+                </div>
+                <span className={`status ${visiblePreRun?.ready ? "status-approved" : "status-review"}`}>
+                  {visiblePreRun ? (visiblePreRun.ready ? "Ready" : "Blocked") : "Not checked"}
+                </span>
+              </div>
+              <button className="secondary-button" type="button" style={{ marginTop: 12 }}
+                disabled={preRunChecking || busy || !selectedEmployerMatches}
+                onClick={() => void checkPreRunAndMaybeCalculate(run.id, false)}>
+                <RefreshCw size={14} /> {preRunChecking ? "Checking readiness" : "Check readiness"}
+              </button>
+              {visiblePreRunError && <div role="alert" className="notice notice-amber" style={{ marginTop: 10 }}>
+                {visiblePreRunError} Calculation remains blocked until readiness is verified.
+              </div>}
+              {visiblePreRun && (
+                <div style={{ marginTop: 10 }} role="status">
+                  <p>{visiblePreRun.summary.blocking} blocking pre-calculation finding(s) for this run.</p>
+                  {visiblePreRun.findings.slice(0, 12).map((finding, index) => (
+                    <div className="exception-row" key={finding.code + ":" + (finding.employeeId ?? "run") + ":" + index}>
+                      <AlertTriangle size={15} className="i-red" />
+                      <div><strong>{finding.title}</strong><p>{finding.detail}</p></div>
+                    </div>
+                  ))}
+                  {visiblePreRun.findings.length > 12 && (
+                    <p>Plus {visiblePreRun.findings.length - 12} more finding(s). Recheck after resolving inputs.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div id="payroll-assurance">
             <PayrollAssurancePanel
               runId={run.id}
@@ -875,7 +1008,7 @@ export function PayrollRunView({
                 state={calculated ? "done" : stage === "prepare" ? "now" : "locked"}
                 copy="Derive hours from punches and compute statutory deductions in the resumable queue."
                 action={
-                  <button className="secondary-button" disabled={busy || released} onClick={() => onProcess(run.id)}>
+                  <button className="secondary-button" disabled={busy || released} onClick={() => checkPreRunAndMaybeCalculate(run.id, true)}>
                     {busy ? <Spinner label="Processing" /> : <RefreshCw size={14} className="i-blue" />}
                     {calculated ? "Re-calculate" : "Calculate"}
                   </button>

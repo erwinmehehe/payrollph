@@ -439,7 +439,6 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
     victimDatabaseUnchanged: true, productionTested: false, certified: false,
   }));
 }
-
 /** Keep the historical statutory HTTP test's exact source-pinned request lines
  * stable when new independently reviewed BIR method evidence is introduced.
  * Called by the real signed-in PG16 harness, never an acceptance bypass. */
@@ -476,6 +475,6 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   }
   assert.equal(gaps.length + bir2316Methods.length, 335,
     "Preserve all 335 current main GAPs except three exact source-pinned 2316 GET/GET/POST proofs");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length, 148,
-    "All 148 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
+  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length, 149,
+    "All 149 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
 }

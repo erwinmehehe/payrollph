@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap + 3, 335, "Preserve all 335 main GAPs before three separately executed BIR 2316 methods");
-  assert.equal(manifest.metrics.coveredAfter - 3, 148, "Preserve the 148 main methods, including two underpayment writes, before three BIR 2316 credits");
+  assert.equal(manifest.metrics.gap + 3, 335, "Preserve all 335 main API method GAPs except three separately proven BIR 2316 document methods");
+  assert.equal(manifest.metrics.coveredAfter - 3, 149, "Keep 149 separate main sources including pre-run readiness plus three BIR 2316 methods");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
