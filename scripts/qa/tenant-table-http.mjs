@@ -52,6 +52,33 @@ export { proofs };
  * A row without `prove` is discovery-only and can never be credited.
  */
 export const TENANT_TABLE = Object.freeze([
+  { key: "GET benefits/hmo", prove: proofs.listsOwnMarker("employees", "name") },
+  { key: "GET benefits", prove: proofs.listsOwnMarker("employees", "name") },
+  { key: "GET billing", flags: ["XENDIT_BILLING_ENABLED"],
+    prove: proofs.all(proofs.echoesOrganization("organization.id"), proofs.valueHasOwnMarker("organization.legalName")) },
+  { key: "GET compliance/remittance-actions",
+    prove: proofs.all(proofs.echoesOrganization(), proofs.listsOwnMarker("assignees", "name")) },
+  { key: "GET hcm/lifecycle-readiness",
+    prove: proofs.all(proofs.echoesOrganization(), proofs.listsOwnMarker("rows", "employeeNo")) },
+  { key: "GET invitations", prove: proofs.listsOwnMarker("members", "name") },
+  { key: "GET it-operations", prove: proofs.listsOwnMarker("employees", "lastName") },
+  { key: "GET payroll-overpayment-preview", flags: ["HCM_OVERPAYMENT_PREVIEW_ENABLED"],
+    prove: proofs.listsOwnMarker("employees", "employeeNo") },
+  { key: "GET payroll/overpayment-preflight", flags: ["PAYROLL_OVERPAYMENT_REVIEW_ENABLED"],
+    prove: proofs.listsOwnMarker("employees", "employeeNo") },
+  { key: "GET performance/calibration", prove: proofs.listsOwnMarker("employees", "lastName") },
+  { key: "GET performance/continuous",
+    prove: proofs.all(proofs.echoesOrganization("access.organizationId"), proofs.listsOwnMarker("employees", "lastName")) },
+  { key: "GET performance/development-plans", prove: proofs.listsOwnMarker("employees", "lastName") },
+  { key: "GET performance",
+    prove: proofs.all(proofs.echoesOrganization("access.organizationId"), proofs.listsOwnMarker("employees", "lastName"), proofs.listsOwnMarker("orgUnits", "name")) },
+  { key: "GET performance/talent-continuity", prove: proofs.listsOwnMarker("employees", "label") },
+  { key: "GET provisioning", prove: proofs.listsOwnMarker("employees", "name") },
+  { key: "GET spend", prove: proofs.listsOwnMarker("employees", "lastName") },
+  { key: "GET workforce-planning",
+    prove: proofs.all(proofs.listsOwnMarker("orgUnits", "name"), proofs.listsOwnMarker("legalEntities", "code")) },
+  { key: "GET workforce/labor-costing", prove: proofs.listsOwnMarker("legalEntities", "legalName") },
+  { key: "GET workforce/overtime", prove: proofs.listsOwnMarker("managers", "name") },
 ]);
 
 const BASE = process.env.SECURITY_SMOKE_URL ?? "";
