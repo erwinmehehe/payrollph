@@ -132,7 +132,7 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
     assert.ok(overviewHasLink(spec.route, spec.method, proof.ownPositiveLine),
       spec.route + ": client-facing inventory lacks exact method proof");
   }
-  // Phase-1 adds a separately proven pre-run GET; the group-report GET is independent. The remaining 335 method GAPs stay unaccepted.
+  // Phase-1 adds a separately proven pre-run GET; the group-report GET is independent. The remaining 329 method GAPs stay unaccepted.
   assert.equal(manifest.metrics.methods, 494);
   assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
     [155, 10, 329]);
@@ -142,10 +142,11 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.equal(preRun?.status, "COVERED");
   assert.equal(manifest.scopedPages.length, 20);
-  assert.equal(manifest.scopedPages.filter(x => x.status === "GAP").length, 19);
+  assert.equal(manifest.scopedPages.filter(x => x.status === "GAP").length, 18);
   const coveredPages = manifest.scopedPages.filter(x => x.status === "COVERED");
-  assert.deepEqual(coveredPages.map(x => x.path), ["src/app/hcm/manager-decision-inbox/page.tsx"]);
-  assert.equal(coveredPages[0].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
+  assert.deepEqual(coveredPages.map(x => x.path), ["src/app/app/page.tsx", "src/app/hcm/manager-decision-inbox/page.tsx"]);
+  assert.equal(coveredPages[0].testedBy?.file, "scripts/qa/tenant-scoped-page-probes.mjs");
+  assert.equal(coveredPages[1].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
   assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: 329 API methods"));
 });
 test("existing employee CSV export retains prior independent proof, not double-credited", () => {

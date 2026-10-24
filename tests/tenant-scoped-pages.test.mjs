@@ -9,9 +9,14 @@ test("all 20 business-ID pages have a real-HTTP two-attacker navigation probe", 
   assert.equal(m.scopedPages.length, 20);
   const covered = m.scopedPages.filter((p) => p.status === "COVERED");
   assert.deepEqual(covered.map((p) => p.path),
-    ["src/app/hcm/manager-decision-inbox/page.tsx"]);
-  assert.equal(covered[0].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
-  assert.equal(m.scopedPages.filter((p) => p.status === "GAP").length, 19);
+    ["src/app/app/page.tsx", "src/app/hcm/manager-decision-inbox/page.tsx"]);
+  assert.equal(covered[1].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
+  assert.equal(covered[0].testedBy?.file, "scripts/qa/tenant-scoped-page-probes.mjs");
+  assert.match(pageProbe, /expectStatus\(ownRes, 200,/);
+  assert.match(pageProbe, /ownRes\.text\.includes\(f\.ownedEmployees\[idx - 1\]\.employeeNo\)/);
+  assert.match(pageProbe, /expectStatus\(foreignRes, 404,/);
+  assert.match(pageProbe, /!ownRes\.text\.includes\("Workspace unavailable"\)/);
+  assert.equal(m.scopedPages.filter((p) => p.status === "GAP").length, 18);
   assert.match(harness, /await \(await import\("\.\/tenant-scoped-page-probes\.mjs"\)\)\.probeManifestBusinessPages\(f, \{ request, makeSession, expectStatus \}\);/);
   assert.match(pageProbe, /for \(const page of pages\)/);
   assert.match(pageProbe, /for \(const idx of \[1, 2\]\)/);

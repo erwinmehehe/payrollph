@@ -33,11 +33,11 @@ No live employees, bank credentials, external payout providers, payroll release,
 
 | Metric | Prior merged main | This draft |
 |---|---:|---:|
-| API method inventory | 493 | 493 |
-| Method-specific provisional COVERED | 147 | **153** |
+| API method inventory | 494 | 494 |
+| Method-specific provisional COVERED | 149 | **155** |
 | PUBLIC-BY-DESIGN | 10 | 10 |
-| Remaining API GAP | 336 | **330** |
-| Remaining page/action GAP | 19 | **19** |
+| Remaining API GAP | 335 | **329** |
+| Remaining page/action GAP | 18 | **18** |
 | Confirmed live tenant leaks fixed by this PR | 0 | **0** |
 
 **Overall tenant-isolation audit: NOT ACCEPTED.** Newly credited methods must pass exact-head Security HTTP Smoke, all mandated regressions and independent security review before merge. This document does not authorize deployment, payment or a production release.
