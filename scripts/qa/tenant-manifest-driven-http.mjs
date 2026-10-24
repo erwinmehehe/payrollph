@@ -230,13 +230,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  assert.equal(gaps.length, 334, "Retain 334 unresolved methods: #1341 group-report GET and #1361 payroll-close POST have distinct provisional proofs; all remaining GAPs stay open");
-  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]?.methods.find((method) => method.name === "POST");
-  assert.equal(closePost?.status, "COVERED", "Close POST needs distinct successful real-HTTP proof");
-  assert.equal(closePost?.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs", "Close POST cannot borrow unrelated method proof");
-  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find((method) => method.name === "GET");
-  assert.equal(groupReport?.status, "COVERED", "Keep the separately reviewed group-report GET provisional proof");
-  assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
+  verifyBir2316HistoricalGapBaseline(gaps);
   const certifiedGovernance = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(certifiedGovernance?.status, "COVERED", "Closing a GAP requires independently exercised tenant-proof evidence");
   assert.equal(certifiedGovernance?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs", "HCM GET must retain the real authenticated own/foreign HTTP proof");
@@ -444,4 +438,73 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
     highExistingVictimIds: [victimBatch.id, victimEvidence.id, victimPosting.id, victimTask.id],
     victimDatabaseUnchanged: true, productionTested: false, certified: false,
   }));
+}
+/** Keep the historical statutory HTTP test's exact source-pinned request lines
+ * stable when new independently reviewed BIR method evidence is introduced.
+ * Called by the real signed-in PG16 harness, never an acceptance bypass. */
+function verifyBir2316HistoricalGapBaseline(gaps) {
+  // Preserve the pre-#1353/#1361 baseline (149 covered / 335 gaps) while
+  // crediting three separately exercised BIR 2316 document methods and
+  // one distinct successful payroll accounting-close POST.
+  // A generic "three fewer gaps" subtraction is insufficient: require exact
+  // GET/GET/POST identities and live own/victim evidence from their separate
+  // synthetic HTTPS + PostgreSQL acceptance suite.
+  const bir2316Methods = [
+    ["src/app/api/separation/[id]/2316/route.ts", "GET", "ownDraft", "foreignDraft"],
+    ["src/app/api/year-end/2316-certificate/route.ts", "GET", "ownSource", "foreignSource"],
+    ["src/app/api/year-end/2316-certificate/route.ts", "POST", "ownPdf", "foreignPdf"],
+  ];
+  const proofFile = "scripts/qa/tenant-bir2316-http.mjs";
+  const proofLines = readFileSync(proofFile, "utf8").split("\n");
+  for (const [path, verb, own, foreign] of bir2316Methods) {
+    const matching = manifest.allApiRouteFiles[path]?.methods.filter((m) => m.name === verb);
+    assert.equal(matching?.length, 1, path + " " + verb + ": exact method required");
+    const entry = matching[0];
+    assert.equal(entry.status, "COVERED", path + " " + verb + ": only tested 2316 methods count");
+    assert.equal(entry.testedBy?.file, proofFile, path + " " + verb + ": own/foreign PG16 proof required");
+    assert.match(proofLines[entry.testedBy.ownPositiveLine - 1] ?? "",
+      new RegExp("const " + own + " = expectStatus\\(await request\\("),
+      path + " " + verb + ": own 2316 success must have a real HTTP request");
+    assert.match(proofLines[entry.testedBy.foreignDenialLine - 1] ?? "",
+      new RegExp("const " + foreign + " = expectStatus\\(await request\\("),
+      path + " " + verb + ": a foreign victim denial must be exercised");
+    if (verb === "POST") {
+      assert.match(proofLines[entry.testedBy.unchangedDbLine - 1] ?? "",
+        /assert\.deepEqual\(victimAfter, victimBefore/,
+        "Unsigned PDF POST must leave the real victim database and audit untouched");
+    }
+  }
+  // #1361 must add a genuinely successful POST, never reuse payroll-close GET.
+  // The owning and foreign employer controls run inside disposable PG16 real HTTP.
+  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find((method) => method.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "Additional close POST credit requires separate executed positive/negative evidence");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  const closeProof = closePost.testedBy;
+  const closeSource = readFileSync(closeProof.file, "utf8");
+  const closeLines = closeSource.split("\n");
+  assert.deepEqual([closeProof.ownPositiveLine, closeProof.foreignDenialLine,
+    closeProof.unchangedDbLine], [444, 456, 465],
+    "Accounting-close POST must retain its exact own/victim/unchanged SQL proof");
+  assert.match(closeLines[closeProof.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(closeProof.ownPositiveLine - 1,
+    closeProof.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/);
+  assert.match(closeLines[closeProof.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closeProof.foreignDenialLine - 1,
+    closeProof.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/);
+  assert.match(closeLines[closeProof.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/);
+  assert.match(closeSource, /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
+  assert.match(closeSource, /event\.action === "Payroll close completed"/,
+    "Own close POST must persist a matching accounting audit receipt");
+  const closePostCredits = 1;
+  assert.equal(gaps.length + bir2316Methods.length + closePostCredits, 335,
+    "Preserve the original 335 GAPs except three distinct BIR 2316 and one close POST method");
+  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - closePostCredits, 149,
+    "All 149 independently source-pinned pre-#1353/#1361 credits must remain intact");
 }

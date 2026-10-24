@@ -2,7 +2,8 @@ import { loadFinalPay2316Withholding } from "@/lib/bir-2316-withholding-server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, legalEntities, organizations, separationRecords } from "@/db/schema";
-import { historical2316Employer } from "@/lib/bir-2316-employer";
+import { frozenFinalPayLegalEntityId, historical2316Employer } from "@/lib/bir-2316-employer";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { certificateDraftEnabled } from "@/lib/bir-2316-certificate-server";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -26,7 +27,7 @@ export const dynamic = "force-dynamic";
  * on-demand after recent MFA and is never persisted as plaintext in Documents.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getSessionUser();
@@ -85,6 +86,15 @@ export async function GET(
     }, { status: 409 });
   }
 
+  // An offboarding tax draft follows the employer frozen at final-pay release.
+  // The worker's current assignment may have changed since the cutoff.
+  const entityScope = await resolveMultiEntityContext({
+    userId: session.id, organizationId: separation.organizationId, request,
+  });
+  if (!entityScope.ok) return entityScope.response;
+  const entityDenied = assertEntityResource(entityScope.context, frozenFinalPayLegalEntityId(snapshot));
+  if (entityDenied) return entityDenied;
+
   const [organization] = await db.select().from(organizations)
     .where(eq(organizations.id, separation.organizationId))
     .limit(1);
@@ -95,7 +105,7 @@ export async function GET(
   const digits = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
   const employerTin = digits(organization.birTin);
   const employerBranch = digits(organization.birBranchCode).padStart(4, "0").slice(-4);
-  const historical = certificateDraftEnabled()
+  const historical = (certificateDraftEnabled() || entityScope.context.enabled)
     ? historical2316Employer({ organizationId: separation.organizationId, snapshot,
         entities: await db.select().from(legalEntities).where(eq(legalEntities.organizationId, separation.organizationId)),
         legacy: organization }) : null;
@@ -103,6 +113,11 @@ export async function GET(
     error: "The frozen final-pay employer cannot be verified. Review the historical employer record before generating 2316.",
     code: historical.code,
   }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+  // Verify historical registration within this employer before decrypting TIN.
+  if (historical?.ok) {
+    const historicalDenied = assertEntityResource(entityScope.context, historical.legalEntityId);
+    if (historicalDenied) return historicalDenied;
+  }
   const employeeTin = digits(decryptGovernmentId(employee.tin));
   const employeeBranch = digits(decryptGovernmentId(employee.tinBranchCode)).padStart(4, "0").slice(-4);
 

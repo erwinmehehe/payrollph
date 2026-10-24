@@ -15,10 +15,17 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 494 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 494, "494 actual methods include pre-run readiness GET and inherited handlers");
-  assert.equal(manifest.metrics.gap, 334,
+  assert.equal(manifest.metrics.gap, 331,
     "Retain all remaining GAPs; #1361 payroll-close POST is distinct from group-report GET");
-  assert.equal(manifest.metrics.coveredAfter, 150,
-    "Only the separate accounting-close POST proof adds one provisional method to the merged ledger");
+  assert.equal(manifest.metrics.coveredAfter, 153,
+    "Main retains three distinct BIR 2316 proofs; #1361 adds one separate accounting-close POST");
+  const bir2316 = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
+    .filter(method => method.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
+  assert.deepEqual(bir2316.map(method => method.name).sort(), ["GET", "GET", "POST"],
+    "The three separately executed BIR 2316 methods must retain their exact source evidence");
+  assert.ok(bir2316.every(method => method.status === "COVERED" &&
+    Number.isInteger(method.testedBy?.ownPositiveLine) &&
+    Number.isInteger(method.testedBy?.foreignDenialLine)));
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find(method => method.name === "POST");
   assert.equal(closePost?.status, "COVERED",

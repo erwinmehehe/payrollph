@@ -150,9 +150,9 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
     /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
     "The additional payroll-close proof must run in the real PG16 HTTP harness");
   assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [150, 10, 334]);
+    [153, 10, 331]);
   assert.equal(manifest.metrics.methods, 494);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 334 API methods and 18 page\/action GAPs remain/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 331 API methods and 18 page\/action GAPs remain/);
   assert.equal(manifest.scopedPages.length, 20);
   assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 18);
 });

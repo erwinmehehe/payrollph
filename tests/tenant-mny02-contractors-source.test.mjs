@@ -95,13 +95,20 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     assert.match(underpaymentSource[125] ?? "", /assert\.deepEqual\(await snapshot\(v\), before/);
   }
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 150, 10, 334]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 153, 10, 331]);
   // Group reports have a separate three-tenant source-pinned GET; they may
   // not borrow the contractor or underpayment execution receipt.
   const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(m => m.name === "GET");
   assert.equal(groupReport?.status, "COVERED");
   assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
   const groupReportCredits = 1;
+  const bir2316Methods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
+    .filter(method => method.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
+  assert.deepEqual(bir2316Methods.map(method => method.name).sort(), ["GET", "GET", "POST"],
+    "Exactly three distinct BIR 2316 document methods are separate from both underpayment and MNY-02 proofs");
+  assert.ok(bir2316Methods.every(method => method.status === "COVERED" &&
+    Number.isInteger(method.testedBy?.ownPositiveLine) &&
+    Number.isInteger(method.testedBy?.foreignDenialLine)));
   const preRun = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"]?.methods.find(m => m.name === "GET");
   assert.equal(preRun?.status, "COVERED", "Main source-pinned readiness GET must retain its independent credit");
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
@@ -129,11 +136,11 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
   const closePostCredits = 1;
   assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - closePostCredits - preRunCredit,
+    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - closePostCredits - preRunCredit - bir2316Methods.length,
     manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + closePostCredits], [494, 145, 10, 338],
+    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + closePostCredits + bir2316Methods.length], [494, 145, 10, 338],
   "Previous six-contractor MNY-02 baseline must remain accounted for separately");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 334 API methods/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 331 API methods/);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {
