@@ -311,14 +311,74 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     m.testedBy?.ownPositiveLine && m.testedBy?.foreignDenialLine));
   assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
     /npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/);
+  const closePost = methodsByKey.get("POST payroll-runs/[id]/close");
+  assert.equal(closePost?.status, "COVERED",
+    "Accounting close POST requires distinct executed HTTP proof; no GET proof can authorize a write");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs",
+    "Close POST credit must refer to its own independent POST method proof");
+  const closeProof = closePost.testedBy;
+  const closeLines = source.split("\n");
+  const proofAt = (line) => closeLines[line - 1] ?? "";
+  assert.equal(closeProof.line, closeProof.ownPositiveLine);
+  assert.match(proofAt(closeProof.ownPositiveLine),
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/,
+    "Owned close POST must be a real HTTP request, not only a preview");
+  assert.match(closeLines.slice(closeProof.ownPositiveLine - 1, closeProof.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/,
+    "Own accounting close POST must succeed; a blocked 409 is not positive evidence");
+  assert.match(proofAt(closeProof.foreignDenialLine),
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closeProof.foreignDenialLine - 1, closeProof.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/,
+    "A real victim-only POST must be refused under the independent attacker session");
+  assert.match(proofAt(closeProof.unchangedDbLine),
+    /assert\.deepEqual\(victimAfter, victimBefore/,
+    "Denied close POST must not change the victim PostgreSQL snapshot");
+  assert.match(source, /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
+    "The actual second-pass harness must execute the additional proof");
+  assert.match(source, /for \(const idx of \[1, 2\]\)/);
+  assert.match(source, /assert\.equal\(ownPost\.json\?\.closed, true\)/);
+  assert.match(source, /event\.action === "Payroll close completed"/,
+    "Own success requires a persisted accounting audit receipt");
+  assert.match(source, /assert\.notEqual\(process\.env\.PAYMONGO_DISBURSEMENTS_ENABLED, "true"\)/);
+  assert.match(source, /assert\.notEqual\(process\.env\.XENDIT_PAYOUTS_ENABLED, "true"\)/);
+  const closePostCredits = 1;
   assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
-    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - bir2316Methods.length, 124,
+    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - closePostCredits - bir2316Methods.length, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
-    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + bir2316Methods.length, 359,
+    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + closePostCredits + bir2316Methods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
   assert.match(source, /assert\.equal\(passed\.size, 36/);
   assert.match(source, /assert\.deepEqual\(victimAfter, victimBefore/);
+});
+test("fictional payroll accounting close and pre-run readiness cannot share an overlapping period", () => {
+  // An accounting close's Released fixture persists for the whole HTTP suite.
+  // If its cutoff collides with the readiness Create & process probe, the API
+  // correctly returns 409 period-conflict rather than exercising the expected
+  // own-employer unverified-source 422. Keep both genuine controls testable.
+  const fixture = source.match(
+    /periodLabel: "CI-ACCOUNTING-CLOSE-"[^\n]*\n\s*periodStart: "(\d{4}-\d{2}-\d{2})", periodEnd: "(\d{4}-\d{2}-\d{2})",[^\n]*\n\s*payDate: "(\d{4}-\d{2}-\d{2})"/,
+  );
+  const readiness = harness.match(
+    /const createBody = \{ organizationId: org\.id, legalEntityId: f\.entities\[idx\]\.id,[^\n]*\n\s*periodStart: "(\d{4}-\d{2}-\d{2})", periodEnd: "(\d{4}-\d{2}-\d{2})", payDate: "(\d{4}-\d{2}-\d{2})", processNow: true \};/,
+  );
+  assert.ok(fixture && readiness, "Both independently populated real-HTTP fixture periods must remain explicit");
+  const [, closeStart, closeEnd, closePayDate] = fixture;
+  const [, readinessStart, readinessEnd] = readiness;
+  assert.ok(closeStart <= closeEnd && readinessStart <= readinessEnd,
+    "Both payroll ranges must remain chronological");
+  assert.ok(closeEnd < readinessStart || readinessEnd < closeStart,
+    "Fictional Released close payroll must never shadow readiness Create & process with a 409 overlap");
+  assert.ok(closePayDate > closeEnd);
+  assert.ok(source.includes('completedAt: "' + closePayDate + 'T00:00:00.000Z"'),
+    "Fictional audit settlement reference must use the same pay date; never claim a real transfer");
+  const closeCall = harness.indexOf(
+    'await (await import("./tenant-high-risk-01-http.mjs")).verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });',
+  );
+  const readinessCall = harness.indexOf("await verifyPreRunReadinessTenantRead(f);");
+  assert.ok(closeCall >= 0 && readinessCall > closeCall,
+    "The close fixture persists before the readiness proof; their periods must stay isolated");
 });

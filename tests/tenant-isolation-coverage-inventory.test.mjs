@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap + 3, 335, "Preserve all 335 main API method GAPs except three separately proven BIR 2316 document methods");
-  assert.equal(manifest.metrics.coveredAfter - 3, 149, "Keep 149 separate main sources including pre-run readiness plus three BIR 2316 methods");
+  assert.equal(manifest.metrics.gap + 3 + 1, 335, "Preserve 335 historical method GAPs except three BIR 2316 and one distinct payroll-close POST proof");
+  assert.equal(manifest.metrics.coveredAfter - 3 - 1, 149, "Keep 149 independently sourced baseline credits and separately require all four newer proofs");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
@@ -1261,7 +1261,47 @@ test("all credited proof links point to the claimed route and every recertified 
         const spec = method.name + " " + entry.route;
         const signature = evidenceLine(proof.file, proof.line, spec + " exact method case");
         const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
-        assert.equal(method.name, "GET", spec + ": this does not authorize mutating methods");
+        if (method.name === "POST") {
+          // A real payroll accounting-close mutation must not borrow the 16 GET
+          // proofs. Check this exact separate, executed own-200 / victim-403
+          // proof with a persisted own audit receipt and unchanged victim DB.
+          assert.equal(path, "src/app/api/payroll-runs/[id]/close/route.ts");
+          assert.equal(spec, "POST payroll-runs/[id]/close");
+          assert.equal(proof.line, proof.ownPositiveLine);
+          assert.match(harness, /verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
+          assert.match(evidence, /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\)/);
+          const helperIndex = evidence.indexOf("async function verifyPayrollClosePostIsolation(");
+          assert.ok(helperIndex > 0, "Close POST must have a separately invoked proof helper");
+          const helper = evidence.slice(helperIndex);
+          const positive = evidenceLine(proof.file, proof.ownPositiveLine, spec + " real own 200");
+          const foreign = evidenceLine(proof.file, proof.foreignDenialLine, spec + " real victim 403");
+          const unchanged = evidenceLine(proof.file, proof.unchangedDbLine, spec + " immutable victim DB");
+          const ownSpan = evidenceLines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 3).join("\n");
+          const foreignSpan = evidenceLines.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 7).join("\n");
+          assert.match(positive, /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+          assert.match(ownSpan, /cookie, method: "POST"/);
+          assert.match(ownSpan, /\}\), 200,/,
+            "Own payroll close must actually succeed; 409/422 is not positive proof");
+          assert.match(helper, /assert\.equal\(ownPost\.json\?\.closed, true\)/);
+          assert.match(helper, /assert\.ok\(audit\.some\(event => event\.action === "Payroll close completed"/,
+            "Owned HTTP 200 must leave a persisted payroll-close audit receipt");
+          assert.match(foreign, /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+          assert.match(foreignSpan, /cookie, method: "POST"/);
+          assert.match(foreignSpan, /organizationId: org\.id, legalEntityId: f\.entities\[idx\]\.id/,
+            "Forged scope selectors must not authorize a foreign payroll close");
+          assert.match(foreignSpan, /\}\), 403,/);
+          assert.match(unchanged, /assert\.deepEqual\(victimAfter, victimBefore/);
+          assert.match(helper, /const victimBefore = await takeVictimSnapshot\(victimId\)/);
+          assert.match(helper, /const victimAfter = await takeVictimSnapshot\(victimId\)/);
+          assert.match(helper, /f\.victimRun\.id > 6/);
+          assert.match(helper, /for \(const idx of \[1, 2\]\)/);
+          assert.match(helper, /makeSession\(owner\.id, \{ privileged: true \}\)/);
+          assert.match(helper, /assert\.notEqual\(process\.env\.PAYMONGO_DISBURSEMENTS_ENABLED, "true"\)/);
+          assert.match(helper, /assert\.notEqual\(process\.env\.XENDIT_PAYOUTS_ENABLED, "true"\)/);
+          assert.match(helper, /assert\.ok\(!process\.env\.PAYMONGO_SECRET_KEY && !process\.env\.XENDIT_SECRET_KEY/);
+          continue;
+        }
+        assert.equal(method.name, "GET", spec + ": this does not authorize other mutating methods");
         assert.ok(signature.includes('key: "' + spec + '"') ||
           signature.includes('await caseCheck("' + spec + '"'),
           spec + ": must link a distinct exact-route high-risk test case");

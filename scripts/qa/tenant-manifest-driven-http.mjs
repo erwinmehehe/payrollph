@@ -1,7 +1,7 @@
 /**
  * Manifest-driven, non-production HTTP/PG authorization test runner.
  * A method enters the registry only with an actual seeded own/foreign case.
- * All 493 manifest methods are read; outstanding GAPs are reported, NEVER
+ * All 494 manifest methods are read; outstanding GAPs are reported, NEVER
  * silently treated as successful coverage. Extensible by family adapters,
  * not hundreds of one-off tests. All writes below are fictional CI fixture SEEDING.
  */
@@ -443,8 +443,9 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
  * stable when new independently reviewed BIR method evidence is introduced.
  * Called by the real signed-in PG16 harness, never an acceptance bypass. */
 function verifyBir2316HistoricalGapBaseline(gaps) {
-  // Preserve current main's source-pinned baseline (148 covered / 335 gaps) while
-  // crediting ONLY the three independently exercised BIR 2316 document methods.
+  // Preserve the pre-#1353/#1361 baseline (149 covered / 335 gaps) while
+  // crediting three separately exercised BIR 2316 document methods and
+  // one distinct successful payroll accounting-close POST.
   // A generic "three fewer gaps" subtraction is insufficient: require exact
   // GET/GET/POST identities and live own/victim evidence from their separate
   // synthetic HTTPS + PostgreSQL acceptance suite.
@@ -473,8 +474,37 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
         "Unsigned PDF POST must leave the real victim database and audit untouched");
     }
   }
-  assert.equal(gaps.length + bir2316Methods.length, 335,
-    "Preserve all 335 current main GAPs except three exact source-pinned 2316 GET/GET/POST proofs");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length, 149,
-    "All 149 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
+  // #1361 must add a genuinely successful POST, never reuse payroll-close GET.
+  // The owning and foreign employer controls run inside disposable PG16 real HTTP.
+  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find((method) => method.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "Additional close POST credit requires separate executed positive/negative evidence");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  const closeProof = closePost.testedBy;
+  const closeSource = readFileSync(closeProof.file, "utf8");
+  const closeLines = closeSource.split("\n");
+  assert.deepEqual([closeProof.ownPositiveLine, closeProof.foreignDenialLine,
+    closeProof.unchangedDbLine], [444, 456, 465],
+    "Accounting-close POST must retain its exact own/victim/unchanged SQL proof");
+  assert.match(closeLines[closeProof.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(closeProof.ownPositiveLine - 1,
+    closeProof.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/);
+  assert.match(closeLines[closeProof.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closeProof.foreignDenialLine - 1,
+    closeProof.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/);
+  assert.match(closeLines[closeProof.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/);
+  assert.match(closeSource, /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
+  assert.match(closeSource, /event\.action === "Payroll close completed"/,
+    "Own close POST must persist a matching accounting audit receipt");
+  const closePostCredits = 1;
+  assert.equal(gaps.length + bir2316Methods.length + closePostCredits, 335,
+    "Preserve the original 335 GAPs except three distinct BIR 2316 and one close POST method");
+  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - closePostCredits, 149,
+    "All 149 independently source-pinned pre-#1353/#1361 credits must remain intact");
 }
