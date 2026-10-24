@@ -55,7 +55,7 @@ test("proof cannot silently drop genuine signed-in, disposable and unchanged-vic
   assert.match(script, /GITHUB_ACTIONS.*"true"/);
   assert.match(script, /MULTI_ENTITY_ENABLED.*"true"/);
   assert.match(script, /DATABASE_URL[\s\S]*app_db/);
-  assert.match(script, /PLAYWRIGHT_SHOULD_NOT_BE_PRESENT|chromium\.launch/);
+  assert.match(script, /chromium\.launch/);
   assert.match(script, /"\/api\/auth\/login"/);
   assert.match(script, /context\.cookies\(base\)/);
   assert.match(script, /await sql\.query\("DELETE FROM organizations/);
