@@ -26,4 +26,8 @@ test("the repin tool only moves line numbers, never statuses, SHAs or route-sour
   assert.ok(!/\.status\s*=|gitBlobSha\s*=|testedBy\s*=/.test(source), "no status, SHA or proof assignment");
   assert.ok(source.includes("proof[field] = at;"), "the only write is a relocated line number");
   assert.ok(source.includes("exact.length === 1 ? exact[0] : undefined"), "ambiguous moves are reported, never guessed");
+  // Compare against the base manifest's own citation (base line number in the base file); a credit
+  // that did not exist on the base is new, not shifted, and is validated by the inventory guard.
+  assert.ok(source.includes("const text = before[baseValue - 1];"), "base text is read at the base citation, not the current one");
+  assert.ok(source.includes("if (!before || !Number.isInteger(baseValue)) { newCitations += 1; continue; }"));
 });

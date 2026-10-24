@@ -3,10 +3,13 @@
  * Re-pin tenant-isolation proof line numbers after a proof file shifts.
  *
  * Every COVERED method cites exact lines (ownPositiveLine, foreignDenialLine, unchangedDbLine,
- * ...). Inserting one line above them used to force hand-edited "repin" commits. This tool reads
- * each cited line's TEXT from the base version of the proof file and finds that exact text in the
- * current file. It re-pins only on a unique exact match; anything moved ambiguously or edited is
- * reported for a human, never guessed. It never touches statuses, route SHAs or proof claims.
+ * ...). Inserting one line above them used to force hand-edited "repin" commits. For each citation
+ * the BASE manifest already had (same method, same proof file), this tool reads the cited TEXT at
+ * the base line number in the base proof file and checks the current citation still points at it,
+ * else finds that exact text in the current file. It re-pins only on a unique exact match; anything
+ * moved ambiguously or edited is reported for a human, never guessed. Citations that are new in
+ * this change (a new credit) have nothing to compare against and are left to the inventory guard.
+ * It never touches statuses, route SHAs or proof claims.
  *
  *   node scripts/qa/tenant-manifest-repin.mjs [--base <git-ref>] [--write]
  * Without --write it only reports (exit 1 if anything would change or needs review).
@@ -23,6 +26,15 @@ const baseRef = args[args.indexOf("--base") + 1] && args.includes("--base")
 
 const raw = readFileSync(MANIFEST, "utf8");
 const manifest = JSON.parse(raw);
+const baseManifest = (() => {
+  try { return JSON.parse(execFileSync("git", ["show", baseRef + ":" + MANIFEST], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 << 20 })); }
+  catch { return null; }
+})();
+/** The same method's citation of the same proof file on the base, if it existed. */
+const baseCitation = (path, methodName, kind, file) => {
+  const proof = baseManifest?.allApiRouteFiles?.[path]?.methods?.find((m) => m.name === methodName)?.[kind];
+  return proof && typeof proof === "object" && proof.file === file ? proof : null;
+};
 const baseText = new Map();
 const currentText = new Map();
 const linesAt = (cache, file, loader) => {
@@ -53,21 +65,25 @@ function relocate(before, now, value) {
 }
 
 const moved = [], review = [];
-let unchanged = 0;
+let unchanged = 0, newCitations = 0;
 for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
   for (const method of record.methods) {
-    for (const proof of [method.testedBy, method.reviewedUncertified].filter((p) => p && typeof p === "object")) {
-      if (typeof proof.file !== "string") continue;
+    for (const kind of ["testedBy", "reviewedUncertified"]) {
+      const proof = method[kind];
+      if (!proof || typeof proof !== "object" || typeof proof.file !== "string") continue;
+      const cited = baseCitation(path, method.name, kind, proof.file);
       const before = baseLines(proof.file);
       const now = nowLines(proof.file);
       if (!now) { review.push(`${method.name} ${path}: proof file ${proof.file} no longer exists`); continue; }
       for (const [field, value] of Object.entries(proof)) {
         if (!/Line$|^line$/.test(field) || !Number.isInteger(value) || ROUTE_SOURCE_FIELDS.has(field)) continue;
-        if (!before) { unchanged += 1; continue; } // new proof file: nothing to compare against
-        const text = before[value - 1];
-        if (text === undefined) { review.push(`${method.name} ${path} ${field}=${value}: line did not exist at ${baseRef}`); continue; }
+        const baseValue = cited?.[field];
+        // New proof file or new citation (a credit added in this change): nothing to compare against.
+        if (!before || !Number.isInteger(baseValue)) { newCitations += 1; continue; }
+        const text = before[baseValue - 1];
+        if (text === undefined) { review.push(`${method.name} ${path} ${field}=${baseValue}: base citation pointed past the end of ${proof.file} at ${baseRef}`); continue; }
         if (now[value - 1] === text) { unchanged += 1; continue; }
-        const { hits, at } = relocate(before, now, value);
+        const { hits, at } = relocate(before, now, baseValue);
         if (at !== undefined) {
           moved.push(`${method.name} ${path} ${field}: ${value} -> ${at}`);
           proof[field] = at;
@@ -79,7 +95,7 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
   }
 }
 if (write && moved.length) writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + (raw.endsWith("\n") ? "\n" : ""));
-console.log(JSON.stringify({ base: baseRef, unchanged, repinned: moved.length, needsReview: review.length, wrote: write && moved.length > 0 }, null, 1));
+console.log(JSON.stringify({ base: baseRef, unchanged, newCitations, repinned: moved.length, needsReview: review.length, wrote: write && moved.length > 0 }, null, 1));
 for (const line of moved) console.log("repin  " + line);
 for (const line of review) console.log("REVIEW " + line);
 if ((!write && moved.length) || review.length) process.exitCode = 1;
