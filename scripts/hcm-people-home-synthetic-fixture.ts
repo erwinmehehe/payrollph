@@ -54,7 +54,7 @@ async function main() {
   await db.insert(userPermissionAssignments).values({
     organizationId: alpha.id, userOrganizationId: restrictedMembership.id, permissionSetId: deny.id,
   });
-  const [alphaWorker, betaWorker, betaSecondWorker] = await db.insert(employees).values([
+  const [alphaWorker, betaWorker, betaSecond] = await db.insert(employees).values([
     {
       organizationId: alpha.id, employeeNo: "SHARED-001", firstName: "AlphaPrivate",
       lastName: "Worker", avatarInitials: "AP", title: "Staff",
@@ -71,21 +71,35 @@ async function main() {
       basicRate: "88000.00", startDate: "2026-01-01",
     },
   ]).returning();
-  // The request path verifies explicit pay profiles and never creates them.
-  // All three fictional employees must be fully seeded in this disposable DB.
-  const syntheticWorkers = [alphaWorker, betaWorker, betaSecondWorker];
-  assert.ok(syntheticWorkers.every(worker => worker?.id),
-    "All three synthetic employee inserts must return an ID");
-  const payProfiles = await db.insert(employeePayProfiles).values(syntheticWorkers.map(worker => ({
-    employeeId: worker.id,
-    organizationId: worker.organizationId,
-    payBasis: "monthly",
-    rateAmount: worker.basicRate,
-    standardWorkDaysPerMonth: "22",
-    standardHoursPerDay: "8",
-  }))).returning({ employeeId: employeePayProfiles.employeeId });
-  assert.equal(payProfiles.length, syntheticWorkers.length,
-    "Every synthetic worker needs an explicit pay profile");
+  // The app's request path is intentionally READ-ONLY and rejects missing
+  // pay profiles. Seed exactly this synthetic roster before browser acceptance;
+  // never repair an employer's payroll data during request handling.
+  assert.deepEqual(
+    [alphaWorker, betaWorker, betaSecond].map(worker => worker.organizationId),
+    [alpha.id, beta.id, beta.id],
+    "HCM QA pay-profile roster must contain two employers only",
+  );
+  const seededRoster = await db.select({
+    id: employees.id, organizationId: employees.organizationId,
+    employeeNo: employees.employeeNo, basicRate: employees.basicRate,
+  }).from(employees);
+  const expectedRoster = new Map([
+    ["SHARED-001:" + alpha.id, "10000.00"],
+    ["SHARED-001:" + beta.id, "99000.00"],
+    ["BETA-002:" + beta.id, "88000.00"],
+  ]);
+  assert.equal(seededRoster.length, expectedRoster.size, "HCM fixture must own exactly 3 synthetic employees");
+  const explicitProfiles = seededRoster.map(worker => {
+    const pay = expectedRoster.get(worker.employeeNo + ":" + worker.organizationId);
+    assert.ok(pay && worker.basicRate === pay,
+      "HCM_QA_PAY_PROFILE_ROSTER_UNVERIFIED");
+    return {
+      organizationId: worker.organizationId, employeeId: worker.id,
+      payBasis: "monthly" as const, rateAmount: pay,
+      standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
+    };
+  });
+  await db.insert(employeePayProfiles).values(explicitProfiles);
 
   // Only the isolated vault browser acceptance needs a linked ESS worker.
   // Do not change the general HRIS synthetic fixture's account assumptions.

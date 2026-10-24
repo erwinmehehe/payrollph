@@ -13,10 +13,10 @@ const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
-test("single table-driven test reads ALL 493 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 493, "493 actual methods including the three inherited #641 handlers");
-  assert.equal(manifest.metrics.gap, 333, "Retain every unverified GAP after provisional remittance-action GET/POST and earlier independent MNY-02/group-report proofs");
-  assert.equal(manifest.metrics.coveredAfter, 150, "Maintain independent provisional statutory action GET/POST, BIR, vault, MNY-01, MNY-02, underpayment and group-report proofs");
+test("single table-driven test reads ALL 494 methods without claiming precovered GET as a new GAP", () => {
+  assert.equal(manifest.metrics.methods, 494, "494 actual methods include source-pinned pre-run readiness GET and inherited handlers");
+  assert.equal(manifest.metrics.gap, 333, "Two real statutory action proofs added; all 333 remaining GAPs remain unverified");
+  assert.equal(manifest.metrics.coveredAfter, 151, "Retain independent BIR, vault, group-report, pre-run readiness, statutory action GET/POST, MNY-01, MNY-02 and underpayment proofs");
   const report = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
   assert.equal(report?.status, "COVERED");
   assert.equal(report?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
@@ -45,8 +45,8 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
   assert.match(proofLines[governanceMethod.testedBy.ownPositiveLine - 1], /\/api\/hcm\/governance-readiness.*\), 200,/);
   assert.match(proofLines[governanceMethod.testedBy.foreignDenialLine - 1], /\/api\/hcm\/governance-readiness.*victim\.id.*\), 403,/);
   assert.match(harness, /await verifyGovernanceTenantRead\(f\)/);
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 493,
-    "No method may disappear from the audited 493-route-method inventory");
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 494,
+    "No method may disappear from the audited 494-route-method inventory");
   assert.equal(manifest.sourceTraceCandidates.length, 34);
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
@@ -58,8 +58,7 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), [],
-    "Real signed-in employer-scoped GET queue proof closes the last adapted gap");
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), [], "Statutory action GET is credited only through its independent source-pinned PG16 matrix");
   const expectedCovered = [
     "GET compliance/remittance-actions",
     "GET compliance/bir-1601c-remittances",
@@ -70,7 +69,7 @@ test("single table-driven test reads ALL 493 methods without claiming precovered
     "GET compliance/statutory-remittances/posting-evidence/[id]",
   ];
   assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "COVERED").sort(),
-    expectedCovered.sort(), "Preserve all six independently verified HTTP GET adapters");
+    expectedCovered.sort(), "Preserve seven separately verified GET adapters, including the statutory action PG16 matrix");
   for (const spec of expectedCovered) {
     const proof = registry.get(spec).testedBy;
     assert.ok(proof?.file && proof.ownPositiveLine && proof.foreignDenialLine,

@@ -32,12 +32,14 @@ test("PG: authorized no-destination draft calculates, but cannot enter approval 
   const s = await import("../src/db/schema");
   const { eq } = await import("drizzle-orm");
   const create = require("../src/app/api/payroll-runs/route.ts").POST;
+  const calculateExisting = require("../src/app/api/payroll-runs/[id]/process/route.ts").POST;
   const submit = require("../src/app/api/payroll-runs/[id]/submit-review/route.ts").POST;
   const { buildPayrollReleaseChecklist } = await import("../src/lib/payroll-release-checklist");
   const suffix = randomBytes(8).toString("hex");
   const settings = {
     APP_BASE_URL: "http://127.0.0.1:3011", PUBLIC_SIGNUP_MODE: "disabled",
     PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED: "false",
+    PAYROLL_PRE_RUN_READINESS_ENABLED: "false",
   };
   const previous = Object.fromEntries(Object.keys(settings).map(key => [key, process.env[key]]));
   Object.assign(process.env, settings);
@@ -94,6 +96,15 @@ test("PG: authorized no-destination draft calculates, but cannot enter approval 
     assert.equal(entries[0].employeeId, worker.id);
     assert.equal(Number(entries[0].grossPay), 15000);
     assert.ok(Number(entries[0].netPay) > 0);
+    // The same stored calculation succeeds with the new gate OFF, then
+    // the strict ON path rejects its unverified sources without claiming the run.
+    const beforeStrictGate = (await db.select().from(s.payrollRuns).where(eq(s.payrollRuns.id, payload.run.id)))[0];
+    process.env.PAYROLL_PRE_RUN_READINESS_ENABLED = "true";
+    const strictRecalculation = await calculateExisting(request({}), { params: Promise.resolve({ id: String(payload.run.id) }) });
+    assert.equal(strictRecalculation.status, 422);
+    assert.equal((await strictRecalculation.json()).code, "PAYROLL_PRE_RUN_READINESS_BLOCKED");
+    assert.deepEqual((await db.select().from(s.payrollRuns).where(eq(s.payrollRuns.id, payload.run.id)))[0], beforeStrictGate);
+    assert.deepEqual(await db.select().from(s.payrollEntries).where(eq(s.payrollEntries.payrollRunId, payload.run.id)), entries);
     const checklist = await buildPayrollReleaseChecklist(payload.run.id);
     assert.ok(checklist);
     assert.ok(checklist.assurance?.findings.some(f => f.code === "MISSING_BANK_DETAILS" && f.blocking));

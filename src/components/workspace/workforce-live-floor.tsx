@@ -110,7 +110,7 @@ function WorkforceLiveFloorContent({ organizationId, onOpenAttendance }: Workfor
   }, [activeSnapshot?.rows, view, search]);
 
   return (
-    <section className="card" data-wfm-live-floor aria-label="Live workforce floor" style={{ margin: "0 18px 18px" }}>
+    <section className="card workforce-live-floor" data-wfm-live-floor aria-label="Live workforce floor">
       <div className="card-header">
         <div>
           <div className="card-kicker">Live floor · advisory snapshot</div>
@@ -122,16 +122,16 @@ function WorkforceLiveFloorContent({ organizationId, onOpenAttendance }: Workfor
         </button>
       </div>
       {error?.scopeKey === scopeKey && <div role="alert" className="notice notice-amber">{error.message}</div>}
-      {activeSnapshot && <>
+      {activeSnapshot && <div className="workforce-floor-content">
         <p className="id">As of {phTime(activeSnapshot.generatedAt)} (Asia/Manila), {activeSnapshot.workDate} · worker page {activeSnapshot.page} · {activeSnapshot.totalEmployees} visible employees</p>
-        <div className="stats-grid">
+        <div className="stats-grid workspace-metrics">
           <Metric label="Shift segments" value={String(activeSnapshot.summary.shiftSegments)} hint="this page" icon={<UsersRound size={16} />} tone="slate" />
           <Metric label="Recorded clock-ins" value={String(activeSnapshot.summary.recordedIn)} hint="includes recorded breaks" icon={<Clock3 size={16} />} tone="blue" />
           <Metric label="Needs review" value={String(activeSnapshot.summary.requiresReview)} hint="not automatically absent" icon={<Clock3 size={16} />} tone={activeSnapshot.summary.requiresReview ? "amber" : "mint"} />
           <Metric label="Approved full leave" value={String(activeSnapshot.summary.approvedLeave)} hint="schedule context" icon={<Clock3 size={16} />} tone="slate" />
         </div>
         {activeSnapshot.unresolvedSchedules > 0 && <div role="status" className="notice notice-amber">{activeSnapshot.unresolvedSchedules} worker schedule(s) could not be resolved; do not treat this page as complete.</div>}
-        <div className="setting-form" style={{ padding: "4px 0 12px", display: "flex", flexWrap: "wrap", alignItems: "end", gap: 12 }}>
+        <div className="setting-form workforce-floor-filters">
           <label>Show
             <select aria-label="Filter live floor shift status" value={view} onChange={event => setView(event.target.value as typeof view)}>
               <option value="all">All shifts on this page</option>
@@ -165,13 +165,13 @@ function WorkforceLiveFloorContent({ organizationId, onOpenAttendance }: Workfor
           {activeSnapshot.rows.length > 0 ? "No shifts on this page match these filters." :
             "No shift segments in this employee page and live window. This does not mean the whole company has no active shifts."}
         </div>}
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", paddingTop: 12 }}>
+        <div className="workforce-floor-pagination">
           <button className="secondary-button" type="button" disabled={page <= 1 || loading} onClick={() => { setLoading(true); setPage(p => Math.max(1, p - 1)); }}>Previous workers</button>
           <span className="id">Page {page}</span>
           <button className="secondary-button" type="button" disabled={!activeSnapshot.hasMore || loading} onClick={() => { setLoading(true); setPage(p => p + 1); }}>Next workers</button>
           <span className="id">Counts and filters apply to this page only, independent of the Coverage Dynamic Group filter.</span>
         </div>
-      </>}
+      </div>}
     </section>
   );
 }

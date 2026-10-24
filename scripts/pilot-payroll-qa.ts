@@ -11,6 +11,9 @@ import { reconcileAttendanceExceptionEvents } from "../src/lib/workforce-attenda
 
 const base = process.env.QA_URL ?? "http://127.0.0.1:3000";
 const selectedPayoutProvider = configuredPayrollPayoutProvider();
+// Never call an expected strict-source 422 a successful positive payroll pilot.
+assert.notEqual(process.env.PAYROLL_PRE_RUN_READINESS_ENABLED, "true",
+  "Run strict pre-calculation rejection tests in the dedicated disposable pre-run workflow.");
 const setupToken = process.env.SETUP_TOKEN ?? "";
 const readinessToken = process.env.READINESS_TOKEN ?? "";
 const unique = randomUUID().replaceAll("-", "");
@@ -660,7 +663,17 @@ async function main() {
     organizationId, periodStart: "2026-09-16", periodEnd: "2026-09-30", payDate: "2026-10-05", processNow: true,
   } });
   assert.equal(blockedRun.response.status, 422);
+  // The strict pre-run source gate is default-OFF for this existing positive
+  // synthetic pilot; dedicated disposable pre-run CI exercises it flag-ON.
+  // The earlier independent timesheet gate must still fail closed here.
   assert.equal(blockedRun.payload.code, "TIMESHEET_APPROVAL_REQUIRED");
+  assert.equal(blockedRun.payload.timesheetGate?.allowed, false);
+  assert.equal(blockedRun.payload.timesheetGate?.blocking, true);
+  assert.deepEqual(
+    [...(blockedRun.payload.timesheetGate?.missingEmployeeIds ?? [])].sort((a: number, b: number) => a - b),
+    created.map(employee => employee.id).sort((a, b) => a - b),
+    "Payroll must identify both workers with missing approved timesheets.",
+  );
   const [secondEmployeeUser] = await db.insert(users).values({
     email: "second.employee.pilot@linaw.test", name: "Synthetic second employee",
     passwordHash: hashPassword(credentials.employee), role: "employee",
@@ -707,6 +720,16 @@ async function main() {
   } });
   assert.equal(staleRun.response.status, 422);
   assert.equal(staleRun.payload.code, "TIMESHEET_APPROVAL_REQUIRED");
+  assert.equal(staleRun.payload.timesheetGate?.allowed, false);
+  assert.equal(staleRun.payload.timesheetGate?.blocking, true);
+  assert.ok(
+    (staleRun.payload.timesheetGate?.nonApprovedEmployeeIds ?? []).includes(created[0].id),
+    "Payroll must reject the corrected worker's stale approved-timesheet version.",
+  );
+  assert.ok(
+    (staleRun.payload.timesheetGate?.approvedEmployeeIds ?? []).includes(created[1].id),
+    "The unaffected worker's approval must remain valid.",
+  );
   const staleApproval = await owner.json("/api/workforce/timesheets", { method: "POST", json: {
     organizationId, action: "decide", timesheetId: staleTimesheet.id, decision: "approved",
   } });

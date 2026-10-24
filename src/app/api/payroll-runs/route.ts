@@ -21,6 +21,8 @@ import { nationalHolidayCalendarForDate } from "@/lib/wage-orders";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { createTimesheetExpectationsForPayrollRun } from "@/lib/workforce-timesheet-expectations";
 import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
+import { loadPayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness-server";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { payrollDraftPayoutReadiness } from "@/lib/payroll-draft-payout-readiness";
 
 export const dynamic = "force-dynamic";
@@ -269,13 +271,31 @@ export async function POST(request: Request) {
     return Response.json({ error: `The selected payroll scope has no active employees assigned to ${legalEntity.displayName}.` }, { status: 400 });
   }
 
+  // Draft-only creation may save incomplete payout details without calculation.
+  // Opt-in payout deferral also requires independent statutory/attendance readiness.
   const payoutReadiness = payrollDraftPayoutReadiness(employeesInScope);
-  if (!payoutReadiness.allowed) {
+  if (processNow && !payoutReadiness.allowed) {
     return Response.json({
       error: payoutReadiness.message,
       code: "PAYOUT_DETAILS_REQUIRED",
       missingEmployeeIds: payoutReadiness.missingEmployeeIds,
     }, { status: 422 });
+  }
+
+  if (processNow && criticalReleaseFlagEnabled("payrollPreRunReadiness")) {
+    // ID zero denotes a not-yet-persisted draft, never a resource to authorize.
+    // Employer/unit/role/subscription and selected cohort were resolved above.
+    // Check BEFORE inserting the draft, audit or job so Create & process cannot
+    // bypass the same source gate enforced by the separate /process endpoint.
+    const readiness = await loadPayrollPreRunReadiness({
+      id: 0, organizationId, legalEntityId: legalEntity.id, scopeOrgUnitId,
+      periodStart, periodEnd, payDate,
+    });
+    if (!readiness.ready) return Response.json({
+      error: "Pre-calculation readiness has blocking issues. Resolve them before calculating payroll.",
+      code: "PAYROLL_PRE_RUN_READINESS_BLOCKED",
+      readiness,
+    }, { status: 422, headers: { "Cache-Control": "private, no-store" } });
   }
 
   if (processNow) {

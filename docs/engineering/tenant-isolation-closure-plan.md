@@ -103,7 +103,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 - `GET /api/payroll-runs/[id]/connected-impact` — [source](../../src/app/api/payroll-runs/[id]/connected-impact/route.ts#L27)
 - `POST /api/payroll-runs/[id]/payout-reconciliation` — [source](../../src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts#L211)
 - `POST /api/payroll-runs/[id]/pilot-signoff` — [source](../../src/app/api/payroll-runs/[id]/pilot-signoff/route.ts#L75)
-- `POST /api/payroll-runs/[id]/process` — [source](../../src/app/api/payroll-runs/[id]/process/route.ts#L16)
+- `POST /api/payroll-runs/[id]/process` — [source](../../src/app/api/payroll-runs/[id]/process/route.ts#L18)
 - `POST /api/payroll-runs/[id]/release` — [source](../../src/app/api/payroll-runs/[id]/release/route.ts#L30)
 - `POST /api/payroll-runs/[id]/submit-review` — [source](../../src/app/api/payroll-runs/[id]/submit-review/route.ts#L21)
 - `GET /api/payroll-runs/[id]/variance` — [source](../../src/app/api/payroll-runs/[id]/variance/route.ts#L57)

@@ -227,8 +227,8 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap, 333, "Retain 333 unverified methods: statutory remittance action GET/POST added as separate provisional real-HTTP PG16 proof");
-  assert.equal(manifest.metrics.coveredAfter, 150, "Retain independently sourced provisional remittance-action GET/POST, MNY-02, underpayment, and group-report proofs");
+  assert.equal(manifest.metrics.gap, 333, "Retain all 333 non-proven methods after adding statutory action GET/POST source-specific proof on top of main pre-run GET");
+  assert.equal(manifest.metrics.coveredAfter, 151, "Retain independent MNY-02, underpayment, group-report, pre-run GET and statutory action GET/POST proofs");
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {

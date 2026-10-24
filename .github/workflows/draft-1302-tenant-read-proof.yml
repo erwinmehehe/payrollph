@@ -22,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
+      # Exercise the strict opt-in gate only against disposable CI fixtures.
+      PAYROLL_PRE_RUN_READINESS_ENABLED: "true"
       CI: "true"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       APP_BASE_URL: http://127.0.0.1:3000
