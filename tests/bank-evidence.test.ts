@@ -60,12 +60,17 @@ test("manual corporate bank acceptance can satisfy bank readiness but generation
   assert.ok(readiness.includes("/api/compliance/bank-validations"));
 });
 
-test("production compatibility creates the bank validation evidence table", () => {
+test("reviewed migration owns bank-validation schema and runtime core only checks readiness", () => {
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  const migration = readFileSync("drizzle/0013_operational_compliance.sql", "utf8");
   const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
-  assert.match(compat, /linaw_core_schema_compat_v\d+/);
-  assert.ok(compat.includes("CREATE TABLE IF NOT EXISTS bank_file_validations"));
-  assert.ok(compat.includes("bank_file_validation_unique"));
-  assert.ok(compat.includes("bank_file_validations_status_check"));
+  assert.ok(schema.includes("bank_file_validations"));
+  assert.ok(schema.includes("bank_file_validation_unique"));
+  assert.ok(migration.includes("CREATE TABLE IF NOT EXISTS bank_file_validations"));
+  assert.ok(migration.includes("bank_file_validation_unique"));
+  assert.ok(migration.includes("bank_file_validations_status_check"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });
 
 
