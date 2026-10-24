@@ -52,14 +52,13 @@ test("legal-employer compliance columns are first-class and non-null in the Driz
   }
 });
 
-test("migration and compatibility paths backfill legacy evidence before enforcing legal-employer ownership", () => {
+test("reviewed migration backfills legacy legal-employer evidence; runtime core fails closed instead", () => {
   assert.ok(migration.includes('ADD COLUMN IF NOT EXISTS "legal_entity_id"'));
   assert.ok(migration.includes('ALTER COLUMN "legal_entity_id" SET NOT NULL'));
   assert.ok(migration.includes('"organization_id", "legal_entity_id", "agency", "applicable_month"'));
   assert.ok(migration.includes("Legal-employer compliance backfill incomplete"));
-  assert.ok(compat.includes("linaw_core_schema_compat_v19"));
-  assert.ok(compat.includes("Multi-legal-employer compliance evidence must never aggregate liabilities"));
-  assert.ok(compat.includes("ALTER COLUMN legal_entity_id SET NOT NULL"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bUPDATE\s+\w+\s+SET|\bALTER\s+TABLE\b/i);
 });
 
 test("multi-employer compliance lists and creation paths resolve one legal employer explicitly", () => {

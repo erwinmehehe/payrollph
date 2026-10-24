@@ -273,13 +273,15 @@ test("the routes enforce origin, role, MFA on acceptance, and file integrity", (
   assert.ok(list.includes("organizationId, "), "the payroll run must be looked up inside the caller's workspace");
 });
 
-test("the table exists in the schema, the migration, the baseline and the production compat upgrade", () => {
+test("filing evidence table is declared by canonical schema, migration and baseline only", () => {
   for (const [path, fragment] of [
     ["src/db/schema.ts", 'pgTable(\n  "government_filing_validations"'],
     ["drizzle/0005_government_filing_validations.sql", "CREATE TABLE IF NOT EXISTS government_filing_validations"],
     ["drizzle/baseline.sql", "CREATE TABLE IF NOT EXISTS government_filing_validations"],
-    ["src/lib/core-schema-compat.ts", "CREATE TABLE IF NOT EXISTS government_filing_validations"],
   ] as const) {
     assert.ok(readFileSync(path, "utf8").replace(/\r\n/g, "\n").includes(fragment), `${path} is missing the filing evidence table`);
   }
+  const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });

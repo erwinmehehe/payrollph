@@ -123,6 +123,23 @@ try {
   await db.update(separationRecords).set({ unpaidBasicSalary: "0.00" }).where(eq(separationRecords.id, separationId));
   await settlePayrollRun(run.id); // Synthetic release fixture, not HTTP ordinary checker/MFA evidence.
   expectStatus(await request("/api/separation", maker, "POST", { ...body, unpaidBasicSalary: 6600, finalStatutoryReviewed: true }), 422, "No duplicate wages in final pay");
+  // Disposable fixture fault injection only: a crossing must never be accepted
+  // from a stale/foreign separation trace, even when the payroll header is Released.
+  const beforeOverlapDenials = await db.select().from(separationRecords).where(eq(separationRecords.id, separationId));
+  for (const invalidInputs of [
+    entry.trace.inputs.filter(value => value !== "approvedExitProration=v1"),
+    entry.trace.inputs.map(value => value.startsWith("approvedSeparationId=") ? "approvedSeparationId=2147483647" : value),
+    [...entry.trace.inputs, "employmentEnd=2026-10-15"],
+  ]) {
+    try {
+      await db.update(payrollEntries).set({ trace: { ...entry.trace, inputs: invalidInputs } }).where(eq(payrollEntries.id, entry.id));
+      expectStatus(await request("/api/separation", maker, "POST", body), 422, "Unverified crossing source refuses final-pay preparation");
+      assert.deepEqual(await db.select().from(separationRecords).where(eq(separationRecords.id, separationId)), beforeOverlapDenials,
+        "Denied overlap preparation cannot rewrite the approved final-pay package");
+    } finally {
+      await db.update(payrollEntries).set({ trace: entry.trace }).where(eq(payrollEntries.id, entry.id));
+    }
+  }
   const recomputed = expectStatus(await request("/api/separation", maker, "POST", body), 201, "Crossing cutoff with capped immutable wages enters final pay exactly once");
   assert.equal(recomputed.basicSalaryEarnedYtd, "6600.00");
   assert.equal(recomputed.unpaidBasicSalary, "0.00");

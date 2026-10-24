@@ -4,18 +4,20 @@ import { readFileSync } from "node:fs";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("enterprise HCM business process persistence is migrated and mirrored", () => {
+test("enterprise HCM business process persistence is migrated, modeled and never request-created", () => {
   const migration = read("drizzle/0092_hcm_business_process_core.sql");
   const schema = read("src/db/schema.ts");
   const baseline = read("drizzle/baseline.sql");
   const compatibility = read("src/lib/core-schema-compat.ts");
-  for (const source of [migration, schema, baseline, compatibility]) {
+  for (const source of [migration, schema, baseline]) {
     assert.ok(source.includes("hcm_business_process_definitions"));
     assert.ok(source.includes("hcm_business_process_instances"));
     assert.ok(source.includes("hcm_business_process_instance_steps"));
   }
   assert.ok(migration.includes("hcm_bp_instances_source_unique"));
   assert.ok(schema.includes("hcmBusinessProcessDefinitions"));
+  assert.ok(compatibility.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compatibility, /\bCREATE\s+TABLE\b/i);
 });
 
 test("Change Job is governed by the HCM business process engine", () => {

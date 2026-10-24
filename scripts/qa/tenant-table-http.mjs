@@ -16,7 +16,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
-  apiKeys, auditEvents, biometricDevices, deMinimisGrants, employeePayProfiles, employees, engagementSurveys,
+  apiKeys, auditEvents, biometricDevices, employeePayProfiles, employees, engagementSurveys,
   hcmBusinessProcessDefinitions, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, importBatches,
   integrationConnectors, invoices, laborInspectionDrills, leaveRequests, legalEntities, organizations, orgUnits, outbox,
   performanceCycles, scheduleSwapRequests, sessions, userLegalEntityGrants, userOrganizations, users, workforcePlanAllocations,
@@ -153,10 +153,6 @@ export const TENANT_TABLE = Object.freeze([
       const rest = r.json?.findings?.find((finding) => finding.key === "WEEKLY_REST_CONTROL");
       assert.ok(String(rest?.detail ?? "").startsWith(own + " active employee(s)"), "rest-day control must count the own employer's workers");
     } },
-  { key: "GET de-minimis",
-    seed: (e) => db.insert(deMinimisGrants).values({ organizationId: e.org.id, employeeId: e.worker.id, benefitType: "riceSubsidy",
-      amount: "1000.00", frequency: "monthly", effectiveOn: "2026-02-01" }),
-    prove: proofs.listsOwnMarker("grants", "employeeName") },
   { key: "GET developer",
     seed: (e) => db.insert(apiKeys).values({ organizationId: e.org.id, name: e.marker, prefix: "ttbl", keyHash: hex64() }),
     prove: proofs.listsOwnMarker("apiKeys", "name") },
