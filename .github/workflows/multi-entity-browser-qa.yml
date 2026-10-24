@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "src/lib/multi-entity-*.ts"
-      - "src/app/api/payroll-runs/[id]/close/route.ts"
+      - "src/app/api/payroll-runs/**/close/route.ts"
       - "tests/payroll-run-legal-employer-gates.test.ts"
       - "scripts/multi-entity-synthetic-browser.mjs"
       - "src/app/api/multi-entity/**"
