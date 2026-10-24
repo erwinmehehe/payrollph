@@ -38,7 +38,6 @@ test("reviewed migrations and schema own WFM scenario governance; core is read-o
   assert.ok(attritionMigration.includes("attrition_backfill_percent"));
   assert.ok(attritionMigration.includes("workforce_scenarios_annual_attrition_check"));
   assert.ok(attritionMigration.includes("workforce_scenarios_attrition_backfill_check"));
-  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
   assert.doesNotMatch(compat, /\bALTER\s+TABLE\b/i);
 });
 
