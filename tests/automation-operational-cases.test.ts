@@ -233,12 +233,12 @@ test("review-case templates and UI are usable without automatic payroll or WFM m
   ]) assert.ok(route.includes(guard));
 });
 
-test("migration, schema, fresh baseline and legacy upgrades match and remain optional on old tenants", () => {
+test("canonical migration and baseline declare automation cases; requests only verify the catalog", () => {
   const schema = read("src/db/schema.ts");
   const migration = read("drizzle/0096_automation_operational_cases.sql");
   const baseline = read("drizzle/baseline.sql");
   const compat = read("src/lib/core-schema-compat.ts");
-  for (const file of [schema, migration, baseline, compat]) {
+  for (const file of [schema, migration, baseline]) {
     for (const part of [
       "automation_operational_cases",
       "automation_operations_source_case_unique",
@@ -247,7 +247,6 @@ test("migration, schema, fresh baseline and legacy upgrades match and remain opt
       "automation_operations_dead_letter_shape_check",
     ]) assert.ok(file.includes(part), `missing ${part}`);
   }
-  assert.ok(compat.includes("to_regclass('automation_executions')"));
-  assert.ok(compat.includes("to_regclass('employees')"));
-  assert.ok(compat.includes("to_regclass('users')"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });

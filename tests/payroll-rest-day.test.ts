@@ -6,18 +6,16 @@ import { db } from "../src/db";
 import { employeePayProfiles, employeeRestDayRevisions, employees, organizations, payrollEntries, payrollRuns, timePunches } from "../src/db/schema";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
 
-test("the rest_day column exists in the schema, the migration, and the production compat upgrade", () => {
+test("rest-day column and revisions are owned by reviewed schema/migrations, not runtime upgrades", () => {
   assert.ok(readFileSync("src/db/schema.ts", "utf8").includes('restDay: varchar("rest_day", { length: 10 })'));
   assert.ok(readFileSync("drizzle/0006_employee_rest_day.sql", "utf8").includes("ADD COLUMN IF NOT EXISTS rest_day"));
-  assert.ok(readFileSync("src/lib/core-schema-compat.ts", "utf8").includes("ADD COLUMN IF NOT EXISTS rest_day varchar(10)"));
+  const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bALTER\s+TABLE\b/i);
   assert.ok(readFileSync("src/db/schema.ts", "utf8").includes("employeeRestDayRevisions = pgTable"));
   assert.ok(readFileSync("drizzle/0007_employee_rest_day_revisions.sql", "utf8").includes("employee_rest_day_revisions"));
-  // Deliberately not asserted against drizzle/baseline.sql: this column
-  // follows the same precedent as middle_name/tin_branch_code/nationality,
-  // which are also real schema.ts columns added only via the compat ALTER,
-  // never backfilled into baseline.sql's CREATE TABLE. A fresh database
-  // still gets it, through ensureCoreCompatibilitySchema() rather than the
-  // pasted-in baseline.
+  // Canonical schema and numbered migrations provision the column offline.
+  // Request-time compatibility must never add missing columns or infer rest days.
 });
 
 /**
