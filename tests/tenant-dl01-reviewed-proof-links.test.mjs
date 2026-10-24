@@ -82,13 +82,13 @@ test('DL-01, DL-02 and HCM method proofs remain intact with one guarded scoped p
   assert.equal(methods.length, 493);
   assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), [148,10,335]);
   assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], [148,10,335]);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 335 API methods and 19 page\/action GAPs remain\./);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 335 API methods and 18 page\/action GAPs remain\./);
   assert.equal(manifest.scopedPages.length, 20);
   const coveredPage = manifest.scopedPages.find(p =>
     p.path === 'src/app/hcm/manager-decision-inbox/page.tsx');
   assert.equal(coveredPage.status, 'COVERED');
   assert.equal(coveredPage.testedBy?.file, 'scripts/qa/hcm-manager-inbox-page-http.mjs');
-  assert.equal(manifest.scopedPages.filter(p => p.status === 'GAP').length, 19);
+  assert.equal(manifest.scopedPages.filter(p => p.status === 'GAP').length, 18);
   const probation = manifest.allApiRouteFiles['src/app/api/hcm/probation-reviews/route.ts'].methods;
   assert.deepEqual(probation.map(method => method.name), ['GET','POST','PATCH']);
   assert.ok(probation.every(method =>

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
-import { parseDoleThirteenthRead } from "@/lib/dole-thirteenth-read";
+import { doleThirteenthReadFailure, parseDoleThirteenthRead } from "@/lib/dole-thirteenth-read";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { DoleThirteenthMonthReportPanel as LegacyDolePanel } from "./dole-thirteenth-month-report-panel-legacy";
  
@@ -162,7 +162,7 @@ function ScopedDoleThirteenthMonthReportPanel({
       if (!isCurrent()) return false;
       const body = parseDoleThirteenthRead(response.ok, value, organizationId, taxYear);
       if (!body) {
-        throw new Error("DOLE report identity, totals or submission evidence could not be verified. Retry.");
+        throw new Error(doleThirteenthReadFailure(response.status, value));
       }
       if (expected && !expected(body)) throw new Error("Updated DOLE record not confirmed by fresh read.");
       setState(body);

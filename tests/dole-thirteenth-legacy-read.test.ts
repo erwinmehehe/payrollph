@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseDoleThirteenthRead } from "../src/lib/dole-thirteenth-read";
+import { doleThirteenthReadFailure, parseDoleThirteenthRead } from "../src/lib/dole-thirteenth-read";
 
 const empty = {
   organizationId: 71, legalEntityId: null,
@@ -22,4 +22,13 @@ test("both DOLE UI paths require OK, employer/year identity and complete verifie
     {...empty, submissionHistory:[{}]}, {...empty, report:{...empty.report, totalBenefitsGranted:undefined}},
     {...empty, report:{...empty.report, totalBenefitsGranted:1}}, {...empty, readyToSubmit:true},
   ]) assert.equal(parseDoleThirteenthRead(true, value, 71, 2026), null);
+});
+
+test("DOLE attribution refusal retains the governed notice without accepting evidence or arbitrary error text", () => {
+  const denied = {code:"DOLE_ENTITY_SOURCE_ATTRIBUTION_REQUIRED",error:"UNTRUSTED PRIVATE TEXT"};
+  assert.equal(parseDoleThirteenthRead(false, denied, 71, 2026), null);
+  assert.match(doleThirteenthReadFailure(503, denied), /until historical payroll/);
+  assert.doesNotMatch(doleThirteenthReadFailure(503, denied), /PRIVATE/);
+  assert.doesNotMatch(doleThirteenthReadFailure(200, denied), /until historical payroll/);
+  assert.doesNotMatch(doleThirteenthReadFailure(503, {error:denied.error}), /PRIVATE/);
 });

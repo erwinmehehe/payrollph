@@ -48,11 +48,12 @@ for (const area of ["loan", "dole"]) {
 }
 const server = createServer((req,res) => {
   const url = new URL(req.url,"http://localhost");
+  const area = url.searchParams.get("area") === "dole" ? "dole" : "loan";
   if(url.pathname === "/fixture.js") {
-    res.setHeader("Content-Type","text/javascript");res.end(assets[url.searchParams.get("area")]);return;
+    res.setHeader("Content-Type","text/javascript");res.end(assets[area]);return;
   }
   res.setHeader("Content-Type","text/html; charset=utf-8");
-  res.end('<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><div id="root"></div><script src="/fixture.js?area='+url.searchParams.get("area")+'"></script>');
+  res.end('<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><div id="root"></div><script src="/fixture.js?area='+area+'"></script>');
 });
 await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
 const playwrightModule = process.env.READ_SWEEP_PLAYWRIGHT_MODULE;

@@ -106,15 +106,15 @@ test("all 493 handlers reaching PostgreSQL have a gate or explicit source-pinned
     reminder: "HTTP proof required; no historical GAP is certified" }));
 });
 
-test("all scoped pages stay source-pinned; only the exact independently probed inbox may be provisional", () => {
+test("all scoped pages stay source-pinned; only the two exact independently probed pages may be provisional", () => {
   assert.equal(manifest.scopedPages.length, 20);
   const approvedPath = "src/app/hcm/manager-decision-inbox/page.tsx";
   const evidenceFile = "scripts/qa/hcm-manager-inbox-page-http.mjs";
   const covered = manifest.scopedPages.filter((page) => page.status === "COVERED");
-  assert.deepEqual(covered.map((page) => page.path), [approvedPath],
+  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", approvedPath],
     "Static route analysis cannot silently certify any additional page");
-  assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, 19,
-    "Other 19 employer-scoped page/action entries remain uncertified");
+  assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, 18,
+    "Other 18 employer-scoped page/action entries remain uncertified");
   for (const page of manifest.scopedPages) {
     const bytes = readFileSync(page.path);
     assert.equal(blobSha(bytes), page.blob,
@@ -122,6 +122,25 @@ test("all scoped pages stay source-pinned; only the exact independently probed i
     assert.ok(page.business.length > 0 && page.reason.length > 22);
     if (page.status === "GAP") {
       assert.ok(!page.testedBy, page.path + ": a GAP must not claim accepted HTTP evidence");
+      continue;
+    }
+    if (page.path === "src/app/app/page.tsx") {
+      const proof = page.testedBy;
+      assert.equal(proof?.file, "scripts/qa/tenant-scoped-page-probes.mjs");
+      const lines = readFileSync(proof.file, "utf8").split("\n");
+      const suite = lines.join("\n");
+      assert.match(lines[proof.ownPositiveLine - 1] ?? "", /const ownRes = await request\(pageUrl\(path, own\.id\), \{ cookie \}\)/);
+      assert.match(lines[proof.foreignDenialLine - 1] ?? "", /const foreignRes = await request\(pageUrl\(path, victim\.id\), \{ cookie \}\)/);
+      assert.match(suite, /for \(const idx of \[1, 2\]\)/);
+      assert.match(suite, /if \(path === "src\/app\/app\/page\.tsx"\)/);
+      assert.match(suite, /expectStatus\(ownRes, 200,/);
+      assert.match(suite, /ownRes\.text\.includes\(own\.name\)/);
+      assert.match(suite, /ownRes\.text\.includes\(f\.ownedEmployees\[idx - 1\]\.employeeNo\)/);
+      assert.match(suite, /!ownRes\.text\.includes\("Workspace unavailable"\)/);
+      assert.match(suite, /expectStatus\(foreignRes, 404,/);
+      assert.match(suite, /assert\.deepEqual\(await db\.select\(\)\.from\(employees\)/);
+      assert.match(suite, /assert\.deepEqual\(await db\.select\(\)\.from\(payrollRuns\)/);
+      assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"), /probeManifestBusinessPages\(f, \{ request, makeSession, expectStatus \}\)/);
       continue;
     }
     assert.equal(page.path, approvedPath, "No blanket exception for changed pages");

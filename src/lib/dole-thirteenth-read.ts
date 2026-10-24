@@ -41,6 +41,14 @@ const sha = (v: unknown): v is string => typeof v === "string" && /^[a-f0-9]{64}
 const stamp = (v: unknown) => typeof v === "string" && Number.isFinite(Date.parse(v));
 const fields = ["establishmentAddress","principalBusiness","contactName","contactPosition","contactPhone"] as const;
 
+/** Classify a known refusal without trusting arbitrary server-provided text. */
+export function doleThirteenthReadFailure(status: number, value: unknown): string {
+  if (status === 503 && obj(value) && value.code === "DOLE_ENTITY_SOURCE_ATTRIBUTION_REQUIRED") {
+    return "DOLE 13th-month reporting is unavailable until historical payroll, final pay and submission evidence can be attributed to one legal employer. Retry.";
+  }
+  return "DOLE report unavailable: employer, totals or submission history could not be verified. Retry.";
+}
+
 export function parseDoleThirteenthRead(
   ok: boolean, value: unknown, organizationId: number, taxYear: number,
 ): VerifiedDoleRead | null {

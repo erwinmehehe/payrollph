@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
-import { parseDoleThirteenthRead } from "@/lib/dole-thirteenth-read";
+import { doleThirteenthReadFailure, parseDoleThirteenthRead } from "@/lib/dole-thirteenth-read";
 
 type State = {
   profile: {
@@ -150,7 +150,7 @@ function ScopedDoleThirteenthMonthReportPanel({
       const value: unknown = await response.json().catch(() => null);
       if (!isCurrent()) return false;
       const body = parseDoleThirteenthRead(response.ok, value, organizationId, taxYear);
-      if (!body) throw new Error("DOLE report unavailable: employer, totals or submission history could not be verified. Retry.");
+      if (!body) throw new Error(doleThirteenthReadFailure(response.status, value));
       setState(body);
       setProfile({
         establishmentAddress: body.profile?.establishmentAddress ?? "",
