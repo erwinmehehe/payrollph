@@ -740,3 +740,8 @@ This merge includes [the already-merged active-employer payslip PDF gate](https:
 Three previously uncredited GET methods are now source-linked: employee import history, government filing-file download, and statutory posting-evidence download. Both attacker employers succeed on real own objects, target later existing victim-only IDs with exact denials, exercise forged tenant/object selectors, and verify unchanged victim PostgreSQL rows. Source links are guarded by `tests/tenant-dl01-reviewed-proof-links.test.mjs`; runtime proof remains the real three-employer CI harness, not these bookkeeping tests.
 
 At the historical PR #1322 checkpoint, the frozen DL-01 queue had 7 COVERED, 2 PUBLIC-BY-DESIGN, 17 GAP, with 387 API GAPs and 20 page/action GAPs in the repository. No new confirmed leak, payroll logic, production flag, provider call or money movement is claimed. This reviewer closeout does not replace independent owner acceptance; the manifest remains NOT ACCEPTED.
+
+
+## Prepared worksite HTTP batch (2026-10-24; no coverage credits)
+
+`GET/POST /api/workforce/worksites` now have a separate [HTTP candidate](../../scripts/qa/tenant-worksites-http.mjs), [source contract](../../tests/tenant-worksites-source.test.mjs) and [acceptance scope](../qa/tenant-worksites-http.md). Two independent employers exercise populated reads, persisted create/update/assignment actions, foreign IDs, forged selectors, role/unit/MFA and membership revocation, with exact unchanged victim workforce/payroll/audit rows. **Prepared only: exact-head HTTP CI pending; both methods remain GAP and no coverage count changes.** All other POST actions, global tenant isolation and production activation remain unaccepted. Independent of the benefits batch #1366.
