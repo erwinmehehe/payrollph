@@ -261,9 +261,41 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs",
     "Only the real multi-entity browser acceptance may support this extra method credit");
   const groupReportCredits = 1;
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods - underpaymentMethods.length - groupReportCredits, 124,
+  const closePost = methodsByKey.get("POST payroll-runs/[id]/close");
+  assert.equal(closePost?.status, "COVERED",
+    "Accounting close POST requires distinct executed HTTP proof; no GET proof can authorize a write");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs",
+    "Close POST credit must refer to its own independent POST method proof");
+  const closeProof = closePost.testedBy;
+  const closeLines = source.split("\n");
+  const proofAt = (line) => closeLines[line - 1] ?? "";
+  assert.equal(closeProof.line, closeProof.ownPositiveLine);
+  assert.match(proofAt(closeProof.ownPositiveLine),
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/,
+    "Owned close POST must be a real HTTP request, not only a preview");
+  assert.match(closeLines.slice(closeProof.ownPositiveLine - 1, closeProof.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/,
+    "Own accounting close POST must succeed; a blocked 409 is not positive evidence");
+  assert.match(proofAt(closeProof.foreignDenialLine),
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closeProof.foreignDenialLine - 1, closeProof.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/,
+    "A real victim-only POST must be refused under the independent attacker session");
+  assert.match(proofAt(closeProof.unchangedDbLine),
+    /assert\.deepEqual\(victimAfter, victimBefore/,
+    "Denied close POST must not change the victim PostgreSQL snapshot");
+  assert.match(source, /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
+    "The actual second-pass harness must execute the additional proof");
+  assert.match(source, /for \(const idx of \[1, 2\]\)/);
+  assert.match(source, /assert\.equal\(ownPost\.json\?\.closed, true\)/);
+  assert.match(source, /event\.action === "Payroll close completed"/,
+    "Own success requires a persisted accounting audit receipt");
+  assert.match(source, /assert\.notEqual\(process\.env\.PAYMONGO_DISBURSEMENTS_ENABLED, "true"\)/);
+  assert.match(source, /assert\.notEqual\(process\.env\.XENDIT_PAYOUTS_ENABLED, "true"\)/);
+  const closePostCredits = 1;
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods - underpaymentMethods.length - groupReportCredits - closePostCredits, 124,
     "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods + underpaymentMethods.length + groupReportCredits, 359,
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods + underpaymentMethods.length + groupReportCredits + closePostCredits, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
