@@ -230,7 +230,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  assert.equal(gaps.length, 333, "Retain 333 unproven methods, including all unverified BIR/vault and page/action surfaces; remittance-action GET/POST have separate provisional PG16 proofs");
+  verifyBir2316HistoricalGapBaseline(gaps);
   const certifiedGovernance = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
   assert.equal(certifiedGovernance?.status, "COVERED", "Closing a GAP requires independently exercised tenant-proof evidence");
   assert.equal(certifiedGovernance?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs", "HCM GET must retain the real authenticated own/foreign HTTP proof");
@@ -438,4 +438,63 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
     highExistingVictimIds: [victimBatch.id, victimEvidence.id, victimPosting.id, victimTask.id],
     victimDatabaseUnchanged: true, productionTested: false, certified: false,
   }));
+}
+/** Keep the historical statutory HTTP test's exact source-pinned request lines
+ * stable when new independently reviewed BIR method evidence is introduced.
+ * Called by the real signed-in PG16 harness, never an acceptance bypass. */
+function verifyBir2316HistoricalGapBaseline(gaps) {
+  // Preserve current main's source-pinned baseline (148 covered / 335 gaps) while
+  // crediting ONLY the three independently exercised BIR 2316 document methods.
+  // A generic "three fewer gaps" subtraction is insufficient: require exact
+  // GET/GET/POST identities and live own/victim evidence from their separate
+  // synthetic HTTPS + PostgreSQL acceptance suite.
+  const bir2316Methods = [
+    ["src/app/api/separation/[id]/2316/route.ts", "GET", "ownDraft", "foreignDraft"],
+    ["src/app/api/year-end/2316-certificate/route.ts", "GET", "ownSource", "foreignSource"],
+    ["src/app/api/year-end/2316-certificate/route.ts", "POST", "ownPdf", "foreignPdf"],
+  ];
+  const proofFile = "scripts/qa/tenant-bir2316-http.mjs";
+  const proofLines = readFileSync(proofFile, "utf8").split("\n");
+  for (const [path, verb, own, foreign] of bir2316Methods) {
+    const matching = manifest.allApiRouteFiles[path]?.methods.filter((m) => m.name === verb);
+    assert.equal(matching?.length, 1, path + " " + verb + ": exact method required");
+    const entry = matching[0];
+    assert.equal(entry.status, "COVERED", path + " " + verb + ": only tested 2316 methods count");
+    assert.equal(entry.testedBy?.file, proofFile, path + " " + verb + ": own/foreign PG16 proof required");
+    assert.match(proofLines[entry.testedBy.ownPositiveLine - 1] ?? "",
+      new RegExp("const " + own + " = expectStatus\\(await request\\("),
+      path + " " + verb + ": own 2316 success must have a real HTTP request");
+    assert.match(proofLines[entry.testedBy.foreignDenialLine - 1] ?? "",
+      new RegExp("const " + foreign + " = expectStatus\\(await request\\("),
+      path + " " + verb + ": a foreign victim denial must be exercised");
+    if (verb === "POST") {
+      assert.match(proofLines[entry.testedBy.unchangedDbLine - 1] ?? "",
+        /assert\.deepEqual\(victimAfter, victimBefore/,
+        "Unsigned PDF POST must leave the real victim database and audit untouched");
+    }
+  }
+  // Retain the distinct statutory action real-HTTP/PG16 flag ON/OFF proof.
+  // These two GET/POST methods are separate from the BIR 2316 document proofs.
+  const actionPath = "src/app/api/compliance/remittance-actions/route.ts";
+  const actionMethods = manifest.allApiRouteFiles[actionPath]?.methods ?? [];
+  const actionProofFile = "scripts/qa/remittance-action-entity-http.mjs";
+  const actionLines = readFileSync(actionProofFile, "utf8").split("\n");
+  assert.deepEqual(actionMethods.map(m => m.name).sort(), ["GET", "POST"]);
+  for (const method of actionMethods) {
+    const [own, foreign] = method.name === "GET" ? [138, 210] : [186, 213];
+    assert.equal(method.status, "COVERED", method.name + ": own/victim source proof required");
+    assert.equal(method.testedBy?.file, actionProofFile);
+    assert.deepEqual([
+      method.testedBy.ownPositiveLine, method.testedBy.foreignDenialLine,
+      method.testedBy.unchangedDbLine,
+    ], [own, foreign, 237], "Remittance action source pins must remain exact");
+    assert.match(actionLines[own - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(actionLines[foreign - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(actionLines[236] ?? "", /assert\.deepEqual\(await snapshot\(victim\.id\), before,/);
+  }
+  const actionCredits = actionMethods.length;
+  assert.equal(gaps.length + bir2316Methods.length + actionCredits, 335,
+    "Preserve all 335 historical GAPs except three BIR 2316 and two remittance-action exact-method proofs");
+  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - actionCredits, 149,
+    "All 149 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
 }

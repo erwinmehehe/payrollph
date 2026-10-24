@@ -1,5 +1,14 @@
 /** Resolve the employer frozen at final-pay preparation, never today's worker assignment. */
 type Employer = { id: number; organizationId: number; legalName: string; birTin: string | null; birBranchCode: string | null };
+/** The approved final-pay fingerprint, never today's employee assignment, binds tax identity. */
+export function frozenFinalPayLegalEntityId(snapshot: unknown): number | null {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+  const fingerprint = (snapshot as { sourceFingerprint?: unknown }).sourceFingerprint;
+  if (!fingerprint || typeof fingerprint !== "object" || Array.isArray(fingerprint)) return null;
+  const id = (fingerprint as { employeeLegalEntityId?: unknown }).employeeLegalEntityId;
+  return typeof id === "number" && Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 export function historical2316Employer(input: {
   organizationId: number; snapshot: unknown; entities: Employer[];
   legacy: { legalName: string | null; name: string; birTin: string | null; birBranchCode: string | null };

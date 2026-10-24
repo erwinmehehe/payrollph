@@ -348,11 +348,18 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.match(actionWorkflow, /image: postgres:16/);
   assert.match(actionWorkflow, /npx tsx scripts\/qa\/remittance-action-entity-http\.mjs/);
   const actionCredits = actionMethods.length;
+  const bir2316Methods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
+    .filter(m => m.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
+  assert.equal(bir2316Methods.length, 3, "Three source-pinned real signed-in BIR2316 HTTP methods");
+  assert.ok(bir2316Methods.every(m => m.status === "COVERED" &&
+    m.testedBy?.ownPositiveLine && m.testedBy?.foreignDenialLine));
+  assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
+    /npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/);
   assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
-    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - actionCredits, 124,
+    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - bir2316Methods.length - actionCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
-    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + actionCredits, 359,
+    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + bir2316Methods.length + actionCredits, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
