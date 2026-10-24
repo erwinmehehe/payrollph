@@ -21,7 +21,7 @@ function countInOverview(key) {
   return Number(match[1]);
 }
 
-test("current overview headline equals complete 490-method manifest (historical prose is not current)", () => {
+test("current overview headline equals complete live method manifest (frozen baseline is historical)", () => {
   const methods = [...allMethods().values()];
   const tally = (status) => methods.filter((x) => x.status === status).length;
   const stats = manifest.metrics;

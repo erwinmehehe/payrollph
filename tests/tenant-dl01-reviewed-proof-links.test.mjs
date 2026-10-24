@@ -90,13 +90,13 @@ test('DL-01, DL-02 and HCM method proofs remain intact with one guarded scoped p
   assert.equal(changedProcess?.testedBy?.file, 'scripts/qa/tenant-second-pass-http.mjs');
   assert.match(changedProcess?.reason ?? '', /422.*403/,
     'Pre-run fail-closed proof must not be presented as successful money computation');
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 333 API methods and 19 page\/action GAPs remain\./);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 333 API methods and 18 page\/action GAPs remain\./);
   assert.equal(manifest.scopedPages.length, 20);
   const coveredPage = manifest.scopedPages.find(p =>
     p.path === 'src/app/hcm/manager-decision-inbox/page.tsx');
   assert.equal(coveredPage.status, 'COVERED');
   assert.equal(coveredPage.testedBy?.file, 'scripts/qa/hcm-manager-inbox-page-http.mjs');
-  assert.equal(manifest.scopedPages.filter(p => p.status === 'GAP').length, 19);
+  assert.equal(manifest.scopedPages.filter(p => p.status === 'GAP').length, 18);
   const probation = manifest.allApiRouteFiles['src/app/api/hcm/probation-reviews/route.ts'].methods;
   assert.deepEqual(probation.map(method => method.name), ['GET','POST','PATCH']);
   assert.ok(probation.every(method =>

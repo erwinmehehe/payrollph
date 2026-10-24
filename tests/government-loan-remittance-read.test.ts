@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  parseGovernmentLoanRemittanceRead,
   isConfirmedGovernmentLoanMutation,
   isVerifiedGovernmentLoanRemittanceRead,
   type GovernmentLoanRead,
@@ -203,4 +204,15 @@ test("posting and exception POST receipts require fresh matching rows and revisi
   assert.equal(isConfirmedGovernmentLoanMutation("mark_member_exception", intent,
     { member: { ...exceptionMember } },
     { ...except, members: [{ ...exceptionMember, updatedAt: firstRevision }] }), false);
+});
+
+test("legacy loan reads reject non-OK, missing arrays and foreign envelopes before state", () => {
+  assert.equal(parseGovernmentLoanRemittanceRead(true, baseRead, 4), baseRead);
+  const empty = {...baseRead, batches: [], members: []};
+  assert.equal(parseGovernmentLoanRemittanceRead(true, empty, 4), empty);
+  assert.equal(parseGovernmentLoanRemittanceRead(false, baseRead, 4), null);
+  for (const bad of [null, {}, [], {...empty, organizationId: 5}, {...empty, members: undefined},
+    {...baseRead, batches: [{...baseBatch, expectedTotal: null}]}]) {
+    assert.equal(parseGovernmentLoanRemittanceRead(true, bad, 4), null);
+  }
 });

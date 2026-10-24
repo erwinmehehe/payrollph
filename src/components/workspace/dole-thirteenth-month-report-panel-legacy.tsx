@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
+import { doleThirteenthReadFailure, parseDoleThirteenthRead } from "@/lib/dole-thirteenth-read";
 
 type State = {
   profile: {
@@ -119,7 +120,7 @@ function ScopedDoleThirteenthMonthReportPanel({
   const loadControllerRef = useRef<AbortController | null>(null);
   const mutationRevisionRef = useRef(0);
 
-  const load = useCallback(async (): Promise<boolean> => {
+  const load = useCallback(async (expected?: (value: State) => boolean): Promise<boolean> => {
     if (!mountedRef.current) return false;
     loadControllerRef.current?.abort();
     const controller = new AbortController();
@@ -146,9 +147,11 @@ function ScopedDoleThirteenthMonthReportPanel({
         `/api/compliance/dole-13th-month?organizationId=${organizationId}&taxYear=${taxYear}`,
         { cache: "no-store", signal: controller.signal },
       );
-      const body = await response.json().catch(() => ({}));
+      const value: unknown = await response.json().catch(() => null);
       if (!isCurrent()) return false;
-      if (!response.ok) throw new Error(body.error ?? "DOLE 13th-month report could not be loaded.");
+      const body = parseDoleThirteenthRead(response.ok, value, organizationId, taxYear);
+      if (!body) throw new Error(doleThirteenthReadFailure(response.status, value));
+      if (expected && !expected(body)) throw new Error("Updated DOLE record not confirmed by fresh read.");
       setState(body);
       setProfile({
         establishmentAddress: body.profile?.establishmentAddress ?? "",
@@ -180,7 +183,7 @@ function ScopedDoleThirteenthMonthReportPanel({
   }, [load]);
 
   async function mutate(action: "save_profile" | "record_submission", extra: Record<string, unknown>) {
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || loading || error || !state || saving) return;
     const revision = ++mutationRevisionRef.current;
     const readRevision = loadRevisionRef.current;
     const isCurrentMutation = () =>
@@ -196,8 +199,26 @@ function ScopedDoleThirteenthMonthReportPanel({
       const body = await response.json().catch(() => ({}));
       if (!isCurrentMutation()) return;
       if (!response.ok) throw new Error(body.error ?? "DOLE reporting update failed.");
-      const refreshed = await load();
-      if (!mountedRef.current || !refreshed) return;
+      const refreshed = await load((fresh) => {
+        if (action === "save_profile") {
+          const saved = body?.profile;
+          return saved?.organizationId === organizationId && fresh.profile !== null &&
+            ["establishmentAddress", "principalBusiness", "contactName", "contactPosition", "contactPhone"]
+              .every(key => fresh.profile?.[key as keyof NonNullable<State["profile"]>] === saved?.[key]);
+        }
+        const saved = body?.submission;
+        return Number.isSafeInteger(saved?.id) && saved.id > 0 &&
+          saved.organizationId === organizationId && saved.reportHash === body?.reportHash &&
+          fresh.reportHash === body.reportHash && fresh.submissionCurrent &&
+          fresh.submissionHistory.some(row => row.id === saved.id &&
+            row.reportHash === saved.reportHash && row.portalReference === saved.portalReference &&
+            row.submittedAt === saved.submittedAt);
+      });
+      if (!mountedRef.current) return;
+      if (!refreshed) {
+        notify("The DOLE update may have been recorded, but its current state could not be verified. Inspect the report before retrying.", "err");
+        return;
+      }
       notify(
         action === "save_profile"
           ? "DOLE reporting profile saved."
@@ -239,6 +260,7 @@ function ScopedDoleThirteenthMonthReportPanel({
         <div className="card-body" style={{ paddingTop: 0 }}>
           <div className="notice notice-red" style={{ margin: 0 }}>
             <ShieldAlert size={15} /><span>{error}</span>
+            <button type="button" className="secondary-button" onClick={() => void load()}>Retry report</button>
           </div>
         </div>
       ) : state ? (
