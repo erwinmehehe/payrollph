@@ -19,7 +19,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const requestId = Number(id);
-  const body = await request.json().catch(() => ({}));
+  const parsedBody = await request.json().catch(() => ({}));
+  const body = parsedBody && typeof parsedBody === "object" && !Array.isArray(parsedBody)
+    ? parsedBody : {};
   const organizationId = Number(body.organizationId);
   const decision = body.decision === "approve" || body.decision === "reject" ? body.decision : null;
 
