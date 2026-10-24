@@ -256,6 +256,11 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     contractorMethods++;
   }
   assert.equal(contractorMethods, 6);
+  const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
+  assert.equal(groupReport?.status, "COVERED", "Group report requires an independently sourced GET proof");
+  assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs",
+    "Only the real multi-entity browser acceptance may support this extra method credit");
+  const groupReportCredits = 1;
   // The next six MNY-02 expense/benefit methods have their own executable
   // three-employer proof. Do not count a generic 403 or a source-only check.
   const expenseBenefitFile = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
@@ -278,9 +283,9 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     expenseBenefitMethods++;
   }
   assert.equal(expenseBenefitMethods, 6);
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods - underpaymentMethods.length - expenseBenefitMethods, 124,
+  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods - moneyMethods.length - contractorMethods - underpaymentMethods.length - expenseBenefitMethods - groupReportCredits, 124,
     "Preserve historical covered method count, excluding distinct HCM, BIR and DL-01 vault proofs");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods + underpaymentMethods.length + expenseBenefitMethods, 359,
+  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods + vaultSourcePinnedMethods + moneyMethods.length + contractorMethods + underpaymentMethods.length + expenseBenefitMethods + groupReportCredits, 359,
     "Historical GAP count cannot shrink without a full linked real-HTTP proof suite");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
