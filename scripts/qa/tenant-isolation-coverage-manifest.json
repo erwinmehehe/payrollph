@@ -18419,7 +18419,7 @@
       ]
     },
     "src/app/api/payout-destination-changes/[id]/route.ts": {
-      "gitBlobSha": "7b87bb1c7c5d2fba308a6740f7e2b7a26da04a67",
+      "gitBlobSha": "22d279b2190b77ed625be5da36036b3de54487a0",
       "route": "payout-destination-changes/[id]",
       "methods": [
         {
