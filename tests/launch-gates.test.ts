@@ -252,17 +252,20 @@ test("owners can record production pilot evidence without a developer-only workf
 });
 
 
-test("production readiness upgrades additive schema before querying new readiness columns", () => {
+test("production readiness verifies the catalog; outbox migration owns new readiness columns", () => {
   const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  const migration = readFileSync("drizzle/0003_outbox_delivery_reliability.sql", "utf8");
   assert.ok(readiness.includes("await ensureCoreCompatibilitySchema()"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bALTER\s+TABLE\b|\bCREATE\s+INDEX\b/i);
   for (const marker of [
     "ADD COLUMN IF NOT EXISTS delivery_status",
     "ADD COLUMN IF NOT EXISTS provider_message_id",
     "ADD COLUMN IF NOT EXISTS delivery_updated_at",
     "CREATE INDEX IF NOT EXISTS outbox_retry_idx",
   ]) {
-    assert.ok(compat.includes(marker), `compatibility schema is missing ${marker}`);
+    assert.ok(migration.includes(marker), `reviewed outbox migration is missing ${marker}`);
   }
 });
 
