@@ -1,0 +1,95 @@
+name: Statutory evidence legal-employer HTTP isolation (disposable PG16)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/api/compliance/contribution-issues/evidence/route.ts"
+      - "src/app/api/compliance/statutory-remittances/payment-evidence/**"
+      - "src/app/api/compliance/statutory-remittances/posting-evidence/**"
+      - "src/lib/multi-entity-server.ts"
+      - "scripts/qa/statutory-evidence-entity-http.mjs"
+      - "tests/compliance-evidence-entity-boundary.test.ts"
+      - ".github/workflows/statutory-evidence-entity-http.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: statutory-evidence-entity-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  statutory-evidence-entity-pg16:
+    name: statutory-evidence-pg16-${{ matrix.multi_entity }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        multi_entity: ['false', 'true']
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CI: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3017
+      STATUTORY_EVIDENCE_URL: http://127.0.0.1:3017
+      STATUTORY_EVIDENCE_PROOF_MODE: isolated-pg16-only
+      MULTI_ENTITY_ENABLED: ${{ matrix.multi_entity }}
+      MULTI_ENTITY_REGISTRATIONS_ENABLED: 'false'
+      MULTI_ENTITY_TRANSFERS_ENABLED: 'false'
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      TOTP_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      PII_ENCRYPTION_KEY: '2222222222222222222222222222222222222222222222222222222222222222'
+      BANK_DATA_ENCRYPTION_KEY: '3333333333333333333333333333333333333333333333333333333333333333'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Guard exact three endpoint source gates and script syntax
+        run: |
+          node --check scripts/qa/statutory-evidence-entity-http.mjs
+          npx tsx --test tests/compliance-evidence-entity-boundary.test.ts
+      - run: npm run db:push
+      - name: Apply reviewed cutover baseline to empty disposable app_db
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Execute real authenticated HTTP, persisted own/foreign proof and unchanged DB snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm start -- -H 127.0.0.1 -p 3017 > /tmp/statutory-evidence-entity-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..40}; do
+            if curl -fsS http://127.0.0.1:3017/login >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          npx tsx scripts/qa/statutory-evidence-entity-http.mjs
+      - name: Disposable server diagnostics on failure
+        if: failure()
+        run: tail -n 180 /tmp/statutory-evidence-entity-server.log || true

@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { statutoryPostingEvidenceArtifacts } from "@/db/schema";
+import { statutoryPostingEvidenceArtifacts, statutoryRemittanceBatches } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { recordAuditEvent } from "@/lib/audit";
 import {
   enforceSensitiveActionRateLimit,
@@ -32,10 +33,17 @@ export async function GET(
     return Response.json({ error: "Invalid posting evidence artifact." }, { status: 400 });
   }
 
-  const [artifact] = await db.select().from(statutoryPostingEvidenceArtifacts)
-    .where(eq(statutoryPostingEvidenceArtifacts.id, artifactId))
-    .limit(1);
-  if (!artifact) return Response.json({ error: "Posting evidence artifact not found." }, { status: 404 });
+  // A source artifact is only readable when its parent remittance batch
+  // belongs to the same tenant; a bare globally unique ID is not authority.
+  const [record] = await db.select({
+    artifact: statutoryPostingEvidenceArtifacts,
+    legalEntityId: statutoryRemittanceBatches.legalEntityId,
+  }).from(statutoryPostingEvidenceArtifacts).innerJoin(statutoryRemittanceBatches, and(
+    eq(statutoryPostingEvidenceArtifacts.batchId, statutoryRemittanceBatches.id),
+    eq(statutoryPostingEvidenceArtifacts.organizationId, statutoryRemittanceBatches.organizationId),
+  )).where(eq(statutoryPostingEvidenceArtifacts.id, artifactId)).limit(1);
+  if (!record) return Response.json({ error: "Posting evidence artifact not found." }, { status: 404 });
+  const { artifact } = record;
 
   const access = await getAccess(user.id, artifact.organizationId);
   if (!access?.companyWide || !roleAllowed(access.role, PAYROLL_OPERATOR_ROLES)) {
@@ -43,6 +51,13 @@ export async function GET(
       error: "Only company-wide payroll operators can download source posting evidence.",
     }, { status: 403 });
   }
+
+  const entityScope = await resolveMultiEntityContext({
+    userId: user.id, organizationId: artifact.organizationId, request,
+  });
+  if (!entityScope.ok) return entityScope.response;
+  const entityDenied = assertEntityResource(entityScope.context, record.legalEntityId);
+  if (entityDenied) return entityDenied;
 
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
