@@ -30,7 +30,7 @@ test("PG: Create & process cannot bypass readiness; separating-only and mixed co
   const { buildStatutoryRuleWatch, philippineCalendarDay } = await import("../src/lib/statutory-rule-watch");
   const create = require("../src/app/api/payroll-runs/route.ts").POST;
   const nonce = randomBytes(8).toString("hex");
-  const saved = { APP_BASE_URL: process.env.APP_BASE_URL, APPROVED_EXIT_PAYROLL_ENABLED: process.env.APPROVED_EXIT_PAYROLL_ENABLED };
+  const saved = { APP_BASE_URL: process.env.APP_BASE_URL, APPROVED_EXIT_PAYROLL_ENABLED: process.env.APPROVED_EXIT_PAYROLL_ENABLED, PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED: process.env.PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED };
   process.env.APP_BASE_URL = "http://127.0.0.1:3011";
   process.env.APPROVED_EXIT_PAYROLL_ENABLED = "true";
   const orgs: number[] = [], users: number[] = [];
@@ -61,6 +61,13 @@ test("PG: Create & process cannot bypass readiness; separating-only and mixed co
     assert.equal((await create(request(body))).status, 401);
     identity = owner;
     assert.equal((await create(request({ ...body, organizationId: foreign.id, legalEntityId: entities[1].id }))).status, 403);
+    // Without payout deferral the missing destination independently blocks.
+    process.env.PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED = "false";
+    const noPayout = await create(request(body));
+    assert.equal(noPayout.status, 422);
+    assert.equal((await noPayout.json()).code, "PAYOUT_DETAILS_REQUIRED");
+    // Enabling deferral is not an authorization to bypass source verification.
+    process.env.PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED = "true";
     const blocked = await create(request(body)), evidence = await blocked.json();
     assert.equal(blocked.status, 422);
     assert.equal(evidence.code, "PAYROLL_PRE_RUN_READINESS_BLOCKED");
@@ -86,6 +93,7 @@ test("PG: Create & process cannot bypass readiness; separating-only and mixed co
       assert.equal((await db.select().from(s.payrollRuns).where(eq(s.payrollRuns.organizationId, org.id))).length, 0);
       assert.equal((await db.select().from(s.auditEvents).where(eq(s.auditEvents.organizationId, org.id))).length, 0);
     }
+    process.env.PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED = "false";
     const draftResponse = await create(request({ ...body, processNow: false }));
     const draft = await draftResponse.json();
     assert.equal(draftResponse.status, 201);

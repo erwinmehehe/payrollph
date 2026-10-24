@@ -382,6 +382,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Owner-only fictional calculation and sample payslip UI; no payroll writes or payment authority",
     approval: "Executed canonical fixture, owner/tenant gates, default-off parity and desktop/390px browser tests; production activation separate",
   },
+  payrollDraftPayoutDeferral: {
+    env: "PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED",
+    owner: "Payroll / Onboarding",
+    risk: "Draft calculation before payout setup; missing destinations must remain assurance/review/release blockers",
+    approval: "Executed flag-off parity, authorized draft calculation, foreign-employer denial and missing-destination release-block tests; production activation separate",
+  },
   hostedDemoNavigation: {
     env: "HOSTED_DEMO_NAVIGATION_ENABLED",
     owner: "Product / Onboarding",

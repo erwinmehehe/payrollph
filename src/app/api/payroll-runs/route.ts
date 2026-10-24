@@ -22,6 +22,7 @@ import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { createTimesheetExpectationsForPayrollRun } from "@/lib/workforce-timesheet-expectations";
 import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
 import { loadPayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness-server";
+import { payrollDraftPayoutReadiness } from "@/lib/payroll-draft-payout-readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -269,6 +270,17 @@ export async function POST(request: Request) {
     return Response.json({ error: `The selected payroll scope has no active employees assigned to ${legalEntity.displayName}.` }, { status: 400 });
   }
 
+  // Draft-only creation may save incomplete payout details without calculation.
+  // Opt-in payout deferral also requires independent statutory/attendance readiness.
+  const payoutReadiness = payrollDraftPayoutReadiness(employeesInScope);
+  if (processNow && !payoutReadiness.allowed) {
+    return Response.json({
+      error: payoutReadiness.message,
+      code: "PAYOUT_DETAILS_REQUIRED",
+      missingEmployeeIds: payoutReadiness.missingEmployeeIds,
+    }, { status: 422 });
+  }
+
   if (processNow) {
     // ID zero denotes a not-yet-persisted draft, never a resource to authorize.
     // Employer/unit/role/subscription and selected cohort were resolved above.
@@ -283,22 +295,6 @@ export async function POST(request: Request) {
       code: "PAYROLL_PRE_RUN_READINESS_BLOCKED",
       readiness,
     }, { status: 422, headers: { "Cache-Control": "private, no-store" } });
-  }
-
-  const missingPayout = employeesInScope.filter((employee) => {
-    const hasBank = Boolean(employee.bankAccount?.trim() && employee.bankCode?.trim());
-    const hasMobileWallet = Boolean(employee.mobile?.trim());
-    return !hasBank && !hasMobileWallet;
-  });
-  // Incomplete payout destinations must not prevent saving a draft. They
-  // remain mandatory for "Create & process" and under the release assurance
-  // gate; a draft by itself never calculates or sends money.
-  if (processNow && missingPayout.length > 0) {
-    return Response.json({
-      error: `${missingPayout.length} active employee${missingPayout.length === 1 ? " is" : "s are"} missing a usable bank account or mobile-wallet destination. Complete payout details before starting payroll.`,
-      code: "PAYOUT_DETAILS_REQUIRED",
-      missingEmployeeIds: missingPayout.map((employee) => employee.id),
-    }, { status: 422 });
   }
 
   if (processNow) {
@@ -390,6 +386,10 @@ export async function POST(request: Request) {
       legalEntityName: legalEntity.displayName,
       ruleVersion: PAYROLL_RULE_VERSION,
       attendanceCutoffPolicy: attendanceCutoffGate.policy,
+      ...(payoutReadiness.deferred ? {
+        payoutSetupDeferred: true,
+        payoutSetupMissingEmployeeCount: payoutReadiness.missingEmployeeIds.length,
+      } : {}),
       attendanceCutoffGate: attendanceCutoffGate.gate,
       timesheetPolicy: timesheetGate.policy,
       timesheetGate: timesheetGate.gate,
@@ -424,6 +424,8 @@ export async function POST(request: Request) {
   }
 
   const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
-  return Response.json({ run: fresh, queue: queueMeta, processResult, attendanceCutoffGate, timesheetGate, automation }, { status: 201 });
+  return Response.json({ run: fresh, queue: queueMeta, processResult, attendanceCutoffGate, timesheetGate, automation,
+    ...(payoutReadiness.deferred ? { payoutReadiness } : {}),
+  }, { status: 201 });
 }
 

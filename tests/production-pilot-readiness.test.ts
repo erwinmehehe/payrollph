@@ -138,9 +138,10 @@ test("first payroll readiness is computed from real workspace state", () => {
 
 test("payroll creation fails closed when active employee payout details are incomplete", () => {
   const route = read("src/app/api/payroll-runs/route.ts");
+  const policy = read("src/lib/payroll-draft-payout-readiness.ts");
   assert.ok(route.includes('"PAYOUT_DETAILS_REQUIRED"'));
   assert.ok(route.includes("missingEmployeeIds"));
-  assert.ok(route.includes("Complete payout details before starting payroll"));
+  assert.ok(policy.includes("Complete payout details before starting payroll"));
 });
 
 
