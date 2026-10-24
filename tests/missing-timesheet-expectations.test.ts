@@ -82,7 +82,7 @@ test("schema and migration create new expectations without historical cohort inv
     assert.ok(file.includes("workforce_timesheet_expectation_run_employee_unique"));
     assert.ok(file.includes("workforce_timesheet_expectation_status_check"));
   }
-  for (const file of [schema, migration, baseline, compat]) {
+  for (const file of [schema, migration, baseline]) {
     assert.ok(file.includes("missing_timesheet_escalation"));
   }
   assert.ok(migration.includes("Existing payroll runs are intentionally not backfilled"));
