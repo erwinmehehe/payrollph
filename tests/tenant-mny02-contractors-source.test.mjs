@@ -95,13 +95,13 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     assert.match(underpaymentSource[125] ?? "", /assert\.deepEqual\(await snapshot\(v\), before/);
   }
   assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 149, 10, 335]);
+    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 151, 10, 333]);
   assert.deepEqual([manifest.metrics.methods,
     manifest.metrics.coveredAfter - creditedUnderpayments.length,
     manifest.metrics.publicByDesign,
     manifest.metrics.gap + creditedUnderpayments.length], [494, 147, 10, 337],
   "Pre-underpayment ledger retains the separately sourced group report and pre-run GET");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 335 API methods/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 333 API methods/);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {
