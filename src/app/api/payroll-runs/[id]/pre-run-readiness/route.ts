@@ -42,6 +42,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   // Keep every existing caller and flag-OFF response exactly as before. A
   // caller must also opt into the separate explanatory read; it never runs
   // during payroll creation, calculation, approval or release.
+  // The default OFF path returns before URL parsing or any new module load.
+  if (process.env.PAYROLL_EXPLANATION_AI_ENABLED !== "true") {
+    return Response.json(readiness, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
   if (new URL(request.url).searchParams.get("explain") !== "true") {
     return Response.json(readiness, {
       headers: { "Cache-Control": "private, no-store" },
