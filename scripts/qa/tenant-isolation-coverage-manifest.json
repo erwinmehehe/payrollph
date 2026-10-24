@@ -20010,20 +20010,20 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/process/route.ts": {
-      "gitBlobSha": "96ec5fa9a507717ce94f037fdb348fe26efb3485",
+      "gitBlobSha": "fc32b381574c2d1f720cd461b850ca722e2674f7",
       "route": "payroll-runs/[id]/process",
       "methods": [
         {
           "name": "POST",
           "line": 18,
           "status": "COVERED",
-          "reason": "PR #1350 has added a fail-closed pre-calculation source gate before state claim and payroll engine. Previously covered own-200/victim-403 positive process proof remains historical only; CURRENT, real PG16 own Draft reaches a deliberate HTTP 422 (unverified statutory rule watch), victim POST 403, and owned DB is unchanged. Not proof of successful computation; a fresh agency-verified ruleset is required for positive money workflow acceptance.",
+          "reason": "Default-off pre-run gate: disposable real-HTTP flag-ON own Draft is blocked with 422 before writes while authenticated victim receives 403. Existing flag-OFF money lifecycle independently proves successful calculation; no official-source verification or activation acceptance is implied.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1414,
-            "ownPositiveLine": 1414,
-            "foreignDenialLine": 1420,
-            "unchangedDbLine": 1424,
+            "line": 1417,
+            "ownPositiveLine": 1417,
+            "foreignDenialLine": 1423,
+            "unchangedDbLine": 1427,
             "scope": "Explicit own-422 fail-closed policy and authenticated victim-403, not certification of successful calculation."
           }
         }
@@ -20673,7 +20673,7 @@
       ]
     },
     "src/app/api/payroll-runs/route.ts": {
-      "gitBlobSha": "4c58a273a0cdc2834137426af8f0b0eb46f648b0",
+      "gitBlobSha": "ac44c3fe6194986ea8ec847b185007abc013aa76",
       "route": "payroll-runs",
       "methods": [
         {
@@ -34290,7 +34290,7 @@
             "line": 1381,
             "ownPositiveLine": 1381,
             "foreignDenialLine": 1388,
-            "unchangedDbLine": 1428,
+            "unchangedDbLine": 1431,
             "scope": "Real localhost PG16 HTTP, two attacker tenants and >6 victim ID, no money."
           }
         }

@@ -22,6 +22,7 @@ import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { createTimesheetExpectationsForPayrollRun } from "@/lib/workforce-timesheet-expectations";
 import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
 import { loadPayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness-server";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { payrollDraftPayoutReadiness } from "@/lib/payroll-draft-payout-readiness";
 
 export const dynamic = "force-dynamic";
@@ -281,7 +282,7 @@ export async function POST(request: Request) {
     }, { status: 422 });
   }
 
-  if (processNow) {
+  if (processNow && criticalReleaseFlagEnabled("payrollPreRunReadiness")) {
     // ID zero denotes a not-yet-persisted draft, never a resource to authorize.
     // Employer/unit/role/subscription and selected cohort were resolved above.
     // Check BEFORE inserting the draft, audit or job so Create & process cannot

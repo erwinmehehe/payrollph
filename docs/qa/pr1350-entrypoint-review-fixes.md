@@ -1,3 +1,17 @@
+## October 24: controlled activation and isolated proof repair
+
+The new pre-run gate is registered as PAYROLL_PRE_RUN_READINESS_ENABLED and defaults OFF. Both Create & process and /process consult the server registry after authorization and before the new source loader. Dashboard metadata controls the UI only; a client cannot override the server flag. Legacy calculation, release assurance, maker/checker and payout readiness remain independent. No statutory verification dates, engine arithmetic or production settings changed.
+
+Dedicated pre-run and second-pass HTTP workflows explicitly turn the flag ON only for disposable fixtures. Normal money-lifecycle/connected payroll workflows retain their successful flag-OFF calculation expectations. The strict ON tests continue to require rejection of missing verification/input evidence; they are not positive financial acceptance.
+
+The Create & process HTTP negative control now seeds encrypted fictional payout destinations for its own disposable employer before testing pre-run rejection. It previously stopped at the earlier PAYOUT_DETAILS_REQUIRED gate and therefore never reached the intended source gate. Victim records remain untouched. Only the shifted existing proof references were updated; no coverage credits added.
+
+Local PostgreSQL 18 integration passed: flag-OFF populated calculation, ON recalculation blocked with unchanged run/entries, strict ON creation blocked before insert/audit, foreign/anonymous denials, draft-only creation and separating/mixed cohort findings. Target: dedicated synthetic payroll_draft_test_20261024, not a hosted database. Deterministic readiness/rule-watch/release-flag tests and source/inventory guards passed. New exact-head HTTP/PG16/full-CI results are still required.
+
+Official-source verification and positive flag-ON acceptance remain activation prerequisites. A passing flag-OFF journey does not certify official statutory provenance, real-employer payroll or settlement.
+
+---
+
 # PR 1350 calculation-entry and employment-cohort fixes
 
 Create & process now invokes the same read-only readiness loader as /process

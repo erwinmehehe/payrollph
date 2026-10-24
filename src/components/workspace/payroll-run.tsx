@@ -142,6 +142,7 @@ export function PayrollRunView({
   const preRunScope = JSON.stringify([
     data.selectedOrganization.id, run?.id ?? null, run?.legalEntityId ?? null,
     expectedLegalEntityId, run?.periodStart, run?.periodEnd, run?.payDate, run?.status,
+    data.payrollPreRunReadinessEnabled === true,
   ]);
   const visiblePreRun = preRunResult?.scope === preRunScope ? preRunResult.readiness : null;
   const visiblePreRunError = preRunError?.scope === preRunScope ? preRunError.message : null;
@@ -150,6 +151,10 @@ export function PayrollRunView({
 
   function checkPreRunAndMaybeCalculate(id: number, calculate: boolean) {
     if (!run || run.id !== id || !selectedEmployerMatches || preRunChecking || busy) return;
+    if (calculate && data.payrollPreRunReadinessEnabled !== true) {
+      void onProcess(id);
+      return;
+    }
     const nonce = crypto.randomUUID();
     setPreRunBusy({ scope: preRunScope, nonce });
     setPreRunError(null);
@@ -878,7 +883,7 @@ export function PayrollRunView({
             )}
           </div>}
 
-          {!ownerMode && !released && (
+          {data.payrollPreRunReadinessEnabled === true && !ownerMode && !released && (
             <div className="card-body" id="pre-run-readiness" style={{ paddingTop: 0 }}>
               <div className="line-title" style={{ margin: 0 }}>
                 <div>

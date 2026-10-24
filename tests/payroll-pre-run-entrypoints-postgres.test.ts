@@ -30,9 +30,10 @@ test("PG: Create & process cannot bypass readiness; separating-only and mixed co
   const { buildStatutoryRuleWatch, philippineCalendarDay } = await import("../src/lib/statutory-rule-watch");
   const create = require("../src/app/api/payroll-runs/route.ts").POST;
   const nonce = randomBytes(8).toString("hex");
-  const saved = { APP_BASE_URL: process.env.APP_BASE_URL, APPROVED_EXIT_PAYROLL_ENABLED: process.env.APPROVED_EXIT_PAYROLL_ENABLED, PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED: process.env.PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED };
+  const saved = { PAYROLL_PRE_RUN_READINESS_ENABLED: process.env.PAYROLL_PRE_RUN_READINESS_ENABLED, APP_BASE_URL: process.env.APP_BASE_URL, APPROVED_EXIT_PAYROLL_ENABLED: process.env.APPROVED_EXIT_PAYROLL_ENABLED, PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED: process.env.PAYROLL_DRAFT_PAYOUT_DEFERRAL_ENABLED };
   process.env.APP_BASE_URL = "http://127.0.0.1:3011";
   process.env.APPROVED_EXIT_PAYROLL_ENABLED = "true";
+  process.env.PAYROLL_PRE_RUN_READINESS_ENABLED = "true";
   const orgs: number[] = [], users: number[] = [];
   try {
     const [own, foreign] = await db.insert(s.organizations).values([

@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "src/lib/payroll-pre-run-readiness.ts"
+      - "src/lib/critical-release-flags.ts"
+      - "tests/payroll-draft-payout-postgres.test.ts"
       - "src/lib/payroll-pre-run-readiness-server.ts"
       - "src/app/api/payroll-runs/*/pre-run-readiness/**"
       - "src/app/api/payroll-runs/*/process/**"
@@ -27,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      # Exercise the strict opt-in gate only against disposable CI fixtures.
+      PAYROLL_PRE_RUN_READINESS_ENABLED: "true"
       CI: "true"
       TZ: Asia/Manila
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
@@ -34,6 +38,7 @@ jobs:
       XENDIT_PAYOUTS_ENABLED: "false"
       XENDIT_PAYOUTS_LIVE_APPROVED: "false"
       PAYROLL_PRE_RUN_PROOF_MODE: disposable-only
+      PAYROLL_DRAFT_PROOF_MODE: disposable-only
     services:
       postgres:
         image: postgres:16
@@ -77,3 +82,4 @@ jobs:
           tests/payroll-pre-run-readiness.test.ts
           tests/payroll-pre-run-readiness-postgres.test.ts
           tests/payroll-pre-run-entrypoints-postgres.test.ts
+          tests/payroll-draft-payout-postgres.test.ts

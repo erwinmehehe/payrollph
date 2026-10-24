@@ -1392,6 +1392,9 @@ async function verifyPreRunReadinessTenantRead(f) {
     // callers later use the resource-addressed /process endpoint.
     const createBody = { organizationId: org.id, legalEntityId: f.entities[idx].id,
       periodStart: "2026-11-01", periodEnd: "2026-11-15", payDate: "2026-11-15", processNow: true };
+    // Seed only this disposable own employer past the independent payout setup guard.
+    const { encryptBankAccount } = await import("../../src/lib/bank-account-crypto");
+    await db.update(employees).set({ bankCode: "BPI", bankAccount: encryptBankAccount("000000000001") }).where(eq(employees.organizationId, org.id));
     const beforeCreate = await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, org.id));
     const createBlocked = expectStatus(await request("/api/payroll-runs", {
       method: "POST", cookie, body: createBody,
