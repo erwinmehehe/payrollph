@@ -59,6 +59,11 @@ test("flag-off has no explanation authorization even when the old model consent 
   const assurance = endpoint.indexOf("await buildPayrollAssurance(run.id)");
   assert.ok(off > 0 && off < consent && consent < assurance);
   assert.ok(endpoint.includes('new URL(request.url).searchParams.get("explain") !== "true"'));
+  assert.ok(endpoint.indexOf('process.env.PAYROLL_EXPLANATION_AI_ENABLED !== "true"')
+    < endpoint.indexOf('new URL(request.url).searchParams.get("explain")'),
+    "default OFF must exit before parsing an opt-in request");
+  assert.ok(endpoint.indexOf('process.env.PAYROLL_EXPLANATION_AI_ENABLED !== "true"') < off,
+    "default OFF must not dynamically import explanation modules");
   assert.ok(endpoint.includes("return Response.json(readiness, {"),
     "flag-off continues to return the same phase-1 payload, not a decorated replacement");
   assert.ok(endpoint.includes("requireRunEmployer({"));
