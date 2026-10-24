@@ -20010,20 +20010,20 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/process/route.ts": {
-      "gitBlobSha": "f20eaf283ac9cc483c282cea53d796d0115b7a0c",
+      "gitBlobSha": "96ec5fa9a507717ce94f037fdb348fe26efb3485",
       "route": "payroll-runs/[id]/process",
       "methods": [
         {
           "name": "POST",
-          "line": 17,
+          "line": 18,
           "status": "COVERED",
           "reason": "PR #1350 has added a fail-closed pre-calculation source gate before state claim and payroll engine. Previously covered own-200/victim-403 positive process proof remains historical only; CURRENT, real PG16 own Draft reaches a deliberate HTTP 422 (unverified statutory rule watch), victim POST 403, and owned DB is unchanged. Not proof of successful computation; a fresh agency-verified ruleset is required for positive money workflow acceptance.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1400,
-            "ownPositiveLine": 1400,
-            "foreignDenialLine": 1406,
-            "unchangedDbLine": 1410,
+            "line": 1414,
+            "ownPositiveLine": 1414,
+            "foreignDenialLine": 1420,
+            "unchangedDbLine": 1424,
             "scope": "Explicit own-422 fail-closed policy and authenticated victim-403, not certification of successful calculation."
           }
         }
@@ -20057,50 +20057,50 @@
           "token": "requireRunEmployer"
         },
         {
-          "line": 17,
+          "line": 18,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 27,
+          "line": 28,
           "token": "getSessionUser"
         },
         {
-          "line": 29,
+          "line": 30,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 38,
+          "line": 39,
           "token": "assertOrganizationUnitAccess"
         },
         {
-          "line": 45,
+          "line": 46,
           "token": "requireRunEmployer"
         }
       ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 22,
+          "line": 23,
           "token": "runId"
         },
         {
-          "line": 25,
+          "line": 26,
           "token": "runId"
         },
         {
-          "line": 31,
+          "line": 32,
           "token": "organizationId"
         },
         {
-          "line": 40,
+          "line": 41,
           "token": "organizationId"
         },
         {
-          "line": 45,
+          "line": 46,
           "token": "legalEntityId"
         },
         {
-          "line": 61,
+          "line": 62,
           "token": "preRunReadiness"
         }
       ]
@@ -20673,12 +20673,12 @@
       ]
     },
     "src/app/api/payroll-runs/route.ts": {
-      "gitBlobSha": "ce8f506ced06056a59295810438c9fdf005d74b2",
+      "gitBlobSha": "016e0df8089a6ff8ee43064b91c50bb02069a9d3",
       "route": "payroll-runs",
       "methods": [
         {
           "name": "GET",
-          "line": 27,
+          "line": 28,
           "status": "COVERED",
           "reason": "Own payroll runs 200 and victim-organization 403 plus direct foreign register denial",
           "testedBy": {
@@ -20691,7 +20691,7 @@
         },
         {
           "name": "POST",
-          "line": 99,
+          "line": 100,
           "status": "COVERED",
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
@@ -20733,127 +20733,127 @@
           "token": "getAccess"
         },
         {
-          "line": 27,
+          "line": 28,
           "token": "getSessionUser"
         },
         {
-          "line": 39,
+          "line": 40,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 46,
+          "line": 47,
           "token": "assertOrganizationUnitAccess"
         },
         {
-          "line": 75,
+          "line": 76,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 82,
+          "line": 83,
           "token": "getAccess"
         },
         {
-          "line": 99,
+          "line": 100,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 151,
+          "line": 152,
           "token": "getSessionUser"
         },
         {
-          "line": 155,
+          "line": 156,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 164,
+          "line": 165,
           "token": "getAccess"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 30,
+          "line": 31,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 31,
+          "line": 32,
           "token": "searchParams.get(\"runId\")"
         },
         {
-          "line": 103,
+          "line": 104,
           "token": "body.organizationId"
         },
         {
-          "line": 108,
+          "line": 109,
           "token": "body.legalEntityId"
         },
         {
-          "line": 108,
+          "line": 109,
           "token": "body.legalEntityId"
         },
         {
-          "line": 108,
+          "line": 109,
           "token": "body.legalEntityId"
         }
       ],
       "businessIds": [
         {
-          "line": 30,
-          "token": "organizationId"
-        },
-        {
-          "line": 30,
+          "line": 31,
           "token": "organizationId"
         },
         {
           "line": 31,
-          "token": "runId"
-        },
-        {
-          "line": 31,
-          "token": "runId"
-        },
-        {
-          "line": 35,
-          "token": "runId"
-        },
-        {
-          "line": 36,
           "token": "organizationId"
         },
         {
+          "line": 32,
+          "token": "runId"
+        },
+        {
+          "line": 32,
+          "token": "runId"
+        },
+        {
           "line": 36,
+          "token": "runId"
+        },
+        {
+          "line": 37,
           "token": "organizationId"
         },
         {
-          "line": 36,
-          "token": "legalEntityId"
+          "line": 37,
+          "token": "organizationId"
         },
         {
-          "line": 36,
+          "line": 37,
           "token": "legalEntityId"
         },
         {
           "line": 37,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 38,
           "token": "runId"
         },
         {
-          "line": 41,
+          "line": 42,
           "token": "organizationId"
         },
         {
-          "line": 48,
+          "line": 49,
           "token": "organizationId"
         },
         {
-          "line": 53,
+          "line": 54,
           "token": "organizationId"
         },
         {
-          "line": 53,
+          "line": 54,
           "token": "organizationId"
         },
         {
-          "line": 55,
+          "line": 56,
           "token": "legalEntityId"
         }
       ]
@@ -34290,7 +34290,7 @@
             "line": 1381,
             "ownPositiveLine": 1381,
             "foreignDenialLine": 1388,
-            "unchangedDbLine": 1414,
+            "unchangedDbLine": 1428,
             "scope": "Real localhost PG16 HTTP, two attacker tenants and >6 victim ID, no money."
           }
         }

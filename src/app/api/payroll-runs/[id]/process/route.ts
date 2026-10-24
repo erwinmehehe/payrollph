@@ -13,6 +13,7 @@ import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { approvalBelongsToPayrollRun } from "@/lib/payroll-approval-link";
 import { loadPayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness-server";
+import { payrollEmploymentStatus } from "@/lib/approved-exit-payroll";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(_request);
@@ -73,7 +74,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
           eq(employees.organizationId, run.organizationId),
           criticalReleaseFlagEnabled("multiEntity") && run.legalEntityId !== null
             ? eq(employees.legalEntityId, run.legalEntityId) : undefined,
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         )
       : and(
@@ -81,7 +82,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
           eq(employees.orgUnitId, run.scopeOrgUnitId),
           criticalReleaseFlagEnabled("multiEntity") && run.legalEntityId !== null
             ? eq(employees.legalEntityId, run.legalEntityId) : undefined,
-          eq(employees.status, "Active"),
+          payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         ),
   );

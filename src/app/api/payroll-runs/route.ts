@@ -21,6 +21,7 @@ import { nationalHolidayCalendarForDate } from "@/lib/wage-orders";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { createTimesheetExpectationsForPayrollRun } from "@/lib/workforce-timesheet-expectations";
 import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
+import { loadPayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness-server";
 
 export const dynamic = "force-dynamic";
 
@@ -266,6 +267,22 @@ export async function POST(request: Request) {
     .where(employeeScope);
   if (employeesInScope.length === 0) {
     return Response.json({ error: `The selected payroll scope has no active employees assigned to ${legalEntity.displayName}.` }, { status: 400 });
+  }
+
+  if (processNow) {
+    // ID zero denotes a not-yet-persisted draft, never a resource to authorize.
+    // Employer/unit/role/subscription and selected cohort were resolved above.
+    // Check BEFORE inserting the draft, audit or job so Create & process cannot
+    // bypass the same source gate enforced by the separate /process endpoint.
+    const readiness = await loadPayrollPreRunReadiness({
+      id: 0, organizationId, legalEntityId: legalEntity.id, scopeOrgUnitId,
+      periodStart, periodEnd, payDate,
+    });
+    if (!readiness.ready) return Response.json({
+      error: "Pre-calculation readiness has blocking issues. Resolve them before calculating payroll.",
+      code: "PAYROLL_PRE_RUN_READINESS_BLOCKED",
+      readiness,
+    }, { status: 422, headers: { "Cache-Control": "private, no-store" } });
   }
 
   const missingPayout = employeesInScope.filter((employee) => {

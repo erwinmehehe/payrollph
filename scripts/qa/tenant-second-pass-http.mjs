@@ -1388,6 +1388,20 @@ async function verifyPreRunReadinessTenantRead(f) {
     const foreignPreRun = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/pre-run-readiness", { cookie }), 403,
       "Real victim-only pre-run readiness denied to a different signed-in employer");
     assert.ok(!foreignPreRun.text.includes("VictimExclusive"), "No victim employee readiness evidence may leak");
+    // Create & process must fail before it inserts any draft, not only when
+    // callers later use the resource-addressed /process endpoint.
+    const createBody = { organizationId: org.id, legalEntityId: f.entities[idx].id,
+      periodStart: "2026-11-01", periodEnd: "2026-11-15", payDate: "2026-11-15", processNow: true };
+    const beforeCreate = await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, org.id));
+    const createBlocked = expectStatus(await request("/api/payroll-runs", {
+      method: "POST", cookie, body: createBody,
+    }), 422, "Owned Create & process must enforce real unverified-source readiness");
+    assert.equal(createBlocked.json?.code, "PAYROLL_PRE_RUN_READINESS_BLOCKED");
+    expectStatus(await request("/api/payroll-runs", {
+      method: "POST", cookie, body: { ...createBody, organizationId: f.orgs[0].id, legalEntityId: f.victimRun.legalEntityId },
+    }), 403, "Foreign Create & process must fail authorization before exposing readiness");
+    const afterCreate = await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, org.id));
+    assert.deepEqual(afterCreate, beforeCreate, "Rejected creation must not persist a run");
     // A legitimate owned Draft reaches the new pre-run gate; with statutory
     // verification unrecorded, it MUST be rejected before any calculation.
     const [draft] = await db.insert(payrollRuns).values({

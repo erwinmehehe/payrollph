@@ -9,6 +9,10 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { buildStatutoryRuleWatch } from "@/lib/statutory-rule-watch";
 import { evaluatePayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness";
+import { payrollEmploymentStatus } from "@/lib/approved-exit-payroll";
+
+export type PayrollPreRunIdentity = Pick<typeof payrollRuns.$inferSelect,
+  "id" | "organizationId" | "legalEntityId" | "scopeOrgUnitId" | "periodStart" | "periodEnd" | "payDate">;
 
 /**
  * Read-only equivalent of the selected cohort in the /process route. The
@@ -17,7 +21,7 @@ import { evaluatePayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness"
  * an invisible unassigned worker would otherwise escape pre-run checking.
  */
 export async function loadPayrollPreRunReadiness(
-  run: typeof payrollRuns.$inferSelect,
+  run: PayrollPreRunIdentity,
   reader: Pick<typeof db, "select"> = db,
 ) {
   const organizationId = run.organizationId;
@@ -32,7 +36,7 @@ export async function loadPayrollPreRunReadiness(
       orgUnitId: employees.orgUnitId,
     }).from(employees).where(and(
       eq(employees.organizationId, organizationId),
-      eq(employees.status, "Active"),
+      payrollEmploymentStatus(periodStart),
       lte(employees.startDate, periodEnd),
       run.scopeOrgUnitId == null ? undefined : eq(employees.orgUnitId, run.scopeOrgUnitId),
     )),

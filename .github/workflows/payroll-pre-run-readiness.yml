@@ -8,8 +8,10 @@ on:
       - "src/lib/payroll-pre-run-readiness-server.ts"
       - "src/app/api/payroll-runs/*/pre-run-readiness/**"
       - "src/app/api/payroll-runs/*/process/**"
+      - "src/app/api/payroll-runs/route.ts"
       - "src/components/workspace/payroll-run.tsx"
       - "tests/payroll-pre-run-readiness*.test.ts"
+      - "tests/payroll-pre-run-entrypoints-postgres.test.ts"
       - ".github/workflows/payroll-pre-run-readiness.yml"
   workflow_dispatch:
 
@@ -31,6 +33,7 @@ jobs:
       PAYMONGO_DISBURSEMENTS_ENABLED: "false"
       XENDIT_PAYOUTS_ENABLED: "false"
       XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      PAYROLL_PRE_RUN_PROOF_MODE: disposable-only
     services:
       postgres:
         image: postgres:16
@@ -73,3 +76,4 @@ jobs:
           npx tsx --test --test-concurrency=1
           tests/payroll-pre-run-readiness.test.ts
           tests/payroll-pre-run-readiness-postgres.test.ts
+          tests/payroll-pre-run-entrypoints-postgres.test.ts
