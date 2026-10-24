@@ -9,6 +9,11 @@ on:
       - "src/components/workspace/multi-entity-ui.tsx"
       - "src/components/linaw-workspace.tsx"
       - "src/lib/critical-release-flags.ts"
+      - "src/lib/payout-destination-controls.ts"
+      - "src/app/api/payout-destination-changes/**"
+      - "tests/payout-destination-legal-employer.test.ts"
+      - "tests/payout-destination-entity-manifest.test.mjs"
+      - "scripts/qa/payout-destination-entity-http.mjs"
       - "src/lib/bir-2316-employer.ts"
       - "src/app/api/separation/**/2316/route.ts"
       - "src/app/api/year-end/2316-certificate/route.ts"
@@ -183,6 +188,12 @@ jobs:
           BIR_2316_RECONCILIATION_ENABLED: "true"
           BIR_2316_WITHHOLDING_EVIDENCE_ENABLED: "true"
         run: npx tsx scripts/qa/tenant-bir2316-http.mjs
+      - name: Prove payout destination GET/PATCH across legal employers over real HTTPS and PG16
+        # Two independently signed-in attacker organizations, a distinct victim,
+        # and two legal employers within one tenant. No live money/provider calls.
+        run: |
+          node --check scripts/qa/payout-destination-entity-http.mjs
+          node scripts/qa/payout-destination-entity-http.mjs
       - name: Enforce existing UI/browser acceptance remains green
         if: steps.existing_browser.outcome == 'failure'
         run: |
