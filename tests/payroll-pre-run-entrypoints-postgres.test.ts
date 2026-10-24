@@ -48,7 +48,9 @@ test("PG: Create & process cannot bypass readiness; separating-only and mixed co
     const workers = await db.insert(s.employees).values([own, foreign].map((org, i) => ({
       organizationId: org.id, legalEntityId: entities[i].id, employeeNo: "PRERUN-" + i + nonce,
       firstName: "Fictional", lastName: "Worker", title: "QA only", avatarInitials: "QA",
-      basicRate: "30000", startDate: "2025-01-01", mobile: "09999999999",
+      // Deliberately no mobile wallet or bank destination: this must not
+      // prevent draft-only creation, and cannot bypass Create & process.
+      basicRate: "30000", startDate: "2025-01-01",
     }))).returning();
     const body = { organizationId: own.id, legalEntityId: entities[0].id,
       periodStart: "2026-10-01", periodEnd: "2026-10-15", payDate: "2026-10-15", processNow: true };
