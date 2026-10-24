@@ -137,5 +137,5 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
   assert.equal(inventory.metrics.gap + 3, 335);
   assert.equal(inventory.metrics.publicByDesign, 10);
   assert.equal(inventory.metrics.coveredAfter + inventory.metrics.publicByDesign + inventory.metrics.gap, inventory.metrics.methods);
-  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED: 332 API methods and 19 page\/action GAPs remain\./);
+  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED: 332 API methods and 18 page\/action GAPs remain\./);
 });

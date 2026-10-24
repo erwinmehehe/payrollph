@@ -125,7 +125,7 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
   assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
     [152, 10, 332]);
   assert.equal(manifest.metrics.methods, 494);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 332 API methods and 19 page\/action GAPs remain/);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 332 API methods and 18 page\/action GAPs remain/);
   assert.equal(manifest.scopedPages.length, 20);
-  assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 19);
+  assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 18);
 });

@@ -43,8 +43,8 @@ test("both initial loads defer effect-phase state work and cancel all retired re
       // Retain abort, HTTP denial, entity/year identity, and before-use proof checks.
       const reader = read("src/lib/dole-thirteenth-read.ts");
       assert.match(source, /cache: "no-store", signal: controller\.signal/);
-      assert.match(source, /if \(!response\.ok\) throw/);
-      assert.match(source, /if \(!isVerifiedDoleThirteenthRead\(body, organizationId, taxYear\)\)/);
+      assert.match(source, /parseDoleThirteenthRead\(response\.ok, value, organizationId, taxYear\)/);
+      assert.match(source, /if \(!body\)/);
       assert.match(reader, /v\.organizationId !== organizationId \|\| v\.legalEntityId !== null/);
       assert.match(reader, /v\.currentSubmission\.reportHash !== v\.reportHash/);
     } else {

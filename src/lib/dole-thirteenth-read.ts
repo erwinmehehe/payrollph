@@ -40,6 +40,20 @@ const amount = (v: unknown): v is number => typeof v === "number" && Number.isFi
 const sha = (v: unknown): v is string => typeof v === "string" && /^[a-f0-9]{64}$/i.test(v);
 const stamp = (v: unknown) => typeof v === "string" && Number.isFinite(Date.parse(v));
 const fields = ["establishmentAddress","principalBusiness","contactName","contactPosition","contactPhone"] as const;
+
+/** Classify a known refusal without trusting arbitrary server-provided text. */
+export function doleThirteenthReadFailure(status: number, value: unknown): string {
+  if (status === 503 && obj(value) && value.code === "DOLE_ENTITY_SOURCE_ATTRIBUTION_REQUIRED") {
+    return "DOLE 13th-month reporting is unavailable until historical payroll, final pay and submission evidence can be attributed to one legal employer. Retry.";
+  }
+  return "DOLE report unavailable: employer, totals or submission history could not be verified. Retry.";
+}
+
+export function parseDoleThirteenthRead(
+  ok: boolean, value: unknown, organizationId: number, taxYear: number,
+): VerifiedDoleRead | null {
+  return ok && isVerifiedDoleThirteenthRead(value, organizationId, taxYear) ? value : null;
+}
 const profile = (v: unknown): v is DoleProfile => obj(v) && fields.every(key => typeof v[key] === "string");
 const employee = (v: unknown) => obj(v) && text(v.employeeNo) && text(v.employeeName) && amount(v.amountGranted);
 const submission = (v: unknown, org: number): v is DoleSubmission =>
