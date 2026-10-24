@@ -660,7 +660,10 @@ async function main() {
     organizationId, periodStart: "2026-09-16", periodEnd: "2026-09-30", payDate: "2026-10-05", processNow: true,
   } });
   assert.equal(blockedRun.response.status, 422);
-  assert.equal(blockedRun.payload.code, "TIMESHEET_APPROVAL_REQUIRED");
+  assert.equal(blockedRun.payload.code, "PAYROLL_PRE_RUN_READINESS_BLOCKED");
+  assert.ok((blockedRun.payload.readiness?.findings ?? []).some(
+    (finding: { code: string }) => ["PRERUN_ATTENDANCE_MISSING", "PRERUN_ATTENDANCE_UNREVIEWED"].includes(finding.code),
+  ), "The pre-calculation gate must identify missing employee attendance approval.");
   const [secondEmployeeUser] = await db.insert(users).values({
     email: "second.employee.pilot@linaw.test", name: "Synthetic second employee",
     passwordHash: hashPassword(credentials.employee), role: "employee",
@@ -706,7 +709,11 @@ async function main() {
     organizationId, periodStart: "2026-09-16", periodEnd: "2026-09-30", payDate: "2026-10-05", processNow: true,
   } });
   assert.equal(staleRun.response.status, 422);
-  assert.equal(staleRun.payload.code, "TIMESHEET_APPROVAL_REQUIRED");
+  assert.equal(staleRun.payload.code, "PAYROLL_PRE_RUN_READINESS_BLOCKED");
+  assert.ok((staleRun.payload.readiness?.findings ?? []).some(
+    (finding: { code: string; employeeId?: number }) =>
+      finding.code === "PRERUN_ATTENDANCE_STALE" && finding.employeeId === created[0].id,
+  ), "The pre-calculation gate must block the worker's stale approved-timesheet version.");
   const staleApproval = await owner.json("/api/workforce/timesheets", { method: "POST", json: {
     organizationId, action: "decide", timesheetId: staleTimesheet.id, decision: "approved",
   } });
