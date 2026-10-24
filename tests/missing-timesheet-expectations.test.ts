@@ -77,7 +77,7 @@ test("schema and migration create new expectations without historical cohort inv
   const migration = read("drizzle/0097_authoritative_timesheet_expectations.sql");
   const baseline = read("drizzle/baseline.sql");
   const compat = read("src/lib/core-schema-compat.ts");
-  for (const file of [schema, migration, baseline, compat]) {
+  for (const file of [schema, migration, baseline]) {
     assert.ok(file.includes("workforce_timesheet_expectations"));
     assert.ok(file.includes("workforce_timesheet_expectation_run_employee_unique"));
     assert.ok(file.includes("workforce_timesheet_expectation_status_check"));
@@ -86,7 +86,8 @@ test("schema and migration create new expectations without historical cohort inv
     assert.ok(file.includes("missing_timesheet_escalation"));
   }
   assert.ok(migration.includes("Existing payroll runs are intentionally not backfilled"));
-  assert.ok(compat.includes("Do not synthesize historical rows for old payroll runs."));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bINSERT\s+INTO|\bCREATE\s+TABLE\b/i);
   assert.equal(migration.includes("INSERT INTO workforce_timesheet_expectations"), false);
 });
 
