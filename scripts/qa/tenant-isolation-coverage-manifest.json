@@ -26056,7 +26056,7 @@
       "methods": [
         {
           "name": "GET",
-          "line": 28,
+          "line": 29,
           "status": "COVERED",
           "reason": "Provisional exact-method real HTTPS + PG16 own success, higher-ID foreign victim 403, same-tenant ungranted employer 403, forged selector and revoked-grant denial; independent CI/security review still required",
           "testedBy": {
@@ -33938,7 +33938,7 @@
       "methods": [
         {
           "name": "GET",
-          "line": 54,
+          "line": 84,
           "status": "COVERED",
           "reason": "Provisional exact-method real HTTPS + PG16 own success, higher-ID foreign victim 403, same-tenant ungranted employer 403, forged selector and revoked-grant denial; independent CI/security review still required",
           "testedBy": {
@@ -33951,7 +33951,7 @@
         },
         {
           "name": "POST",
-          "line": 55,
+          "line": 85,
           "status": "COVERED",
           "reason": "Provisional exact-method real HTTPS + PG16 own success, higher-ID foreign victim 403, same-tenant ungranted employer 403, forged selector and revoked-grant denial; independent CI/security review still required",
           "testedBy": {
