@@ -1,3 +1,4 @@
+import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 /**
  * Regression controls for the offboarding BIR 2316 and unsigned certificate
  * source/PDF paths. Source/pure-policy tests are not HTTP acceptance:
@@ -96,6 +97,7 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
   const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
   const script = readFileSync("scripts/qa/tenant-bir2316-http.mjs", "utf8");
   const inventory = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const mergedProofCredits = verifyMergedProofCredits(inventory);
   assert.match(workflow, /npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/);
   assert.match(workflow, /MULTI_ENTITY_ENABLED: "true"/);
   assert.match(workflow, /BIR_2316_CERTIFICATE_DRAFT_ENABLED: "true"/);
@@ -133,9 +135,9 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
   // draft adds exactly three separately evidenced BIR 2316 GET/GET/POST methods.
   // Preserve the main baseline and every remaining GAP after syncing the branch.
   assert.equal(inventory.metrics.methods, 494);
-  assert.equal(inventory.metrics.coveredAfter - 3, 149);
-  assert.equal(inventory.metrics.gap + 3, 335);
+  assert.equal(inventory.metrics.coveredAfter - 3 - mergedProofCredits, 149);
+  assert.equal(inventory.metrics.gap + 3 + mergedProofCredits, 335);
   assert.equal(inventory.metrics.publicByDesign, 10);
   assert.equal(inventory.metrics.coveredAfter + inventory.metrics.publicByDesign + inventory.metrics.gap, inventory.metrics.methods);
-  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED: 332 API methods and 18 page\/action GAPs remain\./);
+  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED: 328 API methods and 18 page\/action GAPs remain\./);
 });

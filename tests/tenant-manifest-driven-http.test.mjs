@@ -1,3 +1,4 @@
+import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 /**
  * Method-adapter integrity: any "covered" assertion must be based on a
  * current manifest method (GAP or previously covered regression) plus real own success,
@@ -9,14 +10,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const mergedProofCredits = verifyMergedProofCredits(manifest);
 const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
 test("single table-driven test reads ALL 494 methods without claiming precovered GET as a new GAP", () => {
   assert.equal(manifest.metrics.methods, 494, "494 actual methods include source-pinned pre-run readiness GET and inherited handlers");
-  assert.equal(manifest.metrics.gap + 3, 335, "Retain every unverified method GAP after eight MNY-01, six MNY-02, two underpayment and one group-report proofs");
-  assert.equal(manifest.metrics.coveredAfter - 3, 149, "Retain BIR, vault, group-report, pre-run readiness, MNY-01, MNY-02 and underpayment proofs");
+  assert.equal(manifest.metrics.gap + 3 + mergedProofCredits, 335, "Retain every unverified method GAP after eight MNY-01, six MNY-02, two underpayment and one group-report proofs");
+  assert.equal(manifest.metrics.coveredAfter - 3 - mergedProofCredits, 149, "Retain BIR, vault, group-report, pre-run readiness, MNY-01, MNY-02 and underpayment proofs");
   const report = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
   assert.equal(report?.status, "COVERED");
   assert.equal(report?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
