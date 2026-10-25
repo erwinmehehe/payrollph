@@ -13,12 +13,40 @@
  */
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
-  auditEvents, employeePayProfiles, employees, legalEntities, organizations, orgUnits, sessions,
-  userOrganizations, users,
+  apiKeys, auditEvents, biometricDevices, employeePayProfiles, employees, engagementSurveys,
+  hcmBusinessProcessDefinitions, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, importBatches,
+  integrationConnectors, invoices, laborInspectionDrills, leaveRequests, legalEntities, organizations, orgUnits, outbox,
+  performanceCycles, scheduleSwapRequests, sessions, userOrganizations, users, workforcePlanAllocations,
+  workforcePlanBaselines, workforcePlanPositionExecutions, workforcePlanningScenarios, workforcePlans,
+  workforceScheduleGuardrailPolicies, worksites,
 } from "../../src/db/schema";
+import { essIdentifierRequests } from "../../src/lib/ess-profile-schema";
+import { organizationModuleSettings } from "../../src/lib/tenant-module-storage";
+
+const hex64 = () => randomBytes(32).toString("hex");
+/** A further fictional worker of the same employer (own marker plus suffix). */
+async function addWorker(e, suffix, { payProfile = true } = {}) {
+  const [worker] = await db.insert(employees).values({ organizationId: e.org.id, legalEntityId: e.entity.id, orgUnitId: e.unit.id,
+    employeeNo: e.marker + "-" + suffix, firstName: "Table", lastName: e.marker + "-" + suffix, title: "Fictional", avatarInitials: "TT",
+    basicRate: "20000.00", startDate: "2026-01-05" }).returning();
+  if (payProfile) {
+    await db.insert(employeePayProfiles).values({ organizationId: e.org.id, employeeId: worker.id, payBasis: "monthly",
+      rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8" });
+  }
+  return worker;
+}
+const activeWorkers = async (orgId) => Number((await db.select({ n: count() }).from(employees)
+  .where(and(eq(employees.organizationId, orgId), eq(employees.status, "Active"))))[0].n);
+const auditCount = async (orgId) => Number((await db.select({ n: count() }).from(auditEvents)
+  .where(eq(auditEvents.organizationId, orgId)))[0].n);
+async function seedPlan(e, purpose) {
+  const [plan] = await db.insert(workforcePlans).values({ organizationId: e.org.id, name: e.marker + " " + purpose,
+    startDate: "2026-01-01", endDate: "2026-12-31" }).returning();
+  return plan;
+}
 
 /** Body checks shared by rows: each proves the response belongs to the legitimate employer. */
 const proofs = {
@@ -42,7 +70,10 @@ const proofs = {
     assert.ok(r.json && typeof r.json === "object", "a JSON object is required");
     for (const key of keys) assert.ok(key in r.json, "response must carry " + key);
   },
-  all: (...checks) => (r, c) => { for (const check of checks) check(r, c); },
+  all: (...checks) => async (r, c) => { for (const check of checks) await check(r, c); },
+  /** The value at `path` equals what this employer's row seed stored (distinct per employer). */
+  equalsOwnSeed: (path) => (r, c) =>
+    assert.deepEqual(path.split(".").reduce((v, k) => v?.[k], r.json), c.seeded, path + " must equal the own employer's seeded value"),
 };
 export { proofs };
 
@@ -79,6 +110,133 @@ export const TENANT_TABLE = Object.freeze([
     prove: proofs.all(proofs.listsOwnMarker("orgUnits", "name"), proofs.listsOwnMarker("legalEntities", "code")) },
   { key: "GET workforce/labor-costing", prove: proofs.listsOwnMarker("legalEntities", "legalName") },
   { key: "GET workforce/overtime", prove: proofs.listsOwnMarker("managers", "name") },
+  // Seeded rows: each employer (victim included) gets its own route-specific fictional row.
+  { key: "GET billing/subscription",
+    seed: (e) => db.insert(invoices).values({ organizationId: e.org.id, number: e.marker, amountCents: 100 * e.rank }),
+    prove: proofs.listsOwnMarker("invoices", "number") },
+  { key: "GET biometrics/sync",
+    seed: (e) => db.insert(biometricDevices).values({ organizationId: e.org.id, deviceModel: "Fictional K40", serialNumber: e.marker, branchName: e.marker }),
+    prove: proofs.listsOwnMarker("devices", "branchName") },
+  { key: "GET compliance/audit-chain",
+    // A different number of audit events per employer; the chain report must count exactly the own employer's.
+    seed: async (e) => {
+      for (let i = 0; i < e.rank + 2; i++) {
+        await db.insert(auditEvents).values({ organizationId: e.org.id, actor: e.marker, action: "tenant_table.seed", resource: e.marker });
+      }
+    },
+    prove: async (r, c) => {
+      const own = await auditCount(c.orgId);
+      assert.notEqual(own, await auditCount(c.victim.org.id), "seeded audit counts must differ between employers");
+      assert.equal(r.json?.verified, true, "own audit chain must verify");
+      assert.equal(r.json.chainedEvents + r.json.pendingSealEvents, own, "the chain report must count the own employer's events");
+    } },
+  { key: "GET compliance/labor-inspection/drills",
+    seed: (e) => db.insert(laborInspectionDrills).values({ organizationId: e.org.id, status: "needs-work", rangeLabel: e.marker,
+      evidencePackSha256: hex64(), evidencePackVersion: "fictional-v1", snapshotSha256: hex64(), generatedBy: e.marker }),
+    prove: proofs.listsOwnMarker("drills", "rangeLabel") },
+  { key: "GET compliance/labor-inspection",
+    // A worker without a pay profile yields a high finding naming that worker.
+    seed: (e) => addWorker(e, "NOPAY", { payProfile: false }),
+    prove: proofs.listsOwnMarker("findings", "employeeNo") },
+  { key: "GET compliance/policy-review",
+    // A different active headcount per employer; the rest-day control must report the own headcount.
+    seed: async (e) => { for (let i = 0; i < e.rank; i++) await addWorker(e, "PR" + i); },
+    prove: async (r, c) => {
+      const own = await activeWorkers(c.orgId);
+      assert.notEqual(own, await activeWorkers(c.victim.org.id), "seeded headcounts must differ between employers");
+      const rest = r.json?.findings?.find((finding) => finding.key === "WEEKLY_REST_CONTROL");
+      assert.ok(String(rest?.detail ?? "").startsWith(own + " active employee(s)"), "rest-day control must count the own employer's workers");
+    } },
+  { key: "GET developer",
+    seed: (e) => db.insert(apiKeys).values({ organizationId: e.org.id, name: e.marker, prefix: "ttbl", keyHash: hex64() }),
+    prove: proofs.listsOwnMarker("apiKeys", "name") },
+  { key: "GET employee-identifier-requests",
+    seed: (e) => db.insert(essIdentifierRequests).values({ organizationId: e.org.id, employeeId: e.worker.id, kind: "tin",
+      proposedEncrypted: "fictional-unencrypted", requestedByUserId: e.owner.id }),
+    prove: proofs.listsOwnMarker("requests", "employeeNo") },
+  { key: "GET hcm/business-processes/definitions",
+    seed: (e) => db.insert(hcmBusinessProcessDefinitions).values({ organizationId: e.org.id, code: e.marker, name: e.marker,
+      processType: "change_job", effectiveFrom: "2026-01-01" }),
+    prove: proofs.listsOwnMarker("definitions", "name") },
+  { key: "GET hcm/engagement-surveys", flags: ["ENGAGEMENT_SURVEY_ENABLED"],
+    seed: (e) => db.insert(engagementSurveys).values({ organizationId: e.org.id, question: e.marker }),
+    prove: proofs.listsOwnMarker("surveys", "question") },
+  { key: "GET hcm/lifecycle-policy",
+    seed: async (e) => {
+      const [policy] = await db.insert(hcmLifecyclePolicies).values({ organizationId: e.org.id }).returning();
+      await db.insert(hcmLifecyclePolicyEvents).values({ organizationId: e.org.id, policyId: policy.id, eventType: "updated",
+        actorName: e.marker, toVersion: 1, afterSnapshot: {} });
+    },
+    prove: proofs.listsOwnMarker("history", "actorName") },
+  { key: "GET integration-connectors",
+    seed: (e) => db.insert(integrationConnectors).values({ organizationId: e.org.id, provider: "slack", name: e.marker,
+      credentialCiphertext: "fictional-not-a-credential", config: { defaultChannelId: "C0TTBL0001", allowedChannelIds: ["C0TTBL0001"] } }),
+    prove: proofs.listsOwnMarker("connectors", "name") },
+  { key: "GET leave",
+    seed: (e) => db.insert(leaveRequests).values({ organizationId: e.org.id, employeeId: e.worker.id, leaveType: "vacation",
+      startDate: "2026-03-02", endDate: "2026-03-02", days: "1.0" }),
+    prove: proofs.listsOwnMarker("requests", "employeeName") },
+  { key: "GET migrations",
+    seed: (e) => db.insert(importBatches).values({ organizationId: e.org.id, fileName: e.marker + ".csv", createdBy: e.marker }),
+    prove: proofs.listsOwnMarker("batches", "fileName") },
+  { key: "GET outbox",
+    seed: (e) => db.insert(outbox).values({ organizationId: e.org.id, recipient: e.marker.toLowerCase() + "@example.invalid",
+      subject: e.marker, body: "Fictional tenant-table message; never delivered.", purpose: "tenant-table" }),
+    prove: proofs.listsOwnMarker("messages", "subject") },
+  { key: "GET performance/competencies",
+    seed: (e) => db.insert(hcmSkills).values({ organizationId: e.org.id, code: e.marker, name: e.marker }),
+    prove: proofs.listsOwnMarker("skills", "name") },
+  { key: "GET performance/follow-through-governance",
+    seed: (e) => db.insert(performanceCycles).values({ organizationId: e.org.id, name: e.marker, startDate: "2026-01-01", endDate: "2026-06-30" }),
+    prove: proofs.listsOwnMarker("cycles", "name") },
+  { key: "GET tenant-modules", flags: ["CORE_MODULE_NAVIGATION_ENABLED"],
+    // Navigation preference only (mode stays "all"); a distinct module list per employer.
+    seed: async (e) => {
+      const modules = { ATTA: ["workforce"], ATTB: ["workforce", "planning"], VICTIM: ["spend", "it", "automation", "enterprise"] }[e.label];
+      await db.update(organizationModuleSettings).set({ enabledModules: modules }).where(eq(organizationModuleSettings.id, e.org.id));
+      return modules;
+    },
+    prove: proofs.equalsOwnSeed("enabledModules") },
+  { key: "GET workforce-planning/allocations",
+    seed: async (e) => {
+      const plan = await seedPlan(e, "allocation plan");
+      await db.insert(workforcePlanAllocations).values({ organizationId: e.org.id, planId: plan.id, orgUnitId: e.unit.id });
+    },
+    prove: proofs.listsOwnMarker("allocations", "orgUnitName") },
+  { key: "GET workforce-planning/position-executions",
+    seed: async (e) => {
+      const plan = await seedPlan(e, "execution plan");
+      const [scenario] = await db.insert(workforcePlanningScenarios).values({ organizationId: e.org.id, planId: plan.id, name: e.marker + " exec",
+        startDate: "2026-01-01", endDate: "2026-12-31", snapshotHash: hex64(), createdByUserId: e.owner.id }).returning();
+      const [baseline] = await db.insert(workforcePlanBaselines).values({ organizationId: e.org.id, planId: plan.id, scenarioId: scenario.id,
+        snapshotHash: hex64(), publishedByUserId: e.owner.id, publishedBy: e.marker }).returning();
+      await db.insert(workforcePlanPositionExecutions).values({ organizationId: e.org.id, planId: plan.id, baselineId: baseline.id,
+        baselineSnapshotHash: baseline.snapshotHash, executionHash: hex64(), createdByUserId: e.owner.id, createdBy: e.marker });
+    },
+    prove: proofs.listsOwnMarker("executions", "createdBy") },
+  { key: "GET workforce-planning/scenarios",
+    seed: (e) => db.insert(workforcePlanningScenarios).values({ organizationId: e.org.id, name: e.marker, startDate: "2026-01-01",
+      endDate: "2026-12-31", snapshotHash: hex64(), createdByUserId: e.owner.id }),
+    prove: proofs.listsOwnMarker("scenarios", "name") },
+  { key: "GET workforce/schedule-guardrails",
+    // A distinct configured rest minimum per employer.
+    seed: async (e) => {
+      const minimumRestMinutes = 600 + 10 * e.rank;
+      await db.insert(workforceScheduleGuardrailPolicies).values({ organizationId: e.org.id, minimumRestMinutes, updatedBy: e.marker });
+      return minimumRestMinutes;
+    },
+    prove: proofs.equalsOwnSeed("policy.minimumRestMinutes") },
+  { key: "GET workforce/schedule-swaps",
+    seed: async (e) => {
+      const counterparty = await addWorker(e, "SWAP");
+      await db.insert(scheduleSwapRequests).values({ organizationId: e.org.id, requesterEmployeeId: e.worker.id,
+        counterpartyEmployeeId: counterparty.id, requesterWorkDate: "2026-03-03", counterpartyWorkDate: "2026-03-04",
+        requesterScheduleSnapshot: {}, counterpartyScheduleSnapshot: {}, reason: e.marker, requestedBy: e.marker, requestedByUserId: e.owner.id });
+    },
+    prove: proofs.listsOwnMarker("swaps", "reason") },
+  { key: "GET workforce/worksites",
+    seed: (e) => db.insert(worksites).values({ organizationId: e.org.id, code: e.marker, name: e.marker }),
+    prove: proofs.listsOwnMarker("worksites", "name") },
 ]);
 
 const BASE = process.env.SECURITY_SMOKE_URL ?? "";
@@ -138,7 +296,7 @@ async function seedEmployer(label, nonce, makeSession) {
     basicRate: "20000.00", startDate: "2026-01-05" }).returning();
   await db.insert(employeePayProfiles).values({ organizationId: org.id, employeeId: worker.id, payBasis: "monthly",
     rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8" });
-  return { org, entity, unit, owner, cookie: session.cookie, worker, marker };
+  return { org, entity, unit, owner, cookie: session.cookie, worker, marker, label, rank: { ATTA: 1, ATTB: 2, VICTIM: 4 }[label], seeded: {} };
 }
 
 async function victimSnapshot(orgId) {
@@ -157,7 +315,7 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
   const discover = process.env.TENANT_TABLE_DISCOVER === "1";
   const profile = process.env.TENANT_TABLE_PROFILE ?? "default";
   const rows = (discover && process.env.TENANT_TABLE_DISCOVER_KEYS
-    ? process.env.TENANT_TABLE_DISCOVER_KEYS.split(",").map((key) => ({ key: key.trim(), profile }))
+    ? process.env.TENANT_TABLE_DISCOVER_KEYS.split(",").map((key) => TENANT_TABLE.find((row) => row.key === key.trim()) ?? { key: key.trim(), profile })
     : TENANT_TABLE).filter((row) => (row.profile ?? "default") === profile);
   assert.ok(rows.length > 0, "tenant table profile " + profile + " has no rows; an empty job proves nothing");
   const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
@@ -170,15 +328,24 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
     assert.ok(Number.isSafeInteger(victim[field].id) && victim[field].id > employers[1][field].id && victim[field].id > employers[2][field].id,
       "Victim-only " + field + " ID must really exist and exceed both attackers' IDs");
   }
+  // Row seeds run for every employer, victim included, so a leak of the victim's seeded row is
+  // detectable and each attacker's own row is what its proof looks for. Distinct per employer.
+  for (const item of rows) {
+    if (!item.seed) continue;
+    for (const e of employers) e.seeded[item.key] = (await item.seed(e)) ?? true;
+  }
   const victimBefore = await victimSnapshot(victim.org.id);
   const passed = new Set();
+  const firstAttackerResponses = new Map();
+  let discriminatingProofs = 0;
   const report = [];
 
   for (const idx of [1, 2]) {
     const own = employers[idx];
-    const ctx = { org: own.org, entity: own.entity, unit: own.unit, worker: own.worker, owner: own.owner, marker: own.marker,
-      orgId: own.org.id, workerId: own.worker.id, unitId: own.unit.id, entityId: own.entity.id, victim };
+    const base = { org: own.org, entity: own.entity, unit: own.unit, worker: own.worker, owner: own.owner, marker: own.marker,
+      orgId: own.org.id, workerId: own.worker.id, unitId: own.unit.id, entityId: own.entity.id, rank: own.rank, victim };
     for (const item of rows) {
+      const ctx = { ...base, seeded: own.seeded[item.key], victimSeeded: victim.seeded[item.key] };
       const [method, route] = item.key.split(" ");
       assert.equal(method, "GET", item.key + ": the table runner only proves organization-scoped reads so far");
       if (!discover) {
@@ -200,12 +367,18 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
         };
         walk(o.json, "");
         report.push({ key: item.key, attacker: idx, own: o.status, hits: hits.slice(0, 8), ownKeys: o.json && typeof o.json === "object" ? Object.keys(o.json).slice(0, 12) : null,
-          ownSnippet: o.text.slice(0, 160), ownHasOwnMarker: o.text.includes(own.marker), foreign: v.status,
+          ownSnippet: o.text.slice(0, process.env.TENANT_TABLE_DISCOVER_FULL === "1" ? 20000 : 160), ownHasOwnMarker: o.text.includes(own.marker), foreign: v.status,
           leaksVictimMarker: o.text.includes(victim.marker) || v.text.includes(victim.marker) });
         continue;
       }
       const owned = expectStatus(await request(item.own, { cookie: own.cookie }), item.status ?? 200, item.key + " own employer");
-      item.prove(owned, ctx);
+      await item.prove(owned, ctx);
+      // The proof must tell employers apart: the first attacker's genuine response fails the second's proof.
+      if (idx === 1) firstAttackerResponses.set(item.key, owned);
+      else {
+        await assert.rejects(async () => item.prove(firstAttackerResponses.get(item.key), ctx), item.key + ": proof accepts another employer's data");
+        discriminatingProofs++;
+      }
       assert.ok(!owned.text.includes(victim.marker), item.key + ": own response leaked a victim marker");
       const foreign = expectStatus(await request(item.foreign, { cookie: own.cookie }), item.deny ?? 403, item.key + " victim employer");
       assert.ok(!foreign.text.includes(victim.marker), item.key + ": denial leaked a victim marker");
@@ -219,9 +392,10 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
   }
   assert.deepEqual(victimAfter, victimBefore, "table reads leave the victim employer's rows and audit trail unchanged");
   assert.equal(passed.size, rows.length * 2, "every row passed for both independent attacker employers");
+  assert.equal(discriminatingProofs, rows.length, "every row's proof rejected the other attacker's genuine response");
   await db.delete(sessions).where(inArray(sessions.userId, employers.map((e) => e.owner.id)));
   console.log(JSON.stringify({ kind: "tenant-table-proof", profile, rows: rows.length, ownAndForeignPairs: passed.size,
-    victimDatabaseUnchanged: true, productionTested: false, certified: false }));
+    discriminatingProofs, victimDatabaseUnchanged: true, productionTested: false, certified: false }));
   return { rows: rows.length, pairs: passed.size };
 }
 

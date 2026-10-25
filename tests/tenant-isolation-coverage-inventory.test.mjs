@@ -1360,7 +1360,7 @@ test("all credited proof links point to the claimed route and every recertified 
         const nextRow = suite.indexOf("\n  { key: ", rowStart + rowLine.length);
         const row = suite.slice(rowStart, nextRow > 0 && nextRow < tableEnd ? nextRow : tableEnd);
         assert.match(row, /\bprove: /, key + ": a row without an own-data proof cannot be credited");
-        assert.doesNotMatch(row, /\bstatus: /, key + ": own employer must be an exact 200");
+        assert.doesNotMatch(row, /\bstatus: \d{3}\b/, key + ": own employer must be an exact 200");
         const deny = /\bdeny: (\d{3})/.exec(row)?.[1] ?? "403";
         assert.ok(["403", "404"].includes(deny), key + ": victim employer must be denied 403 or 404, got " + deny);
         const profile = /\bprofile: "([a-z-]+)"/.exec(row)?.[1] ?? "default";
@@ -1384,7 +1384,9 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.ok(proof.ownPositiveLine < proof.foreignDenialLine && proof.foreignDenialLine < proof.unchangedDbLine);
         assert.ok(suite.includes("requireTenantTableDisposable();") && suite.includes("for (const idx of [1, 2])") &&
           suite.includes("assert.equal(passed.size, rows.length * 2,") &&
-          suite.includes('assert.equal(typeof item.prove, "function"'), key + ": both attackers, disposable guard and proof enforcement required");
+          suite.includes('assert.equal(typeof item.prove, "function"') &&
+          suite.includes("await assert.rejects(async () => item.prove(firstAttackerResponses.get(item.key), ctx),") &&
+          suite.includes("assert.equal(discriminatingProofs, rows.length,"), key + ": both attackers, disposable guard, proof enforcement and cross-employer discrimination required");
         continue;
       }
       if (proof.file === "scripts/qa/tenant-high-risk-01-http.mjs") {
