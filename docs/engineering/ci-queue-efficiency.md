@@ -81,3 +81,115 @@ Both workflows now track their runner and receipt-test dependencies.
 This correction requires fresh real PostgreSQL CI; the earlier generic
 `nonzero_exit_without_TAP_failure` receipts cannot establish which individual
 assertions failed. Do not represent the source repair as a completed green run.
+
+## October 25, 2026 — workflow retirement inventory (owner decision required)
+
+**Status: no YAML deleted.** This is a cautious triage update, not a completed retirement or CI queue reduction. The repository had **148** workflow YAML files at inspected main `802c2dd1099dc2aa16b73771637fec5b89a35cb5`. The 15 explicitly protected workflows and the two clean-baseline-cutover workflows are excluded from candidate consideration entirely.
+
+### Safe to remove
+
+**None verified.** Do not remove any workflow from this register until **all** deletion criteria are evidenced, including issue/PR closure without reopened follow-up, zero references across full tracked source/docs/tests/workflows, not a required status context and a full workflow-run failure review. A closed GitHub issue alone does not authorize deleting its tests.
+
+### Needs owner judgment — issue/PR-numbered (19)
+
+| Workflow | Evidence / reason retained |
+| --- | --- |
+| `draft-1302-tenant-read-proof.yml` | CLOSED, explicitly partial security sweep; no independent follow-up clearance verified |
+| `issue-0129-fk-name-reconcile-ci.yml` | Mismatch: 0129 is a SQL migration number, not the GitHub #129 overtime issue; recent failed checks |
+| `issue-1019-stable-two-push-proof.yml` | CLOSED, 2nd-push regression proof may still be load-bearing |
+| `issue-1031-full-schema-diff.yml` | CLOSED issue, but ongoing schema reconciliation and observed workflow failure |
+| `issue-1031-review-only-candidate-parity.yml` | CLOSED issue, but ongoing schema reconciliation and observed workflow failure |
+| `issue-1031-schema-diff-ci.yml` | CLOSED issue, but ongoing schema reconciliation and observed workflow failure |
+| `issue-1031-schema-only-hr-cases-rehearsal.yml` | CLOSED issue, but ongoing schema reconciliation and observed workflow failure |
+| `issue-1031-schema-only-it-assets-rehearsal.yml` | CLOSED issue, but ongoing schema reconciliation and observed workflow failure |
+| `issue-1031-source-shape-analysis.yml` | CLOSED issue, but ongoing schema reconciliation and observed workflow failure |
+| `issue-1054-forward-schema-rehearsal.yml` | OPEN/reopened; forward migration gate |
+| `issue-1061-compensation-forward-schema-rehearsal.yml` | OPEN; compensation schema blocker |
+| `issue-1102-header-rehearsal.yml` | OPEN/reopened; fictional header parity |
+| `issue-1113-worksite-forward-qa.yml` | OPEN; worksite and separation schema blocker |
+| `issue-1154-payout-check-contracts.yml` | CLOSED, payout boundary acceptance not proven redundant |
+| `issue-1198-wfm-demand-forward-recovery.yml` | CLOSED evidence checkpoint but production DBA NO-GO persists |
+| `issue-910-0121-review.yml` | CLOSED source checkpoint, historical SQL/DBA acceptance not closed |
+| `issue-910-0123-numbered-rehearsal.yml` | CLOSED source checkpoint, historical SQL/DBA acceptance not closed |
+| `issue-993-pg18-preview-parity.yml` | OPEN; canonical preview acceptance pending, recent failed runs |
+| `issue1113-review-candidate-acceptance.yml` | OPEN; worksite and separation schema blocker |
+
+### Needs owner judgment — one-off-style, source, QA, and rehearsal workflows (61)
+
+| Workflow | Evidence / reason retained |
+| --- | --- |
+| `a4-a5-source-inventory.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `a5-private-object-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `a5-vault-migration-rehearsal.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `a6-clearance-migration-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `audit-0109-pg16-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `audit-role-isolation-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `audit-runtime-identity.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `automation-language-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `bank-envelope-audit-rehearsal.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `bir-1604c-candidate-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `catalog-auditor-privilege-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `competitive-100-worker-app-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `core-modules-browser-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `employee-import-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `employee-import-browser-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `employee-vault-profile-browser-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `ess-profile-browser-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `exact-sha-qa-overview.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `filing-remittance-forward-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `hcm-gaps-focused.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `hcm-people-home-browser-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `hcm-process-monitor-browser-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `hris-journey-browser-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `independent-journey-853-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `isolated-release-schema-rehearsal.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `manual-owner-uat-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `money-closes-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `multi-entity-browser-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `native-windows-test-portability.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `nine-stage-connected-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `offline-claims-development-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `p0-4-backup-reader-pg18-rehearsal.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `p0-acceptance-evidence-contract.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `payout-ledger-tenant-rehearsal.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `pg18-schema-repeat-proof.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `pilot-payroll-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `post-cutover-real-role-smoke.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `pr-integration-queue-gate.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `preview-browser-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `production-schema-inventory.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `recovered-neon-schema-rehearsal.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `repair-security-pr-candidate.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `reviewed-migration-rehearsal.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `runtime-schema-cutover-catalog.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `salary-correction-cases-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `scheduler-postgres-rehearsal.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `scheduler-scheduled-run-observer.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `tenant-dl02-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `tenant-table-proof.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `tenant-write-discovery.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `unattended-scheduler-payroll-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `wfm-demand-staffing-policy-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `wfm-demand-staffing-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `wfm-five-worker-dev-acceptance.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `wfm-historical-demand-outlook-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `wfm-issued-demand-prospective-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `wfm-loyverse-pos-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `wfm-migration-contract-rehearsal.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `wfm-operational-demand-observations-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `wfm-sprint-candidate-source-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+| `wfm-square-sandbox-qa.yml` | No issue/PR closure + absence-of-references + full 90-day failure-history chain simultaneously verified; may be a reusable QA, approval, or regression gate |
+
+### Reproducible observations and missing verification
+
+- The active `Protect main` ruleset `24862793` requires status contexts `check`, `security-http-smoke`, `payout-payroll-isolation`, and `Analyze JavaScript and TypeScript` as of this read. Required workflows were not edited.
+- Actual GitHub issues inspected: #129 CLOSED (unrelated overtime calculation), #1019 CLOSED, #1031 CLOSED, #1054 OPEN/reopened, #1061 OPEN, #1102 OPEN/reopened, #1113 OPEN, #1154 CLOSED, #1198 CLOSED evidence-only/DBA NO-GO, #910 CLOSED source-only, #993 OPEN, #1302 CLOSED partial.
+- Recent real failed runs in the global GitHub Actions history include `issue-0129-fk-name-reconcile-ci.yml` (Oct 21–25; e.g. [run 40165126365](https://github.com/erwinmehehe/payrollph/actions/runs/40165126365)), `issue-993-pg18-preview-parity.yml` ([run 40164007105](https://github.com/erwinmehehe/payrollph/actions/runs/40164007105)), `issue-1031-source-shape-analysis.yml` ([run 39613007499](https://github.com/erwinmehehe/payrollph/actions/runs/39613007499)), and `bir-1604c-candidate-qa.yml` ([run 40097104239](https://github.com/erwinmehehe/payrollph/actions/runs/40097104239)). Failures are not proof of valid catching, but they block unreviewed deletion.
+- `wfm-sprint-candidate-source-qa.yml` still targets branches corresponding to merged PRs #822 and #823; the branches still exist and the workflow is available for manual dispatch. Owner must decide whether it remains a reusable template; no automatic retirement.
+- **Evidence gap:** The connected repository is **not code-search indexed**; connector code-search returns no results even for known files. The per-workflow `actions/workflows/{id}/runs` API is blocked by the available read connector. The global run listing was sampled but cannot prove 90-day inactivity or absence of meaningful earlier failures for every file. The shell `git fetch` could not resolve GitHub in the available container. A separate isolated QA sandbox full clone was denied by the account's usage limit. Therefore **full-repository filename-reference proof and complete per-workflow 90-day receipts are unavailable**; do not interpret unsearched files as unreferenced.
+- No production, Neon, SQL, secrets, payout, agency submission, deployment, protected YAML, or runtime flags were accessed or modified. The only proposed repository change is this existing engineering documentation, so the owner can decide which candidate merits a future evidence-complete deletion PR.
+
+### Required follow-up before deleting a single file
+
+On a runner with a complete clone and `gh` access: `git fetch origin main`, check out the exact reviewed main commit, run `git grep -n -F '<workflow-filename>' -- .` including tests/docs/scripts/workflows, then use `gh api` for the referenced issue/PR, branch ruleset and all 90-day workflow runs; inspect failure details and any reopened follow-up. Submit a separate YAML-deletion PR only when every gate is evidenced. Manual-dispatch-only workflows should not be removed as a queue optimization without an independent value assessment.
+
