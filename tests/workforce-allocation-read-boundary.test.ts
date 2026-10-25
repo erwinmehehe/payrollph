@@ -5,7 +5,6 @@ import { workforceAllocationResponseMatchesEmployer } from "../src/lib/workforce
 
 function scopedResponse() {
   return {
-    organizationId: 21,
     access: {
       role: "manager", companyWide: false, orgUnitId: 10,
       canManageAllocations: false, canDecideSubmissions: false,
@@ -39,7 +38,7 @@ test("one-employer planning reads accept valid data or a genuinely empty respons
 });
 
 test("mixed tenant payloads never become a 200/empty success or display foreign budgets", () => {
-  assert.equal(matches(withChange((item) => { item.organizationId = 22; }), 21), false);
+  assert.equal(matches(withChange((item) => { item.access.role = ""; }), 21), false);
   assert.equal(matches(withChange((item) => { item.allocations[0].organizationId = 22; }), 21), false);
   assert.equal(matches(withChange((item) => { item.submissions[0].organizationId = 22; }), 21), false);
   assert.equal(matches(withChange((item) => { item.access.orgUnitId = 11; }), 21), false);
@@ -65,12 +64,13 @@ test("malformed reads and invalid monetary amounts remain unavailable", () => {
   assert.equal(matches(withChange((item) => { item.submissions[0].requestedHeadcount = -1; }), 21), false);
 });
 
-test("API emits employer identity and private no-store response; UI verifies before displaying", () => {
+test("UI validates scoped row evidence before showing planning data without changing the reviewed API", () => {
   const route = readFileSync("src/app/api/workforce-planning/allocations/route.ts", "utf8");
   const get = route.split("export async function GET")[1]?.split("export async function POST")[0] ?? "";
   const panel = readFileSync("src/components/workforce-plan-allocation-panel.tsx", "utf8");
-  assert.ok(get.includes("return Response.json({\n    organizationId,"));
-  assert.ok(get.includes('"Cache-Control": "private, no-store"'));
+  assert.ok(get.includes("assertOrganizationRole("));
+  assert.ok(get.includes("eq(workforcePlanAllocations.organizationId, organizationId)"));
+  assert.ok(get.includes("eq(workforcePlanManagerSubmissions.organizationId, organizationId)"));
   const guard = panel.indexOf("workforceAllocationResponseMatchesEmployer(payload, organizationId)");
   const accept = panel.indexOf("setAllocations(nextAllocations)");
   assert.ok(guard >= 0 && guard < accept, "scope must be verified before showing planning records");

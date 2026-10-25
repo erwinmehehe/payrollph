@@ -48,8 +48,11 @@ function nonNegativeMoneyString(value: unknown): value is string {
 /**
  * The allocation GET is a read-only projection of one employer's planning
  * records. HTTP 200 alone is not proof of a complete, correctly scoped read.
- * Fail closed on a stale/mixed-employer or malformed response instead of
- * displaying foreign budgets, inventing zero rows or enabling write controls.
+ * The reviewed endpoint has no top-level employer identifier; an empty result
+ * can only be accepted with a valid authorization/access shape. Verify every
+ * returned row's employer and org-unit scope, including linked submissions.
+ * Fail closed on mixed-employer or malformed data rather than displaying it
+ * as zero rows or enabling write controls.
  * The server remains authoritative for RBAC and all decisions.
  */
 export function workforceAllocationResponseMatchesEmployer(
@@ -58,7 +61,7 @@ export function workforceAllocationResponseMatchesEmployer(
 ): boolean {
   const response = objectRecord(payload);
   const access = objectRecord(response?.access);
-  if (!positiveId(organizationId) || !response || response.organizationId !== organizationId
+  if (!positiveId(organizationId) || !response
       || !access || typeof access.role !== "string" || !access.role
       || typeof access.companyWide !== "boolean"
       || (access.orgUnitId !== null && !positiveId(access.orgUnitId))
