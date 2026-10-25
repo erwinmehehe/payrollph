@@ -15,7 +15,7 @@
  * Without --write it only reports (exit 1 if anything would change or needs review).
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 // The client-facing overview links proof lines as (../../<file>#L<n>); moved lines move there too.
@@ -47,7 +47,10 @@ const baseLines = (file) => linesAt(baseText, file, (f) => {
   try { return execFileSync("git", ["show", baseRef + ":" + f], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 << 20 }).split("\n"); }
   catch { return null; }
 });
-const nowLines = (file) => linesAt(currentText, file, (f) => (existsSync(f) ? readFileSync(f, "utf8").split("\n") : null));
+const nowLines = (file) => linesAt(currentText, file, (f) => {
+  try { return readFileSync(f, "utf8").split("\n"); }
+  catch (error) { if (error.code === "ENOENT") return null; throw error; }
+});
 
 // Fields that cite the ROUTE source, not the proof file. Never re-pinned against the proof file.
 const ROUTE_SOURCE_FIELDS = new Set(["currentMembershipGuardLine"]);
@@ -101,8 +104,10 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
 if (write && moved.length) {
   writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + (raw.endsWith("\n") ? "\n" : ""));
   // One pass over the overview, so a chain of moves (L10->L11, L11->L12) cannot double-shift a link.
-  if (existsSync(OVERVIEW)) {
-    const doc = readFileSync(OVERVIEW, "utf8");
+  // Read directly (no exists-then-write check): a missing overview just means nothing to update.
+  let doc = null;
+  try { doc = readFileSync(OVERVIEW, "utf8"); } catch (error) { if (error.code !== "ENOENT") throw error; }
+  if (doc !== null) {
     const next = doc.replace(/\(\.\.\/\.\.\/([^)#\s]+)#L(\d+)\)/g, (link, file, line) => {
       const at = anchorMoves.get(file + "#L" + line);
       return at === undefined ? link : "(../../" + file + "#L" + at + ")";
