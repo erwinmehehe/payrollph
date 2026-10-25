@@ -20,6 +20,10 @@ export async function ensurePrimaryLegalEntity(
     .limit(1);
   if (!organization) return null;
 
+  // Two requests may both read an empty employer list before either inserts.
+  // The competing insert may violate either the org/code unique index or the
+  // partial one-primary-employer-per-organization index. Do not limit the
+  // conflict arbiter to org/code: retry by reading the persisted winner below.
   await database.insert(legalEntities).values({
     organizationId,
     code: "PRIMARY",
@@ -35,9 +39,7 @@ export async function ensurePrimaryLegalEntity(
     primaryEntity: true,
     active: true,
     createdByUserId: createdByUserId ?? null,
-  }).onConflictDoNothing({
-    target: [legalEntities.organizationId, legalEntities.code],
-  });
+  }).onConflictDoNothing();
 
   const rows = await database.select().from(legalEntities)
     .where(and(

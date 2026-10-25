@@ -1073,7 +1073,7 @@ async function verifyNewMainRouteIsolation(f) {
 
 async function main() {
   requireDisposable();
-  const f = await makeFixture(); if (process.env.LOCAL_LOGIN_AUDIT_ENABLED === "true") await (await import("./tenant-login-audit-http.mjs")).verifyTenantLoginAuditIsolation(f, { request, expectStatus });
+  const f = await makeFixture(); if (process.env.LOCAL_LOGIN_AUDIT_ENABLED === "true") await (await import("./tenant-login-audit-http.mjs")).verifyTenantLoginAuditIsolation(f, { request, expectStatus }); await (await import("./tenant-pii01-identifier-review-http.mjs")).verifyPiiIdentifierReviewIsolation(f, { request, expectStatus });
   const victim = f.orgs[0];
   const beforeWebhookProbe = (await db.select().from(providerEvents)
     .where(eq(providerEvents.organizationId, f.orgs[0].id))).map((e) => e.id).sort((a,b) => a-b);

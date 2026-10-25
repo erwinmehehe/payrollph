@@ -1,8 +1,8 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 230 API methods and 18 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 229 API methods and 18 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 230 method gaps and 18 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+> **NOT ACCEPTED**: 229 method gaps and 18 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -89,9 +89,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 291 |
 | methods | 494 |
 | coveredBefore | 20 |
-| coveredAfter | 254 |
+| coveredAfter | 255 |
 | publicByDesign | 10 |
-| gap | 230 |
+| gap | 229 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -336,9 +336,9 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`dynamic-worker-groups` POST](../../src/app/api/dynamic-worker-groups/route.ts#L213) | session, query, body | assertOrganizationRole L9, getAccess L9, getSessionUser L11, enforceSameOriginMutation L22 | searchParams.get("organizationId") L148, body.organizationId L224 | NO VALID METHOD PROOF | **GAP** |
 | [`earned-wage` GET](../../src/app/api/earned-wage/route.ts#L25) | session, query, body | enforceSameOriginMutation L1, assertOrganizationRole L5, assertScope L5, getAccess L5 | searchParams.get("organizationId") L30, searchParams.get("employeeId") L31, body.organizationId L106 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/payroll-finance.mjs#L29) | **COVERED** |
 | [`earned-wage` POST](../../src/app/api/earned-wage/route.ts#L98) | session, query, body | enforceSameOriginMutation L1, assertOrganizationRole L5, assertScope L5, getAccess L5 | searchParams.get("organizationId") L30, searchParams.get("employeeId") L31, body.organizationId L106 | NO VALID METHOD PROOF | **GAP** |
-| [`earned-wage` PATCH](../../src/app/api/earned-wage/route.ts#L182) | session, query, body | enforceSameOriginMutation L1, assertOrganizationRole L5, assertScope L5, getAccess L5 | searchParams.get("organizationId") L30, searchParams.get("employeeId") L31, body.organizationId L106 | [Tenant write-table own-write/victim PG16 proof](../../scripts/qa/tenant-write-table-http.mjs#L112) — [family row](../../scripts/qa/tenant-table-rows/write/payroll-finance.mjs#L9) | **COVERED** |
-| [`employee-identifier-requests` GET](../../src/app/api/employee-identifier-requests/route.ts#L31) | session, query, body | getAccess L5, assertOrganizationRole L5, assertScope L5, getSessionUser L7 | searchParams.get("organizationId") L32 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/people.mjs#L42) | **COVERED** |
-| [`employee-identifier-requests` POST](../../src/app/api/employee-identifier-requests/route.ts#L86) | session, query, body | getAccess L5, assertOrganizationRole L5, assertScope L5, getSessionUser L7 | searchParams.get("organizationId") L32 | NO VALID METHOD PROOF | **GAP** |
+| [`earned-wage` PATCH](../../src/app/api/earned-wage/route.ts#L182) | session, query, body | enforceSameOriginMutation L1, assertOrganizationRole L5, assertScope L5, getAccess L5 | searchParams.get("organizationId") L30, searchParams.get("employeeId") L31, body.organizationId L106 | [Tenant write-table own-write/victim PG16 proof](../../scripts/qa/tenant-write-table-http.mjs#L284) — row L100 | **COVERED** |
+| [`employee-identifier-requests` GET](../../src/app/api/employee-identifier-requests/route.ts#L31) | session, query, body | getAccess L5, assertOrganizationRole L5, assertScope L5, getSessionUser L7 | searchParams.get("organizationId") L32 | [own 200](../../scripts/qa/tenant-pii01-identifier-review-http.mjs#L140), [victim 403](../../scripts/qa/tenant-pii01-identifier-review-http.mjs#L151), [forged own-only](../../scripts/qa/tenant-pii01-identifier-review-http.mjs#L157), [unchanged SQL](../../scripts/qa/tenant-pii01-identifier-review-http.mjs#L196) | **COVERED (provisional)** |
+| [`employee-identifier-requests` POST](../../src/app/api/employee-identifier-requests/route.ts#L86) | session, query, body | getAccess L5, assertOrganizationRole L5, assertScope L5, getSessionUser L7 | searchParams.get("organizationId") L32 | [own review 200](../../scripts/qa/tenant-pii01-identifier-review-http.mjs#L167), [victim 403](../../scripts/qa/tenant-pii01-identifier-review-http.mjs#L176), [forged high-ID 404](../../scripts/qa/tenant-pii01-identifier-review-http.mjs#L181), [unchanged SQL](../../scripts/qa/tenant-pii01-identifier-review-http.mjs#L196) | **COVERED (provisional)** |
 | [`employee-vault/[id]` DELETE](../../src/app/api/employee-vault/[id]/route.ts#L15) | session | getSessionUser L4, enforceSameOriginMutation L9, enforceSameOriginMutation L19, getSessionUser L21 | none found | [Owned soft-delete 204, real victim doc 403, forged-owned 204 and victim DB unchanged](../../scripts/qa/tenant-dl01-vault-http.mjs#L148) | **COVERED** |
 | [`employee-vault` GET](../../src/app/api/employee-vault/route.ts#L13) | session, query | getSessionUser L4, getSessionUser L17 | query.get("organizationId") L20, query.get("employeeId") L21 | [Owned nonempty GET 200, actual foreign employer 403, real victim employee 404, forged own 200 and victim DB unchanged](../../scripts/qa/tenant-dl01-vault-http.mjs#L128) | **COVERED** |
 | [`employees/[id]/mwe-classifications/[classificationId]` PATCH](../../src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts#L18) | session, body | getSessionUser L4, assertOrganizationRole L6, assertOrganizationUnitAccess L7, enforceSameOriginMutation L11 | none found | NO VALID METHOD PROOF | **GAP** |
