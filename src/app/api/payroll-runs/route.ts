@@ -2,9 +2,9 @@ import { enforceSameOriginMutation } from "@/lib/security-request";
 import { loadApprovedPayrollExits, payrollEmploymentStatus } from "@/lib/approved-exit-payroll";
 import { formatPayrollPeriodLabel } from "@/lib/payroll-period-ui";
 import { MAX_PAYROLL_PERIOD_DAYS, inclusivePeriodDays, validIsoDate } from "@/lib/payroll-period-validation";
-import { and, asc, desc, eq, lte } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lt, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, legalEntities, organizations, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
+import { employees, legalEntities, organizations, orgUnits, payrollCalculationHistory, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus, PAYROLL_RULE_VERSION } from "@/lib/payroll-engine";
@@ -58,6 +58,30 @@ export async function GET(request: Request) {
     if (!entityAccess.ok) return entityAccess.response;
     const entityDenied = assertEntityResource(entityAccess.context, target.legalEntityId);
     if (entityDenied) return entityDenied;
+
+    // Authorized read-only F-04 history uses the SAME run-scoped role, org-unit
+    // and legal-employer checks as the current payroll register above.
+    if (searchParams.get("include") === "history") {
+      const rawCursor = searchParams.get("beforeId");
+      const beforeId = rawCursor === null ? null : Number(rawCursor);
+      if (rawCursor !== null && (!Number.isSafeInteger(beforeId) || beforeId! <= 0)) {
+        return Response.json({ error: "Invalid history cursor." }, { status: 400 });
+      }
+      const records = await db.select().from(payrollCalculationHistory)
+        .where(and(
+          eq(payrollCalculationHistory.payrollRunId, runId),
+          eq(payrollCalculationHistory.organizationId, target.organizationId),
+          target.legalEntityId === null
+            ? isNull(payrollCalculationHistory.legalEntityId)
+            : eq(payrollCalculationHistory.legalEntityId, target.legalEntityId),
+          beforeId === null ? undefined : lt(payrollCalculationHistory.id, beforeId),
+        )).orderBy(desc(payrollCalculationHistory.id)).limit(101);
+      const history = records.slice(0, 100);
+      return Response.json({
+        runId, organizationId: target.organizationId, legalEntityId: target.legalEntityId,
+        history, nextBeforeId: records.length > 100 ? history[history.length - 1].id : null,
+      });
+    }
 
     // The workspace loads one run's register at a time, so it asks for the run
     // it is actually showing instead of relying on the dashboard's single set.
