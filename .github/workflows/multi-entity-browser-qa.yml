@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "src/lib/multi-entity-*.ts"
+      - "src/app/api/payroll-runs/**/close/route.ts"
+      - "tests/payroll-run-legal-employer-gates.test.ts"
+      - "scripts/multi-entity-synthetic-browser.mjs"
       - "src/app/api/multi-entity/**"
       - "src/components/workspace/multi-entity-ui.tsx"
       - "src/components/linaw-workspace.tsx"
@@ -127,6 +130,7 @@ jobs:
         run: >-
           npx tsx --test --test-concurrency=1
           tests/multi-entity-isolation-db.test.ts
+          tests/payroll-run-legal-employer-gates.test.ts
           tests/hcm-client-employer-scope.test.ts
           tests/multi-entity-hcm-hold.test.ts
       - name: Verify variance employer-roster fail-closed policy and evidence wiring

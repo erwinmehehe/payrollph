@@ -123,6 +123,33 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
   assert.equal(processGate?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.match(processGate?.reason ?? "", /422.*403/, 
     "Old positive calculation acceptance must not be credited for an unverified rate table");
+  // #1361 adds exactly one *different* method: authorized accounting-close POST.
+  // Its proof must not borrow either DL-01 vault method or the payroll-close GET.
+  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find(row => row.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "The added count requires a real authenticated payroll-close POST own/victim proof");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  const closeEvidence = readFileSync(closePost.testedBy.file, "utf8");
+  const closeLines = closeEvidence.split("\n");
+  const postProof = closePost.testedBy;
+  assert.equal(postProof.line, postProof.ownPositiveLine);
+  assert.match(closeLines[postProof.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(postProof.ownPositiveLine - 1, postProof.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/,
+    "A blocked owned mutation cannot be credited as a successful POST");
+  assert.match(closeLines[postProof.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(postProof.foreignDenialLine - 1, postProof.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/,
+    "The distinct real victim-only payroll-close POST must be rejected");
+  assert.match(closeLines[postProof.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/,
+    "A denied foreign POST must leave actual victim PostgreSQL records untouched");
+  assert.match(closeEvidence,
+    /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
+    "The additional payroll-close proof must run in the real PG16 HTTP harness");
   assertLiveTenantCounts(assert, manifest);
   assert.equal(manifest.scopedPages.length, 20);
   assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 18);
