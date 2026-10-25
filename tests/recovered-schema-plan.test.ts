@@ -21,6 +21,7 @@ const currentSourceBlob = createHash("sha1")
   .update(currentBytes).digest("hex");
 // Reviewed source tables added after the capture, each created by a numbered migration.
 const ADDED_SINCE_CAPTURE = [
+  "payroll_calculation_history", // drizzle/0137_immutable_payroll_calculation_history.sql (F-04, proposed)
   "salary_correction_case_runs", // drizzle/0135_salary_correction_cases.sql (#641)
   "salary_correction_cases", // drizzle/0135_salary_correction_cases.sql (#641)
 ];
@@ -82,10 +83,17 @@ test("the advisory comparison counts current missing tables without mutating his
   assert.equal(report.historicalCreatorCoverage.appliedMigrationsVerified, false);
   assert.deepEqual(report.sourceComparison.addedSourceTablesSinceCapture, ADDED_SINCE_CAPTURE);
   assert.deepEqual(report.sourceComparison.removedSourceTablesSinceCapture, []);
+  const numberedCreators: Record<string, string> = {
+    payroll_calculation_history: "drizzle/0137_immutable_payroll_calculation_history.sql",
+    salary_correction_case_runs: "drizzle/0135_salary_correction_cases.sql",
+    salary_correction_cases: "drizzle/0135_salary_correction_cases.sql",
+  };
   for (const name of ADDED_SINCE_CAPTURE) {
     assert.ok(report.historicalCreatorCoverage.historicalFileCandidatesByTable[name]?.includes(
-      "drizzle/0135_salary_correction_cases.sql"), name + ": added table needs a numbered creator migration");
+      numberedCreators[name]), name + ": added table needs exact numbered creator source, never an apply receipt");
   }
+  assert.equal(report.historicalCreatorCoverage.appliedMigrationsVerified, false,
+    "A SQL creator source is not evidence that a historical/production migration ran");
 });
 
 test("all missing source tables are ordered or explicitly unresolved", () => {
