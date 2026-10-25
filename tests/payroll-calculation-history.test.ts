@@ -50,6 +50,9 @@ test("F-04: equal calculations hash identically through reordered JSONB keys and
   });
   assert.equal(original.snapshotHash.length, 64);
   assert.equal(original.snapshotHash, reordered.snapshotHash);
+  const rowWithMetadata = { ...fixture(), id: 999, recordedAt: "2026-10-25T00:00:00Z" };
+  assert.equal(createPayrollCalculationEvidence(rowWithMetadata).snapshotHash, original.snapshotHash,
+    "Database-generated row metadata must not contaminate the auditable math hash");
   assert.deepEqual(Object.keys(original.trace as object).sort(), ["inputs", "rules"]);
   assert.equal(JSON.stringify(original).includes("fictional-secret"), false);
   assert.equal(verifyPayrollCalculationEvidence(original), true);
