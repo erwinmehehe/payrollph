@@ -17,8 +17,34 @@ const NAMES = ['Hire','Onboard','Schedule','Clock In','Approve Time','Run Payrol
   'Review','Release Payroll Records','Prepare Filing Evidence'];
 const HEX = /^[0-9a-f]{64}$/;
 const FULL_SHA = /^[0-9a-f]{40}$/;
-const match = (lines, needle) => Array.isArray(lines) && lines.some(x =>
-  typeof x === 'string' && x.includes(needle));
+// Controls are written by the verified HTTP harness as exact labels.
+// A partial match could accept "NOT VERIFIED: <expected denial>" as PASS.
+const hasExactLabel = (items, label) => Array.isArray(items) && items.includes(label);
+const positiveId = value => Number.isSafeInteger(value) && value > 0;
+function validDay(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value + 'T00:00:00Z');
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0,10) === value;
+}
+function verifyStages(rows, employer) {
+  assert.ok(Array.isArray(rows), employer + ' stages missing');
+  assert.deepEqual(rows.map(s => s.name), NAMES, employer + ' stage order changed');
+  for (const entry of rows) {
+    assert.equal(entry.status, 'PASS', employer + ' ' + entry.name + ' did not pass');
+    assert.ok(Array.isArray(entry.evidence) && entry.evidence.some(s =>
+      typeof s === 'string' && s.trim().length > 0),
+      employer + ' ' + entry.name + ' has no recorded synthetic step evidence');
+  }
+}
+function verifyDraftHashes(hashes, employer) {
+  assert.deepEqual(Object.keys(hashes || {}).sort(), ['BIR','Pag-IBIG','PhilHealth','SSS'].sort(),
+    employer + ' must generate each of the four draft filing artifacts');
+  const values = Object.values(hashes);
+  assert.ok(values.every(value => typeof value === 'string' && HEX.test(value)),
+    employer + ' draft bytes must have full SHA-256 digests');
+  assert.equal(new Set(values).size, 4,
+    employer + ' four agency files must have distinct byte hashes');
+}
 
 export function buildIssue853SyntheticScope(connected,mobile,sha) {
   assert.match(sha, FULL_SHA);
@@ -27,40 +53,53 @@ export function buildIssue853SyntheticScope(connected,mobile,sha) {
   assert.equal(connected?.result,'PASS');
   assert.equal(mobile?.result,'PASS');
   assert.match(connected?.scope||'', /^synthetic-local-postgres(?:16|18)-only$/);
+  assert.equal(connected?.schemaVersion, 1);
+  assert.equal(connected?.postgresMajor,
+    Number(connected.scope.match(/postgres(16|18)-only$/)[1]),
+    'PostgreSQL major must match the connected test environment');
+  assert.equal(connected?.clock?.mode, 'CI_GUARDED_VIRTUAL_MANILA_MONTH_END');
+  assert.equal(connected?.clock?.actualApiCapture, true);
+  assert.equal(connected?.clock?.realWallClockAttendance, false);
+  assert.equal(connected?.physicalDeviceUat, 'NOT_RUN');
+  assert.equal(mobile?.mode, 'synthetic Chromium, no physical device');
   assert.equal(connected?.independentHumanUat,'NOT_RUN');
   assert.equal(connected?.realEmployerReconciliation,'NOT_RUN');
   assert.equal(connected?.bankOrPaymentSubmission,'PROHIBITED');
   assert.equal(connected?.officialAgencySubmission,'NOT_RUN');
   assert.equal(mobile?.independentHumanUat,false);
-  assert.deepEqual(connected?.stages?.map(s=>s.name),NAMES);
-  assert.ok(connected.stages.every(s=>s.status==='PASS'));
-  assert.deepEqual(connected?.employerBStages?.map(s=>s.name),NAMES);
-  assert.ok(connected.employerBStages.every(s=>s.status==='PASS'),
-    'Employer B MUST actually finish all nine stages, not just tenant isolation');
-  assert.ok(connected?.lineage?.organizationId>0);
-  assert.ok(connected?.lineage?.shadowOrganizationId>0);
-  assert.notEqual(connected.lineage.organizationId,connected.lineage.shadowOrganizationId);
-  assert.equal(connected.lineage.separateEmployerSameLocalEmployeeNo,true);
-  assert.ok(connected.lineage.sourcePunchId>0 && connected.lineage.payrollRunId>0);
-  const employerB=connected?.lineage?.employerB;
+  verifyStages(connected?.stages, 'Employer A');
+  verifyStages(connected?.employerBStages, 'Employer B');
+  const lineage = connected?.lineage;
+  for (const name of ['organizationId','shadowOrganizationId','employeeId',
+    'employerBWorkerId','sourcePunchId','payrollRunId']) {
+    assert.ok(positiveId(lineage?.[name]), 'Missing real fictional A/B lineage ID: ' + name);
+  }
+  assert.notEqual(lineage.organizationId, lineage.shadowOrganizationId);
+  assert.notEqual(lineage.employeeId, lineage.employerBWorkerId);
+  assert.equal(lineage.separateEmployerSameLocalEmployeeNo, true);
+  assert.ok(['periodStart','periodEnd','payDate','employeeHireDate']
+    .every(name => validDay(lineage[name])), 'Connected payroll dates must be real Manila calendar dates');
+  assert.ok(lineage.periodStart <= lineage.periodEnd &&
+    lineage.payDate >= lineage.periodEnd, 'Invalid pay-period or date ordering');
+  assert.equal(lineage.employeeHireDate, lineage.periodStart,
+    'The hired worker must belong to the tested attendance/payroll cutoff');
+  const employerB=lineage.employerB;
   assert.equal(employerB?.organizationId,connected.lineage.shadowOrganizationId);
   assert.equal(employerB?.employeeId,connected.lineage.employerBWorkerId);
-  assert.ok(Number.isInteger(employerB?.employeeId) && employerB.employeeId>0);
+  assert.ok(positiveId(employerB?.employeeId));
   assert.notEqual(employerB.employeeId,connected.lineage.employeeId);
   assert.equal(employerB.periodStart,connected.lineage.periodStart);
   assert.equal(employerB.periodEnd,connected.lineage.periodEnd);
   assert.equal(employerB.payDate,connected.lineage.payDate);
-  assert.ok(Number.isInteger(employerB.sourcePunchId) && employerB.sourcePunchId>0);
-  assert.ok(Number.isInteger(employerB.payrollRunId) && employerB.payrollRunId>0);
+  assert.ok(positiveId(employerB.sourcePunchId));
+  assert.ok(positiveId(employerB.payrollRunId));
   assert.notEqual(employerB.sourcePunchId,connected.lineage.sourcePunchId);
   assert.notEqual(employerB.payrollRunId,connected.lineage.payrollRunId);
-  const hashes=connected?.lineage?.draftHashes;
-  assert.deepEqual(Object.keys(hashes||{}).sort(),['BIR','Pag-IBIG','PhilHealth','SSS'].sort());
-  assert.ok(Object.values(hashes).every(value=>typeof value==='string'&&HEX.test(value)));
-  const bHashes=employerB?.draftHashes;
-  assert.deepEqual(Object.keys(bHashes||{}).sort(),['BIR','Pag-IBIG','PhilHealth','SSS'].sort());
-  assert.ok(Object.values(bHashes).every(value=>typeof value==='string'&&HEX.test(value)));
+  verifyDraftHashes(lineage.draftHashes, 'Employer A');
+  verifyDraftHashes(employerB.draftHashes, 'Employer B');
   const negatives=connected.negativeControls;
+  assert.ok(Array.isArray(negatives) && new Set(negatives).size === negatives.length,
+    'Source HTTP denial labels must not be missing or repeated');
   for(const control of [
     'tenant B-only owner denied A employees',
     'tenant A payroll officer denied B payroll',
@@ -77,13 +116,16 @@ export function buildIssue853SyntheticScope(connected,mobile,sha) {
     'duplicate B record release denied',
     'B-only owner cannot read A released payroll',
     'BIR A payroll denied B draft',
-  ])assert.ok(match(negatives,control),'Missing cross-tenant or separation evidence: '+control);
+  ])assert.ok(hasExactLabel(negatives,control),
+    'Missing exact verified cross-tenant denial: '+control);
   for(const width of [375,390]) {
     assert.ok(mobile?.widths?.includes(width),'Missing required viewport');
-    assert.ok(match(mobile.checks,width+'px failure/retry and owner switch A -> B -> A'),
-      'Missing tenant-switch/retry at '+width+'px');
-    assert.ok(match(mobile.checks,width+'px verified employee session and cross-tenant 403'),
-      'Missing authenticated employee denial at '+width+'px');
+    assert.ok(hasExactLabel(mobile.checks,
+      width+'px failure/retry and owner switch A -> B -> A; disjoint tenant employee records'),
+      'Missing exact verified tenant-switch/retry at '+width+'px');
+    assert.ok(hasExactLabel(mobile.checks,
+      width+'px verified employee session and cross-tenant 403'),
+      'Missing exact authenticated employee denial at '+width+'px');
   }
   assert.equal(STAGES.length,9);
   assert.equal(CROSS_TENANT.length,9);

@@ -22,11 +22,11 @@ import assert from "node:assert/strict";
 import { loadTenantRows } from "./tenant-table-loader.mjs";
 import { randomUUID } from "node:crypto";
 import { asc, eq, inArray } from "drizzle-orm";
-import { db } from "../../src/db";
+import { db, pool } from "../../src/db";
 import {
   approvalDelegations, benefitEnrollments, benefitPlans, dataRequests, disciplinaryCases, earnedWageRequests, engagementSurveys, hcmEmploymentTermDecisions,
   hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, performanceSkillDevelopmentPlans, sessions,
-  workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents,
+  workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, jobProfiles, automationOperationalCases, orgUnits,
   provisioningTasks, dynamicWorkerGroups, jobRequisitions, jobApplicants, users, userOrganizations, itApplications, itAccessGrants, worksites, approvalChainPolicies, integrationConnectors,
 } from "../../src/db/schema";
 import { organizationModuleSettings } from "../../src/lib/tenant-module-storage";
@@ -55,7 +55,7 @@ export async function verifyTenantWriteTable(_f, {
   request = standaloneRequest, expectStatus = standaloneExpectStatus, makeSession = standaloneMakeSession,
 } = {}) {
   requireTenantTableDisposable();
-  const TENANT_WRITE_TABLE = await loadTenantRows("write", { provisioningTasks, dynamicWorkerGroups, jobRequisitions, jobApplicants, users, userOrganizations, itApplications, itAccessGrants, worksites, approvalChainPolicies, integrationConnectors, addWorker, approvalDelegations, asc, assert, benefitEnrollments, benefitPlans, dataRequests, db, disciplinaryCases, earnedWageRequests, engagementSurveys, eq, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, organizationModuleSettings, performanceSkillDevelopmentPlans, workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents });
+  const TENANT_WRITE_TABLE = await loadTenantRows("write", { provisioningTasks, dynamicWorkerGroups, jobRequisitions, jobApplicants, users, userOrganizations, itApplications, itAccessGrants, worksites, approvalChainPolicies, integrationConnectors, addWorker, approvalDelegations, asc, assert, benefitEnrollments, benefitPlans, dataRequests, db, disciplinaryCases, earnedWageRequests, engagementSurveys, eq, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, organizationModuleSettings, performanceSkillDevelopmentPlans, workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, jobProfiles, automationOperationalCases, orgUnits, pool });
   const profile = process.env.TENANT_TABLE_PROFILE ?? "default";
   const rows = TENANT_WRITE_TABLE.filter((row) => (row.profile ?? "default") === profile);
   if (rows.length === 0 && process.env.TENANT_WRITE_TABLE_ALLOW_EMPTY_PROFILE === "1") {
