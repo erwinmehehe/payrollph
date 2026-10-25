@@ -6,6 +6,7 @@ import { decidePayoutDestinationChange } from "@/lib/payout-destination-controls
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(request);
@@ -18,11 +19,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const requestId = Number(id);
-  const body = await request.json().catch(() => ({}));
+  const parsedBody = await request.json().catch(() => ({}));
+  const body = parsedBody && typeof parsedBody === "object" && !Array.isArray(parsedBody)
+    ? parsedBody : {};
   const organizationId = Number(body.organizationId);
   const decision = body.decision === "approve" || body.decision === "reject" ? body.decision : null;
 
-  if (!Number.isInteger(requestId) || !Number.isInteger(organizationId) || !decision) {
+  if (!Number.isSafeInteger(requestId) || requestId <= 0 || !Number.isSafeInteger(organizationId) || organizationId <= 0 || !decision) {
     return Response.json({ error: "A valid request, organization and decision are required." }, { status: 400 });
   }
 
@@ -31,6 +34,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     userId: user.id,
   });
   if (treasuryDenied) return treasuryDenied;
+  const entity = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!entity.ok) return entity.response;
+  const expectedLegalEntityId = entity.context.enabled ? entity.context.legalEntityId : undefined;
+  if (expectedLegalEntityId === null) {
+    return Response.json({ error: "Select an authorized legal employer." }, { status: 403 });
+  }
+  // A caller cannot bypass the session-bound selection with a forged body ID.
+  if (expectedLegalEntityId !== undefined && Object.hasOwn(body, "legalEntityId")
+    && Number(body.legalEntityId) !== expectedLegalEntityId) {
+    return Response.json({ error: "Legal employer selection does not match the request." }, { status: 403 });
+  }
 
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
@@ -46,6 +60,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const outcome = await decidePayoutDestinationChange({
     organizationId,
     requestId,
+    expectedLegalEntityId,
     decidedByUserId: user.id,
     decidedByName: user.name,
     decision,
