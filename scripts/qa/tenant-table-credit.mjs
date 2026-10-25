@@ -6,26 +6,30 @@
  * (exact row, proof present, profile flags on, workflow runs it).
  *
  *   node scripts/qa/tenant-table-credit.mjs --run-label "local PG16 2026-10-24"   # writes
+ *   node scripts/qa/tenant-table-credit.mjs --refresh-links                         # existing pins only
  *   node scripts/qa/tenant-table-credit.mjs --check                                  # dry run
  *
- * Sources: scripts/qa/tenant-table-http.mjs (organization-scoped reads) and
- * scripts/qa/tenant-write-table-http.mjs (writes). Only methods currently marked GAP (or already
+ * Family rows: scripts/qa/tenant-table-rows/{read,write}/*.mjs. Shared HTTP assertions
+ * remain in the read/write runners. --refresh-links moves existing pins only and
+ * refuses new GAP credits. Generate and review new credits BEFORE merging.
+ * Only methods currently marked GAP (or already
  * credited to the same table) are touched. Counts, the "NOT ACCEPTED: N API methods" headline and the
  * overview metric table are recomputed from the manifest, never typed by hand.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
 
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const OVERVIEW = "docs/engineering/tenant-isolation-coverage-inventory.md";
 const write = !process.argv.includes("--check");
+const refreshLinks = process.argv.includes("--refresh-links");
 const labelAt = process.argv.indexOf("--run-label");
 const runLabel = labelAt > 0 ? process.argv[labelAt + 1] : null;
-if (write && !runLabel) throw new Error("--run-label <where the table proof passed> is required to credit");
+if (write && !refreshLinks && !runLabel) throw new Error("--run-label <where the table proof passed> is required to credit");
 
 const SOURCES = [
   {
-    kind: "read", file: "scripts/qa/tenant-table-http.mjs", start: "export const TENANT_TABLE = Object.freeze([",
-    rowPattern: /\n {2}\{ key: "(GET [^"]+)",/g,
+    kind: "read", file: "scripts/qa/tenant-table-http.mjs",
     own: "const owned = expectStatus(await request(item.own,", foreign: "const foreign = expectStatus(await request(item.foreign,",
     unchanged: "assert.deepEqual(victimAfter, victimBefore,",
     workflow: ".github/workflows/tenant-table-proof.yml",
@@ -42,8 +46,7 @@ const SOURCES = [
       totals + "** plus " + pageGaps + " page/action GAPs. Exact-head CI and independent security review are required; no production, provider, filing or payout system is touched.",
   },
   {
-    kind: "write", file: "scripts/qa/tenant-write-table-http.mjs", start: "export const TENANT_WRITE_TABLE = Object.freeze([",
-    rowPattern: /\n {2}\{ key: "((?:POST|PATCH|PUT|DELETE) [^"]+)",/g,
+    kind: "write", file: "scripts/qa/tenant-write-table-http.mjs",
     own: 'const owned = expectStatus(await request(urlFor("own"),', foreign: 'const foreign = expectStatus(await request(urlFor("foreign"),',
     unchanged: "assert.deepEqual(victimAfter, victimBefore,",
     workflow: ".github/workflows/tenant-table-proof.yml",
@@ -70,10 +73,6 @@ const bySource = new Map();
 for (const source of SOURCES) {
   const suite = readFileSync(source.file, "utf8");
   const lines = suite.split("\n");
-  const tableStart = suite.indexOf(source.start);
-  const tableEnd = suite.indexOf("\n]);", tableStart);
-  if (tableStart < 0 || tableEnd < 0) throw new Error(source.file + ": table boundary missing");
-  const lineOf = (offset) => suite.slice(0, offset).split("\n").length;
   const uniqueLine = (fragment) => {
     const at = lines.flatMap((text, i) => (text.includes(fragment) ? [i + 1] : []));
     if (at.length !== 1) throw new Error(source.file + ": expected exactly one line with " + fragment + ", found " + at.length);
@@ -82,24 +81,23 @@ for (const source of SOURCES) {
   const ownPositiveLine = uniqueLine(source.own);
   const foreignDenialLine = uniqueLine(source.foreign);
   const unchangedDbLine = uniqueLine(source.unchanged);
-  const rows = [...suite.slice(tableStart, tableEnd).matchAll(source.rowPattern)]
-    .map((match) => ({ key: match[1], line: lineOf(tableStart + match.index + 1) }));
+  const rows = tenantFamilyCatalog(source.kind);
   bySource.set(source.kind, rows.length);
   for (const row of rows) {
     const hit = byKey.get(row.key);
     if (!hit) throw new Error(row.key + ": not in the manifest");
     const { method } = hit;
     const ownedHere = method.testedBy?.file === source.file;
-    if (method.status !== "GAP" && !ownedHere) {
-      throw new Error(row.key + ": already " + method.status + " by " + method.testedBy?.file + "; not re-crediting");
-    }
+    if (method.status !== "GAP" && !ownedHere) continue; // Preserve independently reviewed proof provenance.
+    if (refreshLinks && !ownedHere) throw new Error(row.key + ": link refresh cannot add a credit");
     const was = method.status;
     method.status = "COVERED";
-    method.reason = source.reason(runLabel ?? method.testedBy?.evidence ?? "check");
+    if (!refreshLinks) method.reason = source.reason(runLabel ?? method.testedBy?.evidence ?? "check");
     method.testedBy = {
-      file: source.file, line: row.line, ownPositiveLine, foreignDenialLine, unchangedDbLine,
-      scope: source.scope,
-      evidence: source.evidenceName + (runLabel ?? "see prior credit"),
+      ...method.testedBy,
+      file: source.file, line: ownPositiveLine, rowFile: row.file, rowLine: row.line, ownPositiveLine, foreignDenialLine, unchangedDbLine,
+      scope: refreshLinks ? method.testedBy.scope : source.scope,
+      evidence: refreshLinks ? method.testedBy.evidence : source.evidenceName + (runLabel ?? "see prior credit"),
     };
     credited.push({ ...row, source, path: hit.path, was });
   }
@@ -140,7 +138,7 @@ for (const row of credited) {
   if (at < 0) throw new Error(OVERVIEW + ": no method row for " + row.key);
   const cells = rowLines[at].split(" | ");
   const proof = manifest.allApiRouteFiles[row.path].methods.find((m) => m.name === verb).testedBy;
-  cells[cells.length - 2] = "[" + row.source.overviewLabel + "](../../" + row.source.file + "#L" + proof.ownPositiveLine + ") — row L" + row.line;
+  cells[cells.length - 2] = "[" + row.source.overviewLabel + "](../../" + row.source.file + "#L" + proof.ownPositiveLine + ") — [family row](../../" + row.file + "#L" + row.line + ")";
   cells[cells.length - 1] = "**COVERED** |";
   rowLines[at] = cells.join(" | ");
   overview = rowLines.join("\n");
