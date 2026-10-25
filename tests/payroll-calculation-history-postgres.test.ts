@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -113,8 +113,10 @@ test("F-04 PG16: exact forward migration, immutability, revision chain, replay a
     const [jobA2] = await db.insert(payrollJobs).values({
       organizationId: alpha.id, payrollRunId: runA.id, status: "processing",
     }).returning();
+    const { snapshotHash: _previous, ...originalEvidence } = first;
+    void _previous;
     const second = createPayrollCalculationEvidence({
-      ...first, payrollJobId: jobA2.id, revision: 2, previousSnapshotHash: first.snapshotHash,
+      ...originalEvidence, payrollJobId: jobA2.id, revision: 2, previousSnapshotHash: first.snapshotHash,
       grossPay: "10250.00", netPay: "9250.00",
     });
     await assert.rejects(() => db.insert(payrollCalculationHistory).values({
