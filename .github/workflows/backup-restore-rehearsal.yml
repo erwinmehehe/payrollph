@@ -4,6 +4,17 @@ on:
   push:
     branches: [main]
   pull_request:
+    # Ordinary prose skips this optional integration; executable fixtures/config still run.
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!**/*.mdx'
+      - '!LICENSE*'
+      - 'src/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'public/**'
+      - '.github/**'
   workflow_dispatch:
 
 concurrency:

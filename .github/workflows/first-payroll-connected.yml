@@ -19,6 +19,11 @@ on:
       - 'tests/payroll-draft-payout-*.test.ts'
       - 'scripts/qa/first-payroll-connected-browser.mjs'
       - '.github/workflows/first-payroll-connected.yml'
+# Supersede only older PR attempts; main/manual runs retain independent groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 jobs:

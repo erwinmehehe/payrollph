@@ -25,6 +25,11 @@ on:
       - "tests/posix-shell-prerequisites.test.mjs"
       - ".github/workflows/native-windows-test-portability.yml"
 
+# Supersede only older PR attempts; main/manual runs retain independent groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 

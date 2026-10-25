@@ -2,6 +2,17 @@ name: Treasury tenant isolation
 
 on:
   pull_request:
+    # Ordinary prose skips this optional integration; executable fixtures/config still run.
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!**/*.mdx'
+      - '!LICENSE*'
+      - 'src/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'public/**'
+      - '.github/**'
     branches: [main]
   push:
     branches: [main]
