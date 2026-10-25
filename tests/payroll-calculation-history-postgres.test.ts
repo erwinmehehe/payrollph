@@ -3,6 +3,24 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+// Drizzle wraps PostgreSQL errors in a query error. Validate the underlying
+// SQLSTATE/constraint/trigger, not its outer "Failed query" wrapper message.
+async function expectPostgresRejection(action: () => PromiseLike<unknown>, pattern: RegExp) {
+  await assert.rejects(async () => action(), (error: unknown) => {
+    const parts: string[] = [];
+    const seen = new Set<unknown>();
+    let current: unknown = error;
+    while (current && typeof current === "object" && !seen.has(current)) {
+      seen.add(current);
+      const detail = current as { message?: string; constraint?: string; code?: string; cause?: unknown };
+      parts.push([detail.message, detail.constraint, detail.code].filter(Boolean).join(" "));
+      current = detail.cause;
+    }
+    assert.match(parts.join("\n"), pattern, "Expected a genuine PostgreSQL constraint or trigger error");
+    return true;
+  });
+}
+
 // This test deliberately replaces the blank db:push version of the history
 // table with the exact forward SQL. NEVER run it on an existing DB or Neon.
 const enabled = process.env.PAYROLL_F04_ISOLATED_POSTGRES === "disposable-ci-only";
@@ -105,13 +123,13 @@ test("F-04 PG16: exact forward migration, immutability, revision chain, replay a
     assert.equal(Object.hasOwn(inserted.trace as object, "payment"), false);
 
     // A second direct write for the same job+employee must never duplicate.
-    await assert.rejects(() => db.insert(payrollCalculationHistory)
+    await expectPostgresRejection(() => db.insert(payrollCalculationHistory)
       .values({ ...first, revision: 2, previousSnapshotHash: first.snapshotHash }),
     /payroll_calculation_history_job_employee_unique/);
-    await assert.rejects(() => db.insert(payrollCalculationHistory).values({
+    await expectPostgresRejection(() => db.insert(payrollCalculationHistory).values({
       ...first, payrollJobId: jobB.id, revision: 2, previousSnapshotHash: first.snapshotHash,
     }), /PAYROLL_HISTORY_SCOPE_OR_SOURCE_MISMATCH/);
-    await assert.rejects(() => db.insert(payrollCalculationHistory).values({
+    await expectPostgresRejection(() => db.insert(payrollCalculationHistory).values({
       ...first, employeeId: workerB.id,
     }), /PAYROLL_HISTORY_SCOPE_OR_SOURCE_MISMATCH/);
 
@@ -124,10 +142,10 @@ test("F-04 PG16: exact forward migration, immutability, revision chain, replay a
       ...originalEvidence, payrollJobId: jobA2.id, revision: 2, previousSnapshotHash: first.snapshotHash,
       grossPay: "10250.00", netPay: "9250.00",
     });
-    await assert.rejects(() => db.insert(payrollCalculationHistory).values({
+    await expectPostgresRejection(() => db.insert(payrollCalculationHistory).values({
       ...second, revision: 4,
     }), /PAYROLL_HISTORY_REVISION_CHAIN_INVALID/);
-    await assert.rejects(() => db.insert(payrollCalculationHistory).values({
+    await expectPostgresRejection(() => db.insert(payrollCalculationHistory).values({
       ...second, previousSnapshotHash: "0".repeat(64),
     }), /PAYROLL_HISTORY_REVISION_CHAIN_INVALID/);
     await db.insert(payrollCalculationHistory).values(second);
