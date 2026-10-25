@@ -13,7 +13,7 @@ const withKey = (key?: string) => ({ NODE_ENV: "test", BANK_DATA_ENCRYPTION_KEY:
 test("payroll engine preflights every chunk destination before inserting any entries", () => {
   const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
   const preflight = engine.indexOf("sealedPaymentBankAccounts.set(employee.id, sealPayrollPaymentBankAccount(employee.bankAccount))");
-  const insert = engine.indexOf("await db.insert(payrollEntries).values({");
+  const insert = engine.indexOf("await tx.insert(payrollEntries).values(entryValues)");
   assert.ok(preflight > 0 && insert > preflight, "bank accounts must be sealed before financial entries");
   assert.match(engine, /bankAccount: sealedPaymentBankAccounts\.get\(employee\.id\) \?\? null/);
   assert.ok(!engine.includes("bankAccount: employee.bankAccount,"));
