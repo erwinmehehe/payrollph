@@ -119,16 +119,48 @@ export async function proveUnattendedPayroll(env = process.env) {
     assert.equal(wrongToken.status, 401, "unauthorized dispatcher cannot preflight");
 
     const counters = { GET: 0, POST: 0 };
-    const result = await dispatchSchedulerTick({
-      env: {
-        PAYROLL_SCHEDULER_DISPATCH_ENABLED: "true", // TEST MEMORY ONLY, never a repository or Vercel flag
-        PAYROLL_SCHEDULER_ORIGIN: FAKE_HTTPS_ORIGIN,
-        PAYROLL_SCHEDULER_EXPECTED_HOST: "scheduler-proof.example.test",
-        PAYROLL_SCHEDULER_EXPECTED_DEPLOYMENT_SHA: env.VERCEL_GIT_COMMIT_SHA,
-        PAYROLL_SCHEDULER_WORKER_TOKEN: env.WORKER_TOKEN,
-      },
-      fetchImpl: loopbackSchedulerTransport(counters),
-    });
+    // Keep diagnostics restricted to localhost HTTP status and the scheduler's
+    // already-sanitized job/code receipt. Never print errors, SQL, bodies,
+    // headers, worker credentials or employee data to public Actions logs.
+    const statuses = { GET: "not-sent", POST: "not-sent" };
+    let result;
+    try {
+      result = await dispatchSchedulerTick({
+        env: {
+          PAYROLL_SCHEDULER_DISPATCH_ENABLED: "true", // TEST MEMORY ONLY, never a repository or Vercel flag
+          PAYROLL_SCHEDULER_ORIGIN: FAKE_HTTPS_ORIGIN,
+          PAYROLL_SCHEDULER_EXPECTED_HOST: "scheduler-proof.example.test",
+          PAYROLL_SCHEDULER_EXPECTED_DEPLOYMENT_SHA: env.VERCEL_GIT_COMMIT_SHA,
+          PAYROLL_SCHEDULER_WORKER_TOKEN: env.WORKER_TOKEN,
+        },
+        fetchImpl: loopbackSchedulerTransport(counters, async (url, options) => {
+          const response = await fetch(url, options);
+          statuses[options.method] = response.status;
+          return response;
+        }),
+      });
+    } catch {
+      // assertDisposableProof ran before opening this PostgreSQL client. The
+      // worker/scheduler receipt records ONLY approved job names and SQLSTATE
+      // codes; never display backend exception text or stored job payloads.
+      console.error("P0-1 isolated HTTP status: readiness=" + statuses.GET + " tick=" + statuses.POST);
+      try {
+        const { rows } = await client.query(
+          "SELECT last_result FROM scheduler_state WHERE job_name = 'central-scheduler-failure' LIMIT 1",
+        );
+        const receipt = rows[0]?.last_result;
+        if (receipt?.status === "failed" && Array.isArray(receipt.jobs)) {
+          const codes = receipt.jobs.slice(0, 16).map((row) => ({
+            job: typeof row.job === "string" && /^[A-Za-z][A-Za-z0-9._-]{0,79}$/.test(row.job) ? row.job : "unclassified",
+            code: typeof row.code === "string" && /^(?:[A-Z0-9]{5}|DISPATCH_UNCONFIRMED|JOB_FAILED)$/.test(row.code) ? row.code : "JOB_FAILED",
+          }));
+          console.error("P0-1 isolated scheduler failed jobs (sanitized): " + JSON.stringify(codes));
+        }
+      } catch {
+        console.error("P0-1 isolated scheduler receipt unavailable");
+      }
+      throw new Error("P0-1_CI_DISPATCH_NOT_ACKNOWLEDGED");
+    }
     assert.equal(result.outcome, "tick-acknowledged");
     assert.deepEqual(counters, { GET: 1, POST: 1 }, "one validated GET, one authenticated POST, no retries");
 
