@@ -21,6 +21,7 @@ All employee and request writes, approvals, schedules, salary changes and payrol
 - Unit-scoped access additionally validates that the requested unit exists, belongs to the employer and is active/effective on the current Philippine business date.
 - An employee with a foreign or inactive source unit never receives the foreign unit's name. A missing/foreign unit link is flagged, not silently treated as a verified department.
 - This MVP intentionally limits scoped managers to their **exact assigned unit**; child-unit supervision is not inferred from org-unit ancestry, and is not a historical manager-of-record claim.
+- The live My Team heading/scope banner explicitly warn that current authorized-unit membership **does not prove a direct-report relationship**; actual direct-report implementation in #725 still requires authoritative manager-of-record evidence and independent acceptance.
 
 ## API and correctness
 
