@@ -1,3 +1,4 @@
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 /**
  * Source integrity only: final acceptance also requires exact-head real HTTP
  * and disposable PostgreSQL 16 Security HTTP Smoke, plus human security review.
@@ -66,9 +67,7 @@ test("GET and POST are distinct review-only tenant proofs with exact source pins
   }
   assert.match(lines[122], /persistedVictimRequest\[0\]\?\.employeeId, f\.victimEmployee\.id/);
   assert.match(lines[195], /assert\.deepEqual\(await victimSnapshot\(victim\.id\), baseline/);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 324 API methods and 18 page\/action GAPs remain/);
-  assert.equal(manifest.metrics.coveredAfter, 160);
-  assert.equal(manifest.metrics.gap, 324);
-  assert.equal(manifest.metrics.methods, 494);
   assert.equal(manifest.scopedPages.filter(p => p.status === "GAP").length, 18);
 });
+
+test("synced method inventory retains live counts and base coverage", () => { assertLiveTenantCounts(assert, manifest); });

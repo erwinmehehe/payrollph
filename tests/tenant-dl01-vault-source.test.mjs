@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 
 const proofPath = "scripts/qa/tenant-dl01-vault-http.mjs";
 const source = readFileSync(proofPath, "utf8");
@@ -122,10 +123,7 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
   assert.equal(processGate?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.match(processGate?.reason ?? "", /422.*403/, 
     "Old positive calculation acceptance must not be credited for an unverified rate table");
-  assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [160, 10, 324]);
-  assert.equal(manifest.metrics.methods, 494);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 324 API methods and 18 page\/action GAPs remain/);
+  assertLiveTenantCounts(assert, manifest);
   assert.equal(manifest.scopedPages.length, 20);
   assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 18);
 });

@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { frozenFinalPayLegalEntityId, historical2316Employer } from "../src/lib/bir-2316-employer";
 import { decideEntityAccess, entityResourceAllowed } from "../src/lib/multi-entity-policy";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 
 test("frozen employer ID rejects absent, null, forged, fractional and unsafe evidence", () => {
   assert.equal(frozenFinalPayLegalEntityId({ sourceFingerprint: { employeeLegalEntityId: 11 } }), 11);
@@ -132,15 +133,12 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
   // Main already proves 149 methods (including the independent group-report GET); this
   // draft adds exactly three BIR 2316 GET/GET/POST methods, while expenses/de minimis adds six more.
   // Preserve the main baseline and every remaining GAP after syncing the branch.
-  assert.equal(inventory.metrics.methods, 494);
   const independentExpensesBenefits = Object.values(inventory.allApiRouteFiles)
     .flatMap((route: any) => route.methods)
     .filter((method: any) => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
   assert.equal(independentExpensesBenefits.length, 6,
     "Six separately evidenced expense and de minimis methods must retain their distinct source links");
-  assert.equal(inventory.metrics.coveredAfter - 3 - independentExpensesBenefits.length - 2, 149);
-  assert.equal(inventory.metrics.gap + 3 + independentExpensesBenefits.length + 2, 335);
-  assert.equal(inventory.metrics.publicByDesign, 10);
-  assert.equal(inventory.metrics.coveredAfter + inventory.metrics.publicByDesign + inventory.metrics.gap, inventory.metrics.methods);
-  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED: 324 API methods and 18 page\/action GAPs remain\./);
+  // Live counts are invariants (tallies add up; nothing proven regresses against the base),
+  // not pinned numbers that every later batch would have to edit.
+  assertLiveTenantCounts(assert, inventory);
 });

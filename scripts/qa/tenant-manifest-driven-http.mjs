@@ -10,6 +10,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
+import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
 import {
   auditEvents, complianceActionTasks, employees, legalEntities, payrollRuns,
   statutoryRemittanceBatches, statutoryRemittancePaymentEvidence, statutoryPostingEvidenceArtifacts,
@@ -481,8 +482,7 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   ) ?? [];
   assert.deepEqual(piiReviewMethods.map(method => method.name), ["GET", "POST"],
     "Two distinct PII identifier review HTTP proofs must not be double-counted");
-  assert.equal(gaps.length + bir2316Methods.length + piiReviewMethods.length + expenseBenefitMethods.length, 335,
-    "Preserve all 335 current main GAPs except three exact source-pinned 2316 GET/GET/POST proofs");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - piiReviewMethods.length - expenseBenefitMethods.length, 149,
-    "All 149 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
+  // Totals are invariants (tallies add up; nothing proven regresses against the base), not pinned
+  // numbers that every later credit would have to edit.
+  assertLiveTenantCounts(assert, manifest);
 }
