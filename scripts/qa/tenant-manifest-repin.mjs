@@ -18,6 +18,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
+// The client-facing overview links proof lines as (../../<file>#L<n>); moved lines move there too.
+const OVERVIEW = "docs/engineering/tenant-isolation-coverage-inventory.md";
 const args = process.argv.slice(2);
 const write = args.includes("--write");
 const baseRef = args[args.indexOf("--base") + 1] && args.includes("--base")
@@ -65,6 +67,7 @@ function relocate(before, now, value) {
 }
 
 const moved = [], review = [];
+const anchorMoves = new Map(); // "<file>#L<old>" -> new line
 let unchanged = 0, newCitations = 0;
 for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
   for (const method of record.methods) {
@@ -87,6 +90,7 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
         if (at !== undefined) {
           moved.push(`${method.name} ${path} ${field}: ${value} -> ${at}`);
           proof[field] = at;
+          anchorMoves.set(proof.file + "#L" + value, at);
         } else {
           review.push(`${method.name} ${path} ${field}=${value}: cited text ${hits.length ? "now appears " + hits.length + " times" : "was edited or removed"} (${JSON.stringify(text.trim().slice(0, 90))})`);
         }
@@ -94,7 +98,18 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
     }
   }
 }
-if (write && moved.length) writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + (raw.endsWith("\n") ? "\n" : ""));
+if (write && moved.length) {
+  writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + (raw.endsWith("\n") ? "\n" : ""));
+  // One pass over the overview, so a chain of moves (L10->L11, L11->L12) cannot double-shift a link.
+  if (existsSync(OVERVIEW)) {
+    const doc = readFileSync(OVERVIEW, "utf8");
+    const next = doc.replace(/\(\.\.\/\.\.\/([^)#\s]+)#L(\d+)\)/g, (link, file, line) => {
+      const at = anchorMoves.get(file + "#L" + line);
+      return at === undefined ? link : "(../../" + file + "#L" + at + ")";
+    });
+    if (next !== doc) writeFileSync(OVERVIEW, next);
+  }
+}
 console.log(JSON.stringify({ base: baseRef, unchanged, newCitations, repinned: moved.length, needsReview: review.length, wrote: write && moved.length > 0 }, null, 1));
 for (const line of moved) console.log("repin  " + line);
 for (const line of review) console.log("REVIEW " + line);
