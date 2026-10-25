@@ -149,6 +149,9 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
     method.testedBy?.file === "scripts/qa/remittance-action-entity-http.mjs" &&
     Number.isInteger(method.testedBy?.ownPositiveLine) &&
     Number.isInteger(method.testedBy?.foreignDenialLine)));
+  // The historical base has 149 credits: three separately proven 2316 methods
+  // and two independent payout GET/PATCH methods must remain distinct in the
+  // latest synced branch. No production certification is implied.
   // The 149-method main baseline gains three separately executed 2316 methods,
   // plus #1361's *distinct* real HTTP accounting-close POST. No other GAP is waived.
   const closePost = inventory.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
