@@ -9,14 +9,15 @@
  */
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
   apiKeys, approvalChainPolicies, assets, documents, employees, employeePayProfiles, leavePolicies, legalEntities, organizations, orgUnits, payrollEntries,
-  payrollRuns, payslips, providerEvents, scimIdentities, scimTokens,
+  payrollRuns, payrollJobs, payrollCalculationHistory, payslips, providerEvents, scimIdentities, scimTokens,
   sessions, userOrganizations, users, employeeHrCases, employeeHrCaseMessages, birWithholdingRemittanceBatches,
 } from "../../src/db/schema";
 import { mintApiKey } from "../../src/lib/api-keys";
+import { createPayrollCalculationEvidence } from "../../src/lib/payroll-calculation-history";
 import { mintScimToken } from "../../src/lib/scim";
 import { SECOND_PASS_ROUTES, SECOND_PASS_FAMILIES } from "./tenant-second-pass-manifest.mjs";
 
@@ -234,6 +235,40 @@ async function makeFixture() {
   ]).returning({ id: payrollRuns.id, organizationId: payrollRuns.organizationId });
   const victimRuns = runs.filter((r) => r.organizationId === victim.id);
   const ownRuns = orgs.map((org) => runs.filter((r) => r.organizationId === org.id).at(-1));
+  // F-04: actual append-only rows from all three fictional employers. Use
+  // transient processing jobs only while the database insert guard verifies
+  // run, job, employee, legal employer, and revision lineage. These are CI
+  // fixtures; no historical payroll is created or modified in production.
+  let historyRows = [];
+  if (process.env.PAYROLL_CALCULATION_HISTORY_ENABLED === "true") {
+    const historySources = [
+      { runId: victimRuns.at(-1).id, organizationId: victim.id, employeeId: victimEmployees.at(-1).id },
+      { runId: ownRuns[1].id, organizationId: attackerA.id, employeeId: ownedEmployees[0].id },
+      { runId: ownRuns[2].id, organizationId: attackerB.id, employeeId: ownedEmployees[1].id },
+    ];
+    const historyJobs = await db.insert(payrollJobs).values(historySources.map((source) => ({
+      organizationId: source.organizationId, payrollRunId: source.runId, status: "processing",
+    }))).returning();
+    const fullRuns = await db.select().from(payrollRuns)
+      .where(inArray(payrollRuns.id, historySources.map((source) => source.runId)));
+    historyRows = await db.insert(payrollCalculationHistory).values(historySources.map((source, index) => {
+      const run = fullRuns.find((row) => row.id === source.runId);
+      assert.ok(run, "F-04 positive fixture must refer to an actual seeded payroll run");
+      return createPayrollCalculationEvidence({
+        organizationId: source.organizationId, legalEntityId: run.legalEntityId,
+        payrollRunId: run.id, payrollJobId: historyJobs[index].id, employeeId: source.employeeId,
+        revision: 1, previousSnapshotHash: null,
+        periodLabel: run.periodLabel, periodStart: run.periodStart,
+        periodEnd: run.periodEnd, payDate: run.payDate, ruleVersion: run.ruleVersion,
+        grossPay: "9000.00", deductions: "1000.00", netPay: "8000.00",
+        status: "Ready", lineItems: [{ code: "FICTIONAL", amount: "9000.00" }],
+        trace: { fixture: "F-04 tenant-isolation positive control" },
+      });
+    })).returning();
+    await db.update(payrollJobs).set({ status: "completed" })
+      .where(inArray(payrollJobs.id, historyJobs.map((job) => job.id)));
+  }
+
   const entries = await db.insert(payrollEntries).values([
     ...victimEmployees.map((emp, idx) => ({
       payrollRunId: victimRuns[idx].id, employeeId: emp.id,
@@ -269,7 +304,7 @@ async function makeFixture() {
 
   return {
     orgs, owners, entities, ownedUnits, victimEmployees, ownedEmployees, identities,
-    victimRuns, ownRuns, slips, events, tokenSets, ownerSessions, victimSessions,
+    victimRuns, ownRuns, historyRows, slips, events, tokenSets, ownerSessions, victimSessions,
     syntheticAssets, syntheticDocuments, syntheticLeavePolicies, syntheticApprovalChains,
     victimEmployee: victimEmployees.at(-1), victimIdentity: identities[7],
     victimScimEmail: scimWorkers[7].email,
@@ -427,6 +462,25 @@ async function verifyCrossTenant(f) {
     expectStatus(await request("/api/payroll-runs?organizationId=" + attacker.id +
       "&runId=" + f.victimRun.id + "&include=entries", { cookie: attackerCookie }), 403,
       "Attacker " + idx + " must not read a victim-only run register through a forged employer ID");
+
+    // F-04 exact-head HTTP proof: positive non-empty own history must return
+    // only own employer rows; forged victim run reads must be denied even when
+    // an attacker supplies a valid own organization ID in the query string.
+    if (process.env.PAYROLL_CALCULATION_HISTORY_ENABLED === "true") {
+      const ownHistory = expectStatus(await request(
+        "/api/payroll-runs?organizationId=" + attacker.id + "&runId=" + ownRun + "&include=history",
+        { cookie: attackerCookie }), 200, "Attacker " + idx + " F-04 own history positive");
+      assert.equal(ownHistory.json?.runId, ownRun);
+      assert.equal(ownHistory.json?.organizationId, attacker.id);
+      ownOnly(ownHistory.json?.history ?? [], f.historyRows[idx].id, [f.historyRows[0].id],
+        "F-04 history must contain seeded own rows and exclude real victim-only revisions");
+      assert.ok(ownHistory.json.history.every((row) => row.organizationId === attacker.id),
+        "F-04 history leaked another employer's payroll calculations");
+      expectStatus(await request(
+        "/api/payroll-runs?organizationId=" + attacker.id + "&runId=" +
+          f.victimRun.id + "&include=history",
+        { cookie: attackerCookie }), 403, "Attacker " + idx + " denied victim-only F-04 history");
+    }
 
     // Every additional GET requires a real own row, plus a foreign-org denial.
     const ownAssetsResult = expectStatus(await request("/api/assets?organizationId=" + attacker.id, { cookie: attackerCookie }), 200,
