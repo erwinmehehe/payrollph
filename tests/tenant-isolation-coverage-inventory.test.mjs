@@ -1704,6 +1704,30 @@ test("all credited proof links point to the claimed route and every recertified 
         }
         continue;
       }
+      if (proof?.file === "scripts/qa/hcm-manager-direct-reports-http.mjs") {
+        // This module uses the fixed API constant and requestOn() instead of
+        // inlining the URL in each request. Do not weaken the generic path
+        // guard for other proof sources or let another route borrow this proof.
+        assert.equal(path, "src/app/api/hcm/manager-direct-reports/route.ts");
+        assert.equal(method.name, "GET");
+        const lines = readableLines(proof.file);
+        const source = lines.join("\n");
+        const positive = evidenceLine(proof.file, proof.ownPositiveLine, path + " own");
+        const negative = evidenceLine(proof.file, proof.foreignDenialLine, path + " victim");
+        assert.match(source, /^const API = "\/api\/hcm\/manager-direct-reports";$/m);
+        assert.match(positive, /const ownApi = await requestOn\(API \+ "\?organizationId=" \+ own\.id, cookie\)/);
+        assert.match(negative, /const foreignApi = await requestOn\(API \+ "\?organizationId=" \+ victim\.id, cookie\)/);
+        assert.match(source, /for \(const idx of \[1, 2\]\)/);
+        assert.match(source, /assert\.equal\(ownApi\.status, 200/);
+        assert.match(source, /assert\.equal\(foreignApi\.status, 403/);
+        assert.match(source, /assert\.equal\(data\.items\.length, 1/);
+        assert.match(source, /assert\.equal\(data\.items\[0\]\.employeeNo, ownWorker\.employeeNo\)/);
+        assert.match(source, /victimWorkersBefore, "Denied manager reads must not modify victim employees"/);
+        assert.match(source, /victimPayrollBefore, "Denied manager reads must not modify victim payroll"/);
+        const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        assert.match(runner, /verifyHcmManagerDirectReports\(f, \{ makeSession \}\)/);
+        continue;
+      }
       const ownLine = evidenceLine(proof.file, proof.ownPositiveLine, path + " own-positive");
       const negativeLine = evidenceLine(proof.file, proof.foreignDenialLine, path + " foreign denial");
       assert.ok(routeFragments.every(fragment => ownLine.includes(fragment)) && /request\s*\(/.test(ownLine),
