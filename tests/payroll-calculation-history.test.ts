@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import {
   createPayrollCalculationEvidence,
   verifyPayrollCalculationEvidence,
@@ -37,6 +38,16 @@ function fixture(): PayrollCalculationEvidence {
     },
   };
 }
+
+test("F-04: history is disabled by default, explicitly enabled by exact true", () => {
+  assert.equal(criticalReleaseFlagEnabled("payrollCalculationHistory", {}), false);
+  assert.equal(criticalReleaseFlagEnabled("payrollCalculationHistory",
+    { PAYROLL_CALCULATION_HISTORY_ENABLED: "false" }), false);
+  assert.equal(criticalReleaseFlagEnabled("payrollCalculationHistory",
+    { PAYROLL_CALCULATION_HISTORY_ENABLED: "TRUE" }), false);
+  assert.equal(criticalReleaseFlagEnabled("payrollCalculationHistory",
+    { PAYROLL_CALCULATION_HISTORY_ENABLED: "true" }), true);
+});
 
 test("F-04: equal calculations hash identically through reordered JSONB keys and exclude payment PII", () => {
   const original = createPayrollCalculationEvidence(fixture());
@@ -102,6 +113,7 @@ test("F-04: a claimed worker records entire chunks atomically; previews never wr
   assert.ok(!target.includes("await db.insert(payslips).values("));
   assert.ok(target.includes("PAYROLL_HISTORY_RUN_CHANGED_OR_CHUNK_REPLAY"));
   assert.ok(target.includes("PAYROLL_HISTORY_JOB_CLAIM_LOST"));
+  assert.match(target, /if \(preserveHistory\) \{/);
 });
 
 test("F-04: paginated GET history inherits all run, role, org-unit and legal-employer checks", () => {
@@ -114,6 +126,7 @@ test("F-04: paginated GET history inherits all run, role, org-unit and legal-emp
     "resolveMultiEntityContext", "assertEntityResource"]) {
     assert.ok(beforeHistory.includes(gate), gate + " must execute before history SELECT");
   }
+  assert.ok(segment.includes('criticalReleaseFlagEnabled("payrollCalculationHistory")'));
   assert.match(segment, /\.limit\(101\)/);
   assert.match(segment, /eq\(payrollCalculationHistory\.organizationId, target\.organizationId\)/);
   assert.match(segment, /eq\(payrollCalculationHistory\.legalEntityId, target\.legalEntityId\)/);
