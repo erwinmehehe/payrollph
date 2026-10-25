@@ -71,6 +71,16 @@ export async function verifyHcmManagerDirectReports(f, { makeSession }) {
     assert.equal(unit.active, true);
   }
 
+  // Dedicated manager-of-record workers prevent earlier QA positions from
+  // accidentally enlarging this proof's exact one-direct-report cohort.
+  const managerWorkers = await db.insert(employees).values([1, 2, 0].map((idx) => ({
+    organizationId: f.orgs[idx].id, orgUnitId: workers[idx].orgUnitId,
+    employeeNo: "QA-MANAGER-" + idx + "-" + nonce,
+    firstName: "FictionalManager" + idx, lastName: "DirectReportProof",
+    title: "Manager", avatarInitials: "MG", basicRate: "10000.00",
+    startDate: "2025-01-01",
+  }))).returning();
+  const managerWorkerFor = (idx) => managerWorkers[idx === 0 ? 2 : idx - 1];
   const managers = await db.insert(users).values(f.orgs.map((org, idx) => ({
     email: "direct-http-manager-" + idx + "-" + nonce + "@example.invalid",
     name: "Disposable manager " + idx, role: "manager",
@@ -80,7 +90,7 @@ export async function verifyHcmManagerDirectReports(f, { makeSession }) {
     managers.map((user, idx) => ({
       userId: user.id, organizationId: f.orgs[idx].id,
       role: "manager", active: true,
-      orgUnitId: workers[idx].orgUnitId, workerEmployeeId: workers[idx].id,
+      orgUnitId: workers[idx].orgUnitId, workerEmployeeId: managerWorkerFor(idx).id,
     }))
   ).returning({ id: userOrganizations.id });
 
@@ -107,7 +117,7 @@ export async function verifyHcmManagerDirectReports(f, { makeSession }) {
     jobProfileId: profiles[n].id,
     orgUnitId: workers[idx].orgUnitId,
     supervisoryOrgUnitId: workers[idx].orgUnitId,
-    managerEmployeeId: workers[idx].id, status: "filled",
+    managerEmployeeId: managerWorkerFor(idx).id, status: "filled",
   }))).returning();
   await db.insert(positionAssignments).values(directWorkers.map((worker, n) => ({
     organizationId: worker.organizationId, employeeId: worker.id,
