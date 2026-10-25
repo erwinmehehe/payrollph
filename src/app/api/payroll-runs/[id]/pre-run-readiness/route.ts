@@ -38,7 +38,51 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (employerDenied) return employerDenied;
 
   const readiness = await loadPayrollPreRunReadiness(run);
-  return Response.json(readiness, {
+
+  // Keep every existing caller and flag-OFF response exactly as before. A
+  // caller must also opt into the separate explanatory read; it never runs
+  // during payroll creation, calculation, approval or release.
+  // The default OFF path returns before URL parsing or any new module load.
+  if (process.env.PAYROLL_EXPLANATION_AI_ENABLED !== "true") {
+    return Response.json(readiness, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+  if (new URL(request.url).searchParams.get("explain") !== "true") {
+    return Response.json(readiness, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+  const { criticalReleaseFlagEnabled } = await import("@/lib/critical-release-flags");
+  if (!criticalReleaseFlagEnabled("payrollExplanationAi")) {
+    return Response.json(readiness, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+
+  const { payrollExplanationAccess, generatePayrollFindingExplanation } =
+    await import("@/lib/payroll-finding-explanations");
+  if (payrollExplanationAccess(run.organizationId) !== "allowed") {
+    return Response.json({ error: "PAYROLL_EXPLANATION_CONSENT_REQUIRED" }, {
+      status: 403,
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+
+  // Consume only the existing phase-1 and post-calculation findings. Never
+  // recompute an assurance decision or fetch PII for an external model.
+  const { buildPayrollAssurance } = await import("@/lib/payroll-assurance-server");
+  const assurance = await buildPayrollAssurance(run.id);
+  if (!assurance || assurance.run.organizationId !== run.organizationId) {
+    return Response.json({ error: "Payroll run not found." }, { status: 404 });
+  }
+  return Response.json({
+    ...readiness,
+    explanation: generatePayrollFindingExplanation([
+      ...readiness.findings,
+      ...assurance.assurance.findings,
+    ]),
+  }, {
     headers: { "Cache-Control": "private, no-store" },
   });
 }

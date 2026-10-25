@@ -216,6 +216,45 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     assert.equal(assertEntityResource(scoped.context, worker1.legalEntityId), null);
     assert.equal(assertEntityResource(scoped.context, worker2.legalEntityId)?.status, 403);
     assert.equal(assertEntityResource(scoped.context, foreignWorker.legalEntityId)?.status, 403);
+
+    // A real authenticated role+grant context must authorize matching sources,
+    // but refuse conflicting body/header/query employer IDs BEFORE reading
+    // employer grants, even if the header alone names a granted employer.
+    const scopeUrl = (query: string) =>
+      "https://localhost.example/api/multi-entity/context?organizationId=" +
+        tenantA.id + "&" + query;
+    const matching = await resolveMultiEntityContext({
+      userId: people[0].id, organizationId: tenantA.id, requested: a1.id,
+      request: new Request(scopeUrl("legalEntityId=" + a1.id), {
+        headers: { "x-legal-entity-id": String(a1.id) },
+      }),
+    });
+    assert.equal(matching.ok, true, "Matching explicit selectors preserve legitimate own-employer access");
+    if (matching.ok) assert.equal(matching.context.legalEntityId, a1.id);
+    for (const [label, requested, query, header, expectedCode] of [
+      ["header versus URL", undefined, "legalEntityId=" + a2.id, String(a1.id), "ENTITY_SELECTOR_CONFLICT"],
+      ["argument versus header", a1.id, "legalEntityId=" + a1.id, String(a2.id), "ENTITY_SELECTOR_CONFLICT"],
+      ["two URL parameters", undefined,
+        "legalEntityId=" + a1.id + "&legalEntityId=" + a1.id, null, "ENTITY_SELECTOR_INVALID"],
+      ["malformed numeric alias", undefined, "legalEntityId=0xB", null, "ENTITY_SELECTOR_INVALID"],
+      ["foreign tenant header", undefined, "legalEntityId=" + a1.id, String(b1.id), "ENTITY_SELECTOR_CONFLICT"],
+      ["All versus selected", "all", "legalEntityId=" + a1.id, null, "ENTITY_SELECTOR_CONFLICT"],
+    ] as const) {
+      const attempt = await resolveMultiEntityContext({
+        userId: people[0].id, organizationId: tenantA.id, requested,
+        request: new Request(scopeUrl(query), {
+          ...(header == null ? {} : { headers: { "x-legal-entity-id": header } }),
+        }),
+      });
+      assert.equal(attempt.ok, false, label + ": mismatched selectors must never fall back");
+      if (!attempt.ok) {
+        assert.equal(attempt.response.status, 403, label);
+        const payload = await attempt.response.json();
+        assert.equal(payload.code, expectedCode, label + ": refuse before grant lookup");
+        assert.ok(!JSON.stringify(payload).includes(String(b1.id)),
+          label + ": never echo a foreign employer ID");
+      }
+    }
     for (const requested of [a2.id, b1.id, "all"]) {
       const attempt = await resolveMultiEntityContext({
         userId: people[0].id, organizationId: tenantA.id, requested,

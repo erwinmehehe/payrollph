@@ -87,8 +87,10 @@ test("OT budget schema is bounded and monthly-scoped", () => {
   assert.ok(schema.includes('uniqueIndex("overtime_budget_scope_month_unique")'));
   assert.ok(migration.includes("overtime_budget_minutes_check"));
   assert.ok(migration.includes("overtime_budget_mode_check"));
-  assert.ok(compat.includes("linaw_core_schema_compat_v19"));
-  assert.ok(compat.includes("CREATE TABLE IF NOT EXISTS overtime_budget_policies"));
+  assert.ok(migration.includes("overtime_budget_policies"));
+  assert.ok(migration.includes("CREATE TABLE IF NOT EXISTS"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });
 
 test("OT API applies budgets only to authorization and supports atomic bulk decisions", () => {
