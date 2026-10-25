@@ -89,7 +89,7 @@ for (const source of SOURCES) {
     const { method } = hit;
     const ownedHere = method.testedBy?.file === source.file;
     if (method.status !== "GAP" && !ownedHere) continue; // Preserve independently reviewed proof provenance.
-    if (refreshLinks && !ownedHere) throw new Error(row.key + ": link refresh cannot add a credit");
+    if (refreshLinks && !ownedHere) continue; // Pending rows remain GAP until an executed proof is credited.
     const was = method.status;
     method.status = "COVERED";
     if (!refreshLinks) method.reason = source.reason(runLabel ?? method.testedBy?.evidence ?? "check");
