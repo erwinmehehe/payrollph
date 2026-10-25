@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { createRows as people } from "../scripts/qa/tenant-table-rows/write/people.mjs";
 import { createRows as platform } from "../scripts/qa/tenant-table-rows/write/platform.mjs";
 
@@ -64,9 +65,12 @@ test("executed People/platform credits stay pinned, selected refresh does not ad
   assert.throws(() => execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--check", "--only-key", "PATCH unknown"], { stdio: "pipe" }));
   assert.throws(() => execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--check", "--only-key", "POST workforce/worksites"], { stdio: "pipe" }), "incomplete worksite POST cannot be explicitly credited");
   const manifest = JSON.parse(before);
-  assert.equal(manifest.metrics.coveredAfter, 270);
-  assert.equal(manifest.metrics.gap, 214);
-  assert.equal(manifest.metrics.publicByDesign, 10);
+  assertLiveTenantCounts(assert, manifest);
+  const sharedLines = readFileSync("scripts/qa/tenant-write-table-http.mjs", "utf8").split("\n");
+  const executionPin = fragment => {
+    const matches = sharedLines.flatMap((line, index) => line.includes(fragment) ? [index + 1] : []);
+    assert.equal(matches.length, 1, "each shared proof assertion has one exact execution site"); return matches[0];
+  };
   for (const [key] of cases) {
     const [verb, route] = key.split(" ");
     const record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
@@ -79,9 +83,9 @@ test("executed People/platform credits stay pinned, selected refresh does not ad
     }
     assert.equal(method.status, "COVERED", key);
     assert.equal(method.testedBy.file, "scripts/qa/tenant-write-table-http.mjs", key);
-    assert.equal(method.testedBy.ownPositiveLine, 113, key);
-    assert.equal(method.testedBy.foreignDenialLine, 126, key);
-    assert.equal(method.testedBy.unchangedDbLine, 150, key);
+    assert.equal(method.testedBy.ownPositiveLine, executionPin('const owned = expectStatus(await request(urlFor("own"),'), key);
+    assert.equal(method.testedBy.foreignDenialLine, executionPin('const foreign = expectStatus(await request(urlFor("foreign"),'), key);
+    assert.equal(method.testedBy.unchangedDbLine, executionPin('assert.deepEqual(victimAfter, victimBefore,'), key);
     assert.match(method.testedBy.evidence, /run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c/, key);
     assert.ok(method.testedBy.rowFile.startsWith("scripts/qa/tenant-table-rows/write/"), key);
   }
