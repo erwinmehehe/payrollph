@@ -1807,6 +1807,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
   // The run row is the serialization gate for revision numbers and totals.
   // No persisted history or register writes survive a partially failed chunk.
   const payrollJobId = input.payrollJobId!;
+  const preserveHistory = criticalReleaseFlagEnabled("payrollCalculationHistory");
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT id FROM payroll_runs WHERE id = ${input.runId} FOR UPDATE`);
     await tx.execute(sql`SELECT id FROM payroll_jobs WHERE id = ${payrollJobId} FOR UPDATE`);
@@ -1833,37 +1834,37 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
     }
 
     for (const pending of pendingEntries) {
-      const [prior] = await tx.select({
-        revision: payrollCalculationHistory.revision,
-        snapshotHash: payrollCalculationHistory.snapshotHash,
-      }).from(payrollCalculationHistory)
-        .where(and(eq(payrollCalculationHistory.payrollRunId, input.runId),
-          eq(payrollCalculationHistory.employeeId, pending.employeeId)))
-        .orderBy(desc(payrollCalculationHistory.revision)).limit(1);
-      const history = createPayrollCalculationEvidence({
-        organizationId: input.organizationId,
-        legalEntityId: run.legalEntityId,
-        payrollRunId: input.runId,
-        payrollJobId,
-        employeeId: pending.employeeId,
-        revision: (prior?.revision ?? 0) + 1,
-        previousSnapshotHash: prior?.snapshotHash ?? null,
-        periodLabel: run.periodLabel,
-        periodStart: String(run.periodStart),
-        periodEnd: String(run.periodEnd),
-        payDate: String(run.payDate),
-        ruleVersion: PAYROLL_RULE_VERSION,
-        grossPay: pending.grossPay,
-        deductions: pending.deductions,
-        netPay: pending.netPay,
-        status: pending.status,
-        lineItems: pending.lineItems,
-        trace: pending.trace,
-      });
+      if (preserveHistory) {
+        const [prior] = await tx.select({
+          revision: payrollCalculationHistory.revision,
+          snapshotHash: payrollCalculationHistory.snapshotHash,
+        }).from(payrollCalculationHistory)
+          .where(and(eq(payrollCalculationHistory.payrollRunId, input.runId),
+            eq(payrollCalculationHistory.employeeId, pending.employeeId)))
+          .orderBy(desc(payrollCalculationHistory.revision)).limit(1);
+        const history = createPayrollCalculationEvidence({
+          organizationId: input.organizationId,
+          legalEntityId: run.legalEntityId,
+          payrollRunId: input.runId,
+          payrollJobId,
+          employeeId: pending.employeeId,
+          revision: (prior?.revision ?? 0) + 1,
+          previousSnapshotHash: prior?.snapshotHash ?? null,
+          periodLabel: run.periodLabel,
+          periodStart: String(run.periodStart),
+          periodEnd: String(run.periodEnd),
+          payDate: String(run.payDate),
+          ruleVersion: PAYROLL_RULE_VERSION,
+          grossPay: pending.grossPay,
+          deductions: pending.deductions,
+          netPay: pending.netPay,
+          status: pending.status,
+          lineItems: pending.lineItems,
+          trace: pending.trace,
+        });
+        await tx.insert(payrollCalculationHistory).values(history);
+      }
       const { payslipText, ...entryValues } = pending;
-      // The append-only calculation record is a copy, not a reference to the
-      // replaceable payroll_entries row or its payment destination payload.
-      await tx.insert(payrollCalculationHistory).values(history);
       const [entry] = await tx.insert(payrollEntries).values(entryValues)
         .returning({ id: payrollEntries.id });
       await tx.insert(payslips).values({
