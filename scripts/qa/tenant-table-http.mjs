@@ -27,7 +27,7 @@ import {
 } from "../../src/db/schema";
 import { essIdentifierRequests } from "../../src/lib/ess-profile-schema";
 import { organizationModuleSettings } from "../../src/lib/tenant-module-storage";
-
+import { auditBusinessSnapshot, seedTableRow } from "./tenant-table-invariants.mjs";
 export const hex64 = () => randomBytes(32).toString("hex");
 /** A further fictional worker of the same employer (own marker plus suffix). */
 export async function addWorker(e, suffix, { payProfile = true } = {}) {
@@ -459,7 +459,7 @@ export async function victimSnapshot(orgId) {
     db.select().from(employees).where(eq(employees.organizationId, orgId)).orderBy(employees.id),
     db.select().from(orgUnits).where(eq(orgUnits.organizationId, orgId)).orderBy(orgUnits.id),
     db.select().from(legalEntities).where(eq(legalEntities.organizationId, orgId)).orderBy(legalEntities.id),
-    db.select({ id: auditEvents.id, action: auditEvents.action }).from(auditEvents).where(eq(auditEvents.organizationId, orgId)).orderBy(auditEvents.id),
+    db.select().from(auditEvents).where(eq(auditEvents.organizationId, orgId)).orderBy(auditEvents.id).then(auditBusinessSnapshot),
   ]);
   return { org, staff, units, entities, audit };
 }
@@ -492,7 +492,7 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
   for (const item of rows) {
     if (!item.seed) continue;
     try {
-      for (const e of employers) e.seeded[item.key] = (await item.seed(e)) ?? true;
+      await seedTableRow(item, employers);
     } catch (error) {
       if (!tryMode) throw error;
       seedFailures.set(item.key, String(error.cause?.message ?? error.message).split("\n")[0].slice(0, 200));

@@ -130,6 +130,47 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
       }
     }
   }
+  const independentExpensesBenefits = Object.values(inventory.allApiRouteFiles)
+    .flatMap((route: any) => route.methods)
+    .filter((method: any) => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
+  assert.equal(independentExpensesBenefits.length, 6,
+    "Six separately evidenced expense and de minimis methods must retain their distinct source links");
+  // The 149-method main baseline gains three separately executed 2316 methods,
+  // plus #1361's *distinct* real HTTP accounting-close POST. No other GAP is waived.
+  const closePost = inventory.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find((method: { name: string }) => method.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "Accounting-close POST requires separate own-success and foreign-victim proof");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  const closeProof = closePost.testedBy;
+  const closeSource = readFileSync(closeProof.file, "utf8");
+  const closeLines = closeSource.split("\n");
+  assert.deepEqual([
+    closeProof.line, closeProof.ownPositiveLine,
+    closeProof.foreignDenialLine, closeProof.unchangedDbLine,
+  ], [444, 444, 456, 465], "Payroll close must retain distinct actual POST evidence");
+  assert.match(closeLines[closeProof.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(closeProof.ownPositiveLine - 1,
+    closeProof.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/,
+    "An actual authorized accounting-close POST must succeed");
+  assert.match(closeLines[closeProof.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closeProof.foreignDenialLine - 1,
+    closeProof.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/,
+    "A real foreign-victim accounting-close POST must fail closed");
+  assert.match(closeLines[closeProof.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/,
+    "Denied foreign close must not mutate victim SQL records");
+  assert.match(closeSource,
+    /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
+    "The distinct POST proof must run inside the disposable PG16 HTTP suite");
+  assert.match(closeSource, /event\.action === "Payroll close completed"/,
+    "Owned close POST must persist an audit receipt");
+  assert.match(workflow, /tests\/payroll-run-legal-employer-gates\.test\.ts/,
+    "The legal-employer gate test must run in synthetic multi-entity CI");
   // Live counts are invariants (tallies add up; nothing proven regresses against the base),
   // not pinned numbers that every later batch would have to edit.
   assertLiveTenantCounts(assert, inventory);

@@ -5,13 +5,15 @@ name: Tenant table proof (fictional PostgreSQL, real HTTP, no money)
 # which the local runner reads too, so a row is proven under the same flags wherever it is credited.
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
     branches: [main]
     paths:
       - '.github/workflows/tenant-table-proof.yml'
       - 'scripts/qa/tenant-table-http.mjs'
       - 'scripts/qa/tenant-write-table-http.mjs'
       - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/tenant-table-invariants.mjs'
+      - 'tests/tenant-table-invariants.test.mjs'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'src/app/api/**'
       - 'src/lib/**'

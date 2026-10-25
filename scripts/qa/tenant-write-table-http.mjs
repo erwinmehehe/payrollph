@@ -32,7 +32,7 @@ import {
   addWorker, requireTenantTableDisposable, seedEmployer, standaloneExpectStatus,
   standaloneMakeSession, standaloneRequest, victimSnapshot,
 } from "./tenant-table-http.mjs";
-
+import { seedTableRow } from "./tenant-table-invariants.mjs";
 /** Plain-JSON copy of rows so dates and decimals compare by value. */
 const plain = (rows) => JSON.parse(JSON.stringify(rows));
 
@@ -250,7 +250,7 @@ export async function verifyTenantWriteTable(_f, {
   for (const item of rows) {
     if (!item.seed) continue;
     try {
-      for (const e of employers) e.seeded[item.key] = (await item.seed(e)) ?? true;
+      await seedTableRow(item, employers);
     } catch (error) {
       if (!tryMode) throw error;
       seedFailures.set(item.key, String(error.cause?.message ?? error.message).split("\n")[0].slice(0, 200));
