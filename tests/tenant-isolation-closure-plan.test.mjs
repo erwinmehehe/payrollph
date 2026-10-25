@@ -100,14 +100,22 @@ test("closure plan schedules every original GAP exactly once in priority order",
     "Removed/renamed method still in plan; reconcile this batch and manifest: " + key);
 });
 
-test("all 20 page/action gaps have explicit real-wrong-employer closure slots", () => {
+test("frozen 20-page closure slots remain exact while a newly verified manager page has separate proof", () => {
   const body = plan.split("## Page and server-action closure")[1]?.split("## CI and proof-link")[0];
   assert.ok(body, "Page closure section required");
   const sources = [...body.matchAll(/^- \x60GET [^\x60]+\x60 — \x60(src\/app\/[^\x60]+\/page\.tsx)\x60;/gm)]
     .map((match) => match[1]);
-  assert.equal(sources.length, manifest.scopedPages.length);
+  // Do not alter the checksum-pinned 2026-10-21 closure queue. PR #1405
+  // introduces a new page, with a dedicated real-HTTP proof, after that date.
+  const newPage = "src/app/hcm/manager-direct-reports/page.tsx";
+  const direct = manifest.scopedPages.find((entry) => entry.path === newPage);
+  assert.equal(direct?.status, "COVERED", "A new page cannot bypass the original closure queue unproven");
+  assert.equal(direct.testedBy?.file, "scripts/qa/hcm-manager-direct-reports-http.mjs");
+  const frozenPages = manifest.scopedPages.filter((entry) => entry.path !== newPage);
+  assert.equal(sources.length, 20, "Historical baseline must retain 20 original page slots");
+  assert.equal(frozenPages.length, 20, "Every original page must retain its closure slot");
   assert.equal(new Set(sources).size, sources.length, "Do not duplicate page slots");
-  assert.deepEqual(sources.sort(), manifest.scopedPages.map((x) => x.path).sort());
+  assert.deepEqual(sources.sort(), frozenPages.map((entry) => entry.path).sort());
 });
 
 test("all preexisting COVERED references have real, checked-in own/victim and write snapshots", () => {
