@@ -24,7 +24,7 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
   assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only");
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const pages = manifest.scopedPages;
-  assert.equal(pages.length, 20);
+  assert.equal(pages.length, 21);
   const pageGaps = pages.filter((page) => page.status === "GAP");
   assert.equal(pageGaps.length, 18, "Manager inbox and the workspace have strict own/foreign HTTP proofs");
   const runSnapshot = await db.select().from(payrollRuns)
@@ -114,7 +114,7 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
         " positive=" + authorizedPage200 + " denied=" + correctlyDenied);
     }
   }
-  assert.equal(observations.length, 40);
+  assert.equal(observations.length, 42);
   assert.deepEqual(await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id),
     runSnapshot, "Page navigation must not modify victim payroll");
