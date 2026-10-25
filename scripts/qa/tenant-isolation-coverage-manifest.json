@@ -21233,13 +21233,23 @@
           "name": "GET",
           "line": 30,
           "status": "COVERED",
-          "reason": "Own payroll list and seeded non-empty F-04 history 200; real victim payroll run/history 403 for two independent attacker organizations. F-04 positive test only enabled on isolated local PG16 CI; default-OFF production history returns 503.",
+          "reason": "Signed-in own payroll run list 200, real victim list/register 403; separate flag-enabled F-04 seeded history 200 and victim history 403 with no cross-tenant rows.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 479,
+            "line": 460,
+            "ownPositiveLine": 453,
+            "foreignDenialLine": 460,
+            "scope": "Actual seeded payroll-run list 200 for two independent attacker employers and victim 403; separately same harness verifies F-04 populated own history 200 and foreign history 403 under isolated PG16 flag"
+          },
+          "historyReadProof": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "seedLine": 254,
             "ownPositiveLine": 470,
+            "ownRowAssertionLine": 475,
             "foreignDenialLine": 479,
-            "scope": "Two authenticated independent attacker employers; same-route positive F-04 real seeded history records and victim-only denial in disposable PG16 with history feature flag enabled, plus standard run list and register denial"
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Only synthetic PG16 security smoke with PAYROLL_CALCULATION_HISTORY_ENABLED=true. Real history rows for victim and both attackers; own positive nonempty result and direct real victim history denial."
           }
         },
         {
