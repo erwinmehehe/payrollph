@@ -21226,25 +21226,25 @@
       ]
     },
     "src/app/api/payroll-runs/route.ts": {
-      "gitBlobSha": "ac44c3fe6194986ea8ec847b185007abc013aa76",
+      "gitBlobSha": "709c30b18af3044d4b3d7a3d064011022094d678",
       "route": "payroll-runs",
       "methods": [
         {
           "name": "GET",
-          "line": 29,
+          "line": 30,
           "status": "COVERED",
-          "reason": "Own payroll runs 200 and victim-organization 403 plus direct foreign register denial",
+          "reason": "Own payroll list and seeded non-empty F-04 history 200; real victim payroll run/history 403 for two independent attacker organizations. F-04 positive test only enabled on isolated local PG16 CI; default-OFF production history returns 503.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 425,
-            "ownPositiveLine": 418,
-            "foreignDenialLine": 425,
-            "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
+            "line": 479,
+            "ownPositiveLine": 470,
+            "foreignDenialLine": 479,
+            "scope": "Two authenticated independent attacker employers; same-route positive F-04 real seeded history records and victim-only denial in disposable PG16 with history feature flag enabled, plus standard run list and register denial"
           }
         },
         {
           "name": "POST",
-          "line": 101,
+          "line": 131,
           "status": "COVERED",
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
