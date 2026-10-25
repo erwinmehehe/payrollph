@@ -1103,7 +1103,7 @@ test("all credited proof links point to the claimed route and every recertified 
         "scripts/qa/tenant-manifest-driven-http.mjs", "scripts/qa/tenant-high-risk-01-http.mjs",
         "scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs",
         "scripts/qa/tenant-dl02-http.mjs", "scripts/qa/government-loan-read-http.mjs", "scripts/qa/dole-13th-month-http.mjs", "scripts/qa/tenant-dl01-batch2-http.mjs",
-        "scripts/qa/tenant-table-http.mjs"].includes(proof?.file),
+        "scripts/qa/tenant-table-http.mjs", "scripts/qa/tenant-write-table-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (["scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs"].includes(proof.file)) {
         const history = proof.file.endsWith("tenant-dl01-import-history-http.mjs");
@@ -1387,6 +1387,59 @@ test("all credited proof links point to the claimed route and every recertified 
           suite.includes('assert.equal(typeof item.prove, "function"') &&
           suite.includes("await assert.rejects(async () => item.prove(firstAttackerResponses.get(item.key), ctx),") &&
           suite.includes("assert.equal(discriminatingProofs, rows.length,"), key + ": both attackers, disposable guard, proof enforcement and cross-employer discrimination required");
+        continue;
+      }
+      if (proof.file === "scripts/qa/tenant-write-table-http.mjs") {
+        // Write rows share generic urlFor("own"/"foreign") request lines. Credit only an exact mutating row whose
+        // own write is read back from PostgreSQL (state + expect), whose victim request is denied with an exact
+        // 403/404, and whose expectation must reject the other attacker's genuine data.
+        const key = method.name + " " + entry.route;
+        assert.ok(["POST", "PATCH", "PUT", "DELETE"].includes(method.name), key + ": the write table certifies mutations only");
+        assert.ok(!entry.route.includes("["), key + ": path-id routes need a cross-id proof, not a table row");
+        const suite = readFileSync(proof.file, "utf8");
+        const tableStart = suite.indexOf("export const TENANT_WRITE_TABLE = Object.freeze([");
+        const tableEnd = suite.indexOf("\n]);", tableStart);
+        assert.ok(tableStart > 0 && tableEnd > tableStart, key + ": write table boundary missing");
+        const rowLine = evidenceLine(proof.file, proof.line, key + " row");
+        assert.ok(rowLine.trimStart().startsWith("{ key: " + JSON.stringify(key) + ","), key + ": pinned row does not match credited method");
+        const rowStart = suite.indexOf(rowLine);
+        assert.ok(rowStart > tableStart && rowStart < tableEnd && suite.split(rowLine).length === 2, key + ": row must be unique and inside TENANT_WRITE_TABLE");
+        const nextRow = suite.indexOf("\n  { key: ", rowStart + rowLine.length);
+        const row = suite.slice(rowStart, nextRow > 0 && nextRow < tableEnd ? nextRow : tableEnd);
+        assert.match(row, /\bstate: /, key + ": the own employer's rows must be read back from PostgreSQL");
+        assert.match(row, /\bexpect: /, key + ": a row without an expectation of the own change cannot be credited");
+        assert.ok((/\bownBody: /.test(row) && /\bforeignBody: /.test(row)) || (method.name === "DELETE" && /\bquery: /.test(row)),
+          key + ": a row needs own and foreign requests");
+        // The own status sits on the row's key line; a nested forged: { status } is a different request.
+        const ownStatus = /\bstatus: (\d{3})/.exec(rowLine)?.[1] ?? "200";
+        assert.ok(["200", "201", "202", "204"].includes(ownStatus), key + ": the own write must succeed, got " + ownStatus);
+        const deny = /\bdeny: (\d{3})/.exec(row)?.[1] ?? "403";
+        assert.ok(["403", "404"].includes(deny), key + ": victim employer must be denied 403 or 404, got " + deny);
+        const profile = /\bprofile: "([a-z-]+)"/.exec(row)?.[1] ?? "default";
+        assert.ok(TENANT_TABLE_PROFILES[profile], key + ": unknown profile " + profile);
+        for (const flag of (/\bflags: \[([^\]]*)\]/.exec(row)?.[1] ?? "").match(/[A-Z0-9_]+/g) ?? []) {
+          assert.equal(TENANT_TABLE_PROFILES[profile][flag], "true", key + ": profile " + profile + " must enable " + flag);
+        }
+        const workflow = readFileSync(".github/workflows/tenant-table-proof.yml", "utf8");
+        assert.ok(new RegExp("profile: \\[[^\\]]*\\b" + profile + "\\b").test(workflow) &&
+          workflow.includes("node scripts/qa/tenant-table-env.mjs \"${{ matrix.profile }}\" >> \"$GITHUB_ENV\"") &&
+          workflow.includes("node scripts/qa/apply-isolated-baseline.mjs") &&
+          workflow.includes("npx tsx scripts/qa/tenant-write-table-http.mjs"), key + ": the shared workflow must run the write table for this row's profile");
+        assert.match(evidenceLine(proof.file, proof.ownPositiveLine, key + " own"),
+          /const owned = expectStatus\(await request\(urlFor\("own"\), \{ method, cookie: own\.cookie, body: item\.ownBody\?\.\(ctx\) \}\), item\.status \?\? 200,/);
+        assert.match(evidenceLine(proof.file, proof.foreignDenialLine, key + " victim"),
+          /const foreign = expectStatus\(await request\(urlFor\("foreign"\), \{ method, cookie: own\.cookie, body: item\.foreignBody\?\.\(ctx\) \}\), item\.deny \?\? 403,/);
+        assert.match(evidenceLine(proof.file, proof.unchangedDbLine, key + " victim DB"),
+          /assert\.deepEqual\(victimAfter, victimBefore,/);
+        assert.ok(proof.ownPositiveLine < proof.foreignDenialLine && proof.foreignDenialLine < proof.unchangedDbLine);
+        assert.ok(suite.includes("requireTenantTableDisposable();") && suite.includes("for (const idx of [1, 2])") &&
+          suite.includes("assert.notDeepEqual(ownAfter, ownBefore,") &&
+          suite.includes("await item.expect(ownBefore, ownAfter, ctx, owned);") &&
+          suite.includes("await assert.rejects(async () => item.expect(first.ownBefore, first.ownAfter, ctx, first.owned),") &&
+          suite.includes("assert.equal(discriminatingProofs, rows.length,") &&
+          suite.includes("assert.equal(passed.size, rows.length * 2,") &&
+          suite.includes("the victim's target rows are unchanged"),
+          key + ": both attackers, disposable guard, own-change read-back, cross-employer discrimination and unchanged victim rows required");
         continue;
       }
       if (proof.file === "scripts/qa/tenant-high-risk-01-http.mjs") {

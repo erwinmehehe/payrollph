@@ -28,9 +28,9 @@ import {
 import { essIdentifierRequests } from "../../src/lib/ess-profile-schema";
 import { organizationModuleSettings } from "../../src/lib/tenant-module-storage";
 
-const hex64 = () => randomBytes(32).toString("hex");
+export const hex64 = () => randomBytes(32).toString("hex");
 /** A further fictional worker of the same employer (own marker plus suffix). */
-async function addWorker(e, suffix, { payProfile = true } = {}) {
+export async function addWorker(e, suffix, { payProfile = true } = {}) {
   const [worker] = await db.insert(employees).values({ organizationId: e.org.id, legalEntityId: e.entity.id, orgUnitId: e.unit.id,
     employeeNo: e.marker + "-" + suffix, firstName: "Table", lastName: e.marker + "-" + suffix, title: "Fictional", avatarInitials: "TT",
     basicRate: "20000.00", startDate: "2026-01-05" }).returning();
@@ -40,14 +40,14 @@ async function addWorker(e, suffix, { payProfile = true } = {}) {
   }
   return worker;
 }
-const activeWorkers = async (orgId) => Number((await db.select({ n: count() }).from(employees)
+export const activeWorkers = async (orgId) => Number((await db.select({ n: count() }).from(employees)
   .where(and(eq(employees.organizationId, orgId), eq(employees.status, "Active"))))[0].n);
-const auditCount = async (orgId) => Number((await db.select({ n: count() }).from(auditEvents)
+export const auditCount = async (orgId) => Number((await db.select({ n: count() }).from(auditEvents)
   .where(eq(auditEvents.organizationId, orgId)))[0].n);
 /** Multi-entity scopes a non-group role to its granted legal employer: grant the owner its own one. */
 const grantOwnEntity = (e) => db.insert(userLegalEntityGrants)
   .values({ organizationId: e.org.id, userId: e.owner.id, legalEntityId: e.entity.id }).onConflictDoNothing();
-async function seedPlan(e, purpose) {
+export async function seedPlan(e, purpose) {
   const [plan] = await db.insert(workforcePlans).values({ organizationId: e.org.id, name: e.marker + " " + purpose,
     startDate: "2026-01-01", endDate: "2026-12-31" }).returning();
   return plan;
@@ -407,7 +407,7 @@ export function requireTenantTableDisposable(env = process.env) {
   }
 }
 
-async function standaloneRequest(path, { method = "GET", cookie, body } = {}) {
+export async function standaloneRequest(path, { method = "GET", cookie, body } = {}) {
   const headers = {};
   if (cookie) headers.cookie = cookie;
   if (method !== "GET") Object.assign(headers, { origin: BASE, "sec-fetch-site": "same-origin" });
@@ -419,11 +419,11 @@ async function standaloneRequest(path, { method = "GET", cookie, body } = {}) {
   let json; try { json = JSON.parse(text); } catch { json = null; }
   return { status: response.status, text, json, headers: response.headers };
 }
-function standaloneExpectStatus(response, status, label) {
+export function standaloneExpectStatus(response, status, label) {
   assert.equal(response.status, status, label + " got " + response.status + " " + response.text.slice(0, 200));
   return response;
 }
-async function standaloneMakeSession(userId) {
+export async function standaloneMakeSession(userId) {
   const raw = randomBytes(32).toString("hex");
   const [row] = await db.insert(sessions).values({
     userId, tokenHash: createHash("sha256").update(raw).digest("hex"),
@@ -432,7 +432,7 @@ async function standaloneMakeSession(userId) {
   return { id: row.id, cookie: "__Host-linaw_session=" + raw };
 }
 
-async function seedEmployer(label, nonce, makeSession) {
+export async function seedEmployer(label, nonce, makeSession) {
   const marker = "TTBL-" + label + "-" + nonce;
   const [org] = await db.insert(organizations).values({ name: marker + " employer", legalName: marker + " Inc." }).returning();
   const [entity] = await db.insert(legalEntities).values({ organizationId: org.id, code: marker.slice(0, 30),
@@ -453,7 +453,7 @@ async function seedEmployer(label, nonce, makeSession) {
   return { org, entity, unit, owner, cookie: session.cookie, worker, marker, label, rank: { ATTA: 1, ATTB: 2, VICTIM: 4 }[label], seeded: {} };
 }
 
-async function victimSnapshot(orgId) {
+export async function victimSnapshot(orgId) {
   const [org, staff, units, entities, audit] = await Promise.all([
     db.select().from(organizations).where(eq(organizations.id, orgId)),
     db.select().from(employees).where(eq(employees.organizationId, orgId)).orderBy(employees.id),

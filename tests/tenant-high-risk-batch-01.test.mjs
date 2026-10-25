@@ -336,14 +336,20 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   // Tenant-table credits are counted only when each cites an exact GET row of the shared table
   // runner with all three pinned proof lines; the inventory guard re-validates every row.
   const tableSource = readFileSync("scripts/qa/tenant-table-http.mjs", "utf8").split("\n");
+  const writeTableSource = readFileSync("scripts/qa/tenant-write-table-http.mjs", "utf8").split("\n");
   const tableMethods = Object.entries(manifest.allApiRouteFiles).flatMap(([, route]) =>
-    route.methods.filter(m => m.testedBy?.file === "scripts/qa/tenant-table-http.mjs").map(m => [m.name + " " + route.route, m]));
+    route.methods.filter(m => ["scripts/qa/tenant-table-http.mjs", "scripts/qa/tenant-write-table-http.mjs"].includes(m.testedBy?.file))
+      .map(m => [m.name + " " + route.route, m]));
   for (const [key, m] of tableMethods) {
     assert.equal(m.status, "COVERED", key + ": table proof only ever credits COVERED");
-    assert.ok((tableSource[m.testedBy.line - 1] ?? "").includes('{ key: "' + key + '",'), key + ": must cite its own table row");
-    assert.match(tableSource[m.testedBy.ownPositiveLine - 1] ?? "", /const owned = expectStatus\(await request\(item\.own,/);
-    assert.match(tableSource[m.testedBy.foreignDenialLine - 1] ?? "", /const foreign = expectStatus\(await request\(item\.foreign,/);
-    assert.match(tableSource[m.testedBy.unchangedDbLine - 1] ?? "", /assert\.deepEqual\(victimAfter, victimBefore,/);
+    const writes = m.testedBy.file === "scripts/qa/tenant-write-table-http.mjs";
+    const lines = writes ? writeTableSource : tableSource;
+    assert.ok((lines[m.testedBy.line - 1] ?? "").includes('{ key: "' + key + '",'), key + ": must cite its own table row");
+    assert.match(lines[m.testedBy.ownPositiveLine - 1] ?? "", writes
+      ? /const owned = expectStatus\(await request\(urlFor\("own"\),/ : /const owned = expectStatus\(await request\(item\.own,/);
+    assert.match(lines[m.testedBy.foreignDenialLine - 1] ?? "", writes
+      ? /const foreign = expectStatus\(await request\(urlFor\("foreign"\),/ : /const foreign = expectStatus\(await request\(item\.foreign,/);
+    assert.match(lines[m.testedBy.unchangedDbLine - 1] ?? "", /assert\.deepEqual\(victimAfter, victimBefore,/);
   }
   assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
