@@ -6,6 +6,7 @@ import { ArrowLeft, CalendarDays, RefreshCw, ShieldCheck } from "lucide-react";
 import { Worker360History } from "@/components/hcm-worker-360-history";
 import { EmployeeVaultProfilePanel } from "@/components/employee-vault-profile-panel";
 import type { Worker360Summary } from "@/lib/hcm-worker-360-contract";
+import { isValidWorker360Response } from "@/lib/hcm-worker-360-response";
 import { validWorker360Date } from "@/lib/hcm-worker-360-projection";
 
 type Load = {
@@ -66,11 +67,12 @@ function ScopedWorker360({ organizationId, employeeId, initialAsOfDate, vaultEna
         }
         throw new Error("The Worker 360 source is currently unavailable.");
       }
-      const data = await response.json() as Worker360Summary;
+      const data: unknown = await response.json();
       if (controller.signal.aborted) return;
-      if (data.tenantId !== organizationId || data.employeeId !== employeeId ||
-          data.asOfDate !== asOfDate || !data.worker || !data.primaryAssignment ||
-          !Array.isArray(data.employmentEvents?.preview?.items)) {
+      // A 200 is not authoritative without a coherent source envelope.
+      // Never render mismatched worker identities, broken assignment records,
+      // private-looking event types, or invalid dates from unverified JSON.
+      if (!isValidWorker360Response(data, organizationId, employeeId, asOfDate)) {
         throw new Error("The returned employee context did not match this request.");
       }
       setLoad({ key: scope, status: "ready", data, error: "" });
