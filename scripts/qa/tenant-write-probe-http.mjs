@@ -81,6 +81,10 @@ export async function runWriteProbe(plan, catalogue, env = process.env) {
         const worker = await insert("employees", context, { organizationId: org.id, legalEntityId: entity.id, orgUnitId: unit.id,
           employeeNo: context.marker, firstName: "Fictional", lastName: context.marker, title: "Probe", avatarInitials: "FP", basicRate: "20000.00", startDate: "2026-01-05" });
         context.employeeId = worker.id; context.references["employees.id"] = worker.id;
+        // Read-only request mode refuses any employer with a worker lacking a pay profile
+        // (READONLY_PAY_PROFILES_REQUIRE_REVIEWED_BACKFILL), so the fixture worker gets one, as in the proof tables.
+        await insert("employeePayProfiles", context, { organizationId: org.id, employeeId: worker.id, payBasis: "monthly",
+          rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8" });
         const token = randomBytes(32).toString("hex");
         await db.insert(schema.sessions).values({ userId: owner.id, tokenHash: createHash("sha256").update(token).digest("hex"),
           expiresAt: new Date(Date.now()+3_600_000), lastSeenAt: new Date(), mfaVerifiedAt: new Date(), authMethod: "oidc" });

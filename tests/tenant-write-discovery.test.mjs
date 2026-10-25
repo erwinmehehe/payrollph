@@ -107,3 +107,13 @@ test("probe outcomes distinguish accepted HTTP, flag hints, invalid bodies, fixt
   assert.equal(classifyProbe(422),"validation error");assert.equal(classifyProbe(400),"validation error");
   assert.equal(classifyProbe(500),"unavailable");assert.equal(classifyProbe(429),"unavailable");
 });
+test("probe fixture worker has a pay profile so read-only request mode can bind the server", async () => {
+  // With REQUEST_SCHEMA_READONLY_ENABLED, an employer whose worker lacks a pay profile fails every read
+  // (READONLY_PAY_PROFILES_REQUIRE_REVIEWED_BACKFILL), which made each candidate "unavailable".
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("scripts/qa/tenant-write-probe-http.mjs", "utf8");
+  const worker = source.indexOf('await insert("employees", context,');
+  const profile = source.indexOf('await insert("employeePayProfiles", context, { organizationId: org.id, employeeId: worker.id,');
+  const binding = source.indexOf('phase = "binding";');
+  assert.ok(worker > 0 && profile > worker && binding > profile, "the pay profile is seeded after the worker and before the binding read");
+});
