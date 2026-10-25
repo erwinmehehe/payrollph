@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, CircleDollarSign, Send, ShieldCheck, UsersRound, XCircle } from "lucide-react";
-import { effectiveWorkforcePlanId, scopedWorkforceAllocationId } from "../lib/workforce-plan-allocation-view";
+import {
+  effectiveWorkforcePlanId, scopedWorkforceAllocationId,
+  workforceAllocationResponseMatchesEmployer,
+} from "../lib/workforce-plan-allocation-view";
 
 type Plan = {
   id: number;
@@ -135,10 +138,18 @@ function WorkforcePlanAllocationContent({
         setLoadError(typeof payload.error === "string" ? payload.error : "Could not load workforce plan allocations.");
         return;
       }
-      const nextAllocations: Allocation[] = Array.isArray(payload.allocations) ? payload.allocations : [];
+      if (!workforceAllocationResponseMatchesEmployer(payload, organizationId)) {
+        setLoadedOrganizationId(null);
+        setAccess(null);
+        setAllocations([]);
+        setSubmissions([]);
+        setLoadError("The allocation response did not match the selected employer or source. Refresh before continuing.");
+        return;
+      }
+      const nextAllocations: Allocation[] = payload.allocations;
       setAllocations(nextAllocations);
-      setSubmissions(Array.isArray(payload.submissions) ? payload.submissions : []);
-      setAccess(payload.access ?? null);
+      setSubmissions(payload.submissions);
+      setAccess(payload.access);
       setLoadedOrganizationId(organizationId);
       // A refreshed catalog can revoke a previously selected allocation:
       // clear that edit choice before it can be reused by a later refresh.
