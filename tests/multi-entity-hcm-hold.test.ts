@@ -13,7 +13,9 @@ test("source guard denies every unreviewed HCM API and protected HCM page", asyn
   const { readFileSync } = await import("node:fs");
   const proxy = readFileSync("src/proxy.ts", "utf8");
   const scheduler = readFileSync("src/lib/scheduler.ts", "utf8");
-  assert.match(proxy, /matcher:\s*\["\/api\/hcm\/:path\*", "\/hcm\/:path\*"\]/);
+  assert.match(proxy, /"\/api\/hcm\/:path\*"/);
+  assert.match(proxy, /"\/hcm\/:path\*"/);
+  assert.match(proxy, /_next\/static/);
   assert.match(proxy, /path\.startsWith\("\/api\/hcm\/"\)/);
   assert.match(proxy, /path\.startsWith\("\/hcm\/"\)/);
   assert.match(proxy, /ENTITY_HCM_DEFERRED/);
