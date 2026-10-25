@@ -2,8 +2,9 @@
 
 This batch adds 12 exact-method scenarios to the existing disposable PostgreSQL
 and localhost HTTP runner. The exact-head disposable PG16 HTTP write job
-passed all 12 new default-profile scenarios, now credited provisionally in the
-manifest. Local fixture tests alone do not count as HTTP evidence.
+passed all 12 new default-profile scenarios. Eleven methods are provisionally
+credited; `POST workforce/worksites` remains GAP because only its `create_worksite`
+action was tested. Local fixture tests alone do not count as HTTP evidence.
 
 | Method | Bounded own operation |
 | --- | --- |
@@ -15,7 +16,7 @@ manifest. Local fixture tests alone do not count as HTTP evidence.
 | POST delegations | Create a delegation between same-employer fictional members |
 | POST it-operations | Request an application grant; no remote grant |
 | PATCH it-operations | Record a requested revocation as revoked; no provider call |
-| POST workforce/worksites | Create a worksite linked to the own organization unit |
+| POST workforce/worksites | Create a worksite linked to the own organization unit (action-level evidence only; method remains GAP) |
 | PATCH compliance/data-requests | Record triage notes and in-progress status |
 | POST approval-chains | Revise an inactive draft policy |
 | POST integration-connectors | Disable an existing fictional connector record |
@@ -30,7 +31,12 @@ database row and checks employer on both before/after snapshots instead.
 Recruitment covers the existing default-profile privacy-flag-OFF path, not hiring
 or privacy-flag-ON branches. Group and approval-policy updates remain inactive.
 Connector disabling touches only synthetic stored configuration and makes no
-provider request. These scenarios do not certify every branch of a method.
+provider request. These scenarios do not certify every branch of a method. In particular, the
+worksite POST also contains other actions (such as `update_worksite`, geofence
+configuration and employee assignment). `create_worksite` alone cannot certify
+the entire handler. The existing merged-proof security guard explicitly requires
+`POST workforce/worksites` to remain GAP until its other actions receive reviewed
+own/victim/forged-selector and unchanged-database evidence.
 
 The branch separately reconciles three already executed Performance credits from
 PR #1393, with its exact-head HTTP run receipt in
@@ -49,12 +55,13 @@ previously present families. The multi-entity and flagged-reads table jobs also
 passed, but **ran zero write rows** under their explicitly permitted empty-profile
 configuration; they do not prove these twelve methods in other flag profiles.
 
-**Post-credit state:** All twelve exact methods are now provisionally `COVERED`,
-with individual row-source links and the executed-head receipt. Manifest totals:
-**271 COVERED / 213 GAP / 10 PUBLIC-BY-DESIGN** out of 494 API methods, plus
-18 page/action GAPs. The three Performance-method credits from #1393 are separate;
-there is no double counting. The new credits are limited to the tested operations
-and the default profile, not alternative business branches.
+**Post-credit state:** Eleven methods are provisionally `COVERED` with individual
+row-source links and the executed-head receipt; `POST workforce/worksites` is GAP
+with an explicitly documented passing `create_worksite` action-level scenario.
+Manifest totals: **270 COVERED / 214 GAP / 10 PUBLIC-BY-DESIGN** out of 494 API
+methods, plus 18 page/action GAPs. The three Performance-method credits from #1393
+are separate; there is no double counting. These credits are limited to tested
+operations and the default profile, not alternative business branches.
 
 **Still required before merge:** fresh CI on the updated final PR head (including
 source/manifest guards and the three table profiles), review of all credit links,

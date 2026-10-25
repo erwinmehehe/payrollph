@@ -28,6 +28,12 @@ const refreshLinks = process.argv.includes("--refresh-links");
 const onlyKeys = process.argv.flatMap((arg, index) => arg === "--only-key" ? [process.argv[index + 1]] : []);
 const selectedKeys = new Set(onlyKeys);
 const catalogKeys = new Set(["read", "write"].flatMap(kind => tenantFamilyCatalog(kind).map(row => row.key)));
+// A passing create_worksite action cannot certify other POST worksite actions.
+// Keep this method GAP until a separately reviewed complete proof is accepted.
+const actionScopedMethodHolds = new Set(["POST workforce/worksites"]);
+if (onlyKeys.some(key => actionScopedMethodHolds.has(key))) {
+  throw new Error("POST workforce/worksites remains GAP: create_worksite does not prove other POST actions");
+}
 if (selectedKeys.size !== onlyKeys.length || onlyKeys.some(key => !catalogKeys.has(key))) {
   throw new Error("--only-key requires unique exact catalog method keys");
 }
@@ -97,6 +103,7 @@ for (const source of SOURCES) {
     if (!hit) throw new Error(row.key + ": not in the manifest");
     const { method } = hit;
     const ownedHere = method.testedBy?.file === source.file;
+    if (method.status === "GAP" && actionScopedMethodHolds.has(row.key)) continue;
     if (method.status === "GAP" && selectedKeys.size && !selectedKeys.has(row.key)) continue;
     if (method.status !== "GAP" && !ownedHere) continue; // Preserve independently reviewed proof provenance.
     if (refreshLinks && !ownedHere) continue; // Pending rows remain GAP until an executed proof is credited.

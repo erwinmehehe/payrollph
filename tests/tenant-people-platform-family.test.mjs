@@ -62,14 +62,21 @@ test("executed People/platform credits stay pinned, selected refresh does not ad
   assert.deepEqual(report.before, report.after);
   assert.equal(readFileSync(file, "utf8"), before);
   assert.throws(() => execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--check", "--only-key", "PATCH unknown"], { stdio: "pipe" }));
+  assert.throws(() => execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--check", "--only-key", "POST workforce/worksites"], { stdio: "pipe" }), "incomplete worksite POST cannot be explicitly credited");
   const manifest = JSON.parse(before);
-  assert.equal(manifest.metrics.coveredAfter, 271);
-  assert.equal(manifest.metrics.gap, 213);
+  assert.equal(manifest.metrics.coveredAfter, 270);
+  assert.equal(manifest.metrics.gap, 214);
   assert.equal(manifest.metrics.publicByDesign, 10);
   for (const [key] of cases) {
     const [verb, route] = key.split(" ");
     const record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
     const method = record.methods.find(m => m.name === verb);
+    if (key === "POST workforce/worksites") {
+      assert.equal(method.status, "GAP", "Only create_worksite is proven; other actions remain untested");
+      assert.equal(method.testedBy, null, "Incomplete method evidence must not be source-pinned as covered");
+      assert.match(method.reason, /create_worksite/);
+      continue;
+    }
     assert.equal(method.status, "COVERED", key);
     assert.equal(method.testedBy.file, "scripts/qa/tenant-write-table-http.mjs", key);
     assert.equal(method.testedBy.ownPositiveLine, 113, key);
