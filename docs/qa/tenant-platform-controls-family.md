@@ -46,3 +46,11 @@ nor origin/MFA/tenant guards are relaxed. A regression exercises the real origin
 functions, accepting the loopback same-origin transport while retaining rejection
 of foreign/cross-site requests and an HTTP production canonical URL. New real CI
 is still required; the failed attempt does not establish the five method credits.
+
+The next default-profile attempt (job 121324069167, head `4d892f618`) passed the
+read phase, then exposed a fixture collision with HCM's work-item case. Both used
+the same `(organization_id, case_type, source_id)` tuple. The Platform fixture now
+uses the valid `coverage_recovery` case type, distinct from HCM's
+`attendance_resolution`. A regression invokes both real row factories against the
+same employer/worker while enforcing that unique key; a repeated Platform seed
+still rejects. Neither the database constraint nor application guards change.

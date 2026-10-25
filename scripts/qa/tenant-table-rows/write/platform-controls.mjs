@@ -43,7 +43,7 @@ export function createRows({ assert, db, eq, asc, apiKeys, organizations, organi
         assert.deepEqual(event.metadata, { sessionIdleMinutes: row.sessionIdleMinutes, sessionMaxHours: 24, maxActiveSessions: 3, requireMfa: true, ssoMode: "optional" });
       } },
     { key: "POST automation-studio",
-      seed: async e => (await db.insert(automationOperationalCases).values({ organizationId: e.org.id, employeeId: e.worker.id, caseType: "attendance_resolution", sourceType: "tenant_fixture", sourceId: e.worker.id, ownerTeam: "HR Operations", title: e.marker, detail: e.marker, status: "open" }).returning())[0],
+      seed: async e => (await db.insert(automationOperationalCases).values({ organizationId: e.org.id, employeeId: e.worker.id, caseType: "coverage_recovery", sourceType: "tenant_fixture", sourceId: e.worker.id, ownerTeam: "HR Operations", title: e.marker, detail: e.marker, status: "open" }).returning())[0],
       state: async orgId => ({ cases: await state(automationOperationalCases, orgId), audits: await audits(orgId), workers: await state(employees, orgId), executions: await state(automationExecutions, orgId) }),
       ownBody: c => ({ organizationId: c.orgId, action: "triage-operational-case", caseId: c.seeded.id, transition: "acknowledge", note: c.marker + " fictional triage note" }),
       foreignBody: c => ({ organizationId: c.victim.org.id, action: "triage-operational-case", caseId: c.victimSeeded.id, transition: "acknowledge", note: c.marker + " fictional triage note" }),

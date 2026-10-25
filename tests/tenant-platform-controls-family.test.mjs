@@ -4,10 +4,31 @@ import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { createRows } from "../scripts/qa/tenant-table-rows/write/platform-controls.mjs";
 import { createRows as readRows } from "../scripts/qa/tenant-table-rows/read/platform-controls.mjs";
+import { createRows as hcmRows } from "../scripts/qa/tenant-table-rows/write/hcm.mjs";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
 
 const rows = createRows({ assert });
 const c = { orgId: 11, workerId: 21, rank: 1, marker: "Fictional-own", owner: { id: 31, name: "Fictional owner" }, seeded: { id: 41 }, victim: { org: { id: 99 } }, victimSeeded: { id: 101 } };
+
+test("HCM and Platform case fixtures coexist for the same worker without duplicate source-case keys", async () => {
+  const table = Symbol("automationOperationalCases"), records = [];
+  const db = { insert(target) {
+    assert.equal(target, table);
+    return { values(value) { return { returning: async () => {
+      assert.ok(!records.some(old => old.organizationId === value.organizationId && old.caseType === value.caseType && old.sourceId === value.sourceId), "automation_operations_source_case_unique");
+      const row = { ...value, id: records.length + 1 }; records.push(row); return [row];
+    } }; } };
+  } };
+  const context = { assert, db, automationOperationalCases: table };
+  const hcm = hcmRows(context).find(row => row.key === "PATCH hcm/work-items");
+  const studio = createRows(context).find(row => row.key === "POST automation-studio");
+  const employer = { org: { id: 11 }, worker: { id: 21 }, marker: "Fictional-own" };
+  const hcmCase = await hcm.seed(employer), studioCase = await studio.seed(employer);
+  assert.notEqual(hcmCase.id, studioCase.id); assert.notEqual(hcmCase.caseType, studioCase.caseType);
+  assert.equal(studioCase.organizationId, 11); assert.equal(studioCase.employeeId, 21); assert.equal(studioCase.status, "open");
+  assert.equal(studioCase.caseType, "coverage_recovery");
+  await assert.rejects(() => studio.seed(employer), /automation_operations_source_case_unique/, "the regression still enforces uniqueness rather than dropping duplicates");
+});
 function evidence(key) {
   let before, after, json, action, resource, metadata;
   if (key === "POST developer") {
