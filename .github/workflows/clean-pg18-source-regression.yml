@@ -19,6 +19,9 @@ on:
       - "docs/sql/source-baseline-supplement.sql"
       - "scripts/qa/apply-source-baseline-supplement.mjs"
       - "scripts/lib/migration-only-objects.mjs"
+      - "scripts/run-sharded-tests.mjs"
+      - "tests/ci-restore-receipts.test.mjs"
+      - "tests/ci-test-shards.test.mjs"
       - "drizzle/**"
   push:
     branches: [main]
@@ -38,6 +41,9 @@ on:
       - "docs/sql/source-baseline-supplement.sql"
       - "scripts/qa/apply-source-baseline-supplement.mjs"
       - "scripts/lib/migration-only-objects.mjs"
+      - "scripts/run-sharded-tests.mjs"
+      - "tests/ci-restore-receipts.test.mjs"
+      - "tests/ci-test-shards.test.mjs"
       - "drizzle/**"
   workflow_dispatch:
 
@@ -239,6 +245,7 @@ jobs:
       - name: Run ENTIRE test shard; retain only test labels and exit status
         env:
           SHARD_INDEX: ${{ matrix.shard }}
+          REGRESSION_TEST_REPORTER: tap
         shell: bash
         run: |
           set -euo pipefail

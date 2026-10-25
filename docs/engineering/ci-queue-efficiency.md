@@ -60,3 +60,24 @@ especially both public-intake database jobs, before merge.
 For future fixes, batch related edits before pushing. Do not repeatedly re-run
 the entire suite when only one failed job needs a retry, and never cancel a
 current-head required check simply to make a merge appear ready.
+
+## Clean/restore CI repair
+
+The first synchronized head passed the shared intake build and both PG16/PG18
+HTTP acceptance jobs, but all four clean/restore control shards failed. That
+workflow installed 0109 without the reviewed migration-only schema supplement.
+It now applies the existing disposable-only baseline wrapper before dumping the
+source database, so both clean and restored runs start from the complete baseline.
+No SQL source, live database or baseline guard is changed.
+
+The shard runner's spec output also hid failure names from TAP-only receipt
+collectors. Human-facing CI keeps spec output; clean/restore and clean PG18
+collectors explicitly request TAP through a validated reporter option. The
+regression test executes a real deliberately failing fictional test through the
+Node CLI and actual receipt parser: clean-only, restore-only and shared failures
+remain failures, and private assertion diagnostics stay out of uploaded receipts.
+Both workflows now track their runner and receipt-test dependencies.
+
+This correction requires fresh real PostgreSQL CI; the earlier generic
+`nonzero_exit_without_TAP_failure` receipts cannot establish which individual
+assertions failed. Do not represent the source repair as a completed green run.
