@@ -94,9 +94,10 @@ test("Worker 360 page and People workspace preserve selected tenant and UX reque
   assert.match(people, /\/hcm\/worker-360\?organizationId=\$\{data\.selectedOrganization\.id\}&employeeId=\$\{employee\.id\}/);
   assert.match(client, /new AbortController\(\)/);
   assert.match(client, /controller\.abort\(\)/);
-  assert.match(client, /data\.tenantId !== organizationId/);
-  assert.match(client, /data\.employeeId !== employeeId/);
-  assert.match(client, /data\.asOfDate !== asOfDate/);
+  assert.match(client, /isValidWorker360Response\(data, organizationId, employeeId, asOfDate\)/);
+  assert.match(client, /const data: unknown = await response\.json\(\)/);
+  assert.ok(client.indexOf("isValidWorker360Response(data, organizationId, employeeId, asOfDate)") <
+    client.indexOf('setLoad({ key: scope, status: "ready"'), "validate before displaying worker data");
   assert.ok(!client.includes('method: "POST"'));
   assert.ok(!client.includes('method: "PATCH"'));
 });
