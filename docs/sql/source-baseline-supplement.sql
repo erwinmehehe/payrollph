@@ -920,3 +920,72 @@ ALTER TABLE public.workforce_demand_staffing_policy_events
   FOREIGN KEY(organization_id,prior_policy_id)
   REFERENCES public.workforce_demand_staffing_policies(organization_id,id)
   ON DELETE RESTRICT;
+
+
+-- F-04, 0137_immutable_payroll_calculation_history.sql: migration-only
+-- append/immutability functions and triggers. Only on the disposable, empty
+-- DB generated via db:push, to maintain source-baseline object parity.
+-- The actual 0137 forward migration remains operator-controlled; this
+-- supplement does not mark 0137 applied or authorize production changes.
+CREATE FUNCTION public.payroll_calculation_history_validate_insert()
+RETURNS trigger LANGUAGE plpgsql AS $history_insert$
+DECLARE
+  prior_revision integer;
+  prior_hash varchar(64);
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.payroll_runs r
+    JOIN public.payroll_jobs j ON j.payroll_run_id = r.id
+    JOIN public.employees e ON e.id = NEW.employee_id
+    WHERE r.id = NEW.payroll_run_id
+      AND r.organization_id = NEW.organization_id
+      AND r.legal_entity_id IS NOT DISTINCT FROM NEW.legal_entity_id
+      AND r.period_label = NEW.period_label
+      AND r.period_start = NEW.period_start
+      AND r.period_end = NEW.period_end
+      AND r.pay_date = NEW.pay_date
+      AND r.rule_version = NEW.rule_version
+      AND j.id = NEW.payroll_job_id
+      AND j.organization_id = NEW.organization_id
+      AND j.status = 'processing'
+      AND e.organization_id = NEW.organization_id
+      AND e.legal_entity_id IS NOT DISTINCT FROM NEW.legal_entity_id
+  ) THEN
+    RAISE EXCEPTION 'PAYROLL_HISTORY_SCOPE_OR_SOURCE_MISMATCH';
+  END IF;
+
+  SELECT h.revision, h.snapshot_hash INTO prior_revision, prior_hash
+  FROM public.payroll_calculation_history h
+  WHERE h.payroll_run_id = NEW.payroll_run_id AND h.employee_id = NEW.employee_id
+  ORDER BY h.revision DESC LIMIT 1;
+
+  IF NEW.revision <> COALESCE(prior_revision, 0) + 1
+    OR NEW.previous_snapshot_hash IS DISTINCT FROM prior_hash THEN
+    RAISE EXCEPTION 'PAYROLL_HISTORY_REVISION_CHAIN_INVALID';
+  END IF;
+  RETURN NEW;
+END $history_insert$;
+
+CREATE TRIGGER payroll_calculation_history_validate_insert
+BEFORE INSERT ON public.payroll_calculation_history
+FOR EACH ROW EXECUTE FUNCTION public.payroll_calculation_history_validate_insert();
+
+-- Deny ordinary INSERT-era revision edits/deletes, including direct SQL. The
+-- sole exception is FK-driven whole-organization erasure (trigger depth > 1);
+-- this is NOT a run/employee recalculation/delete escape hatch.
+CREATE FUNCTION public.payroll_calculation_history_reject_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $history_immutable$
+BEGIN
+  IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION 'PAYROLL_CALCULATION_HISTORY_IMMUTABLE';
+END $history_immutable$;
+
+CREATE TRIGGER payroll_calculation_history_no_update_delete
+BEFORE UPDATE OR DELETE ON public.payroll_calculation_history
+FOR EACH ROW EXECUTE FUNCTION public.payroll_calculation_history_reject_mutation();
+
+CREATE TRIGGER payroll_calculation_history_no_truncate
+BEFORE TRUNCATE ON public.payroll_calculation_history
+FOR EACH STATEMENT EXECUTE FUNCTION public.payroll_calculation_history_reject_mutation();
