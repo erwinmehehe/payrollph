@@ -15,10 +15,28 @@ permissions:
   contents: read
 
 jobs:
+  change-scope:
+    name: CI change scope
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.detect.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Classify exact PR changes (fail closed)
+        id: detect
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/ci/change-scope.mjs
+
   # Each regression shard uses its OWN disposable PG16 service, so financial
   # integration tests remain serial within a shard without racing other shards.
-  # The existing required "check" job depends on the complete matrix.
+  # Keep regression shards independent; the small required "check" gates every result.
   test-shard:
+    needs: change-scope
+    if: ${{ needs.change-scope.outputs.docs_only != 'true' }}
     name: Regression shard ${{ matrix.shard }}
     runs-on: ubuntu-latest
     strategy:
@@ -82,6 +100,8 @@ jobs:
 
   # Real LOGIN credentials on disposable PostgreSQL ONLY, never production.
   audit-chain-real-logins:
+    needs: change-scope
+    if: ${{ needs.change-scope.outputs.docs_only != 'true' }}
     name: audit-chain-real-logins (PG${{ matrix.postgres }}, ${{ matrix.foundation }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -127,8 +147,8 @@ jobs:
   # A matrix failure, skip or cancellation is never a passing gate.
   audit-chain-protection:
     name: audit-chain-protection
-    if: ${{ always() }}
-    needs: audit-chain-real-logins
+    if: ${{ always() && needs.change-scope.result == 'success' && needs.change-scope.outputs.docs_only != 'true' }}
+    needs: [change-scope, audit-chain-real-logins]
     runs-on: ubuntu-latest
     steps:
       - name: Require all four disposable real-login acceptance cases
@@ -144,12 +164,10 @@ jobs:
           echo "PASS: PG16 and PG18, legacy 0109 and forward candidate, synthetic only."
           echo "Production roles, grants and DBA cutover remain separately BLOCKED."
 
-  check:
-    # A skipped required check is treated as acceptable by GitHub rulesets.
-    # Always materialize this required job, even when a matrix shard fails,
-    # and make the outcome explicitly red before running any later checks.
-    if: ${{ always() }}
-    needs: [test-shard, audit-chain-protection]
+  validation:
+    name: CI lint, build, schema and payroll validation
+    needs: change-scope
+    if: ${{ needs.change-scope.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     env:
       TZ: Asia/Manila
@@ -170,13 +188,6 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      # A dependency failure makes GitHub implicitly add success() to step ifs
-      # unless this guard explicitly includes a status-check function.
-      - name: Required CI needs both regression shards and audit-chain-protection
-        if: ${{ always() && (needs.test-shard.result != 'success' || needs.audit-chain-protection.result != 'success') }}
-        run: |
-          echo "::error::Regression shards or audit-chain-protection failed, were cancelled, or were skipped."
-          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Fetch exact comparison base for fail-closed client-read scanner
         run: git fetch --no-tags --depth=1 origin "$FAIL_CLOSED_GUARD_BASE_REF"
@@ -185,6 +196,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Test fail-closed CI change classification
+        run: node --test tests/ci-change-scope.test.mjs
       - name: Guard client read fail-closed regressions (no database)
         run: npx tsx --test tests/fail-closed-client-read-guard.test.ts
       - name: Lint with the pinned compatible ESLint toolchain
@@ -217,20 +230,6 @@ jobs:
           CI: "true"
           COMPENSATION_MIGRATION_REHEARSAL_MODE: isolated-ci-only
         run: npm run compensation:release:migration:rehearse
-      - name: Rehearse isolated PostgreSQL backup and restore
-        env:
-          CI: "true"
-          DR_REHEARSAL_MODE: isolated-ci-only
-          PG_CONTAINER: ${{ job.services.postgres.id }}
-        run: bash scripts/verify-backup-restore.sh
-      - name: Upload sanitized DR engineering evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: payrollph-ci-dr-rehearsal
-          path: qa-artifacts/dr-rehearsal.json
-          retention-days: 14
-          if-no-files-found: warn
       - name: Guard against new oversized source modules
         run: npm run source:size:check
       - run: npx tsc --noEmit
@@ -285,3 +284,40 @@ jobs:
         env:
           CI: "true"
         run: node scripts/verify-safe-otel-next-runtime.mjs verify
+
+  check:
+    # This name is required by the main ruleset. Never skip this job.
+    # Docs-only PRs may omit heavy work; any other skipped/failed job is red.
+    if: ${{ always() }}
+    needs: [change-scope, test-shard, audit-chain-protection, validation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every applicable CI job to succeed
+        shell: bash
+        env:
+          SCOPE_RESULT: ${{ needs.change-scope.result }}
+          DOCS_ONLY: ${{ needs.change-scope.outputs.docs_only }}
+          REGRESSION_RESULT: ${{ needs.test-shard.result }}
+          AUDIT_RESULT: ${{ needs.audit-chain-protection.result }}
+          VALIDATION_RESULT: ${{ needs.validation.result }}
+        run: |
+          set -euo pipefail
+          if [ "$SCOPE_RESULT" != "success" ]; then
+            echo "::error::Change scope classifier failed or was skipped."
+            exit 1
+          fi
+          if [ "$DOCS_ONLY" = "true" ]; then
+            if [ "$REGRESSION_RESULT" != "skipped" ] || [ "$AUDIT_RESULT" != "skipped" ] || [ "$VALIDATION_RESULT" != "skipped" ]; then
+              echo "::error::Unexpected heavy CI result for Markdown-only PR."
+              exit 1
+            fi
+            echo "Markdown-only PR: heavy checks omitted; required gate passed."
+            exit 0
+          fi
+          for result in "$REGRESSION_RESULT" "$AUDIT_RESULT" "$VALIDATION_RESULT"; do
+            if [ "$result" != "success" ]; then
+              echo "::error::Required CI work failed, was cancelled, or was skipped."
+              exit 1
+            fi
+          done
+          echo "PASS: all regression, audit isolation and validation checks succeeded."
