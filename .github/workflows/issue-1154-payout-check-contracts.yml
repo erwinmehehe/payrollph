@@ -9,6 +9,11 @@ on:
       - ".github/workflows/issue-1154-payout-check-contracts.yml"
       - "docs/engineering/issue-1154-payout-check-contracts.md"
 
+# Supersede only older PR attempts; main/manual runs retain independent groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 

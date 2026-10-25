@@ -1,10 +1,15 @@
 name: Full Suite Clean vs Restored app_db (Synthetic Control)
 on:
   pull_request:
-    paths: ['.github/workflows/full-suite-clean-vs-restored-app-db.yml']
+    paths: ['.github/workflows/full-suite-clean-vs-restored-app-db.yml', 'scripts/run-sharded-tests.mjs', 'tests/ci-restore-receipts.test.mjs', 'tests/ci-test-shards.test.mjs', 'scripts/qa/apply-isolated-baseline.mjs', 'scripts/qa/apply-source-baseline-supplement.mjs', 'docs/sql/source-baseline-supplement.sql']
   push:
     branches: [main]
-    paths: ['.github/workflows/full-suite-clean-vs-restored-app-db.yml']
+    paths: ['.github/workflows/full-suite-clean-vs-restored-app-db.yml', 'scripts/run-sharded-tests.mjs', 'tests/ci-restore-receipts.test.mjs', 'tests/ci-test-shards.test.mjs', 'scripts/qa/apply-isolated-baseline.mjs', 'scripts/qa/apply-source-baseline-supplement.mjs', 'docs/sql/source-baseline-supplement.sql']
+# Supersede only older PR attempts; main/manual runs retain independent groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 jobs:
@@ -19,6 +24,8 @@ jobs:
     env:
       TZ: Asia/Manila
       CI: 'true'
+      # Scan against the exact PR base (or previous main SHA), not HEAD^ in a shallow checkout.
+      FAIL_CLOSED_GUARD_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
       SCHEDULER_REHEARSAL_MODE: isolated-ci-only
       OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: 'true'
       PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
@@ -26,6 +33,7 @@ jobs:
       RESTORE_CONTROL_MODE: disposable-pg16-only
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       SHARD_INDEX: '${{ matrix.shard }}'
+      REGRESSION_TEST_REPORTER: tap
     services:
       postgres:
         image: postgres:16
@@ -44,6 +52,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          # Two complete regression inventories require historical git refs, not just code.
+          # Keep the client read guard and flag-OFF payroll byte-parity test fail-closed.
+          fetch-depth: 0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
@@ -63,6 +74,8 @@ jobs:
         run: npm run db:push
       - name: Add isolated audit protection
         run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Apply reviewed migration-only objects before dumping the clean baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Run entire shard on clean DB, restore into app_db, run same shard again
         shell: bash
         env:

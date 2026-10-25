@@ -23,6 +23,11 @@ on:
       - "tests/wfm-1054-forward-migration-postgres.test.mjs"
       - ".github/workflows/issue-1054-forward-schema-rehearsal.yml"
 
+# Supersede only older PR attempts; main/manual runs retain independent groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 

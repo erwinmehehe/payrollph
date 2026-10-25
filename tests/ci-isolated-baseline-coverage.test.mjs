@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { load } from "js-yaml";
 
 const dir = ".github/workflows/";
 const workflows = readdirSync(dir).filter((name) => name.endsWith(".yml"))
@@ -20,23 +21,27 @@ test("every disposable-DB workflow that starts the app applies the cutover basel
 
 test("the baseline step runs after the schema push and after any explicit 0109 step", () => {
   for (const { name, text } of workflows) {
-    if (!/apply-isolated-baseline/.test(text)) continue;
-    const lines = text.split("\n");
-    const at = lines.findIndex((line) => line.includes("apply-isolated-baseline"));
-    const pushes = lines.map((line, i) => (/npm run db:push|drizzle-kit push/.test(line) ? i : -1)).filter((i) => i >= 0);
-    // Issue #993 uses the verified, disposable PG18 first-boot runner instead of db:push.
-    // Accept it only when a preflight is visible before bootstrap and both
-    // appear before the migration-only baseline. Do not waive the ordering gate.
-    const preflights = lines.map((line, i) =>
-      (/node scripts\/qa\/fresh-pg18-development-schema\.mjs preflight/.test(line) ? i : -1)).filter((i) => i >= 0);
-    const bootstraps = lines.map((line, i) =>
-      (/node scripts\/qa\/verified-pg18-bootstrap\.mjs/.test(line) ? i : -1)).filter((i) => i >= 0);
-    const verifiedBootstrap = bootstraps.some((bootstrap) =>
-      bootstrap < at && preflights.some((preflight) => preflight < bootstrap));
-    assert.ok(pushes.some((i) => i < at) || verifiedBootstrap,
-      name + ": baseline must follow a db:push or independently preflighted PG18 bootstrap");
-    const a0109 = lines.findIndex((line) => line.includes("apply-audit-0109-isolated"));
-    if (a0109 >= 0) assert.ok(a0109 < at, name + ": an explicit 0109 step must come before the idempotent baseline step");
+    // Inspect executable steps, not path-filter strings mentioning the helper.
+    for (const [jobName, job] of Object.entries(load(text).jobs ?? {})) {
+      const runs = (job.steps ?? []).map((step) => step.run ?? "");
+      for (let at = 0; at < runs.length; at++) {
+        if (!runs[at].includes("apply-isolated-baseline")) continue;
+        const label = name + "/" + jobName;
+        // Preserve per-job runnable-step validation from main. PG18 uses a
+        // verified isolated bootstrap rather than db:push; its preflight must
+        // complete before bootstrap, which must precede baseline installation.
+        const prior = runs.slice(0, at);
+        const pushedSchema = prior.some((run) => /npm run db:push|drizzle-kit push/.test(run));
+        const verifiedPg18Bootstrap = prior.some((run, i) =>
+          /node scripts\/qa\/verified-pg18-bootstrap\.mjs/.test(run) &&
+          prior.slice(0, i).some((before) =>
+            /node scripts\/qa\/fresh-pg18-development-schema\.mjs preflight/.test(before)));
+        assert.ok(pushedSchema || verifiedPg18Bootstrap,
+          label + ": baseline must follow db:push or a preflighted, verified PG18 bootstrap");
+        const audits = runs.flatMap((run, i) => run.includes("apply-audit-0109-isolated") ? [i] : []);
+        assert.ok(audits.every((i) => i < at), label + ": an explicit 0109 step must come before the idempotent baseline step");
+      }
+    }
   }
 });
 

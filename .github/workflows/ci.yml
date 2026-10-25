@@ -6,12 +6,9 @@ on:
   pull_request:
 
 concurrency:
-  # Keep each PR head in its own group: an older head's queued "check" job
-  # must not block this head's fail-closed matrix and required check.
-  # Duplicate attempts on the SAME head still cancel one another. Older heads
-  # may continue running but can never satisfy the latest-head merge gate.
-  # Pushes to main are still isolated by SHA and are never cancelled.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event.pull_request.head.sha || github.sha }}
+  # One stable group per PR cancels superseded heads instead of retaining them.
+  # Main pushes remain keyed by SHA and cannot cancel another main commit.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:

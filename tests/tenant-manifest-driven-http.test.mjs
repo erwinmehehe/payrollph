@@ -83,11 +83,13 @@ test("single table-driven test reads every manifest method without claiming prec
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  // remittance-actions has no credit from this runner; it may close only through the table proof.
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), [], "The remittance-action GET has independent PG16 coverage");
+  // remittance-actions has no credit from this runner; its separate table or employer-isolation proof must remain source-linked.
   const remittanceActions = registry.get("GET compliance/remittance-actions");
-  assert.ok(remittanceActions.status === "GAP" || remittanceActions.testedBy?.file === "scripts/qa/tenant-table-http.mjs");
+  assert.ok(remittanceActions.status === "GAP" || ["scripts/qa/tenant-table-http.mjs", "scripts/qa/remittance-action-entity-http.mjs"].includes(remittanceActions.testedBy?.file));
   assert.deepEqual(specs.filter((spec) => spec !== "GET compliance/remittance-actions" && registry.get(spec).status === "GAP"), []);
   const expectedCovered = [
+    "GET compliance/remittance-actions",
     "GET compliance/bir-1601c-remittances",
     "GET compliance/government-loan-remittances",
     "GET compliance/statutory-remittances",
@@ -95,8 +97,10 @@ test("single table-driven test reads every manifest method without claiming prec
     "GET compliance/statutory-remittances/payment-evidence/[id]",
     "GET compliance/statutory-remittances/posting-evidence/[id]",
   ];
+  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "COVERED").sort(),
+    expectedCovered.sort(), "Preserve all seven independently verified HTTP GET adapters");
   assert.deepEqual(specs.filter((spec) => spec !== "GET compliance/remittance-actions" && registry.get(spec).status === "COVERED").sort(),
-    expectedCovered.sort(), "Preserve all six independently verified HTTP GET adapters");
+    expectedCovered.filter(spec => spec !== "GET compliance/remittance-actions").sort(), "Preserve all six independently verified HTTP GET adapters");
   for (const spec of expectedCovered) {
     const proof = registry.get(spec).testedBy;
     assert.ok(proof?.file && proof.ownPositiveLine && proof.foreignDenialLine,

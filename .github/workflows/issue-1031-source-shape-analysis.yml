@@ -11,6 +11,11 @@ on:
       - "docs/engineering/issue-1031-113-table-parity-blocker-20261018.md"
       - ".github/workflows/issue-1031-source-shape-analysis.yml"
 
+# Supersede only older PR attempts; main/manual runs retain independent groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
