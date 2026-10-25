@@ -125,7 +125,7 @@ function ScopedMyTeam({
               <div>
                 <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">My Team</h1>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-                  Your people and pending workflow records, in one place.
+                  Authorized people and pending source records, not a verified direct-report list.
                   All approvals and HR updates stay in their existing governed workspaces.
                 </p>
               </div>
@@ -165,6 +165,11 @@ function ScopedMyTeam({
                   data?.scope.kind === "company" ? "Company-wide HR view" : "Verifying authorized scope"}
                 · Salary, identity numbers, bank information and leave reasons are excluded.
               </p>
+              {data && <p className="mt-1 text-xs leading-5 text-slate-600">
+                {data.scope.kind === "unit"
+                  ? "Assigned-unit membership does not prove a direct-report relationship."
+                  : "This HR directory is not a verified supervisory hierarchy."}
+              </p>}
             </div>
           </div>
           {data && <p className="text-xs text-slate-500">Source read {observedInManila(data.observedAt)}</p>}

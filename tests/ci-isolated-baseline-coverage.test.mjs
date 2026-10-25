@@ -27,7 +27,17 @@ test("the baseline step runs after the schema push and after any explicit 0109 s
       for (let at = 0; at < runs.length; at++) {
         if (!runs[at].includes("apply-isolated-baseline")) continue;
         const label = name + "/" + jobName;
-        assert.ok(runs.slice(0, at).some((run) => /npm run db:push|drizzle-kit push/.test(run)), label + ": baseline must follow a db:push step");
+        // Preserve per-job runnable-step validation from main. PG18 uses a
+        // verified isolated bootstrap rather than db:push; its preflight must
+        // complete before bootstrap, which must precede baseline installation.
+        const prior = runs.slice(0, at);
+        const pushedSchema = prior.some((run) => /npm run db:push|drizzle-kit push/.test(run));
+        const verifiedPg18Bootstrap = prior.some((run, i) =>
+          /node scripts\/qa\/verified-pg18-bootstrap\.mjs/.test(run) &&
+          prior.slice(0, i).some((before) =>
+            /node scripts\/qa\/fresh-pg18-development-schema\.mjs preflight/.test(before)));
+        assert.ok(pushedSchema || verifiedPg18Bootstrap,
+          label + ": baseline must follow db:push or a preflighted, verified PG18 bootstrap");
         const audits = runs.flatMap((run, i) => run.includes("apply-audit-0109-isolated") ? [i] : []);
         assert.ok(audits.every((i) => i < at), label + ": an explicit 0109 step must come before the idempotent baseline step");
       }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
-import { employees, organizations, payrollEntries, payrollJobs, payrollRuns, timePunches } from "../../src/db/schema";
+import { employeePayProfiles, employees, organizations, payrollEntries, payrollJobs, payrollRuns, timePunches } from "../../src/db/schema";
 import { enqueuePayrollRun } from "../../src/lib/payroll-engine";
 
 /**
@@ -68,6 +68,18 @@ async function main() {
     status: "Active",
     region: "NCR",
   }).returning({ id: employees.id });
+  // Synthetic employees are inserted directly, bypassing the usual employee
+  // creation route. Supply the explicit monthly pay profile at fixture-seed
+  // time; production payroll rightly refuses missing profiles rather than
+  // silently backfilling or changing employee compensation at calculation time.
+  await db.insert(employeePayProfiles).values({
+    organizationId: org.id,
+    employeeId: employee.id,
+    payBasis: "monthly",
+    rateAmount: "30000.00",
+    standardWorkDaysPerMonth: "22.00",
+    standardHoursPerDay: "8.00",
+  });
   for (const date of ["2026-09-22", "2026-09-24"]) {
     await db.insert(timePunches).values({
       organizationId: org.id,

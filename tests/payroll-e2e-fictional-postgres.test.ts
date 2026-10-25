@@ -48,11 +48,14 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
   skip: !isolated,
 }, async () => {
   const previousExitFlag = process.env.APPROVED_EXIT_PAYROLL_ENABLED;
+  const previousHistoryFlag = process.env.PAYROLL_CALCULATION_HISTORY_ENABLED;
   process.env.APPROVED_EXIT_PAYROLL_ENABLED = "true";
-  const { and, eq, inArray } = await import("drizzle-orm");
+  process.env.PAYROLL_CALCULATION_HISTORY_ENABLED = "true";
+  const { and, asc, eq, inArray } = await import("drizzle-orm");
   const { db } = await import("../src/db");
   const { organizations, legalEntities, employees, timePunches,
-    payrollRuns, payrollEntries, payslips, auditEvents, separationRecords, users } = await import("../src/db/schema");
+    payrollRuns, payrollEntries, payrollCalculationHistory, payslips, auditEvents, separationRecords, users } = await import("../src/db/schema");
+  const { verifyPayrollCalculationEvidence } = await import("../src/lib/payroll-calculation-history");
   const { enqueuePayrollRun, drainPayrollQueue } = await import("../src/lib/payroll-engine");
   const { settlePayrollRun } = await import("../src/lib/payroll-settlement");
   const { buildReleasedPayrollJournal } = await import("../src/lib/payroll-journal-export");
@@ -103,6 +106,17 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
       db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, runId));
     const slips = (orgId: number) =>
       db.select().from(payslips).where(eq(payslips.organizationId, orgId));
+    const history = (runId: number) => db.select().from(payrollCalculationHistory)
+      .where(eq(payrollCalculationHistory.payrollRunId, runId))
+      .orderBy(asc(payrollCalculationHistory.id));
+    const assertHistoryProof = (record: typeof payrollCalculationHistory.$inferSelect) => {
+      const { id: _id, recordedAt: _recorded, ...evidence } = record;
+      void _id;
+      void _recorded;
+      assert.equal(verifyPayrollCalculationEvidence(evidence), true);
+      assert.equal(Object.hasOwn(record.trace as object, "payment"), false,
+        "Duplicating payment destination PII into payroll math history is forbidden");
+    };
     const runHeader = async (id: number) => {
       const [row] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, id));
       assert.ok(row);
@@ -133,10 +147,14 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
       "51 individually rounded half-cent salaries = 561000.51, not 561000.26");
     assert.equal((await slips(alpha.id)).length, 51);
     assert.ok((await slips(alpha.id)).every((s) => s.content.includes("Gross: PHP ")));
+    const firstHistory = await history(runA.id);
+    assert.equal(firstHistory.length, 51);
+    assert.ok(firstHistory.every(row => row.revision === 1 && row.previousSnapshotHash === null));
+    firstHistory.forEach(assertHistoryProof);
     const preservedAlpha = aFirst.map(report).sort((a, b) => a.employeeId - b.employeeId);
     const firstSlips = (await slips(alpha.id)).map((s) => s.content).sort();
 
-    // Identical rerun of a Needs review run replaces detail/payslips, not appends.
+    // Identical rerun replaces current detail/payslips, but MUST append immutable history.
     await seedMonthlyPayProfilesForRun(runA.id);
     await enqueuePayrollRun(runA.id, 25);
     await drainPayrollQueue(10, runA.id);
@@ -144,6 +162,17 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
     assert.deepEqual(aReplay.map(report).sort((a, b) => a.employeeId - b.employeeId), preservedAlpha);
     assert.deepEqual((await slips(alpha.id)).map((s) => s.content).sort(), firstSlips);
     assert.equal((await slips(alpha.id)).length, 51);
+    const replayHistory = await history(runA.id);
+    assert.equal(replayHistory.length, 102, "Each recalculated employee retains both revisions");
+    replayHistory.forEach(assertHistoryProof);
+    for (const worker of alphaWorkers) {
+      const [oldVersion, newVersion] = replayHistory.filter(row => row.employeeId === worker.id);
+      assert.equal(oldVersion.revision, 1);
+      assert.equal(newVersion.revision, 2);
+      assert.equal(newVersion.previousSnapshotHash, oldVersion.snapshotHash);
+      assert.equal(newVersion.grossPay, oldVersion.grossPay);
+      assert.equal(newVersion.netPay, oldVersion.netPay);
+    }
     assert.equal((await drainPayrollQueue(2, runA.id)).length, 0,
       "No pending job may append a third copy");
 
@@ -154,6 +183,9 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
     const bRows = await reconcile(runB.id, 2);
     assert.equal(cents((await runHeader(runB.id)).grossPay), 2200000);
     assert.equal((await slips(beta.id)).length, 2);
+    const betaHistory = await history(runB.id);
+    assert.equal(betaHistory.length, 2);
+    betaHistory.forEach(assertHistoryProof);
     assert.deepEqual((await entries(runA.id)).map(report).sort((a, b) => a.employeeId - b.employeeId),
       preservedAlpha, "Creating another employer does not change Alpha");
 
@@ -226,6 +258,16 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
     assert.notDeepEqual(corrected.map(report).sort((a, b) => a.employeeId - b.employeeId),
       preservedAlpha, "Source change must change the re-reviewed calculation");
     assert.equal((await slips(alpha.id)).length, 51);
+    const correctedHistory = await history(runA.id);
+    assert.equal(correctedHistory.length, 153);
+    correctedHistory.forEach(assertHistoryProof);
+    for (const worker of alphaWorkers) {
+      const revisions = correctedHistory.filter(row => row.employeeId === worker.id);
+      assert.deepEqual(revisions.map(row => row.revision), [1, 2, 3]);
+      assert.equal(revisions[2].previousSnapshotHash, revisions[1].snapshotHash);
+    }
+    const firstWorkerHistory = correctedHistory.filter(row => row.employeeId === alphaWorkers[0].id);
+    assert.notEqual(firstWorkerHistory[2].grossPay, firstWorkerHistory[1].grossPay);
     assert.deepEqual((await entries(runB.id)).map(report), bRows.map(report),
       "Released Beta is unaffected by Alpha correction");
     await assert.rejects(() => enqueuePayrollRun(runB.id), /PAYROLL_RECALCULATION_NOT_ALLOWED/);
@@ -255,11 +297,16 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
       "Previous 561313.01 - (11000.01 - 6600.00) = 556913.00");
     assert.ok((exited.trace as { inputs?: string[] }).inputs?.includes("employmentEnd=2026-10-09"));
     assert.equal((await slips(alpha.id)).length, 51);
+    const finalHistory = await history(runA.id);
+    assert.equal(finalHistory.length, 204, "Approved-exit correction creates a fourth immutable snapshot per employee");
+    finalHistory.forEach(assertHistoryProof);
     assert.deepEqual((await entries(runB.id)).map(report).sort((a, b) => a.employeeId - b.employeeId),
       bRows.map(report).sort((a, b) => a.employeeId - b.employeeId));
   } finally {
     if (previousExitFlag === undefined) delete process.env.APPROVED_EXIT_PAYROLL_ENABLED;
     else process.env.APPROVED_EXIT_PAYROLL_ENABLED = previousExitFlag;
+    if (previousHistoryFlag === undefined) delete process.env.PAYROLL_CALCULATION_HISTORY_ENABLED;
+    else process.env.PAYROLL_CALCULATION_HISTORY_ENABLED = previousHistoryFlag;
     // Explicit dependent teardown avoids RESTRICT FK ordering between
     // legal employers, released runs and workers. Remaining child rows cascade.
     const orgIds = orgs.map((org) => org.id);

@@ -108,6 +108,9 @@ jobs:
           # Never enable or change the corresponding Vercel production flag.
           EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
           OWNER_PRACTICE_PAYROLL_ENABLED: "true"
+          # F-04 read authorization verified only on this disposable PG16 server.
+          # Production remains explicitly default-OFF until 0137 is approved.
+          PAYROLL_CALCULATION_HISTORY_ENABLED: "true"
           # Only the disposable localhost three-employer HTTP fixture; never deployed.
           HCM_GOVERNANCE_READINESS_ENABLED: "true"
           BIR_1604C_DAT_CANDIDATE_ENABLED: "true"
@@ -162,6 +165,8 @@ jobs:
         env:
           CI: "true"
           TENANT_SECOND_PASS_MODE: isolated-ci-only
+          # Match the isolated server flag for positive seeded F-04 SQL evidence.
+          PAYROLL_CALCULATION_HISTORY_ENABLED: "true"
           TENANT_DL01_VAULT_PROOF: isolated-ci-only
           EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
         run: npx tsx scripts/qa/tenant-second-pass-http.mjs

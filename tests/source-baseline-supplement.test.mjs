@@ -13,8 +13,14 @@ test("the supplement is an unnumbered, clearly labelled baseline file outside dr
   const sql = read(SUPPLEMENT);
   assert.match(sql, /^-- Source-first baseline supplement\. NOT a numbered migration; never run by the app\./);
   assert.match(sql, /Production remains DBA-gated/);
-  assert.doesNotMatch(sql.replace(/--[^\n]*/g, ""), /\b(DELETE\s+FROM|TRUNCATE|DROP\s+TABLE|INSERT\s+INTO|UPDATE\s+\w+\s+SET)\b/i,
+  // Standalone destructive statements are forbidden. A protective
+  // CREATE TRIGGER ... BEFORE TRUNCATE must remain in the immutable ledger.
+  const destructiveSql = /^[ \t]*(?:DELETE[ \t]+FROM|TRUNCATE\b|DROP[ \t]+TABLE|INSERT[ \t]+INTO|UPDATE[ \t]+\w+[ \t]+SET)\b/im;
+  assert.doesNotMatch(sql.replace(/--[^\n]*/g, ""), destructiveSql,
     "the supplement adds schema objects only; it never touches rows or drops tables");
+  assert.match(sql, /CREATE TRIGGER payroll_calculation_history_no_truncate\s+BEFORE TRUNCATE/);
+  assert.match("TRUNCATE TABLE payroll_calculation_history;", destructiveSql,
+    "a genuine destructive statement must still be rejected");
 });
 
 test("the supplement carries the money and tenant protections a source-first baseline lacks", () => {

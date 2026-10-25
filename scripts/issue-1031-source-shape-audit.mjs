@@ -19,8 +19,9 @@ export const HISTORICAL_SCHEMA_SHA256 = "72c465c62e99aa9ce0271d700cc526f408216b0
 /**
  * Keep the historical 0132-era SQL shape analysis immutable across #1210.
  * The reviewed post-pin changes are two marketing index sort directives,
- * the #641 salary-correction definitions, and the single 0136 active-proof
- * partial unique index. Reconstruct the EXACT historical source bytes,
+ * the #641 salary-correction definitions, the single 0136 active-proof
+ * partial unique index, and the F-04/0137 payroll history model.
+ * Reconstruct the EXACT historical source bytes,
  * or stop instead of falsely updating evidence.
  */
 export function reconstructPinnedSchemaText(currentSource) {
@@ -46,6 +47,11 @@ export function reconstructPinnedSchemaText(currentSource) {
       start: "/**\n * #641 governed backdated salary correction case.",
       end: "export const minWageOrders = pgTable(",
       sha256: "0ea39d85fd6a2aee4d442a56fcb127b1a92a514dc9b5122b7af5a94d54977a87",
+    },
+    { // F-04 payroll calculation history (drizzle/0137): reviewed, additive schema block
+      start: "/** Append-only payroll math evidence.",
+      end: "/**\n * First-class payout intent ledger",
+      sha256: "733125669fb71f823a0767149ed759c1ba3e45ee1f5c55923b14dd5ba51ab732",
     },
   ];
   for (const addition of reviewedAdditions) {

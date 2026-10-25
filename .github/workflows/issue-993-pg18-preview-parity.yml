@@ -96,6 +96,11 @@ jobs:
           node scripts/qa/fresh-pg18-development-schema.mjs capture
       - name: Install isolated append-only audit guard before fictional test
         run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Install disposable source-baseline migration-only protections
+        # Canonical persisted payroll verifies leave/pay-profile constraints
+        # read-only. The PG18 dev bootstrap creates tables but not all SQL-only
+        # guards; exact missing guard objects are installed only on empty CI.
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Five-worker canonical preview versus separate no-release payroll run
         run: npx tsx --test tests/first-payroll-tenant-resume-postgres.test.ts
       - name: Verify no real-data, payout or human acceptance claim
