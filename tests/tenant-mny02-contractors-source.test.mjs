@@ -119,6 +119,11 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   const preRun = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"]?.methods.find(m => m.name === "GET");
   assert.equal(preRun?.status, "COVERED", "Main source-pinned readiness GET must retain its independent credit");
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
+  const actionMethods = manifest.allApiRouteFiles["src/app/api/compliance/remittance-actions/route.ts"]?.methods ?? [];
+  assert.deepEqual(actionMethods.map(method => method.name), ["GET", "POST"]);
+  assert.ok(actionMethods.every(method => method.status === "COVERED" &&
+    method.testedBy?.file === "scripts/qa/remittance-action-entity-http.mjs"),
+    "Two new action methods require separately source-pinned PostgreSQL/HTTP proof");
   // Payout GET and PATCH are two OTHER independent, exact-method source credits.
   // Require actual owned-positive, victim-denied and unchanged-victim lines, not
   // a phantom offset in the historical contractor/EWT coverage ledger.

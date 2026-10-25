@@ -306,6 +306,50 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
     "Group report needs a distinct reviewed own/foreign and unattributed-employer denial proof");
   assert.equal(groupReport?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
   const groupReportCredits = 1;
+  // The two new statutory action method credits must be independently linked
+  // to owned real HTTP 200, two-attacker victim denial 403, and unchanged SQL.
+  // Do NOT update the historical count without these exact-method receipts.
+  const actionPath = "src/app/api/compliance/remittance-actions/route.ts";
+  const actionMethods = manifest.allApiRouteFiles[actionPath]?.methods;
+  assert.deepEqual(actionMethods?.map(method => method.name).sort(), ["GET", "POST"],
+    "Exactly two statutory action HTTP methods; no extra provisional credit");
+  const actionSuite = readFileSync("scripts/qa/remittance-action-entity-http.mjs", "utf8");
+  const actionLines = actionSuite.split("\n");
+  const actionReceipt = {
+    GET: { own: 138, victim: 210 },
+    POST: { own: 186, victim: 213 },
+  };
+  for (const method of actionMethods) {
+    const pin = actionReceipt[method.name];
+    assert.ok(pin, "No unrelated method can borrow the statutory action proof");
+    assert.equal(method.status, "COVERED",
+      method.name + ": separate real own/victim legal-employer evidence required");
+    assert.equal(method.testedBy?.file, "scripts/qa/remittance-action-entity-http.mjs");
+    assert.deepEqual([
+      method.testedBy.line, method.testedBy.ownPositiveLine,
+      method.testedBy.foreignDenialLine, method.testedBy.unchangedDbLine,
+    ], [pin.own, pin.own, pin.victim, 237],
+      "Statutory action source evidence pins must remain exact");
+    const own = actionLines.slice(pin.own - 1, pin.own + 4).join("\n");
+    const foreign = actionLines.slice(pin.victim - 1, pin.victim + 4).join("\n");
+    assert.match(own, /expectStatus\(await request\("\/api\/compliance\/remittance-actions/);
+    assert.match(own, /\), 200,/);
+    assert.match(foreign, /expectStatus\(await request\("\/api\/compliance\/remittance-actions/);
+    assert.match(foreign, /\), 403,/);
+    if (method.name === "POST") {
+      assert.match(own, /method: "POST"/);
+      assert.match(foreign, /method: "POST"/);
+    }
+  }
+  assert.match(actionLines[236], /assert\.deepEqual\(await snapshot\(victim\.id\), before,/,
+    "Denied action mutations must leave actual victim DB/audit/outbox/payroll unchanged");
+  assert.match(actionSuite, /for \(const attacker of \[attackerA, attackerB\]\)/,
+    "Two independently authenticated unrelated attacker tenants are required");
+  const actionWorkflow = readFileSync(".github/workflows/remittance-action-tenant-isolation.yml", "utf8");
+  assert.match(actionWorkflow, /multi_entity: \['false', 'true'\]/);
+  assert.match(actionWorkflow, /image: postgres:16/);
+  assert.match(actionWorkflow, /npx tsx scripts\/qa\/remittance-action-entity-http\.mjs/);
+  const actionCredits = actionMethods.length;
   const bir2316Methods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
     .filter(m => m.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
   assert.equal(bir2316Methods.length, 3, "Three source-pinned real signed-in BIR2316 HTTP methods");
@@ -356,11 +400,11 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   }
   assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - 5, 124,
+    tableMethods.length - mergedProofCredits - 7, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + 5, 359,
+    tableMethods.length + mergedProofCredits + 7, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

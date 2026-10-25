@@ -1,12 +1,88 @@
 name: Public Intake PostgreSQL HTTP Acceptance
 on:
   pull_request:
+    # Ordinary prose skips this optional integration; executable fixtures/config still run.
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!**/*.mdx'
+      - '!LICENSE*'
+      - 'src/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'public/**'
+      - '.github/**'
     branches: [main]
   workflow_dispatch:
+# Supersede only older PR attempts; main/manual runs retain independent groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 jobs:
+  build-intake:
+    name: Build intake application once
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      PUBLIC_INTAKE_PROOF_ENABLED: "true"
+      NEXT_PUBLIC_PUBLIC_INTAKE_PROOF_ENABLED: "true"
+      DEMO_MODE: "false"
+      WORKER_TOKEN: ci-worker-token-00000000000000000000000000000000
+      READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
+      SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
+      TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
+      MALWARE_SCAN_TOKEN: ci-malware-token-0000000000000000000000000000
+      REQUIRE_PRIVILEGED_MFA: "true"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Create independent fictional build-only keys
+        run: |
+          for name in PII_ENCRYPTION_KEY PUBLIC_INTAKE_PROOF_SECRET; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Package only this run's Next build (no npm or Next caches)
+        run: tar --exclude='.next/cache' -cf public-intake-next.tar .next
+      - uses: actions/upload-artifact@v7
+        with:
+          name: public-intake-next-${{ github.sha }}
+          path: public-intake-next.tar
+          retention-days: 1
+          if-no-files-found: error
+
   intake-postgres:
+    needs: build-intake
     name: intake-postgres (PG${{ matrix.postgres }})
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -61,7 +137,12 @@ jobs:
         run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Rehearse careers consent, isolated DDL rollback and two-employer HTTP (PG${{ matrix.postgres }})
         run: npx tsx --test --test-concurrency=1 tests/careers-http-postgres.test.ts
-      - run: npm run build
+      - uses: actions/download-artifact@v7
+        with:
+          name: public-intake-next-${{ github.sha }}
+          path: .ci-artifacts
+      - name: Restore the exact-source build shared by both PostgreSQL versions
+        run: tar -xf .ci-artifacts/public-intake-next.tar
       - name: Start production build with isolated PostgreSQL
         run: |
           nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/intake-main.log 2>&1 &

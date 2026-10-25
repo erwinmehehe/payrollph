@@ -483,6 +483,26 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   ) ?? [];
   assert.deepEqual(piiReviewMethods.map(method => method.name), ["GET", "POST"],
     "Two distinct PII identifier review HTTP proofs must not be double-counted");
+  // Retain the distinct statutory action real-HTTP/PG16 flag ON/OFF proof.
+  // These two GET/POST methods are separate from the BIR 2316 document proofs.
+  const actionPath = "src/app/api/compliance/remittance-actions/route.ts";
+  const actionMethods = manifest.allApiRouteFiles[actionPath]?.methods ?? [];
+  const actionProofFile = "scripts/qa/remittance-action-entity-http.mjs";
+  const actionLines = readFileSync(actionProofFile, "utf8").split("\n");
+  assert.deepEqual(actionMethods.map(m => m.name).sort(), ["GET", "POST"]);
+  for (const method of actionMethods) {
+    const [own, foreign] = method.name === "GET" ? [138, 210] : [186, 213];
+    assert.equal(method.status, "COVERED", method.name + ": own/victim source proof required");
+    assert.equal(method.testedBy?.file, actionProofFile);
+    assert.deepEqual([
+      method.testedBy.ownPositiveLine, method.testedBy.foreignDenialLine,
+      method.testedBy.unchangedDbLine,
+    ], [own, foreign, 237], "Remittance action source pins must remain exact");
+    assert.match(actionLines[own - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(actionLines[foreign - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(actionLines[236] ?? "", /assert\.deepEqual\(await snapshot\(victim\.id\), before,/);
+  }
+  const actionCredits = actionMethods.length;
   // Do not weaken the historic three-tenant HTTP proof when accepting the
   // separate two-method payout suite. Only these exact routes and method
   // executions, with a real victim snapshot, may account for the extra credit.

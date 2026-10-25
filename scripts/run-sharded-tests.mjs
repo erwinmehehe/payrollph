@@ -32,7 +32,16 @@ function runBinary(binary, args) {
   return result.status === 0;
 }
 
+// Human-facing jobs keep compact spec output; machine collectors explicitly request TAP.
+// Reject invalid reporters rather than silently generating an unparseable proof receipt.
+export function regressionTestArguments(files, reporter = "spec") {
+  if (!["spec", "tap"].includes(reporter)) throw new Error("INVALID_REGRESSION_REPORTER");
+  return ["--test", "--test-concurrency=1", "--test-reporter=" + reporter, ...files];
+}
+
 export function runRegressionShard(index, total) {
+  const reporter = process.env.REGRESSION_TEST_REPORTER ?? "spec";
+  regressionTestArguments([], reporter);
   const all = regressionFiles();
   const selected = selectRegressionShard(all, index, total);
   if (selected.length === 0) throw new Error("EMPTY_REGRESSION_SHARD");
@@ -53,8 +62,8 @@ export function runRegressionShard(index, total) {
   // independent PostgreSQL containers and deliberately independent keys.
   // Compact reporting keeps assertion details readable in CI log clients;
   // it changes neither the selected inventory nor the child exit status.
-  const tsOk = ts.length === 0 || runBinary(tsxBin, ["--test", "--test-concurrency=1", "--test-reporter=spec", ...ts]);
-  const mjsOk = mjs.length === 0 || runBinary(process.execPath, ["--test", "--test-concurrency=1", "--test-reporter=spec", ...mjs]);
+  const tsOk = ts.length === 0 || runBinary(tsxBin, regressionTestArguments(ts, reporter));
+  const mjsOk = mjs.length === 0 || runBinary(process.execPath, regressionTestArguments(mjs, reporter));
   return tsOk && mjsOk;
 }
 

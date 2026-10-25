@@ -2,11 +2,14 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   complianceActionTasks,
+  userLegalEntityGrants,
   userOrganizations,
   users,
 } from "@/db/schema";
 import { PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { queueMessage } from "@/lib/mailer";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { statutoryRemittanceTaskEntityId } from "@/lib/statutory-remittance-task-scope";
 
 type ComplianceTask = typeof complianceActionTasks.$inferSelect;
 
@@ -119,6 +122,7 @@ async function organizationRecipients(organizationId: number) {
     orgUnitId: userOrganizations.orgUnitId,
     name: users.name,
     email: users.email,
+    active: userOrganizations.active,
   })
     .from(userOrganizations)
     .innerJoin(users, eq(userOrganizations.userId, users.id))
@@ -127,7 +131,8 @@ async function organizationRecipients(organizationId: number) {
   return rows
     .filter((row) =>
       row.orgUnitId == null
-      && roleAllowed(row.role, PAYROLL_OPERATOR_ROLES),
+      && roleAllowed(row.role, PAYROLL_OPERATOR_ROLES)
+      && (!criticalReleaseFlagEnabled("multiEntity") || row.active),
     )
     .map((row) => ({
       userId: row.userId,
@@ -168,6 +173,7 @@ export function chooseEscalationRecipients(
 export async function queueStatutoryComplianceEscalations(input: {
   organizationId: number;
   taskIds?: number[];
+  legalEntityId?: number;
   actor: string;
 }) {
   let tasks = await db.select().from(complianceActionTasks).where(and(
@@ -179,7 +185,22 @@ export async function queueStatutoryComplianceEscalations(input: {
     const allowed = new Set(input.taskIds);
     tasks = tasks.filter((task) => allowed.has(task.id));
   }
+  // A single-employer sync may not queue reminders for another employer.
+  if (input.legalEntityId != null) {
+    tasks = tasks.filter(task =>
+      statutoryRemittanceTaskEntityId(task.sourceKey) === input.legalEntityId);
+  }
 
+  const enabled = criticalReleaseFlagEnabled("multiEntity");
+  // When multi-entity is ON, only active payroll operators with an explicit
+  // grant to the task's actual employer may receive its confidential contents.
+  const entityGrants = enabled
+    ? await db.select({ userId: userLegalEntityGrants.userId,
+        legalEntityId: userLegalEntityGrants.legalEntityId })
+      .from(userLegalEntityGrants).where(eq(userLegalEntityGrants.organizationId, input.organizationId))
+    : [];
+  const grantedRecipients = new Set(entityGrants.map(
+    grant => `${grant.legalEntityId}:${grant.userId}`));
   const recipients = await organizationRecipients(input.organizationId);
   const results: Array<{
     taskId: number;
@@ -195,7 +216,14 @@ export async function queueStatutoryComplianceEscalations(input: {
   for (const task of tasks) {
     const stage = escalationStage(task, now);
     if (stage === 0) continue;
-    const selected = chooseEscalationRecipients(task, recipients, stage);
+    const employerId = statutoryRemittanceTaskEntityId(task.sourceKey);
+    // Legacy unattributed rows are not notification authority with the flag ON.
+    if (enabled && employerId == null) continue;
+    const safeRecipients = enabled
+      ? recipients.filter(recipient =>
+          grantedRecipients.has(`${employerId}:${recipient.userId}`))
+      : recipients;
+    const selected = chooseEscalationRecipients(task, safeRecipients, stage);
     for (const recipient of selected) {
       const result = await queueMessage({
         organizationId: input.organizationId,

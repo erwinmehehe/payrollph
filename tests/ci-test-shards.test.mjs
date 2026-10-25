@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { regressionFiles, selectRegressionShard } from "../scripts/run-sharded-tests.mjs";
+import { regressionFiles, selectRegressionShard, regressionTestArguments } from "../scripts/run-sharded-tests.mjs";
 
 test("four CI shards include every TypeScript and MJS regression exactly once", () => {
   const inventory = regressionFiles();
@@ -49,4 +49,12 @@ test("sharded CI checkout and Node setup remain immutable-action pinned", () => 
   assert.doesNotMatch(source, /uses: actions\/(?:checkout|setup-node)@v\d+\b/);
   assert.match(source, /uses: actions\/checkout@[a-f0-9]{40}/);
   assert.match(source, /uses: actions\/setup-node@[a-f0-9]{40}/);
+});
+
+
+test("machine collectors opt into TAP while human jobs retain spec; invalid reporters fail closed", () => {
+  const files = ["tests/fictional-a.test.ts", "tests/fictional-b.test.mjs"];
+  assert.deepEqual(regressionTestArguments(files), ["--test", "--test-concurrency=1", "--test-reporter=spec", ...files]);
+  assert.deepEqual(regressionTestArguments(files, "tap"), ["--test", "--test-concurrency=1", "--test-reporter=tap", ...files]);
+  for (const reporter of ["", "json", "spec --test-only", null]) assert.throws(() => regressionTestArguments(files, reporter), /INVALID_REGRESSION_REPORTER/);
 });
