@@ -1,5 +1,9 @@
 # PayrollPH E2E fictional QA findings and release holds
 
+**2026-10-24 follow-up:** #1280 is merged; the original findings below remain historical evidence.
+[Phase A overlap tests and decision memo](payroll-e2e-phase-a-decision-memo.md) records current guarded behavior and the still-open Phase B owner rulings.
+
+
 **Branch:** qa/payroll-e2e-fictional-invariants-20261019, branched from main b9bbed92d2e9db8d391181ba8f972396836fe131.
 **Date:** 2026-10-19.
 **Status:** NOT CERTIFIED. **UNVERIFIED RATE.** These scenarios test software arithmetic only, not statutory accuracy, legal entitlements, agency posting, or release permission.

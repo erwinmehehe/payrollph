@@ -248,6 +248,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 external personnel data transfer",
     approval: "Per-tenant opt-in, executed DPA and retention verification",
   },
+  payrollExplanationAi: {
+    env: "PAYROLL_EXPLANATION_AI_ENABLED",
+    owner: "Privacy",
+    risk: "P1 optional plain-language payroll finding explanations; deterministic local templates only until separately reviewed model integration",
+    approval: "Per-tenant opt-in, executed DPA and retention verification",
+  },
   automationLanguageStudio: {
     env: "AUTOMATION_LANGUAGE_STUDIO_ENABLED",
     owner: "Security",

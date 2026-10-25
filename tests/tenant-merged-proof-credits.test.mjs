@@ -12,7 +12,7 @@ test("four exact merged method receipts reconcile without crediting untested sib
   assert.equal(verifyMergedProofCredits(manifest), 4);
   assert.deepEqual(MERGED_PROOF_SPECS.map(s => s.method + " " + s.route),
     ["GET benefits", "POST benefits", "DELETE benefits", "GET workforce/worksites"]);
-  assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap], [156, 10, 328]);
+  assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap], [162, 10, 322]);
 });
 
 for (const spec of MERGED_PROOF_SPECS) {
