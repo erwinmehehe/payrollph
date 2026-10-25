@@ -80,6 +80,7 @@ for (const spec of specs) {
 
 test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped pages', () => {
   const methods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods);
+  assert.equal(methods.length, 494);
   assert.ok(methods.length > 0);
   assertLiveTenantCounts(assert, manifest);
   const readiness = manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts']

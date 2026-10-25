@@ -146,3 +146,38 @@ test("ambiguous organizations must choose a legal employer while single-employer
     await db.delete(organizations).where(eq(organizations.id, organization.id));
   }
 });
+
+test("concurrent lazy primary-employer initialization honors both unique indexes", async () => {
+  const helperSource = readFileSync("src/lib/legal-entity.ts", "utf8");
+  // ON CONFLICT (organization_id, code) alone misses the partial primary index.
+  assert.match(helperSource, /\.onConflictDoNothing\(\)/);
+  assert.doesNotMatch(helperSource, /onConflictDoNothing\(\{\s*target:/);
+
+  const [organization] = await db.insert(organizations).values({
+    name: "Synthetic Primary Init Race",
+    legalName: "Synthetic Primary Init Race Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    // A disposable-PG test with simultaneous first reads exposes the same
+    // duplicate-primary race seen in the browser sweep. No flags or money flows.
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 12 }, () => ensurePrimaryLegalEntity(organization.id)),
+    );
+    for (const result of attempts) {
+      if (result.status === "rejected") throw result.reason;
+      assert.ok(result.value, "Each initializer must find an actual employer");
+      assert.equal(result.value.organizationId, organization.id);
+      assert.equal(result.value.code, "PRIMARY");
+      assert.equal(result.value.primaryEntity, true);
+    }
+    const stored = await db.select().from(legalEntities)
+      .where(eq(legalEntities.organizationId, organization.id));
+    assert.equal(stored.length, 1, "Concurrent requests must not create extra legal employers");
+    assert.equal(stored[0].primaryEntity, true);
+    assert.equal(stored[0].active, true);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, organization.id));
+  }
+});
