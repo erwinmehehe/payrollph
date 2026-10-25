@@ -152,7 +152,7 @@ test("dimension comparison includes baseline-only and live-only rows with budget
   assert.equal(rows[2].variance.annualPositionBudget, 300_000);
 });
 
-test("published baseline persistence exists in schema migration and compatibility path", () => {
+test("published baseline persistence exists in Drizzle and numbered migration only", () => {
   const schema = readFileSync("src/db/schema.ts", "utf8");
   const migration = readFileSync("drizzle/0086_workforce_plan_baselines.sql", "utf8");
   const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
@@ -164,7 +164,8 @@ test("published baseline persistence exists in schema migration and compatibilit
   assert.ok(schema.includes('supersededAt: timestamp("superseded_at"'));
   assert.ok(migration.includes('CREATE TABLE IF NOT EXISTS "workforce_plan_baselines"'));
   assert.ok(migration.includes('"workforce_plan_baselines_scenario_unique"'));
-  assert.ok(compat.includes("CREATE TABLE IF NOT EXISTS workforce_plan_baselines"));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });
 
 test("publishing requires approved company-wide evidence and creates a locked version", () => {
