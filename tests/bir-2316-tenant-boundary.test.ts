@@ -1,3 +1,4 @@
+import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 /**
  * Regression controls for the offboarding BIR 2316 and unsigned certificate
  * source/PDF paths. Source/pure-policy tests are not HTTP acceptance:
@@ -97,6 +98,7 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
   const workflow = readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8");
   const script = readFileSync("scripts/qa/tenant-bir2316-http.mjs", "utf8");
   const inventory = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  verifyMergedProofCredits(inventory);
   assert.match(workflow, /npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/);
   assert.match(workflow, /MULTI_ENTITY_ENABLED: "true"/);
   assert.match(workflow, /BIR_2316_CERTIFICATE_DRAFT_ENABLED: "true"/);

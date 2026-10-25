@@ -17,3 +17,8 @@ Source contract: `tests/tenant-benefit-enrollments-source.test.mjs`. Rollback is
 ## First CI execution and fixture correction
 
 Initial head `4e7849441` reached the new real HTTP POST in Security HTTP Smoke, DL-02 and salary-correction-case CI. Each returned 500 because the positive POST reused the seeded enrolment's unique `(employee_id, plan_id, started_on)` key. The fixture now uses October 1 for the populated read row and October 16 for the new enrolment, asserts their keys differ before POST, and checks the persisted date. The schema constraint and required HTTP 201 remain unchanged. Fresh exact-head CI must pass; the initial failed executions grant no coverage credit.
+
+
+## Evidence reconciliation after passing merged-head CI
+
+Three method credits (GET/POST/DELETE) are now linked to passing merged-head receipt [a112b8dd7](https://github.com/erwinmehehe/payrollph/actions/runs/40084883554/job/120845670288). Catalogue PUT and HMO stay GAP. Current reconciled inventory is 156 COVERED / 10 PUBLIC-BY-DESIGN / 328 GAP, with 18 page/action gaps. Prior preparation counts and inventoryCreditsAdded=0 log fields are historical; the manifest and bounded receipt verifier now define the reviewed credits. No global or production acceptance.

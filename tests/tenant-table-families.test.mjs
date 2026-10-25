@@ -5,29 +5,18 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
-import ts from "typescript";
+import { createHash } from "node:crypto";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
 import { loadTenantRows, validateTenantRow } from "../scripts/qa/tenant-table-loader.mjs";
 
-function originalRows(kind) {
-  // Immutable mechanical-move baseline, not a live coverage count.
-  const name = kind === "read" ? "tenant-table-http.mjs" : "tenant-write-table-http.mjs";
-  const variable = kind === "read" ? "TENANT_TABLE" : "TENANT_WRITE_TABLE";
-  const source = execFileSync("git", ["show", "937b27aec2d5724ca1ae39662069156f0928824f:scripts/qa/" + name], { encoding: "utf8" });
-  const ast = ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
-  const declaration = ast.statements.filter(ts.isVariableStatement).flatMap((s) => [...s.declarationList.declarations])
-    .find((d) => d.name.getText(ast) === variable);
-  return declaration.initializer.arguments[0].elements.map((node) => ({
-    key: node.properties.find((p) => p.name?.getText(ast) === "key").initializer.text,
-    text: node.getText(ast),
-  }));
-}
+const parityBaseline = JSON.parse(readFileSync("scripts/qa/tenant-table-rows/baseline.json", "utf8"));
+function originalRows(kind) { return parityBaseline[kind]; }
 
 test("the family split preserves every original method, full executable row body and fixture order", () => {
   for (const kind of ["read", "write"]) {
     const original = originalRows(kind);
     const keys = new Set(original.map((row) => row.key));
-    assert.deepEqual(tenantFamilyCatalog(kind).filter((row) => keys.has(row.key)).map(({ key, text }) => ({ key, text })), original);
+    assert.deepEqual(tenantFamilyCatalog(kind).filter((row) => keys.has(row.key)).map(({ key, text }) => ({ key, sha256: createHash("sha256").update(text).digest("hex") })), original);
   }
 });
 

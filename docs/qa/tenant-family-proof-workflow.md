@@ -26,8 +26,10 @@ disabled required flags, duplicate methods and invalid proof shapes fail closed.
 2. Reuse the generator and probe from #1383; see
    [tenant write discovery](./tenant-write-discovery.md). A probe's HTTP success
    is a candidate, not an isolation credit. Only ten initial bounded probe
-   candidates were identified; there is no verified 60–90-method yield or delivery
-   estimate. Actual fixture/probe results determine batch size.
+   candidates were identified before #1382. Re-running the existing offline plan
+   after #1382/#1372 now finds **171 GAP writes, 273 tables and 7 bounded candidates**.
+   These are proposals, not executed probe successes. There is no verified
+   60–90-method yield or delivery estimate; actual results determine batch size.
 3. Execute the real disposable HTTP/PostgreSQL profiles. Only after the exact
    method's proof passes, generate its manifest evidence **before merge** using
    `node scripts/qa/tenant-table-credit.mjs --run-label "<actual proof receipt>"`.
@@ -49,14 +51,21 @@ disabled required flags, duplicate methods and invalid proof shapes fail closed.
 
 ## Initial nonoverlapping work lanes
 
-- **Performance:** `performance` family. Probe suitable plan/goal writes first;
-  fixtures must prove persisted changes, not merely accepted HTTP.
-- **People/platform:** `people` and `platform` families. Use the generator's
-  bounded candidates and leave email/provider-dependent routes uncredited.
-- **HCM/workforce:** `hcm` and `workforce` families. Separate governed state
-  machines from simple fixtures; do not claim a missing prerequisite is success.
+The existing offline plan was regenerated after #1382/#1372. Its seven bounded
+candidates divide into these lanes; none has a new isolation credit from this PR:
 
-Check the current GAP manifest and open PRs before selecting method keys. The
+| Lane | Candidate methods | Family files |
+|---|---|---|
+| Performance | `PATCH performance/action-items`, `PATCH performance/continuous`, `POST performance/action-items` | `write/performance.mjs` |
+| People/platform | `PATCH discipline`, `POST dynamic-worker-groups`, `POST delegations` | `write/people.mjs`, `write/platform.mjs` |
+| HCM | `POST hcm/employment-terms` | `write/hcm.mjs` |
+
+Each lane must first execute the disposable probe and inspect results, then add
+method-specific proof expectations. “Bounded candidate” does not imply a valid
+fixture or a successful own/foreign test. Other workforce/HCM state machines
+remain explicit follow-up work, not promised batch capacity.
+
+Check the current GAP manifest and open PRs before assigning method keys. The
 identifier-review, payout-destination and remittance-action methods already have
-open PRs and should not be duplicated. These are ownership lanes, not promises
-about the number of methods that can be recovered.
+open PRs and should not be duplicated. Develop families in parallel only after
+this infrastructure lands; review and merge those family PRs sequentially.

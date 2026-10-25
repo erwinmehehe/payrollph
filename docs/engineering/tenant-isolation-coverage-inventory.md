@@ -770,6 +770,15 @@ At the historical PR #1322 checkpoint, the frozen DL-01 queue had 7 COVERED, 2 P
 
 Three GAP methods, `GET/POST/DELETE /api/benefits`, now have an additive [disposable three-employer HTTP candidate](../../scripts/qa/tenant-benefit-enrollments-http.mjs) and [source contract](../../tests/tenant-benefit-enrollments-source.test.mjs). It requires populated own reads, persisted own enrolment creation/ending, real higher-ID victim denials, forged worker/plan selectors, employee-role and anonymous denial, same-session membership revocation and exact unchanged victim benefits/payroll/audit snapshots. See [acceptance scope](../qa/tenant-benefit-enrollments-http.md). **Prepared only: exact-head HTTP CI has not yet passed; all three remain GAP, no new COVERED credits, global NOT ACCEPTED status and existing summary counts unchanged.** Catalogue PUT and HMO workflows remain unproven. No production operations or feature activation.
 
+## Merged benefits/worksite evidence reconciliation — four method credits
+
+The signed-in disposable-PG16 tests already merged in #1366 and #1369 passed on their reviewed heads. This closeout links **only benefits GET/POST/DELETE and worksite GET**, moving the synced baseline **158/10/326 to 162/10/322** among the same 494 API methods. It adds no endpoints and changes no runtime authorization, payroll math, flags or production data.
+
+- Benefits receipt: [Security HTTP Smoke, a112b8dd7](https://github.com/erwinmehehe/payrollph/actions/runs/40084883554/job/120845670288). The job logged BENEFIT_ENROLLMENT_HTTP_CANDIDATE after both attacker employers completed own/foreign/forged/revoked/role controls and exact victim snapshots.
+- Worksite receipt: [Security HTTP Smoke, d733b1f34](https://github.com/erwinmehehe/payrollph/actions/runs/40091436728/job/120864754791). The job logged both completed suites. **Worksite POST remains GAP**: its three tested actions do not establish photo, geofence or HCM authorization acceptance. Benefits PUT and HMO remain GAP too.
+- [Bounded proof verifier](../../scripts/qa/tenant-merged-proof-credits.mjs) checks exact route+verb identities, all assertion lines, original CI heads/jobs and immutable proof-source SHA256s. [Negative tests](../../tests/tenant-merged-proof-credits.test.mjs) reject missing pins, shifted assertions, changed source or sibling-method credit borrowing. Historical ledger guards subtract only these four validated credits, retaining their original baselines.
+
+**NOT ACCEPTED globally:** 328 API method and 18 page/action gaps remain. The four receipts establish fictional HTTP isolation evidence, not production payroll, payment-provider or complete action-level certification. Fresh closeout-head CI must also pass before merging this reconciliation. Earlier preparation notes above describe their original uncredited state.
 
 ## Prepared HMO GET/POST batch (2026-10-24; no credits yet)
 
