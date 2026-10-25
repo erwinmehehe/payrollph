@@ -1,0 +1,71 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import test from "node:test";
+import { createRows as people } from "../scripts/qa/tenant-table-rows/write/people.mjs";
+import { createRows as platform } from "../scripts/qa/tenant-table-rows/write/platform.mjs";
+
+const rows = [...people({ assert }), ...platform({ assert })];
+const base = { orgId: 11, workerId: 21, unitId: 31, marker: "OWN-MARK", owner: { id: 91, name: "Own owner" },
+  victim: { org: { id: 99 }, worker: { id: 199 }, unit: { id: 299 }, owner: { name: "Victim owner" } },
+  victimSeeded: { id: 399, name: "Victim delegate", code: "victim-code", conditions: { version: 1, all: [{ field: "title", operator: "eq", value: "Fictional" }], any: [] } } };
+const cases = [
+  ["PATCH discipline", { employeeId: 21, offense: "OWN-MARK", employeeExplanation: "OWN-MARK written explanation", status: "explanation_submitted", explanationSubmittedAt: "2026-10-25T00:00:00Z" }, {}, "status", "nte_issued"],
+  ["PATCH provisioning", { employeeId: 21, title: "OWN-MARK", done: true, completedBy: "Own owner", completedAt: "2026-10-25T00:00:00Z" }, {}, "done", false],
+  ["POST dynamic-worker-groups", { name: "OWN-MARK revised", code: "own-code", conditions: { version: 1, all: [{ field: "title", operator: "eq", value: "Fictional" }], any: [] }, version: 2, active: false }, { version: 1, code: "own-code", conditions: { version: 1, all: [{ field: "title", operator: "eq", value: "Fictional" }], any: [] } }, "version", 1, "group"],
+  ["POST recruitment", { requisitionId: 41, fullName: "OWN-MARK applicant", email: "own-mark@example.invalid", stage: "applied", notes: "OWN-MARK" }, {}, null],
+  ["PATCH recruitment", { fullName: "OWN-MARK", requisitionId: 61, notes: "OWN-MARK revised notes", stage: "applied", hiredEmployeeId: null }, { requisitionId: 61 }, "notes", "old notes"],
+  ["POST delegations", { fromApprover: "Own owner", toApprover: "Own delegate", reason: "OWN-MARK", startsOn: "2026-01-01", endsOn: "2026-12-31", active: true }, { name: "Own delegate" }, null],
+  ["POST it-operations", { employeeId: 21, applicationId: 41, state: "grant_requested", requestedByUserId: 91, confirmedByUserId: null }, {}, null],
+  ["PATCH it-operations", { employeeId: 21, applicationId: 61, state: "revoked", confirmedByUserId: 91 }, { applicationId: 61 }, "state", "revoke_requested"],
+  ["POST workforce/worksites", { name: "OWN-MARK", code: "OWN-MARK", orgUnitId: 31, siteType: "office", timezone: "Asia/Manila", active: true }, {}, null, undefined, "worksite"],
+  ["PATCH compliance/data-requests", { subjectEmail: "own-mark@example.invalid", requestType: "access", status: "in_progress", notes: "OWN-MARK triage", handledBy: "Own owner", completedAt: null }, {}, "status", "received"],
+  ["POST approval-chains", { name: "OWN-MARK revised", code: "own-code", version: 2, active: false, steps: [{ approver: "Own owner" }] }, { version: 1, code: "own-code" }, "version", 1],
+  ["POST integration-connectors", { name: "OWN-MARK", provider: "slack", active: false, credentialCiphertext: "fictional-opaque-value" }, { credentialCiphertext: "fictional-opaque-value" }, "active", true],
+];
+
+for (const [key, fields, seed, changedField, oldValue, envelope] of cases) {
+  const spec = rows.find(r => r.key === key);
+  test(key + " distinguishes genuine persisted own change from no-op/foreign/false response", () => {
+    const c = { ...base, seeded: { id: 41, ...seed } };
+    const value = { id: changedField ? 41 : 51, organizationId: 11, ...fields };
+    const before = changedField ? [{ ...value, [changedField]: oldValue }] : [];
+    const after = [value];
+    const payload = { ...value }; if (key === "POST integration-connectors") { delete payload.credentialCiphertext; delete payload.organizationId; }
+    const response = { json: envelope ? { [envelope]: payload } : payload };
+    spec.expect(before, after, c, response);
+    assert.throws(() => spec.expect(before, before, c, response));
+    assert.throws(() => spec.expect(before, after, { ...c, orgId: 12 }, response));
+    assert.throws(() => spec.expect(before, after.map(r => ({ ...r, organizationId: 99 })), c, response));
+    const incorrect = { ...payload, id: 999 };
+    assert.throws(() => spec.expect(before, after, c, { json: envelope ? { [envelope]: incorrect } : incorrect }));
+    if (changedField) assert.throws(() => spec.expect(before, after, { ...c, seeded: { ...c.seeded, id: 12345 } }, response));
+  });
+  test(key + " sends a distinct real-victim selector with a valid action", () => {
+    const c = { ...base, seeded: { id: 41, ...seed } };
+    const own = spec.ownBody(c), foreign = spec.foreignBody(c);
+    assert.notDeepEqual(own, foreign);
+    if (Object.hasOwn(own, "organizationId")) { assert.equal(own.organizationId, 11); assert.equal(foreign.organizationId, 99); }
+    else { const field = key === "PATCH recruitment" ? "applicantId" : "id"; assert.equal(own[field], 41); assert.equal(foreign[field], 399); }
+    if (spec.forged) {
+      const forged = spec.forged.body(c);
+      assert.equal(forged.organizationId, 11); assert.notDeepEqual(forged, own);
+      assert.ok([404, 422].includes(spec.forged.status));
+    }
+  });
+}
+
+test("credit selection excludes the other pending methods and rejects unknown method identities", () => {
+  const file = "scripts/qa/tenant-isolation-coverage-manifest.json", before = readFileSync(file, "utf8");
+  const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--check", "--only-key", "PATCH discipline"], { encoding: "utf8" }));
+  assert.equal(report.newlyCredited, 1);
+  assert.equal(report.after.coveredAfter, report.before.coveredAfter + 1);
+  assert.equal(readFileSync(file, "utf8"), before);
+  assert.throws(() => execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--check", "--only-key", "PATCH unknown"], { stdio: "pipe" }));
+  const manifest = JSON.parse(before);
+  for (const [key] of cases) {
+    const [verb, route] = key.split(" ");
+    const record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
+    assert.equal(record.methods.find(m => m.name === verb).status, "GAP");
+  }
+});

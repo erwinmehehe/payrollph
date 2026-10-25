@@ -7,6 +7,7 @@
  *
  *   node scripts/qa/tenant-table-credit.mjs --run-label "local PG16 2026-10-24"   # writes
  *   node scripts/qa/tenant-table-credit.mjs --refresh-links                         # existing pins only
+ *   node scripts/qa/tenant-table-credit.mjs --only-key "PATCH route" --run-label "executed receipt" # selected GAP credits
  *   node scripts/qa/tenant-table-credit.mjs --check                                  # dry run
  *
  * Family rows: scripts/qa/tenant-table-rows/{read,write}/*.mjs. Shared HTTP assertions
@@ -23,6 +24,14 @@ const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const OVERVIEW = "docs/engineering/tenant-isolation-coverage-inventory.md";
 const write = !process.argv.includes("--check");
 const refreshLinks = process.argv.includes("--refresh-links");
+// A prior executed batch can be reconciled while later families remain uncredited.
+const onlyKeys = process.argv.flatMap((arg, index) => arg === "--only-key" ? [process.argv[index + 1]] : []);
+const selectedKeys = new Set(onlyKeys);
+const catalogKeys = new Set(["read", "write"].flatMap(kind => tenantFamilyCatalog(kind).map(row => row.key)));
+if (selectedKeys.size !== onlyKeys.length || onlyKeys.some(key => !catalogKeys.has(key))) {
+  throw new Error("--only-key requires unique exact catalog method keys");
+}
+
 const labelAt = process.argv.indexOf("--run-label");
 const runLabel = labelAt > 0 ? process.argv[labelAt + 1] : null;
 if (write && !refreshLinks && !runLabel) throw new Error("--run-label <where the table proof passed> is required to credit");
@@ -88,6 +97,7 @@ for (const source of SOURCES) {
     if (!hit) throw new Error(row.key + ": not in the manifest");
     const { method } = hit;
     const ownedHere = method.testedBy?.file === source.file;
+    if (method.status === "GAP" && selectedKeys.size && !selectedKeys.has(row.key)) continue;
     if (method.status !== "GAP" && !ownedHere) continue; // Preserve independently reviewed proof provenance.
     if (refreshLinks && !ownedHere) continue; // Pending rows remain GAP until an executed proof is credited.
     const was = method.status;

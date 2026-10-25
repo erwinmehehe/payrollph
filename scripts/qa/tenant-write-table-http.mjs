@@ -27,6 +27,7 @@ import {
   approvalDelegations, benefitEnrollments, benefitPlans, dataRequests, disciplinaryCases, earnedWageRequests, engagementSurveys, hcmEmploymentTermDecisions,
   hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, performanceSkillDevelopmentPlans, sessions,
   workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents,
+  provisioningTasks, dynamicWorkerGroups, jobRequisitions, jobApplicants, users, userOrganizations, itApplications, itAccessGrants, worksites, approvalChainPolicies, integrationConnectors,
 } from "../../src/db/schema";
 import { organizationModuleSettings } from "../../src/lib/tenant-module-storage";
 import {
@@ -54,7 +55,7 @@ export async function verifyTenantWriteTable(_f, {
   request = standaloneRequest, expectStatus = standaloneExpectStatus, makeSession = standaloneMakeSession,
 } = {}) {
   requireTenantTableDisposable();
-  const TENANT_WRITE_TABLE = await loadTenantRows("write", { addWorker, approvalDelegations, asc, assert, benefitEnrollments, benefitPlans, dataRequests, db, disciplinaryCases, earnedWageRequests, engagementSurveys, eq, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, organizationModuleSettings, performanceSkillDevelopmentPlans, workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents });
+  const TENANT_WRITE_TABLE = await loadTenantRows("write", { provisioningTasks, dynamicWorkerGroups, jobRequisitions, jobApplicants, users, userOrganizations, itApplications, itAccessGrants, worksites, approvalChainPolicies, integrationConnectors, addWorker, approvalDelegations, asc, assert, benefitEnrollments, benefitPlans, dataRequests, db, disciplinaryCases, earnedWageRequests, engagementSurveys, eq, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, organizationModuleSettings, performanceSkillDevelopmentPlans, workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents });
   const profile = process.env.TENANT_TABLE_PROFILE ?? "default";
   const rows = TENANT_WRITE_TABLE.filter((row) => (row.profile ?? "default") === profile);
   if (rows.length === 0 && process.env.TENANT_WRITE_TABLE_ALLOW_EMPTY_PROFILE === "1") {
