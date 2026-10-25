@@ -7,18 +7,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
-test("single table-driven test reads ALL 494 methods without claiming precovered GET as a new GAP", () => {
-  assert.equal(manifest.metrics.methods, 494, "494 actual methods include pre-run readiness GET and inherited handlers");
-  assert.equal(manifest.metrics.gap, 325,
-    "Retain all remaining GAPs; #1361 payroll-close POST is distinct from group-report GET");
-  assert.equal(manifest.metrics.coveredAfter, 159,
-    "Main retains three distinct BIR 2316 proofs; #1361 adds one separate accounting-close POST");
   const bir2316 = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
     .filter(method => method.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
   assert.deepEqual(bir2316.map(method => method.name).sort(), ["GET", "GET", "POST"],
@@ -44,6 +39,8 @@ test("single table-driven test reads ALL 494 methods without claiming precovered
     /cookie, method: "POST"[\s\S]*\}\), 403,/);
   assert.match(closeLines[closePost.testedBy.unchangedDbLine - 1] ?? "",
     /assert\.deepEqual\(victimAfter, victimBefore/);
+test("single table-driven test reads every manifest method without claiming precovered GET as a new GAP", () => {
+  assertLiveTenantCounts(assert, manifest);
   const report = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
   assert.equal(report?.status, "COVERED");
   assert.equal(report?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
@@ -72,8 +69,7 @@ test("single table-driven test reads ALL 494 methods without claiming precovered
   assert.match(proofLines[governanceMethod.testedBy.ownPositiveLine - 1], /\/api\/hcm\/governance-readiness.*\), 200,/);
   assert.match(proofLines[governanceMethod.testedBy.foreignDenialLine - 1], /\/api\/hcm\/governance-readiness.*victim\.id.*\), 403,/);
   assert.match(harness, /await verifyGovernanceTenantRead\(f\)/);
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 494,
-    "No method may disappear from the audited 494-route-method inventory");
+
   assert.equal(manifest.sourceTraceCandidates.length, 34);
   assert.equal(manifest.scopedPages.length, 20);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
@@ -85,7 +81,10 @@ test("single table-driven test reads ALL 494 methods without claiming precovered
     assert.ok(method && ["GAP", "COVERED"].includes(method.status),
       spec + " must map to a real manifest method, never an invented case");
   }
-  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "GAP"), ["GET compliance/remittance-actions"]);
+  // remittance-actions has no credit from this runner; it may close only through the table proof.
+  const remittanceActions = registry.get("GET compliance/remittance-actions");
+  assert.ok(remittanceActions.status === "GAP" || remittanceActions.testedBy?.file === "scripts/qa/tenant-table-http.mjs");
+  assert.deepEqual(specs.filter((spec) => spec !== "GET compliance/remittance-actions" && registry.get(spec).status === "GAP"), []);
   const expectedCovered = [
     "GET compliance/bir-1601c-remittances",
     "GET compliance/government-loan-remittances",
@@ -94,7 +93,7 @@ test("single table-driven test reads ALL 494 methods without claiming precovered
     "GET compliance/statutory-remittances/payment-evidence/[id]",
     "GET compliance/statutory-remittances/posting-evidence/[id]",
   ];
-  assert.deepEqual(specs.filter((spec) => registry.get(spec).status === "COVERED").sort(),
+  assert.deepEqual(specs.filter((spec) => spec !== "GET compliance/remittance-actions" && registry.get(spec).status === "COVERED").sort(),
     expectedCovered.sort(), "Preserve all six independently verified HTTP GET adapters");
   for (const spec of expectedCovered) {
     const proof = registry.get(spec).testedBy;

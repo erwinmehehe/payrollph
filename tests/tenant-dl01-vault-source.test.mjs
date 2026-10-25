@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 
 const proofPath = "scripts/qa/tenant-dl01-vault-http.mjs";
 const source = readFileSync(proofPath, "utf8");
@@ -149,10 +150,7 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
   assert.match(closeEvidence,
     /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
     "The additional payroll-close proof must run in the real PG16 HTTP harness");
-  assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [159, 10, 325]);
-  assert.equal(manifest.metrics.methods, 494);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 325 API methods and 18 page\/action GAPs remain/);
+  assertLiveTenantCounts(assert, manifest);
   assert.equal(manifest.scopedPages.length, 20);
   assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 18);
 });

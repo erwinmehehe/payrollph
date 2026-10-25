@@ -10,6 +10,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
+import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
 import {
   auditEvents, complianceActionTasks, employees, legalEntities, payrollRuns,
   statutoryRemittanceBatches, statutoryRemittancePaymentEvidence, statutoryPostingEvidenceArtifacts,
@@ -506,8 +507,7 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   assert.match(closeSource, /event\.action === "Payroll close completed"/,
     "Own close POST must persist a matching accounting audit receipt");
   const closePostCredits = 1;
-  assert.equal(gaps.length + bir2316Methods.length + closePostCredits + expenseBenefitMethods.length, 335,
-    "Preserve the original 335 GAPs except three distinct BIR 2316 and one close POST method");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - closePostCredits - 6, 149,
-    "All 149 independently source-pinned pre-#1353/#1361 credits must remain intact");
+  // Totals are invariants (tallies add up; nothing proven regresses against the base), not pinned
+  // numbers that every later credit would have to edit.
+  assertLiveTenantCounts(assert, manifest);
 }

@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 
 const path = "scripts/qa/tenant-mny02-contractors-http.mjs";
 const suite = readFileSync(path, "utf8");
@@ -99,8 +100,7 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     .flatMap(route => route.methods).filter(method => method.testedBy?.file === extraFile);
   assert.equal(sixExpensesBenefits.length, 6,
     "Exactly six independently executed expense/benefit methods may receive provisional credit");
-  assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 159, 10, 325]);
+  assertLiveTenantCounts(assert, manifest);
   // Group reports have a separate three-tenant source-pinned GET; they may
   // not borrow the contractor or underpayment execution receipt.
   const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(m => m.name === "GET");
@@ -140,12 +140,7 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   assert.match(closeSource,
     /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
   const closePostCredits = 1;
-  assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - closePostCredits - preRunCredit - bir2316Methods.length - sixExpensesBenefits.length,
-    manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + closePostCredits + bir2316Methods.length + sixExpensesBenefits.length], [494, 145, 10, 338],
-  "Previous six-contractor MNY-02 baseline must remain accounted for separately");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 325 API methods/);
+  assertLiveTenantCounts(assert, manifest);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {

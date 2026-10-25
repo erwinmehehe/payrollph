@@ -311,43 +311,47 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     m.testedBy?.ownPositiveLine && m.testedBy?.foreignDenialLine));
   assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
     /npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/);
-  const closePost = methodsByKey.get("POST payroll-runs/[id]/close");
-  assert.equal(closePost?.status, "COVERED",
-    "Accounting close POST requires distinct executed HTTP proof; no GET proof can authorize a write");
-  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs",
-    "Close POST credit must refer to its own independent POST method proof");
-  const closeProof = closePost.testedBy;
-  const closeLines = source.split("\n");
-  const proofAt = (line) => closeLines[line - 1] ?? "";
-  assert.equal(closeProof.line, closeProof.ownPositiveLine);
-  assert.match(proofAt(closeProof.ownPositiveLine),
-    /const ownPost = expectStatus\(await request\(closeUrl, \{/,
-    "Owned close POST must be a real HTTP request, not only a preview");
-  assert.match(closeLines.slice(closeProof.ownPositiveLine - 1, closeProof.ownPositiveLine + 3).join("\n"),
-    /cookie, method: "POST"[\s\S]*\}\), 200,/,
-    "Own accounting close POST must succeed; a blocked 409 is not positive evidence");
-  assert.match(proofAt(closeProof.foreignDenialLine),
-    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
-  assert.match(closeLines.slice(closeProof.foreignDenialLine - 1, closeProof.foreignDenialLine + 7).join("\n"),
-    /cookie, method: "POST"[\s\S]*\}\), 403,/,
-    "A real victim-only POST must be refused under the independent attacker session");
-  assert.match(proofAt(closeProof.unchangedDbLine),
-    /assert\.deepEqual\(victimAfter, victimBefore/,
-    "Denied close POST must not change the victim PostgreSQL snapshot");
-  assert.match(source, /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
-    "The actual second-pass harness must execute the additional proof");
-  assert.match(source, /for \(const idx of \[1, 2\]\)/);
-  assert.match(source, /assert\.equal\(ownPost\.json\?\.closed, true\)/);
-  assert.match(source, /event\.action === "Payroll close completed"/,
-    "Own success requires a persisted accounting audit receipt");
-  assert.match(source, /assert\.notEqual\(process\.env\.PAYMONGO_DISBURSEMENTS_ENABLED, "true"\)/);
-  assert.match(source, /assert\.notEqual\(process\.env\.XENDIT_PAYOUTS_ENABLED, "true"\)/);
-  const closePostCredits = 1;
+  // The next six MNY-02 expense/benefit methods have their own executable
+  // three-employer proof. Do not count a generic 403 or a source-only check.
+  const expenseBenefitFile = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
+  const expenseBenefitLines = readFileSync(expenseBenefitFile, "utf8").split("\n");
+  const expenseBenefitKeys = [
+    "GET expenses", "POST expenses", "PATCH expenses",
+    "GET de-minimis", "POST de-minimis", "DELETE de-minimis",
+  ];
+  assert.match(harness, /verifyMny02ExpensesBenefitsIsolation\(f, \{ request, expectStatus, makeSession \}\)/);
+  let expenseBenefitMethods = 0;
+  for (const key of expenseBenefitKeys) {
+    const method = methodsByKey.get(key);
+    assert.equal(method?.status, "COVERED", key + ": current provisional real-HTTP proof required");
+    assert.equal(method?.testedBy?.file, expenseBenefitFile, key + ": unique suite required");
+    const p = method.testedBy;
+    assert.match(expenseBenefitLines[p.ownPositiveLine - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(expenseBenefitLines[p.foreignDenialLine - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(expenseBenefitLines[p.unchangedDbLine - 1] ?? "",
+      /assert\.deepEqual\(await victimSnapshot\(victim\.id\), baseline/);
+    expenseBenefitMethods++;
+  }
+  assert.equal(expenseBenefitMethods, 6);
+  // Tenant-table credits are counted only when each cites an exact GET row of the shared table
+  // runner with all three pinned proof lines; the inventory guard re-validates every row.
+  const tableSource = readFileSync("scripts/qa/tenant-table-http.mjs", "utf8").split("\n");
+  const tableMethods = Object.entries(manifest.allApiRouteFiles).flatMap(([, route]) =>
+    route.methods.filter(m => m.testedBy?.file === "scripts/qa/tenant-table-http.mjs").map(m => [m.name + " " + route.route, m]));
+  for (const [key, m] of tableMethods) {
+    assert.equal(m.status, "COVERED", key + ": table proof only ever credits COVERED");
+    assert.ok((tableSource[m.testedBy.line - 1] ?? "").includes('{ key: "' + key + '",'), key + ": must cite its own table row");
+    assert.match(tableSource[m.testedBy.ownPositiveLine - 1] ?? "", /const owned = expectStatus\(await request\(item\.own,/);
+    assert.match(tableSource[m.testedBy.foreignDenialLine - 1] ?? "", /const foreign = expectStatus\(await request\(item\.foreign,/);
+    assert.match(tableSource[m.testedBy.unchangedDbLine - 1] ?? "", /assert\.deepEqual\(victimAfter, victimBefore,/);
+  }
   assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
-    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - closePostCredits - bir2316Methods.length - 6, 124,
+    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
+    tableMethods.length - 1, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
-    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + closePostCredits + bir2316Methods.length + 6, 359,
+    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
+    tableMethods.length + 1, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
