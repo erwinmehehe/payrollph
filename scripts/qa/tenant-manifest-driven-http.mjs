@@ -516,3 +516,7 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   // numbers that every later credit would have to edit.
   assertLiveTenantCounts(assert, manifest);
 }
+
+// Appended to preserve existing executable proof line pins above.
+import { verifyMergedProofCredits } from "./tenant-merged-proof-credits.mjs";
+verifyMergedProofCredits(manifest);

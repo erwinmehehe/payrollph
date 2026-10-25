@@ -1759,45 +1759,57 @@
           "name": "GET",
           "line": 13,
           "status": "COVERED",
-          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
-            "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 102,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
-            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "file": "scripts/qa/tenant-benefit-enrollments-http.mjs",
+            "line": 95,
+            "ownPositiveLine": 95,
+            "foreignDenialLine": 101,
+            "forgedSelectorLine": 102,
+            "unchangedDbLine": 185,
+            "victimIdOrderingLine": 76,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "reviewedHead": "a112b8dd7a558bf9c2462d0e48dc2773219ff4f2",
+            "passedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/40084883554/job/120845670288"
           }
         },
         {
           "name": "POST",
           "line": 60,
           "status": "COVERED",
-          "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
-            "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 167,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
-            "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "file": "scripts/qa/tenant-benefit-enrollments-http.mjs",
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 123,
+            "forgedSelectorLine": 125,
+            "unchangedDbLine": 185,
+            "victimIdOrderingLine": 76,
+            "ownStatus": 201,
+            "foreignStatus": 403,
+            "reviewedHead": "a112b8dd7a558bf9c2462d0e48dc2773219ff4f2",
+            "passedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/40084883554/job/120845670288"
           }
         },
         {
           "name": "DELETE",
           "line": 147,
           "status": "COVERED",
-          "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
-            "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 178,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
-            "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "file": "scripts/qa/tenant-benefit-enrollments-http.mjs",
+            "line": 132,
+            "ownPositiveLine": 132,
+            "foreignDenialLine": 130,
+            "forgedSelectorLine": 132,
+            "unchangedDbLine": 185,
+            "victimIdOrderingLine": 77,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "reviewedHead": "a112b8dd7a558bf9c2462d0e48dc2773219ff4f2",
+            "passedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/40084883554/job/120845670288"
           }
         },
         {
@@ -34570,22 +34582,26 @@
           "name": "GET",
           "line": 114,
           "status": "COVERED",
-          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
-            "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 252,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
-            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "file": "scripts/qa/tenant-worksites-http.mjs",
+            "line": 99,
+            "ownPositiveLine": 99,
+            "foreignDenialLine": 103,
+            "forgedSelectorLine": 104,
+            "unchangedDbLine": 197,
+            "victimIdOrderingLine": 68,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "reviewedHead": "d733b1f343cbdc05dfc3801fbaabc9268b25ce3e",
+            "passedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/40091436728/job/120864754791"
           }
         },
         {
           "name": "POST",
           "line": 198,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
+          "reason": "Partial real HTTP proof exists for create_worksite/update_worksite/assign_employee in merged #1369; photo/geofence and HCM arrangement/authorization actions still lack complete positive/negative acceptance. Remains GAP; cannot borrow GET credit.",
           "testedBy": null
         }
       ],
