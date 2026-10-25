@@ -26,14 +26,14 @@ import { db, pool } from "../../src/db";
 import {
   approvalDelegations, benefitEnrollments, benefitPlans, dataRequests, disciplinaryCases, earnedWageRequests, engagementSurveys, hcmEmploymentTermDecisions,
   hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, performanceSkillDevelopmentPlans, sessions,
-  workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, jobProfiles, automationOperationalCases, orgUnits,
+  workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, jobProfiles, automationOperationalCases, orgUnits, shiftDefinitions, timePunches, attendanceCorrectionRequests, overtimeRequests, employeeAvailabilityRules, scheduleSwapRequests, schedulePatterns, schedulePatternDays, schedulePatternSegments, employeeScheduleAssignments, scheduleOverrides, workforceScheduleGuardrailPolicies, workforceRosterRulePolicies, auditEvents,
 } from "../../src/db/schema";
 import { organizationModuleSettings } from "../../src/lib/tenant-module-storage";
 import {
   addWorker, requireTenantTableDisposable, seedEmployer, standaloneExpectStatus,
   standaloneMakeSession, standaloneRequest, victimSnapshot,
 } from "./tenant-table-http.mjs";
-import { seedTableRow } from "./tenant-table-invariants.mjs";
+import { auditBusinessSnapshot, seedTableRow } from "./tenant-table-invariants.mjs";
 /** Plain-JSON copy of rows so dates and decimals compare by value. */
 const plain = (rows) => JSON.parse(JSON.stringify(rows));
 
@@ -54,7 +54,7 @@ export async function verifyTenantWriteTable(_f, {
   request = standaloneRequest, expectStatus = standaloneExpectStatus, makeSession = standaloneMakeSession,
 } = {}) {
   requireTenantTableDisposable();
-  const TENANT_WRITE_TABLE = await loadTenantRows("write", { addWorker, approvalDelegations, asc, assert, benefitEnrollments, benefitPlans, dataRequests, db, disciplinaryCases, earnedWageRequests, engagementSurveys, eq, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, organizationModuleSettings, performanceSkillDevelopmentPlans, workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, jobProfiles, automationOperationalCases, orgUnits, pool });
+  const TENANT_WRITE_TABLE = await loadTenantRows("write", { addWorker, approvalDelegations, asc, assert, benefitEnrollments, benefitPlans, dataRequests, db, disciplinaryCases, earnedWageRequests, engagementSurveys, eq, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, organizationModuleSettings, performanceSkillDevelopmentPlans, workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, jobProfiles, automationOperationalCases, orgUnits, pool, shiftDefinitions, timePunches, attendanceCorrectionRequests, overtimeRequests, employeeAvailabilityRules, scheduleSwapRequests, schedulePatterns, schedulePatternDays, schedulePatternSegments, employeeScheduleAssignments, scheduleOverrides, workforceScheduleGuardrailPolicies, workforceRosterRulePolicies, auditEvents, auditBusinessSnapshot });
   const profile = process.env.TENANT_TABLE_PROFILE ?? "default";
   const rows = TENANT_WRITE_TABLE.filter((row) => (row.profile ?? "default") === profile);
   if (rows.length === 0 && process.env.TENANT_WRITE_TABLE_ALLOW_EMPTY_PROFILE === "1") {
