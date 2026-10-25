@@ -48,7 +48,9 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
   skip: !isolated,
 }, async () => {
   const previousExitFlag = process.env.APPROVED_EXIT_PAYROLL_ENABLED;
+  const previousHistoryFlag = process.env.PAYROLL_CALCULATION_HISTORY_ENABLED;
   process.env.APPROVED_EXIT_PAYROLL_ENABLED = "true";
+  process.env.PAYROLL_CALCULATION_HISTORY_ENABLED = "true";
   const { and, asc, eq, inArray } = await import("drizzle-orm");
   const { db } = await import("../src/db");
   const { organizations, legalEntities, employees, timePunches,
@@ -295,11 +297,16 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
       "Previous 561313.01 - (11000.01 - 6600.00) = 556913.00");
     assert.ok((exited.trace as { inputs?: string[] }).inputs?.includes("employmentEnd=2026-10-09"));
     assert.equal((await slips(alpha.id)).length, 51);
+    const finalHistory = await history(runA.id);
+    assert.equal(finalHistory.length, 204, "Approved-exit correction creates a fourth immutable snapshot per employee");
+    finalHistory.forEach(assertHistoryProof);
     assert.deepEqual((await entries(runB.id)).map(report).sort((a, b) => a.employeeId - b.employeeId),
       bRows.map(report).sort((a, b) => a.employeeId - b.employeeId));
   } finally {
     if (previousExitFlag === undefined) delete process.env.APPROVED_EXIT_PAYROLL_ENABLED;
     else process.env.APPROVED_EXIT_PAYROLL_ENABLED = previousExitFlag;
+    if (previousHistoryFlag === undefined) delete process.env.PAYROLL_CALCULATION_HISTORY_ENABLED;
+    else process.env.PAYROLL_CALCULATION_HISTORY_ENABLED = previousHistoryFlag;
     // Explicit dependent teardown avoids RESTRICT FK ordering between
     // legal employers, released runs and workers. Remaining child rows cascade.
     const orgIds = orgs.map((org) => org.id);
