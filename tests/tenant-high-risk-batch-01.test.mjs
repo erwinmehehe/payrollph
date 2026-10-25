@@ -380,25 +380,59 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   // Tenant-table credits are counted only when each cites an exact GET row of the shared table
   // runner with all three pinned proof lines; the inventory guard re-validates every row.
   const tableSource = readFileSync("scripts/qa/tenant-table-http.mjs", "utf8").split("\n");
+  const writeTableSource = readFileSync("scripts/qa/tenant-write-table-http.mjs", "utf8").split("\n");
   const tableMethods = Object.entries(manifest.allApiRouteFiles).flatMap(([, route]) =>
-    route.methods.filter(m => m.testedBy?.file === "scripts/qa/tenant-table-http.mjs").map(m => [m.name + " " + route.route, m]));
+    route.methods.filter(m => ["scripts/qa/tenant-table-http.mjs", "scripts/qa/tenant-write-table-http.mjs"].includes(m.testedBy?.file))
+      .map(m => [m.name + " " + route.route, m]));
   for (const [key, m] of tableMethods) {
     assert.equal(m.status, "COVERED", key + ": table proof only ever credits COVERED");
-    assert.ok((tableSource[m.testedBy.line - 1] ?? "").includes('{ key: "' + key + '",'), key + ": must cite its own table row");
-    assert.match(tableSource[m.testedBy.ownPositiveLine - 1] ?? "", /const owned = expectStatus\(await request\(item\.own,/);
-    assert.match(tableSource[m.testedBy.foreignDenialLine - 1] ?? "", /const foreign = expectStatus\(await request\(item\.foreign,/);
-    assert.match(tableSource[m.testedBy.unchangedDbLine - 1] ?? "", /assert\.deepEqual\(victimAfter, victimBefore,/);
+    const writes = m.testedBy.file === "scripts/qa/tenant-write-table-http.mjs";
+    const lines = writes ? writeTableSource : tableSource;
+    assert.ok((lines[m.testedBy.line - 1] ?? "").includes('{ key: "' + key + '",'), key + ": must cite its own table row");
+    assert.match(lines[m.testedBy.ownPositiveLine - 1] ?? "", writes
+      ? /const owned = expectStatus\(await request\(urlFor\("own"\),/ : /const owned = expectStatus\(await request\(item\.own,/);
+    assert.match(lines[m.testedBy.foreignDenialLine - 1] ?? "", writes
+      ? /const foreign = expectStatus\(await request\(urlFor\("foreign"\),/ : /const foreign = expectStatus\(await request\(item\.foreign,/);
+    assert.match(lines[m.testedBy.unchangedDbLine - 1] ?? "", /assert\.deepEqual\(victimAfter, victimBefore,/);
   }
   assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - 2, 124,
+    tableMethods.length - 3, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + 2, 359,
+    tableMethods.length + 3, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
   assert.match(source, /assert\.equal\(passed\.size, 36/);
   assert.match(source, /assert\.deepEqual\(victimAfter, victimBefore/);
+});
+test("fictional payroll accounting close and pre-run readiness cannot share an overlapping period", () => {
+  // An accounting close's Released fixture persists for the whole HTTP suite.
+  // If its cutoff collides with the readiness Create & process probe, the API
+  // correctly returns 409 period-conflict rather than exercising the expected
+  // own-employer unverified-source 422. Keep both genuine controls testable.
+  const fixture = source.match(
+    /periodLabel: "CI-ACCOUNTING-CLOSE-"[^\n]*\n\s*periodStart: "(\d{4}-\d{2}-\d{2})", periodEnd: "(\d{4}-\d{2}-\d{2})",[^\n]*\n\s*payDate: "(\d{4}-\d{2}-\d{2})"/,
+  );
+  const readiness = harness.match(
+    /const createBody = \{ organizationId: org\.id, legalEntityId: f\.entities\[idx\]\.id,[^\n]*\n\s*periodStart: "(\d{4}-\d{2}-\d{2})", periodEnd: "(\d{4}-\d{2}-\d{2})", payDate: "(\d{4}-\d{2}-\d{2})", processNow: true \};/,
+  );
+  assert.ok(fixture && readiness, "Both independently populated real-HTTP fixture periods must remain explicit");
+  const [, closeStart, closeEnd, closePayDate] = fixture;
+  const [, readinessStart, readinessEnd] = readiness;
+  assert.ok(closeStart <= closeEnd && readinessStart <= readinessEnd,
+    "Both payroll ranges must remain chronological");
+  assert.ok(closeEnd < readinessStart || readinessEnd < closeStart,
+    "Fictional Released close payroll must never shadow readiness Create & process with a 409 overlap");
+  assert.ok(closePayDate > closeEnd);
+  assert.ok(source.includes('completedAt: "' + closePayDate + 'T00:00:00.000Z"'),
+    "Fictional audit settlement reference must use the same pay date; never claim a real transfer");
+  const closeCall = harness.indexOf(
+    'await (await import("./tenant-high-risk-01-http.mjs")).verifyHighRiskBatchOne(f, { request, expectStatus, makeSession });',
+  );
+  const readinessCall = harness.indexOf("await verifyPreRunReadinessTenantRead(f);");
+  assert.ok(closeCall >= 0 && readinessCall > closeCall,
+    "The close fixture persists before the readiness proof; their periods must stay isolated");
 });

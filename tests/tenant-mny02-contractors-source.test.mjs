@@ -100,6 +100,7 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     .flatMap(route => route.methods).filter(method => method.testedBy?.file === extraFile);
   assert.equal(sixExpensesBenefits.length, 6,
     "Exactly six independently executed expense/benefit methods may receive provisional credit");
+  assertLiveTenantCounts(assert, manifest);
   // Group reports have a separate three-tenant source-pinned GET; they may
   // not borrow the contractor or underpayment execution receipt.
   const groupReport = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(m => m.name === "GET");
@@ -114,13 +115,36 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     Number.isInteger(method.testedBy?.ownPositiveLine) &&
     Number.isInteger(method.testedBy?.foreignDenialLine)));
   const preRun = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"]?.methods.find(m => m.name === "GET");
-  assert.equal(preRun?.status, "COVERED", "Merged main's pre-run GET remains independently covered");
+  assert.equal(preRun?.status, "COVERED", "Main source-pinned readiness GET must retain its independent credit");
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   const actionMethods = manifest.allApiRouteFiles["src/app/api/compliance/remittance-actions/route.ts"]?.methods ?? [];
   assert.deepEqual(actionMethods.map(method => method.name), ["GET", "POST"]);
   assert.ok(actionMethods.every(method => method.status === "COVERED" &&
     method.testedBy?.file === "scripts/qa/remittance-action-entity-http.mjs"),
     "Two new action methods require separately source-pinned PostgreSQL/HTTP proof");
+  const preRunCredit = 1;
+  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find(method => method.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "Only separately source-pinned successful close POST can add a provisional credit");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  const closeSource = readFileSync(closePost.testedBy.file, "utf8");
+  const closeLines = closeSource.split("\n");
+  assert.match(closeLines[closePost.testedBy.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(closePost.testedBy.ownPositiveLine - 1,
+    closePost.testedBy.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/);
+  assert.match(closeLines[closePost.testedBy.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closePost.testedBy.foreignDenialLine - 1,
+    closePost.testedBy.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/);
+  assert.match(closeLines[closePost.testedBy.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/);
+  assert.match(closeSource,
+    /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
+  const closePostCredits = 1;
   assertLiveTenantCounts(assert, manifest);
 });
 

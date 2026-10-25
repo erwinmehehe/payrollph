@@ -4,6 +4,7 @@ import { auditEvents, employees, yearEndAdjustments, yearEndPriorEvidence } from
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { decryptGovernmentId, encryptGovernmentId } from "./government-id-crypto";
 import { assertPriorApproval, parsePriorEvidence, priorEvidenceDigest, type PriorScope } from "./year-end-prior-evidence";
+import { assertEntityResource, resolveMultiEntityContext } from "./multi-entity-server";
 export const priorEvidenceEnabled = () => criticalReleaseFlagEnabled("yearEndPriorEvidence");
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Scope = Pick<PriorScope, "organizationId" | "employeeId" | "taxYear">;
@@ -23,9 +24,27 @@ export async function readPriorEvidence(tx: Transaction, scope: PriorScope, appr
 }
 export async function priorIntake(scope: Scope, actor: { id: number; name: string }, input?: { action: string; evidence?: unknown; expectedDigest?: string }) {
   if (!priorEvidenceEnabled()) throw new Error("PRIOR_DISABLED");
+  // Organization-level payroll access does not imply access to every legal
+  // employer in a multi-entity tenant. Resolve the *authenticated actor's*
+  // grants before entering the encrypted evidence read/write transaction.
+  const entityScope = await resolveMultiEntityContext({
+    userId: actor.id, organizationId: scope.organizationId,
+  });
+  if (!entityScope.ok) throw new Error("PRIOR_ENTITY_ACCESS_DENIED");
+  // Group HR is a read-only cross-employer role for aggregate reporting, not
+  // permission to decrypt or amend employee-specific tax evidence.
+  if (entityScope.context.enabled && entityScope.context.group)
+    throw new Error("PRIOR_ENTITY_ACCESS_DENIED");
   return db.transaction(async tx => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('payrollph.year-end.annualization'), hashtext(${scope.organizationId}::text || ':' || ${scope.taxYear}::text))`);
     const employeeScope = await priorEmployeeScope(tx, scope);
+    // Re-evaluate the actual persisted worker employer inside this serializable
+    // transaction, before decrypting or changing prior earnings. An employee
+    // transfer or a forged employee ID must never widen the actor's grants.
+    if (entityScope.context.enabled
+      && assertEntityResource(entityScope.context, employeeScope.legalEntityId)) {
+      throw new Error("PRIOR_ENTITY_ACCESS_DENIED");
+    }
     if (!input) {
       const existing = await readPriorEvidence(tx, employeeScope);
       return existing ? { evidence: existing.evidence, digest: existing.row.sourceDigest, revision: existing.row.revision, approved: !!existing.row.approvedAt, makerUserId: existing.row.makerUserId } : null;

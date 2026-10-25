@@ -444,8 +444,9 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
  * stable when new independently reviewed BIR method evidence is introduced.
  * Called by the real signed-in PG16 harness, never an acceptance bypass. */
 function verifyBir2316HistoricalGapBaseline(gaps) {
-  // Preserve the historical source-pinned baseline (149 covered / 335 gaps) while
-  // crediting ONLY the three independently exercised BIR 2316 document methods.
+  // Preserve the pre-#1353/#1361 baseline (149 covered / 335 gaps) while
+  // crediting three separately exercised BIR 2316 document methods and
+  // one distinct successful payroll accounting-close POST.
   // A generic "three fewer gaps" subtraction is insufficient: require exact
   // GET/GET/POST identities and live own/victim evidence from their separate
   // synthetic HTTPS + PostgreSQL acceptance suite.
@@ -497,6 +498,35 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
     assert.match(actionLines[236] ?? "", /assert\.deepEqual\(await snapshot\(victim\.id\), before,/);
   }
   const actionCredits = actionMethods.length;
+  // #1361 must add a genuinely successful POST, never reuse payroll-close GET.
+  // The owning and foreign employer controls run inside disposable PG16 real HTTP.
+  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find((method) => method.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "Additional close POST credit requires separate executed positive/negative evidence");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  const closeProof = closePost.testedBy;
+  const closeSource = readFileSync(closeProof.file, "utf8");
+  const closeLines = closeSource.split("\n");
+  assert.deepEqual([closeProof.ownPositiveLine, closeProof.foreignDenialLine,
+    closeProof.unchangedDbLine], [444, 456, 465],
+    "Accounting-close POST must retain its exact own/victim/unchanged SQL proof");
+  assert.match(closeLines[closeProof.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(closeProof.ownPositiveLine - 1,
+    closeProof.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/);
+  assert.match(closeLines[closeProof.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closeProof.foreignDenialLine - 1,
+    closeProof.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/);
+  assert.match(closeLines[closeProof.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/);
+  assert.match(closeSource, /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
+  assert.match(closeSource, /event\.action === "Payroll close completed"/,
+    "Own close POST must persist a matching accounting audit receipt");
+  const closePostCredits = 1;
   // Totals are invariants (tallies add up; nothing proven regresses against the base), not pinned
   // numbers that every later credit would have to edit.
   assertLiveTenantCounts(assert, manifest);
