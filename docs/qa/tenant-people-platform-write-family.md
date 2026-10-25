@@ -1,8 +1,9 @@
 # People/platform write-family isolation batch
 
 This batch adds 12 exact-method scenarios to the existing disposable PostgreSQL
-and localhost HTTP runner. All 12 remain GAP until actual HTTP acceptance; local
-fixture tests are not HTTP evidence or coverage credit.
+and localhost HTTP runner. The exact-head disposable PG16 HTTP write job
+passed all 12 new default-profile scenarios, now credited provisionally in the
+manifest. Local fixture tests alone do not count as HTTP evidence.
 
 | Method | Bounded own operation |
 | --- | --- |
@@ -38,8 +39,25 @@ are not part of the 12 new target methods. `tenant-table-credit.mjs --only-key`
 restricts new credits to explicitly selected catalog methods; unknown/duplicate
 keys fail. Existing proof provenance and source pins are refreshed as usual.
 
-Before adding these 12 credits: inspect the real default write-job result and all
-three profiles on this PR head, correct any fixture failure, generate the credits
-for successful exact methods, update this document and the GAP assertions, and
-require fresh CI on the final reviewable head. No production SQL, real employer
-data, external services, money flags or authorization/audit guards are changed.
+**Exact-head HTTP receipt:** [tenant-table run 40200060037](https://github.com/erwinmehehe/payrollph/actions/runs/40200060037)
+executed on `1fd16ee304a896072560fd86ff06915e7bce159c` (the previous PR head).
+The [default write job 121189150538](https://github.com/erwinmehehe/payrollph/actions/runs/40200060037/job/121189150538)
+passed with 28 total write rows, 56 own/foreign pairs, 28 discriminating proofs,
+30 forged-reference proofs and `victimDatabaseUnchanged: true`. Twelve of those
+28 write rows are the new People/platform methods; the other sixteen belong to
+previously present families. The multi-entity and flagged-reads table jobs also
+passed, but **ran zero write rows** under their explicitly permitted empty-profile
+configuration; they do not prove these twelve methods in other flag profiles.
+
+**Post-credit state:** All twelve exact methods are now provisionally `COVERED`,
+with individual row-source links and the executed-head receipt. Manifest totals:
+**271 COVERED / 213 GAP / 10 PUBLIC-BY-DESIGN** out of 494 API methods, plus
+18 page/action GAPs. The three Performance-method credits from #1393 are separate;
+there is no double counting. The new credits are limited to the tested operations
+and the default profile, not alternative business branches.
+
+**Still required before merge:** fresh CI on the updated final PR head (including
+source/manifest guards and the three table profiles), review of all credit links,
+and independent security/owner acceptance. This is not systemwide tenant-isolation
+certification or production approval. No production SQL, real employer data,
+external services, money flags or authorization/audit guards are changed.

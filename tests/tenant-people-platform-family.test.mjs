@@ -55,17 +55,29 @@ for (const [key, fields, seed, changedField, oldValue, envelope] of cases) {
   });
 }
 
-test("credit selection excludes the other pending methods and rejects unknown method identities", () => {
+test("executed People/platform credits stay pinned, selected refresh does not add coverage, and other GAPs remain", () => {
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json", before = readFileSync(file, "utf8");
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--check", "--only-key", "PATCH discipline"], { encoding: "utf8" }));
-  assert.equal(report.newlyCredited, 1);
-  assert.equal(report.after.coveredAfter, report.before.coveredAfter + 1);
+  assert.equal(report.newlyCredited, 0);
+  assert.deepEqual(report.before, report.after);
   assert.equal(readFileSync(file, "utf8"), before);
   assert.throws(() => execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--check", "--only-key", "PATCH unknown"], { stdio: "pipe" }));
   const manifest = JSON.parse(before);
+  assert.equal(manifest.metrics.coveredAfter, 271);
+  assert.equal(manifest.metrics.gap, 213);
+  assert.equal(manifest.metrics.publicByDesign, 10);
   for (const [key] of cases) {
     const [verb, route] = key.split(" ");
     const record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
-    assert.equal(record.methods.find(m => m.name === verb).status, "GAP");
+    const method = record.methods.find(m => m.name === verb);
+    assert.equal(method.status, "COVERED", key);
+    assert.equal(method.testedBy.file, "scripts/qa/tenant-write-table-http.mjs", key);
+    assert.equal(method.testedBy.ownPositiveLine, 113, key);
+    assert.equal(method.testedBy.foreignDenialLine, 126, key);
+    assert.equal(method.testedBy.unchangedDbLine, 150, key);
+    assert.match(method.testedBy.evidence, /run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c/, key);
+    assert.ok(method.testedBy.rowFile.startsWith("scripts/qa/tenant-table-rows/write/"), key);
   }
+  const pending = Object.values(manifest.allApiRouteFiles).find(r => r.route === "account/email").methods.find(m => m.name === "POST");
+  assert.equal(pending.status, "GAP", "unrelated untested routes must remain GAP");
 });
