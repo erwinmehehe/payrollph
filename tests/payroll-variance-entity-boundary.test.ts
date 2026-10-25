@@ -1,3 +1,4 @@
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -83,9 +84,7 @@ test("disposable HTTPS proof is wired into the original multi-entity acceptance 
   const proof = manifest.allApiRouteFiles[route]?.methods.find((method: { name: string }) => method.name === "GET");
   assert.equal(proof?.status, "COVERED", "Retain prior independent own/foreign high-risk proof, not a new method credit");
   assert.equal(proof?.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
-  assert.equal(manifest.metrics.coveredAfter, 158, "Preserve all six independent upstream MNY-02 expense/benefit method credits");
-  assert.equal(manifest.metrics.gap, 326, "Do not claim any new variance-method credit or regress upstream coverage");
-  assert.equal(manifest.metrics.publicByDesign, 10);
+  assertLiveTenantCounts(assert, manifest);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.match(browser, /import \{ verifyPayrollVarianceEmployerIsolation \} from "\.\/qa\/payroll-variance-entity-http\.mjs"/);
   assert.match(browser, /await verifyPayrollVarianceEmployerIsolation\(\{\s*newSyntheticContext, login, request, on, off, checks,/);
