@@ -98,8 +98,8 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 **Shared fixture:** draft/released payroll run, distinct payer/payee, bounded fictional state transitions; no transfer/release to provider. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
 
-- `GET /api/payroll-runs/[id]/close` — [source](../../src/app/api/payroll-runs/[id]/close/route.ts#L143)
-- `POST /api/payroll-runs/[id]/close` — [source](../../src/app/api/payroll-runs/[id]/close/route.ts#L156)
+- `GET /api/payroll-runs/[id]/close` — [source](../../src/app/api/payroll-runs/[id]/close/route.ts#L135)
+- `POST /api/payroll-runs/[id]/close` — [source](../../src/app/api/payroll-runs/[id]/close/route.ts#L148)
 - `GET /api/payroll-runs/[id]/connected-impact` — [source](../../src/app/api/payroll-runs/[id]/connected-impact/route.ts#L27)
 - `POST /api/payroll-runs/[id]/payout-reconciliation` — [source](../../src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts#L211)
 - `POST /api/payroll-runs/[id]/pilot-signoff` — [source](../../src/app/api/payroll-runs/[id]/pilot-signoff/route.ts#L75)

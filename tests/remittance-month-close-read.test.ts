@@ -242,6 +242,13 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     method.testedBy?.ownPositiveLine && method.testedBy?.foreignDenialLine));
   assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
     /npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/);
+  // PR #1365: two distinct remittance-action methods require the separate
+  // legal-employer PG16 matrix, not borrowed BIR 2316 or statutory read evidence.
+  const actionMethods = manifest.allApiRouteFiles["src/app/api/compliance/remittance-actions/route.ts"]?.methods ?? [];
+  assert.deepEqual(actionMethods.map((method: { name: string }) => method.name).sort(), ["GET", "POST"]);
+  assert.ok(actionMethods.every((method: { status: string; testedBy?: { file: string } }) =>
+    method.status === "COVERED" && method.testedBy?.file === "scripts/qa/remittance-action-entity-http.mjs"));
+  const actionCredits = actionMethods.length;
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find((method: { name: string }) => method.name === "POST");
   assert.equal(closePost?.status, "COVERED",

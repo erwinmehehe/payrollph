@@ -1,7 +1,8 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, like } from "drizzle-orm";
 import { db } from "@/db";
 import {
   complianceActionTasks,
+  userLegalEntityGrants,
   userOrganizations,
   users,
 } from "@/db/schema";
@@ -12,6 +13,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { syncStatutoryRemittanceActions } from "@/lib/statutory-remittance-actions";
 import {
   escalationStage,
@@ -45,15 +47,19 @@ async function requirePayrollOperator(userId: number, organizationId: number) {
   return null;
 }
 
-async function listQueue(organizationId: number, currentUserId: number) {
+async function listQueue(organizationId: number, currentUserId: number, legalEntityId: number | null) {
   const tasks = await db.select().from(complianceActionTasks)
     .where(and(
       eq(complianceActionTasks.organizationId, organizationId),
       eq(complianceActionTasks.sourceType, SOURCE_TYPE),
+      ...(legalEntityId == null ? [] : [
+        like(complianceActionTasks.sourceKey, `legal-entity:${legalEntityId}:%`),
+      ]),
     ))
     .orderBy(asc(complianceActionTasks.status), asc(complianceActionTasks.dueDate), desc(complianceActionTasks.updatedAt));
 
-  const memberships = await db.select({
+  const [memberships, entityGrants] = await Promise.all([
+    db.select({
     userId: userOrganizations.userId,
     role: userOrganizations.role,
     orgUnitId: userOrganizations.orgUnitId,
@@ -61,12 +67,25 @@ async function listQueue(organizationId: number, currentUserId: number) {
   })
     .from(userOrganizations)
     .innerJoin(users, eq(userOrganizations.userId, users.id))
-    .where(eq(userOrganizations.organizationId, organizationId));
+    .where(and(
+      eq(userOrganizations.organizationId, organizationId),
+      ...(legalEntityId == null ? [] : [eq(userOrganizations.active, true)]),
+    )),
+    legalEntityId == null ? Promise.resolve([]) :
+      db.select({ userId: userLegalEntityGrants.userId })
+        .from(userLegalEntityGrants).where(and(
+          eq(userLegalEntityGrants.organizationId, organizationId),
+          eq(userLegalEntityGrants.legalEntityId, legalEntityId),
+        )),
+  ]);
+  const grantedAssignees = legalEntityId == null ? null :
+    new Set(entityGrants.map((grant) => grant.userId));
 
   const assignees = memberships
     .filter((membership) =>
       membership.orgUnitId == null
-      && roleAllowed(membership.role, PAYROLL_OPERATOR_ROLES),
+      && roleAllowed(membership.role, PAYROLL_OPERATOR_ROLES)
+      && (grantedAssignees == null || grantedAssignees.has(membership.userId)),
     )
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -103,7 +122,14 @@ export async function GET(request: Request) {
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
 
-  return Response.json(await listQueue(organizationId, user.id));
+  const entityScope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!entityScope.ok) return entityScope.response;
+  const legalEntityId = entityScope.context.enabled ? entityScope.context.legalEntityId : null;
+  // This is a payroll-operator queue, never an implicit cross-employer report.
+  if (entityScope.context.enabled && legalEntityId == null) {
+    return Response.json({ error: "Select one authorized legal employer." }, { status: 403 });
+  }
+  return Response.json(await listQueue(organizationId, user.id, legalEntityId));
 }
 
 export async function POST(request: Request) {
@@ -124,6 +150,13 @@ export async function POST(request: Request) {
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
 
+  const entityScope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!entityScope.ok) return entityScope.response;
+  const legalEntityId = entityScope.context.enabled ? entityScope.context.legalEntityId : null;
+  if (entityScope.context.enabled && legalEntityId == null) {
+    return Response.json({ error: "Select one authorized legal employer." }, { status: 403 });
+  }
+
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,
     action: `compliance-action-${action || "mutation"}`,
@@ -134,9 +167,9 @@ export async function POST(request: Request) {
   if (rateDenied) return rateDenied;
 
   if (action === "sync") {
-    const sync = await syncStatutoryRemittanceActions(organizationId, user.name);
+    const sync = await syncStatutoryRemittanceActions(organizationId, user.name, legalEntityId ?? undefined);
     return Response.json({
-      ...(await listQueue(organizationId, user.id)),
+      ...(await listQueue(organizationId, user.id, legalEntityId)),
       sync,
     });
   }
@@ -151,6 +184,9 @@ export async function POST(request: Request) {
       eq(complianceActionTasks.id, taskId),
       eq(complianceActionTasks.organizationId, organizationId),
       eq(complianceActionTasks.sourceType, SOURCE_TYPE),
+      ...(legalEntityId == null ? [] : [
+        like(complianceActionTasks.sourceKey, `legal-entity:${legalEntityId}:%`),
+      ]),
     ))
     .limit(1);
   if (!task) return Response.json({ error: "Compliance action not found." }, { status: 404 });
@@ -179,13 +215,22 @@ export async function POST(request: Request) {
         .where(and(
           eq(userOrganizations.organizationId, organizationId),
           eq(userOrganizations.userId, assignedToUserId),
+          ...(legalEntityId == null ? [] : [eq(userOrganizations.active, true)]),
         ))
         .limit(1);
+      const assignmentGrant = legalEntityId == null ? [{ allowed: true }] :
+        await db.select({ allowed: userLegalEntityGrants.id })
+          .from(userLegalEntityGrants).where(and(
+            eq(userLegalEntityGrants.organizationId, organizationId),
+            eq(userLegalEntityGrants.userId, assignedToUserId),
+            eq(userLegalEntityGrants.legalEntityId, legalEntityId),
+          )).limit(1);
 
       if (
         !membership
         || membership.orgUnitId != null
         || !roleAllowed(membership.role, PAYROLL_OPERATOR_ROLES)
+        || assignmentGrant.length === 0
       ) {
         return Response.json({
           error: "Compliance actions may only be assigned to an authorized payroll operator in this organization.",
@@ -210,7 +255,11 @@ export async function POST(request: Request) {
     }).where(and(
       eq(complianceActionTasks.id, taskId),
       eq(complianceActionTasks.organizationId, organizationId),
+      eq(complianceActionTasks.sourceType, SOURCE_TYPE),
+      eq(complianceActionTasks.sourceKey, task.sourceKey),
     )).returning();
+
+    if (!updated) return Response.json({ error: "Compliance action changed; refresh and retry." }, { status: 409 });
 
     await recordAuditEvent({
       organizationId,
@@ -260,7 +309,11 @@ export async function POST(request: Request) {
     }).where(and(
       eq(complianceActionTasks.id, taskId),
       eq(complianceActionTasks.organizationId, organizationId),
+      eq(complianceActionTasks.sourceType, SOURCE_TYPE),
+      eq(complianceActionTasks.sourceKey, task.sourceKey),
     )).returning();
+
+    if (!updated) return Response.json({ error: "Compliance action changed; refresh and retry." }, { status: 409 });
 
     await recordAuditEvent({
       organizationId,

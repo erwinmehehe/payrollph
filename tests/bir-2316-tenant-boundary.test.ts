@@ -140,6 +140,18 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
     .filter((method: any) => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
   assert.equal(independentExpensesBenefits.length, 6,
     "Six separately evidenced expense and de minimis methods must retain their distinct source links");
+  // Preserve the 149-method pre-BIR, pre-remittance-action baseline without
+  // double-crediting the three BIR 2316 and two independently proven action methods.
+  const statutoryActions = inventory.allApiRouteFiles[
+    "src/app/api/compliance/remittance-actions/route.ts"
+  ]?.methods ?? [];
+  assert.deepEqual(statutoryActions.map((method: { name: string }) => method.name), ["GET", "POST"]);
+  assert.ok(statutoryActions.every((method: {
+    status: string; testedBy?: { file: string; ownPositiveLine: number; foreignDenialLine: number }
+  }) => method.status === "COVERED" &&
+    method.testedBy?.file === "scripts/qa/remittance-action-entity-http.mjs" &&
+    Number.isInteger(method.testedBy?.ownPositiveLine) &&
+    Number.isInteger(method.testedBy?.foreignDenialLine)));
   // The historical base has 149 credits: three separately proven 2316 methods
   // and two independent payout GET/PATCH methods must remain distinct in the
   // latest synced branch. No production certification is implied.

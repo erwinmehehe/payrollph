@@ -1,8 +1,8 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 229 API methods and 18 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 228 API methods and 18 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 229 method gaps and 18 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+> **NOT ACCEPTED**: 228 method gaps and 18 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -89,9 +89,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 291 |
 | methods | 494 |
 | coveredBefore | 20 |
-| coveredAfter | 255 |
+| coveredAfter | 256 |
 | publicByDesign | 10 |
-| gap | 229 |
+| gap | 228 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -295,8 +295,8 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`compliance/payroll-month-close` GET](../../src/app/api/compliance/payroll-month-close/route.ts#L40) | session, query, body | assertOrganizationRole L4, getAccess L4, getSessionUser L6, enforceSameOriginMutation L13 | searchParams.get("organizationId") L46, searchParams.get("legalEntityId") L47, body.organizationId L95 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/compliance.mjs#L53) | **COVERED** |
 | [`compliance/payroll-month-close` POST](../../src/app/api/compliance/payroll-month-close/route.ts#L84) | session, query, body | assertOrganizationRole L4, getAccess L4, getSessionUser L6, enforceSameOriginMutation L13 | searchParams.get("organizationId") L46, searchParams.get("legalEntityId") L47, body.organizationId L95 | NO VALID METHOD PROOF | **GAP** |
 | [`compliance/policy-review` GET](../../src/app/api/compliance/policy-review/route.ts#L12) | session, query | assertOrganizationRole L1, getAccess L1, getSessionUser L2, getSessionUser L13 | searchParams.get("organizationId") L15 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/compliance.mjs#L39) | **COVERED** |
-| [`compliance/remittance-actions` GET](../../src/app/api/compliance/remittance-actions/route.ts#L93) | session, query, body | getAccess L9, getSessionUser L14, enforceSameOriginMutation L21, getAccess L30 | searchParams.get("organizationId") L98, body.organizationId L117 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/compliance.mjs#L16) | **COVERED** |
-| [`compliance/remittance-actions` POST](../../src/app/api/compliance/remittance-actions/route.ts#L109) | session, query, body | getAccess L9, getSessionUser L14, enforceSameOriginMutation L21, getAccess L30 | searchParams.get("organizationId") L98, body.organizationId L117 | NO VALID METHOD PROOF | **GAP** |
+| [`compliance/remittance-actions` GET](../../src/app/api/compliance/remittance-actions/route.ts#L93) | session, query, body | getAccess L9, getSessionUser L14, enforceSameOriginMutation L21, getAccess L30 | searchParams.get("organizationId") L98, body.organizationId L117 | [own 200](../../scripts/qa/remittance-action-entity-http.mjs#L138), [victim 403](../../scripts/qa/remittance-action-entity-http.mjs#L210), [unchanged SQL](../../scripts/qa/remittance-action-entity-http.mjs#L237) | **COVERED (provisional)**
+| [`compliance/remittance-actions` POST](../../src/app/api/compliance/remittance-actions/route.ts#L109) | session, query, body | getAccess L9, getSessionUser L14, enforceSameOriginMutation L21, getAccess L30 | searchParams.get("organizationId") L98, body.organizationId L117 | [own 200](../../scripts/qa/remittance-action-entity-http.mjs#L186), [victim 403](../../scripts/qa/remittance-action-entity-http.mjs#L213), [unchanged SQL](../../scripts/qa/remittance-action-entity-http.mjs#L237) | **COVERED (provisional)**
 | [`compliance/remittance-month-close` GET](../../src/app/api/compliance/remittance-month-close/route.ts#L188) | session, query, body | assertOrganizationRole L11, getSessionUser L13, enforceSameOriginMutation L27, assertOrganizationRole L37 | searchParams.get("organizationId") L194, searchParams.get("legalEntityId") L195, body.organizationId L236 | NO VALID METHOD PROOF | **GAP** |
 | [`compliance/remittance-month-close` POST](../../src/app/api/compliance/remittance-month-close/route.ts#L227) | session, query, body | assertOrganizationRole L11, getSessionUser L13, enforceSameOriginMutation L27, assertOrganizationRole L37 | searchParams.get("organizationId") L194, searchParams.get("legalEntityId") L195, body.organizationId L236 | NO VALID METHOD PROOF | **GAP** |
 | [`compliance/statutory-remittance-corrections` GET](../../src/app/api/compliance/statutory-remittance-corrections/route.ts#L280) | session, query, body | getAccess L14, getSessionUser L19, enforceSameOriginMutation L38, getAccess L239 | searchParams.get("organizationId") L286, body.organizationId L319 | NO VALID METHOD PROOF | **GAP** |

@@ -296,6 +296,7 @@ export async function syncStatutoryRemittanceActions(
   try {
     const escalationResults = await queueStatutoryComplianceEscalations({
       organizationId,
+      legalEntityId,
       actor,
     });
     escalationQueued = escalationResults.filter((result) => !result.deduplicated).length;

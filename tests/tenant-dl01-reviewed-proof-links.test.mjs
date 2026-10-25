@@ -102,6 +102,10 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
   assert.ok(probation.every(method =>
     method.status === 'COVERED' &&
     method.testedBy?.file === 'scripts/qa/hcm-probation-sweep-http.mjs'));
+  const actionMethods = manifest.allApiRouteFiles['src/app/api/compliance/remittance-actions/route.ts'].methods;
+  assert.deepEqual(actionMethods.map(m => m.name), ['GET', 'POST']);
+  assert.ok(actionMethods.every(m => m.status === 'COVERED' &&
+    m.testedBy?.file === 'scripts/qa/remittance-action-entity-http.mjs'));
   const importPost = manifest.allApiRouteFiles['src/app/api/employees/import/route.ts'].methods.find(m => m.name === 'POST');
   assert.equal(importPost.status, 'GAP', 'GET proof cannot cover the import write');
   assert.equal(importPost.testedBy, null);
