@@ -129,4 +129,3 @@ export async function runWriteProbe(plan, catalogue, env = process.env) {
     return { kind: "tenant-write-discovery-results", coverageCredits: 0, isolationAccepted: false, summary, report };
   } finally { await pool.end(); }
 }
-
