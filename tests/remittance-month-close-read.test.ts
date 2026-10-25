@@ -1,3 +1,4 @@
+import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -100,6 +101,7 @@ test("the client refuses incomplete read and re-reads after write before showing
 
 test("new method-level tenant proof survives CI/source drift (GET and POST)", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  verifyMergedProofCredits(manifest);
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
   // Pin the current ledger exactly: the two DL-01 vault methods and eight

@@ -1,3 +1,4 @@
+import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 /**
  * Source-only review gate for six MNY-02 contractor/EWT API methods.
  * It does NOT replace disposable PG16 authenticated HTTP/SQL evidence.
@@ -13,6 +14,7 @@ const lines = suite.split("\n");
 const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const source = readFileSync("src/app/api/contractors/payments/route.ts", "utf8");
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+verifyMergedProofCredits(manifest);
 
 const cases = [
   ["GET contractors", 138, 143, 146],
