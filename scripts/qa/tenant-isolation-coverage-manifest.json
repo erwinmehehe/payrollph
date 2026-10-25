@@ -133,11 +133,11 @@
           "reason": "Own account profile update despite forged victim IDs; victim user unchanged",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 660,
-            "ownPositiveLine": 660,
-            "foreignDenialLine": 748,
+            "line": 714,
+            "ownPositiveLine": 714,
+            "foreignDenialLine": 802,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification",
-            "unchangedDbLine": 748
+            "unchangedDbLine": 802
           }
         }
       ],
@@ -202,9 +202,9 @@
           "reason": "Own session list includes active own session and excludes victim session",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 642,
-            "ownPositiveLine": 642,
-            "foreignDenialLine": 646,
+            "line": 696,
+            "ownPositiveLine": 696,
+            "foreignDenialLine": 700,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         },
@@ -215,10 +215,10 @@
           "reason": "An authenticated owner revokes a second own session (200); victim-only session denial 404 and unchanged",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 655,
-            "ownPositiveLine": 648,
-            "foreignDenialLine": 655,
-            "unchangedDbLine": 750,
+            "line": 709,
+            "ownPositiveLine": 702,
+            "foreignDenialLine": 709,
+            "unchangedDbLine": 804,
             "scope": "Method-specific own success, real victim-only denial, and unchanged DB on a two-attacker three-employer disposable PostgreSQL fixture"
           }
         }
@@ -264,9 +264,9 @@
           "reason": "Owned seeded approval policy GET 200, victim-org 403, victim policy excluded",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 453,
-            "ownPositiveLine": 449,
-            "foreignDenialLine": 453,
+            "line": 507,
+            "ownPositiveLine": 503,
+            "foreignDenialLine": 507,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         },
@@ -508,9 +508,9 @@
           "reason": "Seeded own asset GET 200, foreign employer GET 403, victim-only assets excluded",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 439,
-            "ownPositiveLine": 432,
-            "foreignDenialLine": 439,
+            "line": 493,
+            "ownPositiveLine": 486,
+            "foreignDenialLine": 493,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         },
@@ -521,11 +521,11 @@
           "reason": "Owned asset created 201 and victim-tenant POST denied 403, DB invariant",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 485,
-            "ownPositiveLine": 476,
-            "foreignDenialLine": 485,
+            "line": 539,
+            "ownPositiveLine": 530,
+            "foreignDenialLine": 539,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification",
-            "unchangedDbLine": 736
+            "unchangedDbLine": 790
           }
         },
         {
@@ -535,11 +535,11 @@
           "reason": "Owned asset PATCH 200 and victim-only asset PATCH denied 403, DB invariant",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 502,
-            "ownPositiveLine": 496,
-            "foreignDenialLine": 502,
+            "line": 556,
+            "ownPositiveLine": 550,
+            "foreignDenialLine": 556,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification",
-            "unchangedDbLine": 736
+            "unchangedDbLine": 790
           }
         },
         {
@@ -549,11 +549,11 @@
           "reason": "Owned asset DELETE 200 and victim-only asset DELETE denied 403, DB invariant",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 515,
-            "ownPositiveLine": 508,
-            "foreignDenialLine": 515,
+            "line": 569,
+            "ownPositiveLine": 562,
+            "foreignDenialLine": 569,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification",
-            "unchangedDbLine": 736
+            "unchangedDbLine": 790
           }
         }
       ],
@@ -4174,10 +4174,10 @@
           "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1060,
-            "ownPositiveLine": 1060,
-            "foreignDenialLine": 1062,
-            "unchangedDbLine": 1069,
+            "line": 1114,
+            "ownPositiveLine": 1114,
+            "foreignDenialLine": 1116,
+            "unchangedDbLine": 1123,
             "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
           }
         },
@@ -4188,10 +4188,10 @@
           "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1057,
-            "ownPositiveLine": 1057,
-            "foreignDenialLine": 1059,
-            "unchangedDbLine": 1069,
+            "line": 1111,
+            "ownPositiveLine": 1111,
+            "foreignDenialLine": 1113,
+            "unchangedDbLine": 1123,
             "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
           }
         }
@@ -4325,9 +4325,9 @@
           "reason": "Owned seeded payroll-month calendar 200, victim-org 403",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 471,
-            "ownPositiveLine": 465,
-            "foreignDenialLine": 471,
+            "line": 525,
+            "ownPositiveLine": 519,
+            "foreignDenialLine": 525,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         }
@@ -6377,10 +6377,10 @@
           "reason": "Provisional: production-mode localhost real HTTP and disposable PG16 two-independent-attacker employer proof; own GET 200 with real SSS reconciled month, victim employer GET 403 with matching valid fictional IDs, victim closure/batches/evidence unchanged. No provider calls or actual money. Requires exact-head CI and human signoff.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1195,
-            "ownPositiveLine": 1195,
-            "foreignDenialLine": 1202,
-            "unchangedDbLine": 1223,
+            "line": 1249,
+            "ownPositiveLine": 1249,
+            "foreignDenialLine": 1256,
+            "unchangedDbLine": 1277,
             "ownStatus": 200,
             "foreignStatus": 403,
             "scope": "Existing victim (A) plus two separately authenticated owner attackers (B/C); real Sept 2026 synthetic SSS payroll, reconciled batch, posting and hashed proof; independent owner MFA for POST.",
@@ -6394,10 +6394,10 @@
           "reason": "Provisional: production-mode localhost real HTTP and disposable PG16 two-independent-attacker employer proof; own POST 200 with real SSS reconciled month, victim employer POST 403 with matching valid fictional IDs, victim closure/batches/evidence unchanged. No provider calls or actual money. Requires exact-head CI and human signoff.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1203,
-            "ownPositiveLine": 1203,
-            "foreignDenialLine": 1214,
-            "unchangedDbLine": 1223,
+            "line": 1257,
+            "ownPositiveLine": 1257,
+            "foreignDenialLine": 1268,
+            "unchangedDbLine": 1277,
             "ownStatus": 200,
             "foreignStatus": 403,
             "scope": "Existing victim (A) plus two separately authenticated owner attackers (B/C); real Sept 2026 synthetic SSS payroll, reconciled batch, posting and hashed proof; independent owner MFA for POST.",
@@ -7769,9 +7769,9 @@
           "reason": "200 seeded own dashboard, 403 forged victim org and row exclusion",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 405,
-            "ownPositiveLine": 396,
-            "foreignDenialLine": 405,
+            "line": 440,
+            "ownPositiveLine": 431,
+            "foreignDenialLine": 440,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         }
@@ -8652,9 +8652,9 @@
           "reason": "Real own clean attachment bytes HTTP 200, victim-only high document ID download and inline 403 for both attackers; read never changes victim document",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 792,
-            "ownPositiveLine": 786,
-            "foreignDenialLine": 792,
+            "line": 846,
+            "ownPositiveLine": 840,
+            "foreignDenialLine": 846,
             "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable"
           }
         }
@@ -8775,9 +8775,9 @@
           "reason": "Owned seeded document metadata 200, victim-org 403, victim documents excluded",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 446,
-            "ownPositiveLine": 442,
-            "foreignDenialLine": 446,
+            "line": 500,
+            "ownPositiveLine": 496,
+            "foreignDenialLine": 500,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         },
@@ -10096,9 +10096,9 @@
           "reason": "200 own employee directory and 403 forged victim org and row exclusion",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 415,
-            "ownPositiveLine": 408,
-            "foreignDenialLine": 415,
+            "line": 450,
+            "ownPositiveLine": 443,
+            "foreignDenialLine": 450,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         },
@@ -13159,9 +13159,9 @@
           "status": "COVERED",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1250,
-            "ownPositiveLine": 1250,
-            "foreignDenialLine": 1254,
+            "line": 1304,
+            "ownPositiveLine": 1304,
+            "foreignDenialLine": 1308,
             "ownStatus": 200,
             "foreignStatus": 403,
             "scope": "Three real fictional employer records and independently authenticated owner sessions in isolated localhost PostgreSQL; HCM feature enabled only in CI",
@@ -15508,10 +15508,10 @@
           "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1044,
-            "ownPositiveLine": 1044,
-            "foreignDenialLine": 1046,
-            "unchangedDbLine": 1065,
+            "line": 1098,
+            "ownPositiveLine": 1098,
+            "foreignDenialLine": 1100,
+            "unchangedDbLine": 1119,
             "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
           }
         },
@@ -15522,10 +15522,10 @@
           "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1039,
-            "ownPositiveLine": 1039,
-            "foreignDenialLine": 1041,
-            "unchangedDbLine": 1065,
+            "line": 1093,
+            "ownPositiveLine": 1093,
+            "foreignDenialLine": 1095,
+            "unchangedDbLine": 1119,
             "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
           }
         },
@@ -15536,10 +15536,10 @@
           "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1047,
-            "ownPositiveLine": 1047,
-            "foreignDenialLine": 1049,
-            "unchangedDbLine": 1065,
+            "line": 1101,
+            "ownPositiveLine": 1101,
+            "foreignDenialLine": 1103,
+            "unchangedDbLine": 1119,
             "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
           }
         }
@@ -16329,9 +16329,9 @@
           "reason": "Own scheduler status 200 and victim-organization status 403",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 673,
-            "ownPositiveLine": 669,
-            "foreignDenialLine": 673,
+            "line": 727,
+            "ownPositiveLine": 723,
+            "foreignDenialLine": 727,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         }
@@ -16514,9 +16514,9 @@
           "reason": "Owned employee leave balance/policy 200, victim-org 403, victim employee excluded",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 462,
-            "ownPositiveLine": 456,
-            "foreignDenialLine": 462,
+            "line": 516,
+            "ownPositiveLine": 510,
+            "foreignDenialLine": 516,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         },
@@ -16527,11 +16527,11 @@
           "reason": "POST creates owned fictional policy with 201 and confirmed DB owner; forged victim organizationId POST returns 403 and victim policies unchanged",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 817,
-            "ownPositiveLine": 808,
-            "foreignDenialLine": 817,
+            "line": 871,
+            "ownPositiveLine": 862,
+            "foreignDenialLine": 871,
             "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable",
-            "unchangedDbLine": 928
+            "unchangedDbLine": 982
           }
         }
       ],
@@ -17092,9 +17092,9 @@
           "reason": "Own legal-employer selector 200 containing seeded entity, forged victim organizationId 403 for both attackers, victim entities unchanged",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 804,
-            "ownPositiveLine": 799,
-            "foreignDenialLine": 804,
+            "line": 858,
+            "ownPositiveLine": 853,
+            "foreignDenialLine": 858,
             "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable"
           }
         },
@@ -19860,10 +19860,10 @@
           "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1028,
-            "ownPositiveLine": 1028,
-            "foreignDenialLine": 1030,
-            "unchangedDbLine": 1071,
+            "line": 1082,
+            "ownPositiveLine": 1082,
+            "foreignDenialLine": 1084,
+            "unchangedDbLine": 1125,
             "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
           }
         }
@@ -20468,10 +20468,10 @@
           "reason": "Two fictional authorized owners read their own released run payout state over production-mode localhost HTTP 200, foreign actual released payroll run GET 403 and POST 403, unchanged victim payroll. Provider transfers unconfigured and not attempted.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1311,
-            "ownPositiveLine": 1311,
-            "foreignDenialLine": 1316,
-            "unchangedDbLine": 1332,
+            "line": 1365,
+            "ownPositiveLine": 1365,
+            "foreignDenialLine": 1370,
+            "unchangedDbLine": 1386,
             "scope": "Disposable PG16 actual seeded payroll runs, two signed-in employer owners, read-only view=payout, foreign existing run denied and unchanged victim DB"
           }
         },
@@ -20484,9 +20484,9 @@
           "reviewedUncertified": {
             "routeBlobSha": "4a0f56c5e22127a1d74dd63ef2963df53edb6060",
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "ownPositiveLine": 1322,
-            "foreignDenialLine": 1326,
-            "unchangedDbLine": 1332
+            "ownPositiveLine": 1376,
+            "foreignDenialLine": 1380,
+            "unchangedDbLine": 1386
           }
         }
       ],
@@ -20732,10 +20732,10 @@
           "reason": "Default-off pre-run gate: disposable real-HTTP flag-ON own Draft is blocked with 422 before writes while authenticated victim receives 403. Existing flag-OFF money lifecycle independently proves successful calculation; no official-source verification or activation acceptance is implied.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1417,
-            "ownPositiveLine": 1417,
-            "foreignDenialLine": 1423,
-            "unchangedDbLine": 1427,
+            "line": 1471,
+            "ownPositiveLine": 1471,
+            "foreignDenialLine": 1477,
+            "unchangedDbLine": 1481,
             "scope": "Explicit own-422 fail-closed policy and authenticated victim-403, not certification of successful calculation."
           }
         }
@@ -20828,10 +20828,10 @@
           "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1031,
-            "ownPositiveLine": 1031,
-            "foreignDenialLine": 1033,
-            "unchangedDbLine": 1071,
+            "line": 1085,
+            "ownPositiveLine": 1085,
+            "foreignDenialLine": 1087,
+            "unchangedDbLine": 1125,
             "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
           }
         }
@@ -21385,25 +21385,35 @@
       ]
     },
     "src/app/api/payroll-runs/route.ts": {
-      "gitBlobSha": "ac44c3fe6194986ea8ec847b185007abc013aa76",
+      "gitBlobSha": "709c30b18af3044d4b3d7a3d064011022094d678",
       "route": "payroll-runs",
       "methods": [
         {
           "name": "GET",
-          "line": 29,
+          "line": 30,
           "status": "COVERED",
-          "reason": "Own payroll runs 200 and victim-organization 403 plus direct foreign register denial",
+          "reason": "Signed-in own payroll run list 200, real victim list/register 403; separate flag-enabled F-04 seeded history 200 and victim history 403 with no cross-tenant rows.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 425,
-            "ownPositiveLine": 418,
-            "foreignDenialLine": 425,
-            "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
+            "line": 460,
+            "ownPositiveLine": 453,
+            "foreignDenialLine": 460,
+            "scope": "Actual seeded payroll-run list 200 for two independent attacker employers and victim 403; separately same harness verifies F-04 populated own history 200 and foreign history 403 under isolated PG16 flag"
+          },
+          "historyReadProof": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "seedLine": 254,
+            "ownPositiveLine": 470,
+            "ownRowAssertionLine": 475,
+            "foreignDenialLine": 479,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Only synthetic PG16 security smoke with PAYROLL_CALCULATION_HISTORY_ENABLED=true. Real history rows for victim and both attackers; own positive nonempty result and direct real victim history denial."
           }
         },
         {
           "name": "POST",
-          "line": 101,
+          "line": 131,
           "status": "COVERED",
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
@@ -24901,9 +24911,9 @@
           "reason": "Own SCIM identity GET 200 and actual victim-only identity GET 404",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 564,
-            "ownPositiveLine": 386,
-            "foreignDenialLine": 564,
+            "line": 618,
+            "ownPositiveLine": 421,
+            "foreignDenialLine": 618,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         },
@@ -24914,10 +24924,10 @@
           "reason": "Own SCIM identity update 200, victim-only PATCH 404 and unchanged",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 575,
-            "ownPositiveLine": 567,
-            "foreignDenialLine": 575,
-            "unchangedDbLine": 742,
+            "line": 629,
+            "ownPositiveLine": 621,
+            "foreignDenialLine": 629,
+            "unchangedDbLine": 796,
             "scope": "Method-specific own success, real victim-only denial, and unchanged DB on a two-attacker three-employer disposable PostgreSQL fixture"
           }
         },
@@ -24928,10 +24938,10 @@
           "reason": "Own SCIM identity deactivation 204, victim-only DELETE 404 and unchanged",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 580,
-            "ownPositiveLine": 634,
-            "foreignDenialLine": 580,
-            "unchangedDbLine": 742,
+            "line": 634,
+            "ownPositiveLine": 688,
+            "foreignDenialLine": 634,
+            "unchangedDbLine": 796,
             "scope": "Method-specific own success, real victim-only denial, and unchanged DB on a two-attacker three-employer disposable PostgreSQL fixture"
           }
         }
@@ -25019,9 +25029,9 @@
           "reason": "Own SCIM list includes own identity and excludes victim identity",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 583,
-            "ownPositiveLine": 583,
-            "foreignDenialLine": 586,
+            "line": 637,
+            "ownPositiveLine": 637,
+            "foreignDenialLine": 640,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         },
@@ -25032,11 +25042,11 @@
           "reason": "Own SCIM create 201 and victim worker-binding denied 404 with DB invariants",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 596,
-            "ownPositiveLine": 609,
-            "foreignDenialLine": 596,
+            "line": 650,
+            "ownPositiveLine": 663,
+            "foreignDenialLine": 650,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification",
-            "unchangedDbLine": 744
+            "unchangedDbLine": 798
           }
         }
       ],
@@ -25671,11 +25681,11 @@
           "reason": "Disposable-PG16 authenticated synthetic employee own payroll explanation GET 200, real victim-only released entry GET 404 for two independent employer sessions and unchanged victim payroll",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1260,
-            "ownPositiveLine": 1286,
-            "foreignDenialLine": 1291,
+            "line": 1314,
+            "ownPositiveLine": 1340,
+            "foreignDenialLine": 1345,
             "scope": "Real synthetic released-pay rows, signed-in company employees, two employers, exact own employer/employee/entry echo, existing victim entry denied, victim database unchanged",
-            "unchangedDbLine": 1297
+            "unchangedDbLine": 1351
           }
         }
       ],
@@ -25763,15 +25773,15 @@
           "reason": "Merged #1283 checks current active employer membership before PDF bytes. Two independent employees with real own Released PDF 200 are denied actual victim ID 404 and their own former-employer PDF exact 403 after revoked grant, while same session is still authenticated 200. Additional audit ESS proofs include same-employer coworker denial.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 867,
-            "ownPositiveLine": 862,
-            "foreignDenialLine": 867,
+            "line": 921,
+            "ownPositiveLine": 916,
+            "foreignDenialLine": 921,
             "scope": "Three disposable PostgreSQL employers / two independent employee-role sessions; merged #1283 canonical former-employer membership transfer/regression, plus own/victim and same-employer coworker PDF evidence retained in this audit",
             "currentMembershipGuardLine": 32,
-            "staleSessionOwnPositiveLine": 994,
-            "staleMembershipForeignDenialLine": 1002,
-            "staleMembershipUnchangedDbLine": 1008,
-            "staleMembershipOwnPositiveLine": 967
+            "staleSessionOwnPositiveLine": 1048,
+            "staleMembershipForeignDenialLine": 1056,
+            "staleMembershipUnchangedDbLine": 1062,
+            "staleMembershipOwnPositiveLine": 1021
           }
         }
       ],
@@ -25839,9 +25849,9 @@
           "reason": "Real linked employee GET 200 with victim organizationId spoof ignored, own released entry included, victim and same-employer coworker excluded",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 879,
-            "ownPositiveLine": 874,
-            "foreignDenialLine": 879,
+            "line": 933,
+            "ownPositiveLine": 928,
+            "foreignDenialLine": 933,
             "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable"
           }
         },
@@ -28014,9 +28024,9 @@
           "reason": "Own employee GET 200 and victim-only employee GET 404",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 519,
-            "ownPositiveLine": 382,
-            "foreignDenialLine": 519,
+            "line": 573,
+            "ownPositiveLine": 417,
+            "foreignDenialLine": 573,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         },
@@ -28027,10 +28037,10 @@
           "reason": "Own API-key worker title PATCH 200, victim-only PATCH 404 and unchanged",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 528,
-            "ownPositiveLine": 521,
-            "foreignDenialLine": 528,
-            "unchangedDbLine": 740,
+            "line": 582,
+            "ownPositiveLine": 575,
+            "foreignDenialLine": 582,
+            "unchangedDbLine": 794,
             "scope": "Method-specific own success, real victim-only denial, and unchanged DB on a two-attacker three-employer disposable PostgreSQL fixture"
           }
         },
@@ -28041,10 +28051,10 @@
           "reason": "Own API-key worker offboarding DELETE 200, victim-only DELETE 404 and unchanged",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 532,
-            "ownPositiveLine": 555,
-            "foreignDenialLine": 532,
-            "unchangedDbLine": 740,
+            "line": 586,
+            "ownPositiveLine": 609,
+            "foreignDenialLine": 586,
+            "unchangedDbLine": 794,
             "scope": "Method-specific own success, real victim-only denial, and unchanged DB on a two-attacker three-employer disposable PostgreSQL fixture"
           }
         }
@@ -28141,9 +28151,9 @@
           "reason": "Forged-org API employee list returns attacker own seeded employee and excludes victim-only IDs",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 538,
-            "ownPositiveLine": 535,
-            "foreignDenialLine": 538,
+            "line": 592,
+            "ownPositiveLine": 589,
+            "foreignDenialLine": 592,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         },
@@ -28154,11 +28164,11 @@
           "reason": "Forged organizationId on create ignored; bearer tenant owns inserted employee; victim rows unchanged",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 552,
-            "ownPositiveLine": 542,
-            "foreignDenialLine": 552,
+            "line": 606,
+            "ownPositiveLine": 596,
+            "foreignDenialLine": 606,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification",
-            "unchangedDbLine": 746
+            "unchangedDbLine": 800
           }
         }
       ],
@@ -28258,9 +28268,9 @@
           "reason": "Attacker own event included and victim-exclusive event excluded",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 700,
-            "ownPositiveLine": 695,
-            "foreignDenialLine": 700,
+            "line": 754,
+            "ownPositiveLine": 749,
+            "foreignDenialLine": 754,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         }
@@ -28385,9 +28395,9 @@
           "reason": "Attacker own org-unit included and victim org unit excluded",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 685,
-            "ownPositiveLine": 682,
-            "foreignDenialLine": 685,
+            "line": 739,
+            "ownPositiveLine": 736,
+            "foreignDenialLine": 739,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         }
@@ -28431,9 +28441,9 @@
           "reason": "Attacker own payroll run included and victim-only runs excluded",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 680,
-            "ownPositiveLine": 677,
-            "foreignDenialLine": 680,
+            "line": 734,
+            "ownPositiveLine": 731,
+            "foreignDenialLine": 734,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         }
@@ -28486,9 +28496,9 @@
           "reason": "Own payslip GET 200 and victim-only payslip GET 404",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 691,
-            "ownPositiveLine": 390,
-            "foreignDenialLine": 691,
+            "line": 745,
+            "ownPositiveLine": 425,
+            "foreignDenialLine": 745,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         }
@@ -28576,9 +28586,9 @@
           "reason": "Attacker payslip list includes own and excludes victim",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 690,
-            "ownPositiveLine": 687,
-            "foreignDenialLine": 690,
+            "line": 744,
+            "ownPositiveLine": 741,
+            "foreignDenialLine": 744,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         }
@@ -28662,9 +28672,9 @@
           "reason": "Attacker provider events include own event and exclude victim-only event",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 707,
-            "ownPositiveLine": 702,
-            "foreignDenialLine": 707,
+            "line": 761,
+            "ownPositiveLine": 756,
+            "foreignDenialLine": 761,
             "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
           }
         }
@@ -35370,10 +35380,10 @@
           "reason": "Provisional flag-OFF real PG16 HTTP: independently signed-in owned employers return 200, unrelated victim returns 403 before reads, and financial rows remain unchanged. New flag-ON ?explain=true pathway is separately consent-gated and is NOT certified by this original HTTP receipt; requires exact-head synthetic testing and independent privacy/security review. No release or payroll computation.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
-            "line": 1381,
-            "ownPositiveLine": 1381,
-            "foreignDenialLine": 1388,
-            "unchangedDbLine": 1431,
+            "line": 1435,
+            "ownPositiveLine": 1435,
+            "foreignDenialLine": 1442,
+            "unchangedDbLine": 1485,
             "scope": "Real localhost PG16 HTTP, two attacker tenants and >6 victim ID, no money."
           }
         }

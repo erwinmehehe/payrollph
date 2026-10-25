@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  payrollCalculationHistory: {
+    env: "PAYROLL_CALCULATION_HISTORY_ENABLED",
+    owner: "Philippine Payroll / Database Operations",
+    risk: "Append-only calculation snapshots change payroll worker writes and add protected financial history; schema must precede activation",
+    approval: "Exact 0137 source and DBA receipt, isolated PG16/18 trigger and worker acceptance, tenant/privacy/RBAC review, default-off parity, protected production rollout and rollback plan; no automatic payroll activation",
+  },
   firstPayrollConnected: {
     env: "FIRST_PAYROLL_CONNECTED_ENABLED",
     owner: "Payroll / Onboarding",

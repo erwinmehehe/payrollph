@@ -4,7 +4,7 @@ import { loadApprovedPayrollExits, payrollEmploymentStatus, profileBeforeFutureR
 import { reviewRetroStatutorySourcePeriods } from "@/lib/payroll-retro-statutory-source-period";
 import { loadPendingPayrollRetroSources } from "@/lib/payroll-retro-source-lookup";
 import { allocateMandatoryDeductions } from "@/lib/payroll-mandatory-shortfall";
-import { and, asc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
   calamityAdvisories,
@@ -32,6 +32,7 @@ import {
   payPolicies,
   payPolicyRules,
   payrollEntries,
+  payrollCalculationHistory,
   historicalPayrollEntries,
   payrollJobs,
   payrollMonthClosures,
@@ -50,6 +51,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { assertSpendModeAvailable, loadSpendClaimEvidence, spendPayrollEnabled } from "@/lib/spend-claim-evidence";
 import { reimbursementPayrollInputs } from "@/lib/spend-payroll-reimbursement";
 import { sealPayrollPaymentBankAccount } from "@/lib/payroll-snapshot-sealing";
+import { createPayrollCalculationEvidence } from "@/lib/payroll-calculation-history";
 import { validPayrollLoanSchedule } from "@/lib/payroll-loan-approval";
 import {
   computeCutoffStatutoryDeduction,
@@ -418,26 +420,10 @@ export async function processNextPayrollJob(
         organizationId: job.organization_id,
         chunkIndex: job.chunk_index,
         chunkSize: job.chunk_size,
+        payrollJobId: job.id,
       });
 
-      if (result.done) {
-        await db.update(payrollJobs).set({
-          status: "completed",
-          completedAt: new Date(),
-          updatedAt: new Date(),
-          lastError: null,
-        }).where(eq(payrollJobs.id, job.id));
-      } else {
-        await db.update(payrollJobs).set({
-          status: "queued",
-          chunkIndex: job.chunk_index + 1,
-          lockedAt: null,
-          lockedBy: null,
-          updatedAt: new Date(),
-          lastError: null,
-        }).where(eq(payrollJobs.id, job.id));
-      }
-
+      // Chunk rows, history and job cursor were already committed atomically.
       return { processed: true as const, ...result };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown payroll error";
@@ -447,8 +433,11 @@ export async function processNextPayrollJob(
         lockedAt: null,
         lockedBy: null,
         updatedAt: new Date(),
-      }).where(eq(payrollJobs.id, job.id));
-      await db.update(payrollRuns).set({ status: "Failed" }).where(eq(payrollRuns.id, job.payroll_run_id));
+      }).where(and(eq(payrollJobs.id, job.id), eq(payrollJobs.status, "processing")));
+      await db.update(payrollRuns).set({ status: "Failed" }).where(and(
+        eq(payrollRuns.id, job.payroll_run_id),
+        inArray(payrollRuns.status, ["Queued", "Processing", "Failed"]),
+      ));
       throw error;
     }
   } catch (error) {
@@ -479,6 +468,7 @@ type PayrollChunkRequest = {
   organizationId: number;
   chunkIndex: number;
   chunkSize: number;
+  payrollJobId?: number;
 };
 
 /** Same authoritative input assembly as the real worker, with a query-only
@@ -559,6 +549,11 @@ async function processPayrollChunk(input: PayrollChunkRequest) {
 async function executePayrollChunk(input: PayrollChunkRequest & {
   preview?: PayrollProjectionOptions;
 }) {
+  // A persisted calculation must be linked to a real claimed queue attempt.
+  if (!input.preview && (typeof input.payrollJobId !== "number" ||
+      !Number.isSafeInteger(input.payrollJobId) || input.payrollJobId <= 0)) {
+    throw new Error("PAYROLL_HISTORY_REQUIRES_CLAIMED_JOB");
+  }
   // Never invoke schema bootstrapping from a read-only financial projection.
   if (!input.preview) {
     await ensureLeavePayrollSchema();
@@ -699,8 +694,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
   }
   if (chunk.length === 0) {
     if (input.preview) return { previewRows: [] as CanonicalPayrollPreviewRow[] };
-    await finalizeRun(input.runId);
-    return { done: true, chunkIndex: input.chunkIndex, processedEmployees: 0 };
+    throw new Error("PAYROLL_CHUNK_EMPTY_SCOPE_CHANGED");
   }
 
   const advisories = await reader.select().from(calamityAdvisories).where(and(
@@ -1397,6 +1391,11 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
   let chunkNet = 0;
   let chunkExceptions = 0;
   const previewRows: CanonicalPayrollPreviewRow[] = [];
+  const pendingEntries: Array<{
+    payrollRunId: number; employeeId: number; grossPay: string; deductions: string;
+    netPay: string; status: string; lineItems: unknown; trace: unknown;
+    payslipText: string;
+  }> = [];
 
   for (const employee of chunk) {
     const employeeHolidayScopeIds = orgUnitAncestors(employee.orgUnitId, unitMap);
@@ -1754,7 +1753,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
     chunkNet += calc.net;
     if (calc.status === "Exception") chunkExceptions += 1;
 
-    const [entry] = await db.insert(payrollEntries).values({
+    pendingEntries.push({
       payrollRunId: input.runId,
       employeeId: employee.id,
       grossPay: money(calc.gross),
@@ -1792,15 +1791,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
           monthlyEquivalent: Number(employee.basicRate),
         },
       },
-    }).returning();
-
-    await db.insert(payslips).values({
-      payrollEntryId: entry.id,
-      organizationId: input.organizationId,
-      employeeId: employee.id,
-      periodLabel: run.periodLabel,
-      content: calc.payslipText,
-      ruleVersion: PAYROLL_RULE_VERSION,
+      payslipText: calc.payslipText,
     });
 
   }
@@ -1813,20 +1804,102 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
   const totalChunks = Math.max(1, Math.ceil(allEmployees.length / input.chunkSize));
   const done = processedChunks >= totalChunks;
 
-  const [fresh] = await reader.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
-  await db.update(payrollRuns).set({
-    status: done ? "Needs review" : "Processing",
-    grossPay: money(Number(fresh?.grossPay ?? 0) + chunkGross),
-    netPay: money(Number(fresh?.netPay ?? 0) + chunkNet),
-    exceptions: Number(fresh?.exceptions ?? 0) + chunkExceptions,
-    processedChunks,
-    totalChunks,
-    employeeCount: allEmployees.length,
-  }).where(eq(payrollRuns.id, input.runId));
+  // The run row is the serialization gate for revision numbers and totals.
+  // No persisted history or register writes survive a partially failed chunk.
+  const payrollJobId = input.payrollJobId!;
+  const preserveHistory = criticalReleaseFlagEnabled("payrollCalculationHistory");
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM payroll_runs WHERE id = ${input.runId} FOR UPDATE`);
+    await tx.execute(sql`SELECT id FROM payroll_jobs WHERE id = ${payrollJobId} FOR UPDATE`);
+    const [lockedRun] = await tx.select().from(payrollRuns)
+      .where(eq(payrollRuns.id, input.runId)).limit(1);
+    const [lockedJob] = await tx.select().from(payrollJobs)
+      .where(eq(payrollJobs.id, payrollJobId)).limit(1);
+    if (!lockedRun || lockedRun.organizationId !== input.organizationId ||
+        lockedRun.legalEntityId !== run.legalEntityId ||
+        lockedRun.scopeOrgUnitId !== run.scopeOrgUnitId ||
+        String(lockedRun.periodStart) !== String(run.periodStart) ||
+        String(lockedRun.periodEnd) !== String(run.periodEnd) ||
+        String(lockedRun.payDate) !== String(run.payDate) ||
+        !["Queued", "Processing", "Failed"].includes(lockedRun.status) ||
+        lockedRun.processedChunks !== input.chunkIndex) {
+      throw new Error("PAYROLL_HISTORY_RUN_CHANGED_OR_CHUNK_REPLAY");
+    }
+    if (!lockedJob || lockedJob.payrollRunId !== input.runId ||
+        lockedJob.organizationId !== input.organizationId ||
+        lockedJob.status !== "processing" ||
+        lockedJob.chunkIndex !== input.chunkIndex ||
+        lockedJob.chunkSize !== input.chunkSize) {
+      throw new Error("PAYROLL_HISTORY_JOB_CLAIM_LOST");
+    }
 
-  if (done) {
-    await finalizeRun(input.runId);
-  }
+    for (const pending of pendingEntries) {
+      if (preserveHistory) {
+        const [prior] = await tx.select({
+          revision: payrollCalculationHistory.revision,
+          snapshotHash: payrollCalculationHistory.snapshotHash,
+        }).from(payrollCalculationHistory)
+          .where(and(eq(payrollCalculationHistory.payrollRunId, input.runId),
+            eq(payrollCalculationHistory.employeeId, pending.employeeId)))
+          .orderBy(desc(payrollCalculationHistory.revision)).limit(1);
+        const history = createPayrollCalculationEvidence({
+          organizationId: input.organizationId,
+          legalEntityId: run.legalEntityId,
+          payrollRunId: input.runId,
+          payrollJobId,
+          employeeId: pending.employeeId,
+          revision: (prior?.revision ?? 0) + 1,
+          previousSnapshotHash: prior?.snapshotHash ?? null,
+          periodLabel: run.periodLabel,
+          periodStart: String(run.periodStart),
+          periodEnd: String(run.periodEnd),
+          payDate: String(run.payDate),
+          ruleVersion: PAYROLL_RULE_VERSION,
+          grossPay: pending.grossPay,
+          deductions: pending.deductions,
+          netPay: pending.netPay,
+          status: pending.status,
+          lineItems: pending.lineItems,
+          trace: pending.trace,
+        });
+        await tx.insert(payrollCalculationHistory).values(history);
+      }
+      const { payslipText, ...entryValues } = pending;
+      const [entry] = await tx.insert(payrollEntries).values(entryValues)
+        .returning({ id: payrollEntries.id });
+      await tx.insert(payslips).values({
+        payrollEntryId: entry.id,
+        organizationId: input.organizationId,
+        employeeId: pending.employeeId,
+        periodLabel: run.periodLabel,
+        content: payslipText,
+        ruleVersion: PAYROLL_RULE_VERSION,
+      });
+    }
+
+    const [updatedRun] = await tx.update(payrollRuns).set({
+      status: done ? "Needs review" : "Processing",
+      grossPay: money(Number(lockedRun.grossPay) + chunkGross),
+      netPay: money(Number(lockedRun.netPay) + chunkNet),
+      exceptions: lockedRun.exceptions + chunkExceptions,
+      processedChunks,
+      totalChunks,
+      employeeCount: allEmployees.length,
+    }).where(eq(payrollRuns.id, input.runId)).returning({ id: payrollRuns.id });
+    const [updatedJob] = await tx.update(payrollJobs).set({
+      status: done ? "completed" : "queued",
+      chunkIndex: done ? input.chunkIndex : input.chunkIndex + 1,
+      completedAt: done ? new Date() : null,
+      lockedAt: null,
+      lockedBy: null,
+      lastError: null,
+      updatedAt: new Date(),
+    }).where(and(eq(payrollJobs.id, payrollJobId), eq(payrollJobs.status, "processing")))
+      .returning({ id: payrollJobs.id });
+    if (!updatedRun || !updatedJob) throw new Error("PAYROLL_HISTORY_TRANSACTION_COMMIT_LOST");
+  });
+
+  if (done) await finalizeRun(input.runId);
 
   return {
     done,

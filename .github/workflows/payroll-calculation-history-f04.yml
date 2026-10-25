@@ -1,0 +1,72 @@
+name: F-04 immutable payroll calculation history (synthetic SQL only)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/payroll-calculation-history-f04.yml"
+      - "drizzle/0137_immutable_payroll_calculation_history.sql"
+      - "src/db/schema.ts"
+      - "src/lib/payroll-calculation-history.ts"
+      - "src/lib/payroll-engine.ts"
+      - "src/app/api/payroll-runs/route.ts"
+      - "tests/payroll-calculation-history*.test.ts"
+      - "tests/payroll-e2e-fictional-postgres.test.ts"
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  immutable-history:
+    name: PG${{ matrix.postgres }} disposable forward-migration and immutability
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: [16, 18]
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYROLL_F04_ISOLATED_POSTGRES: disposable-ci-only
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      DEMO_MODE: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Disposable schema only, never a live migration or Neon DB
+        run: npm run db:push
+      - name: Isolated audit prerequisites for PG16
+        if: matrix.postgres == 16
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Existing offline baseline only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Check full source types
+        run: npx tsc --noEmit
+      - name: Check lint
+        run: npm run lint
+      - name: Execute unit and source isolation guard
+        run: npx tsx --test tests/payroll-calculation-history.test.ts
+      - name: Reapply exact 0137 forward migration in blank disposable PG and deny UPDATE/DELETE/TRUNCATE
+        run: npx tsx --test tests/payroll-calculation-history-postgres.test.ts

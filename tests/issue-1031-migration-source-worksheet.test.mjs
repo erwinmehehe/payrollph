@@ -11,10 +11,10 @@ const read = file => readFileSync(resolve(root, file), "utf8");
 
 test("source-only worksheet covers every drizzle file with current byte SHA and no populated receipts", () => {
   const result = generateSourceWorksheet();
-  assert.equal(result.summary.totalDrizzleFiles, 152);
-  assert.equal(result.summary.numberedSqlFiles, 150);
-  assert.equal(result.summary.sqlFiles, 151);
-  assert.equal(result.summary.sourceSchemaTables, 273);
+  assert.equal(result.summary.totalDrizzleFiles, 153);
+  assert.equal(result.summary.numberedSqlFiles, 151);
+  assert.equal(result.summary.sqlFiles, 152);
+  assert.equal(result.summary.sourceSchemaTables, 274);
   assert.equal(result.summary.duplicatePrefixGroups, 13);
   // P0-4 step 3: no request-time schema creator remains in the source inventory.
   assert.deepEqual(result.ambiguities.runtimeOnlyTables, []);
@@ -102,6 +102,20 @@ test("source-only worksheet covers every drizzle file with current byte SHA and 
   assert.match(activeReceiptIndex.manual_review_flags, /DOLLAR_BODY_MANUAL_REVIEW/);
   for (const field of RECEIPT_FIELDS) assert.equal(activeReceiptIndex[field], "",
     "0136 is never treated as a production apply");
+
+  // F-04 is reviewed forward source only. It adds one schema table and one
+  // migration, but none of these fields constitute a production apply receipt.
+  const calculationHistory = result.migrationRows.find(row =>
+    row.file_path === "drizzle/0137_immutable_payroll_calculation_history.sql");
+  assert.ok(calculationHistory, "0137 must be present in the complete SQL source inventory");
+  assert.equal(calculationHistory.numeric_prefix, "0137");
+  assert.equal(calculationHistory.statement_count, 10);
+  assert.equal(calculationHistory.creates_objects, "payroll_calculation_history");
+  assert.equal(calculationHistory.source_schema_objects, "payroll_calculation_history");
+  assert.match(calculationHistory.manual_review_flags, /DOLLAR_BODY_MANUAL_REVIEW/);
+  assert.ok(result.tableRows.some(row => row.schema_table === "payroll_calculation_history" &&
+    row.numbered_files_creating_table.includes("drizzle/0137_immutable_payroll_calculation_history.sql")));
+  for (const field of RECEIPT_FIELDS) assert.equal(calculationHistory[field], "");
 
   const paths = readdirSync(resolve(root, "drizzle")).map(name => "drizzle/" + name).sort();
   assert.deepEqual(result.migrationRows.map(row => row.file_path).sort(), paths);

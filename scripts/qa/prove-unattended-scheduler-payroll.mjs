@@ -103,32 +103,75 @@ export async function proveUnattendedPayroll(env = process.env) {
   assert.equal(seed.synthetic, true);
   assert.ok(Number.isSafeInteger(seed.runId) && seed.runId > 0);
   const client = new pg.Client({ connectionString: env.DATABASE_URL });
-  await client.connect();
   let worker;
+  let checkpoint = "connect-disposable-db";
   try {
+    await client.connect();
+    checkpoint = "read-queued-synthetic-state";
     const queued = await readState(client, seed.runId);
+    checkpoint = "assert-single-run";
     assert.equal(queued.runs.length, 1);
+    checkpoint = "assert-single-job";
     assert.equal(queued.jobs.length, 1);
+    checkpoint = "assert-queued-job";
     assert.equal(queued.jobs[0].status, "queued");
+    checkpoint = "assert-empty-register";
     assert.equal(queued.entries.length, 0);
+    checkpoint = "assert-no-early-scheduler";
     assert.equal(queued.heartbeats.length, 0, "the scheduler cannot pre-run from another process");
 
+    checkpoint = "request-unauthorized-readiness";
     const wrongToken = await fetch(LOCAL_URL + "/api/jobs/dispatch-readiness", {
       headers: { "x-worker-token": "invalid-test-token" }, redirect: "error", cache: "no-store",
     });
+    checkpoint = "assert-unauthorized-readiness";
     assert.equal(wrongToken.status, 401, "unauthorized dispatcher cannot preflight");
 
     const counters = { GET: 0, POST: 0 };
-    const result = await dispatchSchedulerTick({
-      env: {
-        PAYROLL_SCHEDULER_DISPATCH_ENABLED: "true", // TEST MEMORY ONLY, never a repository or Vercel flag
-        PAYROLL_SCHEDULER_ORIGIN: FAKE_HTTPS_ORIGIN,
-        PAYROLL_SCHEDULER_EXPECTED_HOST: "scheduler-proof.example.test",
-        PAYROLL_SCHEDULER_EXPECTED_DEPLOYMENT_SHA: env.VERCEL_GIT_COMMIT_SHA,
-        PAYROLL_SCHEDULER_WORKER_TOKEN: env.WORKER_TOKEN,
-      },
-      fetchImpl: loopbackSchedulerTransport(counters),
-    });
+    // Keep diagnostics restricted to localhost HTTP status and the scheduler's
+    // already-sanitized job/code receipt. Never print errors, SQL, bodies,
+    // headers, worker credentials or employee data to public Actions logs.
+    const statuses = { GET: "not-sent", POST: "not-sent" };
+    let result;
+    checkpoint = "dispatch-tick";
+    try {
+      result = await dispatchSchedulerTick({
+        env: {
+          PAYROLL_SCHEDULER_DISPATCH_ENABLED: "true", // TEST MEMORY ONLY, never a repository or Vercel flag
+          PAYROLL_SCHEDULER_ORIGIN: FAKE_HTTPS_ORIGIN,
+          PAYROLL_SCHEDULER_EXPECTED_HOST: "scheduler-proof.example.test",
+          PAYROLL_SCHEDULER_EXPECTED_DEPLOYMENT_SHA: env.VERCEL_GIT_COMMIT_SHA,
+          PAYROLL_SCHEDULER_WORKER_TOKEN: env.WORKER_TOKEN,
+        },
+        fetchImpl: loopbackSchedulerTransport(counters, async (url, options) => {
+          const response = await fetch(url, options);
+          statuses[options.method] = response.status;
+          return response;
+        }),
+      });
+    } catch {
+      // assertDisposableProof ran before opening this PostgreSQL client. The
+      // worker/scheduler receipt records ONLY approved job names and SQLSTATE
+      // codes; never display backend exception text or stored job payloads.
+      console.error("P0-1 isolated HTTP status: readiness=" + statuses.GET + " tick=" + statuses.POST);
+      try {
+        const { rows } = await client.query(
+          "SELECT last_result FROM scheduler_state WHERE job_name = 'central-scheduler-failure' LIMIT 1",
+        );
+        const receipt = rows[0]?.last_result;
+        if (receipt?.status === "failed" && Array.isArray(receipt.jobs)) {
+          const codes = receipt.jobs.slice(0, 16).map((row) => ({
+            job: typeof row.job === "string" && /^[A-Za-z][A-Za-z0-9._-]{0,79}$/.test(row.job) ? row.job : "unclassified",
+            code: typeof row.code === "string" && /^(?:[A-Z0-9]{5}|DISPATCH_UNCONFIRMED|JOB_FAILED)$/.test(row.code) ? row.code : "JOB_FAILED",
+          }));
+          console.error("P0-1 isolated scheduler failed jobs (sanitized): " + JSON.stringify(codes));
+        }
+      } catch {
+        console.error("P0-1 isolated scheduler receipt unavailable");
+      }
+      throw new Error("P0-1_CI_DISPATCH_NOT_ACKNOWLEDGED");
+    }
+    checkpoint = "verify-dispatch-and-worker-receipts";
     assert.equal(result.outcome, "tick-acknowledged");
     assert.deepEqual(counters, { GET: 1, POST: 1 }, "one validated GET, one authenticated POST, no retries");
 
@@ -159,6 +202,7 @@ export async function proveUnattendedPayroll(env = process.env) {
       stdio: ["ignore", "ignore", "ignore"],
       shell: false,
     });
+    checkpoint = "wait-for-autonomous-worker";
     const completed = await waitForCompletedPayroll(client, seed.runId, worker, Date.now() + MAX_WAIT_MS);
     assert.equal(completed.runs[0].status, "Needs review", "financial release must NEVER happen during synthetic proof");
     assert.equal(completed.entries.length, 1);
@@ -190,6 +234,11 @@ export async function proveUnattendedPayroll(env = process.env) {
     };
     writeFileSync("qa-artifacts/p0-1-unattended-scheduler-proof.json", JSON.stringify(report, null, 2));
     process.stdout.write("PASS P0-1: automated external dispatch + fenced heartbeat + autonomous fictional payroll worker; no manual trigger, no payment\n");
+  } catch {
+    // Expose only this fixed, low-cardinality checkpoint. Never log arbitrary
+    // DB/HTTP errors, scheduler receipts, worker output, secrets or payroll data.
+    console.error("P0-1 isolated proof checkpoint: " + checkpoint);
+    throw new Error("P0-1_CI_PROOF_CHECKPOINT_FAILED");
   } finally {
     await terminate(worker);
     await client.end();

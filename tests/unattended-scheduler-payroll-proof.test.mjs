@@ -97,6 +97,15 @@ test("workflow automatically provisions local Postgres and never activates a pro
   assert.match(seed, /env\.GITHUB_ACTIONS, "true"/);
   assert.match(seed, /target\.hostname, "127\.0\.0\.1"/);
   assert.doesNotMatch(seed, /assertIsolatedSchedulerRehearsal\(process\.env\)/);
+  // The unattended seed bypasses the employee creation API. Its compensation
+  // is explicit and tenant-bound before queueing; never weaken the worker's
+  // read-only missing-pay-profile guard or rely on a runtime backfill.
+  assert.match(seed, /db\.insert\(employeePayProfiles\)\.values\(/);
+  assert.match(seed, /organizationId: org\.id,\s*employeeId: employee\.id,\s*payBasis: "monthly"/);
+  assert.match(seed, /rateAmount: "30000\.00"/);
+  assert.ok(seed.indexOf("await db.insert(employeePayProfiles)") < seed.indexOf("await enqueuePayrollRun(run.id)"));
+  assert.match(readFileSync("src/lib/pay-basis-schema.ts", "utf8"),
+    /READONLY_PAY_PROFILES_REQUIRE_REVIEWED_BACKFILL/);
   assert.match(source, /syntheticRunStatus/);
   assert.match(source, /statutoryFilingSubmitted: false/);
   assert.match(source, /actualGitHubScheduledProductionTickProven: false/);

@@ -160,6 +160,7 @@
 "payout_batches","drizzle/0116_payout_ledger_foundation.sql","no","","","numbered source definition(s) only - application unproven",""
 "payout_profiles","drizzle/0074_company_payout_profiles.sql | drizzle/0115_payout_profiles_foundation.sql","yes - source snapshot only","","","numbered source definition(s) only - application unproven",""
 "payout_transfers","drizzle/0116_payout_ledger_foundation.sql","no","","","numbered source definition(s) only - application unproven",""
+"payroll_calculation_history","drizzle/0137_immutable_payroll_calculation_history.sql","no","","","numbered source definition(s) only - application unproven",""
 "payroll_entries","","yes - source snapshot only","","","defined only in schema.ts / no migration creates it",""
 "payroll_jobs","","yes - source snapshot only","","","defined only in schema.ts / no migration creates it",""
 "payroll_month_closures","drizzle/0031_payroll_month_close.sql","yes - source snapshot only","","","numbered source definition(s) only - application unproven",""

@@ -34,6 +34,13 @@ test("only reviewed post-pin schema additions can project to the original pinned
   assert.throws(() => reconstructPinnedSchemaText(current.replace(
     reviewedIndex, reviewedIndex.replace("on(table.batchId)", "on(table.organizationId)"))),
     /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
+  // The reviewed 0137 block is excluded from pinned historical evidence only
+  // if its exact SHA-256 matches. A changed revision index must fail closed.
+  const historyIndex = 'uniqueIndex("payroll_calculation_history_job_employee_unique")';
+  assert.equal(current.split(historyIndex).length, 2);
+  assert.throws(() => reconstructPinnedSchemaText(current.replace(
+    historyIndex, 'uniqueIndex("payroll_calculation_history_unreviewed_unique")')),
+    /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
 });
 
 test("source-only 100-row evidence is reproducible and receipts stay completely blank", () => {

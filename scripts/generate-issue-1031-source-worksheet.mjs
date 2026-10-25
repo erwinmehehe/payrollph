@@ -55,8 +55,9 @@ function schemaTables() {
     ts.forEachChild(node, visit);
   }
   visit(sf);
-  // 271 at the original inventory, plus the two #641 tables created by drizzle/0135.
-  if (names.size !== 273) throw Error("EXPECTED_273_SOURCE_TABLES_FOUND_" + names.size);
+  // 271 at the original inventory, two #641 tables in 0135, and one F-04 history
+  // table in 0137. Source count is not evidence of any production DDL apply.
+  if (names.size !== 274) throw Error("EXPECTED_274_SOURCE_TABLES_FOUND_" + names.size);
   return sort(names);
 }
 
@@ -93,9 +94,9 @@ function fileSources() {
     return { path: name, prefix, sha256: sourceHash(bytes), sql: filename.endsWith(".sql"),
       parsed: filename.endsWith(".sql") ? parseMigrationSql(bytes.toString("utf8")) : null };
   });
-  // Forward-only sources 0128 through 0136
+  // Forward-only sources 0128 through 0137
   // extend the pinned SOURCE inventory; never use this count as a receipt.
-  if (files.length !== 152) throw Error("EXPECTED_152_DRIZZLE_FILES_FOUND_" + files.length);
+  if (files.length !== 153) throw Error("EXPECTED_153_DRIZZLE_FILES_FOUND_" + files.length);
   for (const pathSuffix of [
     "drizzle/0128_recovery_foreign_key_names_forward.sql",
     "drizzle/0129_non_recovery_fk_names_forward.sql",
@@ -106,6 +107,7 @@ function fileSources() {
     "drizzle/0134_wfm_demand_missing_foundation_forward.sql",
     "drizzle/0135_salary_correction_cases.sql",
     "drizzle/0136_statutory_payment_evidence_one_active.sql",
+    "drizzle/0137_immutable_payroll_calculation_history.sql",
   ]) if (files.filter(row => row.path === pathSuffix && row.sql).length !== 1)
     throw Error("FORWARD_SOURCE_MISSING_FROM_PINNED_INVENTORY_" + pathSuffix);
   return files;
