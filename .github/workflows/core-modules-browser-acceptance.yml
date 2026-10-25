@@ -5,7 +5,8 @@ on:
     paths:
       - 'src/**'
       - 'scripts/core-modules-synthetic-*'
-      - 'tests/**'
+      - 'tests/core-modules-*'
+      - 'tests/e2e/core-modules*'
       - '.github/workflows/core-modules-browser-acceptance.yml'
 
 permissions:
