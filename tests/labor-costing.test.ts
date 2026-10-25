@@ -136,17 +136,26 @@ test("trace preserves finance allocation evidence", () => {
 });
 
 
-test("production compatibility schema carries labor-costing tables and constraints", () => {
-  const source = readFileSync("src/lib/core-schema-compat.ts", "utf8");
-  assert.ok(source.includes("CREATE TABLE IF NOT EXISTS cost_centers"));
-  assert.ok(source.includes("CREATE TABLE IF NOT EXISTS employee_labor_allocations"));
-  assert.ok(source.includes("employee_labor_allocations_percent_check"));
-  assert.ok(source.includes("employee_labor_allocations_basis_check"));
-  assert.ok(source.includes("employee_labor_allocations_dates_check"));
-  assert.ok(source.includes("ADD COLUMN IF NOT EXISTS allocation_hours"));
-  assert.ok(source.includes("CHECK (allocation_basis IN ('percentage', 'hours'))"));
-  assert.ok(source.includes("CREATE TABLE IF NOT EXISTS labor_gl_mappings"));
-  assert.ok(source.includes("labor_gl_mappings_scope_unique"));
+test("reviewed migrations own labor-costing tables and constraints; core never repairs them", () => {
+  const foundation = readFileSync("drizzle/0020_enterprise_labor_costing.sql", "utf8");
+  const depth = readFileSync("drizzle/0064_labor_costing_depth.sql", "utf8");
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  assert.ok(foundation.includes('CREATE TABLE IF NOT EXISTS "cost_centers"'));
+  assert.ok(foundation.includes('CREATE TABLE IF NOT EXISTS "employee_labor_allocations"'));
+  for (const marker of [
+    "employee_labor_allocations_percent_check",
+    "employee_labor_allocations_dates_check",
+  ]) assert.ok(foundation.includes(marker), marker);
+  assert.ok(depth.includes('"allocation_hours"'));
+  assert.ok(depth.includes("employee_labor_allocations_basis_check"));
+  assert.ok(depth.includes("'percentage', 'hours'"));
+  assert.ok(depth.includes('CREATE TABLE IF NOT EXISTS "labor_gl_mappings"'));
+  assert.ok(depth.includes("labor_gl_mappings_scope_unique"));
+  for (const name of ['"cost_centers"', '"employee_labor_allocations"', '"labor_gl_mappings"'])
+    assert.ok(schema.includes(name), name);
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });
 
 

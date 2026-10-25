@@ -129,6 +129,11 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
       }
     }
   }
+  const independentExpensesBenefits = Object.values(inventory.allApiRouteFiles)
+    .flatMap((route: any) => route.methods)
+    .filter((method: any) => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
+  assert.equal(independentExpensesBenefits.length, 6,
+    "Six separately evidenced expense and de minimis methods must retain their distinct source links");
   // The 149-method main baseline gains three separately executed 2316 methods,
   // plus #1361's *distinct* real HTTP accounting-close POST. No other GAP is waived.
   const closePost = inventory.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
@@ -166,9 +171,9 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
   assert.match(workflow, /tests\/payroll-run-legal-employer-gates\.test\.ts/,
     "The legal-employer gate test must run in synthetic multi-entity CI");
   assert.equal(inventory.metrics.methods, 494);
-  assert.equal(inventory.metrics.coveredAfter - 3 - 1, 149);
-  assert.equal(inventory.metrics.gap + 3 + 1, 335);
+  assert.equal(inventory.metrics.coveredAfter - 3 - 1 - 6, 149);
+  assert.equal(inventory.metrics.gap + 3 + 1 + 6, 335);
   assert.equal(inventory.metrics.publicByDesign, 10);
   assert.equal(inventory.metrics.coveredAfter + inventory.metrics.publicByDesign + inventory.metrics.gap, inventory.metrics.methods);
-  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED: 331 API methods and 18 page\/action GAPs remain\./);
+  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED: 325 API methods and 18 page\/action GAPs remain\./);
 });

@@ -474,6 +474,9 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
         "Unsigned PDF POST must leave the real victim database and audit untouched");
     }
   }
+  const expenseBenefitMethods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
+    .filter(method => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
+  assert.equal(expenseBenefitMethods.length, 6, "Six independent expenses/de minimis HTTP proofs required");
   // #1361 must add a genuinely successful POST, never reuse payroll-close GET.
   // The owning and foreign employer controls run inside disposable PG16 real HTTP.
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
@@ -503,8 +506,8 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   assert.match(closeSource, /event\.action === "Payroll close completed"/,
     "Own close POST must persist a matching accounting audit receipt");
   const closePostCredits = 1;
-  assert.equal(gaps.length + bir2316Methods.length + closePostCredits, 335,
+  assert.equal(gaps.length + bir2316Methods.length + closePostCredits + expenseBenefitMethods.length, 335,
     "Preserve the original 335 GAPs except three distinct BIR 2316 and one close POST method");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - closePostCredits, 149,
+  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - closePostCredits - 6, 149,
     "All 149 independently source-pinned pre-#1353/#1361 credits must remain intact");
 }

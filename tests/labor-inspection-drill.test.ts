@@ -100,7 +100,6 @@ test("drill persistence stores summary and hashes, not duplicate evidence rows",
     "drizzle/0030_labor_inspection_drills.sql",
     "drizzle/baseline.sql",
     "src/db/schema.ts",
-    "src/lib/core-schema-compat.ts",
   ]) {
     const source = readFileSync(path, "utf8");
     assert.ok(source.includes("labor_inspection_drills"), path);
@@ -112,6 +111,9 @@ test("drill persistence stores summary and hashes, not duplicate evidence rows",
   assert.equal(migration.includes("payroll_entries"), false);
   assert.equal(migration.includes("time_punches"), false);
   assert.equal(migration.includes("payslips"), false);
+  const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });
 
 test("Compliance Center exposes run, trend and action-plan UI", () => {

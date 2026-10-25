@@ -80,8 +80,8 @@ for (const spec of specs) {
 test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped pages', () => {
   const methods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods);
   assert.equal(methods.length, 494);
-  assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), [153,10,331]);
-  assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], [153,10,331]);
+  assert.deepEqual(['COVERED','PUBLIC-BY-DESIGN','GAP'].map(s => methods.filter(m => m.status === s).length), [159,10,325]);
+  assert.deepEqual([manifest.metrics.coveredAfter,manifest.metrics.publicByDesign,manifest.metrics.gap], [159,10,325]);
   const readiness = manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts']
     ?.methods.find(m => m.name === 'GET');
   const changedProcess = manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/process/route.ts']
@@ -90,7 +90,7 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
   assert.equal(changedProcess?.testedBy?.file, 'scripts/qa/tenant-second-pass-http.mjs');
   assert.match(changedProcess?.reason ?? '', /422.*403/,
     'Pre-run fail-closed proof must not be presented as successful money computation');
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 331 API methods and 18 page\/action GAPs remain\./);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 325 API methods and 18 page\/action GAPs remain\./);
   assert.equal(manifest.scopedPages.length, 20);
   const coveredPage = manifest.scopedPages.find(p =>
     p.path === 'src/app/hcm/manager-decision-inbox/page.tsx');
@@ -126,8 +126,8 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
     /assert\.deepEqual\(victimAfter, victimBefore/);
   assert.match(closeSource,
     /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
-  assert.ok(overview.includes('| coveredAfter | 153 |'));
-  assert.ok(overview.includes('| gap | 331 |'));
+  assert.ok(overview.includes('| coveredAfter | 159 |'));
+  assert.ok(overview.includes('| gap | 325 |'));
   assert.ok(overview.includes('(../../scripts/qa/tenant-high-risk-01-http.mjs#L444)'),
     'The independently credited close POST must have its exact own-200 proof link in the inventory');
 });
