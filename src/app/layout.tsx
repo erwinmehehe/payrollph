@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { PUBLIC_SITE_URL } from "@/lib/site-url";
+import { connection } from "next/server";
 import { MarketingAttributionCapture } from "@/components/marketing/marketing-attribution-capture";
 import "./globals.css";
 import "./workspace-theme.css";
@@ -54,7 +55,10 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Per-request nonces cannot be applied to pre-rendered/static HTML.
+  // Kept OFF by default; explicitly accept the dynamic-rendering cost in staging.
+  if (process.env.NEXT_CSP_ENABLED === "true") await connection();
   return (
     <html lang="en-PH" className={`${inter.variable} ${jetBrainsMono.variable}`}>
       <body><MarketingAttributionCapture />{children}</body>

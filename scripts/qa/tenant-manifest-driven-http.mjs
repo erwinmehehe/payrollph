@@ -478,6 +478,11 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   const expenseBenefitMethods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
     .filter(method => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
   assert.equal(expenseBenefitMethods.length, 6, "Six independent expenses/de minimis HTTP proofs required");
+  const piiReviewMethods = manifest.allApiRouteFiles["src/app/api/employee-identifier-requests/route.ts"]?.methods.filter(
+    method => method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-pii01-identifier-review-http.mjs",
+  ) ?? [];
+  assert.deepEqual(piiReviewMethods.map(method => method.name), ["GET", "POST"],
+    "Two distinct PII identifier review HTTP proofs must not be double-counted");
   // Do not weaken the historic three-tenant HTTP proof when accepting the
   // separate two-method payout suite. Only these exact routes and method
   // executions, with a real victim snapshot, may account for the extra credit.

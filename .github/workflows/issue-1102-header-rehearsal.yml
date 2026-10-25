@@ -15,6 +15,8 @@ on:
       - "src/lib/public-demo-payroll-fixture.ts"
       - "docs/sql/issue-1102-legacy-fictitious-header-REVIEW-ONLY.sql"
       - "scripts/qa/rehearse-1102-review-only-sql.mjs"
+      - "scripts/qa/verify-1102-hosted-ui-evidence.mjs"
+      - "tests/issue-1102-hosted-ui-evidence.test.mjs"
   push:
     branches: [main]
     paths:
@@ -24,6 +26,8 @@ on:
       - "src/lib/public-demo-payroll-fixture.ts"
       - "docs/sql/issue-1102-legacy-fictitious-header-REVIEW-ONLY.sql"
       - "scripts/qa/rehearse-1102-review-only-sql.mjs"
+      - "scripts/qa/verify-1102-hosted-ui-evidence.mjs"
+      - "tests/issue-1102-hosted-ui-evidence.test.mjs"
   workflow_dispatch:
 
 permissions:
@@ -75,6 +79,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Validate offline hosted UI evidence contract without contacting any host
+        run: npx tsx --test tests/issue-1102-hosted-ui-evidence.test.mjs
       - name: Rehearse exact legacy demo headers, guard denials, change and full rollback
         run: npx tsx scripts/qa/rehearse-1102-legacy-demo-headers.mjs
 

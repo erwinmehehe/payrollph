@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const securityHeaders = [
-  {
+  ...(process.env.NEXT_CSP_ENABLED === "true" ? [] : [{
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
@@ -20,7 +20,7 @@ const securityHeaders = [
       "worker-src 'self' blob:",
       process.env.NODE_ENV === "production" ? "upgrade-insecure-requests" : "",
     ].filter(Boolean).join("; "),
-  },
+  }]),
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
