@@ -36,3 +36,13 @@ Acceptance: inspect exact-head default real HTTP/PostgreSQL logs and all three
 profiles; fix failures; add reviewable credits only for successful executed methods;
 then require fresh final-head CI. Link-only refresh adds zero credits. Do not merge
 automatically.
+
+The first exact-head default HTTP job (121321735156, head `6df9bb00c`) failed
+at GET enterprise before write execution: canonical URL generation rejected the
+fixture's HTTP APP_BASE_URL under production mode. The fixture now separates
+HTTPS canonical metadata (`https://payroll.example.test`) from actual localhost
+HTTP probe transport (`SECURITY_SMOKE_URL`). Neither production HTTPS validation
+nor origin/MFA/tenant guards are relaxed. A regression exercises the real origin
+functions, accepting the loopback same-origin transport while retaining rejection
+of foreign/cross-site requests and an HTTP production canonical URL. New real CI
+is still required; the failed attempt does not establish the five method credits.
