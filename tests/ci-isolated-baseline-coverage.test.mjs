@@ -24,7 +24,17 @@ test("the baseline step runs after the schema push and after any explicit 0109 s
     const lines = text.split("\n");
     const at = lines.findIndex((line) => line.includes("apply-isolated-baseline"));
     const pushes = lines.map((line, i) => (/npm run db:push|drizzle-kit push/.test(line) ? i : -1)).filter((i) => i >= 0);
-    assert.ok(pushes.length > 0 && pushes.some((i) => i < at), name + ": baseline must follow a db:push step");
+    // Issue #993 uses the verified, disposable PG18 first-boot runner instead of db:push.
+    // Accept it only when a preflight is visible before bootstrap and both
+    // appear before the migration-only baseline. Do not waive the ordering gate.
+    const preflights = lines.map((line, i) =>
+      (/node scripts\/qa\/fresh-pg18-development-schema\.mjs preflight/.test(line) ? i : -1)).filter((i) => i >= 0);
+    const bootstraps = lines.map((line, i) =>
+      (/node scripts\/qa\/verified-pg18-bootstrap\.mjs/.test(line) ? i : -1)).filter((i) => i >= 0);
+    const verifiedBootstrap = bootstraps.some((bootstrap) =>
+      bootstrap < at && preflights.some((preflight) => preflight < bootstrap));
+    assert.ok(pushes.some((i) => i < at) || verifiedBootstrap,
+      name + ": baseline must follow a db:push or independently preflighted PG18 bootstrap");
     const a0109 = lines.findIndex((line) => line.includes("apply-audit-0109-isolated"));
     if (a0109 >= 0) assert.ok(a0109 < at, name + ": an explicit 0109 step must come before the idempotent baseline step");
   }
