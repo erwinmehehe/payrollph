@@ -28,14 +28,14 @@ test("Worker 360 isolates two employers and handles as-of ambiguity and event ke
         organizationId: alpha.id, employeeNo,
         firstName: "AlphaPrivate", lastName: "Fictional",
         title: "Current Alpha Title", avatarInitials: "AF",
-        basicRate: "21000.00", bankAccount: "fictional-alpha-secret",
+        basicRate: "21000.00",
         startDate: "2025-01-01",
       },
       {
         organizationId: beta.id, employeeNo,
         firstName: "BetaPrivate", lastName: "Fictional",
         title: "Current Beta Title", avatarInitials: "BF",
-        basicRate: "99000.00", bankAccount: "fictional-beta-secret",
+        basicRate: "99000.00",
         startDate: "2025-01-01",
       },
     ]).returning();
@@ -95,8 +95,8 @@ test("Worker 360 isolates two employers and handles as-of ambiguity and event ke
     assert.equal(alphaSummary.employmentEvents.preview.nextCursor, null);
     const privateFields = JSON.stringify(alphaSummary);
     for (const denied of [
-      "BetaPrivate", "99000.00", "21000.00", "fictional-alpha-secret",
-      "fictional-beta-secret", "privateEmployeeNote", "source note never shown",
+      "BetaPrivate", "99000.00", "21000.00",
+      "privateEmployeeNote", "source note never shown",
       "AlphaPrivate Job Profile",
     ]) assert.ok(!privateFields.includes(denied), "Unexpected private field: " + denied);
 
