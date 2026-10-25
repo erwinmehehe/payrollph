@@ -11,6 +11,15 @@ import { regressionTestArguments } from "../scripts/run-sharded-tests.mjs";
 const restore = load(readFileSync(".github/workflows/full-suite-clean-vs-restored-app-db.yml", "utf8"));
 const pg18 = load(readFileSync(".github/workflows/clean-pg18-source-regression.yml", "utf8"));
 
+test("clean/restore shards preserve full comparison history for client reads and flag-off payroll parity", () => {
+  const job = restore.jobs.shard;
+  assert.equal(job.env.FAIL_CLOSED_GUARD_BASE_REF, "${{ github.event.pull_request.base.sha || github.event.before }}");
+  const checkout = job.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+  assert.ok(checkout, "missing source checkout");
+  assert.equal(checkout.with?.["persist-credentials"], false, "do not leave GitHub credentials available to regression tests");
+  assert.equal(checkout.with?.["fetch-depth"], 0, "full git history is required by history-dependent regressions");
+});
+
 test("restore control dumps the complete reviewed baseline before either test pass", () => {
   const steps = restore.jobs.shard.steps;
   const push = steps.findIndex((s) => s.run === "npm run db:push");
