@@ -10,6 +10,11 @@ on:
       - "docs/sql/issue-910-review-only-forward-predecessor.sql"
       - "docs/sql/issue-910-review-only-0121-schema.sql"
       - "docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql"
+# Supersede only older PR attempts; main/manual runs retain independent groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 

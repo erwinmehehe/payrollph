@@ -13,6 +13,11 @@ on:
       - 'tests/filing-remittance-forward-postgres.test.mjs'
       - 'src/db/schema.ts'
       - '.github/workflows/filing-remittance-forward-qa.yml'
+# Supersede only older PR attempts; main/manual runs retain independent groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 jobs:

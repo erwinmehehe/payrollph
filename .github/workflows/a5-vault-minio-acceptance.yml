@@ -1,8 +1,24 @@
 name: A-5 Private Vault S3 Protocol Acceptance (Synthetic Only)
 on:
   pull_request:
+    # Ordinary prose skips this optional integration; executable fixtures/config still run.
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!**/*.mdx'
+      - '!LICENSE*'
+      - 'src/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'public/**'
+      - '.github/**'
     branches: [main]
   workflow_dispatch:
+# Supersede only older PR attempts; main/manual runs retain independent groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 jobs:
