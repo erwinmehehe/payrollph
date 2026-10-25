@@ -22742,7 +22742,7 @@
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
             "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
             "rowFile": "scripts/qa/tenant-table-rows/write/performance.mjs",
-            "rowLine": 9
+            "rowLine": 17
           }
         }
       ],
