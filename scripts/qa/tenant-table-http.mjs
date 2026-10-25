@@ -16,7 +16,9 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
-  apiKeys, auditEvents, biometricDevices, employeePayProfiles, employees, engagementSurveys,
+  apiKeys, applicantPrivacyEvidence, approvalChainPolicies, approvalDelegations, attendanceCorrectionRequests, auditEvents, dataRequests, disciplinaryCases, dynamicWorkerGroups,
+  earnedWageRequests, employeeLoans, employeePayoutChangeRequests, jobApplicants, jobRequisitions, shiftDefinitions, timePunches,
+  hcmEmploymentTermDecisions, hcmEmploymentTerms, leaveConversions, workerEffectiveChanges, biometricDevices, employeePayProfiles, employees, engagementSurveys,
   hcmBusinessProcessDefinitions, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, importBatches,
   integrationConnectors, invoices, laborInspectionDrills, leaveRequests, legalEntities, organizations, orgUnits, outbox,
   performanceCycles, scheduleSwapRequests, sessions, userLegalEntityGrants, userOrganizations, users, workforcePlanAllocations,
@@ -65,6 +67,13 @@ const proofs = {
     const rows = listPath.split(".").reduce((v, k) => v?.[k], r.json);
     assert.ok(Array.isArray(rows) && rows.length > 0, listPath + " must be a populated list");
     assert.ok(rows.some((row) => String(row?.[field] ?? "").includes(c.marker)), listPath + "[]." + field + " must carry the own employer marker");
+  },
+  /** `listPath[]` rows hold, at the dotted `fieldPath`, a value carrying this employer's marker. */
+  listsOwnMarkerAt: (listPath, fieldPath) => (r, c) => {
+    const rows = listPath.split(".").reduce((v, k) => v?.[k], r.json);
+    assert.ok(Array.isArray(rows) && rows.length > 0, listPath + " must be a populated list");
+    assert.ok(rows.some((row) => String(fieldPath.split(".").reduce((v, k) => v?.[k], row) ?? "").includes(c.marker)),
+      listPath + "[]." + fieldPath + " must carry the own employer marker");
   },
   /** The value at `path` carries this employer's seeded marker. */
   valueHasOwnMarker: (path) => (r, c) =>
@@ -243,6 +252,138 @@ export const TENANT_TABLE = Object.freeze([
   { key: "GET workforce/worksites",
     seed: (e) => db.insert(worksites).values({ organizationId: e.org.id, code: e.marker, name: e.marker }),
     prove: proofs.listsOwnMarker("worksites", "name") },
+  // Group B: GETs with extra query parameters. Optional filters stay off unless the row sets `query`.
+  { key: "GET automation-studio", prove: proofs.listsOwnMarker("orgUnits", "name") },
+  { key: "GET compliance/contribution-issues", prove: proofs.valueHasOwnMarker("legalEntity.code") },
+  { key: "GET hcm/people-operations-inbox", prove: proofs.listsOwnMarker("rows", "employeeNo") },
+  { key: "GET hcm/work-items", prove: proofs.listsOwnMarker("owners", "name") },
+  { key: "GET treasury-controls", prove: proofs.listsOwnMarker("candidates", "name") },
+  { key: "GET compliance/data-requests",
+    seed: (e) => db.insert(dataRequests).values({ organizationId: e.org.id, subjectEmail: e.marker + "@example.invalid",
+      requestType: "access", dueAt: new Date(Date.now() + 30 * 86_400_000) }),
+    prove: proofs.listsOwnMarker("requests", "subjectEmail") },
+  { key: "GET delegations",
+    seed: (e) => db.insert(approvalDelegations).values({ organizationId: e.org.id, fromApprover: e.marker, toApprover: e.marker + "-TO",
+      startsOn: "2026-01-01", endsOn: "2026-12-31" }),
+    prove: proofs.listsOwnMarker("delegations", "fromApprover") },
+  { key: "GET discipline",
+    seed: (e) => db.insert(disciplinaryCases).values({ organizationId: e.org.id, employeeId: e.worker.id, caseNumber: e.marker,
+      offense: e.marker, incidentDate: "2026-02-02" }),
+    prove: proofs.listsOwnMarker("cases", "caseNumber") },
+  { key: "GET dynamic-worker-groups",
+    seed: (e) => db.insert(dynamicWorkerGroups).values({ organizationId: e.org.id, code: e.marker, name: e.marker }),
+    prove: proofs.listsOwnMarker("groups", "name") },
+  { key: "GET earned-wage", query: (c) => "employeeId=" + c.workerId,
+    seed: (e) => db.insert(earnedWageRequests).values({ organizationId: e.org.id, employeeId: e.worker.id, requestedAmount: "100.00" }),
+    prove: proofs.all(proofs.listsOwnRow("requests", "employeeId", "workerId"), proofs.echoesOwn("eligibility.employeeId", "workerId")) },
+  { key: "GET hcm/capabilities",
+    seed: (e) => db.insert(hcmSkills).values({ organizationId: e.org.id, code: e.marker + "-CAP", name: e.marker }),
+    prove: proofs.listsOwnMarker("skills", "name") },
+  { key: "GET hcm/effective-changes",
+    seed: async (e) => db.insert(workerEffectiveChanges).values({ organizationId: e.org.id, employeeId: (await addWorker(e, "EFF")).id,
+      effectiveDate: "2026-06-01", reason: e.marker, requestedBy: e.marker }),
+    prove: proofs.listsOwnMarker("changes", "reason") },
+  { key: "GET hcm/employment-terms",
+    seed: async (e) => db.insert(hcmEmploymentTerms).values({ organizationId: e.org.id, employeeId: (await addWorker(e, "TRM")).id,
+      employmentType: "regular", termKind: "regular", effectiveFrom: "2026-01-05", reason: e.marker, requestedBy: e.marker }),
+    prove: proofs.listsOwnMarker("terms", "reason") },
+  { key: "GET hcm/employment-term-decisions",
+    seed: async (e) => {
+      const worker = await addWorker(e, "DEC");
+      const [term] = await db.insert(hcmEmploymentTerms).values({ organizationId: e.org.id, employeeId: worker.id,
+        employmentType: "probationary", termKind: "probationary", effectiveFrom: "2026-01-05", reason: e.marker + " term", requestedBy: e.marker }).returning();
+      await db.insert(hcmEmploymentTermDecisions).values({ organizationId: e.org.id, employeeId: worker.id, employmentTermId: term.id,
+        decisionKind: "continue_current", effectiveDate: "2026-07-05", reason: e.marker, requestedBy: e.marker });
+    },
+    prove: proofs.listsOwnMarker("decisions", "reason") },
+  { key: "GET leave/conversion",
+    seed: (e) => db.insert(leaveConversions).values({ organizationId: e.org.id, employeeId: e.worker.id, leaveType: "vacation",
+      daysConverted: "1.0", dailyRate: "900.00", cashAmount: "900.00" }),
+    prove: proofs.listsOwnRow("conversions", "employeeId", "workerId") },
+  { key: "GET loans",
+    seed: (e) => db.insert(employeeLoans).values({ organizationId: e.org.id, employeeId: e.worker.id, loanType: "Fictional loan", referenceNo: e.marker,
+      principal: "10000.00", monthlyAmortization: "1000.00", cutoffDeduction: "500.00", remainingBalance: "9000.00" }),
+    prove: proofs.listsOwnMarker("loans", "referenceNo") },
+  { key: "GET performance/analytics", query: (c) => "cycleId=" + c.seeded.id,
+    seed: async (e) => (await db.insert(performanceCycles).values({ organizationId: e.org.id, name: e.marker + " analytics",
+      startDate: "2026-01-01", endDate: "2026-12-31", status: "active" }).returning())[0],
+    prove: proofs.valueHasOwnMarker("cycle.name") },
+  { key: "GET web-bundy",
+    seed: (e) => db.insert(timePunches).values({ organizationId: e.org.id, employeeId: e.worker.id,
+      workDate: new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10) }),
+    prove: proofs.listsOwnMarker("punches", "employeeName") },
+  { key: "GET recruitment",
+    seed: async (e) => {
+      const [requisition] = await db.insert(jobRequisitions).values({ organizationId: e.org.id, title: e.marker, department: e.marker }).returning();
+      await db.insert(jobApplicants).values({ requisitionId: requisition.id, organizationId: e.org.id, fullName: e.marker, email: e.marker + "@example.invalid" });
+    },
+    prove: proofs.all(proofs.listsOwnMarker("requisitions", "title"), proofs.listsOwnMarker("applicants", "fullName")) },
+  { key: "GET workforce/attendance-corrections",
+    seed: async (e) => {
+      const [punch] = await db.insert(timePunches).values({ organizationId: e.org.id, employeeId: e.worker.id, workDate: "2026-03-02" }).returning();
+      await db.insert(attendanceCorrectionRequests).values({ organizationId: e.org.id, employeeId: e.worker.id, punchId: punch.id, workDate: "2026-03-02",
+        originalPunchSnapshot: {}, proposedPunchSnapshot: {}, reason: e.marker, requestedBy: e.marker });
+    },
+    prove: proofs.listsOwnMarker("requests", "reason") },
+  { key: "GET workforce-planning/baselines",
+    seed: async (e) => {
+      const plan = await seedPlan(e, "baseline plan");
+      const [scenario] = await db.insert(workforcePlanningScenarios).values({ organizationId: e.org.id, planId: plan.id, name: e.marker + " baseline",
+        startDate: "2026-01-01", endDate: "2026-12-31", snapshotHash: hex64(), createdByUserId: e.owner.id }).returning();
+      await db.insert(workforcePlanBaselines).values({ organizationId: e.org.id, planId: plan.id, scenarioId: scenario.id,
+        snapshotHash: hex64(), publishedByUserId: e.owner.id, publishedBy: e.marker });
+    },
+    prove: proofs.listsOwnMarker("baselines", "publishedBy") },
+  { key: "GET workforce/live-floor",
+    // A different employee head count per employer: the floor must count exactly the own employer's workers.
+    seed: async (e) => { for (let i = 0; i < e.rank; i++) await addWorker(e, "LF" + i); },
+    prove: async (r, c) => {
+      const own = Number((await db.select({ n: count() }).from(employees).where(eq(employees.organizationId, c.orgId)))[0].n);
+      assert.notEqual(own, Number((await db.select({ n: count() }).from(employees).where(eq(employees.organizationId, c.victim.org.id)))[0].n),
+        "seeded head counts must differ between employers");
+      assert.equal(r.json?.totalEmployees, own, "the live floor must count the own employer's workers");
+    } },
+  { key: "GET workforce/schedules",
+    seed: (e) => db.insert(shiftDefinitions).values({ organizationId: e.org.id, code: e.marker.slice(0, 32), name: e.marker, startTime: "09:00", endTime: "18:00" }),
+    prove: proofs.listsOwnMarker("shifts", "name") },
+  { key: "GET payout-destination-changes",
+    seed: (e) => db.insert(employeePayoutChangeRequests).values({ organizationId: e.org.id, employeeId: e.worker.id, reason: e.marker,
+      originalSnapshot: {}, originalStateSha256: hex64(), requestedByUserId: e.owner.id, requestedByName: e.marker }),
+    prove: proofs.listsOwnMarker("requests", "reason") },
+  { key: "GET workforce/timesheets", query: () => "periodStart=2026-03-01&periodEnd=2026-03-15", prove: proofs.listsOwnMarker("employees", "name") },
+  { key: "GET workforce/team-roster", query: () => "startDate=2026-03-02", prove: proofs.listsOwnMarkerAt("rows", "employee.name") },
+  { key: "GET workforce/coverage", query: () => "startDate=2026-03-02&endDate=2026-03-08", prove: proofs.listsOwnMarker("employees", "name") },
+  { key: "GET compliance/payroll-month-close", query: () => "applicableMonth=2026-03", prove: proofs.valueHasOwnMarker("legalEntity.code") },
+  { key: "GET bir/annual-employer", query: (c) => "taxYear=2026&legalEntityId=" + c.entityId,
+    prove: proofs.all(proofs.valueHasOwnMarker("employer.code"), proofs.echoesOwn("reconciliation.legalEntityId", "entityId")) },
+  { key: "GET hcm/worker-profile", query: (c) => "employeeId=" + c.workerId,
+    prove: proofs.all(proofs.valueHasOwnMarker("employee.employeeNo"), proofs.echoesOwn("employee.id", "workerId")) },
+  { key: "GET workforce-planning/forecast",
+    query: () => "startDate=2026-03-01&endDate=2026-03-31&demandGrowthPercent=0&vacancyFillPercent=100&employerLoadPercent=0&annualAttritionPercent=0&attritionBackfillPercent=100",
+    // A different active head count per employer: the forecast must start from exactly the own employer's workers.
+    seed: async (e) => { for (let i = 0; i < e.rank; i++) await addWorker(e, "FC" + i); },
+    prove: async (r, c) => {
+      const own = await activeWorkers(c.orgId);
+      assert.notEqual(own, await activeWorkers(c.victim.org.id), "seeded head counts must differ between employers");
+      assert.equal(r.json?.forecast?.summary?.activeHeadcount, own, "the forecast must start from the own employer's active workers");
+    } },
+  // flagged-reads profile: HCM reads that are 404 unless their own release flag is on.
+  { key: "GET hcm/my-team", profile: "flagged-reads", flags: ["HCM_MY_TEAM_ENABLED"], prove: proofs.listsOwnMarker("items", "name") },
+  { key: "GET hcm/worker-360", profile: "flagged-reads", flags: ["HCM_WORKER_360_ENABLED"], query: (c) => "employeeId=" + c.workerId,
+    prove: proofs.all(proofs.valueHasOwnMarker("worker.name"), proofs.echoesOwn("worker.id", "workerId")) },
+  { key: "GET recruitment/privacy", profile: "flagged-reads", flags: ["APPLICANT_PRIVACY_CONTROLS_ENABLED"], query: (c) => "applicantId=" + c.seeded.id,
+    seed: async (e) => {
+      const [requisition] = await db.insert(jobRequisitions).values({ organizationId: e.org.id, title: e.marker + " privacy", department: e.marker }).returning();
+      const [applicant] = await db.insert(jobApplicants).values({ requisitionId: requisition.id, organizationId: e.org.id,
+        fullName: e.marker + " applicant", email: e.marker + "-privacy@example.invalid" }).returning();
+      await db.insert(applicantPrivacyEvidence).values({ organizationId: e.org.id, applicantId: applicant.id, legalBasis: "consent",
+        privacyNoticeVersion: "fictional-v1", consentCapturedAt: new Date(), sourceEvidenceReference: e.marker });
+      return applicant;
+    },
+    prove: proofs.all(proofs.valueHasOwnMarker("applicant.fullName"), proofs.echoesOwn("applicant.organizationId", "orgId")) },
+  { key: "GET governed-handoffs", query: () => "sourceType=hcm_separation_readiness",
+    seed: (e) => db.insert(approvalChainPolicies).values({ organizationId: e.org.id, code: e.marker.slice(0, 64), name: e.marker, purpose: "automation" }),
+    prove: proofs.listsOwnMarker("approvalChains", "name") },
   // Multi-entity profile (its own server: the flag changes entity holds elsewhere).
   { key: "GET multi-entity/context", profile: "multi-entity", flags: ["MULTI_ENTITY_ENABLED"], seed: grantOwnEntity,
     prove: proofs.all(proofs.echoesOrganization(), proofs.echoesOwn("legalEntityId", "entityId"), proofs.listsOwnMarker("entities", "legalName")) },
@@ -343,9 +484,19 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
   }
   // Row seeds run for every employer, victim included, so a leak of the victim's seeded row is
   // detectable and each attacker's own row is what its proof looks for. Distinct per employer.
+  // Developer aid only: TENANT_TABLE_TRY=1 reports every failing row instead of stopping at the first,
+  // and never prints the credit line, so it cannot be mistaken for a passing proof.
+  const tryMode = process.env.TENANT_TABLE_TRY === "1";
+  const tryFailures = [];
+  const seedFailures = new Map();
   for (const item of rows) {
     if (!item.seed) continue;
-    for (const e of employers) e.seeded[item.key] = (await item.seed(e)) ?? true;
+    try {
+      for (const e of employers) e.seeded[item.key] = (await item.seed(e)) ?? true;
+    } catch (error) {
+      if (!tryMode) throw error;
+      seedFailures.set(item.key, String(error.cause?.message ?? error.message).split("\n")[0].slice(0, 200));
+    }
   }
   const victimBefore = await victimSnapshot(victim.org.id);
   const passed = new Set();
@@ -365,7 +516,9 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
         for (const flag of item.flags ?? []) assert.equal(process.env[flag], "true", item.key + ": server flag " + flag + " must be on in this job");
         assert.equal(typeof item.prove, "function", item.key + ": a row without an own-data proof cannot be credited");
       }
-      const extra = item.query ? "&" + item.query(ctx) : "";
+      // Discovery only: TENANT_TABLE_DISCOVER_QUERIES='{"GET route":"a=1&b=2"}' tries a query before a row exists.
+      const tried = discover ? JSON.parse(process.env.TENANT_TABLE_DISCOVER_QUERIES ?? "{}")[item.key] : undefined;
+      const extra = item.query ? "&" + item.query(ctx) : tried ? "&" + tried.replace(/\{(\w+)\}/g, (_, name) => ctx[name]) : "";
       item.own = "/api/" + route + "?organizationId=" + own.org.id + extra;
       item.foreign = "/api/" + route + "?organizationId=" + victim.org.id + extra;
       if (discover) {
@@ -384,6 +537,9 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
           leaksVictimMarker: o.text.includes(victim.marker) || v.text.includes(victim.marker) });
         continue;
       }
+      // The cited proof lines below stay at the loop's own indentation on purpose: the manifest pins their exact text.
+      try {
+      if (seedFailures.has(item.key)) throw new Error("seed failed: " + seedFailures.get(item.key));
       const owned = expectStatus(await request(item.own, { cookie: own.cookie }), item.status ?? 200, item.key + " own employer");
       await item.prove(owned, ctx);
       // The proof must tell employers apart: the first attacker's genuine response fails the second's proof.
@@ -396,12 +552,22 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
       const foreign = expectStatus(await request(item.foreign, { cookie: own.cookie }), item.deny ?? 403, item.key + " victim employer");
       assert.ok(!foreign.text.includes(victim.marker), item.key + ": denial leaked a victim marker");
       passed.add(item.key + "#" + idx);
+      } catch (error) {
+        if (!tryMode) throw error;
+        tryFailures.push(item.key + " (attacker " + idx + "): " + String(error.message ?? error).split("\n")[0].slice(0, 230));
+      }
     }
   }
   const victimAfter = await victimSnapshot(victim.org.id);
   if (discover) {
     console.log(JSON.stringify({ kind: "tenant-table-discovery", profile, credited: 0, report }, null, 1));
     return { discovered: report.length };
+  }
+  if (tryMode) {
+    const failedKeys = new Set(tryFailures.map((line) => line.split(" (attacker")[0]));
+    console.log(JSON.stringify({ kind: "tenant-table-try", profile, credited: 0, rows: rows.length,
+      passingRows: rows.filter((row) => !failedKeys.has(row.key)).map((row) => row.key), failures: tryFailures }, null, 1));
+    return { tried: rows.length };
   }
   assert.deepEqual(victimAfter, victimBefore, "table reads leave the victim employer's rows and audit trail unchanged");
   assert.equal(passed.size, rows.length * 2, "every row passed for both independent attacker employers");

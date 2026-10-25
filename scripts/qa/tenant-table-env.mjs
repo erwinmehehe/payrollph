@@ -13,6 +13,13 @@ export const TENANT_TABLE_PROFILES = Object.freeze({
     PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "true",
     CORE_MODULE_NAVIGATION_ENABLED: "true",
   },
+  // Reads that are 404 unless their own plain release flag is on; kept off the default server so the
+  // default rows are proven in the same shape as production.
+  "flagged-reads": {
+    HCM_MY_TEAM_ENABLED: "true",
+    HCM_WORKER_360_ENABLED: "true",
+    APPLICANT_PRIVACY_CONTROLS_ENABLED: "true",
+  },
   // Multi-entity changes other workflows (entity holds), so its rows run in their own server.
   "multi-entity": {
     MULTI_ENTITY_ENABLED: "true",
