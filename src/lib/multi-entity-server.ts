@@ -4,6 +4,7 @@ import { legalEntities, userEntityPreferences, userLegalEntityGrants } from "@/d
 import { getAccess } from "@/lib/access";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { resolveExplicitEntitySelection } from "@/lib/multi-entity-selector-boundary";
 import { decideEntityAccess, entityResourceAllowed, GROUP_ENTITY_ROLES } from "@/lib/multi-entity-policy";
 
 export type MultiEntityContext = {
@@ -49,6 +50,21 @@ export async function resolveMultiEntityContext(input: {
     return { ok: false, response: denied() };
   }
 
+  // Reconcile ALL explicit legal-employer selectors before reading employer
+  // metadata. A header must not silently authorize A while a route later
+  // consumes query/body B. Duplicate query keys are also invalid.
+  // Feature OFF returned above without inspecting any of these selectors.
+  const selectors = resolveExplicitEntitySelection({
+    requested: input.requested,
+    header: input.request?.headers.get("x-legal-entity-id"),
+    queryValues: new URL(input.request?.url ?? "https://invalid.local/")
+      .searchParams.getAll("legalEntityId"),
+  });
+  if (!selectors.ok) return { ok: false, response: Response.json({
+    error: "Legal employer selectors are invalid or inconsistent.",
+    code: selectors.code,
+  }, { status: 403 }) };
+
   const [entities, grants, preference] = await Promise.all([
     db.select({ id: legalEntities.id, legalName: legalEntities.legalName,
       displayName: legalEntities.displayName, code: legalEntities.code,
@@ -75,14 +91,11 @@ export async function resolveMultiEntityContext(input: {
   if (entities.filter(entity => entity.primaryEntity).length !== 1) {
     return { ok: false, response: primaryReconciliationRequired() };
   }
-  const explicit = input.requested !== undefined
-    ? input.requested
-    : input.request?.headers.get("x-legal-entity-id")
-      ?? new URL(input.request?.url ?? "https://invalid.local/").searchParams.get("legalEntityId")
-      ?? undefined;
-  const requested = explicit !== undefined
-    ? explicit : preference[0]
-      ? (preference[0].legalEntityId ?? "all") : undefined;
+  // A saved preference is only a fallback, never a competing authority.
+  // Explicit body/header/query selectors were all validated above.
+  const requested = selectors.explicit
+    ? selectors.requested
+    : preference[0] ? (preference[0].legalEntityId ?? "all") : undefined;
   const policy = {
     role: access.role,
     availableEntityIds: entities.map(entity => entity.id),
@@ -93,7 +106,7 @@ export async function resolveMultiEntityContext(input: {
   // scoped, or an old entity grant was revoked, recover to the first currently
   // granted employer without disclosing the stale employer. An explicit
   // client-supplied header/query/parameter must still fail closed instead.
-  if (!decision.ok && explicit === undefined) {
+  if (!decision.ok && !selectors.explicit) {
     decision = decideEntityAccess({ ...policy, requested: undefined });
   }
   if (!decision.ok) return { ok: false, response: denied(

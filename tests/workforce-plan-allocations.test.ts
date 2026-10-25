@@ -21,13 +21,15 @@ test("workforce planning models top-down allocations and versioned manager submi
   assert.ok(schema.includes("workforce_plan_manager_submissions_plan_unit_version_unique"));
 });
 
-test("migration, fresh baseline and production compatibility all carry allocation planning schema", () => {
-  for (const source of [migration, baseline, compat]) {
+test("migration and clean baseline declare allocation planning; core verifies without DDL", () => {
+  for (const source of [migration, baseline]) {
     assert.ok(source.includes("workforce_plan_allocations"));
     assert.ok(source.includes("workforce_plan_manager_submissions"));
     assert.ok(source.includes("workforce_plan_allocations_plan_unit_unique"));
     assert.ok(source.includes("workforce_plan_manager_submissions_status_check"));
   }
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bCREATE\s+TABLE\b/i);
 });
 
 test("top-down allocations are company-wide People-admin controls bounded by the plan budget", () => {

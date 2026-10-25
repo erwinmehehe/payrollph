@@ -95,7 +95,8 @@ test("historical payroll runs are deliberately not reverse-inferred into expecta
   const migration = readFileSync("drizzle/0097_authoritative_timesheet_expectations.sql", "utf8");
   const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
   assert.ok(migration.includes("Existing payroll runs are intentionally not backfilled"));
-  assert.ok(compat.includes("Do not synthesize historical rows for old payroll runs."));
+  assert.ok(compat.includes("await verifyCoreSchemaReadOnly("));
+  assert.doesNotMatch(compat, /\bINSERT\s+INTO|\bCREATE\s+TABLE\b/i);
   assert.equal(migration.includes("INSERT INTO workforce_timesheet_expectations SELECT"), false);
 });
 

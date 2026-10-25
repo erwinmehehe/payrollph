@@ -101,7 +101,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
-  assert.equal(manifest.metrics.methods, 494, "494 methods include the separately proven pre-run readiness GET");
+  assert.equal(manifest.metrics.methods, 494, "494 methods include pre-run readiness GET and six distinct MNY-02 expense/benefit proofs");
   // Pin the current ledger exactly: the two DL-01 vault methods and eight
   // money-input methods retain their independent proofs; MNY-02 adds six
   // separately linked contractor/EWT methods; two underpayment methods add distinct
@@ -119,9 +119,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   }
   // Main contributes independent legal-employer scoped government-loan and DOLE proofs.
   // PR #1325 contributes three other real HTTP proofs; never double-credit these.
-  assert.equal(manifest.metrics.coveredAfter - 5, 149, "Preserve 149 main covered methods plus three separate BIR 2316 source proofs");
+  assert.equal(manifest.metrics.coveredAfter - 5 - 6, 149, "Preserve 149 main covered methods plus three separate BIR 2316 source proofs");
   assert.equal(manifest.metrics.publicByDesign, 10);
-  assert.equal(manifest.metrics.gap + 5, 335, "Retain all 335 main API method GAPs except three separate BIR 2316 proofs");
+  assert.equal(manifest.metrics.gap + 5 + 6, 335, "Retain all 335 main API method GAPs except three separate BIR 2316 proofs");
   // Preserve the 91 pre-sweep proofs, not an obsolete total. New suites
   // can only close GAPs if every method cites the corresponding isolated HTTP
   // suite, executed for both attacker employers against real victim rows.
@@ -245,6 +245,34 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   assert.ok(actionMethods.every((method: { status: string; testedBy?: { file: string } }) =>
     method.status === "COVERED" && method.testedBy?.file === "scripts/qa/remittance-action-entity-http.mjs"));
   const actionCredits = actionMethods.length;
+  const extraProof = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
+  const extraLines = readFileSync(extraProof, "utf8").split("\n");
+  const extraCases = [
+    { method: "GET", route: "expenses" },
+    { method: "POST", route: "expenses" },
+    { method: "PATCH", route: "expenses" },
+    { method: "GET", route: "de-minimis" },
+    { method: "POST", route: "de-minimis" },
+    { method: "DELETE", route: "de-minimis" },
+  ] as const;
+  assert.ok(harnessLines.some(line =>
+    line.includes("verifyMny02ExpensesBenefitsIsolation(f, { request, expectStatus, makeSession })")),
+    "Six additional MNY-02 methods must run in the disposable PG16 HTTP harness");
+  for (const item of extraCases) {
+    const key = item.method + " " + item.route;
+    const method = manifest.allApiRouteFiles["src/app/api/" + item.route + "/route.ts"]
+      ?.methods.find((candidate: { name: string }) => candidate.name === item.method);
+    assert.equal(method?.status, "COVERED", key + ": actual own/foreign proof required");
+    assert.equal(method?.testedBy?.file, extraProof);
+    assert.match(extraLines[method.testedBy.ownPositiveLine - 1] ?? "",
+      /expectStatus\(await request\(/, key + ": successful same-method own control required");
+    assert.match(extraLines[method.testedBy.foreignDenialLine - 1] ?? "",
+      /expectStatus\(await request\(/, key + ": actual foreign victim denial required");
+    assert.match(extraLines[method.testedBy.unchangedDbLine - 1] ?? "",
+      /assert\.deepEqual\(await victimSnapshot\(victim\.id\), baseline/,
+      key + ": victim financial DB and audit rows must remain unchanged");
+  }
+  const newlyCoveredExpensesBenefits = extraCases.length;
   // Preserve the original 129/354 main-method baseline. The six MNY-02 credits
   // are additional only when each distinct contractor/EWT route/method points
   // to its own executed two-attacker HTTP proof and unchanged victim DB rows.
@@ -285,9 +313,9 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
       /assert\.deepEqual\(await victimSnapshot\(victim\.id\), originalVictim/,
       key + ": victim SQL snapshot must remain identical");
   }
-  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - contractorCases.length - underpaymentMethods.length - groupReportCredits - bir2316Methods.length - actionCredits - 2, 129,
+  assert.equal(manifest.metrics.coveredAfter - newlySourcePinned - moneyMethods.length - contractorCases.length - underpaymentMethods.length - groupReportCredits - bir2316Methods.length - actionCredits - 2 - 6, 129,
     "Keep all 129 independently source-pinned methods from merged main, not counting new MNY-02");
-  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + contractorCases.length + underpaymentMethods.length + groupReportCredits + bir2316Methods.length + actionCredits + 1, 354,
+  assert.equal(manifest.metrics.gap + newlySourcePinned + moneyMethods.length + contractorCases.length + underpaymentMethods.length + groupReportCredits + bir2316Methods.length + actionCredits + 1 + 6, 354,
     "Never reduce main's 354 originally open method GAPs without distinct own/victim HTTP proof");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap, 494);
   const readLine = (number: number) => {

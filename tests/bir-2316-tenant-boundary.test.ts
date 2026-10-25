@@ -129,6 +129,11 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
       }
     }
   }
+  const independentExpensesBenefits = Object.values(inventory.allApiRouteFiles)
+    .flatMap((route: any) => route.methods)
+    .filter((method: any) => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
+  assert.equal(independentExpensesBenefits.length, 6,
+    "Six separately evidenced expense and de minimis methods must retain their distinct source links");
   // Preserve the 149-method pre-BIR, pre-remittance-action baseline without
   // double-crediting the three BIR 2316 and two independently proven action methods.
   const statutoryActions = inventory.allApiRouteFiles[
@@ -142,9 +147,9 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
     Number.isInteger(method.testedBy?.ownPositiveLine) &&
     Number.isInteger(method.testedBy?.foreignDenialLine)));
   assert.equal(inventory.metrics.methods, 494);
-  assert.equal(inventory.metrics.coveredAfter - 3 - statutoryActions.length, 149);
-  assert.equal(inventory.metrics.gap + 3 + statutoryActions.length, 335);
+  assert.equal(inventory.metrics.coveredAfter - 3 - statutoryActions.length - 6, 149);
+  assert.equal(inventory.metrics.gap + 3 + statutoryActions.length + 6, 335);
   assert.equal(inventory.metrics.publicByDesign, 10);
   assert.equal(inventory.metrics.coveredAfter + inventory.metrics.publicByDesign + inventory.metrics.gap, inventory.metrics.methods);
-  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED: 330 API methods and 18 page\/action GAPs remain\./);
+  assert.match(inventory.acceptanceStatus, /^NOT ACCEPTED: 324 API methods and 18 page\/action GAPs remain\./);
 });
