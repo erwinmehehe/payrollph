@@ -4,7 +4,7 @@
  * This helper has no side effects; Proxy creates a fresh nonce per request.
  */
 export function nonceContentSecurityPolicy(nonce: string, isDev = false): string {
-  if (!/^(?:[A-Za-z0-9+/]{4})+(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(nonce)) {
+  if (!(/^[A-Za-z0-9+/]+={0,2}$/.test(nonce) && nonce.length % 4 === 0 && Buffer.from(nonce, "base64").length >= 16)) {
     throw new Error("CSP_NONCE_INVALID_BASE64");
   }
   const directives = [
