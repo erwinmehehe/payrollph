@@ -2,6 +2,16 @@
 
 Status: **DRAFT SOURCE CODE ONLY.** No claim of protected staging acceptance, employer approval, production deployment, or payroll certification. Tracks #700 and PR #701; separate from People Home PR #694 review.
 
+## 2026-10-25 source-only verification proposal
+
+The original Worker 360 [PR #701](https://github.com/erwinmehehe/payrollph/pull/701) has merged; the opening "draft" label in this historical document means **unapproved activation**, not an unmerged source feature.
+
+A separate source-only change proposes `tests/hcm-worker-360-tenant-integration.test.ts`. It exercises actual disposable PostgreSQL SQL predicates for two fictional employers sharing an employee number, foreign worker ID exclusion, inclusive as-of primary assignments, overlapping historical primary assignments, private event-note omission, future-event omission and 25+1 keyset pagination with 27 in-scope events. **This additional test is a proposal, not CI-verified evidence until its exact PR head passes.** A global serial employee primary key cannot collide within one database, so the test does not pretend to exercise same numeric PKs across tenants; the manual/operator test matrix still covers appropriate overlapping external identifiers.
+
+The source and test changes do **not** validate a logged-in multi-role HTTP session by themselves. Independent role/custom-deny, DBA query performance, HR correctness and keyboard/mobile/realistic protected synthetic staging verification remain mandatory before employer enablement. Keep #700 open until this regression is green and independently reviewed; keep broader release requirements in #112. No flags were enabled.
+
+---
+
 ## Scope and feature switches
 
 Both switches are **OFF when absent**. Do not activate in a live employer environment from a code merge.

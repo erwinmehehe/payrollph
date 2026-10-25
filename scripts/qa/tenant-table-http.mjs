@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { bindTenantReadRequests, loadTenantRows } from "./tenant-table-loader.mjs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, count, eq, inArray } from "drizzle-orm";
-import { db } from "../../src/db";
+import { db, pool } from "../../src/db";
 import {
   apiKeys, applicantPrivacyEvidence, approvalChainPolicies, approvalDelegations, attendanceCorrectionRequests, auditEvents, dataRequests, disciplinaryCases, dynamicWorkerGroups,
   earnedWageRequests, employeeLoans, employeePayoutChangeRequests, jobApplicants, jobRequisitions, shiftDefinitions, timePunches,
@@ -24,7 +24,7 @@ import {
   integrationConnectors, invoices, laborInspectionDrills, leaveRequests, legalEntities, organizations, orgUnits, outbox,
   performanceCycles, scheduleSwapRequests, sessions, userLegalEntityGrants, userOrganizations, users, workforcePlanAllocations,
   workforcePlanBaselines, workforcePlanPositionExecutions, workforcePlanningScenarios, workforcePlans,
-  workforceScheduleGuardrailPolicies, worksites,
+  workforceScheduleGuardrailPolicies, worksites, automationOperationalCases,
 } from "../../src/db/schema";
 import { essIdentifierRequests } from "../../src/lib/ess-profile-schema";
 import { organizationModuleSettings } from "../../src/lib/tenant-module-storage";
@@ -174,7 +174,7 @@ export async function victimSnapshot(orgId) {
 
 export async function verifyTenantTable(_f, { request = standaloneRequest, expectStatus = standaloneExpectStatus, makeSession = standaloneMakeSession } = {}) {
   requireTenantTableDisposable();
-  const TENANT_TABLE = await loadTenantRows("read", { activeWorkers, addWorker, apiKeys, applicantPrivacyEvidence, approvalChainPolicies, approvalDelegations, assert, attendanceCorrectionRequests, auditCount, auditEvents, biometricDevices, count, dataRequests, db, disciplinaryCases, dynamicWorkerGroups, earnedWageRequests, employeeLoans, employeePayoutChangeRequests, employees, engagementSurveys, eq, essIdentifierRequests, grantOwnEntity, hcmBusinessProcessDefinitions, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, hex64, importBatches, integrationConnectors, invoices, jobApplicants, jobRequisitions, laborInspectionDrills, leaveConversions, leaveRequests, organizationModuleSettings, outbox, performanceCycles, proofs, scheduleSwapRequests, seedPlan, shiftDefinitions, timePunches, workerEffectiveChanges, workforcePlanAllocations, workforcePlanBaselines, workforcePlanPositionExecutions, workforcePlanningScenarios, workforceScheduleGuardrailPolicies, worksites });
+  const TENANT_TABLE = await loadTenantRows("read", { activeWorkers, addWorker, apiKeys, applicantPrivacyEvidence, approvalChainPolicies, approvalDelegations, assert, attendanceCorrectionRequests, auditCount, auditEvents, biometricDevices, count, dataRequests, db, disciplinaryCases, dynamicWorkerGroups, earnedWageRequests, employeeLoans, employeePayoutChangeRequests, employees, engagementSurveys, eq, essIdentifierRequests, grantOwnEntity, hcmBusinessProcessDefinitions, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, hex64, importBatches, integrationConnectors, invoices, jobApplicants, jobRequisitions, laborInspectionDrills, leaveConversions, leaveRequests, organizationModuleSettings, outbox, performanceCycles, proofs, scheduleSwapRequests, seedPlan, shiftDefinitions, timePunches, workerEffectiveChanges, workforcePlanAllocations, workforcePlanBaselines, workforcePlanPositionExecutions, workforcePlanningScenarios, workforceScheduleGuardrailPolicies, worksites, automationOperationalCases, pool });
   const discover = process.env.TENANT_TABLE_DISCOVER === "1";
   const profile = process.env.TENANT_TABLE_PROFILE ?? "default";
   const rows = (discover && process.env.TENANT_TABLE_DISCOVER_KEYS

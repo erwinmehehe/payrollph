@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ClipboardList, RefreshCw } from "lucide-react";
-import type { Worker360Summary } from "@/lib/hcm-worker-360-contract";
+import { isVerifiedWorker360OlderPage } from "@/lib/hcm-worker-360-history-response";
 import {
-  validWorker360EventCursor, worker360EventBeforeCursor,
+  validWorker360EventCursor,
   type Worker360Event, type Worker360EventCursor, type Worker360EventPreview,
 } from "@/lib/hcm-worker-360-projection";
 
-const SOURCE_PAGE_SIZE = 25;
 const MAX_DISPLAYED_EVENTS = 125;
 
 function historyDate(value: string) {
@@ -75,20 +74,17 @@ export function Worker360History({
             ? "The history cursor is no longer valid. Refresh Worker 360."
             : "Older source events could not be loaded. Try again.");
       }
-      const envelope = await response.json() as Worker360Summary;
-      const page = envelope.employmentEvents?.preview;
-      if (envelope.tenantId !== organizationId || envelope.employeeId !== employeeId ||
-          envelope.asOfDate !== asOfDate || !page || !Array.isArray(page.items) ||
-          page.items.length > SOURCE_PAGE_SIZE ||
-          page.items.some(item => !Number.isSafeInteger(item.id) || item.id <= 0 ||
-            !worker360EventBeforeCursor(item, cursor)) ||
-          (page.hasMore && (!page.nextCursor ||
-            !validWorker360EventCursor(page.nextCursor, asOfDate) ||
-            !worker360EventBeforeCursor(page.nextCursor, cursor))) ||
-          (!page.hasMore && page.nextCursor !== null)) {
+      const payload: unknown = await response.json();
+      if (controller.signal.aborted) return;
+      // Do not append a plausible 200 response unless its complete Worker 360
+      // source envelope and its ordered, non-replayed cursor page are verified.
+      if (!isVerifiedWorker360OlderPage(
+        payload, organizationId, employeeId, asOfDate,
+        cursor, displayed.map(event => event.id),
+      )) {
         throw new Error("The returned history did not match this employer, worker, date and cursor.");
       }
-      if (controller.signal.aborted) return;
+      const page = payload.employmentEvents.preview;
       setOlder(current => {
         const seen = new Set([...preview.items, ...current].map(item => item.id));
         return [...current, ...page.items.filter(item => !seen.has(item.id))];

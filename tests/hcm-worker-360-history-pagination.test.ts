@@ -87,8 +87,12 @@ test("cursor enters the authorized no-store GET and tenant-filtered source SQL b
   assert.match(server, /limit\(WORKER_360_EVENT_PAGE_SIZE \+ 1\)/);
   assert.match(client, /MAX_DISPLAYED_EVENTS = 125/);
   assert.match(client, /controller\.signal/);
-  assert.match(client, /envelope\.tenantId !== organizationId/);
-  assert.match(client, /envelope\.employeeId !== employeeId/);
+  assert.match(client, /const payload: unknown = await response\.json\(\)/);
+  assert.match(client, /isVerifiedWorker360OlderPage\(/);
+  const verify = client.indexOf("if (!isVerifiedWorker360OlderPage(");
+  const append = client.indexOf("setOlder(current =>");
+  assert.ok(verify >= 0 && verify < append,
+    "fully verify the continuation source and cursor before appending older events");
   assert.match(parent, /Worker360History key=\{scope\}/);
   assert.doesNotMatch(server, /db\.(insert|update|delete)\(/);
 });
