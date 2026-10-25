@@ -10,6 +10,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
+import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
 import {
   auditEvents, complianceActionTasks, employees, legalEntities, payrollRuns,
   statutoryRemittanceBatches, statutoryRemittancePaymentEvidence, statutoryPostingEvidenceArtifacts,
@@ -503,8 +504,7 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
     /node scripts\/qa\/payout-destination-entity-http\.mjs/,
     "Actual synthetic signed-in HTTPS/PG16 payout acceptance must execute in CI");
-  assert.equal(gaps.length + bir2316Methods.length + payoutMethods.length + expenseBenefitMethods.length, 335,
-    "Preserve 335 historical GAPs after separately accounting for three BIR 2316, two payout GET/PATCH and six expenses/de minimis source-pinned proofs");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - payoutMethods.length - 6, 149,
-    "All 149 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
+  // Totals are invariants (tallies add up; nothing proven regresses against the base), not pinned
+  // numbers that every later credit would have to edit.
+  assertLiveTenantCounts(assert, manifest);
 }

@@ -333,24 +333,25 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     expenseBenefitMethods++;
   }
   assert.equal(expenseBenefitMethods, 6);
-  const payoutRecords = [
-    manifest.allApiRouteFiles["src/app/api/payout-destination-changes/route.ts"]?.methods.find(m => m.name === "GET"),
-    manifest.allApiRouteFiles["src/app/api/payout-destination-changes/[id]/route.ts"]?.methods.find(m => m.name === "PATCH"),
-  ];
-  assert.equal(payoutRecords.length, 2);
-  assert.ok(payoutRecords.every(m => m?.status === "COVERED" &&
-    m.testedBy?.file === "scripts/qa/payout-destination-entity-http.mjs" &&
-    Number.isInteger(m.testedBy?.ownPositiveLine) &&
-    Number.isInteger(m.testedBy?.foreignDenialLine) &&
-    Number.isInteger(m.testedBy?.unchangedDbLine)),
-  "Payout GET and PATCH each require distinct source-pinned real HTTPS/PG16 proof");
-  assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
-    /node scripts\/qa\/payout-destination-entity-http\.mjs/);
+  // Tenant-table credits are counted only when each cites an exact GET row of the shared table
+  // runner with all three pinned proof lines; the inventory guard re-validates every row.
+  const tableSource = readFileSync("scripts/qa/tenant-table-http.mjs", "utf8").split("\n");
+  const tableMethods = Object.entries(manifest.allApiRouteFiles).flatMap(([, route]) =>
+    route.methods.filter(m => m.testedBy?.file === "scripts/qa/tenant-table-http.mjs").map(m => [m.name + " " + route.route, m]));
+  for (const [key, m] of tableMethods) {
+    assert.equal(m.status, "COVERED", key + ": table proof only ever credits COVERED");
+    assert.ok((tableSource[m.testedBy.line - 1] ?? "").includes('{ key: "' + key + '",'), key + ": must cite its own table row");
+    assert.match(tableSource[m.testedBy.ownPositiveLine - 1] ?? "", /const owned = expectStatus\(await request\(item\.own,/);
+    assert.match(tableSource[m.testedBy.foreignDenialLine - 1] ?? "", /const foreign = expectStatus\(await request\(item\.foreign,/);
+    assert.match(tableSource[m.testedBy.unchangedDbLine - 1] ?? "", /assert\.deepEqual\(victimAfter, victimBefore,/);
+  }
   assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
-    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - bir2316Methods.length - payoutRecords.length - expenseBenefitMethods, 124,
+    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
+    tableMethods.length - 2, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
-    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + bir2316Methods.length + payoutRecords.length + expenseBenefitMethods, 359,
+    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
+    tableMethods.length + 2, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

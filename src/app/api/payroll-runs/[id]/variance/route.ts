@@ -5,6 +5,7 @@ import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_VIEW_ROLE
 import { getSessionUser } from "@/lib/auth";
 import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
 import { buildPayExplanation } from "@/lib/payroll-explain";
+import { varianceRosterMatchesRunEmployer } from "@/lib/payroll-variance-entity-boundary";
 import { classifyPayrollVariance, type PayrollVarianceCategory } from "@/lib/payroll-variance";
 
 export const dynamic = "force-dynamic";
@@ -123,12 +124,31 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const periodStart = new Date(`${run.periodStart}T00:00:00.000Z`);
   const periodEnd = new Date(`${run.periodEnd}T23:59:59.999Z`);
 
-  const [employeeRows, relevantRevisions, periodAudit] = employeeIds.length
+  // Never use a CURRENT employee's new employer to reattribute an OLD
+  // payroll run. Missing/foreign workers and transfers require a verified
+  // effective-dated employer history, not a partial salary variance response.
+  // Read only the roster first; do not load salary revisions or audit metadata
+  // until every current + comparison-run entry has matching attribution.
+  const employeeRows = employeeIds.length
+    ? await db.select().from(employees).where(and(
+        eq(employees.organizationId, run.organizationId),
+        inArray(employees.id, employeeIds),
+      )) : [];
+  if (entityContext.context.enabled && !varianceRosterMatchesRunEmployer({
+    organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+    entryEmployeeIds: employeeIds,
+    employees: employeeRows.map(({ id, organizationId, legalEntityId }) =>
+      ({ id, organizationId, legalEntityId })),
+  })) {
+    return Response.json({
+      error: "Payroll variance requires verified historical legal-employer attribution.",
+      code: "PAYROLL_VARIANCE_ENTITY_RECONCILIATION_REQUIRED",
+    }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+  }
+
+  const [relevantRevisions, periodAudit] = employeeIds.length
     ? await Promise.all([
-        db.select().from(employees).where(and(
-          eq(employees.organizationId, run.organizationId),
-          inArray(employees.id, employeeIds),
-        )),
         db.select().from(employeePayRevisions).where(and(
           eq(employeePayRevisions.organizationId, run.organizationId),
           inArray(employeePayRevisions.employeeId, employeeIds),
@@ -141,7 +161,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           lte(auditEvents.createdAt, periodEnd),
         )),
       ])
-    : [[], [], []];
+    : [[], []];
 
   const employeeById = new Map(employeeRows.map((employee) => [employee.id, employee]));
   const currentByEmployee = new Map(currentEntries.map((entry) => [entry.employeeId, entry]));

@@ -14,6 +14,12 @@ on:
       - "tests/payout-destination-legal-employer.test.ts"
       - "tests/payout-destination-entity-manifest.test.mjs"
       - "scripts/qa/payout-destination-entity-http.mjs"
+      # Existing provisional variance GET now blocks unreconciled historical
+      # legal-employer membership rather than emitting partial salary evidence.
+      - "src/app/api/payroll-runs/**/variance/route.ts"
+      - "src/lib/payroll-variance-entity-boundary.ts"
+      - "tests/payroll-variance-entity-boundary.test.ts"
+      - "scripts/qa/payroll-variance-entity-http.mjs"
       - "src/lib/bir-2316-employer.ts"
       - "src/app/api/separation/**/2316/route.ts"
       - "src/app/api/year-end/2316-certificate/route.ts"
@@ -128,6 +134,10 @@ jobs:
           tests/multi-entity-isolation-db.test.ts
           tests/hcm-client-employer-scope.test.ts
           tests/multi-entity-hcm-hold.test.ts
+      - name: Verify variance employer-roster fail-closed policy and evidence wiring
+        run: |
+          node --check scripts/qa/payroll-variance-entity-http.mjs
+          npx tsx --test tests/payroll-variance-entity-boundary.test.ts
       - name: Build actual protected Next.js workspace
         run: npm run build
       - name: Install pinned Chromium for end-to-end verification

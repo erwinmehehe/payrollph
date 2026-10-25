@@ -59,8 +59,13 @@ test("empty-unit, employee-role, revoked and anonymous paths remain distinct fro
 });
 
 test("two unexecuted HMO candidates cannot borrow existing benefits/worksite credits", () => {
-  assert.deepEqual(manifest.allApiRouteFiles["src/app/api/benefits/hmo/route.ts"].methods.map(m => [m.name, m.status]),
-    [["GET", "GAP"], ["POST", "GAP"]]);
+  const hmo = manifest.allApiRouteFiles["src/app/api/benefits/hmo/route.ts"].methods;
+  assert.deepEqual(hmo.map(m => m.name), ["GET", "POST"]);
+  assert.equal(hmo.find(m => m.name === "POST").status, "GAP");
+  // GET may close only through the separate own-marker table proof, never through this candidate suite.
+  const get = hmo.find(m => m.name === "GET");
+  assert.ok(get.status === "GAP" || (get.status === "COVERED" && get.testedBy?.file === "scripts/qa/tenant-table-http.mjs"),
+    "benefits/hmo GET cannot be credited by the unexecuted HMO candidate");
   assert.match(suite, /inventoryCreditsAdded: 0/);
   assert.doesNotMatch(suite, /fetch\(["']https:\/\/|submitXendit|submitPaymongo/);
 });

@@ -1,3 +1,4 @@
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -22,8 +23,6 @@ const routes = [
 ];
 
 test("payout GET and PATCH have exact immutable real-HTTP proof links, not only a renamed GAP", () => {
-  assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [160, 10, 324]);
   for (const spec of routes) {
     const record = manifest.allApiRouteFiles[spec.path];
     assert.ok(record, spec.path);
@@ -76,7 +75,6 @@ test("flag-ON/OFF workflow must actually execute source-pinned real HTTPS/PG16 p
   assert.match(workflow, /XENDIT_PAYOUTS_ENABLED: "false"/);
   assert.match(workflow, /node --check scripts\/qa\/payout-destination-entity-http\.mjs/);
   assert.match(workflow, /node scripts\/qa\/payout-destination-entity-http\.mjs/);
-  assert.ok(overview.includes("| coveredAfter | 160 |"));
-  assert.ok(overview.includes("| gap | 324 |"));
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 324 API methods/);
 });
+
+test("synced method inventory retains live counts and base coverage", () => { assertLiveTenantCounts(assert, manifest); });
