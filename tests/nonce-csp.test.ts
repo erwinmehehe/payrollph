@@ -7,7 +7,7 @@ const nonce = Buffer.from("fixture-per-request-uuid").toString("base64");
 
 test("production nonce policy bans unsafe inline scripts and eval", () => {
   const csp = nonceContentSecurityPolicy(nonce, false);
-  assert.match(csp, /script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/);
+  assert.match(csp, /script-src 'self' 'nonce-[A-Za-z0-9+\/=]+' 'strict-dynamic'/);
   assert.doesNotMatch(csp.match(/script-src [^;]+/)?.[0] ?? "", /unsafe-inline|unsafe-eval/);
   assert.match(csp, /frame-ancestors 'none'/);
   assert.match(csp, /upgrade-insecure-requests/);
