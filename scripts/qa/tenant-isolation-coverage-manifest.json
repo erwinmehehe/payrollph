@@ -1440,12 +1440,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 256,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 78
           }
         },
         {
@@ -1585,12 +1587,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 101,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/benefits.mjs",
+            "rowLine": 10
           }
         },
         {
@@ -1762,12 +1766,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 102,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/benefits.mjs",
+            "rowLine": 11
           }
         },
         {
@@ -1777,12 +1783,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 167,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/benefits.mjs",
+            "rowLine": 10
           }
         },
         {
@@ -1792,12 +1800,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 178,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/benefits.mjs",
+            "rowLine": 21
           }
         },
         {
@@ -2134,12 +2144,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 103,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/payroll-finance.mjs",
+            "rowLine": 16
           }
         },
         {
@@ -2405,12 +2417,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 129,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/payroll-finance.mjs",
+            "rowLine": 22
           }
         }
       ],
@@ -2649,12 +2663,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 132,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 36
           }
         },
         {
@@ -3109,12 +3125,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 357,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 104
           }
         }
       ],
@@ -3677,12 +3695,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 135,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/compliance.mjs",
+            "rowLine": 18
           }
         }
       ],
@@ -4504,12 +4524,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 257,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/compliance.mjs",
+            "rowLine": 48
           }
         },
         {
@@ -4645,12 +4667,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 261,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/compliance.mjs",
+            "rowLine": 49
           }
         },
         {
@@ -4660,12 +4684,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 90,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/compliance.mjs",
+            "rowLine": 9
           }
         },
         {
@@ -5532,12 +5558,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 148,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/compliance.mjs",
+            "rowLine": 31
           }
         },
         {
@@ -5786,12 +5814,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 152,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/compliance.mjs",
+            "rowLine": 35
           }
         },
         {
@@ -5931,12 +5961,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 356,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/compliance.mjs",
+            "rowLine": 53
           }
         },
         {
@@ -6088,12 +6120,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 156,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/compliance.mjs",
+            "rowLine": 39
           }
         }
       ],
@@ -6182,12 +6216,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 105,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/compliance.mjs",
+            "rowLine": 16
           }
         },
         {
@@ -8011,12 +8047,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 265,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/platform.mjs",
+            "rowLine": 20
           }
         },
         {
@@ -8033,12 +8071,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 63,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/platform.mjs",
+            "rowLine": 10
           }
         }
       ],
@@ -8227,12 +8267,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 165,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 39
           }
         },
         {
@@ -8380,12 +8422,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 269,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 80
           }
         },
         {
@@ -8395,12 +8439,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 50,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/people.mjs",
+            "rowLine": 9
           }
         },
         {
@@ -8862,12 +8908,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 273,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 84
           }
         },
         {
@@ -9007,12 +9055,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 276,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/payroll-finance.mjs",
+            "rowLine": 29
           }
         },
         {
@@ -9029,12 +9079,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 100,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/payroll-finance.mjs",
+            "rowLine": 9
           }
         }
       ],
@@ -9223,12 +9275,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 168,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 42
           }
         },
         {
@@ -11078,12 +11132,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 384,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 115
           }
         },
         {
@@ -11391,12 +11447,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 172,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 23
           }
         },
         {
@@ -11694,12 +11752,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 279,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 39
           }
         },
         {
@@ -12047,12 +12107,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 282,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 42
           }
         },
         {
@@ -12069,12 +12131,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 154,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/hcm.mjs",
+            "rowLine": 55
           }
         }
       ],
@@ -12524,12 +12588,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 290,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 50
           }
         },
         {
@@ -12546,12 +12612,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 136,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/hcm.mjs",
+            "rowLine": 37
           }
         }
       ],
@@ -12708,12 +12776,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 286,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 46
           }
         },
         {
@@ -12730,12 +12800,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 123,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/hcm.mjs",
+            "rowLine": 24
           }
         }
       ],
@@ -12892,12 +12964,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 176,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 27
           }
         },
         {
@@ -12908,11 +12982,13 @@
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
             "line": 112,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/hcm.mjs",
+            "rowLine": 13
           }
         }
       ],
@@ -13301,12 +13377,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 179,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 30
           }
         },
         {
@@ -13316,12 +13394,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 192,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/hcm.mjs",
+            "rowLine": 68
           }
         }
       ],
@@ -13454,12 +13534,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 107,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 21
           }
         }
       ],
@@ -13658,12 +13740,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 371,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 61
           }
         }
       ],
@@ -13814,12 +13898,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 258,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 37
           }
         }
       ],
@@ -14742,12 +14828,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 259,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 38
           }
         },
         {
@@ -14883,12 +14971,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 372,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 62
           }
         }
       ],
@@ -15001,12 +15091,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 359,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+            "rowLine": 59
           }
         }
       ],
@@ -15642,12 +15734,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 186,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 46
           }
         },
         {
@@ -15867,12 +15961,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 109,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 31
           }
         },
         {
@@ -16016,12 +16112,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 110,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/platform.mjs",
+            "rowLine": 11
           }
         },
         {
@@ -16527,12 +16625,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 299,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/payroll-finance.mjs",
+            "rowLine": 32
           }
         },
         {
@@ -16802,12 +16902,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 190,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/payroll-finance.mjs",
+            "rowLine": 25
           }
         },
         {
@@ -17147,12 +17249,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 303,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/payroll-finance.mjs",
+            "rowLine": 36
           }
         },
         {
@@ -17768,12 +17872,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 194,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 50
           }
         },
         {
@@ -17921,12 +18027,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 388,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/multi-entity.mjs",
+            "rowLine": 11
           }
         },
         {
@@ -18325,12 +18433,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 390,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/multi-entity.mjs",
+            "rowLine": 13
           }
         },
         {
@@ -18466,12 +18576,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 392,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/multi-entity.mjs",
+            "rowLine": 15
           }
         },
         {
@@ -18805,12 +18917,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 197,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 53
           }
         },
         {
@@ -19040,12 +19154,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 349,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 100
           }
         }
       ],
@@ -19552,12 +19668,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 111,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/payroll-finance.mjs",
+            "rowLine": 18
           }
         },
         {
@@ -21622,12 +21740,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 113,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/payroll-finance.mjs",
+            "rowLine": 20
           }
         },
         {
@@ -21916,12 +22036,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 307,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/performance.mjs",
+            "rowLine": 29
           }
         }
       ],
@@ -22038,12 +22160,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 115,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/performance.mjs",
+            "rowLine": 16
           }
         },
         {
@@ -22202,12 +22326,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 201,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/performance.mjs",
+            "rowLine": 23
           }
         },
         {
@@ -22366,12 +22492,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 116,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/performance.mjs",
+            "rowLine": 17
           }
         },
         {
@@ -22542,12 +22670,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 118,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/performance.mjs",
+            "rowLine": 19
           }
         },
         {
@@ -22564,12 +22694,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 208,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/performance.mjs",
+            "rowLine": 9
           }
         }
       ],
@@ -22869,12 +23001,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 204,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/performance.mjs",
+            "rowLine": 26
           }
         },
         {
@@ -23022,12 +23156,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 119,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/performance.mjs",
+            "rowLine": 20
           }
         },
         {
@@ -23246,12 +23382,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 121,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/performance.mjs",
+            "rowLine": 22
           }
         }
       ],
@@ -23384,12 +23522,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 122,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 32
           }
         },
         {
@@ -23900,12 +24040,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 374,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/recruitment.mjs",
+            "rowLine": 16
           }
         },
         {
@@ -24045,12 +24187,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 315,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/recruitment.mjs",
+            "rowLine": 10
           }
         },
         {
@@ -27300,12 +27444,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 123,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 33
           }
         },
         {
@@ -27515,12 +27661,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 207,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/platform.mjs",
+            "rowLine": 12
           }
         },
         {
@@ -27530,12 +27678,14 @@
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
-            "line": 76,
-            "ownPositiveLine": 284,
-            "foreignDenialLine": 297,
-            "unchangedDbLine": 321,
+            "line": 112,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/write/platform.mjs",
+            "rowLine": 23
           }
         }
       ],
@@ -27664,12 +27814,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 260,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 79
           }
         },
         {
@@ -28930,12 +29082,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 311,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 87
           }
         },
         {
@@ -29367,12 +29521,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 215,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 57
           }
         },
         {
@@ -29543,12 +29699,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 328,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 91
           }
         },
         {
@@ -29944,12 +30102,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 361,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 106
           }
         }
       ],
@@ -30042,12 +30202,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 221,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 63
           }
         },
         {
@@ -30210,12 +30372,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 124,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 34
           }
         },
         {
@@ -30442,12 +30606,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 232,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 74
           }
         },
         {
@@ -30748,12 +30914,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 321,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/workforce.mjs",
+            "rowLine": 40
           }
         },
         {
@@ -31375,12 +31543,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 355,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/workforce.mjs",
+            "rowLine": 61
           }
         },
         {
@@ -32694,12 +32864,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 126,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/workforce.mjs",
+            "rowLine": 19
           }
         },
         {
@@ -32879,12 +33051,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 337,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/workforce.mjs",
+            "rowLine": 47
           }
         }
       ],
@@ -33001,12 +33175,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 127,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/workforce.mjs",
+            "rowLine": 20
           }
         },
         {
@@ -33626,12 +33802,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 236,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/workforce.mjs",
+            "rowLine": 21
           }
         },
         {
@@ -33901,12 +34079,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 244,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/workforce.mjs",
+            "rowLine": 29
           }
         },
         {
@@ -34082,12 +34262,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 346,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/workforce.mjs",
+            "rowLine": 56
           }
         },
         {
@@ -34259,12 +34441,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 354,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/workforce.mjs",
+            "rowLine": 60
           }
         }
       ],
@@ -34381,12 +34565,14 @@
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
-            "line": 353,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "line": 252,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/workforce.mjs",
+            "rowLine": 59
           }
         },
         {
@@ -34559,11 +34745,13 @@
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
             "line": 252,
-            "ownPositiveLine": 543,
-            "foreignDenialLine": 552,
-            "unchangedDbLine": 572,
+            "ownPositiveLine": 252,
+            "foreignDenialLine": 261,
+            "unchangedDbLine": 281,
             "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
-            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3"
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost runs 2026-10-25: write table 13 rows / 26 pairs / 13 discriminating / 8 forged; read table default 75 rows, multi-entity 3, flagged-reads 3",
+            "rowFile": "scripts/qa/tenant-table-rows/read/workforce.mjs",
+            "rowLine": 37
           }
         },
         {
