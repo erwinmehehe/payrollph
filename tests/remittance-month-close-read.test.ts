@@ -107,7 +107,8 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   // Pin the current ledger exactly: the two DL-01 vault methods and eight
   // money-input methods retain their independent proofs; MNY-02 adds six
   // separately linked contractor/EWT methods; two underpayment methods add distinct
-  // source-linked proof; the independent group-report and pre-run GETs leave 335 method GAPs.
+  // source-linked proof; the independent group-report and pre-run GETs plus
+  // #1361's distinct successful accounting-close POST and three BIR 2316 proofs leave 331 method GAPs.
   // This is provisional coverage; no production or global audit sign-off.
   for (const [vaultRoute, vaultMethod] of [
     ["src/app/api/employee-vault/route.ts", "GET"],
@@ -229,6 +230,8 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   assert.match(groupReportLines[groupReport.testedBy.foreignDenialLine - 1] ?? "", /assert\.equal\(deniedVictim\.status, 403,/);
   assert.match(groupReportLines.join("\n"), /assert\.equal\(refusedReleasedRun\.status, 409,/);
   const groupReportCredits = 1;
+  // #1361 adds a separate accounting-close POST. Its real own-success and
+  // victim-denial evidence must not be borrowed from the existing close GET.
   const bir2316Methods = (Object.values(manifest.allApiRouteFiles) as Array<{
     methods: Array<{ status: string; testedBy?: { file: string; ownPositiveLine: number; foreignDenialLine: number } }>;
   }>).flatMap(route => route.methods).filter(method =>
@@ -238,6 +241,37 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     method.testedBy?.ownPositiveLine && method.testedBy?.foreignDenialLine));
   assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
     /npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/);
+  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find((method: { name: string }) => method.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "One additional credit requires its own successful close POST proof");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs",
+    "Close POST must use the guarded two-attacker payroll-close HTTP proof");
+  const closeSource = readFileSync(closePost.testedBy.file, "utf8");
+  const closeLines = closeSource.split("\n");
+  const closeProof = closePost.testedBy;
+  assert.deepEqual([closeProof.ownPositiveLine, closeProof.foreignDenialLine,
+    closeProof.unchangedDbLine], [444, 456, 465],
+    "Reviewed payroll-close POST proof links must remain exact");
+  assert.match(closeLines[closeProof.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(closeProof.ownPositiveLine - 1,
+    closeProof.ownPositiveLine + 3).join("\n"), /cookie, method: "POST"[\s\S]*\}\), 200,/,
+    "Credit a real successful own POST, never a denied/preview response");
+  assert.match(closeLines[closeProof.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closeProof.foreignDenialLine - 1,
+    closeProof.foreignDenialLine + 7).join("\n"), /cookie, method: "POST"[\s\S]*\}\), 403,/,
+    "Foreign victim-only payroll-close POST must be denied");
+  assert.match(closeLines[closeProof.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/,
+    "Denied foreign mutation must preserve real victim PostgreSQL state");
+  assert.match(closeSource,
+    /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
+    "Accounting-close POST evidence must execute in the isolated HTTP harness");
+  assert.match(closeSource, /event\.action === "Payroll close completed"/,
+    "Owned close must persist the exact accounting audit receipt");
+  const closePostCredits = 1;
   const extraProof = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
   const extraLines = readFileSync(extraProof, "utf8").split("\n");
   const extraCases = [

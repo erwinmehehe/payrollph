@@ -370,4 +370,105 @@ export async function verifyHighRiskBatchOne(f, { request, expectStatus, makeSes
     victimDataUnchanged: true, sensitiveActionsMovedMoney: false,
     agencySubmission: false, productionAccepted: false, broaderAuditComplete: false,
   }));
+  // Separate mutation proof: counted only when the real owned POST creates
+  // a close audit receipt, and two independent attacker sessions are denied.
+  await verifyPayrollClosePostIsolation(f, { request, expectStatus, makeSession });
+}
+
+/**
+ * Real POST /payroll-runs/[id]/close isolation, provider-disabled PG16.
+ *
+ * The accounting prerequisites are synthetic and include an explicitly
+ * fictional manual bank-confirmation audit event. That is a route fixture,
+ * NOT evidence of any external payment or settlement. No provider is called.
+ * Never accept a denied/blocked own POST as an own-positive mutation proof.
+ */
+async function verifyPayrollClosePostIsolation(f, { request, expectStatus, makeSession }) {
+  const { recordAuditEvent } = await import("../../src/lib/audit");
+  assert.equal(process.env.CI, "true");
+  assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only");
+  assert.equal(new URL(process.env.DATABASE_URL).pathname, "/app_db");
+  assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
+  assert.notEqual(process.env.PAYMONGO_DISBURSEMENTS_ENABLED, "true");
+  assert.notEqual(process.env.XENDIT_PAYOUTS_ENABLED, "true");
+  assert.ok(!process.env.PAYMONGO_SECRET_KEY && !process.env.XENDIT_SECRET_KEY,
+    "No payment-provider credentials may be present in payroll-close QA");
+
+  const victimId = f.orgs[0].id;
+  const victimBefore = await takeVictimSnapshot(victimId);
+  assert.ok(f.victimRun.id > 6 && f.victimRun.organizationId === victimId,
+    "Foreign POST must target a real existing victim payroll run");
+  const closeProofIds = [];
+  for (const idx of [1, 2]) {
+    const org = f.orgs[idx];
+    const owner = f.owners[idx];
+    const cookie = (await makeSession(owner.id, { privileged: true })).cookie;
+    const worker = f.ownedEmployees[idx - 1];
+    const [fixture] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      legalEntityId: f.entities[idx].id,
+      periodLabel: "CI-ACCOUNTING-CLOSE-" + org.id + "-" + idx,
+      periodStart: "2028-07-01", periodEnd: "2028-07-15", // Outside the 2026-11 Create/process readiness probe.
+      payDate: "2028-07-16",
+      status: "Released",
+      grossPay: "5000.00", netPay: "5000.00", employeeCount: 1,
+    }).returning({ id: payrollRuns.id, organizationId: payrollRuns.organizationId });
+    assert.equal(fixture.organizationId, org.id);
+    await db.insert(payrollEntries).values({
+      payrollRunId: fixture.id, employeeId: worker.id,
+      grossPay: "5000.00", deductions: "0.00", netPay: "5000.00",
+    });
+    await recordAuditEvent({
+      organizationId: org.id, actor: "CI fictional accounting fixture",
+      action: "journal export generated", resource: "CI-JOURNAL-" + fixture.id,
+      metadata: { runId: fixture.id, kind: "journal", filename: "ci-fictional-journal.csv" },
+    });
+    await recordAuditEvent({
+      organizationId: org.id, actor: "CI fictional bank-confirmation fixture",
+      action: "Payroll payout completed manually", resource: "CI-ONLY-" + fixture.id,
+      metadata: {
+        runId: fixture.id, method: "fictional-bank-file",
+        reference: "CI-SYNTHETIC-NO-TRANSFER-" + fixture.id,
+        completedAt: "2028-07-16T00:00:00.000Z",
+      },
+    });
+    const closeUrl = "/api/payroll-runs/" + fixture.id + "/close";
+    const ownRead = expectStatus(await request(closeUrl, { cookie }), 200,
+      "Owned fictional payroll accounting close has a populated preview");
+    assert.equal(ownRead.json?.run?.id, fixture.id);
+    assert.equal(ownRead.json?.run?.organizationId, org.id);
+    assert.equal(ownRead.json?.state?.canClose, true,
+      "Owned POST requires genuinely eligible, populated journal and fictional payout evidence");
+    assert.equal(ownRead.json?.state?.liabilitiesReady, true);
+
+    const ownPost = expectStatus(await request(closeUrl, {
+      cookie, method: "POST", body: { confirmed: true, acknowledgeFilingEvidenceGaps: true },
+    }), 200, "Owned payroll close POST must actually succeed and persist its receipt");
+    assert.equal(ownPost.json?.closed, true);
+    assert.equal(ownPost.json?.alreadyClosed, undefined);
+    const audit = await db.select().from(auditEvents)
+      .where(eq(auditEvents.organizationId, org.id)).orderBy(auditEvents.id);
+    assert.ok(audit.some(event => event.action === "Payroll close completed"
+      && event.metadata?.runId === fixture.id),
+      "Owned close success must persist the exact run's accounting audit receipt");
+    closeProofIds.push(fixture.id);
+
+    const foreignPost = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/close", {
+      cookie, method: "POST", body: {
+        confirmed: true, acknowledgeFilingEvidenceGaps: true,
+        organizationId: org.id, legalEntityId: f.entities[idx].id,
+      },
+    }), 403, "Real populated victim-only payroll close POST must be denied to attacker owner");
+    assert.ok(!foreignPost.text.includes("VictimExclusive"));
+  }
+  const victimAfter = await takeVictimSnapshot(victimId);
+  assert.deepEqual(victimAfter, victimBefore,
+    "Denied POST must not alter victim payroll, entries, employee records or immutable audit evidence");
+  assert.equal(closeProofIds.length, 2);
+  console.log(JSON.stringify({
+    kind: "payroll-close-post-real-http-isolation",
+    own200: 2, victim403: 2, victimUnchanged: true,
+    syntheticAuditPrerequisitesOnly: true, actualPayments: false,
+    providerCalls: false, productionAccepted: false,
+  }));
 }

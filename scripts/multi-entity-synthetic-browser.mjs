@@ -519,6 +519,61 @@ try {
     await capture(beforeMobile, "before-scoped-hr-people");
   }, beforeMobile);
 
+  // #1361: exercise the *actual* close GET/POST with production-mode sessions
+  // and two legal employers under one tenant, not just two separate tenants.
+  // No accounting close can succeed on these intentionally Draft fixture runs.
+  const closeOwner = await newSyntheticContext();
+  await login(closeOwner, on, "entity-owner@example.test");
+  const alphaList = await request(closeOwner, on,
+    "/api/payroll-runs?organizationId=1&legalEntityId=1");
+  const betaList = await request(closeOwner, on,
+    "/api/payroll-runs?organizationId=1&legalEntityId=2");
+  assert.equal(alphaList.status, 200);
+  assert.equal(betaList.status, 200);
+  const alphaRun = alphaList.data?.runs?.find(r => r.legalEntityId === 1);
+  const betaRun = betaList.data?.runs?.find(r => r.legalEntityId === 2);
+  assert.ok(alphaRun?.id && betaRun?.id && alphaRun.id !== betaRun.id,
+    "Both legal employers must have separately persisted fictional payroll runs");
+  const alphaClose = await request(closeOwner, on,
+    "/api/payroll-runs/" + alphaRun.id + "/close?legalEntityId=1");
+  assert.equal(alphaClose.status, 200, "Selected Alpha employer must read its own close state");
+  assert.equal(alphaClose.data?.run?.id, alphaRun.id);
+  const selectedBetaClose = await request(closeOwner, on,
+    "/api/payroll-runs/" + betaRun.id + "/close?legalEntityId=2");
+  assert.equal(selectedBetaClose.status, 200, "Explicitly selected Beta employer must retain its own close read");
+  assert.equal(selectedBetaClose.data?.run?.id, betaRun.id);
+  const deniedBetaRead = await request(closeOwner, on,
+    "/api/payroll-runs/" + betaRun.id + "/close?legalEntityId=1");
+  assert.equal(deniedBetaRead.status, 403,
+    "A grant to both employers does not allow reading unselected Beta evidence");
+  assert.equal(deniedBetaRead.data?.code, "ENTITY_ACCESS_DENIED");
+  const deniedBetaWrite = await request(closeOwner, on,
+    "/api/payroll-runs/" + betaRun.id + "/close?legalEntityId=1",
+    "POST", { confirmed: true, acknowledgeFilingEvidenceGaps: true });
+  assert.equal(deniedBetaWrite.status, 403,
+    "A selected Alpha owner must not POST a close action for Beta");
+  assert.equal(deniedBetaWrite.data?.code, "ENTITY_ACCESS_DENIED");
+  const allowedDraftWrite = await request(closeOwner, on,
+    "/api/payroll-runs/" + alphaRun.id + "/close?legalEntityId=1",
+    "POST", { confirmed: true, acknowledgeFilingEvidenceGaps: true });
+  assert.equal(allowedDraftWrite.status, 409,
+    "Authorized but not released Draft must remain blocked from close; no manufactured payout");
+  const unselectedBetaRead = await request(closeOwner, on,
+    "/api/payroll-runs/" + betaRun.id + "/close?legalEntityId=1&organizationId=2");
+  assert.equal(unselectedBetaRead.status, 403,
+    "Forging a different organization in query must not override the selected employer");
+  await closeOwner.close();
+  const closeNoGrant = await newSyntheticContext();
+  await login(closeNoGrant, on, "entity-nogrant@example.test");
+  const deniedWithoutGrant = await request(closeNoGrant, on,
+    "/api/payroll-runs/" + alphaRun.id + "/close?legalEntityId=1");
+  assert.equal(deniedWithoutGrant.status, 403);
+  assert.equal(deniedWithoutGrant.data?.code, "ENTITY_ACCESS_DENIED");
+  await closeNoGrant.close();
+  const offClose = await request(disabled, off,
+    "/api/payroll-runs/" + betaRun.id + "/close");
+  assert.equal(offClose.status, 200, "Feature-OFF tenant role must keep its existing payroll-close read");
+  checks.push("Payroll-close employer A/B selected grants: owned read, foreign GET/POST denied, Draft blocked, flag-OFF parity");
   // A second, distinct real-HTTPS/PG16 tenant proof. Any failed own 200,
   // wrong-employer 403, historical transfer 409, or victim SQL invariant
   // must fail the existing (non-optional) synthetic browser acceptance.
