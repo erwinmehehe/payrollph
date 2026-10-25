@@ -16,6 +16,8 @@ on:
       - 'scripts/qa/tenant-table-loader.mjs'
       - 'scripts/qa/tenant-table-catalog.mjs'
       - 'scripts/qa/tenant-table-rows/**'
+      - 'scripts/qa/prepare-hcm-work-item-fixture.mjs'
+      - 'drizzle/0104_hcm_work_item_sla.sql'
       - 'tests/tenant-table-families.test.mjs'
       - 'tests/tenant-table-invariants.test.mjs'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
@@ -78,6 +80,8 @@ jobs:
       - run: npm run db:push
       - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement)
         run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare existing SQL-only HCM work-item events in the empty disposable database
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - run: npm run build
       - name: Start isolated production-mode localhost server
         shell: bash
