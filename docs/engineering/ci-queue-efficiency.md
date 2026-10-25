@@ -193,3 +193,20 @@ assertions failed. Do not represent the source repair as a completed green run.
 
 On a runner with a complete clone and `gh` access: `git fetch origin main`, check out the exact reviewed main commit, run `git grep -n -F '<workflow-filename>' -- .` including tests/docs/scripts/workflows, then use `gh api` for the referenced issue/PR, branch ruleset and all 90-day workflow runs; inspect failure details and any reopened follow-up. Submit a separate YAML-deletion PR only when every gate is evidenced. Manual-dispatch-only workflows should not be removed as a queue optimization without an independent value assessment.
 
+## October 25 follow-up — dependency-proven holds (no YAML deletion)
+
+The requested second-pass cleanup did **not** identify a file meeting all four removal criteria. These specific checks supersede any assumption that closure of an issue/PR alone makes its workflow dead:
+
+| Candidate | Direct evidence | Disposition |
+| --- | --- | --- |
+| `repair-security-pr-candidate.yml` | Its job hard-gates on PR #1302 or #1303, both **merged**, but `.github/ci-queue-policy.json` still names this workflow under `protectedExceptions`. That JSON is not documentation and may not be edited in this YAML/deletion-only cleanup. | **Do not delete**: active repo reference |
+| `issue-1031-schema-only-hr-cases-rehearsal.yml` | `tests/issue-1031-schema-only-hr-cases.test.mjs` reads this exact YAML pathname. | **Do not delete**: existing test would break |
+| `issue-1031-schema-only-it-assets-rehearsal.yml` | `tests/issue-1031-schema-only-it-assets.test.mjs` reads this exact YAML pathname. | **Do not delete**: existing test would break |
+| `a4-a5-source-inventory.yml` | `tests/a4-a5-source-inventory.test.mjs` loads the YAML directly to verify SHA/PR-base safeguards. | **Do not delete**: test dependency |
+| `wfm-sprint-candidate-source-qa.yml` | Push triggers are hardcoded to two source branches associated with merged PRs #822 and #823; the branches still exist, and manual dispatch remains available. PR #822 documents an initial source QA lint failure before green. | **Owner judgment**: cannot conclude the historical failure is disposable or the workflow is no longer a template |
+| `issue-1019-stable-two-push-proof.yml` | #1019 is closed, but this workflow verifies a real pinned Drizzle second-push regression and cross-tenant schema/catalog protection. | **Owner judgment**: substantive ongoing regression value |
+
+**Required status gate (ruleset 24862793):** `check`, `security-http-smoke`, `payout-payroll-isolation`, `Analyze JavaScript and TypeScript`. These required gates and all 15 explicitly excluded workflows plus both clean-baseline-cutover workflows remain untouched.
+
+**Unresolved evidence limits:** The repository's connected code index does not return reliable results (even for known references), local Git cannot resolve GitHub, and the available GitHub API reader does not allow the specific per-workflow runs endpoint. Consequently, a trustworthy complete `git grep` reference absence proof and full ~90-day per-workflow failure/run history cannot be certified here. The GitHub repository was created on September 27, 2026; a full check from that date would cover all history. A candidate without these proofs is **not** a safe deletion. Do not claim any queue savings from this documentation-only update.
+
