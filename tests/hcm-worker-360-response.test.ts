@@ -47,6 +47,7 @@ test("unexpected employer, worker, nested worker ID and source labels fail close
 
 test("broken dates, nested assignment and timestamps never render as valid HR evidence", () => {
   assert.equal(valid(changed(v => { v.observedAt = "broken timestamp"; }), 10, 23, "2026-10-25"), false);
+  assert.equal(valid(changed(v => { v.observedAt = "2026-02-30T09:02:00.000Z"; }), 10, 23, "2026-10-25"), false);
   assert.equal(valid(changed(v => { v.worker.startedOn = "2026-02-29"; }), 10, 23, "2026-10-25"), false);
   assert.equal(valid(changed(v => { v.primaryAssignment.selection.assignment = null as unknown as typeof v.primaryAssignment.selection.assignment; }), 10, 23, "2026-10-25"), false);
   assert.equal(valid(changed(v => { v.primaryAssignment.selection.assignment.effectiveFrom = "2027-01-01"; }), 10, 23, "2026-10-25"), false);
