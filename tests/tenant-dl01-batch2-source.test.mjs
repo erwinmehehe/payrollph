@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 
 const path = "scripts/qa/tenant-dl01-batch2-http.mjs";
 const src = readFileSync(path, "utf8");
@@ -133,9 +134,7 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
       spec.route + ": client-facing inventory lacks exact method proof");
   }
   // Pre-run, group-report, BIR 2316, and remittance-action proofs are distinct. The remaining 324 API GAPs remain NOT ACCEPTED.
-  assert.equal(manifest.metrics.methods, 494);
-  assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap],
-    [160, 10, 324]);
+  assertLiveTenantCounts(assert, manifest);
   const preRun = manifest.allApiRouteFiles[
     "src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"
   ]?.methods.find(row => row.name === "GET");
@@ -147,7 +146,6 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
   assert.deepEqual(coveredPages.map(x => x.path), ["src/app/app/page.tsx", "src/app/hcm/manager-decision-inbox/page.tsx"]);
   assert.equal(coveredPages[0].testedBy?.file, "scripts/qa/tenant-scoped-page-probes.mjs");
   assert.equal(coveredPages[1].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
-  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: 324 API methods"));
 });
 test("existing employee CSV export retains prior independent proof, not double-credited", () => {
   const record = manifest.allApiRouteFiles["src/app/api/exports/route.ts"].methods.find(x => x.name === "GET");

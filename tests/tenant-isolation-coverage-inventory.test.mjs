@@ -14,6 +14,8 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import test from "node:test";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { TENANT_TABLE_PROFILES } from "../scripts/qa/tenant-table-env.mjs";
 
 const ROOT = "src/app";
 const API = "src/app/api";
@@ -227,8 +229,7 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   assert.equal(payout?.status, "GAP");
   assert.equal(payout?.testedBy, null);
-  assert.equal(manifest.metrics.gap + 5 + 6, 335, "Preserve all 335 main API method GAPs except three separately proven BIR 2316 document methods");
-  assert.equal(manifest.metrics.coveredAfter - 5 - 6, 149, "Keep 149 separate main sources including pre-run readiness plus three BIR 2316 methods");
+  assertLiveTenantCounts(assert, manifest);
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
@@ -1137,7 +1138,8 @@ test("all credited proof links point to the claimed route and every recertified 
         "scripts/qa/hcm-work-queue-http.mjs",
         "scripts/qa/tenant-manifest-driven-http.mjs", "scripts/qa/tenant-high-risk-01-http.mjs",
         "scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs",
-        "scripts/qa/tenant-dl02-http.mjs", "scripts/qa/government-loan-read-http.mjs", "scripts/qa/dole-13th-month-http.mjs", "scripts/qa/tenant-dl01-batch2-http.mjs"].includes(proof?.file),
+        "scripts/qa/tenant-dl02-http.mjs", "scripts/qa/government-loan-read-http.mjs", "scripts/qa/dole-13th-month-http.mjs", "scripts/qa/tenant-dl01-batch2-http.mjs",
+        "scripts/qa/tenant-table-http.mjs"].includes(proof?.file),
         path + " " + method.name + ": unsupported evidence source");
       if (["scripts/qa/tenant-dl01-import-history-http.mjs", "scripts/qa/tenant-dl01-filing-file-http.mjs"].includes(proof.file)) {
         const history = proof.file.endsWith("tenant-dl01-import-history-http.mjs");
@@ -1375,6 +1377,51 @@ test("all credited proof links point to the claimed route and every recertified 
           "Bank proof must execute in the guarded real HTTP/PG harness");
         assert.match(readFileSync(proof.file, "utf8"), /assert\.deepEqual\(after, before/,
           "Victim bank records and audit must remain unchanged");
+      }
+      if (proof.file === "scripts/qa/tenant-table-http.mjs") {
+        // Table rows share generic request(item.own/foreign) lines. Credit only an exact,
+        // organization-selector GET row with its own-data proof, run by the shared workflow
+        // under a profile that really turns on every flag the row needs.
+        const key = method.name + " " + entry.route;
+        assert.equal(method.name, "GET", key + ": the table runner never certifies a mutation");
+        assert.ok(!entry.route.includes("["), key + ": path-id routes need a cross-id proof, not a table row");
+        const suite = readFileSync(proof.file, "utf8");
+        const tableStart = suite.indexOf("export const TENANT_TABLE = Object.freeze([");
+        const tableEnd = suite.indexOf("\n]);", tableStart);
+        assert.ok(tableStart > 0 && tableEnd > tableStart, key + ": table boundary missing");
+        const rowLine = evidenceLine(proof.file, proof.line, key + " row");
+        assert.ok(rowLine.trimStart().startsWith("{ key: " + JSON.stringify(key) + ","), key + ": pinned row does not match credited method");
+        const rowStart = suite.indexOf(rowLine);
+        assert.ok(rowStart > tableStart && rowStart < tableEnd && suite.split(rowLine).length === 2, key + ": row must be unique and inside TENANT_TABLE");
+        const nextRow = suite.indexOf("\n  { key: ", rowStart + rowLine.length);
+        const row = suite.slice(rowStart, nextRow > 0 && nextRow < tableEnd ? nextRow : tableEnd);
+        assert.match(row, /\bprove: /, key + ": a row without an own-data proof cannot be credited");
+        assert.doesNotMatch(row, /\bstatus: /, key + ": own employer must be an exact 200");
+        const deny = /\bdeny: (\d{3})/.exec(row)?.[1] ?? "403";
+        assert.ok(["403", "404"].includes(deny), key + ": victim employer must be denied 403 or 404, got " + deny);
+        const profile = /\bprofile: "([a-z-]+)"/.exec(row)?.[1] ?? "default";
+        assert.ok(TENANT_TABLE_PROFILES[profile], key + ": unknown profile " + profile);
+        for (const flag of (/\bflags: \[([^\]]*)\]/.exec(row)?.[1] ?? "").match(/[A-Z0-9_]+/g) ?? []) {
+          assert.equal(TENANT_TABLE_PROFILES[profile][flag], "true", key + ": profile " + profile + " must enable " + flag);
+        }
+        const workflow = readFileSync(".github/workflows/tenant-table-proof.yml", "utf8");
+        assert.ok(new RegExp("profile: \\[[^\\]]*\\b" + profile + "\\b").test(workflow) &&
+          workflow.includes("node scripts/qa/tenant-table-env.mjs \"${{ matrix.profile }}\" >> \"$GITHUB_ENV\"") &&
+          workflow.includes("node scripts/qa/apply-isolated-baseline.mjs") &&
+          workflow.includes("npx tsx scripts/qa/tenant-table-http.mjs"), key + ": the shared workflow must run this row's profile");
+        assert.match(evidenceLine(proof.file, proof.ownPositiveLine, key + " own"),
+          /const owned = expectStatus\(await request\(item\.own, \{ cookie: own\.cookie \}\), item\.status \?\? 200,/);
+        assert.match(readableLines(proof.file)[proof.ownPositiveLine], /item\.prove\(owned, ctx\);/,
+          key + ": the own-data proof must run on the owned response");
+        assert.match(evidenceLine(proof.file, proof.foreignDenialLine, key + " victim"),
+          /const foreign = expectStatus\(await request\(item\.foreign, \{ cookie: own\.cookie \}\), item\.deny \?\? 403,/);
+        assert.match(evidenceLine(proof.file, proof.unchangedDbLine, key + " victim DB"),
+          /assert\.deepEqual\(victimAfter, victimBefore,/);
+        assert.ok(proof.ownPositiveLine < proof.foreignDenialLine && proof.foreignDenialLine < proof.unchangedDbLine);
+        assert.ok(suite.includes("requireTenantTableDisposable();") && suite.includes("for (const idx of [1, 2])") &&
+          suite.includes("assert.equal(passed.size, rows.length * 2,") &&
+          suite.includes('assert.equal(typeof item.prove, "function"'), key + ": both attackers, disposable guard and proof enforcement required");
+        continue;
       }
       if (proof.file === "scripts/qa/tenant-high-risk-01-http.mjs") {
         // Only an exact method-named, actually executed Batch 01 case may use

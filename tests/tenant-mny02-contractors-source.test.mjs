@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 
 const path = "scripts/qa/tenant-mny02-contractors-http.mjs";
 const suite = readFileSync(path, "utf8");
@@ -115,20 +116,12 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   const preRun = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"]?.methods.find(m => m.name === "GET");
   assert.equal(preRun?.status, "COVERED", "Merged main's pre-run GET remains independently covered");
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
-  assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 160, 10, 324]);
   const actionMethods = manifest.allApiRouteFiles["src/app/api/compliance/remittance-actions/route.ts"]?.methods ?? [];
   assert.deepEqual(actionMethods.map(method => method.name), ["GET", "POST"]);
   assert.ok(actionMethods.every(method => method.status === "COVERED" &&
     method.testedBy?.file === "scripts/qa/remittance-action-entity-http.mjs"),
     "Two new action methods require separately source-pinned PostgreSQL/HTTP proof");
-  assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - groupReportCredits - bir2316Methods.length - actionMethods.length - sixExpensesBenefits.length,
-    manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + groupReportCredits + bir2316Methods.length + actionMethods.length + sixExpensesBenefits.length],
-    [494, 146, 10, 338],
-    "Keep prior contractor credits, independently merged group-report, pre-run GET and three BIR methods separate");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 324 API methods/);
+  assertLiveTenantCounts(assert, manifest);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {

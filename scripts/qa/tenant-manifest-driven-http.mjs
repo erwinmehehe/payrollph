@@ -10,6 +10,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
+import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
 import {
   auditEvents, complianceActionTasks, employees, legalEntities, payrollRuns,
   statutoryRemittanceBatches, statutoryRemittancePaymentEvidence, statutoryPostingEvidenceArtifacts,
@@ -496,8 +497,7 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
     assert.match(actionLines[236] ?? "", /assert\.deepEqual\(await snapshot\(victim\.id\), before,/);
   }
   const actionCredits = actionMethods.length;
-  assert.equal(gaps.length + bir2316Methods.length + actionCredits + expenseBenefitMethods.length, 335,
-    "Preserve all 335 historical GAPs except three BIR 2316 and two remittance-action exact-method proofs");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - actionCredits - 6, 149,
-    "All 149 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
+  // Totals are invariants (tallies add up; nothing proven regresses against the base), not pinned
+  // numbers that every later credit would have to edit.
+  assertLiveTenantCounts(assert, manifest);
 }
