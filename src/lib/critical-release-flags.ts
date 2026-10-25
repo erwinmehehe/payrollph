@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  nonceCsp: {
+    env: "NEXT_CSP_ENABLED",
+    owner: "Security / Web Platform / SEO",
+    risk: "Strict nonce script CSP forces dynamic HTML, changes cache/TTFB/SEO behavior and may block hydration or third-party scripts",
+    approval: "Exact-build-and-runtime staging flag-off parity, actual page/nonce headers and hydration on desktop/phone, security/error routes, SEO/TTFB/caching and independent release signoff; production default OFF",
+  },
   firstPayrollConnected: {
     env: "FIRST_PAYROLL_CONNECTED_ENABLED",
     owner: "Payroll / Onboarding",
