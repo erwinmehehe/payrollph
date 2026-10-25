@@ -1,5 +1,26 @@
 # P0-4 — Runtime schema writer source inventory
 
+## October 24, 2026: core helper retired — P0-4 source-complete
+
+The final request-time schema creator, `src/lib/core-schema-compat.ts`, has been
+replaced with the existing read-only `verifyCoreSchemaReadOnly` catalog check.
+`ensureCoreCompatibilitySchema()` validates the registered
+`REQUEST_SCHEMA_READONLY_ENABLED` and `CORE_SCHEMA_COMPATIBILITY_MODE` contract
+before using its success-only cache; even when the flag is off and `legacy`
+is selected, the function runs only the catalog check. Missing required
+structure fails closed and must be fixed through a reviewed migration, never
+through request SQL. `bankDataEncryptionReady()` checks schema readiness
+before reading ciphertext status; bank and government-ID backfills are gone.
+The strict whole-`src` source audit has **zero writer findings**. The parser
+and its safety policy are unchanged.
+
+**P0-4 is source-complete, not production-verified or deployment-approved.**
+After this change no request-time fallback DDL remains. Do not merge this
+source until production reads the clean-baseline database. Production schema
+and migration receipts, sanitized restore rehearsal, roles and credentials,
+and the Vercel flag/mode activation remain separate DBA/owner gates. This PR
+does not run production SQL, grant runtime roles or authorize payroll release.
+
 ## October 22, 2026: sibling helpers retired
 
 The eleven sibling helpers (`dole-reporting`, `leave-payroll`, `migration`,
@@ -28,9 +49,10 @@ selects catalog verification; invalid modes are refused. This source merge does
 not activate the cutover or repair the production database.
 
 Only the exact flag value true enables the new default: unset mode becomes
-read-only and explicit legacy is refused before request DDL/backfills. There is
-no CI/environment-based exception once enabled. Disposable fixture setup remains
-on the historical path with the flag off until it moves to an offline runner.
+read-only and explicit legacy is refused. There is no CI/environment-based
+exception once enabled. After the final core retirement, both flag-off and
+flag-on requests use catalog checks only; fixtures must rely on the isolated
+baseline runner instead of request-time schema repair.
 The source audit detects early catalog exits, not actual database permissions.
 
 The core preflight accepts the legacy guard only when no v2 artifacts exist.
@@ -44,12 +66,12 @@ Enable the flag only after approved schema remediation, actual runtime/sealer
 role checks, and rollout acceptance. The owner has authorized source-only work;
 no additional independent source approval is requested. Production SQL, role,
 credential and flag changes remain separate operations. No live changes occur
-in this PR. With the default-off flag, the former merge-before-migration outage
-risk no longer requires holding the source merge itself.
+in this PR. The October 18 source-only allowance is superseded for final
+retirement by the explicit clean-baseline production prerequisite above.
 
 ### Source-only table and lock review
 
-- `src/lib/core-schema-compat.ts` contains 54 distinct historical
+- Before retirement, `src/lib/core-schema-compat.ts` contained 54 distinct historical
   `CREATE TABLE IF NOT EXISTS` targets. All 54 table **names** appear in
   `src/db/schema.ts`. This does **not** prove equality of columns,
   defaults, foreign keys, checks, indexes, backfill effects or history.
@@ -62,7 +84,7 @@ risk no longer requires holding the source merge itself.
   now explicitly use `.desc().nullsFirst()` in `schema.ts` to match the
   numbered migration and the read-only catalog check. Existing drift
   requires a reviewed migration, not ad hoc request SQL.
-- Core's compatibility DDL also uses a transaction-scoped advisory lock.
+- Core's former compatibility DDL used a transaction-scoped advisory lock.
   Advisory locks serialize *cooperating callers of the same lock key* only;
   they do not stop unrelated schema writers or prevent heavyweight table
   locks from delaying application traffic. The legacy DDL transactions
@@ -104,32 +126,18 @@ scan. The job logs report counts and source locations, not SQL values or
 employer data. A nonzero strict exit is a REAL source release blocker, not a
 reason to suppress the scanner, whitelist a module or mark it advisory.
 
-## Known existing gaps on main (October 11, 2026)
+## Known existing gaps (October 24, 2026)
 
-Source inspection found request-time DDL writers in:
+**None.** All 192 remaining writer findings in the October 22 inventory were
+in `core-schema-compat.ts`; deleting its request-time DDL and backfills leaves
+**0 findings** in the strict `src` scan. This completes the P0-4 **source**
+remediation started in #1332 and #1334. The scanner remains strict; no module
+has been whitelisted and no catalog or tenant/audit guard has been relaxed.
 
-- src/lib/migration-schema.ts
-- src/lib/outbox-schema.ts
-- src/lib/separation-schema.ts
-- src/lib/statutory-remittance-correction-schema.ts
-- src/lib/statutory-remittance-month-close-schema.ts
-- src/lib/workforce-attendance-control-schema.ts
-- src/lib/leave-payroll-schema.ts
-- src/lib/pay-basis-schema.ts
-- src/lib/payroll-month-close-schema.ts
-- src/lib/dole-reporting-schema.ts
-
-This is not an exhaustive list. The full source scan may find additional DDL
-or lifecycle queries. PR #805 proposes optional read-only guards for some
-of these helpers but remains a draft, and source presence does not prove that
-the guards or the underlying database satisfy release requirements.
-
-Work through the strict findings by introducing an independently verified,
-fail-closed catalog or data-read preflight **before** each legacy schema writer.
-Historical policy (superseded by the October 17 source-only change):
-the legacy creator used to run by default. The registered flag is default-off; when enabled, requests use read-only
-checks and fail on missing structure. An approved migration precedes activation.
-Do not silently auto-repair the missing database structure.
+P0-4's separate **DBA/production verification** is still open. The actual
+production target must read the clean-baseline database before merge, and its
+schema, data, roles and migration receipts must be independently verified.
+A missing object now fails closed instead of being silently created.
 
 ## Limitations and production gates
 
@@ -138,7 +146,8 @@ complex helper calls, indirect service APIs or code outside src. A source-level
 early exit does not prove correct PostgreSQL catalog semantics, migration
 history, roles, data integrity, encryption, or user-facing failure handling.
 
-P0-4 remains open until a DBA verifies the actual production host, the full
+P0-4 is **source-complete**; its separate DBA/production-verification portion
+remains open until a DBA verifies the actual production host, the full
 historical applied migration receipt/checksum chain, and an approved migration
 and rollback rehearsal against a sanitized isolated production-like restore.
 A source audit cannot substitute for that review. It cannot close P0-2 bank

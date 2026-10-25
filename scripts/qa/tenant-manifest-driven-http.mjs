@@ -1,7 +1,7 @@
 /**
  * Manifest-driven, non-production HTTP/PG authorization test runner.
  * A method enters the registry only with an actual seeded own/foreign case.
- * All 493 manifest methods are read; outstanding GAPs are reported, NEVER
+ * All 494 manifest methods are read; outstanding GAPs are reported, NEVER
  * silently treated as successful coverage. Extensible by family adapters,
  * not hundreds of one-off tests. All writes below are fictional CI fixture SEEDING.
  */
@@ -443,7 +443,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
  * stable when new independently reviewed BIR method evidence is introduced.
  * Called by the real signed-in PG16 harness, never an acceptance bypass. */
 function verifyBir2316HistoricalGapBaseline(gaps) {
-  // Preserve current main's source-pinned baseline (148 covered / 335 gaps) while
+  // Preserve the historical source-pinned baseline (149 covered / 335 gaps) while
   // crediting ONLY the three independently exercised BIR 2316 document methods.
   // A generic "three fewer gaps" subtraction is insufficient: require exact
   // GET/GET/POST identities and live own/victim evidence from their separate
@@ -473,6 +473,9 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
         "Unsigned PDF POST must leave the real victim database and audit untouched");
     }
   }
+  const expenseBenefitMethods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
+    .filter(method => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
+  assert.equal(expenseBenefitMethods.length, 6, "Six independent expenses/de minimis HTTP proofs required");
   // Do not weaken the historic three-tenant HTTP proof when accepting the
   // separate two-method payout suite. Only these exact routes and method
   // executions, with a real victim snapshot, may account for the extra credit.
@@ -502,6 +505,6 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
     "Actual synthetic signed-in HTTPS/PG16 payout acceptance must execute in CI");
   assert.equal(gaps.length + bir2316Methods.length + payoutMethods.length, 335,
     "Preserve 335 historical GAPs except three BIR 2316 and two separately sourced payout GET/PATCH proofs");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - payoutMethods.length, 149,
+  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - payoutMethods.length - 6, 149,
     "All 149 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
 }

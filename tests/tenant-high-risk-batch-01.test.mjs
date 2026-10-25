@@ -311,6 +311,28 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     m.testedBy?.ownPositiveLine && m.testedBy?.foreignDenialLine));
   assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
     /npx tsx scripts\/qa\/tenant-bir2316-http\.mjs/);
+  // The next six MNY-02 expense/benefit methods have their own executable
+  // three-employer proof. Do not count a generic 403 or a source-only check.
+  const expenseBenefitFile = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
+  const expenseBenefitLines = readFileSync(expenseBenefitFile, "utf8").split("\n");
+  const expenseBenefitKeys = [
+    "GET expenses", "POST expenses", "PATCH expenses",
+    "GET de-minimis", "POST de-minimis", "DELETE de-minimis",
+  ];
+  assert.match(harness, /verifyMny02ExpensesBenefitsIsolation\(f, \{ request, expectStatus, makeSession \}\)/);
+  let expenseBenefitMethods = 0;
+  for (const key of expenseBenefitKeys) {
+    const method = methodsByKey.get(key);
+    assert.equal(method?.status, "COVERED", key + ": current provisional real-HTTP proof required");
+    assert.equal(method?.testedBy?.file, expenseBenefitFile, key + ": unique suite required");
+    const p = method.testedBy;
+    assert.match(expenseBenefitLines[p.ownPositiveLine - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(expenseBenefitLines[p.foreignDenialLine - 1] ?? "", /expectStatus\(await request\(/);
+    assert.match(expenseBenefitLines[p.unchangedDbLine - 1] ?? "",
+      /assert\.deepEqual\(await victimSnapshot\(victim\.id\), baseline/);
+    expenseBenefitMethods++;
+  }
+  assert.equal(expenseBenefitMethods, 6);
   const payoutRecords = [
     manifest.allApiRouteFiles["src/app/api/payout-destination-changes/route.ts"]?.methods.find(m => m.name === "GET"),
     manifest.allApiRouteFiles["src/app/api/payout-destination-changes/[id]/route.ts"]?.methods.find(m => m.name === "PATCH"),
@@ -325,10 +347,10 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
     /node scripts\/qa\/payout-destination-entity-http\.mjs/);
   assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
-    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - bir2316Methods.length - payoutRecords.length, 124,
+    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - bir2316Methods.length - payoutRecords.length - expenseBenefitMethods, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
-    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + bir2316Methods.length + payoutRecords.length, 359,
+    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + bir2316Methods.length + payoutRecords.length + expenseBenefitMethods, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

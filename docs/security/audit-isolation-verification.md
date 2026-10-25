@@ -1,5 +1,11 @@
 # Audit-chain role-isolation verification (#908)
 
+**Current issue state checked 2026-10-24: #908 is OPEN (reopened), production acceptance still BLOCKED.**
+The closure references below describe the historical 2026-10-18 checkpoint, not current status.
+See the new [operator-run metadata script and live-proof packet](issue908-live-proof-runbook.md).
+The packet was prepared and unit-tested without a live connection.
+
+
 **Status: verification runbook, not a production approval.** Source baseline reviewed: `main@719aa84b6b9d14a967fd101ff6d1849967d2fb8e` (2026-10-18, including merged #1238 and the disposable clean-baseline cutover rehearsal). This document performs **no** production query, DDL, GRANT/REVOKE, secret rotation, role switch, feature-flag activation, payroll operation, or migration apply. A synthetic PASS is not a production PASS.
 
 ## Source of truth and release boundary
