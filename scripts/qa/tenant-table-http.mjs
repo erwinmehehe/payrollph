@@ -12,7 +12,7 @@
  * Profiles: TENANT_TABLE_PROFILE=default|multi-entity selects rows whose server flags are compatible.
  */
 import assert from "node:assert/strict";
-import { loadTenantRows } from "./tenant-table-loader.mjs";
+import { bindTenantReadRequests, loadTenantRows } from "./tenant-table-loader.mjs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "../../src/db";
@@ -217,19 +217,18 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
     const own = employers[idx];
     const base = { org: own.org, entity: own.entity, unit: own.unit, worker: own.worker, owner: own.owner, marker: own.marker,
       orgId: own.org.id, workerId: own.worker.id, unitId: own.unit.id, entityId: own.entity.id, rank: own.rank, victim };
-    for (const item of rows) {
-      const ctx = { ...base, seeded: own.seeded[item.key], victimSeeded: victim.seeded[item.key] };
-      const [method, route] = item.key.split(" ");
-      assert.equal(method, "GET", item.key + ": the table runner only proves organization-scoped reads so far");
+    for (const definition of rows) {
+      const ctx = { ...base, seeded: own.seeded[definition.key], victimSeeded: victim.seeded[definition.key] };
+      const [method] = definition.key.split(" ");
+      assert.equal(method, "GET", definition.key + ": the table runner only proves organization-scoped reads so far");
+      // Discovery only: TENANT_TABLE_DISCOVER_QUERIES='{"GET route":"a=1&b=2"}' tries a query before a row exists.
+      const tried = discover ? JSON.parse(process.env.TENANT_TABLE_DISCOVER_QUERIES ?? "{}")[definition.key] : undefined;
+      const extra = definition.query ? "&" + definition.query(ctx) : tried ? "&" + tried.replace(/\{(\w+)\}/g, (_, name) => ctx[name]) : "";
+      const item = bindTenantReadRequests(definition, own.org.id, victim.org.id, extra);
       if (!discover) {
         for (const flag of item.flags ?? []) assert.equal(process.env[flag], "true", item.key + ": server flag " + flag + " must be on in this job");
         assert.equal(typeof item.prove, "function", item.key + ": a row without an own-data proof cannot be credited");
       }
-      // Discovery only: TENANT_TABLE_DISCOVER_QUERIES='{"GET route":"a=1&b=2"}' tries a query before a row exists.
-      const tried = discover ? JSON.parse(process.env.TENANT_TABLE_DISCOVER_QUERIES ?? "{}")[item.key] : undefined;
-      const extra = item.query ? "&" + item.query(ctx) : tried ? "&" + tried.replace(/\{(\w+)\}/g, (_, name) => ctx[name]) : "";
-      item.own = "/api/" + route + "?organizationId=" + own.org.id + extra;
-      item.foreign = "/api/" + route + "?organizationId=" + victim.org.id + extra;
       if (discover) {
         const o = await request(item.own, { cookie: own.cookie });
         const v = await request(item.foreign, { cookie: own.cookie });

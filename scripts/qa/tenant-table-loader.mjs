@@ -38,3 +38,10 @@ export async function loadTenantRows(kind, context, root = FAMILY_ROOT) {
   }
   return Object.freeze(catalog.map((spec) => Object.freeze(validateTenantRow(loaded.get(spec.file).get(spec.key), spec))));
 }
+
+/** Bind one attacker attempt without mutating the shared, frozen definition. */
+export function bindTenantReadRequests(definition, ownId, victimId, extra = "") {
+  assert.ok(definition.key.startsWith("GET "), "read requests require a GET definition");
+  const base = "/api/" + definition.key.slice(4) + "?organizationId=";
+  return Object.freeze({ ...definition, own: base + ownId + extra, foreign: base + victimId + extra });
+}

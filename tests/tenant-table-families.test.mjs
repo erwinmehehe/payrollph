@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
-import { loadTenantRows, validateTenantRow } from "../scripts/qa/tenant-table-loader.mjs";
+import { bindTenantReadRequests, loadTenantRows, validateTenantRow } from "../scripts/qa/tenant-table-loader.mjs";
 
 const parityBaseline = JSON.parse(readFileSync("scripts/qa/tenant-table-rows/baseline.json", "utf8"));
 function originalRows(kind) { return parityBaseline[kind]; }
@@ -93,4 +93,23 @@ test("credit refresh retains statuses and pins both the family row and actual sh
       assert.match(source[proof.unchangedDbLine - 1], /assert\.deepEqual\(victimAfter, victimBefore/);
     }
   }
+});
+
+test("two attacker attempts bind independent URLs while frozen definitions retain their proof", async () => {
+  const proof = () => {};
+  const definition = Object.freeze({ key: "GET fictional", prove: proof, flags: Object.freeze([]) });
+  const first = bindTenantReadRequests(definition, 11, 99, "&employeeId=21");
+  const second = bindTenantReadRequests(definition, 12, 99, "&employeeId=22");
+  assert.equal(first.own, "/api/fictional?organizationId=11&employeeId=21");
+  assert.equal(first.foreign, "/api/fictional?organizationId=99&employeeId=21");
+  assert.equal(second.own, "/api/fictional?organizationId=12&employeeId=22");
+  assert.equal(second.foreign, "/api/fictional?organizationId=99&employeeId=22");
+  assert.equal(first.prove, proof);
+  assert.equal(second.prove, proof);
+  assert.equal(Object.hasOwn(definition, "own"), false);
+  assert.equal(Object.hasOwn(definition, "foreign"), false);
+  assert.ok(Object.isFrozen(definition) && Object.isFrozen(first) && Object.isFrozen(second));
+  const runner = readFileSync("scripts/qa/tenant-table-http.mjs", "utf8");
+  assert.match(runner, /const item = bindTenantReadRequests\(definition, own\.org\.id, victim\.org\.id, extra\)/);
+  assert.doesNotMatch(runner, /item\.(?:own|foreign) =/);
 });
