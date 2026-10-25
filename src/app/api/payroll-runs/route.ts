@@ -62,6 +62,11 @@ export async function GET(request: Request) {
     // Authorized read-only F-04 history uses the SAME run-scoped role, org-unit
     // and legal-employer checks as the current payroll register above.
     if (searchParams.get("include") === "history") {
+      // No DB query on a deployment whose approved forward schema is not yet
+      // installed. This is a release gate, not an authorization bypass.
+      if (!criticalReleaseFlagEnabled("payrollCalculationHistory")) {
+        return Response.json({ error: "Payroll calculation history is not enabled." }, { status: 503 });
+      }
       const rawCursor = searchParams.get("beforeId");
       const beforeId = rawCursor === null ? null : Number(rawCursor);
       if (rawCursor !== null && (!Number.isSafeInteger(beforeId) || beforeId! <= 0)) {
