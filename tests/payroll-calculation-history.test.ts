@@ -142,3 +142,31 @@ test("F-04: SQL source denies UPDATE, DELETE and TRUNCATE, validates chain, gran
   assert.match(source, /PAYROLL_HISTORY_REVISION_CHAIN_INVALID/);
   assert.doesNotMatch(source, /GRANT SELECT, INSERT, UPDATE, DELETE/);
 });
+
+test("F-04: tenant history read proof is independently pinned to a populated own/foreign HTTP fixture", () => {
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8")) as {
+    allApiRouteFiles: Record<string, { methods: Array<{ name: string;
+      historyReadProof?: { file: string; seedLine: number; ownPositiveLine: number;
+        ownRowAssertionLine: number; foreignDenialLine: number; ownStatus: number;
+        foreignStatus: number; } }> }>;
+  };
+  const get = manifest.allApiRouteFiles["src/app/api/payroll-runs/route.ts"].methods
+    .find((method) => method.name === "GET");
+  const proof = get?.historyReadProof;
+  assert.ok(proof, "F-04 history cannot borrow only the existing payroll-list tenant proof");
+  assert.equal(proof.file, "scripts/qa/tenant-second-pass-http.mjs");
+  assert.equal(proof.ownStatus, 200);
+  assert.equal(proof.foreignStatus, 403);
+  const lines = readFileSync(proof.file, "utf8").split("\n");
+  assert.match(lines[proof.seedLine - 1], /historyRows = await db.insert\(payrollCalculationHistory\)/);
+  const own = lines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 3).join("\n");
+  assert.match(own, /const ownHistory = expectStatus\(await request\(/);
+  assert.match(own, /&include=history/);
+  assert.match(own, /\{ cookie: attackerCookie \}\), 200/);
+  assert.match(lines[proof.ownRowAssertionLine - 1], /f\.historyRows\[idx\]\.id, \[f\.historyRows\[0\]\.id\]/);
+  const denied = lines.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 4).join("\n");
+  assert.match(denied, /f\.victimRun\.id \+ "&include=history"/);
+  assert.match(denied, /\{ cookie: attackerCookie \}\), 403/);
+  assert.match(readFileSync(".github/workflows/security-http-smoke.yml", "utf8"),
+    /PAYROLL_CALCULATION_HISTORY_ENABLED: "true"/);
+});
