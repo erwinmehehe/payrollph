@@ -119,6 +119,30 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   const preRun = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"]?.methods.find(m => m.name === "GET");
   assert.equal(preRun?.status, "COVERED", "Main source-pinned readiness GET must retain its independent credit");
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
+  // Payout GET and PATCH are two OTHER independent, exact-method source credits.
+  // Require actual owned-positive, victim-denied and unchanged-victim lines, not
+  // a phantom offset in the historical contractor/EWT coverage ledger.
+  const payoutClaims = [
+    ["src/app/api/payout-destination-changes/route.ts", "GET", 208, 216],
+    ["src/app/api/payout-destination-changes/[id]/route.ts", "PATCH", 234, 222],
+  ];
+  const payoutProof = readFileSync("scripts/qa/payout-destination-entity-http.mjs", "utf8").split("\n");
+  for (const [route, methodName, own, foreign] of payoutClaims) {
+    const method = manifest.allApiRouteFiles[route]?.methods.find(m => m.name === methodName);
+    assert.equal(method?.status, "COVERED", "Payout proof must remain a separate real method");
+    assert.equal(method?.testedBy?.file, "scripts/qa/payout-destination-entity-http.mjs");
+    assert.deepEqual([method.testedBy.ownPositiveLine, method.testedBy.foreignDenialLine,
+      method.testedBy.unchangedDbLine], [own, foreign, 229]);
+    assert.match(payoutProof[own - 1] ?? "",
+      methodName === "GET" ? /const getB = ownRequests\(await request\(b, ON, ownB\)/
+        : /const positivePatchB = expectStatus\(await request\(b, ON, patch\(bRows\[0\]\.evidence\.id\)/);
+    assert.match(payoutProof[foreign - 1] ?? "",
+      methodName === "GET" ? /await deniedAndUnchanged\(actor, ON, victimList, "GET"/
+        : /await deniedAndUnchanged\(actor, ON, patch\(aAlpha\.evidence\.id\)/);
+    assert.match(payoutProof[228], /assert\.deepEqual\(await snapshot\(victimA\), victimBefore/);
+  }
+  assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
+    /node scripts\/qa\/payout-destination-entity-http\.mjs/);
   const preRunCredit = 1;
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find(method => method.name === "POST");
