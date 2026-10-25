@@ -16,7 +16,7 @@ export const fixtureOrder = {
   "GET hcm/worker-360": 75
 };
 
-export function createRows({ addWorker, db, engagementSurveys, hcmBusinessProcessDefinitions, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, proofs, workerEffectiveChanges }) {
+export function createRows({ addWorker, db, engagementSurveys, hcmBusinessProcessDefinitions, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, proofs, workerEffectiveChanges, assert, automationOperationalCases, pool }) {
   return [
   { key: "GET hcm/lifecycle-readiness",
     prove: proofs.all(proofs.echoesOrganization(), proofs.listsOwnMarker("rows", "employeeNo")) },
@@ -61,5 +61,20 @@ export function createRows({ addWorker, db, engagementSurveys, hcmBusinessProces
   { key: "GET hcm/my-team", profile: "flagged-reads", flags: ["HCM_MY_TEAM_ENABLED"], prove: proofs.listsOwnMarker("items", "name") },
   { key: "GET hcm/worker-360", profile: "flagged-reads", flags: ["HCM_WORKER_360_ENABLED"], query: (c) => "employeeId=" + c.workerId,
     prove: proofs.all(proofs.valueHasOwnMarker("worker.name"), proofs.echoesOwn("worker.id", "workerId")) },
+  { key: "GET hcm/work-items/events",
+    seed: async (e) => {
+      const [item] = await db.insert(automationOperationalCases).values({ organizationId: e.org.id, employeeId: e.worker.id, caseType: "attendance_resolution", sourceType: "tenant_fixture", sourceId: e.worker.id,
+        ownerTeam: "HR Operations", title: e.marker, detail: e.marker, status: "open" }).returning();
+      const { rows: [event] } = await pool.query("INSERT INTO hcm_work_item_events (organization_id,case_id,event_type,actor_user_id,previous_value,next_value) VALUES($1,$2,'ownership_sla_updated',$3,'{}'::jsonb,$4::jsonb) RETURNING id",
+        [e.org.id, item.id, e.owner.id, JSON.stringify({ marker: e.marker, ownerUserId: e.owner.id })]);
+      return { id: item.id, eventId: event.id };
+    },
+    query: (c) => "caseId=" + c.seeded.id,
+    prove: (response, c) => {
+      assert.ok(Array.isArray(response.json?.events)); assert.equal(response.json.events.length, 1);
+      const event = response.json.events[0]; assert.equal(String(event.id), String(c.seeded.eventId));
+      assert.equal(event.actorUserId, c.owner.id); assert.equal(event.eventType, "ownership_sla_updated");
+      assert.equal(event.nextValue?.marker, c.marker); assert.equal(event.nextValue?.ownerUserId, c.owner.id);
+    } },
   ];
 }
