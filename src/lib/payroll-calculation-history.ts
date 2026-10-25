@@ -31,7 +31,7 @@ function canonicalJson(value: unknown): string {
     return literal;
   }
   if (Array.isArray(value)) return "[" + value.map(canonicalJson).join(",") + "]";
-  return "{" + Object.entries(value).sort(([a], [b]) => a.localeCompare(b, "en"))
+  return "{" + Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
     .map(([key, item]) => JSON.stringify(key) + ":" + canonicalJson(item)).join(",") + "}";
 }
 
