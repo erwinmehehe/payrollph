@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, governmentFilingValidations, payrollRuns } from "@/db/schema";
 import { ORG_ADMIN_ROLES, assertOrganizationRole, assertOrganizationUnitAccess } from "@/lib/access";
@@ -9,11 +9,12 @@ import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { FILING_FORMS, provesFileFormat } from "@/lib/filing-evidence";
 import { generateJournalCsv } from "@/lib/exporters";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
+import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
-async function loadCloseState(runId: number, userId: number) {
+async function loadCloseState(request: Request, runId: number, userId: number) {
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
   if (!run) return { error: Response.json({ error: "Payroll run not found." }, { status: 404 }) };
 
@@ -33,9 +34,16 @@ async function loadCloseState(runId: number, userId: number) {
   );
   if (scopeDenied) return { error: scopeDenied };
 
+  // Tenant-wide payroll roles do not grant access to every legal employer.
+  // Apply the session-bound entity selection before reading any close evidence.
+  const employerDenied = await requireRunEmployer({
+    request, userId, organizationId: run.organizationId, legalEntityId: run.legalEntityId,
+  });
+  if (employerDenied) return { error: employerDenied };
+
   const [events, filingRows] = await Promise.all([
     db.select().from(auditEvents)
-      .where(eq(auditEvents.organizationId, run.organizationId))
+      .where(and(eq(auditEvents.organizationId, run.organizationId), sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`))
       .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id)),
     db.select().from(governmentFilingValidations)
       .where(and(
@@ -49,7 +57,7 @@ async function loadCloseState(runId: number, userId: number) {
     if (!event.metadata || typeof event.metadata !== "object") return false;
     return Number((event.metadata as Record<string, unknown>).runId) === run.id;
   });
-  const payout = derivePayrollPayoutState(events, run.id);
+  const payout = derivePayrollPayoutState(runEvents, run.id);
   const journalEvent = runEvents.find((event) => event.action === "journal export generated") ?? null;
   const closeEvent = runEvents.find((event) => event.action === "Payroll close completed") ?? null;
   const governmentExports = runEvents.filter((event) => event.action === "government export generated");
@@ -132,7 +140,7 @@ async function loadCloseState(runId: number, userId: number) {
   };
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const runId = Number(id);
   if (!Number.isInteger(runId)) return Response.json({ error: "Invalid run id." }, { status: 400 });
@@ -140,9 +148,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
-  const result = await loadCloseState(runId, user.id);
+  const result = await loadCloseState(request, runId, user.id);
   if ("error" in result) return result.error;
-  return Response.json(result);
+  return Response.json(result, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -160,7 +168,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
 
-  const result = await loadCloseState(runId, user.id);
+  const result = await loadCloseState(request, runId, user.id);
   if ("error" in result) return result.error;
   if (result.state.closed) {
     return Response.json({

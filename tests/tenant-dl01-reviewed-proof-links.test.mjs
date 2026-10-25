@@ -105,6 +105,29 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
   const importPost = manifest.allApiRouteFiles['src/app/api/employees/import/route.ts'].methods.find(m => m.name === 'POST');
   assert.equal(importPost.status, 'GAP', 'GET proof cannot cover the import write');
   assert.equal(importPost.testedBy, null);
+  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find(method => method.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "Only separately source-pinned successful close POST can add a provisional credit");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  const closeSource = readFileSync(closePost.testedBy.file, "utf8");
+  const closeLines = closeSource.split("\n");
+  assert.match(closeLines[closePost.testedBy.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(closePost.testedBy.ownPositiveLine - 1,
+    closePost.testedBy.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/);
+  assert.match(closeLines[closePost.testedBy.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closePost.testedBy.foreignDenialLine - 1,
+    closePost.testedBy.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/);
+  assert.match(closeLines[closePost.testedBy.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/);
+  assert.match(closeSource,
+    /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
+  assert.ok(overview.includes('(../../scripts/qa/tenant-high-risk-01-http.mjs#L444)'),
+    'The independently credited close POST must have its exact own-200 proof link in the inventory');
   assert.ok(overview.includes('| coveredAfter | ' + manifest.metrics.coveredAfter + ' |'));
   assert.ok(overview.includes('| gap | ' + manifest.metrics.gap + ' |'));
 });

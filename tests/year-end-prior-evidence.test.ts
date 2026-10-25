@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { decideEntityAccess, entityResourceAllowed } from "../src/lib/multi-entity-policy";
 import test from "node:test";
 import { annualize } from "../src/lib/annualization";
 import { annualizeWithPrior, assertPriorApproval, parsePriorEvidence, priorEvidenceDigest, type PriorEvidence, type PriorScope } from "../src/lib/year-end-prior-evidence";
@@ -67,4 +69,36 @@ test("flag is exact true/default-off and certificate rejects changed approved ev
   assert.equal(criticalReleaseFlagEnabled("yearEndPriorEvidence", { YEAR_END_PRIOR_EVIDENCE_ENABLED: "true" }), true);
   const source = { ...certificateSource, approvedPriorEvidence: { digest: "a".repeat(64), revision: 1, evidence } };
   assert.ok(prepare2316Certificate(source, certificateReview()).issues.includes("APPROVED_PRIOR_EVIDENCE_MISMATCH"));
+});
+
+test("year-end prior evidence enforces persisted legal employer within serializable evidence transaction (source guard)", () => {
+  const helper = readFileSync("src/lib/year-end-prior-evidence-server.ts", "utf8");
+  const route = readFileSync("src/app/api/year-end/prior-evidence/route.ts", "utf8");
+  assert.match(helper, /resolveMultiEntityContext\(\{/);
+  assert.match(helper, /userId: actor\.id, organizationId: scope\.organizationId/);
+  assert.match(helper, /if \(!entityScope\.ok\) throw new Error\("PRIOR_ENTITY_ACCESS_DENIED"\)/);
+  assert.match(helper, /assertEntityResource\(entityScope\.context, employeeScope\.legalEntityId\)/);
+  const transaction = helper.indexOf("return db.transaction(async tx => {");
+  const persistedEmployee = helper.indexOf("const employeeScope = await priorEmployeeScope(tx, scope);", transaction);
+  const accessCheck = helper.indexOf("assertEntityResource(entityScope.context, employeeScope.legalEntityId)");
+  const encryptedRead = helper.indexOf("const existing = await readPriorEvidence(tx, employeeScope);", transaction);
+  const write = helper.indexOf('if (input.action === "save")', transaction);
+  assert.ok(transaction > 0 && persistedEmployee > transaction && accessCheck > persistedEmployee
+    && encryptedRead > accessCheck && write > accessCheck,
+  "Grant selection must be checked against actual worker employer before decrypt/save/approve");
+  assert.match(helper, /isolationLevel: "serializable"/);
+  assert.match(helper, /if \(!priorEvidenceEnabled\(\)\) throw new Error\("PRIOR_DISABLED"\)/);
+  assert.match(route, /await priorIntake\(scope, user, input\)/,
+    "Existing API calls both GET and POST through the tenant-checked helper");
+  const own = decideEntityAccess({
+    role: "owner", availableEntityIds: [401, 402], grantedEntityIds: [401], requested: 401,
+  });
+  assert.equal(entityResourceAllowed(own, 401), true);
+  assert.equal(entityResourceAllowed(own, 402), false,
+    "Organization-wide owner cannot decrypt another legal employer's prior wage or government evidence");
+  assert.equal(entityResourceAllowed(own, null), false);
+  const forged = decideEntityAccess({
+    role: "owner", availableEntityIds: [401, 402], grantedEntityIds: [401], requested: 402,
+  });
+  assert.equal(forged.ok, false);
 });

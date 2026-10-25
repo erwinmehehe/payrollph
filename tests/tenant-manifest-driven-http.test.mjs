@@ -14,6 +14,31 @@ const src = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
 
+  const bir2316 = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
+    .filter(method => method.testedBy?.file === "scripts/qa/tenant-bir2316-http.mjs");
+  assert.deepEqual(bir2316.map(method => method.name).sort(), ["GET", "GET", "POST"],
+    "The three separately executed BIR 2316 methods must retain their exact source evidence");
+  assert.ok(bir2316.every(method => method.status === "COVERED" &&
+    Number.isInteger(method.testedBy?.ownPositiveLine) &&
+    Number.isInteger(method.testedBy?.foreignDenialLine)));
+  const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+    ?.methods.find(method => method.name === "POST");
+  assert.equal(closePost?.status, "COVERED",
+    "Do not lower the GAP count unless the accounting-close POST has its own evidence");
+  assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  const closeLines = readFileSync(closePost.testedBy.file, "utf8").split("\n");
+  assert.match(closeLines[closePost.testedBy.ownPositiveLine - 1] ?? "",
+    /const ownPost = expectStatus\(await request\(closeUrl, \{/);
+  assert.match(closeLines.slice(closePost.testedBy.ownPositiveLine - 1,
+    closePost.testedBy.ownPositiveLine + 3).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 200,/);
+  assert.match(closeLines[closePost.testedBy.foreignDenialLine - 1] ?? "",
+    /const foreignPost = expectStatus\(await request\("\/api\/payroll-runs\/" \+ f\.victimRun\.id \+ "\/close"/);
+  assert.match(closeLines.slice(closePost.testedBy.foreignDenialLine - 1,
+    closePost.testedBy.foreignDenialLine + 7).join("\n"),
+    /cookie, method: "POST"[\s\S]*\}\), 403,/);
+  assert.match(closeLines[closePost.testedBy.unchangedDbLine - 1] ?? "",
+    /assert\.deepEqual\(victimAfter, victimBefore/);
 test("single table-driven test reads every manifest method without claiming precovered GET as a new GAP", () => {
   assertLiveTenantCounts(assert, manifest);
   const report = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");

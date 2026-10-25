@@ -71,3 +71,5 @@ test("GET and POST are distinct review-only tenant proofs with exact source pins
 });
 
 test("synced method inventory retains live counts and base coverage", () => { assertLiveTenantCounts(assert, manifest); });
+
+test("synced method inventory retains live counts and base coverage", () => { assertLiveTenantCounts(assert, manifest); });
