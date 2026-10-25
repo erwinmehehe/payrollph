@@ -335,11 +335,25 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
     expenseBenefitMethods++;
   }
   assert.equal(expenseBenefitMethods, 6);
+  // Tenant-table credits are counted only when each cites an exact GET row of the shared table
+  // runner with all three pinned proof lines; the inventory guard re-validates every row.
+  const tableSource = readFileSync("scripts/qa/tenant-table-http.mjs", "utf8").split("\n");
+  const tableMethods = Object.entries(manifest.allApiRouteFiles).flatMap(([, route]) =>
+    route.methods.filter(m => m.testedBy?.file === "scripts/qa/tenant-table-http.mjs").map(m => [m.name + " " + route.route, m]));
+  for (const [key, m] of tableMethods) {
+    assert.equal(m.status, "COVERED", key + ": table proof only ever credits COVERED");
+    assert.ok((tableSource[m.testedBy.line - 1] ?? "").includes('{ key: "' + key + '",'), key + ": must cite its own table row");
+    assert.match(tableSource[m.testedBy.ownPositiveLine - 1] ?? "", /const owned = expectStatus\(await request\(item\.own,/);
+    assert.match(tableSource[m.testedBy.foreignDenialLine - 1] ?? "", /const foreign = expectStatus\(await request\(item\.foreign,/);
+    assert.match(tableSource[m.testedBy.unchangedDbLine - 1] ?? "", /assert\.deepEqual\(victimAfter, victimBefore,/);
+  }
   assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
-    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length - mergedProofCredits, 124,
+    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
+    tableMethods.length - mergedProofCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
-    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length + mergedProofCredits, 359,
+    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
+    tableMethods.length + mergedProofCredits, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

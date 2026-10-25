@@ -10,6 +10,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
+import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
 import {
   auditEvents, complianceActionTasks, employees, legalEntities, payrollRuns,
   statutoryRemittanceBatches, statutoryRemittancePaymentEvidence, statutoryPostingEvidenceArtifacts,
@@ -476,12 +477,11 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   const expenseBenefitMethods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
     .filter(method => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
   assert.equal(expenseBenefitMethods.length, 6, "Six independent expenses/de minimis HTTP proofs required");
-  assert.equal(gaps.length + bir2316Methods.length + expenseBenefitMethods.length + mergedProofCredits, 335,
-    "Preserve all 335 current main GAPs except three exact source-pinned 2316 GET/GET/POST proofs");
-  assert.equal(manifest.metrics.coveredAfter - bir2316Methods.length - expenseBenefitMethods.length - mergedProofCredits, 149,
-    "All 149 main credits, including separate underpayment, BIR/vault, MNY-01 and six MNY-02 methods remain intact");
+  // Totals are invariants (tallies add up; nothing proven regresses against the base), not pinned
+  // numbers that every later credit would have to edit.
+  assertLiveTenantCounts(assert, manifest);
 }
 
 // Appended to preserve existing executable proof line pins above.
 import { verifyMergedProofCredits } from "./tenant-merged-proof-credits.mjs";
-const mergedProofCredits = verifyMergedProofCredits(manifest);
+verifyMergedProofCredits(manifest);

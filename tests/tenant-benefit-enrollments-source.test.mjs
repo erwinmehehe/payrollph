@@ -55,6 +55,10 @@ test("reviewed methods cannot credit unexecuted catalogue/HMO siblings", () => {
   for (const method of ["GET", "POST", "DELETE", "PUT"]) {
     assert.equal(methods.find(row => row.name === method)?.status, method === "PUT" ? "GAP" : "COVERED");
   }
+  // GET may close only through the separate own-marker table proof, never through this candidate suite.
+  const get = methods.find(row => row.name === "GET");
+  assert.ok(get?.status === "GAP" || (get?.status === "COVERED" && ["scripts/qa/tenant-table-http.mjs", "scripts/qa/tenant-benefit-enrollments-http.mjs"].includes(get.testedBy?.file)),
+    "benefits GET cannot be credited by the unexecuted enrolment candidate");
   assert.match(suite, /inventoryCreditsAdded: 0/);
   assert.ok(!suite.includes('method: "PUT"'));
   assert.ok(!suite.includes("/api/benefits/hmo"));

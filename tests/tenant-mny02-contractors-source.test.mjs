@@ -6,6 +6,7 @@ import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-cred
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 
 const path = "scripts/qa/tenant-mny02-contractors-http.mjs";
 const suite = readFileSync(path, "utf8");
@@ -13,7 +14,7 @@ const lines = suite.split("\n");
 const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const source = readFileSync("src/app/api/contractors/payments/route.ts", "utf8");
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-const mergedProofCredits = verifyMergedProofCredits(manifest);
+verifyMergedProofCredits(manifest);
 
 const cases = [
   ["GET contractors", 138, 143, 146],
@@ -117,15 +118,7 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   const preRun = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"]?.methods.find(m => m.name === "GET");
   assert.equal(preRun?.status, "COVERED", "Merged main's pre-run GET remains independently covered");
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
-  assert.deepEqual([manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [494, 162, 10, 322]);
-  assert.deepEqual([manifest.metrics.methods,
-    manifest.metrics.coveredAfter - creditedUnderpayments.length - sixExpensesBenefits.length - groupReportCredits - bir2316Methods.length - mergedProofCredits,
-    manifest.metrics.publicByDesign,
-    manifest.metrics.gap + creditedUnderpayments.length + sixExpensesBenefits.length + groupReportCredits + bir2316Methods.length + mergedProofCredits],
-    [494, 146, 10, 338],
-    "Separate underpayment, six expenses/benefit and group-report credits while retaining main's pre-run GET");
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 322 API methods/);
+  assertLiveTenantCounts(assert, manifest);
 });
 
 test("EWT read rejects real cross-tenant FK without silently dropping it or producing a CSV", () => {

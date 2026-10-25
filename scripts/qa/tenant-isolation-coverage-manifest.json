@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-22",
-  "acceptanceStatus": "NOT ACCEPTED: 322 API methods and 18 page/action GAPs remain. Four merged #1366/#1369 method receipts are reconciled separately: benefits GET/POST/DELETE and worksite GET; worksite POST stays GAP.  Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. MNY-02 contractor/EWT six-method partial sub-batch on this PR adds direct own/foreign and forged-selector PG16/HTTP test assertions, including a fictional cross-employer FK read integrity check. Six additional methods are PROVISIONAL until exact-head CI and independent security reviewer approval: 145 COVERED / 10 PUBLIC-BY-DESIGN / 338 GAP, 19 page/action GAPs. No production data, funds, provider or statutory filing touched. Additional two provisional underpayment POST/PATCH owned-success and victim-denial PG16 HTTP proof links are preserved from draft PR #1348; no provider payouts or production approval are implied. PR #1350 additionally credits a read-only pre-calculation readiness GET (authenticated own-employer 200, real foreign 403) and updates payroll process POST to explicitly block unverified statutory packs (own HTTP 422, foreign 403, unchanged fictional run). Combined provisional source-linked inventory: 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494 API methods plus 19 page/action GAPs. This remains an authorization/source-evidence inventory, NOT a passed positive payroll calculation, release, provider payout, or statutory verification. Exact-head CI, official-agency evidence review, and independent security/financial approvals remain required. Merged main #1341 independently credits one provisional, source-pinned multi-entity group report GET with own/foreign/cross-employer-attribution denials; total now 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494. No overall tenant-isolation, statutory or money acceptance; exact-head HTTP CI and security review are still required. #1363 workspace SSR proof is provisional until exact-head CI: owned nonempty employer/worker HTML and foreign-victim 404 are enforced in the guarded page harness; current page/action GAP count is 18. Current combined source-linked ledger provisionally credits three distinct BIR 2316 HTTP methods from main and six independent legacy Spend flag-OFF expenses/de minimis methods from PR #1355: 158 COVERED / 10 PUBLIC-BY-DESIGN / 326 GAP, with 18 page/action GAPs. Exact-head CI and independent security review remain mandatory; no production or global tenant-isolation acceptance is implied.",
+  "acceptanceStatus": "NOT ACCEPTED: 304 API methods and 18 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. MNY-02 contractor/EWT six-method partial sub-batch on this PR adds direct own/foreign and forged-selector PG16/HTTP test assertions, including a fictional cross-employer FK read integrity check. Six additional methods are PROVISIONAL until exact-head CI and independent security reviewer approval: 145 COVERED / 10 PUBLIC-BY-DESIGN / 338 GAP, 19 page/action GAPs. No production data, funds, provider or statutory filing touched. Additional two provisional underpayment POST/PATCH owned-success and victim-denial PG16 HTTP proof links are preserved from draft PR #1348; no provider payouts or production approval are implied. PR #1350 additionally credits a read-only pre-calculation readiness GET (authenticated own-employer 200, real foreign 403) and updates payroll process POST to explicitly block unverified statutory packs (own HTTP 422, foreign 403, unchanged fictional run). Combined provisional source-linked inventory: 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494 API methods plus 19 page/action GAPs. This remains an authorization/source-evidence inventory, NOT a passed positive payroll calculation, release, provider payout, or statutory verification. Exact-head CI, official-agency evidence review, and independent security/financial approvals remain required. Merged main #1341 independently credits one provisional, source-pinned multi-entity group report GET with own/foreign/cross-employer-attribution denials; total now 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494. No overall tenant-isolation, statutory or money acceptance; exact-head HTTP CI and security review are still required. #1363 workspace SSR proof is provisional until exact-head CI: owned nonempty employer/worker HTML and foreign-victim 404 are enforced in the guarded page harness; current page/action GAP count is 18. Current combined source-linked ledger provisionally credits three distinct BIR 2316 HTTP methods from main and six independent legacy Spend flag-OFF expenses/de minimis methods from PR #1355: 158 COVERED / 10 PUBLIC-BY-DESIGN / 326 GAP, with 18 page/action GAPs. Exact-head CI and independent security review remain mandatory; no production or global tenant-isolation acceptance is implied. Tenant-table proof adds 19 provisional organization-selector GET credits (own-marker 200, victim denial, unchanged victim DB, two attackers): 177 COVERED / 10 PUBLIC-BY-DESIGN / 307 GAP; no global tenant-isolation acceptance. Four reviewed merged receipts are retained; benefits GET overlaps an existing main table proof, so this branch adds only three net method credits.",
   "metrics": {
     "routeFiles": 291,
     "methods": 494,
     "coveredBefore": 20,
-    "coveredAfter": 162,
+    "coveredAfter": 180,
     "publicByDesign": 10,
-    "gap": 322,
+    "gap": 304,
     "scopedPagesAndActions": 20,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -1573,9 +1573,17 @@
         {
           "name": "GET",
           "line": 33,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 55,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -2126,9 +2134,17 @@
         {
           "name": "GET",
           "line": 24,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 57,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -6078,9 +6094,17 @@
         {
           "name": "GET",
           "line": 93,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 59,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -6521,12 +6545,12 @@
           "reason": "Verified fictional signed-in owners download own exact PDF bytes (hash and disposition); both attackers are denied the real later-seeded victim-only evidence ID with HTTP 403, and a victim ID forged under an allowed own organization returns exact 404; real victim PostgreSQL snapshot unchanged.",
           "testedBy": {
             "file": "scripts/qa/tenant-manifest-driven-http.mjs",
-            "ownPositiveLine": 303,
-            "foreignDenialLine": 306,
-            "unchangedDbLine": 396,
+            "ownPositiveLine": 304,
+            "foreignDenialLine": 307,
+            "unchangedDbLine": 397,
             "scope": "Two independent attacker employers and a real victim-only PostgreSQL evidence row seeded after both attacker records; each authentic attacker succeeds on the owned populated response, is denied on the selected higher victim ID with exact status, and the victim database snapshot remains unchanged. The forged selector line points to the method-specific rejection or ignored victim identifier.",
-            "line": 36,
-            "forgedSelectorLine": 317
+            "line": 37,
+            "forgedSelectorLine": 318
           }
         }
       ],
@@ -6611,12 +6635,12 @@
           "reason": "Real employer/batch-bound nonempty payment proof list and higher-ID actual victim ID proof. Two independent attackers GET own evidence 200, other employer 403, victim batch under own employer 404 (never fabricated verified-empty), unchanged actual PostgreSQL victim records.",
           "testedBy": {
             "file": "scripts/qa/tenant-manifest-driven-http.mjs",
-            "ownPositiveLine": 303,
-            "foreignDenialLine": 306,
-            "unchangedDbLine": 396,
+            "ownPositiveLine": 304,
+            "foreignDenialLine": 307,
+            "unchangedDbLine": 397,
             "scope": "Two independent attacker employers; real PG16 employer-scoped own 200 and higher-ID victim 403/404, actual unchanged victim PostgreSQL.",
-            "line": 51,
-            "forgedSelectorLine": 324
+            "line": 52,
+            "forgedSelectorLine": 325
           }
         },
         {
@@ -6626,10 +6650,10 @@
           "reason": "MFA-verified attacker-owned synthetic PDF upload returns 201 through production-mode localhost HTTP, foreign real employer POST returns 403, real victim batch under own employer returns 404, and real victim PostgreSQL snapshot unchanged (synthetic TLS scan stub only; no malware or production certification). Parallel same-batch distinct-file replacement tested with PostgreSQL row locking and partial unique active-proof constraint.",
           "testedBy": {
             "file": "scripts/qa/tenant-manifest-driven-http.mjs",
-            "line": 357,
-            "ownPositiveLine": 357,
-            "foreignDenialLine": 363,
-            "unchangedDbLine": 396,
+            "line": 358,
+            "ownPositiveLine": 358,
+            "foreignDenialLine": 364,
+            "unchangedDbLine": 397,
             "scope": "Two independent MFA-verified synthetic owner sessions, real owned batches and victim-only batches, disposable PG16, CI-only local TLS fixture scanner, zero provider traffic"
           }
         }
@@ -6751,13 +6775,13 @@
           "reason": "Two independent authenticated employers download actual own posting-source CSV bytes (200; digest, type and attachment checked), are denied the real higher-ID victim-only posting artifact (403), ignore forged victim organization/batch selectors on own files and still deny the victim ID under a forged own organization (403), with all real victim PostgreSQL evidence and related rows unchanged.",
           "testedBy": {
             "file": "scripts/qa/tenant-manifest-driven-http.mjs",
-            "line": 121,
-            "ownPositiveLine": 303,
-            "foreignDenialLine": 306,
-            "unchangedDbLine": 396,
-            "forgedSelectorLine": 332,
-            "victimExistsLine": 256,
-            "victimIdOrderingLine": 283,
+            "line": 122,
+            "ownPositiveLine": 304,
+            "foreignDenialLine": 307,
+            "unchangedDbLine": 397,
+            "forgedSelectorLine": 333,
+            "victimExistsLine": 257,
+            "victimIdOrderingLine": 284,
             "scope": "Real HTTP against disposable PostgreSQL16 with two independent attacker employers; actual own positive first, persisted victim-exclusive higher ID and exact denial, forged selectors, and real unchanged victim DB snapshot. Reviewed source was exercised by security run 39592582663 and salary-correction run 39592582809 on merge candidate 47cf659f53b99275d1438d9944bdd29167e1b7bf. Fresh final-commit CI remains required; this is not overall acceptance."
           }
         }
@@ -13166,9 +13190,17 @@
         {
           "name": "GET",
           "line": 9,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 61,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         }
       ],
       "employerSources": {
@@ -15523,9 +15555,17 @@
         {
           "name": "GET",
           "line": 17,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 63,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -15664,9 +15704,17 @@
         {
           "name": "GET",
           "line": 26,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 64,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -19120,9 +19168,17 @@
         {
           "name": "GET",
           "line": 45,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 65,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -20538,14 +20594,14 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/variance/route.ts": {
-      "gitBlobSha": "3b2e99674cf75cbee8c53c453194369e92863301",
+      "gitBlobSha": "c11a0a144162a69f0e886e9fe1c7dfd6dfa9b54b",
       "route": "payroll-runs/[id]/variance",
       "methods": [
         {
           "name": "GET",
           "line": 57,
           "status": "COVERED",
-          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required. The 2026-10-24 follow-up strengthens the exact same GET (NO new method credit): under feature-ON, current and prior run employee roster must match the frozen run legal employer and parent tenant; missing, transferred, null or same-tenant mismatched attribution returns an uncacheable 409 before salary revisions/audit processing. Supplemental genuine signed-in disposable HTTPS/PG16 own 200, foreign real-ID 403, wrong-selected employer 403, transferred/same-tenant mismatch/legacy cross-tenant FK 409 and immutable victim snapshot: scripts/qa/payroll-variance-entity-http.mjs; exact-head CI and independent security review still required.",
           "testedBy": {
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 180,
@@ -21171,9 +21227,17 @@
         {
           "name": "GET",
           "line": 64,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 67,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -21571,9 +21635,17 @@
         {
           "name": "GET",
           "line": 50,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 69,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -21883,9 +21955,17 @@
         {
           "name": "GET",
           "line": 67,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 70,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -22051,9 +22131,17 @@
         {
           "name": "GET",
           "line": 165,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 72,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -22507,9 +22595,17 @@
         {
           "name": "GET",
           "line": 316,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 73,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -22723,9 +22819,17 @@
         {
           "name": "GET",
           "line": 30,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 75,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         }
       ],
       "employerSources": {
@@ -22853,9 +22957,17 @@
         {
           "name": "GET",
           "line": 13,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 76,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "PATCH",
@@ -26745,9 +26857,17 @@
         {
           "name": "GET",
           "line": 36,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 77,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -29583,9 +29703,17 @@
         {
           "name": "GET",
           "line": 75,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 78,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -32035,9 +32163,17 @@
         {
           "name": "GET",
           "line": 78,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 80,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",
@@ -32326,9 +32462,17 @@
         {
           "name": "GET",
           "line": 230,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 81,
+            "ownPositiveLine": 207,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 220,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); local disposable PG16 + production-mode localhost run 2026-10-24, 19 rows / 38 own-foreign pairs"
+          }
         },
         {
           "name": "POST",

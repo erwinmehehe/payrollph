@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright";
 import { verifyMultiEntityReportTenantIsolation } from "./qa/multi-entity-group-report-http.mjs";
+import { verifyPayrollVarianceEmployerIsolation } from "./qa/payroll-variance-entity-http.mjs";
 
 /**
  * Actual authenticated UI + HTTP acceptance, but ONLY against disposable
@@ -517,6 +518,13 @@ try {
     assert.equal(await beforeMobile.getByLabel("Assigned legal employer").count(), 0);
     await capture(beforeMobile, "before-scoped-hr-people");
   }, beforeMobile);
+
+  // A second, distinct real-HTTPS/PG16 tenant proof. Any failed own 200,
+  // wrong-employer 403, historical transfer 409, or victim SQL invariant
+  // must fail the existing (non-optional) synthetic browser acceptance.
+  await verifyPayrollVarianceEmployerIsolation({
+    newSyntheticContext, login, request, on, off, checks,
+  });
 
   console.log(JSON.stringify({
     result: "PASS", mode: "synthetic-postgres-only",

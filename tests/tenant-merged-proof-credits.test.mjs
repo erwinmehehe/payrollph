@@ -1,3 +1,4 @@
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -12,7 +13,7 @@ test("four exact merged method receipts reconcile without crediting untested sib
   assert.equal(verifyMergedProofCredits(manifest), 4);
   assert.deepEqual(MERGED_PROOF_SPECS.map(s => s.method + " " + s.route),
     ["GET benefits", "POST benefits", "DELETE benefits", "GET workforce/worksites"]);
-  assert.deepEqual([manifest.metrics.coveredAfter, manifest.metrics.publicByDesign, manifest.metrics.gap], [162, 10, 322]);
+  assertLiveTenantCounts(assert, manifest);
 });
 
 for (const spec of MERGED_PROOF_SPECS) {

@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 
 const proofPath = "scripts/qa/tenant-mny02-expenses-benefits-http.mjs";
 const source = readFileSync(proofPath, "utf8");
@@ -76,11 +77,9 @@ test("method-specific source links prove real own positive, foreign denial and e
         key + ": foreign denial must exercise the same mutation method");
     }
   }
-  assert.deepEqual([
-    manifest.metrics.methods, manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap,
-  ], [494, 162, 10, 322]);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 322 API methods and 18 page\/action GAPs remain\./);
+  // Live counts are invariants (tallies add up; nothing proven regresses against the base),
+  // not pinned numbers that every later batch would have to edit.
+  assertLiveTenantCounts(assert, manifest);
 });
 
 test("no provider payment or feature-ON claim is made from a flag-OFF expense test", () => {
