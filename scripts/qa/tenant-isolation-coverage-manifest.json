@@ -25593,10 +25593,10 @@
             "foreignDenialLine": 921,
             "scope": "Three disposable PostgreSQL employers / two independent employee-role sessions; merged #1283 canonical former-employer membership transfer/regression, plus own/victim and same-employer coworker PDF evidence retained in this audit",
             "currentMembershipGuardLine": 32,
-            "staleSessionOwnPositiveLine": 994,
-            "staleMembershipForeignDenialLine": 1002,
-            "staleMembershipUnchangedDbLine": 1008,
-            "staleMembershipOwnPositiveLine": 967
+            "staleSessionOwnPositiveLine": 1048,
+            "staleMembershipForeignDenialLine": 1056,
+            "staleMembershipUnchangedDbLine": 1062,
+            "staleMembershipOwnPositiveLine": 1021
           }
         }
       ],
