@@ -58,3 +58,15 @@ test("no tenant test pins live coverage numbers again", () => {
     .filter((name) => pinned.test(readFileSync("tests/" + name, "utf8")));
   assert.deepEqual(offenders, [], "use assertLiveTenantCounts() instead of pinning live counts");
 });
+
+test("no QA proof script pins live coverage totals either", () => {
+  // Runtime proof scripts run inside the isolated HTTP jobs, so a pinned total there breaks every
+  // later credit in CI (the dl02 job did exactly that with "335 GAPs").
+  const pinned = /assert\.(?:equal|deepEqual)\((?:(?!\);)[\s\S])*?(?:metrics\.|gaps\.length)(?:(?!\);)[\s\S])*?,\s*\[?\d{3}\b/;
+  assert.ok(pinned.test(`assert.equal(gaps.length + bir2316Methods.length + expenseBenefitMethods.length, 335,
+    "Preserve all 335 current main GAPs");`), "positive control: the historical dl02 pin must be detected");
+  const offenders = readdirSync("scripts/qa")
+    .filter((name) => name.endsWith(".mjs"))
+    .filter((name) => pinned.test(readFileSync("scripts/qa/" + name, "utf8")));
+  assert.deepEqual(offenders, [], "use assertLiveTenantCounts() instead of pinning live totals in proof scripts");
+});
