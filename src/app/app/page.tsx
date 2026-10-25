@@ -148,8 +148,11 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
           href={"/hcm/my-team?organizationId=" + data.selectedOrganization.id}
           className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900"
         >
-          {access?.role === "manager" ? "Assigned unit directory" : "My Team"}
+          My Team
         </Link>
+      )}
+      {canSeeMyTeam && access?.role === "manager" && (
+        <span className="self-center text-xs text-slate-600">Assigned unit directory</span>
       )}
       {canSeeManagerDirectReports && (
         <Link href={"/hcm/manager-direct-reports?organizationId=" + data.selectedOrganization.id}
@@ -159,7 +162,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       )}
       {!pilotFocusEnabled && peopleHomeEnabledForOrganization(data.selectedOrganization.id) && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
     </div>
-    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} inlineFirstPayrollEnabled={inlineFirstPayrollEnabled} pilotFocusEnabled={pilotFocusEnabled} allowPeopleFocus={allowPeopleFocus} allowHirePayrollReview={allowHirePayrollReview} reviewTeamHref={canSeeManagerDirectReports ? "/hcm/manager-direct-reports?organizationId=" + data.selectedOrganization.id : canSeeMyTeam ? "/hcm/my-team?organizationId=" + data.selectedOrganization.id : null} optionalUiCapabilities={{
+    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} inlineFirstPayrollEnabled={inlineFirstPayrollEnabled} pilotFocusEnabled={pilotFocusEnabled} allowPeopleFocus={allowPeopleFocus} allowHirePayrollReview={allowHirePayrollReview} reviewTeamHref={canSeeMyTeam ? "/hcm/my-team?organizationId=" + data.selectedOrganization.id : null} optionalUiCapabilities={{
       overpaymentPreview: criticalReleaseFlagEnabled("overpaymentPreview"),
       overpaymentInvestigation: criticalReleaseFlagEnabled("overpaymentInvestigation"),
       tenantReportBuilder: criticalReleaseFlagEnabled("tenantReportBuilder"),
