@@ -137,6 +137,9 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
     .filter((method: any) => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
   assert.equal(independentExpensesBenefits.length, 6,
     "Six separately evidenced expense and de minimis methods must retain their distinct source links");
+  // The historical base has 149 credits: three separately proven 2316 methods
+  // and two independent payout GET/PATCH methods must remain distinct in the
+  // latest synced branch. No production certification is implied.
   // The 149-method main baseline gains three separately executed 2316 methods,
   // plus #1361's *distinct* real HTTP accounting-close POST. No other GAP is waived.
   const closePost = inventory.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]

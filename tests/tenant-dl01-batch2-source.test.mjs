@@ -133,6 +133,7 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
     assert.ok(overviewHasLink(spec.route, spec.method, proof.ownPositiveLine),
       spec.route + ": client-facing inventory lacks exact method proof");
   }
+  // Phase-1 adds a separately proven pre-run GET; the group-report GET is independent. The remaining 324 method GAPs stay unaccepted.
   // Phase-1 adds a separately proven pre-run GET; the group-report GET is independent. The remaining 325 method GAPs stay unaccepted.
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find(method => method.name === "POST");
