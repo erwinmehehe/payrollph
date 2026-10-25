@@ -125,3 +125,12 @@ test("workspace UI has a gated link and stale employer/page responses cannot sur
   assert.ok(!ui.includes('method: "PATCH"'));
   assert.ok(!ui.includes("bankAccount"));
 });
+
+
+test("unit roster cannot be mislabeled as direct-report list", () => {
+  const ui = readFileSync("src/components/hcm-my-team.tsx", "utf8");
+  assert.match(ui, /not a verified direct-report list/);
+  assert.match(ui, /data\.scope\.kind === "unit"/);
+  assert.match(ui, /Assigned-unit membership does not prove a direct-report relationship/);
+  assert.match(ui, /This HR directory is not a verified supervisory hierarchy/);
+});
