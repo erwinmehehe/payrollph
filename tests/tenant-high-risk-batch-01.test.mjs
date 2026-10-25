@@ -390,7 +390,8 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
     assert.equal(m.status, "COVERED", key + ": table proof only ever credits COVERED");
     const writes = m.testedBy.file === "scripts/qa/tenant-write-table-http.mjs";
     const lines = writes ? writeTableSource : tableSource;
-    assert.ok((lines[m.testedBy.line - 1] ?? "").includes('{ key: "' + key + '",'), key + ": must cite its own table row");
+    const rowLines = readFileSync(m.testedBy.rowFile, "utf8").split("\n");
+    assert.ok((rowLines[m.testedBy.rowLine - 1] ?? "").includes('{ key: "' + key + '",'), key + ": must cite its own table row");
     assert.match(lines[m.testedBy.ownPositiveLine - 1] ?? "", writes
       ? /const owned = expectStatus\(await request\(urlFor\("own"\),/ : /const owned = expectStatus\(await request\(item\.own,/);
     assert.match(lines[m.testedBy.foreignDenialLine - 1] ?? "", writes
