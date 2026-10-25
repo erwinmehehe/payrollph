@@ -1,0 +1,383 @@
+{
+  "sourceCommit": "937b27aec2d5724ca1ae39662069156f0928824f",
+  "read": [
+    {
+      "key": "GET benefits/hmo",
+      "sha256": "a4daeb4e4123f469abd8c7eb629fa1dec1d2f39cb534aa728231c746efa34a62"
+    },
+    {
+      "key": "GET benefits",
+      "sha256": "75fba2e509d2fbbc688855618a22b7414ad575fc3089db15c2c55af35af4d648"
+    },
+    {
+      "key": "GET billing",
+      "sha256": "68c3d68bbe2307cf3a7ab361a898f5e3012d2fb17db1021298ba97e8c95d1a87"
+    },
+    {
+      "key": "GET compliance/remittance-actions",
+      "sha256": "915fbc62aca51a9506c4fa7c7eb5f54e8a523ff35d53fa766411d84f1e92b52f"
+    },
+    {
+      "key": "GET hcm/lifecycle-readiness",
+      "sha256": "cfba21bba5553625e4a780c2c6c489ca25deda85343a3b9853c6d8ba49a0f3cc"
+    },
+    {
+      "key": "GET invitations",
+      "sha256": "41b66a36322def39f191294049d991d6bc8d7f4ffe4ca8c97f1d6772aa111760"
+    },
+    {
+      "key": "GET it-operations",
+      "sha256": "0296760486cb6d63998d881b55883f633cb3d2aa593cbddc74073b2688202e84"
+    },
+    {
+      "key": "GET payroll-overpayment-preview",
+      "sha256": "acf570b349f1de62fd16e94f0b861e730224a7d2f0e5fa2e270745e5858e6c11"
+    },
+    {
+      "key": "GET payroll/overpayment-preflight",
+      "sha256": "f0bc90e78b8edc5d6f9201a23c67900c0c1477948cd5b7dbb7d8f4efefd945ce"
+    },
+    {
+      "key": "GET performance/calibration",
+      "sha256": "ce5e2b570bb41134a63e90ce24e1c6fcb5960532ef977580d012e10b7f0660c2"
+    },
+    {
+      "key": "GET performance/continuous",
+      "sha256": "e71733baf3ca8cde449c345bbbe86dffc29374851629f6b17ca20d32cd534333"
+    },
+    {
+      "key": "GET performance/development-plans",
+      "sha256": "4f004282d52bdf8d50f1aba7b5af0eecccd185e17f81394771b0006833679d0e"
+    },
+    {
+      "key": "GET performance",
+      "sha256": "5a771b0eff6e09e95ef09b5418e1452b67d95d06ae14c7a0be4115a68bf76690"
+    },
+    {
+      "key": "GET performance/talent-continuity",
+      "sha256": "a018a584a04d2ecd54f33d0494f790df51d27875421b257e81f5c4fffa38a5a2"
+    },
+    {
+      "key": "GET provisioning",
+      "sha256": "585a01c193870d92676343b0c65d3ba77a19764d5c72e176a1d8089dcba645c6"
+    },
+    {
+      "key": "GET spend",
+      "sha256": "d0b35732ec519261a33639326f4697c89f15aa7ba0f49de4d1579c5bccf40f48"
+    },
+    {
+      "key": "GET workforce-planning",
+      "sha256": "a15ff5372397b0cf2a5e24e4a7ad925c6cac2f838367f79b0f128874691bbd65"
+    },
+    {
+      "key": "GET workforce/labor-costing",
+      "sha256": "14ff1163c2b467dbb763c212379ca1d3b2d825dfbb127ae8893afe014d8cf3d4"
+    },
+    {
+      "key": "GET workforce/overtime",
+      "sha256": "ad94020d89ee8ab85c0b8bd8426eec83ca05b8d82f5c0411ef2c79b5b6ed901b"
+    },
+    {
+      "key": "GET billing/subscription",
+      "sha256": "ae6bad47e24fb6810af8fed442cb21dc45a3da8c1a56f110bd60382bc2b73f46"
+    },
+    {
+      "key": "GET biometrics/sync",
+      "sha256": "e32675ca8ee0743f20502ff4723088f49c7e8bd6f9ac6b9b0e8128fc6860ca63"
+    },
+    {
+      "key": "GET compliance/audit-chain",
+      "sha256": "02e45058e9886450eae77bb021c89b2fbea401911c8d82a3e286c84e09835de1"
+    },
+    {
+      "key": "GET compliance/labor-inspection/drills",
+      "sha256": "4b97cb6bb9d5dbfd8648bf5a75ffe3e2ebf5c06f7a0792ae4f1bd1d188cdf01b"
+    },
+    {
+      "key": "GET compliance/labor-inspection",
+      "sha256": "5381dd2a95efc9b9f883202cc638586038a6e6bf6b5dd9b6e86562ddea69419b"
+    },
+    {
+      "key": "GET compliance/policy-review",
+      "sha256": "78352dc1dfbe91575048b5048cb3886b3d793434ca576f9504c4a94758c8f426"
+    },
+    {
+      "key": "GET developer",
+      "sha256": "7583b93eb11ce5d786eb64bcad76516aa682c20b9eee2b31b56110969c4859ab"
+    },
+    {
+      "key": "GET employee-identifier-requests",
+      "sha256": "fb1e40d31afd35e6e82277e11a361a71407b0ec6166eb1f61265b55b8655ad0c"
+    },
+    {
+      "key": "GET hcm/business-processes/definitions",
+      "sha256": "9b97aec10c6cdfc42372c0dacf0a460dfe77227262503a81843badae150d9758"
+    },
+    {
+      "key": "GET hcm/engagement-surveys",
+      "sha256": "036b9f94646ffbdefce467575425a9e269b0d4590d157f801658c1cb58a1e85f"
+    },
+    {
+      "key": "GET hcm/lifecycle-policy",
+      "sha256": "babedbd2b9a35fb1a1e787130d7cd7bf205109f79f74bb29e33569d0fe7a3f2e"
+    },
+    {
+      "key": "GET integration-connectors",
+      "sha256": "ecec3db1a0604875646112b0a9564106945849119afc1d6c2745c9bb2aae2fee"
+    },
+    {
+      "key": "GET leave",
+      "sha256": "de3bec5261b787eb5d8b7a103830ac2779f3f89621e6a788c2cb0d309b7ca7ad"
+    },
+    {
+      "key": "GET migrations",
+      "sha256": "e03a21f4c51299428db75ae9b3188884c3988fd645d039620aa45b41fee3b461"
+    },
+    {
+      "key": "GET outbox",
+      "sha256": "4cd1e4147c9d02eda9445b1b1ab8661fb93bbd39b6b869c371ebb7af5e619837"
+    },
+    {
+      "key": "GET performance/competencies",
+      "sha256": "93c326e1601151eaf60208bd2e243bceedb21bfe610e6e9f472e829d964f5701"
+    },
+    {
+      "key": "GET performance/follow-through-governance",
+      "sha256": "65744762f2a918fc1b99e1eb4840678d99cced922854bdcbd04b77c03e89981b"
+    },
+    {
+      "key": "GET tenant-modules",
+      "sha256": "66697eb79ea90fff6ca9c4002feab1bc1e95a87f808e9ee63e027fe3e25f8cee"
+    },
+    {
+      "key": "GET workforce-planning/allocations",
+      "sha256": "5773ca3f67bdf37912aa11d46a36ea71e2f0e550ac5c1ad90ee276e3712bd857"
+    },
+    {
+      "key": "GET workforce-planning/position-executions",
+      "sha256": "7478053079aadffe1c9ea46c625ed8a728a1ab77c578e7f3a31797028886338f"
+    },
+    {
+      "key": "GET workforce-planning/scenarios",
+      "sha256": "75e743e0e10cacd2837fc37eb9d66c317f6655970713d50d85355f4415f70a59"
+    },
+    {
+      "key": "GET workforce/schedule-guardrails",
+      "sha256": "aaba77381e2c5328c1f17817448065fd053dbba8994d5e0298af57129530b593"
+    },
+    {
+      "key": "GET workforce/schedule-swaps",
+      "sha256": "a1ed5c6f2e61fa88eb54f6c482e7925131da9705e4f7992df0b3e0ad7541961c"
+    },
+    {
+      "key": "GET workforce/worksites",
+      "sha256": "70ec7508cc376fbf410b2b1b970311c7a04d490f3a88dbbe084be970102dfb69"
+    },
+    {
+      "key": "GET automation-studio",
+      "sha256": "218349e27707e2236ab22a3896ca44436056625af2425a3811035daa944c0b4a"
+    },
+    {
+      "key": "GET compliance/contribution-issues",
+      "sha256": "e83afa8adc9297f7892772c385c3f0871443b2d284daf850aa0f455442848d23"
+    },
+    {
+      "key": "GET hcm/people-operations-inbox",
+      "sha256": "447c081273ca2d05c815c22f3e9447c3fbf14ed8d927f59b8cb92b4b751f29be"
+    },
+    {
+      "key": "GET hcm/work-items",
+      "sha256": "b7b4710ba81f225fd2014ca623970d3cf964a75a9fa02c693d9da665e8b86040"
+    },
+    {
+      "key": "GET treasury-controls",
+      "sha256": "31a2ceca919bc6bcaf03b064c9944e2c5018ac22b0e25d5d765754b08e4afe97"
+    },
+    {
+      "key": "GET compliance/data-requests",
+      "sha256": "dbe152fb1401fd9dc89ff3a0795e71e03b2e55a81986461061092e7671e70f13"
+    },
+    {
+      "key": "GET delegations",
+      "sha256": "7d86d6105714fcc48f0ea79eb154b0813b9a308be15566c55c8bd396ca367176"
+    },
+    {
+      "key": "GET discipline",
+      "sha256": "61de0b2111bb2c3e40f1d07d0d4b98d6fc928f4350f1d6d01ccbde6ca4e843ef"
+    },
+    {
+      "key": "GET dynamic-worker-groups",
+      "sha256": "4fa93c4e5cb3b4e3e246a6eba29cd975cbcfe381284c40c0e1eec772cf738f08"
+    },
+    {
+      "key": "GET earned-wage",
+      "sha256": "62b4243afe25c764db2612bd7aaf39ef07a0b0d343634bf8718481650359971f"
+    },
+    {
+      "key": "GET hcm/capabilities",
+      "sha256": "39916d3f522c5b3aa61421e265dad5127adc38cbe1946698294a2826e0586931"
+    },
+    {
+      "key": "GET hcm/effective-changes",
+      "sha256": "5f0200bd822d6114aa2f05165a1b83fc12b932665155ee8e1b0bcaca2704a9f1"
+    },
+    {
+      "key": "GET hcm/employment-terms",
+      "sha256": "45ae40a964b39ae53d257b2d3462005e62cbb0f3c5d090bdf6c9005b2dde169f"
+    },
+    {
+      "key": "GET hcm/employment-term-decisions",
+      "sha256": "bccd1e592b22634308a99e3b6c12bdd7181424988306e4f599b3b1c427a94c94"
+    },
+    {
+      "key": "GET leave/conversion",
+      "sha256": "5d5b8ce977f407f2544f65b0ce918edcd757fd38dddd3cc00af377931cac421f"
+    },
+    {
+      "key": "GET loans",
+      "sha256": "549c7ef3136b366652c42199d74cd8ec9965f10f0d76989b4d324def6383cac7"
+    },
+    {
+      "key": "GET performance/analytics",
+      "sha256": "1d55a1971a16e2d93d2c79fd73b341b8b5a98f9c19d2eb76444cbd55ab78db19"
+    },
+    {
+      "key": "GET web-bundy",
+      "sha256": "5d5b895af2b99fd78d5649e7d59ebb690b1f5a3c24b37fcc5e56fb9914fe60bf"
+    },
+    {
+      "key": "GET recruitment",
+      "sha256": "260739a9ffe337680890601af202fdef47f440d4c3f86dac9c83c64ad2b13055"
+    },
+    {
+      "key": "GET workforce/attendance-corrections",
+      "sha256": "d687e7cfa0d2e3c95cba7d8a58f4161f29d8f80ac1e17391f72d518bf27d7b21"
+    },
+    {
+      "key": "GET workforce-planning/baselines",
+      "sha256": "509f500b59d5c3e5d4f9d7142ff5806f92c43e2ab7fbeab333737d10233cf8ed"
+    },
+    {
+      "key": "GET workforce/live-floor",
+      "sha256": "d9c9caf5e8087b190ea667f2dde9e1dc4ad2de7ded3eac5c28dfc70115ae9684"
+    },
+    {
+      "key": "GET workforce/schedules",
+      "sha256": "c1400ed23f62dbf532853a8488acbfa44258223c217e2b709aa5f8e464ef74b0"
+    },
+    {
+      "key": "GET payout-destination-changes",
+      "sha256": "d36e546abdfe2eaed9f5388f57ded5974cb82ed1678b8739559568c28368fa18"
+    },
+    {
+      "key": "GET workforce/timesheets",
+      "sha256": "07ff2472ccd991cdfa9b2cabae3f45853b3fd5bb6d0106f317d98290f896f3d4"
+    },
+    {
+      "key": "GET workforce/team-roster",
+      "sha256": "54612da07e0d36d6f1e7302e330e31d95b66cbdcf3c278227e1bfa9fdacbab5e"
+    },
+    {
+      "key": "GET workforce/coverage",
+      "sha256": "fa7ac1b6a9bc6d58d2578ca62d9f7ab65c892d872d367d0a2488fc1662b348b6"
+    },
+    {
+      "key": "GET compliance/payroll-month-close",
+      "sha256": "68558a72c28b8c80812deee1e5ae454962e3863d866f1fdaf4ef6737ca1ed191"
+    },
+    {
+      "key": "GET bir/annual-employer",
+      "sha256": "f4c969c84fd172548f39b0e2779047c4b21ca8f39e88b17424001ed1db8c80dc"
+    },
+    {
+      "key": "GET hcm/worker-profile",
+      "sha256": "e0993913ae83b7fa81419e490c1fb5904e3d9895c897451bc2b5e053615458d3"
+    },
+    {
+      "key": "GET workforce-planning/forecast",
+      "sha256": "466e7035fab9750c4373f00de7c10dc2a496b7e97d310d440ed4641dc16c40bc"
+    },
+    {
+      "key": "GET hcm/my-team",
+      "sha256": "a8b90a36be10ed2c305a2e0479299b4939da63296b4bcc4cc317a18bb42d4559"
+    },
+    {
+      "key": "GET hcm/worker-360",
+      "sha256": "2ab0afedddd819b4c931d310e8bd6cba5b6aa688a2b17eee8de463bb7edff5b9"
+    },
+    {
+      "key": "GET recruitment/privacy",
+      "sha256": "8f17b85f443d8f4c16df9f86fd95d7702a27fa50ad51bbd2a27a330873e72691"
+    },
+    {
+      "key": "GET governed-handoffs",
+      "sha256": "a84d3b13106850680b474470faa41352b8fe60fce11c9dfe64123dc27f86d54c"
+    },
+    {
+      "key": "GET multi-entity/context",
+      "sha256": "3eb0f39c04d7cb93f1759fc3802b747d6f665d595224545ca7f5698c255b649f"
+    },
+    {
+      "key": "GET multi-entity/settings",
+      "sha256": "1c06cb8f19d49705c9acecde0dc7005ebdd01c56d51cde08331b4fd7d4dd226d"
+    },
+    {
+      "key": "GET multi-entity/transfers",
+      "sha256": "fa7ad2d5446fdab2e8e1cdca15a4345fd4db00c51692b4ba4fe10e461d518d7a"
+    }
+  ],
+  "write": [
+    {
+      "key": "POST discipline",
+      "sha256": "7a027d202df5e163930e6cc84ad5f612dc9c6f2398a6e191785549bc3ba31b58"
+    },
+    {
+      "key": "PATCH delegations",
+      "sha256": "016e6337ffbbc6ef0faf581919b76e71bfde5ae0d02d38c03ac97778f71e54d9"
+    },
+    {
+      "key": "PATCH tenant-modules",
+      "sha256": "78ebe84209001a5c05867eba2018d80a6151858ce1ba2689e62df698bb6d0abd"
+    },
+    {
+      "key": "POST compliance/data-requests",
+      "sha256": "6d430000f96996cd00c37e9470554c3ea21c14ef0f1bb2eeccb0dcc0be7ff910"
+    },
+    {
+      "key": "PATCH earned-wage",
+      "sha256": "c38436a8a01d9770d322c6397e698a8ba138d4525e31ab0dab31d3f5bb13c530"
+    },
+    {
+      "key": "POST hcm/engagement-surveys",
+      "sha256": "e28c443e24180aedea444fc92e031fccbe682bc4ab60ab9e8116ef17a2d94cd2"
+    },
+    {
+      "key": "PATCH hcm/employment-terms",
+      "sha256": "45dab5bd7e8a922bda7a7e7549cec84de64e1f137d257cc5c7d3c8bd2e62cde2"
+    },
+    {
+      "key": "PATCH hcm/employment-term-decisions",
+      "sha256": "c416204f8d06e70680bf23787732b3fad5f7c16da8aa338ad19a6961f274d6cd"
+    },
+    {
+      "key": "PATCH hcm/effective-changes",
+      "sha256": "ff55a9f969d0e4b712d633eb15a5f5224fdfbb1a8ebc67bc29615dfd8bb442c3"
+    },
+    {
+      "key": "POST benefits",
+      "sha256": "9fb4c78b59c6b84a744f63f1f6a8814b55f0799b9a83910facf493b03e68f1f3"
+    },
+    {
+      "key": "DELETE benefits",
+      "sha256": "827499c7008602f2696642a6364a236807abc83d664b01d9d0991cae5c0d565c"
+    },
+    {
+      "key": "PATCH hcm/lifecycle-policy",
+      "sha256": "affb83d287bfed1ec9cb838d7c6f3b63c00983a4fc52354eebef90d12d22d1bc"
+    },
+    {
+      "key": "PATCH performance/development-plans",
+      "sha256": "41381080a47a362ba4b30295ff7caa76d1fc6b91c55fd6dc24312d468a77cca7"
+    }
+  ]
+}
