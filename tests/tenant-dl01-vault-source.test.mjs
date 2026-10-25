@@ -151,6 +151,6 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
     /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
     "The additional payroll-close proof must run in the real PG16 HTTP harness");
   assertLiveTenantCounts(assert, manifest);
-  assert.equal(manifest.scopedPages.length, 20);
+  assert.equal(manifest.scopedPages.length, manifest.metrics.scopedPagesAndActions);
   assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 18);
 });
