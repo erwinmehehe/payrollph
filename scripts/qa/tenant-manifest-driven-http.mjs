@@ -478,6 +478,33 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   const expenseBenefitMethods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods)
     .filter(method => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
   assert.equal(expenseBenefitMethods.length, 6, "Six independent expenses/de minimis HTTP proofs required");
+  // Do not weaken the historic three-tenant HTTP proof when accepting the
+  // separate two-method payout suite. Only these exact routes and method
+  // executions, with a real victim snapshot, may account for the extra credit.
+  const payoutMethods = [
+    ["src/app/api/payout-destination-changes/route.ts", "GET", 208, 216],
+    ["src/app/api/payout-destination-changes/[id]/route.ts", "PATCH", 234, 222],
+  ];
+  const payoutFile = "scripts/qa/payout-destination-entity-http.mjs";
+  const payoutSource = readFileSync(payoutFile, "utf8").split("\n");
+  for (const [path, verb, ownLine, foreignLine] of payoutMethods) {
+    const method = manifest.allApiRouteFiles[path]?.methods.find((m) => m.name === verb);
+    assert.equal(method?.status, "COVERED", path + " " + verb + ": no uncertified payout method credit");
+    assert.equal(method.testedBy?.file, payoutFile, "Each payout proof must use the real HTTPS suite");
+    assert.equal(method.testedBy?.ownPositiveLine, ownLine);
+    assert.equal(method.testedBy?.foreignDenialLine, foreignLine);
+    assert.match(payoutSource[ownLine - 1] ?? "",
+      verb === "GET" ? /const getB = ownRequests\(await request\(b, ON, ownB\)/
+        : /const positivePatchB = expectStatus\(await request\(b, ON, patch\(bRows\[0\]\.evidence\.id\)/);
+    assert.match(payoutSource[foreignLine - 1] ?? "",
+      verb === "GET" ? /await deniedAndUnchanged\(actor, ON, victimList, "GET"/
+        : /await deniedAndUnchanged\(actor, ON, patch\(aAlpha\.evidence\.id\)/);
+    assert.match(payoutSource[method.testedBy.unchangedDbLine - 1] ?? "",
+      /assert\.deepEqual\(await snapshot\(victimA\), victimBefore/);
+  }
+  assert.match(readFileSync(".github/workflows/multi-entity-browser-qa.yml", "utf8"),
+    /node scripts\/qa\/payout-destination-entity-http\.mjs/,
+    "Actual synthetic signed-in HTTPS/PG16 payout acceptance must execute in CI");
   // #1361 must add a genuinely successful POST, never reuse payroll-close GET.
   // The owning and foreign employer controls run inside disposable PG16 real HTTP.
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
