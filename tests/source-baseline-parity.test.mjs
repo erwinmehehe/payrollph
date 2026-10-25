@@ -47,5 +47,32 @@ test("duplicate source and catalog names fail before any misleading count can pa
   assert.throws(() => assertSourceBaselineParity([...source, source[0]], catalog), /DUPLICATE_OR_EMPTY_TABLE/);
   assert.throws(() => assertSourceBaselineParity(source, [...catalog, catalog[0]]), /DUPLICATE_CATALOG_COLUMN/);
   assert.throws(() => assertSourceBaselineParity([], catalog), /INVALID_INPUT/);
-  assert.throws(() => assertSourceBaselineParity(source, [{ table_name: "bad.name", column_name: "x" }]), /INVALID_CATALOG_TABLE/);
+  assert.throws(() => assertSourceBaselineParity(source, [{ table_name: "", column_name: "x" }]), /INVALID_CATALOG_TABLE/);
+  assert.throws(() => assertSourceBaselineParity(source, [{ table_name: "organizations", column_name: "" }]), /INVALID_CATALOG_COLUMN/);
+  assert.throws(() => assertSourceBaselineParity(source, [{ table_name: "organizations", column_name: "x\0y" }]), /INVALID_CATALOG_COLUMN/);
+});
+
+test("PostgreSQL quoted/mixed-case identifiers compare by exact name, never snake-case filtered", () => {
+  const columns = ["MiXeD", "worker$dollars", "holiday.date", "taux appliqué", "space name"];
+  const declared = [{ name: "Quoted.Table", columns: columns.map((name) => ({ name })) }];
+  const actual = columns.map((column_name) => ({ table_name: "Quoted.Table", column_name }));
+  const summary = assertSourceBaselineParity(declared, actual);
+  assert.equal(summary.sourceTables, 1);
+  assert.equal(summary.sourceColumns, 5);
+  assert.deepEqual(summary.unmodeledColumns, []);
+  assert.throws(
+    () => assertSourceBaselineParity(declared, actual.map((row) =>
+      row.column_name === "MiXeD" ? { ...row, column_name: "mixed" } : row
+    )),
+    /SOURCE_BASELINE_MISSING.*MiXeD/,
+    "case mismatches must fail instead of being folded or ignored"
+  );
+});
+
+test("empty or null-byte names are rejected, not silently skipped", () => {
+  const invalid = [{ name: "organizations", columns: [{ name: "" }] }];
+  assert.throws(() => assertSourceBaselineParity(invalid, catalog), /INVALID_COLUMN/);
+  assert.throws(() => assertSourceBaselineParity([
+    { name: "organizations\0suffix", columns: [{ name: "id" }] },
+  ], catalog), /INVALID_TABLE/);
 });
