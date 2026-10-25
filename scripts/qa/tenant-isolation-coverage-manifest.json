@@ -35468,10 +35468,10 @@
           "reason": "PROVISIONAL #1405. Independently signed-in manager GET on a disposable PostgreSQL 16 / localhost Next server: two real owned nonempty current primary reports, the same users denied 403 for the real third employer's populated manager-only roster (victim IDs beyond attacker-owned IDs); feature-OFF 404, owner without manager-of-record 403, custom permission-deny 403, and unchanged victim employee/payroll snapshots. Read-only, NO blanket tenant, production or release approval. Exact-head security CI and independent review required.",
           "testedBy": {
             "file": "scripts/qa/hcm-manager-direct-reports-http.mjs",
-            "line": 160,
-            "ownPositiveLine": 160,
-            "foreignDenialLine": 178,
-            "unchangedDbLine": 214,
+            "line": 170,
+            "ownPositiveLine": 170,
+            "foreignDenialLine": 188,
+            "unchangedDbLine": 224,
             "scope": "Two authenticated exact-unit managers with employer-bound worker ID links. Feature-ON three-employer allowlist in disposable Next/PG16, own GET populated 200; real third-employer GET 403; unchanged victim rows. No live data.",
             "evidence": "Provisional #1405 isolated Security HTTP Smoke verifier; exact PR-head CI run and human review required."
           }
@@ -37102,9 +37102,9 @@
       "testedBy": {
         "file": "scripts/qa/hcm-manager-direct-reports-http.mjs",
         "line": 52,
-        "ownPositiveLine": 172,
-        "foreignDenialLine": 181,
-        "unchangedDbLine": 214,
+        "ownPositiveLine": 182,
+        "foreignDenialLine": 191,
+        "unchangedDbLine": 224,
         "scope": "Feature-ON localhost SSR on separately spawned port 3002 with precise fictional three-employer allowlist, two independent manager sessions and real-owned/direct-worker records. False-positive 200/error pages excluded; victim 404 and unchanged DB.",
         "evidence": "Provisional #1405 isolated Security HTTP Smoke; pending exact PR-head execution."
       }
