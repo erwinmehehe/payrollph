@@ -4,7 +4,12 @@
  * production schema, or an applied migration.
  */
 function checkedName(name, label) {
-  if (typeof name !== "string" || !/^[a-z_][a-z0-9_]*$/.test(name)) {
+  // Identifiers here are *data*, never interpolated into SQL. PostgreSQL
+  // permits quoted identifiers (mixed case, spaces, dots, dollar signs,
+  // Unicode, etc.). The former snake_case regex rejected valid source
+  // columns before performing any parity comparison. Retain exact spelling:
+  // never normalize/case-fold a name or silently omit it.
+  if (typeof name !== "string" || name.length === 0 || name.includes("\0")) {
     throw new Error("SOURCE_BASELINE_INVALID_" + label);
   }
   return name;
