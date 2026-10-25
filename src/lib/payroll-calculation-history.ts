@@ -60,7 +60,28 @@ export function createPayrollCalculationEvidence(input: PayrollCalculationEviden
   // reconstruct the calculation and must not proliferate into history.
   const { payment: _discardPayment, ...calculationTrace } = input.trace as Record<string, unknown>;
   void _discardPayment;
-  const normalized = JSON.parse(JSON.stringify({ ...input, trace: calculationTrace })) as PayrollCalculationEvidence;
+  // Explicit evidence projection prevents an ORM row's id/recordedAt or a
+  // caller's extra runtime fields from silently altering the content hash.
+  const normalized = JSON.parse(JSON.stringify({
+    organizationId: input.organizationId,
+    legalEntityId: input.legalEntityId,
+    payrollRunId: input.payrollRunId,
+    payrollJobId: input.payrollJobId,
+    employeeId: input.employeeId,
+    revision: input.revision,
+    previousSnapshotHash: input.previousSnapshotHash,
+    periodLabel: input.periodLabel,
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    payDate: input.payDate,
+    ruleVersion: input.ruleVersion,
+    grossPay: input.grossPay,
+    deductions: input.deductions,
+    netPay: input.netPay,
+    status: input.status,
+    lineItems: input.lineItems,
+    trace: calculationTrace,
+  })) as PayrollCalculationEvidence;
   const snapshotHash = createHash("sha256").update(canonicalJson(normalized)).digest("hex");
   return { ...normalized, snapshotHash };
 }
