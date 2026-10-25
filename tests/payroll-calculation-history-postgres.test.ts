@@ -41,6 +41,11 @@ test("F-04 PG16: exact forward migration, immutability, revision chain, replay a
   try {
     await setup.query("BEGIN");
     await setup.query("DROP TABLE public.payroll_calculation_history");
+    // Source-baseline supplement already installs the isolated functions and
+    // triggers. Remove only those objects in the disposable DB so the *exact*
+    // forward 0137 SQL can be re-executed and validated from scratch.
+    await setup.query("DROP FUNCTION public.payroll_calculation_history_validate_insert()");
+    await setup.query("DROP FUNCTION public.payroll_calculation_history_reject_mutation()");
     await setup.query(migration);
     await setup.query("COMMIT");
   } catch (error) {
