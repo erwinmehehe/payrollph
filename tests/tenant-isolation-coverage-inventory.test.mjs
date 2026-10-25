@@ -187,6 +187,46 @@ test("whole API manifest inventories exactly every route, exported method, and o
     "existing uncovered methods must not be described as accepted");
 });
 
+test("manager direct-report GET and page require real two-attacker own/foreign HTTP, not unit membership inference", () => {
+  const file = "scripts/qa/hcm-manager-direct-reports-http.mjs";
+  const proofLines = readableLines(file);
+  const source = proofLines.join("\n");
+  const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+  const api = manifest.allApiRouteFiles["src/app/api/hcm/manager-direct-reports/route.ts"];
+  const page = manifest.scopedPages.find((row) => row.path ===
+    "src/app/hcm/manager-direct-reports/page.tsx");
+  assert.equal(api.route, "hcm/manager-direct-reports");
+  assert.deepEqual(api.methods.map((method) => method.name), ["GET"]);
+  assert.equal(api.methods[0].status, "COVERED");
+  assert.equal(page?.status, "COVERED");
+  assert.equal(api.methods[0].testedBy?.file, file);
+  assert.equal(page.testedBy?.file, file);
+  assert.match(proofLines[api.methods[0].testedBy.ownPositiveLine - 1],
+    /const ownApi = await requestOn\(API \+ "\?organizationId=" \+ own\.id, cookie\)/);
+  assert.match(proofLines[api.methods[0].testedBy.foreignDenialLine - 1],
+    /const foreignApi = await requestOn\(API \+ "\?organizationId=" \+ victim\.id, cookie\)/);
+  assert.match(proofLines[page.testedBy.ownPositiveLine - 1],
+    /const ownPage = await requestOn\(PAGE \+ "\?organizationId=" \+ own\.id, cookie\)/);
+  assert.match(proofLines[page.testedBy.foreignDenialLine - 1],
+    /const foreignPage = await requestOn\(PAGE \+ "\?organizationId=" \+ victim\.id, cookie\)/);
+  assert.match(source, /for \(const idx of \[1, 2\]\)/);
+  assert.match(source, /makeSession\(manager\.id, \{ privileged: true \}\)/);
+  assert.match(source, /HCM_MANAGER_TEAM_ENABLED: "true"/);
+  assert.match(source, /HCM_MANAGER_TEAM_ORG_IDS: f\.orgs\.map/);
+  assert.match(source, /directWorkers\[2\]\.id > directWorkers\[0\]\.id/);
+  assert.match(source, /assert\.equal\(data\.items\.length, 1/);
+  assert.match(source, /assert\.equal\(data\.items\[0\]\.employeeNo, ownWorker\.employeeNo\)/);
+  assert.match(source, /assert\.equal\(ownApi\.status, 200/);
+  assert.match(source, /assert\.equal\(foreignApi\.status, 403/);
+  assert.match(source, /assert\.equal\(ownPage\.status, 200/);
+  assert.match(source, /assert\.equal\(foreignPage\.status, 404/);
+  assert.match(source, /assert\.equal\(offApi\.status, 404/);
+  assert.match(source, /assert\.equal\(blocked\.status, 403/);
+  assert.match(source, /victimWorkersBefore, "Denied manager reads must not modify victim employees"/);
+  assert.match(source, /victimPayrollBefore, "Denied manager reads must not modify victim payroll"/);
+  assert.match(runner, /verifyHcmManagerDirectReports\(f, \{ makeSession \}\)/);
+});
+
 test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP without certifying provider payout", () => {
   const workflow = readFileSync(".github/workflows/draft-1302-tenant-read-proof.yml", "utf8");
   const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
