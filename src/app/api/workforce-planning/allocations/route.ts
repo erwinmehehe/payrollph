@@ -114,6 +114,7 @@ export async function GET(request: Request) {
     && roleAllowed(access.role, PEOPLE_ADMIN_ROLES as readonly string[]);
 
   return Response.json({
+    organizationId,
     access: {
       role: access.role,
       companyWide: access.companyWide,
@@ -139,7 +140,7 @@ export async function GET(request: Request) {
           && row.status === "submitted"
           && row.submittedByUserId !== user.id,
       })),
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
