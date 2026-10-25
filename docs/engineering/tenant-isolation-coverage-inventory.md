@@ -55,6 +55,8 @@ Both `GET` and `POST /api/payroll-runs/[id]/close` now validate the **persisted 
 
 ## Source-pinned counts
 
+**PR #1405 provisional direct-reports coverage:** The new read-only manager-of-record GET and its separate SSR page have independent, default-off, employer-allowlisted PostgreSQL/HTTP evidence in `scripts/qa/hcm-manager-direct-reports-http.mjs`. The live inventory increases to 292 API routes, 495 methods, 257 provisionally COVERED methods, and 21 scoped pages/actions (3 provisionally covered; 18 remaining GAPs). No historical closure queue or unresolved gap was reclassified. Exact-head CI and independent security acceptance remain required; production activation is not authorized.
+
 **Payroll variance employer-roster integrity follow-up (draft, no new credit):** The already provisionally credited `GET /api/payroll-runs/[id]/variance` must not infer that the active employee's current employer proves the historical owner of payroll entries. After authorizing the selected legal employer against the frozen run, multi-entity feature-ON responses now require **every current and comparison-run employee** to have valid, unique, tenant-consistent, matching legal-employer attribution. Transferred employees, unassigned employers and legacy cross-employer references receive an uncacheable generic 409 **before sensitive salary revisions and audit metadata are evaluated**; there is no partial payroll variance, silent omission, automatic reattribution or invented historical employer. Feature-OFF legacy projections remain unchanged. The [disposable browser/HTTPS + PG16 regression](../../scripts/qa/payroll-variance-entity-http.mjs) exercises two independently signed-in owner sessions' populated own 200, real foreign run 403, selected wrong employer 403, transfer/same-tenant other-employer/foreign-FK mismatch 409, restored 200, feature-OFF 200 and byte-for-byte unchanged fictional victim rows. This supplement does **not** create an additional COVERED API-method credit; the original prior high-risk proof is retained. Full exact-head CI and independent reviewer acceptance still required. See the separate [historical employer reconciliation hold](./payroll-variance-historical-employer-hold.md). **326 API method GAPs and 18 page/action GAPs remain NOT ACCEPTED.**
 
 **PR #1353 BIR 2316 method-specific isolation proof (draft, NOT ACCEPTED):** [disposable PG16/HTTPS QA](../../scripts/qa/tenant-bir2316-http.mjs) verifies offboarding draft GET and year-end 2316 certificate GET/POST with two independently signed-in fictional attackers, a genuine higher-ID victim separation, same-tenant legal-employer grant denials, frozen original employer after employee transfer, forged-selector denial, revocation and unchanged victim records. The three **provisional** methods are separate from the six already merged MNY-02 contractor/EWT proofs. Combined **158 COVERED / 10 PUBLIC-BY-DESIGN / 326 GAP** plus 18 page/action GAPs; exact-head CI and independent security review are mandatory. No production rollout, filing or payment acceptance is claimed.
@@ -86,13 +88,13 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 
 | Metric | Count |
 |---|---:|
-| routeFiles | 291 |
-| methods | 494 |
+| routeFiles | 292 |
+| methods | 495 |
 | coveredBefore | 20 |
-| coveredAfter | 256 |
+| coveredAfter | 257 |
 | publicByDesign | 10 |
 | gap | 228 |
-| scopedPagesAndActions | 20 |
+| scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
 
