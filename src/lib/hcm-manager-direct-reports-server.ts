@@ -20,7 +20,7 @@ export class ManagerDirectReportsQueryError extends Error {
 /**
  * Authorizes the actual user AGAIN at the loader boundary, not only in the
  * GET/page. Resolves their current employer-bound worker identity from the
- * active user_organizations membership (never by name, email or users.employeeId).
+ * active user_organizations membership (never by name, email or a global account-level employee identifier).
  * Source rows contain no sensitive payroll or HR notes.
  */
 export async function loadManagerDirectReports(input: {
