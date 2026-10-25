@@ -8,17 +8,23 @@ const stages=['Hire','Onboard','Schedule','Clock In','Approve Time','Run Payroll
 function receipt(){
   return {
     connected:{
-      sourceSha:sha,result:'PASS',scope:'synthetic-local-postgres18-only',
+      schemaVersion:1, sourceSha:sha,result:'PASS',scope:'synthetic-local-postgres18-only',
+      postgresMajor:18, physicalDeviceUat:'NOT_RUN',
+      clock:{mode:'CI_GUARDED_VIRTUAL_MANILA_MONTH_END',manilaWorkDate:'2026-10-31',
+        realWallClockAttendance:false,actualApiCapture:true},
       independentHumanUat:'NOT_RUN',realEmployerReconciliation:'NOT_RUN',
       bankOrPaymentSubmission:'PROHIBITED',officialAgencySubmission:'NOT_RUN',
-      stages:stages.map(name=>({name,status:'PASS'})),
-      employerBStages:stages.map(name=>({name,status:'PASS'})),
+      stages:stages.map(name=>({name,status:'PASS',evidence:['Verified fictional A '+name]})),
+      employerBStages:stages.map(name=>({name,status:'PASS',evidence:['Verified fictional B '+name]})),
       lineage:{organizationId:11,shadowOrganizationId:12,employeeId:14,employerBWorkerId:15,
         separateEmployerSameLocalEmployeeNo:true,sourcePunchId:21,payrollRunId:22,
-        draftHashes:Object.fromEntries(['BIR','SSS','PhilHealth','Pag-IBIG'].map(x=>[x,'a'.repeat(64)])),
+        employeeHireDate:'2026-10-31',
+        draftHashes:Object.fromEntries(['BIR','SSS','PhilHealth','Pag-IBIG']
+          .map((x,i)=>[x,(i+1).toString(16).repeat(64)])),
         employerB:{organizationId:12,employeeId:15,sourcePunchId:23,payrollRunId:24,
           periodStart:'2026-10-31',periodEnd:'2026-10-31',payDate:'2026-11-01',
-          draftHashes:Object.fromEntries(['BIR','SSS','PhilHealth','Pag-IBIG'].map(x=>[x,'b'.repeat(64)]))},
+          draftHashes:Object.fromEntries(['BIR','SSS','PhilHealth','Pag-IBIG']
+            .map((x,i)=>[x,(i+5).toString(16).repeat(64)]))},
         periodStart:'2026-10-31',periodEnd:'2026-10-31',payDate:'2026-11-01'},
       negativeControls:[
         'tenant B-only owner denied A employees','tenant A payroll officer denied B payroll',
@@ -32,7 +38,8 @@ function receipt(){
         'BIR A payroll denied B draft'
       ]
     },
-    mobile:{sourceSha:sha,result:'PASS',independentHumanUat:false,widths:[1440,375,390],checks:[
+    mobile:{sourceSha:sha,result:'PASS',mode:'synthetic Chromium, no physical device',
+      independentHumanUat:false,widths:[1440,375,390],checks:[
       ...[375,390].flatMap(width=>[
         width+'px failure/retry and owner switch A -> B -> A; disjoint tenant employee records',
         width+'px verified employee session and cross-tenant 403'
@@ -102,5 +109,53 @@ test('B cannot be a shadow, duplicate A worker, reuse A payroll or skip filing',
   assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha));
   ({connected,mobile}=receipt());
   connected.negativeControls=connected.negativeControls.filter(x=>!x.includes('B payroll maker cannot self-approve'));
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha));
+});
+
+test('incomplete stage evidence or forged date and identity cannot become a connected two-employer PASS',()=>{
+  let {connected,mobile}=receipt();
+  connected.stages[0].evidence=[];
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha),/no recorded synthetic step evidence/);
+  ({connected,mobile}=receipt());
+  connected.employerBStages[8].evidence=[''];
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha),/no recorded synthetic step evidence/);
+  ({connected,mobile}=receipt());
+  connected.lineage.employeeId=0;
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha),/lineage ID/);
+  ({connected,mobile}=receipt());
+  connected.lineage.employeeHireDate='2026-02-30';
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha),/real Manila calendar dates/);
+  ({connected,mobile}=receipt());
+  connected.lineage.payDate='2026-10-30';
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha),/date ordering/);
+});
+
+test('denial and mobile claims require exact successful control labels, not misleading substrings',()=>{
+  let {connected,mobile}=receipt();
+  connected.negativeControls[0]='NOT VERIFIED: '+connected.negativeControls[0];
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha),/Missing exact verified cross-tenant denial/);
+  ({connected,mobile}=receipt());
+  mobile.checks[0]='FAILED: '+mobile.checks[0];
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha),/Missing exact verified tenant-switch/);
+  ({connected,mobile}=receipt());
+  connected.negativeControls.push(connected.negativeControls[0]);
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha),/not be missing or repeated/);
+});
+
+test('four actual distinct draft-file digests and explicit synthetic-only labels are mandatory',()=>{
+  let {connected,mobile}=receipt();
+  connected.lineage.draftHashes.SSS=connected.lineage.draftHashes.BIR;
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha),/distinct byte hashes/);
+  ({connected,mobile}=receipt());
+  connected.lineage.employerB.draftHashes.SSS=connected.lineage.employerB.draftHashes.BIR;
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha),/distinct byte hashes/);
+  ({connected,mobile}=receipt());
+  connected.physicalDeviceUat='PASS';
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha));
+  ({connected,mobile}=receipt());
+  mobile.mode='real phone';
+  assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha));
+  ({connected,mobile}=receipt());
+  connected.postgresMajor=16;
   assert.throws(()=>buildIssue853SyntheticScope(connected,mobile,sha));
 });
