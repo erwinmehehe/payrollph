@@ -31,6 +31,6 @@ test("the repin tool only moves line numbers, never statuses, SHAs or route-sour
   assert.ok(source.includes("const text = before[baseValue - 1];"), "base text is read at the base citation, not the current one");
   assert.ok(source.includes("if (!before || !Number.isInteger(baseValue)) { newCitations += 1; continue; }"));
   // Moved citations move their overview links too, in one pass (chained moves cannot double-shift).
-  assert.ok(source.includes('anchorMoves.set(proof.file + "#L" + value, at);'));
+  assert.ok(source.includes('anchorMoves.set(file + "#L" + value, at);'));
   assert.ok(source.includes("const at = anchorMoves.get(file + \"#L\" + line);"));
 });
