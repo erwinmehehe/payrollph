@@ -78,12 +78,18 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
       const proof = method[kind];
       if (!proof || typeof proof !== "object" || typeof proof.file !== "string") continue;
       const cited = baseCitation(path, method.name, kind, proof.file);
-      const before = baseLines(proof.file);
-      const now = nowLines(proof.file);
-      if (!now) { review.push(`${method.name} ${path}: proof file ${proof.file} no longer exists`); continue; }
       for (const [field, value] of Object.entries(proof)) {
         if (!/Line$|^line$/.test(field) || !Number.isInteger(value) || ROUTE_SOURCE_FIELDS.has(field)) continue;
-        const baseValue = cited?.[field];
+        // Family rows and shared HTTP assertions have separate source files. The
+        // initial split moves the old row citation to rowFile/rowLine; `line`
+        // becomes the shared own-positive execution pin, checked by the inventory guard.
+        if (field === "line" && proof.rowFile && !cited?.rowFile) { newCitations += 1; continue; }
+        const file = field === "rowLine" ? proof.rowFile : proof.file;
+        const oldFile = field === "rowLine" ? (cited?.rowFile ?? cited?.file) : proof.file;
+        const before = oldFile ? baseLines(oldFile) : null;
+        const now = nowLines(file);
+        if (!now) { review.push(`${method.name} ${path}: evidence file ${file} no longer exists`); continue; }
+        const baseValue = field === "rowLine" ? (cited?.rowLine ?? cited?.line) : cited?.[field];
         // New proof file or new citation (a credit added in this change): nothing to compare against.
         if (!before || !Number.isInteger(baseValue)) { newCitations += 1; continue; }
         const text = before[baseValue - 1];
@@ -93,7 +99,7 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
         if (at !== undefined) {
           moved.push(`${method.name} ${path} ${field}: ${value} -> ${at}`);
           proof[field] = at;
-          anchorMoves.set(proof.file + "#L" + value, at);
+          anchorMoves.set(file + "#L" + value, at);
         } else {
           review.push(`${method.name} ${path} ${field}=${value}: cited text ${hits.length ? "now appears " + hits.length + " times" : "was edited or removed"} (${JSON.stringify(text.trim().slice(0, 90))})`);
         }
