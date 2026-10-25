@@ -65,6 +65,11 @@ test("fixture unique keys cannot collide and unexecuted partial actions cannot i
   const next = suite.match(/const NEXT_START = "([\d-]+)";/)?.[1];
   assert.ok(prior && next && next > prior);
   for (const method of manifest.allApiRouteFiles["src/app/api/workforce/worksites/route.ts"].methods) {
+    // GET may close only through the separate seeded table proof, never through this candidate suite.
+    if (method.name === "GET" && method.status === "COVERED") {
+      assert.equal(method.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+      continue;
+    }
     assert.equal(method.status, "GAP");
   }
   assert.match(suite, /inventoryCreditsAdded: 0/);

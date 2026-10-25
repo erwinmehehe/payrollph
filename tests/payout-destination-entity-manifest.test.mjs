@@ -78,3 +78,5 @@ test("flag-ON/OFF workflow must actually execute source-pinned real HTTPS/PG16 p
 });
 
 test("synced method inventory retains live counts and base coverage", () => { assertLiveTenantCounts(assert, manifest); });
+
+test("synced method inventory retains live counts and base coverage", () => { assertLiveTenantCounts(assert, manifest); });
