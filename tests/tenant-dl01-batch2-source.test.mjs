@@ -133,7 +133,7 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
     assert.ok(overviewHasLink(spec.route, spec.method, proof.ownPositiveLine),
       spec.route + ": client-facing inventory lacks exact method proof");
   }
-  // Pre-run, group-report, BIR 2316, payout and remittance-action proofs remain distinct; 229 API GAPs are NOT ACCEPTED.
+  // Remittance action, PII-01 identifier, payout, pre-run and group-report proofs stay distinct; 228 API GAPs remain NOT ACCEPTED.
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find(method => method.name === "POST");
   assert.equal(closePost?.status, "COVERED",

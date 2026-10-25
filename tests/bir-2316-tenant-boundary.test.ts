@@ -132,6 +132,9 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
       }
     }
   }
+  // Main already proves 149 methods (including the independent group-report GET); this
+  // draft adds exactly three BIR 2316 GET/GET/POST methods, while expenses/de minimis adds six more.
+  // Preserve the main baseline and every remaining GAP after syncing the branch.
   const independentExpensesBenefits = Object.values(inventory.allApiRouteFiles)
     .flatMap((route: any) => route.methods)
     .filter((method: any) => method.testedBy?.file === "scripts/qa/tenant-mny02-expenses-benefits-http.mjs");
