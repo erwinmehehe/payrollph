@@ -5,13 +5,16 @@ import { readFileSync } from "node:fs";
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const pageProbe = readFileSync("scripts/qa/tenant-scoped-page-probes.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
-test("all 20 business-ID pages have a real-HTTP two-attacker navigation probe", () => {
-  assert.equal(m.scopedPages.length, 20);
+test("all 21 business-ID pages have a real-HTTP two-attacker navigation probe", () => {
+  assert.equal(m.scopedPages.length, 21);
   const covered = m.scopedPages.filter((p) => p.status === "COVERED");
   assert.deepEqual(covered.map((p) => p.path),
-    ["src/app/app/page.tsx", "src/app/hcm/manager-decision-inbox/page.tsx"]);
+    ["src/app/app/page.tsx", "src/app/hcm/manager-decision-inbox/page.tsx",
+      "src/app/hcm/manager-direct-reports/page.tsx"]);
   assert.equal(covered[1].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
   assert.equal(covered[0].testedBy?.file, "scripts/qa/tenant-scoped-page-probes.mjs");
+  assert.equal(covered[2].testedBy?.file, "scripts/qa/hcm-manager-direct-reports-http.mjs");
+  assert.match(harness, /verifyHcmManagerDirectReports\(f, \{ makeSession \}\)/);
   assert.match(pageProbe, /expectStatus\(ownRes, 200,/);
   assert.match(pageProbe, /ownRes\.text\.includes\(f\.ownedEmployees\[idx - 1\]\.employeeNo\)/);
   assert.match(pageProbe, /expectStatus\(foreignRes, 404,/);
@@ -22,7 +25,7 @@ test("all 20 business-ID pages have a real-HTTP two-attacker navigation probe", 
   assert.match(pageProbe, /for \(const idx of \[1, 2\]\)/);
   assert.match(pageProbe, /const ownRes = await request\(pageUrl\(path, own\.id\), \{ cookie \}\)/);
   assert.match(pageProbe, /const foreignRes = await request\(pageUrl\(path, victim\.id\), \{ cookie \}\)/);
-  assert.match(pageProbe, /assert\.equal\(observations\.length, 40\)/);
+  assert.match(pageProbe, /assert\.equal\(observations\.length, 42\)/);
 });
 test("HTML recon never converts an enabled/disabled/redirect response to security certification", () => {
   assert.match(pageProbe, /notCertified: !authorizedPage200 \|\| !correctlyDenied/);
