@@ -2,20 +2,26 @@ name: Navigation runtime error sweep
 
 on:
   pull_request:
-    # Ordinary prose skips this optional integration; executable fixtures/config still run.
-    paths:
-      - '**'
-      - '!**/*.md'
-      - '!**/*.mdx'
-      - '!LICENSE*'
-      - 'src/**'
-      - 'scripts/**'
-      - 'tests/**'
-      - 'public/**'
-      - '.github/**'
     branches: [main]
+    # Run focused PR navigation acceptance only when app/navigation dependencies
+    # change; unrelated tenant-test additions must not trigger the 12-min sweep.
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'drizzle/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'next.config.*'
+      - 'scripts/nav-sweep-*'
+      - 'scripts/core-modules-synthetic-fixture.ts'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'tests/e2e/nav-sweep.spec.mjs'
+      - 'tests/nav-sweep-*.test.mjs'
+      - '.github/workflows/nav-runtime-sweep.yml'
   push:
     branches: [main]
+  schedule:
+    - cron: "47 3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -133,7 +139,8 @@ jobs:
           node -e 'const r=require("./qa-artifacts/nav-sweep/report.json"); if (!r.injectedFailure || r.failed < 1 || !r.results.some(x=>x.findings.some(f=>f.kind==="navigation" && f.detail.includes("HTTP 500 GET /app")))) process.exit(1)'
           cp qa-artifacts/nav-sweep/report.md qa-artifacts/nav-sweep/negative-proof.md
           cp qa-artifacts/nav-sweep/report.json qa-artifacts/nav-sweep/negative-proof.json
-      - name: Run navigation and runtime error sweep
+      - name: Run full navigation and runtime error sweep (main, nightly, manual)
+        if: ${{ github.event_name != 'pull_request' }}
         run: |
           node --test tests/nav-sweep-role-coverage.test.mjs tests/nav-sweep-visual-contract.test.mjs
           node scripts/nav-sweep-run-all-roles.mjs
